@@ -107,7 +107,7 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 				}
 			}()
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect(late.Transactions.Ticket)
+			lockState := e.Locks.Inspect(late.Transactions.Ticket)
 			queuedOnLate := false
 			for ref := range lockState.Journals[late.Transactions.Ticket] {
 				entry := lockState.Resources[ref]

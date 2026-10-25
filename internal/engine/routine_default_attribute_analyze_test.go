@@ -20,9 +20,9 @@ func routineAttributeAnalyzerBinder(t *testing.T, e *Engine, reader catalog.Defi
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	op.Definition = reader
-	e.mu.Lock()
-	t.Cleanup(func() { e.mu.Unlock(); done() })
-	return &analyze.Binder{Host: e.analysisHost(op), Ctx: context.Background()}
+	e.Mu.Lock()
+	t.Cleanup(func() { e.Mu.Unlock(); done() })
+	return &analyze.Binder{Host: e.AnalysisHost(op), Ctx: context.Background()}
 }
 
 func routineAttributeAnalyzerBase(typ *sqltype.Descriptor) plan.LiteralExpr {
@@ -177,7 +177,7 @@ func TestRoutineDefaultAttributeAnalyzerStaging(t *testing.T) {
 	if _, ok := read.Find(typ.Address()); ok {
 		t.Fatal("staged type leaked into base")
 	}
-	baseBinder := &analyze.Binder{Host: e.analysisHost(nil), Ctx: context.Background()}
+	baseBinder := &analyze.Binder{Host: e.AnalysisHost(nil), Ctx: context.Background()}
 	if field, err := baseBinder.SelectCompositeField(base, "note", parser.Position{}); err == nil || field != nil {
 		t.Fatal("base discovered unpublished provider", field, err)
 	}

@@ -10,7 +10,7 @@ import (
 
 func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	source := New()
-	e := source.restoreStage()
+	e := source.RestoreStage()
 	parent := partitionAttachUnitRoot(t, e, "replay_parent", 34000)
 	child := inheritanceUnitRelation(e, "replay_child", 34001, "k")
 	child.RelationKind = catalog.TableRelation
@@ -25,11 +25,11 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if err := e.beginPartitionCheckReplay(op, raw); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if operationReplayOrZero(op).partitionCheck != child || !partitionCheckReplayAllowed(op, auth, raw, child) {
+	if OperationReplayOrZero(op).PartitionCheck != child || !partitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("genuine leased physical replay rejected")
 	}
 	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err != nil {
@@ -59,17 +59,17 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	}
 	virtual := *child
 	virtual.Partition = parent.Partition
-	operationReplay(op).partitionCheck = &virtual
+	OperationReplay(op).PartitionCheck = &virtual
 	if partitionCheckReplayAllowed(op, auth, raw, &virtual) {
 		t.Fatal("virtual CHECK granted")
 	}
-	operationReplay(op).partitionCheck = nil
+	OperationReplay(op).PartitionCheck = nil
 	publicOp, publicDone := roleOperation(t, source, "postgres")
 	defer publicDone()
 	if err := source.beginPartitionCheckReplay(publicOp, raw); err == nil {
 		t.Fatal("public bootstrap forged private import")
 	}
-	operationReplay(op).partitionCheck = child
+	OperationReplay(op).PartitionCheck = child
 	done()
 	if partitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("ended lease retained capability")

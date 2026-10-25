@@ -99,7 +99,7 @@ func TestRowLockControls(t *testing.T) {
 		}
 		defer func() { _ = scope.Finish(errors.New("test cleanup")) }()
 		stmt := statement(t, "SELECT v FROM t ORDER BY v FOR SHARE")
-		if err = scope.gate(stmt); err != nil {
+		if err = scope.Gate(stmt); err != nil {
 			t.Fatal(err)
 		}
 		ctx := &deleteAdmissionContext{Context: op.Context(), engine: e}

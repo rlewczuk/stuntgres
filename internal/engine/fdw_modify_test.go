@@ -187,30 +187,30 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		s.txRef = ref
+		s.TxRef = ref
 		failure := errors.New("callback failure")
 		defer func() { _ = s.Finish(failure); op.Done() }()
 		p := &fdwUnitLifecycle{fdwUnitSingle: fdwUnitSingle{fdwUnitInsert: &fdwUnitInsert{present: true}}, tx: &fdwUnitTransaction{}}
 		p.check = func() {
-			if !e.mu.TryLock() {
+			if !e.Mu.TryLock() {
 				t.Error("engine locked")
 			} else {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
-			if !s.owner.Mu.TryLock() {
+			if !s.Owner.Mu.TryLock() {
 				t.Error("owner locked")
 			} else {
-				s.owner.Mu.Unlock()
+				s.Owner.Mu.Unlock()
 			}
 			if !sess.Mu.TryLock() {
 				t.Error("session locked")
 			} else {
 				sess.Mu.Unlock()
 			}
-			if !e.replacementMu.TryLock() {
+			if !e.ReplacementMu.TryLock() {
 				t.Error("replacement reservation held")
 			} else {
-				e.replacementMu.Unlock()
+				e.ReplacementMu.Unlock()
 			}
 		}
 		if partial {
@@ -270,7 +270,7 @@ func fdwUnitCopyVeto(t *testing.T) {
 	defer scope.Finish(failure)
 	syntax := &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unit_copy_target"}}}, From: true, Endpoint: parser.CopyStdin}
 	count, err := scope.CopyProtocol(syntax, strings.NewReader("1\n"), nil, CopyProtocolHooks{FinishInput: func() error { return failure }})
-	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || ownerHasForeign(scope.owner) {
+	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || ownerHasForeign(scope.Owner) {
 		t.Fatal("input veto admitted remote work", count, err, provider.calls, provider.begins)
 	}
 	if err := scope.Finish(err); !errors.Is(err, failure) {

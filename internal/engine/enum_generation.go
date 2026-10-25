@@ -11,8 +11,8 @@ import (
 )
 
 func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *session.Journal, stage *CatalogStage) error {
-	next := e.stageRead(stage).State()
-	for a, rebound := range stage.rowShapes {
+	next := e.StageRead(stage).State()
+	for a, rebound := range stage.RowShapes {
 		consumer, ok := stage.Get(a).(*catalog.Relation)
 		if !ok {
 			continue
@@ -49,10 +49,10 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *sess
 				}
 			}
 		}
-		if scope.owner.Isolation.Stable() {
+		if scope.Owner.Isolation.Stable() {
 			versions := shape.Snapshot
 			if !shape.HasSnapshot {
-				if root, ok := scope.owner.Roots[a]; ok {
+				if root, ok := scope.Owner.Roots[a]; ok {
 					versions = root.Versions
 					shape.HasSnapshot = true
 				}
@@ -65,13 +65,13 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *sess
 				}
 			}
 		}
-		writes, deletes := scope.columnProjectionRoots(a)
+		writes, deletes := scope.ColumnProjectionRoots(a)
 		writes, err := stored.ReownVersions(next, writes)
 		if err != nil {
 			return err
 		}
 		deletes = session.ProjectDeletions(deletes, shape.Replacement)
-		scope.stageProjectedColumnRoots(a, writes, deletes)
+		scope.StageProjectedColumnRoots(a, writes, deletes)
 		changes.Storage[a] = shape
 	}
 	return nil

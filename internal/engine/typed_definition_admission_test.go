@@ -40,20 +40,20 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			reset := make(chan error, 1)
-			original := e.catalog.Providers[ids.RelationClassID]
+			original := e.Catalog.Providers[ids.RelationClassID]
 			called := false
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				if called {
 					return
 				}
 				called = true
-				e.catalog.Providers[ids.RelationClassID] = original
+				e.Catalog.Providers[ids.RelationClassID] = original
 				go func() { reset <- e.Reset(context.Background()) }()
 				deadline := time.Now().Add(3 * time.Second)
 				for {
-					e.replacementMu.mu.Lock()
-					queued := e.replacementMu.readers == 1 && e.replacementMu.writers == 1 && !e.replacementMu.writing
-					e.replacementMu.mu.Unlock()
+					e.ReplacementMu.mu.Lock()
+					queued := e.ReplacementMu.readers == 1 && e.ReplacementMu.writers == 1 && !e.ReplacementMu.writing
+					e.ReplacementMu.mu.Unlock()
 					if queued {
 						break
 					}

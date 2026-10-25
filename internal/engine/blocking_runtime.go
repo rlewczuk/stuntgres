@@ -10,16 +10,16 @@ import (
 
 func (h *statementHost) BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
-	e := scope.engine()
+	e := scope.Engine()
 	// Validate under engine authority, then release it before manager reads.
 	// Safe-snapshot acquisition is SSI metadata and stays under Engine.mu.
-	e.mu.Lock()
+	e.Mu.Lock()
 	_, err := scope.writeAuthorizationLocked(e)
 	var elements []sqltype.Value
 	if err == nil && pid > 0 && kind == functions.SafeSnapshotBlockingInquiry {
 		elements, err = e.safeSnapshotBlockingPidsLocked(ids.SessionID(pid), result.Element())
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}

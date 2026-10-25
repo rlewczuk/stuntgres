@@ -15,13 +15,13 @@ import (
 )
 
 func (e *Engine) indexExpressionBinder(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *analyze.Binder {
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Address())
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Address())
 	columns := make([]analyze.QueryColumn, len(parent.Columns))
 	for i, c := range parent.Columns {
 		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
 	}
 	namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: parent.Name(), Original: parent.Name(), Schema: auth.Catalog.Get(parent.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: parent.Columns}
-	binder := newExpressionBinder(op.Context(), e, input, op, nil)
+	binder := NewExpressionBinder(op.Context(), e, input, op, nil)
 	binder.Consumer.IndexConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
 	binder.Query.Namespace = &namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: parent}}
@@ -56,7 +56,7 @@ func (e *Engine) bindIndexExpression(op *session.Operation, input sqltype.InputE
 		return nil, "", err
 	}
 	if exec.PlannedVolatility(execution) != expr.Immutable {
-		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
+		return nil, "", SQLError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
 	if _, err = (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: parent, Dependencies: &key.Dependencies}).SQL(op.Context(), auth.Catalog, definition); err != nil {

@@ -47,23 +47,23 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 		}
 		return statements[0].(*parser.CreateTable).Elements[0].Check
 	}
-	if err := table.BindChecks(alterHost{ddlHost{e: e, op: scope.op}, scope}, auth, old, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, scope.input, true, nil); err != nil {
+	if err := table.BindChecks(alterHost{DDLHost{E: e, Op: scope.Op}, scope}, auth, old, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, scope.Input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	old.Constraints.Check[0].Ordinal = 7
 	next := *old
 	next.Constraints.Check = slices.Clone(old.Constraints.Check)
 	checks := []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT z_first CHECK(a>1))"), raw("CREATE TABLE t(CONSTRAINT a_second CHECK(a<9))")}
-	if err := table.BindChecks(alterHost{ddlHost{e: e, op: scope.op}, scope}, auth, &next, checks, scope.input, true, nil); err != nil {
+	if err := table.BindChecks(alterHost{DDLHost{E: e, Op: scope.Op}, scope}, auth, &next, checks, scope.Input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	ordered := table.OrderedChecks(&next)
 	if len(ordered) != 3 || ordered[0].Ordinal != 7 || ordered[1].Ordinal != 8 || ordered[2].Ordinal != 9 || ordered[1].Name != "z_first" || ordered[2].Name != "a_second" || next.Constraints.Check[0].Name != "a_second" || len(old.Constraints.Check) != 1 || old.Constraints.Check[0].Name != "original" {
 		t.Fatal("CHECK ordering/source invariant", ordered, next.Constraints.Check, old.Constraints.Check)
 	}
-	e.mu.Lock()
-	err := table.AssignDefinitionOIDs(ddlHost{e: e}, &next)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := table.AssignDefinitionOIDs(DDLHost{E: e}, &next)
+	e.Mu.Unlock()
 	if err != nil || old.Constraints.Check[0].OID != 0 || next.Constraints.Check[0].OID == 0 {
 		t.Fatal("OID mutation reached source", err)
 	}
@@ -108,13 +108,13 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 
 func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	source, scope, auth, old := alterAddUnitScope(t)
-	next, _, err := source.addColumnCandidate(scope, scope.op, auth, old, alterAddUnitAction(t, "ALTER TABLE t ADD b INT DEFAULT 7"), nil)
+	next, _, err := source.addColumnCandidate(scope, scope.Op, auth, old, alterAddUnitAction(t, "ALTER TABLE t ADD b INT DEFAULT 7"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	source.mu.Lock()
-	err = table.AssignDefinitionOIDs(ddlHost{e: source}, next)
-	source.mu.Unlock()
+	source.Mu.Lock()
+	err = table.AssignDefinitionOIDs(DDLHost{E: source}, next)
+	source.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil || integer != 7 {
 		t.Fatal("imported default changed", integer, err)
 	}
-	if err := destination.catalog.Providers[ids.RelationClassID].Validate(view, imported); err != nil {
+	if err := destination.Catalog.Providers[ids.RelationClassID].Validate(view, imported); err != nil {
 		t.Fatal("invalid imported definition/provider manifest", err)
 	}
 }

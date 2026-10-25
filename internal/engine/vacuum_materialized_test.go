@@ -37,7 +37,7 @@ func vacuumMaterializedStatistics(t *testing.T) {
 					sessionSQL(t, s, refresh)
 				}
 				if retained {
-					if e.storage.Relations[ref.Address] != old || old.Maintenance != before {
+					if e.Storage.Relations[ref.Address] != old || old.Maintenance != before {
 						t.Fatal("private refresh changed published maintenance")
 					}
 					if err := message.end(nil); err != nil {
@@ -80,7 +80,7 @@ func vacuumMaterializedStatistics(t *testing.T) {
 				if err := rollback.end(discardErr); err != discardErr {
 					t.Fatal("message discard lost actual error", err, discardErr)
 				}
-				if e.storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
+				if e.Storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
 					t.Fatal("rolled-back refresh changed published maintenance")
 				}
 				sessionSQL(t, s, "VACUUM mv_stats")
@@ -137,14 +137,14 @@ func vacuumMaterializedPreflight(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.gate(statement(t, "REFRESH MATERIALIZED VIEW mv_pending")); err != nil {
+			if err := scope.Gate(statement(t, "REFRESH MATERIALIZED VIEW mv_pending")); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
 			d := stage.Base.MustRelation(ref.Address)
-			if err := e.stageMaterializedRows(ctx, stage, d, old, refreshUnitRows(t, d, 3), true, scope.txRef); err != nil {
+			if err := e.stageMaterializedRows(ctx, stage, d, old, refreshUnitRows(t, d, 3), true, scope.TxRef); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
@@ -161,7 +161,7 @@ func vacuumMaterializedPreflight(t *testing.T) {
 			}
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if canceled {
-				if !errors.Is(err, context.Canceled) || e.storage.Relations[ref.Address] != old || old.Maintenance != latest || !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends {
+				if !errors.Is(err, context.Canceled) || e.Storage.Relations[ref.Address] != old || old.Maintenance != latest || !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends {
 					scope.Finish(err)
 					t.Fatal("failed preflight changed published facts", err)
 				}
@@ -170,8 +170,8 @@ func vacuumMaterializedPreflight(t *testing.T) {
 					scope.Finish(err)
 					t.Fatal(err)
 				}
-				scope.completed = true
-				fresh := e.storage.Relations[ref.Address]
+				scope.Completed = true
+				fresh := e.Storage.Relations[ref.Address]
 				if fresh == old || fresh.Maintenance.VacuumCount != 2 || fresh.Maintenance.LastVacuum != latest.LastVacuum || fresh.Maintenance.Inserts != latest.Inserts+3 {
 					scope.Finish(nil)
 					t.Fatal("prepared facts overwrote final predecessor", latest, fresh.Maintenance)
@@ -194,7 +194,7 @@ func vacuumMaterializedExplicitBoundary(t *testing.T) {
 				sessionSQL(t, s, q)
 			}
 			ref, store := vacuumStore(t, e, "explicit_mv")
-			root, ends, generation, facts, base := store.Versions, store.Ends, store.Generation, store.Maintenance, e.catalog.State
+			root, ends, generation, facts, base := store.Versions, store.Ends, store.Generation, store.Maintenance, e.Catalog.State
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			if _, err := m.step(statement(t, "BEGIN")); err != nil {
@@ -215,11 +215,11 @@ func vacuumMaterializedExplicitBoundary(t *testing.T) {
 			if shape.Original != store || shape.Replacement == nil || shape.Replacement == store || !storage.SameVersionRoot(shape.Root, root) || shape.Ends != ends || shape.Generation != generation {
 				t.Fatal("explicit replacement lost committed predecessor", shape)
 			}
-			if e.catalog.State != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
+			if e.Catalog.State != base || e.Storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
 				t.Fatal("private explicit refresh changed published roots/facts")
 			}
 			sessionSQL(t, s, "ROLLBACK")
-			if e.catalog.State != base || e.storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
+			if e.Catalog.State != base || e.Storage.Relations[ref.Address] != store || !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Generation != generation || store.Maintenance != facts {
 				t.Fatal("rolled-back explicit refresh changed published roots/facts")
 			}
 			lockEmpty(t, e)
@@ -227,7 +227,7 @@ func vacuumMaterializedExplicitBoundary(t *testing.T) {
 			sessionSQL(t, s, q)
 			private := s.Transactions.Catalog.Storage[ref.Address].Replacement
 			sessionSQL(t, s, "COMMIT")
-			if e.storage.Relations[ref.Address] != private || private == store || len(private.Versions) != 2 || private.Maintenance.VacuumCount != facts.VacuumCount || private.Maintenance.LastVacuum != facts.LastVacuum {
+			if e.Storage.Relations[ref.Address] != private || private == store || len(private.Versions) != 2 || private.Maintenance.VacuumCount != facts.VacuumCount || private.Maintenance.LastVacuum != facts.LastVacuum {
 				t.Fatal("explicit commit lost replacement or cumulative maintenance")
 			}
 			maintenance := private.Maintenance

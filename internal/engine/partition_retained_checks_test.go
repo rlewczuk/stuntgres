@@ -52,12 +52,12 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	dead := storage.RowVersion{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(99), integer(99)}}
 	live := storage.RowVersion{Row: 2, Version: 2, Born: 3, Values: oldValues}
 	store := &storage.Relation{Versions: []storage.RowVersion{dead, live}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}}
-	e.catalog.PublishLocked(view.State())
-	e.visibility.SetCommitSeqLocked(3)
-	e.mu.Lock()
-	e.storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{leaf.Address(): store})
-	e.mu.Unlock()
-	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.storage.Relations, nil, 3)
+	e.Catalog.PublishLocked(view.State())
+	e.Visibility.SetCommitSeqLocked(3)
+	e.Mu.Lock()
+	e.Storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{leaf.Address(): store})
+	e.Mu.Unlock()
+	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.Storage.Relations, nil, 3)
 	if err != nil {
 		t.Fatal(err)
 	}

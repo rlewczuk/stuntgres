@@ -17,7 +17,7 @@ func vacuumTruncateStatistics(t *testing.T) {
 			}
 			sessionSQL(t, s, "TRUNCATE truncate_stats")
 			if !explicit {
-				empty := e.storage.Relations[ref.Address]
+				empty := e.Storage.Relations[ref.Address]
 				m := empty.Maintenance
 				if len(empty.Versions) != 0 || m.Live != 0 || m.Dead != 0 || m.InsertsSince != 0 || m.Scanned || m.FrozenXID < 3 || m.VacuumCount != before.VacuumCount || m.LastVacuum != before.LastVacuum {
 					t.Fatal("empty truncate did not reset actual current facts", m)
@@ -25,7 +25,7 @@ func vacuumTruncateStatistics(t *testing.T) {
 			}
 			sessionSQL(t, s, "INSERT INTO truncate_stats VALUES(9)")
 			if explicit {
-				if e.storage.Relations[ref.Address] != old || old.Maintenance != before {
+				if e.Storage.Relations[ref.Address] != old || old.Maintenance != before {
 					t.Fatal("private truncate changed published maintenance")
 				}
 				sessionSQL(t, s, "COMMIT")
@@ -59,14 +59,14 @@ func vacuumTruncateStatistics(t *testing.T) {
 			transactionBegin(t, s)
 			sessionSQL(t, s, "TRUNCATE truncate_stats")
 			sessionSQL(t, s, "ROLLBACK")
-			if e.storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
+			if e.Storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
 				t.Fatal("rolled-back truncate changed published maintenance")
 			}
 			transactionBegin(t, s)
 			for _, q := range []string{"SAVEPOINT boundary", "TRUNCATE truncate_stats", "ROLLBACK TO boundary", "COMMIT"} {
 				sessionSQL(t, s, q)
 			}
-			if e.storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
+			if e.Storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
 				t.Fatal("rollback-to truncate changed published maintenance")
 			}
 			sessionSQL(t, s, "VACUUM truncate_stats")

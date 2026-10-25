@@ -30,9 +30,9 @@ func tablespaceInfoUnitScope(t *testing.T, e *Engine) *StatementScope {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { scope.Finish(context.Canceled) })
-	e.mu.Lock()
-	err = e.captureCommentSnapshotLocked(scope)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.CaptureCommentSnapshotLocked(scope)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,15 +135,15 @@ func TestTablespaceInfoProtocol(t *testing.T) {
 func TestTablespaceInfoAuthority(t *testing.T) {
 	e := New()
 	scope := tablespaceInfoUnitScope(t, e)
-	host := hostOf(scope)
+	host := HostOf(scope)
 	oidType, _ := e.CatalogRead().LookupType(sqltype.Oid)
 	textType, _ := e.CatalogRead().LookupType(sqltype.Text)
-	view := scope.inquiry.commentCatalog
+	view := scope.Inquiry.CommentCatalog
 	witness, ok := view.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 	if !ok || witness.RelationKind != catalog.CatalogRelation || witness.VirtualView || pgcatalog.ClassKind(view, witness) != "r" {
 		t.Fatal("missing real pg_class logical storage witness")
 	}
-	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
+	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
 	value, present, err := host.TablespaceDatabase(uint32(catalog.DefaultTablespaceOID), oidType)
 	got, conversion := value.OID()
 	db, ok := view.Database(catalog.CurrentDatabaseAddress)
@@ -160,11 +160,11 @@ func TestTablespaceInfoAuthority(t *testing.T) {
 	if _, err := host.TablespaceLocation(^uint32(0), textType); err == nil {
 		t.Fatal("physical namespace fabricated")
 	}
-	if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.catalog.State.Epoch() != view.Epoch() {
+	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Catalog.State.Epoch() != view.Epoch() {
 		t.Fatal("inquiry changed catalog/allocator")
 	}
 	for _, bad := range []catalog.Read{{}, New().CatalogRead(), view.WithState(catalog.NewState(view.Epoch()))} {
-		scope.inquiry.commentCatalog = bad
+		scope.Inquiry.CommentCatalog = bad
 		if _, err := host.TablespaceLocation(1663, textType); err == nil {
 			t.Fatal("invalid retained tablespace authority accepted")
 		}
@@ -172,14 +172,14 @@ func TestTablespaceInfoAuthority(t *testing.T) {
 			t.Fatal("invalid retained database authority accepted")
 		}
 	}
-	scope.inquiry.commentCatalog = view
+	scope.Inquiry.CommentCatalog = view
 	missingDatabase := catalog.CloneState(view.State())
 	missingDatabase.RemoveDescriptor(catalog.CurrentDatabaseAddress)
-	scope.inquiry.commentCatalog = view.WithState(missingDatabase)
+	scope.Inquiry.CommentCatalog = view.WithState(missingDatabase)
 	if _, _, err := host.TablespaceDatabase(1663, oidType); err == nil {
 		t.Fatal("missing attachment silently treated as empty")
 	}
-	scope.inquiry.commentCatalog = view
+	scope.Inquiry.CommentCatalog = view
 }
 
 type tablespaceInfoCountingArg struct {
@@ -195,7 +195,7 @@ func (n tablespaceInfoCountingArg) Eval(expr.Context) (sqltype.Value, error) {
 func TestTablespaceInfoCursor(t *testing.T) {
 	e := New()
 	scope := tablespaceInfoUnitScope(t, e)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}}
 	oidType, _ := e.CatalogRead().LookupType(sqltype.Oid)
 	textType, _ := e.CatalogRead().LookupType(sqltype.Text)
 	value, err := sqltype.OIDValue(oidType, 1663)

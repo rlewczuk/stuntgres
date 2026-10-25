@@ -14,16 +14,16 @@ import (
 )
 
 func (e *Engine) executeSQLRoutineDDL(scope *StatementScope, s parser.Statement, count int) (Result, error) {
-	result, err := e.executeSchema(scope, scope.op, s, count, scope.input)
+	result, err := e.executeSchema(scope, scope.Op, s, count, scope.Input)
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return result, err
 }
 
 // CREATE and Restore inspect the complete body without opening any producer.
 // Runtime text binding uses only the reached command, never this validator.
-func (e *Engine) bindSQLRoutineLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (last analyze.Binding, resultPlan sqltype.CoercionPlan, err error) {
+func (e *Engine) BindSQLRoutineLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (last analyze.Binding, resultPlan sqltype.CoercionPlan, err error) {
 	if d.SQLBody != nil {
 		if err := d.SQLBody.ValidateDefinition(d); err != nil {
 			return last, resultPlan, err
@@ -37,7 +37,7 @@ func (e *Engine) bindSQLRoutineLocked(op *session.Operation, auth AuthorizationV
 	for i, statement := range d.SQL.Statements {
 		if !sqlRoutineDataCommand(statement) {
 			if d.SQL.Standard {
-				return last, resultPlan, sqlError("0A000", routineCommandTag(statement)+" is not yet supported in unquoted SQL function body")
+				return last, resultPlan, SQLError("0A000", routineCommandTag(statement)+" is not yet supported in unquoted SQL function body")
 			}
 			// Transaction statements are syntactically valid in quoted bodies;
 			// PostgreSQL rejects them only when reached at execution.
@@ -56,12 +56,12 @@ func (e *Engine) bindSQLRoutineLocked(op *session.Operation, auth AuthorizationV
 			}
 			var required ids.ObjectRef
 			if len(target.Parts) != 0 {
-				required, err = e.resolveReference(auth, target)
+				required, err = e.ResolveReference(auth, target)
 				if err != nil {
 					return last, resultPlan, err
 				}
 			}
-			last, err = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), statement, authorityOf(auth), required, input, analyze.Expected{}, nil, d.SQL, d.Name(), sqltype.CollationRef{})
+			last, err = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), statement, authorityOf(auth), required, input, analyze.Expected{}, nil, d.SQL, d.Name(), sqltype.CollationRef{})
 			if err != nil {
 				if d.SQL.Standard {
 					return last, resultPlan, err

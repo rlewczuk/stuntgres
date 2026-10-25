@@ -23,9 +23,9 @@ func TestRoutineDropReplayClassification(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestRoutineDropReplayClassification(t *testing.T) {
 		}
 		d := &catalog.Procedure{ObjectName: "rd_unit_replay", SQL: definition, Result: 23}
 		before := auth.Catalog.State()
-		binding, _, err := e.bindSQLRoutineLocked(op, auth, d, input, nil)
+		binding, _, err := e.BindSQLRoutineLocked(op, auth, d, input, nil)
 		var diagnostic *sqlstate.Error
 		if tc.code == "" {
 			if err != nil {

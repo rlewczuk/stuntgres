@@ -11,8 +11,8 @@ import (
 
 func (h *statementHost) OpenExtensionPaths(c *exec.Context, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error) {
 	scope := h.scope()
-	if scope.inquiry.commentCatalog.State() == nil {
+	if scope.Inquiry.CommentCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")
 	}
-	return extension.UpdatePathRows(c.Context, scope.engine().catalog.Extensions, name, n.Usage.Type)
+	return extension.UpdatePathRows(c.Context, scope.Engine().Catalog.Extensions, name, n.Usage.Type)
 }

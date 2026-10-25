@@ -22,8 +22,8 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	ctx := context.Background()
 	capture := view.Data().Catalog
 	rows := view.Data().Committed[f.parent.Address()]
-	oldRoot := f.e.storage.IndexRoots[f.index.Address()]
-	ref := f.e.catalog.Domain.Ref(capture.Epoch(), f.index.Address())
+	oldRoot := f.e.Storage.IndexRoots[f.index.Address()]
+	ref := f.e.Catalog.Domain.Ref(capture.Epoch(), f.index.Address())
 	retained, _, err := index.ProjectIndexMetadata(ctx, capture, ref)
 	if err != nil {
 		t.Fatal(err)
@@ -62,9 +62,9 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.mu.Lock()
+	f.e.Mu.Lock()
 	predicate, err := f.e.bindIndexPredicate(&session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
-	f.e.mu.Unlock()
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	idx.SQLIndex = &definition
 	next := catalog.CloneState(capture.State())
 	next.SetDescriptor(idx.Address(), &idx)
-	candidate := f.e.catalog.Read(next)
+	candidate := f.e.Catalog.Read(next)
 	if err := index.ValidateIndexDefinition(candidate, &idx); err != nil {
 		t.Fatal(err)
 	}
@@ -83,10 +83,10 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.mu.Lock()
-	f.e.catalog.PublishLocked(next)
-	f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	f.e.Catalog.PublishLocked(next)
+	f.e.Storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
+	f.e.Mu.Unlock()
 	current, _, err := index.ProjectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {
 		t.Fatal(err)
@@ -110,9 +110,9 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.mu.Lock()
+	f.e.Mu.Lock()
 	predicate, err := f.e.bindIndexPredicate(&session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
-	f.e.mu.Unlock()
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,11 +124,11 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	idx.SQLIndex = &definition
 	next := catalog.CloneState(capture.State())
 	next.SetDescriptor(idx.Address(), &idx)
-	candidate := f.e.catalog.Read(next)
+	candidate := f.e.Catalog.Read(next)
 	if err := index.ValidateIndexDefinition(candidate, &idx); err != nil {
 		t.Fatal(err)
 	}
-	metadata, _, err := index.ProjectIndexMetadata(ctx, candidate, f.e.catalog.Domain.Ref(candidate.Epoch(), idx.Address()))
+	metadata, _, err := index.ProjectIndexMetadata(ctx, candidate, f.e.Catalog.Domain.Ref(candidate.Epoch(), idx.Address()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 			attributes = append(attributes, dependency)
 		}
 	}
-	wantRef := f.e.catalog.Domain.Ref(candidate.Epoch(), f.parent.Address())
+	wantRef := f.e.Catalog.Domain.Ref(candidate.Epoch(), f.parent.Address())
 	wantRef.Address.SubID = 20
 	if !reflect.DeepEqual(attributes, []ids.ObjectRef{wantRef}) {
 		t.Fatalf("original predicate relation dependencies=%v want attribute reference=%v", attributes, wantRef)

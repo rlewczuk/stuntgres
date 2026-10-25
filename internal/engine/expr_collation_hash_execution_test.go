@@ -182,9 +182,9 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			sessionSQL(t, owner, q)
 		}
 		bound, scope := exprCollationStoredBinding(t, e, owner, `SELECT l.id+r.id AS total FROM expr_hash_source_v l JOIN expr_hash_source_v r ON l.id<>r.id WHERE l.hit AND r.hit`)
-		e.mu.Lock()
-		source, err := e.captureQuerySourcesLocked(scope, bound.QuerySources, false)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		source, err := e.CaptureQuerySourcesLocked(scope, bound.QuerySources, false)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +195,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		if len(source.Sources) != 2 || source.Sources[0].NestedInputs == nil || source.Sources[1].NestedInputs == nil || source.Sources[0].NestedInputs == source.Sources[1].NestedInputs {
 			t.Fatal("real view aliases did not capture distinct source occurrences")
 		}
-		state := exec.State{Source: source, Input: scope.input, Output: scope.output}
+		state := exec.State{Source: source, Input: scope.Input, Output: scope.Output}
 		defer state.ReleaseMemberships()
 		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, bound.Query.Root.(*plan.ProjectNode))
 		if err != nil {

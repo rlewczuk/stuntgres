@@ -23,11 +23,11 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
-	roles := cloneRoleFixture(e.roles.Published)
-	actor := e.roles.Domain.Principal(50000)
+	roles := cloneRoleFixture(e.RoleStore.Published)
+	actor := e.RoleStore.Domain.Principal(50000)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: actor, Name: "partition_db_actor", Login: true, Inherit: true, ConnectionLimit: -1})
 
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	root, leaf := roleTableRef(t, e, "root"), roleTableRef(t, e, "leaf")
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	dbOwner := roles.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
@@ -43,7 +43,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	}
 	ownershipUnitPublish(t, e, setup)
 	e.DiscardCatalogStage(setup)
-	committed := e.catalog.State.Get(catalog.CurrentDatabaseAddress)
+	committed := e.Catalog.State.Get(catalog.CurrentDatabaseAddress)
 	var changes *session.Journal
 	if private {
 		// Honest predecessor plus a different selected private descriptor. This
@@ -78,7 +78,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if private {
 					session.Transactions.Catalog = changes
 				}
-				auth, err := operationAuthorization(message.op)
+				auth, err := OperationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -97,19 +97,19 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if err := auth.Check(access.Requirement{Object: root, OwnerOnly: true}); err != nil {
 					t.Fatal("selected DB owner did not authorize actual partition", err)
 				}
-				oldRoles, sessionRevision, epoch := e.roles.Published, session.Authorization.Revision, e.catalog.State.Epoch()
+				oldRoles, sessionRevision, epoch := e.RoleStore.Published, session.Authorization.Revision, e.Catalog.State.Epoch()
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
-				rows := append([]storage.RowVersion(nil), e.storage.Relations[leaf].Versions...)
+				rows := append([]storage.RowVersion(nil), e.Storage.Relations[leaf].Versions...)
 				for i := range rows {
 					rows[i].Values = append([]sqltype.Value(nil), rows[i].Values...)
 				}
-				if len(rows) != 1 || len(table.Constraints.Unique) != 1 || len(e.catalog.State.MustRelation(leaf).Constraints.Unique) != 2 {
+				if len(rows) != 1 || len(table.Constraints.Unique) != 1 || len(e.Catalog.State.MustRelation(leaf).Constraints.Unique) != 2 {
 					t.Fatal("fixture lacks actual rows or recursive/local keys")
 				}
 				rootKey := table.Constraints.Unique[0]
 				selected := map[ids.ObjectAddress]bool{rootKey.Index: true}
-				for _, key := range e.catalog.State.MustRelation(leaf).Constraints.Unique {
+				for _, key := range e.Catalog.State.MustRelation(leaf).Constraints.Unique {
 					if key.Parent == rootKey.OID {
 						selected[key.Index] = true
 					}
@@ -119,7 +119,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				}
 				replaceDatabase := func() {
 					stage := e.BeginCatalogStage(e.CatalogRead())
-					database := *e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
+					database := *e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 					if private {
 						database.Owner = actor.Ref
 					} else {
@@ -131,11 +131,11 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					if e.roles.Published != oldRoles || session.Authorization.Revision != sessionRevision || e.catalog.State.Epoch() != epoch {
+					if e.RoleStore.Published != oldRoles || session.Authorization.Revision != sessionRevision || e.Catalog.State.Epoch() != epoch {
 						t.Fatal("DB-only replacement changed unrelated authority")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
-						if address != catalog.CurrentDatabaseAddress && e.catalog.State.Get(address) != descriptor {
+						if address != catalog.CurrentDatabaseAddress && e.Catalog.State.Get(address) != descriptor {
 							t.Fatal("DB-only replacement changed target or associated identities")
 						}
 					}
@@ -156,7 +156,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if executeErr != nil {
 						t.Fatal("actual drop candidate could not be staged", executeErr)
 					}
-					candidate := message.scope.catalog
+					candidate := message.scope.Catalog
 					if candidate == nil || len(candidate.Descriptors[root.Address].(*catalog.Relation).Constraints.Unique) != 0 || len(candidate.Descriptors[leaf].(*catalog.Relation).Constraints.Unique) != 1 {
 						t.Fatal("actual handler did not stage recursive key/index deletion")
 					}
@@ -177,7 +177,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					if err != nil {
 						t.Fatal("unchanged committed predecessor rejected selected authority", err)
 					}
-					if len(e.catalog.State.MustRelation(root.Address).Constraints.Unique) != 0 || len(e.catalog.State.MustRelation(leaf).Constraints.Unique) != 1 || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) {
+					if len(e.Catalog.State.MustRelation(root.Address).Constraints.Unique) != 0 || len(e.Catalog.State.MustRelation(leaf).Constraints.Unique) != 1 || !reflect.DeepEqual(e.Storage.Relations[leaf].Versions, rows) {
 						t.Fatal("healthy drop changed rows or retained selected keys")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {
@@ -186,10 +186,10 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 							continue
 						}
 						if selected[address] {
-							if e.catalog.State.Get(address) != nil {
+							if e.Catalog.State.Get(address) != nil {
 								t.Fatal("healthy drop retained actual selected backing index")
 							}
-						} else if e.catalog.State.Get(address) != descriptor {
+						} else if e.Catalog.State.Get(address) != descriptor {
 							t.Fatal("healthy drop changed independent index identity")
 						}
 					}
@@ -200,7 +200,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					t.Fatal("missing partition constraint DB predecessor veto", err)
 				}
 				indexMaintenanceUnchanged(t, e, before)
-				if e.roles.Published != oldRoles || !reflect.DeepEqual(e.storage.Relations[leaf].Versions, rows) || len(table.Constraints.Unique) != 1 || auth.DatabasePredecessor != committed || auth.Catalog.Get(root.Address) != table || len(auth.Catalog.MustRelation(leaf).Constraints.Unique) != 2 {
+				if e.RoleStore.Published != oldRoles || !reflect.DeepEqual(e.Storage.Relations[leaf].Versions, rows) || len(table.Constraints.Unique) != 1 || auth.DatabasePredecessor != committed || auth.Catalog.Get(root.Address) != table || len(auth.Catalog.MustRelation(leaf).Constraints.Unique) != 2 {
 					t.Fatal("veto mutated retained roles, constraints or storage")
 				}
 			})

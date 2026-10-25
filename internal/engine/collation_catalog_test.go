@@ -65,7 +65,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		}
 	}
 	foreignOwner := *d
-	foreignOwner.Owner = New().roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreignOwner.Owner = New().RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	foreignOwner.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Replace(&foreignOwner); err != nil {
@@ -136,7 +136,7 @@ func TestCollationDumpLosslessBootstrapSelection(t *testing.T) {
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}
-		snapshot := e.stageRead(stage)
+		snapshot := e.StageRead(stage)
 		statements, err := typedef.CollationDumpStatements(context.Background(), snapshot, e.Roles(), []*catalog.Collation{d})
 		if err != nil || len(statements) != 1 || !strings.Contains(statements[0].SQL, tc.fragment) {
 			t.Fatal(tc, statements, err)
@@ -181,25 +181,25 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 		}
 	}
 	collationUnitPublish(t, e, stage)
-	auth, err := operationAuthorization(admin)
+	auth, err := OperationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
 	auth.State.CurrentUser = actor.Ref
 	stage = e.BeginCatalogStage(auth.Catalog)
 	change := &parser.AlterCollation{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "private"}, {Text: "owned"}}}, Action: "owner", Target: parser.Identifier{Text: "target"}}
-	e.mu.Lock()
-	err = typedef.StageAlterCollationLocked(ddlHost{e: e, op: admin, stage: stage}, auth, change)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = typedef.StageAlterCollationLocked(DDLHost{E: e, Op: admin, CatalogStage: stage}, auth, change)
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || stage.DescriptorCount() != 0 {
 		t.Fatal("membership waived target CREATE", err)
 	}
 	auth.State.CurrentUser = bootstrap.Ref
 	stage = e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err = typedef.StageAlterCollationLocked(ddlHost{e: e, op: admin, stage: stage}, auth, change)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = typedef.StageAlterCollationLocked(DDLHost{E: e, Op: admin, CatalogStage: stage}, auth, change)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("superuser failed owner transfer", err)
 	}

@@ -48,8 +48,8 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 						state.SetDescriptor(p.Address(), &p)
 						state.BindName(catalog.DescriptorNameKey(&p), p.Address())
 					}
-					before := e.catalog.Read(state)
-					roles := e.roles.PublishedRead(&e.catalog.Owner, before)
+					before := e.Catalog.Read(state)
+					roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, before)
 					metadata, err := extension.OwnerMetadata(before, roles, ext)
 					if err != nil {
 						t.Fatal("live independent provider owners", err)
@@ -128,7 +128,7 @@ func TestEarthCoordinateReownOrdering(t *testing.T) {
 					if !typesOnly {
 						next.SetEpoch(next.Epoch() + 1)
 					}
-					view := e.catalog.Read(next)
+					view := e.Catalog.Read(next)
 					if err := extension.StockEarthdistance.ValidateExtension(view, ext); err == nil {
 						t.Fatal("half-remapped CHECK generation was accepted")
 					}

@@ -10,9 +10,9 @@ func (e *Engine) executeExtensionUpdate(scope *StatementScope, s *parser.AlterEx
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	stage, err := e.stageExtensionUpdateLocked(scope, s)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
@@ -20,14 +20,14 @@ func (e *Engine) executeExtensionUpdate(scope *StatementScope, s *parser.AlterEx
 }
 
 func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.AlterExtensionUpdate) (*CatalogStage, error) {
-	if err := scope.op.Context().Err(); err != nil {
+	if err := scope.Op.Context().Err(); err != nil {
 		return nil, err
 	}
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err
 	}
-	staged, err := extension.StageUpdate(&extensionHost{engine: e, op: scope.op, auth: auth}, auth, auth.View, s)
+	staged, err := extension.StageUpdate(&extensionHost{engine: e, op: scope.Op, auth: auth}, auth, auth.View, s)
 	if err != nil || staged == nil {
 		return nil, err
 	}

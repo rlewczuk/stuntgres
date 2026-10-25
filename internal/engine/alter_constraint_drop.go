@@ -18,9 +18,9 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 	}
 	if stage == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		stage.authSession, stage.authRevision, stage.roleRevision = scope.op.Session, auth.Revision, auth.RoleRecord.Revision
+		stage.AuthSession, stage.AuthRevision, stage.RoleRevision = scope.Op.Session, auth.Revision, auth.RoleRecord.Revision
 	}
-	next, err := table.DropConstraintIndexes(stageDropProvider(scope.op.Context(), stage, scope, changes, nil), old, next, actions)
+	next, err := table.DropConstraintIndexes(StageDropProvider(scope.Op.Context(), stage, scope, changes, nil), old, next, actions)
 	return next, stage, err
 }
 
@@ -28,7 +28,7 @@ func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, 
 	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return nil, nil
 	}
-	provider, err := scope.prepareDropDefinitionProvider(auth, next, scope.lockedRef, prior)
+	provider, err := scope.prepareDropDefinitionProvider(auth, next, scope.LockedRef, prior)
 	if err != nil {
 		return nil, err
 	}

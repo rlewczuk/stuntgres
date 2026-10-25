@@ -52,7 +52,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				idx, _ := concurrentUnitIndex(t, e, "ui", phase != "nonready", phase == "valid")
 				scope, op, _ := concurrentUnitSnapshotScope(t, e, consumer)
 				ref := roleTableRef(t, e, "t")
-				binding, err := dml.BindUniqueWrite(scope.writeHost(), ref)
+				binding, err := dml.BindUniqueWrite(scope.WriteHost(), ref)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -71,16 +71,16 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if len(binding.Keys) != wantedRules {
 					t.Fatal("enforcement ignored Ready boundary", len(binding.Keys), wantedRules)
 				}
-				e.mu.Lock()
-				parent := e.catalog.State.MustRelation(ref.Address)
-				old := e.storage.Relations[ref.Address].Versions[0].Values
-				e.mu.Unlock()
+				e.Mu.Lock()
+				parent := e.Catalog.State.MustRelation(ref.Address)
+				old := e.Storage.Relations[ref.Address].Versions[0].Values
+				e.Mu.Unlock()
 				next := append([]sqltype.Value(nil), old...)
 				next[0], err = sqltype.Integer(parent.Columns[0].Usage.Type, 2)
 				if err != nil {
 					t.Fatal(err)
 				}
-				changed, err := dml.UniqueKeyChanged(scope.writeHost(), ref, old, next)
+				changed, err := dml.UniqueKeyChanged(scope.WriteHost(), ref, old, next)
 				if err != nil || changed != simple {
 					t.Fatal("computed dependencies leaked into UPDATE strength", changed, err)
 				}
@@ -89,7 +89,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if err != nil {
 					t.Fatal(err)
 				}
-				changed, err = dml.UniqueKeyChanged(scope.writeHost(), ref, old, next)
+				changed, err = dml.UniqueKeyChanged(scope.WriteHost(), ref, old, next)
 				if err != nil || changed {
 					t.Fatal("INCLUDE or mixed simple component strengthened UPDATE", changed, err)
 				}

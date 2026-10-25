@@ -45,7 +45,7 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *session.Operation, catalog.Read,
 		ns.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(90000 + i)}
 		ns.ObjectName = name
 		if i == 3 {
-			ns.Temporary = e.catalog.Domain.Session(99)
+			ns.Temporary = e.Catalog.Domain.Session(99)
 		}
 		view.State().SetDescriptor(ns.Address(), &ns)
 		view.State().BindName(catalog.DescriptorNameKey(&ns), ns.Address())
@@ -56,9 +56,9 @@ func regTSUnitSnapshot(t *testing.T) (*Engine, *session.Operation, catalog.Read,
 		view.State().SetDescriptor(d.Address(), &d)
 		view.State().BindName(catalog.DescriptorNameKey(&d), d.Address())
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 			t.Fatal("text-search numeric category", alias)
 		}
 	}
-	path := effectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
+	path := EffectivePath(auth, []ids.ObjectAddress{namespaces[3], namespaces[1], namespaces[2]}, analyze.OperatorLookup)
 	if len(path) != 3 || path[1] != namespaces[1] {
 		t.Fatal("TEMP text-search path isolation", path)
 	}
@@ -253,13 +253,13 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 
 func TestRegTSPreparedCapture(t *testing.T) {
 	e, op, _ := extensionUnitInstalled(t)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Query.Auth = &auth
 	dictionary, _ := auth.Catalog.LookupType(sqltype.Regdictionary)
 	config, _ := auth.Catalog.LookupType(sqltype.Regconfig)
@@ -277,7 +277,7 @@ func TestRegTSPreparedCapture(t *testing.T) {
 	}
 	cell := &regobj.Analysis{Constants: append([]analyze.RegtypeConstant(nil), b.Prepared.RegtypeConstants...)}
 	expected := StatementDescription{regtypes: cell}
-	held := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &expected)
+	held := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &expected)
 	held.Query.Auth = &auth
 	v, err := held.RegTSConstant("reg_ts_missing", dictionary.Usage(), parser.Position{Offset: 7, Character: 8})
 	if err != nil || !sqltype.SameDatum(v, cell.Constants[0].Value) {
@@ -293,7 +293,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	actor := roleAttributeCreate(t, e, admin, "reg_ts_acl_actor", true, parser.RoleOptions{})
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 60000}, ObjectRevision: 1, ObjectName: "reg_ts_acl", Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ACL: authorization.ACLValue{Explicit: true}}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -306,13 +306,13 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	op, actorDone := roleOperation(t, e, "reg_ts_acl_actor")
 	defer actorDone()
 	capture := func() regobj.TextSearchInput {
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		input, err := captureRegTSInput(auth)
+		input, err := CaptureRegTSInput(auth)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -322,7 +322,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 	_, err := denied.ResolveRegdictionary(context.Background(), "reg_ts_acl.unaccent")
 	extensionUnitError(t, err, "42501")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: ns.Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), ns.Address()), acl); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ns.Address()), acl); err != nil {
 		t.Fatal(err)
 	}
 	granted := capture()
@@ -346,7 +346,7 @@ func TestRegTSStoredDependencyProviders(t *testing.T) {
 	if dictionary == nil {
 		t.Fatal("real dictionary provider missing")
 	}
-	ref := e.catalog.Domain.Ref(view.Epoch(), dictionary.Address())
+	ref := e.Catalog.Domain.Ref(view.Epoch(), dictionary.Address())
 	consumer := func(ref ids.ObjectRef) *catalog.Relation {
 		return &catalog.Relation{
 			ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 95000},

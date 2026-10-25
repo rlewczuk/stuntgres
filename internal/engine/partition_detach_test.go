@@ -48,7 +48,7 @@ func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
 	}
 	partitionAttachUnitInstall(t, e, relations...)
 	get := func(d *catalog.Relation) *catalog.Relation {
-		return e.catalog.State.MustRelation(d.Address())
+		return e.Catalog.State.MustRelation(d.Address())
 	}
 	return partitionDetachUnit{e, get(parent), get(child), get(def), get(leaf)}
 }
@@ -61,14 +61,14 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if kind == "default" {
 				child = f.def
 			}
-			before := f.e.catalog.State
-			stores := maps.Clone(f.e.storage.Relations)
+			before := f.e.Catalog.State
+			stores := maps.Clone(f.e.Storage.Relations)
 			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 			defer f.e.DiscardCatalogStage(stage)
 			if err := partition.StageDetach(stage, stage.Base, f.parent, child); err != nil {
 				t.Fatal(err)
 			}
-			view := f.e.stageRead(stage)
+			view := f.e.StageRead(stage)
 			p := view.MustRelation(f.parent.Address())
 			c := view.MustRelation(child.Address())
 			if p == f.parent || c == child || c.Membership != nil || slices.Contains(p.Partition.Children, child.Address()) || c.Address() != child.Address() || c.RowType != child.RowType || c.Partition != child.Partition {
@@ -83,7 +83,7 @@ func TestPartitionDetachDescriptor(t *testing.T) {
 			if (p.Partition.DefaultChild == (ids.ObjectAddress{})) != (kind == "default") {
 				t.Fatal("wrong DEFAULT pointer")
 			}
-			if f.e.catalog.State != before || !maps.Equal(f.e.storage.Relations, stores) || len(f.parent.Partition.Children) != 2 || child.Membership == nil {
+			if f.e.Catalog.State != before || !maps.Equal(f.e.Storage.Relations, stores) || len(f.parent.Partition.Children) != 2 || child.Membership == nil {
 				t.Fatal("private stage mutated published graph/store")
 			}
 			if kind == "nested" && view.Get(f.leaf.Address()) != f.leaf {
@@ -126,7 +126,7 @@ func TestPartitionDetachDependencies(t *testing.T) {
 			if err := partition.StageDetach(stage, stage.Base, f.root, f.leaf); err != nil {
 				t.Fatal(err)
 			}
-			view := f.e.stageRead(stage)
+			view := f.e.StageRead(stage)
 			idx := view.MustRelation(f.child.Address())
 			table := view.MustRelation(f.leaf.Address())
 			if idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || idx.SQLIndex.Constraint != f.child.SQLIndex.Constraint || idx.SQLIndex.Valid != f.child.SQLIndex.Valid || table.Constraints.Unique[0].Parent != 0 || !table.Constraints.Unique[0].IsLocal || table.Constraints.NotNull[0].PartitionOrigin != nil {
@@ -166,12 +166,12 @@ func TestPartitionDetachPublication(t *testing.T) {
 			if veto == "authority" {
 				op, done := roleOperation(t, f.e, "postgres")
 				defer done()
-				f.e.mu.Lock()
-				auth, err := f.e.authorizationLocked(op)
+				f.e.Mu.Lock()
+				auth, err := f.e.AuthorizationLocked(op)
 				if err == nil {
-					stage.authorizeLocked(auth, op.Session)
+					stage.AuthorizeLocked(auth, op.Session)
 				}
-				f.e.mu.Unlock()
+				f.e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -187,14 +187,14 @@ func TestPartitionDetachPublication(t *testing.T) {
 				authority.Mu.Unlock()
 			}
 			if veto == "revision" {
-				next := catalog.CloneState(f.e.catalog.State)
+				next := catalog.CloneState(f.e.Catalog.State)
 				p := *f.parent
 				p.ObjectRevision++
 				next.SetDescriptor(p.Address(), &p)
-				f.e.catalog.PublishLocked(next)
+				f.e.Catalog.PublishLocked(next)
 			}
-			before := f.e.catalog.State
-			stores, roots := maps.Clone(f.e.storage.Relations), maps.Clone(f.e.storage.IndexRoots)
+			before := f.e.Catalog.State
+			stores, roots := maps.Clone(f.e.Storage.Relations), maps.Clone(f.e.Storage.IndexRoots)
 			if veto == "cancel" {
 				cancel()
 			}
@@ -204,7 +204,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				cancel()
-				if f.e.catalog.State.MustRelation(f.child.Address()).Membership != nil || !maps.Equal(stores, f.e.storage.Relations) {
+				if f.e.Catalog.State.MustRelation(f.child.Address()).Membership != nil || !maps.Equal(stores, f.e.Storage.Relations) {
 					t.Fatal("completed metadata publication lost store or attachment removal")
 				}
 				return
@@ -215,7 +215,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			if veto == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if f.e.catalog.State != before || !maps.Equal(stores, f.e.storage.Relations) || !maps.Equal(roots, f.e.storage.IndexRoots) {
+			if f.e.Catalog.State != before || !maps.Equal(stores, f.e.Storage.Relations) || !maps.Equal(roots, f.e.Storage.IndexRoots) {
 				t.Fatal("veto partially published")
 			}
 		})
@@ -241,7 +241,7 @@ func TestPartitionDetachVirtualRoots(t *testing.T) {
 	if err := partition.StageDetach(stage, stage.Base, f.root, f.leaf); err != nil {
 		t.Fatal(err)
 	}
-	next := f.e.stageRead(stage)
+	next := f.e.StageRead(stage)
 	next.State().RemoveDescriptor(f.child.Address())
 	next.State().RemoveDescriptor(f.leaf.Address())
 	roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: next}}, catalog.NewState(0), next.State(), nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)

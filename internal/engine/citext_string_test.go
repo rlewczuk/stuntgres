@@ -55,7 +55,7 @@ func TestCitextStringProvider(t *testing.T) {
   }
  }
  if err:=extension.StockCitext.ValidateExtension(view,installation);err!=nil {t.Fatal(err)}
- metadata,err:=extension.OwnerMetadata(view,e.roles.PublishedRead(&e.catalog.Owner,view),installation);if err!=nil {t.Fatal(err)}
+ metadata,err:=extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),installation);if err!=nil {t.Fatal(err)}
  record,found,err:=extension.DecodeOwners(strings.TrimSpace(strings.TrimPrefix(metadata,"--")))
  if err!=nil||!found {t.Fatal("owner codec roundtrip",err)}
  if len(record.Members)!=56 {t.Fatal("missing symbolic owners",record)}

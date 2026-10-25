@@ -48,23 +48,23 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *session.Operation, scope *S
 	t.Helper()
 	raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
 	ref := roleTableRef(t, e, "strict_null_rows")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b := newExpressionBinder(context.Background(), e, scope.input, op, nil)
+	b := NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
 	b.Query.Auth, b.Target.Ref = &auth, ref
 	b.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 	bindTestTargetNamespace(b)
 	b.Clause.AggregateClause = "SELECT"
 	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)
 	}
-	return node, b, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
+	return node, b, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 }
 
 func TestStrictParameterNullPlanning(t *testing.T) {
@@ -123,9 +123,9 @@ func TestStrictParameterNullPlanning(t *testing.T) {
 			if value, err := planned.Eval(&evaluation); err != nil || !value.IsNull() {
 				t.Fatal(value, err)
 			}
-			e.mu.Lock()
-			called := e.storage.Sequences[sequence.Address].Called
-			e.mu.Unlock()
+			e.Mu.Lock()
+			called := e.Storage.Sequences[sequence.Address].Called
+			e.Mu.Unlock()
 			if called {
 				t.Fatal("NULL proof evaluated a genuine volatile provider")
 			}

@@ -13,14 +13,14 @@ import (
 
 func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
-	if scope.inquiry.commentCatalog.State() == nil {
+	if scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
 	}
-	engine := scope.engine()
-	if !scope.inquiry.commentRoles.BelongsTo(&engine.roles.Domain) {
+	engine := scope.Engine()
+	if !scope.Inquiry.commentRoles.BelongsTo(&engine.RoleStore.Domain) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: foreign catalog role-name snapshot")
 	}
-	role, found := scope.inquiry.commentRoles.Find(engine.roles.Domain.Principal(uint64(oid)))
+	role, found := scope.Inquiry.commentRoles.Find(engine.RoleStore.Domain.Principal(uint64(oid)))
 	if found {
 		return sqltype.String(result, role.Name), nil
 	}
@@ -31,12 +31,12 @@ func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) 
 // consult the live catalog frontier, which may already have been replaced.
 func (h *statementHost) catalogInquiryCatalog() (catalog.Read, error) {
 	scope := h.scope()
-	view := scope.inquiry.commentCatalog
+	view := scope.Inquiry.CommentCatalog
 	if view.State() == nil {
 		return catalog.Read{}, fmt.Errorf("stuntgres: missing catalog inquiry snapshot")
 	}
-	engine := scope.engine()
-	if view.Owner() != &engine.catalog.Owner || !scope.inquiry.commentRoles.BelongsTo(&engine.roles.Domain) {
+	engine := scope.Engine()
+	if view.Owner() != &engine.Catalog.Owner || !scope.Inquiry.commentRoles.BelongsTo(&engine.RoleStore.Domain) {
 		return catalog.Read{}, fmt.Errorf("stuntgres: foreign catalog inquiry snapshot")
 	}
 	return view, nil
@@ -57,7 +57,7 @@ func (h *statementHost) TablespaceDatabase(oid uint32, result *sqltype.Descripto
 	}
 	value, present, warning, err := ddl.TablespaceDatabase(view, oid, result)
 	if warning != nil {
-		h.scope().op.EmitNotice(session.LevelWarning, *warning)
+		h.scope().Op.EmitNotice(session.LevelWarning, *warning)
 	}
 	return value, present, err
 }

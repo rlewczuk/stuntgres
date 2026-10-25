@@ -43,23 +43,23 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	if _, err := scope.Describe(ast); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+	b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	leaf := b.QuerySources[0]
-	dataView, err := scope.acquireDataViewLocked(e, leaf.Ref)
-	reader := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
-	e.mu.Unlock()
+	dataView, err := scope.AcquireDataViewLocked(e, leaf.Ref)
+	reader := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -115,9 +115,9 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					if parentBefore.Constraints.Unique[0].Name != "sink_key" {
 						t.Fatal("rename mutated the borrowed parent snapshot")
 					}
-					e.mu.Lock()
-					roles := e.roles.PublishedRead(&e.catalog.Owner, current)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, current)
+					e.Mu.Unlock()
 					groups, err := stored.RuleDumpGroups(context.Background(), current, roles)
 					if err != nil {
 						t.Fatal(err)

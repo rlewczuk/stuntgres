@@ -22,7 +22,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +36,8 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 	for i, column := range columns {
 		index[column.Name] = i
 	}
-	e.mu.Lock()
-	source, err := table.NewRelation(ddlHost{e: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
+	e.Mu.Lock()
+	source, err := table.NewRelation(DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
 	if err == nil {
 		source.RelationKind = catalog.CompositeRelation
 		if !empty {
@@ -46,11 +46,11 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 			source.Columns[0].OriginAttribute = 2
 			source.Columns[1].OriginAttribute = 4
 		}
-		err = e.stageRowTypeLocked(stage, source)
+		err = e.StageRowTypeLocked(stage, source)
 	}
 	var tbl *catalog.Relation
 	if err == nil {
-		tbl, err = table.NewRelation(ddlHost{e: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
+		tbl, err = table.NewRelation(DDLHost{E: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
 	}
 	if err == nil {
 		tbl.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
@@ -59,9 +59,9 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 			tbl.ColumnMeta.HighWater = 7
 			tbl.Columns[1].OriginAttribute = 7
 		}
-		err = e.stageRowTypeLocked(stage, tbl)
+		err = e.StageRowTypeLocked(stage, tbl)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestTypedAdmissionLateAttachChildAndDescriptorFence(t *testing.T) {
 			late.OfType = ids.ObjectAddress{}
 			next.SetDescriptor(late.Address(), &late)
 		}
-		valid := table.TypedObservationValid(stage.typed, e.catalog.Read(next))
+		valid := table.TypedObservationValid(stage.Typed, e.Catalog.Read(next))
 		if valid != (kind == "unrelated") {
 			t.Fatal("incorrect dependency-set fence", kind, valid)
 		}

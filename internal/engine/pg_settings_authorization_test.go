@@ -17,13 +17,13 @@ import (
 func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	e := New()
 	d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	role := roleAttributeCreate(t, e, admin, "settings_metadata_reader", true, parser.RoleOptions{})
 	reader, release := roleOperation(t, e, role.Name)
 	defer release()
-	retained, err := operationAuthorization(reader)
+	retained, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(t.Context(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := operationAuthorization(reader)
+	denied, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(t.Context(), column, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	columnReader, err := operationAuthorization(reader)
+	columnReader, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(t.Context(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := operationAuthorization(reader)
+	restored, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 	defer release()
 	roleExecute(t, e, reader, "SET application_name='acl sentinel'")
 	d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 	column := ref
 	column.Address.SubID = d.Attributes[0]
 	setACL := func(t *testing.T, target ids.ObjectRef, acl authorization.ACLValue) {

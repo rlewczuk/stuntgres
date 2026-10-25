@@ -37,13 +37,13 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			scope, b, source := deleteProbeScope(t, s)
 			integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 			sentinel := errors.New("late RETURNING failure")
-			ctx, cancel := context.WithCancel(scope.op.Context())
+			ctx, cancel := context.WithCancel(scope.Op.Context())
 			defer cancel()
-			scope.op.Ctx = ctx
+			scope.Op.Ctx = ctx
 			calls := 0
 			probe := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
-				root := scope.stage.deletes[b.Ref.Address]
+				root := scope.Stage.Deletes[b.Ref.Address]
 				if root == nil || len(root.Rows) != calls {
 					t.Fatal("output ran before actual stage", calls, root)
 				}
@@ -58,17 +58,17 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			})
 			b.Returning = &analyze.Returning{Expressions: []expr.Expr{probe}, Schema: []catalog.Column{{Name: "v", Usage: integer.Usage()}}}
 			if phase == "sequence_error" {
-				e.mu.Lock()
-				binder := newExpressionBinder(ctx, e, scope.input, scope.op, nil)
+				e.Mu.Lock()
+				binder := NewExpressionBinder(ctx, e, scope.Input, scope.Op, nil)
 				output, err := binder.BindReturning(statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning, analyze.ReturningDelete)
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
 				b.Returning.Expressions = append(output.Expressions, probe)
 				b.Returning.Schema = append(output.Schema, b.Returning.Schema...)
 			}
-			result, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: source})
+			result, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: source})
 			want := sentinel
 			if phase == "output_cancel" || phase == "explicit_cancel" {
 				want = context.Canceled

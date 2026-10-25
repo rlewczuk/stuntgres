@@ -29,16 +29,16 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	bind := func(query string) (expr.Expr, exec.Context) {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+		b := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		b.Query.Auth = &auth
 		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}

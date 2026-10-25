@@ -79,16 +79,16 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 					t.Fatal("released default", slot, text, err)
 				}
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(binderOperation(b))
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(binderOperation(b))
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
+			if err := exec.AdmitRoutineDescriptor(RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 				t.Fatal("original lifetime", err)
 			}
-			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), nil, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(RoutineAccessOf(auth), nil, captured, nil); err == nil {
 				t.Fatal("repaired missing manifest")
 			}
 			checks := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -97,7 +97,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 					checks[i].Revision++
 				}
 			}
-			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), checks, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(RoutineAccessOf(auth), checks, captured, nil); err == nil {
 				t.Fatal("admitted stale declaration")
 			}
 			if tc.set {

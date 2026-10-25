@@ -31,9 +31,9 @@ func TestPGEnumImportMetadata(t *testing.T) {
 	}
 	// Replacing the enum codec must reown its associated array generation
 	// before validating the candidate, just as the real ALTER path does.
-	source.mu.Lock()
-	err = source.reownStagedTypeGenerationsLocked(stage)
-	source.mu.Unlock()
+	source.Mu.Lock()
+	err = source.ReownStagedTypeGenerationsLocked(stage)
+	source.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,13 +42,13 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		domainUnitPublish(t, source, domainUnitStage(t, source, op, q))
 	}
 	// Tables/defaults need the real analyzer, not the schema-utility helper.
-	source.mu.Lock()
-	auth, err := source.authorizationLocked(op)
+	source.Mu.Lock()
+	auth, err := source.AuthorizationLocked(op)
 	if err == nil {
 		stage = source.BeginCatalogStage(auth.Catalog)
-		err = source.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE saved(v public.mood DEFAULT 'q'::public.mood,d public.wrapped,c public.box)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = source.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE saved(v public.mood DEFAULT 'q'::public.mood,d public.wrapped,c public.box)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
-	source.mu.Unlock()
+	source.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,10 +71,10 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, source, original, "saved")
-	source.visibility.SetCommitSeqLocked(1)
-	source.mu.Lock()
-	source.storage.InstallRelationLocked(ref.Address, &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{v, d, c}}}})
-	source.mu.Unlock()
+	source.Visibility.SetCommitSeqLocked(1)
+	source.Mu.Lock()
+	source.Storage.InstallRelationLocked(ref.Address, &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 1, Values: []sqltype.Value{v, d, c}}}})
+	source.Mu.Unlock()
 	targetOp, targetDone := roleOperation(t, target, "postgres")
 	domainUnitPublish(t, target, domainUnitStage(t, target, targetOp, "CREATE TYPE reserved AS ENUM ('a','b','c')"))
 	targetDone()
@@ -92,17 +92,17 @@ func TestPGEnumImportMetadata(t *testing.T) {
 		t.Fatal("import mutated source")
 	}
 	newRef := catalogRef(t, target, target.CatalogRead(), "saved")
-	rows := target.storage.Relations[newRef.Address].Versions
+	rows := target.Storage.Relations[newRef.Address].Versions
 	// Foreign replacement remints engine-local row/version identities;
 	// unlike ALTER publication, import preserves logical values, not these IDs.
 	if len(rows) != 1 {
 		t.Fatal("import row count", rows)
 	}
-	sourceRows := source.storage.Relations[ref.Address].Versions
+	sourceRows := source.Storage.Relations[ref.Address].Versions
 	if len(sourceRows) != 1 || sourceRows[0].Row != 7 || sourceRows[0].Version != 11 || sourceRows[0].Born != 1 || !reflect.DeepEqual(sourceRows[0].Values, []sqltype.Value{v, d, c}) {
 		t.Fatal("import mutated source storage", sourceRows)
 	}
-	newRelation := target.catalog.State.MustRelation(newRef.Address)
+	newRelation := target.Catalog.State.MustRelation(newRef.Address)
 	for i, want := range []string{"q", "q", "(q)"} {
 		value := rows[0].Values[i]
 		if value.Type() != newRelation.Columns[i].Usage.Type {

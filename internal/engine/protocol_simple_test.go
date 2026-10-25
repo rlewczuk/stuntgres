@@ -42,43 +42,43 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 		}
 	}()
 	scope.ProtocolSimpleQuery(1)
-	if err := scope.gate(&parser.TransactionControl{Kind: parser.KindRollback}); err != nil {
+	if err := scope.Gate(&parser.TransactionControl{Kind: parser.KindRollback}); err != nil {
 		t.Fatal(err)
 	}
 	// This is the canonical non-retained control path: gate has not attached
 	// an incarnation. Disposal must borrow, not replace, the existing owner.
-	if scope.txRef != (ids.TxRef{}) {
+	if scope.TxRef != (ids.TxRef{}) {
 		t.Fatal("control unexpectedly admitted a transaction")
 	}
 	owner := session.Transactions
 	ref, command := owner.Ref, owner.Command
-	e.replacementMu.RLock()
-	scope.replacementRead = true
+	e.ReplacementMu.RLock()
+	scope.ReplacementRead = true
 	rows := exec.NewFinalRows(nil, 0)
 	calls := 0
-	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"": {tx: ref, rows: protocolDisposalProbe{RowResult: rows, close: func() error {
+	PayloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"": {tx: ref, rows: protocolDisposalProbe{RowResult: rows, close: func() error {
 		calls++
 		if !owner.Admission.TryLock() {
 			t.Error("disposal held admission")
 		} else {
 			owner.Admission.Unlock()
 		}
-		if !e.mu.TryLock() {
+		if !e.Mu.TryLock() {
 			t.Error("disposal held engine lock")
 		} else {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
-		if !e.replacementMu.TryLock() {
+		if !e.ReplacementMu.TryLock() {
 			t.Error("disposal held replacement fence")
 		} else {
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 		}
 		return rows.Close()
 	}}}}
 	if err := scope.beginProtocolSimplePortal(); err != nil {
 		t.Fatal(err)
 	}
-	if calls != 1 || !rows.Closed || scope.txRef != ref || scope.command != command || owner.Ref != ref || owner.Command != command || !scope.replacementRead || owner.CopyLease != nil {
+	if calls != 1 || !rows.Closed || scope.TxRef != ref || scope.CommandID != command || owner.Ref != ref || owner.Command != command || !scope.ReplacementRead || owner.CopyLease != nil {
 		t.Fatal("disposal changed incarnation, lost fence or retained reservation", calls)
 	}
 	// The same attached owner must support subsequent real output reservation;
@@ -130,7 +130,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			source.Close()
 			t.Fatal(err)
 		}
-		p := &protocolPortal{producer: &sqlCursor{root: root, source: source, state: state, stage: &stage}}
+		p := &protocolPortal{producer: &sqlCursor{root: root, Source: source, state: state, stage: &stage}}
 		defer p.close(context.Background())
 		row := make([]sqltype.Value, 2)
 		for i := range 4 {

@@ -156,20 +156,20 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT FALSE AND a,TRUE OR b,$1 AND a,TRUE OR pg_type_is_visible(id) FROM t WHERE NOT id=1")
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+	ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.mu.Unlock()
+	bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	column := roleTableRef(t, aclEngine, "secret")
 	column.Address.SubID = 1
 	reader, _ := aclEngine.Roles().Lookup("reader")
-	if err := aclEngine.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: aclEngine.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := aclEngine.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: aclEngine.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, aclEngine, owner, "SET SESSION AUTHORIZATION reader")

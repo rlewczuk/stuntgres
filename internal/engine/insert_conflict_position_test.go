@@ -60,15 +60,15 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				}
 				f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: ids.RowID(i + 2), Version: ids.VersionID(i + 2), Born: 1, Values: values})
 			}
-			f.e.storage.SetFrontierLocked(3, 3)
-			f.e.visibility.SetCommitSeqLocked(1)
+			f.e.Storage.SetFrontierLocked(3, 3)
+			f.e.Visibility.SetCommitSeqLocked(1)
 			root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.mu.Lock()
-			f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
-			f.e.mu.Unlock()
+			f.e.Mu.Lock()
+			f.e.Storage.InstallIndexRootLocked(f.index.Address(), root)
+			f.e.Mu.Unlock()
 			want := map[ids.RowID]int{1: 0}
 			if !partial {
 				want[2] = 1
@@ -88,10 +88,10 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					}
 					p.Deletion = &visibility.PrivateDeletes{Rows: map[ids.RowID]visibility.DeleteCandidate{deleted: {Ref: ref, Storage: f.store, Row: deleted, Version: old.Version, Ordinal: position}}}
 				}
-				if err := index.PrepareRowPublication(&p, f.e.catalog.Domain, scope.txRef, true); err != nil {
+				if err := index.PrepareRowPublication(&p, f.e.Catalog.Domain, scope.TxRef, true); err != nil {
 					t.Fatal(err)
 				}
-				next, err := index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.output, nil, nil)
+				next, err := index.MergeIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, f.index, root.Entries, &p, false, true, false, "public", scope.Output, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -102,19 +102,19 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 					row.Born = 2
 					row.Base = 0
 					p.Next[index.PublicationSlot(&p, i)] = row
-					f.e.storage.SetFrontierLocked(max(f.e.storage.RowFrontier(), uint64(row.Row)), max(f.e.storage.VersionFrontier(), uint64(row.Version)))
+					f.e.Storage.SetFrontierLocked(max(f.e.Storage.RowFrontier(), uint64(row.Row)), max(f.e.Storage.VersionFrontier(), uint64(row.Version)))
 				}
-				f.e.visibility.SetCommitSeqLocked(2)
+				f.e.Visibility.SetCommitSeqLocked(2)
 				f.store = &storage.Relation{Versions: p.Next, Ends: p.NextEnds}
 				if p.NextEnds == nil {
 					f.store.Ends = p.Ends
 				}
-				f.e.mu.Lock()
-				f.e.storage.InstallRelationLocked(f.parent.Address(), f.store)
-				f.e.mu.Unlock()
-				f.e.mu.Lock()
-				f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
-				f.e.mu.Unlock()
+				f.e.Mu.Lock()
+				f.e.Storage.InstallRelationLocked(f.parent.Address(), f.store)
+				f.e.Mu.Unlock()
+				f.e.Mu.Lock()
+				f.e.Storage.InstallIndexRootLocked(f.index.Address(), root)
+				f.e.Mu.Unlock()
 				insertConflictWantHints(t, root, f.store, want)
 			}
 			want[4] = 3
@@ -158,12 +158,12 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				shapedDefinition.Predicate = &predicate
 			}
 			idx.SQLIndex = &shapedDefinition
-			nextCatalog := *f.e.catalog.State
+			nextCatalog := *f.e.Catalog.State
 			nextCatalog.SetDescriptor(parent.Address(), &parent)
 			nextCatalog.SetDescriptor(idx.Address(), &idx)
-			stores := maps.Clone(f.e.storage.Relations)
+			stores := maps.Clone(f.e.Storage.Relations)
 			stores[parent.Address()] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.e.catalog.State, &nextCatalog, stores, f.e.storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.output, nil, nil, nil)
+			prepared, err := f.e.prepareIndexCatalog(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.e.Catalog.State, &nextCatalog, stores, f.e.Storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.Output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}
@@ -182,15 +182,15 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 		t.Run([]string{"read-uncommitted", "read-committed", "repeatable-read", "serializable"}[i], func(t *testing.T) {
 			f := insertConflictUniqueFixture(t)
 			scope, ref := insertConflictUnitScope(t, f)
-			scope.owner.Isolation = isolation
-			scope.owner.Frontier = 1
-			root := *f.e.storage.IndexRoots[f.index.Address()]
+			scope.Owner.Isolation = isolation
+			scope.Owner.Frontier = 1
+			root := *f.e.Storage.IndexRoots[f.index.Address()]
 			root.Entries = slices.Clone(root.Entries)
 			root.Entries[0].Position = -1
-			f.e.mu.Lock()
-			f.e.storage.InstallIndexRootLocked(f.index.Address(), &root)
-			f.e.mu.Unlock()
-			admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+			f.e.Mu.Lock()
+			f.e.Storage.InstallIndexRootLocked(f.index.Address(), &root)
+			f.e.Mu.Unlock()
+			admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 			if isolation.Stable() {
 				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("stable identity fence", admitted, err)
@@ -199,7 +199,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 				t.Fatal("nonstable omission must not recover version", admitted, err)
 			}
 			scope.InsertConflict = nil
-			err = dml.CheckUniqueRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
+			err = dml.CheckUniqueRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 				t.Fatal("ordinary enforcement must not recover version", err)
@@ -207,7 +207,7 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 		})
 	}
 	f := insertConflictUniqueFixture(t)
-	entry := f.e.storage.IndexRoots[f.index.Address()].Entries[0]
+	entry := f.e.Storage.IndexRoots[f.index.Address()].Entries[0]
 	for _, change := range []func(*storage.IndexEntry){func(e *storage.IndexEntry) { e.Position = -1 }, func(e *storage.IndexEntry) { e.Position = len(f.store.Versions) }, func(e *storage.IndexEntry) { e.Row++ }, func(e *storage.IndexEntry) { e.Version++ }} {
 		bad := entry
 		change(&bad)
@@ -221,15 +221,15 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: 2, Version: 2, Born: 2, Values: insertConflictUnitRow(t, f, 20)})
 	f.store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1}}}
-	f.e.storage.SetFrontierLocked(2, 2)
-	f.e.visibility.SetCommitSeqLocked(2)
+	f.e.Storage.SetFrontierLocked(2, 2)
+	f.e.Visibility.SetCommitSeqLocked(2)
 	authOp, done := roleOperation(t, f.e, "postgres")
 	defer done()
-	auth, err := operationAuthorization(authOp)
+	auth, err := OperationAuthorization(authOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	validated, err := index.ValidateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, auth.View, disclosureEnv(&auth), f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []index.ColumnTransformation{{Attribute: 10, Rewrite: true}}, nil, nil, true)
+	validated, err := index.ValidateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, auth.View, DisclosureEnv(&auth), f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []index.ColumnTransformation{{Attribute: 10, Rewrite: true}}, nil, nil, true)
 	if err != nil || validated[f.index.Name()] == nil {
 		t.Fatal("no-overlay type validation", validated, err)
 	}
@@ -245,14 +245,14 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	}
 	insertConflictWantHints(t, root, f.store, map[ids.RowID]int{2: 1})
 	scope, ref := insertConflictUnitScope(t, f)
-	scope.owner.Catalog = changes
-	scope.owner.Isolation = session.RepeatableRead
-	scope.owner.Frontier = 2
-	if admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil); err != nil || admitted {
+	scope.Owner.Catalog = changes
+	scope.Owner.Isolation = session.RepeatableRead
+	scope.Owner.Frontier = 2
+	if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil); err != nil || admitted {
 		t.Fatal("reused tombstone baseline did not recover actual visible born", admitted, err)
 	}
-	scope.owner.Frontier = 1
-	admitted, visibilityErr := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
+	scope.Owner.Frontier = 1
+	admitted, visibilityErr := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
 	wantDiagnostic := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent update"}
 	var visibilityDiagnostic *sqlstate.Error
 	if admitted || !errors.As(visibilityErr, &visibilityDiagnostic) || !reflect.DeepEqual(*visibilityDiagnostic, wantDiagnostic) {

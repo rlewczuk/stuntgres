@@ -29,29 +29,29 @@ func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorizatio
 	if rights&mask != 0 {
 		return nil
 	}
-	return sqlError("42501", fmt.Sprintf("permission denied for sequence %s", d.Name()))
+	return SQLError("42501", fmt.Sprintf("permission denied for sequence %s", d.Name()))
 }
-func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, reserveReplacement bool) error {
-	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
+func (s *StatementScope) AcquireSequence(ref ids.ObjectRef, mode lock.Mode, reserveReplacement bool) error {
+	e := s.Engine()
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if request != nil {
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
 	if err != nil {
 		return err
 	}
-	if reserveReplacement && s.implicit && !s.replacementRead {
-		e.replacementMu.RLock()
-		s.replacementRead = true
+	if reserveReplacement && s.implicit && !s.ReplacementRead {
+		e.ReplacementMu.RLock()
+		s.ReplacementRead = true
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	e.markTemporaryAccessLocked(s, ref, temporaryOwnAccess)
@@ -65,21 +65,21 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	if err != nil || none {
 		return ids.ObjectAddress{}, err
 	}
-	ref, err := e.resolveRelationReference(*auth, table, false)
+	ref, err := e.ResolveRelationReference(*auth, table, false)
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
-	e.mu.Unlock()
-	err = scope.acquireSequence(ref, lock.AccessShare, true)
-	e.mu.Lock()
+	e.Mu.Unlock()
+	err = scope.AcquireSequence(ref, lock.AccessShare, true)
+	e.Mu.Lock()
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
-	fresh, err := e.authorizationLocked(scope.op)
+	fresh, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return ids.ObjectAddress{}, err
 	}
-	fresh.Catalog = e.privateCatalogLocked(changes)
+	fresh.Catalog = e.PrivateCatalogLocked(changes)
 	fresh.Recapture(fresh.Catalog)
 	*auth = fresh
 	// Keep the captured incarnation, not a replacement now found by name.
@@ -93,13 +93,13 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	op := scope.op
+	op := scope.Op
 	switch s := stmt.(type) {
 	case *parser.CreateSequence:
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		var options catalog.SequenceOptions
@@ -109,88 +109,88 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if !s.IfNotExists {
 			options, restart, err = sequence.BindOptions(nil, storage.SequenceGenerator{}, s.Options)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
 		}
-		changes := scope.owner.Catalog.Clone()
-		ns, err := e.relationCreationNamespaceLocked(auth, s.Name, s.Persistence, changes)
+		changes := scope.Owner.Catalog.Clone()
+		ns, err := e.RelationCreationNamespaceLocked(auth, s.Name, s.Persistence, changes)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		auth.Catalog = e.privateCatalogLocked(changes)
+		auth.Catalog = e.PrivateCatalogLocked(changes)
 		auth.Recapture(auth.Catalog)
 		if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
-			auth.stagedTemporary = table.Address()
+			auth.StagedTemporary = table.Address()
 		}
-		if err = auth.CheckCreate(ns); err != nil && !operationReplayOrZero(op).tableDestination {
-			e.mu.Unlock()
+		if err = auth.CheckCreate(ns); err != nil && !OperationReplayOrZero(op).TableDestination {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		persistence, err := access.AdjustRelationCreationPersistence(auth.View, auth, ns, s.Persistence)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		if nsd, ok := auth.Catalog.Namespace(ns.Address); ok && nsd.Temporary == op.Session.SessionToken {
-			scope.owner.AccessedTemporary = true
+			scope.Owner.AccessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
 		key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}
 		if _, ok := auth.Catalog.LookupName(key); ok {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if s.IfNotExists {
 				op.ExistingRelationNotice(name)
 				return Result{}, nil
 			}
-			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+			return Result{}, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		if s.IfNotExists {
 			options, restart, err = sequence.BindOptions(nil, storage.SequenceGenerator{}, s.Options)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
 		}
 		options.Persistence = persistence
-		oid, err := e.catalog.AllocateOIDLocked()
+		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		rev, err := e.catalog.RevisionLocked()
+		rev, err := e.Catalog.RevisionLocked()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		d := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Namespace: ns.Address, Name: name, Revision: rev, Owner: auth.State.CurrentUser, Columns: sequence.Columns(e.catalog.Current()), Options: options})
-		d.Security.ACL = e.creationACLChangesLocked(changes, auth.Catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
+		d := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Namespace: ns.Address, Name: name, Revision: rev, Owner: auth.State.CurrentUser, Columns: sequence.Columns(e.Catalog.Current()), Options: options})
+		d.Security.ACL = e.CreationACLChangesLocked(changes, auth.Catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
+		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
 		for _, option := range s.Options {
 			if option.Name == "owned" {
 				d.Sequence.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
 				if err != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					return Result{}, err
 				}
 			}
 		}
-		e.catalogChangeLocked(changes, d.Address(), d)
+		e.CatalogChangeLocked(changes, d.Address(), d)
 		changes.Generators[d.Address()] = sequence.InitialGenerator(*d.Sequence, restart, rev)
-		scope.catalog = changes
-		e.mu.Unlock()
+		scope.Catalog = changes
+		e.Mu.Unlock()
 		if persistence != "temporary" {
-			if err := scope.acquireCatalogNamespace(auth.Catalog, ns.Address, s.Name); err != nil {
+			if err := scope.AcquireCatalogNamespace(auth.Catalog, ns.Address, s.Name); err != nil {
 				return Result{}, err
 			}
 			if err := scope.acquireCatalogBinding(auth.Catalog, catalog.BindingClaim{Key: key, Address: d.Address(), Priority: 1}); err != nil {
 				if s.IfNotExists {
-					skipped, failure := scope.skipConcurrentRelation(auth.Catalog, key, s.Name, err)
+					skipped, failure := scope.SkipConcurrentRelation(auth.Catalog, key, s.Name, err)
 					if skipped {
-						scope.catalog = nil
+						scope.Catalog = nil
 						return Result{}, nil
 					}
 					return Result{}, failure
@@ -200,15 +200,15 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		return Result{}, nil
 	case *parser.AlterSequence:
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		ref, err := e.resolveRelationReference(auth, s.Name, false)
+		ref, err := e.ResolveRelationReference(auth, s.Name, false)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if s.IfExists {
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42P01" {
 					op.EmitNotice(session.LevelNotice, session.MissingRelation(catalog.ObjectNameText(s.Name)))
@@ -222,7 +222,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err == nil {
 			err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
@@ -230,12 +230,12 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if s.Action == "rename" || s.Action == "schema" {
 			mode = lock.AccessExclusive
 		}
-		if err = scope.acquireSequence(ref, mode, true); err != nil {
+		if err = scope.AcquireSequence(ref, mode, true); err != nil {
 			return Result{}, err
 		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err = e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err = e.AuthorizationLocked(op)
 		if err != nil {
 			return Result{}, err
 		}
@@ -257,8 +257,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				return Result{}, op.Context().Err()
 			}
 		}
-		changes := scope.owner.Catalog.Clone()
-		state := e.sequenceGeneratorLocked(scope, ref.Address)
+		changes := scope.Owner.Catalog.Clone()
+		state := e.SequenceGeneratorLocked(scope, ref.Address)
 		if state == nil {
 			return Result{}, fmt.Errorf("stuntgres: sequence state missing")
 		}
@@ -266,7 +266,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if err != nil {
 			return Result{}, err
 		}
-		rev, err := e.catalog.RevisionLocked()
+		rev, err := e.Catalog.RevisionLocked()
 		if err != nil {
 			return Result{}, err
 		}
@@ -312,11 +312,11 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 					return Result{}, err
 				}
 				if !allowed {
-					return Result{}, sqlError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name))
+					return Result{}, SQLError("42501", fmt.Sprintf(`must be able to SET ROLE "%s"`, role.Name))
 				}
 				targetAuth := auth
 				targetAuth.State.CurrentUser = target
-				if err = targetAuth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
+				if err = targetAuth.CheckCreate(e.Catalog.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 					return Result{}, err
 				}
 			}
@@ -329,16 +329,16 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 				return Result{}, sequence.LinkedError(&d, auth.Catalog.MustRelation(a), true)
 			}
 			destination := &parser.CreateSequence{Name: parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}}, Persistence: "logged"}
-			ns, err := e.relationCreationNamespaceLocked(auth, destination.Name, destination.Persistence, changes)
+			ns, err := e.RelationCreationNamespaceLocked(auth, destination.Name, destination.Persistence, changes)
 			if err != nil {
 				return Result{}, err
 			}
 			// pg_temp may stage a namespace. Resolve permissions and endpoints
 			// against that same private catalog, without publishing on rejection.
-			auth.Catalog = e.privateCatalogLocked(changes)
+			auth.Catalog = e.PrivateCatalogLocked(changes)
 			auth.Recapture(auth.Catalog)
 			if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
-				auth.stagedTemporary = table.Address()
+				auth.StagedTemporary = table.Address()
 			}
 			if err = auth.CheckCreate(ns); err != nil {
 				return Result{}, err
@@ -357,103 +357,103 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		key := catalog.DescriptorNameKey(&d)
 		if a, exists := auth.Catalog.LookupName(key); exists && a != d.Address() {
-			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))
+			return Result{}, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, d.Name()))
 		}
-		e.catalogChangeLocked(changes, d.Address(), &d)
+		e.CatalogChangeLocked(changes, d.Address(), &d)
 		if effects.ReplaceGenerator {
 			changes.Generators[d.Address()] = sequence.ReplacementGenerator(*state, rev, restart)
 		}
 		if effects.DiscardTail {
-			if m := payloadOf(op.Session).sequences.Memory(d.Address()); m != nil {
+			if m := PayloadOf(op.Session).Sequences.Memory(d.Address()); m != nil {
 				m.DiscardTailLocked()
 			}
 		}
-		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.State.Get(ref.Address))
-		scope.catalog = changes
+		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
+		scope.Catalog = changes
 		return Result{}, nil
 	case *parser.DropSequence:
 		return e.dropSequences(scope, s)
 	}
-	return Result{}, sqlError("0A000", "unsupported sequence statement")
+	return Result{}, SQLError("0A000", "unsupported sequence statement")
 }
 func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (Result, error) {
 	refs := make([]ids.ObjectRef, 0, len(s.Names))
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	for _, name := range s.Names {
-		ref, er := e.resolveRelationReference(auth, name, false)
+		ref, er := e.ResolveRelationReference(auth, name, false)
 		if er != nil {
 			if d, ok := er.(*sqlstate.Error); s.IfExists && ok && d.Code == "42P01" {
-				scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`sequence "%s" does not exist, skipping`, catalog.ObjectNameText(name))})
+				scope.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`sequence "%s" does not exist, skipping`, catalog.ObjectNameText(name))})
 				continue
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if d, ok := er.(*sqlstate.Error); ok && d.Code == "42P01" {
-				return Result{}, sqlError("42P01", fmt.Sprintf(`sequence "%s" does not exist`, catalog.ObjectNameText(name)))
+				return Result{}, SQLError("42P01", fmt.Sprintf(`sequence "%s" does not exist`, catalog.ObjectNameText(name)))
 			}
 			return Result{}, er
 		}
 		d := auth.Catalog.MustRelation(ref.Address)
 		if d.RelationKind != catalog.SequenceRelation {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, sequence.NotSequenceError(d)
 		}
 		if er = index.RelationDropOwner(auth.View, auth, ref, d); er != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, er
 		}
 		if d.Sequence.Identity {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, sequence.IdentityDropError(auth.Catalog, d)
 		}
 		refs = append(refs, ref)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	for _, ref := range refs {
-		if err = scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+		if err = scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	auth, err = e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	auth, err = e.AuthorizationLocked(scope.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	changes := scope.owner.Catalog.Clone()
+	changes := scope.Owner.Catalog.Clone()
 	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
 	// Every stored-expression owner shares one private dependency closure.
 	checkStage := e.BeginCatalogStage(auth.Catalog)
-	checkStage.authorizeLocked(auth, scope.op.Session)
+	checkStage.AuthorizeLocked(auth, scope.Op.Session)
 	defer e.DiscardCatalogStage(checkStage)
-	checkStage.dependencyPath, err = referencePath(auth)
+	checkStage.DependencyPath, err = ReferencePath(auth)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	e.mu.Unlock()
-	if err := scope.stageExpressionDependents(checkStage, targets, s.Mode, changes); err != nil {
+	e.Mu.Unlock()
+	if err := scope.StageExpressionDependents(checkStage, targets, s.Mode, changes); err != nil {
 		return Result{}, err
 	}
-	if _, err := e.ValidateCatalogStage(scope.op.Context(), checkStage); err != nil {
+	if _, err := e.ValidateCatalogStage(scope.Op.Context(), checkStage); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if auth.Catalog.Epoch() != e.catalog.State.Epoch() {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if auth.Catalog.Epoch() != e.Catalog.State.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	if err := changes.MergeCandidate(e.catalog.State, auth.Catalog.State(), &checkStage.Candidate); err != nil {
+	if err := changes.MergeCandidate(e.Catalog.State, auth.Catalog.State(), &checkStage.Candidate); err != nil {
 		return Result{}, err
 	}
-	cascade := checkStage.dropCascadeNames
+	cascade := checkStage.DropCascadeNames
 	for _, ref := range refs {
 		d, ok := auth.Catalog.Relation(ref.Address)
 		if !ok {
@@ -465,7 +465,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		if d.Sequence.Identity {
 			return Result{}, sequence.IdentityDropError(auth.Catalog, d)
 		}
-		e.catalogChangeLocked(changes, ref.Address, nil)
+		e.CatalogChangeLocked(changes, ref.Address, nil)
 		delete(changes.Generators, ref.Address)
 	}
 	for address, descriptor := range checkStage.Descriptors() {
@@ -486,8 +486,8 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		targets = append(targets, address)
 	}
 	changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{Base: auth.Catalog.State(), Targets: targets})
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
-	scope.catalog = changes
-	view.EmitCascade(scope.op, cascade)
+	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
+	scope.Catalog = changes
+	view.EmitCascade(scope.Op, cascade)
 	return Result{}, nil
 }

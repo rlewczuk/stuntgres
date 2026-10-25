@@ -26,7 +26,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	}
 	for _, d := range view.Descriptors() {
 		if d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
-			if err := e.catalog.Providers[d.Address().ClassID].Validate(view, d); err != nil {
+			if err := e.Catalog.Providers[d.Address().ClassID].Validate(view, d); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -110,22 +110,22 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
-	e.mu.Lock()
+	e.Mu.Lock()
 	err = e.captureVisibilitySnapshotLocked(scope)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	catalog := scope.inquiry.visibilityCatalog
+	catalog := scope.Inquiry.visibilityCatalog
 	sessionSQL(t, peer, "DROP TABLE anchor")
-	e.mu.Lock()
-	source, err := e.captureQuerySourcesLocked(scope, nil, true)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	source, err := e.CaptureQuerySourcesLocked(scope, nil, true)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	if scope.inquiry.visibilityCatalog != catalog {
+	if scope.Inquiry.visibilityCatalog != catalog {
 		t.Fatal("later provider replaced captured catalog")
 	}
 	oid, _ := catalog.LookupType(sqltype.Oid)
@@ -135,7 +135,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := functions.VisibilityInquiry{Info: expr.Info{Usage: boolean.Usage()}, Kind: functions.TableVisibility, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oid.Usage()}, Value: value}}
-	got, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope)}})
+	got, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 	address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: "t"})
 	query := fmt.Sprintf("SELECT pg_table_is_visible(%d::oid)", address.ObjectID)
 	for _, rights := range []authorization.Privileges{authorization.UsagePrivilege, 0, authorization.UsagePrivilege} {
-		if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 			t.Fatal(err)
 		}
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION visibility_reader")
@@ -179,27 +179,27 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 	for _, q := range []string{"CREATE TEMP SEQUENCE own_temp", "SET search_path=pg_temp,visible,pg_catalog"} {
 		roleExecute(t, e, op, q)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	temp := temporaryNamespace(auth)
 	for _, kind := range []analyze.LookupKind{analyze.CollationLookup, analyze.ConversionLookup} {
-		path, err := lookupPath(auth, kind)
+		path, err := LookupPath(auth, kind)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
 		for _, a := range path {
 			if a == temp {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal("TEMP entered inquiry path", kind)
 			}
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	roleExecute(t, e, op, "ALTER SCHEMA pg_catalog RENAME TO renamed_catalog")
 	if got := tuples(roleExecute(t, e, op, "SELECT pg_type_is_visible(23),pg_collation_is_visible(950),pg_conversion_is_visible(4402)")); len(got) != 1 || got[0][0] != true || got[0][1] != true || got[0][2] != true {
 		t.Fatal(got)

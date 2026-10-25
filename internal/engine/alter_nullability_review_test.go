@@ -38,22 +38,22 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					sessionSQL(t, s, "INSERT INTO t VALUES(7,9)")
 					sessionSQL(t, s, "CREATE SEQUENCE owned OWNED BY t.b")
 					ref := roleTableRef(t, e, "t")
-					oldDescriptor, oldStorage := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
+					oldDescriptor, oldStorage := e.Catalog.State.Get(ref.Address), e.Storage.Relations[ref.Address]
 					sequence := roleTableRef(t, e, "owned")
-					oldSequence, oldGenerator := e.catalog.State.Get(sequence.Address), e.storage.Sequences[sequence.Address]
+					oldSequence, oldGenerator := e.Catalog.State.Get(sequence.Address), e.Storage.Sequences[sequence.Address]
 					var tx ids.TxRef
 					if explicit {
 						tx = transactionBegin(t, s)
 					}
-					original := e.catalog.Providers[ids.RelationClassID]
+					original := e.Catalog.Providers[ids.RelationClassID]
 					calls := 0
 					entered := make(chan struct{})
-					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+					e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						calls++
 						if calls != at {
 							return
 						}
-						e.catalog.Providers[ids.RelationClassID] = original
+						e.Catalog.Providers[ids.RelationClassID] = original
 						close(entered)
 						var err error
 						if restore {
@@ -108,17 +108,17 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 					case <-time.After(3 * time.Second):
 						t.Fatal("owned-sequence ALTER retained replacement read lock over provider callback")
 					}
-					if calls != at || e.catalog.State.Get(ref.Address) == oldDescriptor || e.storage.Relations[ref.Address] == oldStorage {
+					if calls != at || e.Catalog.State.Get(ref.Address) == oldDescriptor || e.Storage.Relations[ref.Address] == oldStorage {
 						t.Fatal("stale owned sequence/list installed", calls)
 					}
 					lockEmpty(t, e)
-					if e.catalog.State.Get(sequence.Address) == oldSequence || e.storage.Sequences[sequence.Address] == oldGenerator {
+					if e.Catalog.State.Get(sequence.Address) == oldSequence || e.Storage.Sequences[sequence.Address] == oldGenerator {
 						t.Fatal("stale owned sequence resurrected")
 					}
-					if !e.replacementMu.TryLock() {
+					if !e.ReplacementMu.TryLock() {
 						t.Fatal("replacement reservation leaked after completion")
 					}
-					e.replacementMu.Unlock()
+					e.ReplacementMu.Unlock()
 					if restore {
 						result := sessionSQL(t, s, "SELECT a FROM sentinel")
 						if got := tuples(result); len(got) != 1 || got[0][0] != int64(91) {

@@ -10,29 +10,29 @@ import (
 )
 
 func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
-	e.mu.Unlock()
-	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
+	e.Mu.Unlock()
+	if err := scope.AcquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	auth, err := e.statementAuthorizationLocked(op, raw)
+	e.Mu.Lock()
+	auth, err := e.StatementAuthorizationLocked(op, raw)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if auth.Catalog.Get(table.Address()) != table {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	stage.indexes().Output = scope.output
+	stage.AuthorizeLocked(auth, op.Session)
+	stage.Indexes().Output = scope.Output
 	for _, descriptor := range scope.PartitionRelations {
-		stage.domainBases = append(stage.domainBases, descriptor)
+		stage.DomainBases = append(stage.DomainBases, descriptor)
 	}
-	err = partition.StageExclusions(ddlHost{e: e, op: op, stage: stage}, auth, scope.input, table, raw)
-	e.mu.Unlock()
+	err = partition.StageExclusions(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, scope.Input, table, raw)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		return Result{}, err
@@ -40,5 +40,5 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *s
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		return Result{}, err
 	}
-	return Result{}, e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
+	return Result{}, e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
 }

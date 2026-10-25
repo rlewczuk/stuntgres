@@ -37,15 +37,15 @@ func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relatio
 		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: typ.Usage()}, {Name: "v", Usage: typ.Usage()}}, Index: map[string]int{"id": 0, "v": 1}, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, RelationKind: catalog.TableRelation}
 	}
 	src, sink := makeRelation(900001, "src"), makeRelation(900002, "sink")
-	next := catalog.CloneState(e.catalog.State)
+	next := catalog.CloneState(e.Catalog.State)
 	next.SetDescriptor(src.Address(), src)
 	next.SetDescriptor(sink.Address(), sink)
-	e.catalog.PublishLocked(next)
-	return e, e.authorityView(access.View{Owner: &e.catalog.Owner, Catalog: e.catalog.Read(next)}), src, sink
+	e.Catalog.PublishLocked(next)
+	return e, e.AuthorityView(access.View{Owner: &e.Catalog.Owner, Catalog: e.Catalog.Read(next)}), src, sink
 }
 
 func ruleUnitRef(e *Engine, d *catalog.Relation) ids.ObjectRef {
-	return e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	return e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 }
 func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, n)
@@ -306,7 +306,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		original := analyze.Binding{Relation: f.base, Ref: f.baseRef, Storage: f.e.storage.Relations[f.base.Address()], Targets: []int{0}, UsedColumns: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+		original := analyze.Binding{Relation: f.base, Ref: f.baseRef, Storage: f.e.Storage.Relations[f.base.Address()], Targets: []int{0}, UsedColumns: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		producer, err := view.MakeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)
@@ -314,7 +314,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if len(producer.Sources) != 1 || producer.Sources[0].Storage != original.Storage {
 			t.Fatal("event producer lost original physical storage capture")
 		}
-		current, err := currentQuerySourceLocked(f.e, f.e.CatalogRead(), nil, producer.Sources[0])
+		current, err := CurrentQuerySourceLocked(f.e, f.e.CatalogRead(), nil, producer.Sources[0])
 		if err != nil || current != f.base {
 			t.Fatal("event source fails its genuine identity/storage fence", err)
 		}
@@ -335,9 +335,9 @@ func TestRuleProgramOrdering(t *testing.T) {
 	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10), ruleUnitInsert(e, sink, 2, 20)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 3, 30)}})})
 	original := ruleUnitInsert(e, src, 4, 40)
 	p := view.RuleProgram{Count: -1, Returning: -1}
-	e.mu.Lock()
-	count, err := view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	count, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,9 +358,9 @@ func TestRuleProgramAuthority(t *testing.T) {
 	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "a", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 1, 10)}}), stored.NewRule(stored.RuleParts{OID: 900102, Name: "z", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{ruleUnitInsert(e, sink, 2, 20)}})})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{Count: -1, Returning: -1}
-	e.mu.Lock()
-	count, err := view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	count, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -369,9 +369,9 @@ func TestRuleProgramAuthority(t *testing.T) {
 	}
 	src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "nothing", Event: "INSERT", Instead: true})})
 	p = view.RuleProgram{Count: -1, Returning: -1}
-	e.mu.Lock()
-	count, err = view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	count, err = view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	e.Mu.Unlock()
 	if err != nil || count != -1 || len(p.Commands) != 0 {
 		t.Fatalf("NOTHING authority=%d commands=%d error=%v", count, len(p.Commands), err)
 	}
@@ -391,7 +391,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
 		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
-		if err := view.BindViewWrite(&f.e.catalog.Owner, auth.Catalog, &mapped, &parser.Update{}); err != nil {
+		if err := view.BindViewWrite(&f.e.Catalog.Owner, auth.Catalog, &mapped, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
 		if mapped.Ref != f.viewRef || mapped.Relation != f.view || view.PhysicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {
@@ -404,9 +404,9 @@ func TestRuleProgramAuthority(t *testing.T) {
 			t.Fatal("original binding mutated")
 		}
 		program := view.RuleProgram{Count: -1, Returning: -1}
-		f.e.mu.Lock()
-		count, err := view.RuleRewriter{Owner: &f.e.catalog.Owner}.ExpandLocked(auth, &parser.Update{}, mapped, nil, &program)
-		f.e.mu.Unlock()
+		f.e.Mu.Lock()
+		count, err := view.RuleRewriter{Owner: &f.e.Catalog.Owner}.ExpandLocked(auth, &parser.Update{}, mapped, nil, &program)
+		f.e.Mu.Unlock()
 		if err != nil || count != -1 || len(program.Commands) != 0 {
 			t.Fatalf("inner unconditional boundary must stop before automatic validation: count=%d commands=%d error=%v", count, len(program.Commands), err)
 		}
@@ -419,18 +419,18 @@ func TestRuleProgramRecursion(t *testing.T) {
 	sink.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900102, Name: "cycle", Event: "INSERT", Actions: []stored.RuleAction{ruleUnitInsert(e, src, 1, 10)}})})
 	original := ruleUnitInsert(e, src, 9, 90)
 	p := view.RuleProgram{}
-	e.mu.Lock()
-	_, err := view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	_, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	e.Mu.Unlock()
 	if err == nil || !strings.Contains(err.Error(), "infinite recursion detected in rules for relation") {
 		t.Fatalf("recursion error=%v", err)
 	}
 	sink.Rules = nil
 	stored.RulesOf(src)[0] = stored.RulesOf(src)[0].With(func(p *stored.RuleParts) { p.Actions = append(p.Actions, ruleUnitInsert(e, sink, 2, 20)) })
 	p = view.RuleProgram{}
-	e.mu.Lock()
-	_, err = view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	_, err = view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, original.Syntax(), original.Binding(), nil, &p)
+	e.Mu.Unlock()
 	if err != nil || len(p.Commands) != 3 {
 		t.Fatalf("sibling target reuse: commands=%d error=%v", len(p.Commands), err)
 	}
@@ -440,20 +440,20 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	e, _, src, sink := ruleUnitCatalog(t)
 	start := time.Unix(10, 0)
 	expected := &StatementDescription{}
-	s := &StatementScope{op: &session.Operation{}, statementStart: start, Expected: expected}
-	s.lockedRef, s.lockedDescriptor = ruleUnitRef(e, src), src
+	s := &StatementScope{Op: &session.Operation{}, statementStart: start, Expected: expected}
+	s.LockedRef, s.LockedDescriptor = ruleUnitRef(e, src), src
 	s.self = s
-	s.stage.self = &s.stage
-	s.stage.scope = s
-	s.stage.rows = map[ids.ObjectAddress][]storage.RowVersion{src.Address(): {{Row: 1, Version: 1}}}
-	before := s.ruleScratch()
-	stageRows := s.stage.rows
-	s.installRuleScratch(ruleCommandScratch{ref: ruleUnitRef(e, sink), descriptor: sink})
-	if s.stage.self != &s.stage || s.stage.scope != s || len(s.stage.rows[src.Address()]) != 1 || s.Expected != expected || s.statementStart != start {
+	s.Stage.self = &s.Stage
+	s.Stage.scope = s
+	s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{src.Address(): {{Row: 1, Version: 1}}}
+	before := s.RuleScratch()
+	stageRows := s.Stage.Rows
+	s.InstallRuleScratch(RuleCommandScratch{Ref: ruleUnitRef(e, sink), Descriptor: sink})
+	if s.Stage.self != &s.Stage || s.Stage.scope != s || len(s.Stage.Rows[src.Address()]) != 1 || s.Expected != expected || s.statementStart != start {
 		t.Fatal("action scratch changed original envelope/stage")
 	}
-	s.installRuleScratch(before)
-	if s.lockedRef.Address != src.Address() || !maps.EqualFunc(stageRows, s.stage.rows, func(a, b []storage.RowVersion) bool { return len(a) == len(b) && a[0].Row == b[0].Row }) {
+	s.InstallRuleScratch(before)
+	if s.LockedRef.Address != src.Address() || !maps.EqualFunc(stageRows, s.Stage.Rows, func(a, b []storage.RowVersion) bool { return len(a) == len(b) && a[0].Row == b[0].Row }) {
 		t.Fatal("scratch restoration lost original stage")
 	}
 }
@@ -494,7 +494,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	}
 	r = r.With(func(p *stored.RuleParts) { p.References = refs })
 	src.Rules = stored.RulesPayload([]stored.Rule{r})
-	edges, err := pgcatalog.CollectDepend(context.Background(), auth.Catalog, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), auth.Catalog, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,7 +505,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	t.Run("mixed_drop_closure", func(t *testing.T) {
 		stage := e.BeginCatalogStage(auth.Catalog)
 		defer e.DiscardCatalogStage(stage)
-		dependents, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{sink.Address()})
+		dependents, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{sink.Address()})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -545,11 +545,11 @@ func TestRuleDefinitionRemap(t *testing.T) {
 			a.SubID = old.Address.SubID
 			old.Address = a
 		}
-		old = e.catalog.Domain.Ref(old.Epoch, old.Address)
+		old = e.Catalog.Domain.Ref(old.Epoch, old.Address)
 		old.Epoch = next.Epoch()
 		return old
 	}
-	mapped, err := stored.RemapRules(e.catalog.Read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil)
+	mapped, err := stored.RemapRules(e.Catalog.Read(next), src, mapping, ref, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

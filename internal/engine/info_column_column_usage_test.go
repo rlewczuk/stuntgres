@@ -25,8 +25,8 @@ type colcuUnitFixture struct {
 func newColcuUnitFixture(t *testing.T) colcuUnitFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
-	view := f.e.catalog.Read(state)
+	state := catalog.CloneState(f.e.Catalog.State)
+	view := f.e.Catalog.Read(state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	oid, _ := view.LookupType(sqltype.Oid)
@@ -72,11 +72,11 @@ func newColcuUnitFixture(t *testing.T) colcuUnitFixture {
 }
 func (f colcuUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.Read(state)
+	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnColumnUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 func colcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -84,7 +84,7 @@ func colcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := captureCatalogSourceRows(in, produce)
+	source, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestInfoColumnColumnUsageProducer(t *testing.T) {
 	if rows := colcuUnitRows(t, f.input(t, state, f.f.owner)); len(rows) != 0 {
 		t.Fatal("self/foreign references", rows)
 	}
-	empty := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
+	empty := f.input(t, catalog.CloneState(f.f.e.Catalog.State), f.f.owner)
 	if rows := colcuUnitRows(t, empty); rows == nil || len(rows) != 0 {
 		t.Fatal("empty capture", rows)
 	}
@@ -228,11 +228,11 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 		t.Fatal("retained rows", got)
 	}
 	member := f.input(t, f.state, f.f.member)
-	f.f.e.mu.Lock()
-	roles := cloneRoleFixture(f.f.e.roles.Published)
+	f.f.e.Mu.Lock()
+	roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 	setFixtureEdges(roles, nil)
-	f.f.e.roles.PublishLocked(roles)
-	f.f.e.mu.Unlock()
+	f.f.e.RoleStore.PublishLocked(roles)
+	f.f.e.Mu.Unlock()
 	if rows := colcuUnitRows(t, f.input(t, f.state, f.f.member)); len(rows) != 0 {
 		t.Fatal("revoked membership", rows)
 	}
@@ -241,20 +241,20 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoColumnColumnUsageOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Address.ObjectID++ },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.RoleRecord = nil
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.State.CurrentUser = authorization.PrincipalRef{}
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = runtime
 		},
 	} {
@@ -295,12 +295,12 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 }
 
 type colcuCancelRuntime struct {
-	engineCatalogRuntime
+	EngineCatalogRuntime
 	ctx *ccuCancelContext
 }
 
 func (r colcuCancelRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
-	refs, err := r.engineCatalogRuntime.ExpressionReferences(ctx, view, value)
+	refs, err := r.EngineCatalogRuntime.ExpressionReferences(ctx, view, value)
 	if err == nil && len(refs) == 2 {
 		r.ctx.armed = true
 	}
@@ -308,13 +308,13 @@ func (r colcuCancelRuntime) ExpressionReferences(ctx context.Context, view catal
 }
 
 type colcuWalkCancelRuntime struct {
-	engineCatalogRuntime
+	EngineCatalogRuntime
 	ctx *ccuCancelContext
 }
 
 func (r colcuWalkCancelRuntime) ExpressionReferences(ctx context.Context, view catalog.Read, value expr.Expr) ([]ids.ObjectAddress, error) {
 	r.ctx.armed = true
-	return r.engineCatalogRuntime.ExpressionReferences(ctx, view, value)
+	return r.EngineCatalogRuntime.ExpressionReferences(ctx, view, value)
 }
 func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 	f := newColcuUnitFixture(t)
@@ -331,7 +331,7 @@ func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 	in = base
 	walking := &ccuCancelContext{Context: t.Context(), remaining: 2}
 	in.Context = walking
-	in.Runtime = colcuWalkCancelRuntime{engineCatalogRuntime: in.Runtime.(engineCatalogRuntime), ctx: walking}
+	in.Runtime = colcuWalkCancelRuntime{EngineCatalogRuntime: in.Runtime.(EngineCatalogRuntime), ctx: walking}
 	if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("traversal cancellation", rows, err)
 	}
@@ -339,7 +339,7 @@ func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 		in = base
 		ctx := &ccuCancelContext{Context: t.Context(), remaining: remaining}
 		in.Context = ctx
-		in.Runtime = colcuCancelRuntime{engineCatalogRuntime: in.Runtime.(engineCatalogRuntime), ctx: ctx}
+		in.Runtime = colcuCancelRuntime{EngineCatalogRuntime: in.Runtime.(EngineCatalogRuntime), ctx: ctx}
 		// The second post-walker check follows one fully emitted row, regardless
 		// of dependency order; failure must discard that accumulated prefix.
 		if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) || ctx.calls != remaining {

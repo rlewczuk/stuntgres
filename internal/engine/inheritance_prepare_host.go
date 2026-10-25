@@ -24,7 +24,7 @@ var _ table.PrepareHost = inheritancePrepareHost{}
 // reading is the node's authority reading definitions through definition.
 func (h inheritancePrepareHost) reading(definition catalog.DefinitionReader) AuthorizationView {
 	auth := h.auth
-	auth.definition = definition
+	auth.Definition = definition
 	return auth
 }
 
@@ -37,7 +37,7 @@ func (h inheritancePrepareHost) AddColumnCandidate(definition catalog.Definition
 }
 
 func (h inheritancePrepareHost) PrepareColumnDropAfter(definition catalog.DefinitionReader, old *catalog.Relation, action parser.AlterTableAction, prior table.PreparedDrop) (table.PreparedDrop, error) {
-	drop, err := h.scope.prepareColumnDropAfter(h.reading(definition), old, h.scope.lockedRef, action, preparedDropOf(prior))
+	drop, err := h.scope.prepareColumnDropAfter(h.reading(definition), old, h.scope.LockedRef, action, preparedDropOf(prior))
 	return preparedDropValue(drop), err
 }
 

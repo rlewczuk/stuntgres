@@ -24,13 +24,13 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(7,'keep',9)")
 	run(t, e, "COMMENT ON COLUMN t.c IS 'survivor'")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.State.MustRelation(ref.Address)
-	storage := e.storage.Relations[ref.Address]
+	old := e.Catalog.State.MustRelation(ref.Address)
+	storage := e.Storage.Relations[ref.Address]
 	values := &storage.Versions[0].Values[0]
 	held := run(t, e, "SELECT * FROM t")
 	run(t, e, "ALTER TABLE t ALTER a SET NOT NULL")
-	next := e.catalog.State.MustRelation(ref.Address)
-	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.storage.Relations[ref.Address] != storage || &storage.Versions[0].Values[0] != values || next.Columns[0].Nullable || !old.Columns[0].Nullable || len(next.Constraints.NotNull) != 1 || next.Constraints.NotNull[0].OID == 0 || next.Constraints.NotNull[0].Name != "t_a_not_null" || next.Constraints.NotNull[0].Attribute != 1 {
+	next := e.Catalog.State.MustRelation(ref.Address)
+	if next == old || next.Revision() != old.Revision()+1 || next.Address() != old.Address() || next.Owner != old.Owner || !reflect.DeepEqual(next.Attributes, old.Attributes) || !reflect.DeepEqual(next.ColumnMeta.Comments, old.ColumnMeta.Comments) || e.Storage.Relations[ref.Address] != storage || &storage.Versions[0].Values[0] != values || next.Columns[0].Nullable || !old.Columns[0].Nullable || len(next.Constraints.NotNull) != 1 || next.Constraints.NotNull[0].OID == 0 || next.Constraints.NotNull[0].Name != "t_a_not_null" || next.Constraints.NotNull[0].Attribute != 1 {
 		t.Fatal(old, next)
 	}
 	if !held.Rows.Schema()[0].Nullable || !reflect.DeepEqual(tuples(held), [][]driver.Value{{int64(7), "keep", int64(9)}}) {
@@ -38,13 +38,13 @@ func TestNotNullStableMetadataAndNoops(t *testing.T) {
 	}
 	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ADD CONSTRAINT t_a_not_null NOT NULL a", "ALTER TABLE t ALTER b DROP NOT NULL", "ALTER TABLE t DROP CONSTRAINT IF EXISTS absent"} {
 		run(t, e, q)
-		if e.catalog.State.Get(ref.Address) != next || e.storage.Relations[ref.Address] != storage {
+		if e.Catalog.State.Get(ref.Address) != next || e.Storage.Relations[ref.Address] != storage {
 			t.Fatal(q, "no-op mutated state")
 		}
 	}
 	run(t, e, "ALTER TABLE t ALTER c SET NOT NULL")
 	run(t, e, "ALTER TABLE t DROP a")
-	after := e.catalog.State.MustRelation(ref.Address)
+	after := e.Catalog.State.MustRelation(ref.Address)
 	if len(after.Constraints.NotNull) != 1 || after.Constraints.NotNull[0].OID == 0 || after.Constraints.NotNull[0].Name != "t_c_not_null" || after.Constraints.NotNull[0].Attribute != 3 || after.Columns[1].OriginAttribute != 3 || after.ColumnMeta.Comments[3] != "survivor" {
 		t.Fatal(after)
 	}
@@ -57,12 +57,12 @@ func TestNotNullSequentialCollisionUsesAllocatedIdentity(t *testing.T) {
 	run(t, e, "CREATE TABLE keeper(a INT)")
 	run(t, e, "INSERT INTO keeper VALUES(91)")
 	ref := roleTableRef(t, e, "keeper")
-	state, descriptor, storage := e.catalog.State, e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
+	state, descriptor, storage := e.Catalog.State, e.Catalog.State.Get(ref.Address), e.Storage.Relations[ref.Address]
 	stmt := statement(t, "CREATE TABLE t(a INT NOT NULL,b INT CONSTRAINT t_a_not_null NOT NULL)")
-	if _, err := testDescribe(e, stmt); err != nil || e.catalog.State != state {
+	if _, err := testDescribe(e, stmt); err != nil || e.Catalog.State != state {
 		t.Fatal("utility description must be effect-free", err)
 	}
-	candidate := e.catalog.NextOID()
+	candidate := e.Catalog.NextOID()
 	_, err := testExecute(e, context.Background(), stmt, nil)
 	var got *sqlstate.Error
 	want := sqlstate.Error{
@@ -71,11 +71,11 @@ func TestNotNullSequentialCollisionUsesAllocatedIdentity(t *testing.T) {
 		Detail:  fmt.Sprintf("Key (conrelid, contypid, conname)=(%d, 0, t_a_not_null) already exists.", candidate),
 		Schema:  "pg_catalog", Table: "pg_constraint", Constraint: "pg_constraint_conrelid_contypid_conname_index",
 	}
-	if !errors.As(err, &got) || *got != want || e.catalog.NextOID() <= candidate {
-		t.Fatal(err, got, want, candidate, e.catalog.NextOID())
+	if !errors.As(err, &got) || *got != want || e.Catalog.NextOID() <= candidate {
+		t.Fatal(err, got, want, candidate, e.Catalog.NextOID())
 	}
-	failedFrontier := e.catalog.NextOID()
-	if e.catalog.State != state || e.catalog.State.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != storage {
+	failedFrontier := e.Catalog.NextOID()
+	if e.Catalog.State != state || e.Catalog.State.Get(ref.Address) != descriptor || e.Storage.Relations[ref.Address] != storage {
 		t.Fatal("failed CREATE published a catalog/storage mutation")
 	}
 	if _, err := testExecute(e, context.Background(), statement(t, "SELECT * FROM t"), nil); err == nil {
@@ -85,7 +85,7 @@ func TestNotNullSequentialCollisionUsesAllocatedIdentity(t *testing.T) {
 		t.Fatal("failed CREATE changed keeper")
 	}
 	run(t, e, "CREATE TABLE t(b INT CONSTRAINT t_a_not_null NOT NULL,a INT NOT NULL)")
-	d := e.catalog.State.MustRelation(roleTableRef(t, e, "t").Address)
+	d := e.Catalog.State.MustRelation(roleTableRef(t, e, "t").Address)
 	if d.Address().ObjectID < failedFrontier {
 		t.Fatal("successful CREATE reused failed allocation", failedFrontier, d.Address())
 	}
@@ -102,7 +102,7 @@ func TestNotNullGeneratedNames(t *testing.T) {
 		e := New()
 		run(t, e, `CREATE TABLE "`+tc.table+`"("`+tc.column+`" INT NOT NULL)`)
 		ref := roleTableRef(t, e, `"`+tc.table+`"`)
-		d := e.catalog.State.MustRelation(ref.Address)
+		d := e.Catalog.State.MustRelation(ref.Address)
 		if len(d.Constraints.NotNull) != 1 || d.Constraints.NotNull[0].Name != tc.want || !utf8.ValidString(d.Constraints.NotNull[0].Name) {
 			t.Fatal(d.Constraints.NotNull, tc.want)
 		}
@@ -113,12 +113,12 @@ func TestNotNullGeneratedNames(t *testing.T) {
 	run(t, e, `CREATE TABLE occupied(x INT CONSTRAINT "`+first+`" NOT NULL)`)
 	run(t, e, `CREATE TABLE "`+table+`"("`+column+`" INT NOT NULL)`)
 	ref := roleTableRef(t, e, `"`+table+`"`)
-	d := e.catalog.State.MustRelation(ref.Address)
+	d := e.Catalog.State.MustRelation(ref.Address)
 	if d.Constraints.NotNull[0].Name != strings.Repeat("t", 26)+"_"+strings.Repeat("a", 26)+"_not_null1" {
 		t.Fatal(d.Constraints.NotNull)
 	}
 	run(t, e, "CREATE SCHEMA s CREATE TABLE occupied(x INT CONSTRAINT t_a_not_null NOT NULL) CREATE TABLE t(a INT NOT NULL)")
-	d = e.catalog.State.MustRelation(roleTableRef(t, e, "s.t").Address)
+	d = e.Catalog.State.MustRelation(roleTableRef(t, e, "s.t").Address)
 	if d.Constraints.NotNull[0].Name != "t_a_not_null1" {
 		t.Fatal(d)
 	}
@@ -143,7 +143,7 @@ func TestNotNullProviderInvariants(t *testing.T) {
 		e := New()
 		run(t, e, "CREATE TABLE t(a INT NOT NULL)")
 		ref := roleTableRef(t, e, "t")
-		old := e.catalog.State.MustRelation(ref.Address)
+		old := e.Catalog.State.MustRelation(ref.Address)
 		next := *old
 		next.ObjectRevision++
 		next.Columns = append([]catalog.Column(nil), old.Columns...)
@@ -153,7 +153,7 @@ func TestNotNullProviderInvariants(t *testing.T) {
 		if err := stage.Replace(&next); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil || e.catalog.State.Get(ref.Address) != old {
+		if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil || e.Catalog.State.Get(ref.Address) != old {
 			t.Fatal(err)
 		}
 		e.DiscardCatalogStage(stage)
@@ -167,46 +167,46 @@ func TestNotNullAlterScanFailureAndPreparedUtility(t *testing.T) {
 	roleExecute(t, e, op, "CREATE TABLE t(a INT,b TEXT)")
 	roleExecute(t, e, op, "INSERT INTO t VALUES(NULL,'keep')")
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.State.Get(ref.Address)
-	storage := e.storage.Relations[ref.Address]
+	old := e.Catalog.State.Get(ref.Address)
+	storage := e.Storage.Relations[ref.Address]
 	for _, q := range []string{"ALTER TABLE t ALTER a SET NOT NULL", "ALTER TABLE t ADD CONSTRAINT nn NOT NULL a"} {
 		ast := statement(t, q)
 		description, err := e.Describe(op, ast)
-		if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.State.Get(ref.Address) != old {
+		if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.Catalog.State.Get(ref.Address) != old {
 			t.Fatal(description, err)
 		}
 		_, err = e.Execute(op, ast, 0, nil)
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `column "a" of relation "t" contains null values`, Schema: "public", Table: "t", Column: "a"}
-		if !errors.As(err, &got) || *got != want || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
+		if !errors.As(err, &got) || *got != want || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage {
 			t.Fatal(got, err)
 		}
 	}
 	// Nonvisible versions must not participate in the committed scan.
-	e.mu.Lock()
-	storage.Versions[0].Born = e.visibility.CommitSeq() + 1
-	e.mu.Unlock()
+	e.Mu.Lock()
+	storage.Versions[0].Born = e.Visibility.CommitSeq() + 1
+	e.Mu.Unlock()
 	roleExecute(t, e, op, "ALTER TABLE t ALTER a SET NOT NULL")
 }
 
 func notNullMetadataStage(t *testing.T, e *Engine) (*CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := roleTableRef(t, e, "t")
-	old := e.catalog.State.MustRelation(ref.Address)
+	old := e.Catalog.State.MustRelation(ref.Address)
 	next := *old
 	next.ObjectRevision++
 	next.Columns = append([]catalog.Column(nil), old.Columns...)
 	next.Columns[0].Nullable = false
 	next.Constraints.NotNull = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
-	e.mu.Lock()
-	err := table.AssignDefinitionOIDs(ddlHost{e: e}, &next)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := table.AssignDefinitionOIDs(DDLHost{E: e}, &next)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := e.storage.Relations[ref.Address]
+	original := e.Storage.Relations[ref.Address]
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	if err := stage.alterRelation(context.Background(), ref, &next, original, original, len(original.Versions), original.Generation, original.Ends); err != nil {
+	if err := stage.AlterRelation(context.Background(), ref, &next, original, original, len(original.Versions), original.Generation, original.Ends); err != nil {
 		t.Fatal(err)
 	}
 	return stage, ref, old
@@ -224,7 +224,7 @@ func TestNotNullSameStorageLengthFence(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(NULL)")
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: ref.Epoch})
 	var conflict catalog.Conflict
-	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.catalog.State.Get(ref.Address) != old {
+	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.Catalog.State.Get(ref.Address) != old {
 		t.Fatal(changes, err)
 	}
 	if got := tuples(run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {nil}}) {
@@ -250,19 +250,19 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 			}
 			run(t, e, "INSERT INTO t VALUES(1,8)")
 			ref := roleTableRef(t, e, "t")
-			old := e.catalog.State.Get(ref.Address)
-			stored := e.storage.Relations[ref.Address]
+			old := e.Catalog.State.Get(ref.Address)
+			stored := e.Storage.Relations[ref.Address]
 			ends, generation := stored.Ends, stored.Generation
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.Providers[ids.RelationClassID]
+			provider := e.Catalog.Providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.Providers[ids.RelationClassID] = provider
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.Catalog.Providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()
@@ -279,9 +279,9 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 					if dropping {
 						value = stored.Versions[0].Values[0]
 					}
-					e.mu.Lock()
-					stored.Versions = append(stored.Versions, storage.RowVersion{Row: 99, Version: 99, Born: e.visibility.CommitSeq(), Values: []sqltype.Value{value, stored.Versions[0].Values[1]}})
-					e.mu.Unlock()
+					e.Mu.Lock()
+					stored.Versions = append(stored.Versions, storage.RowVersion{Row: 99, Version: 99, Born: e.Visibility.CommitSeq(), Values: []sqltype.Value{value, stored.Versions[0].Values[1]}})
+					e.Mu.Unlock()
 				case "descriptor":
 					next := *old.(*catalog.Relation)
 					next.ObjectRevision++
@@ -318,15 +318,15 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal(err)
 				}
-			} else if kind != "descriptor" && e.catalog.State.Get(ref.Address) != old {
+			} else if kind != "descriptor" && e.Catalog.State.Get(ref.Address) != old {
 				t.Fatal("descriptor changed", err)
 			}
 			if kind != "reset" && kind != "restore" {
-				if e.storage.Relations[ref.Address] != stored || stored.Ends != ends || stored.Generation != generation || len(stored.Versions) != map[bool]int{false: 1, true: 2}[kind == "insert"] {
+				if e.Storage.Relations[ref.Address] != stored || stored.Ends != ends || stored.Generation != generation || len(stored.Versions) != map[bool]int{false: 1, true: 2}[kind == "insert"] {
 					t.Fatal("failed alteration changed storage", err)
 				}
 				if dropping {
-					current := e.catalog.State.MustRelation(ref.Address)
+					current := e.Catalog.State.MustRelation(ref.Address)
 					if !reflect.DeepEqual(current.Constraints.NotNull, old.(*catalog.Relation).Constraints.NotNull) || current.Columns[0].Nullable || current.Columns[1].Nullable {
 						t.Fatal("failed drop removed enforcement", current)
 					}
@@ -346,7 +346,7 @@ func TestNotNullIntegratedTemporalTypes(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(a TIME(3) CONSTRAINT nn NOT NULL,b TIMESTAMP(3))")
 	ref := roleTableRef(t, e, "t")
-	d := e.catalog.State.MustRelation(ref.Address)
+	d := e.Catalog.State.MustRelation(ref.Address)
 	if d.Columns[0].Usage.Type.ID() != sqltype.Time || d.Columns[1].Usage.Type.ID() != sqltype.Timestamp || d.Columns[0].Usage.Typmod != 3 || d.Columns[1].Usage.Typmod != 3 {
 		t.Fatal(d.Columns)
 	}

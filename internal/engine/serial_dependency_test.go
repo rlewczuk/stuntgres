@@ -19,9 +19,9 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 	run(t, e, `CREATE TABLE t(id INT DEFAULT nextval('q'))`)
 	changes := session.NewJournal()
 	changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{base, []ids.ObjectAddress{target}})
-	e.mu.Lock()
-	err := e.catalogPreflightLocked(changes)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := e.CatalogPreflightLocked(changes)
+	e.Mu.Unlock()
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal("late ordinary default failed to fence DROP", err)

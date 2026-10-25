@@ -19,7 +19,7 @@ const maxSQLRoutineDepth = 128
 
 func (s *StatementScope) enterSQLRoutine() error {
 	if s.activeSQLRoutineDepth >= maxSQLRoutineDepth {
-		return sqlError("54001", "stack depth limit exceeded")
+		return SQLError("54001", "stack depth limit exceeded")
 	}
 	s.activeSQLRoutineDepth++
 	return nil
@@ -36,8 +36,8 @@ func (s *StatementScope) leaveSQLRoutine() {
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
-	command              ruleCommandScratch
-	mutations            []statementMutation
+	command              RuleCommandScratch
+	mutations            []StatementMutation
 	activeMutation       int
 	cteInvocation        *exec.CTEInvocation
 	activeViews          []ids.ObjectAddress
@@ -72,42 +72,42 @@ type sqlRoutineScratch struct {
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 	return sqlRoutineScratch{
-		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.activeMutation, cteInvocation: s.cteInvocation,
-		activeViews: s.viewCreationOrZero().Active, inheritanceRelations: s.inheritance.relations, inheritanceCatalog: s.inheritance.catalog,
-		authority: s.authority, routineAuth: s.routineAuth, expected: s.Expected,
-		routineDependencies: s.routineDependencies,
+		command: s.RuleScratch(), mutations: s.mutations, activeMutation: s.ActiveMutation, cteInvocation: s.cteInvocation,
+		activeViews: s.ViewCreationOrZero().Active, inheritanceRelations: s.Inheritance.relations, inheritanceCatalog: s.Inheritance.catalog,
+		authority: s.authority, routineAuth: s.RoutineAuth, expected: s.Expected,
+		routineDependencies: s.RoutineDependencies,
 		prepared:            s.prepared, admissionWaited: s.admissionWaited,
-		initialParameters: s.initialParameters, input: s.input, output: s.output,
-		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
+		initialParameters: s.initialParameters, input: s.Input, output: s.Output,
+		sqlRoutine: s.sqlRoutine, inquiry: s.Inquiry,
 		protocol: s.protocolSlot,
-		view:     s.view, partitionView: s.partitionsOrZero().ValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
-		domainEvaluation: s.domains.evaluation, domainInputCatalog: s.domains.inputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
-		presentation: s.presentationSlot, identity: s.identity,
+		view:     s.View, partitionView: s.PartitionsOrZero().ValidationView, ownWrites: s.OwnWrites, ownDeletes: s.OwnDeletes,
+		domainEvaluation: s.Domains.evaluation, domainInputCatalog: s.Domains.InputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
+		presentation: s.presentationSlot, identity: s.Identity,
 		largeObjectRead: s.largeObjectRead,
 		rlsDataRefs:     s.rlsDataRefs,
-		completed:       s.completed, sessionCompleted: s.sessionCompleted,
+		completed:       s.Completed, sessionCompleted: s.sessionCompleted,
 	}
 }
 func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
-	s.installRuleScratch(c.command)
-	s.mutations, s.activeMutation, s.cteInvocation = c.mutations, c.activeMutation, c.cteInvocation
+	s.InstallRuleScratch(c.command)
+	s.mutations, s.ActiveMutation, s.cteInvocation = c.mutations, c.activeMutation, c.cteInvocation
 	s.setActiveViews(c.activeViews)
-	s.inheritance.relations, s.inheritance.catalog = c.inheritanceRelations, c.inheritanceCatalog
-	s.authority, s.routineAuth, s.Expected = c.authority, c.routineAuth, c.expected
-	s.routineDependencies = c.routineDependencies
+	s.Inheritance.relations, s.Inheritance.catalog = c.inheritanceRelations, c.inheritanceCatalog
+	s.authority, s.RoutineAuth, s.Expected = c.authority, c.routineAuth, c.expected
+	s.RoutineDependencies = c.routineDependencies
 	s.prepared, s.admissionWaited = c.prepared, c.admissionWaited
-	s.initialParameters, s.sqlRoutine, s.inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
+	s.initialParameters, s.sqlRoutine, s.Inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
 	s.protocolSlot = c.protocol
-	s.input, s.output = c.input, c.output
-	s.view = c.view
+	s.Input, s.Output = c.input, c.output
+	s.View = c.view
 	s.setPartitionValidationView(c.partitionView)
-	s.ownWrites, s.ownDeletes = c.ownWrites, c.ownDeletes
-	s.domains.evaluation, s.domains.inputCatalog = c.domainEvaluation, c.domainInputCatalog
+	s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
+	s.Domains.evaluation, s.Domains.InputCatalog = c.domainEvaluation, c.domainInputCatalog
 	s.setForeignLexical(c.foreignOwner, c.foreignCursor)
-	s.presentationSlot, s.identity = c.presentation, c.identity
+	s.presentationSlot, s.Identity = c.presentation, c.identity
 	s.largeObjectRead = c.largeObjectRead
 	s.rlsDataRefs = c.rlsDataRefs
-	s.completed, s.sessionCompleted = c.completed, c.sessionCompleted
+	s.Completed, s.sessionCompleted = c.completed, c.sessionCompleted
 }
 
 func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectRead catalog.Read) func(error) error {
@@ -115,27 +115,27 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage, largeObjectR
 	// Preserve the live operation's presentation/time policy, but create fresh
 	// provider/capture/query state. The parameter frame itself is proc-owned.
 	ownWrites := saved.ownWrites
-	if len(s.stage.rows) != 0 {
+	if len(s.Stage.Rows) != 0 {
 		ownWrites = maps.Clone(ownWrites)
 		if ownWrites == nil {
-			ownWrites = make(map[ids.ObjectAddress][]storage.RowVersion, len(s.stage.rows))
+			ownWrites = make(map[ids.ObjectAddress][]storage.RowVersion, len(s.Stage.Rows))
 		}
-		for address, rows := range s.stage.rows {
+		for address, rows := range s.Stage.Rows {
 			ownWrites[address] = visibility.MergePrivateRows(ownWrites[address], rows, true)
 		}
 	}
-	ownDeletes := visibility.MergeDeletions(saved.ownDeletes, s.stage.deletes)
+	ownDeletes := visibility.MergeDeletions(saved.ownDeletes, s.Stage.Deletes)
 	s.installSQLRoutineScratch(sqlRoutineScratch{input: saved.input, output: saved.output, initialParameters: inputs, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: ownWrites, ownDeletes: ownDeletes, largeObjectRead: largeObjectRead})
-	s.input.LockedDomainInput, s.input.DomainChecks = s, s
+	s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	return func(primary error) error {
 		if s.foreignTablesOrZero().owner != nil {
 			primary = s.finishForeignOwner(s.foreignTablesOrZero().owner, primary)
 		}
-		if s.view != nil && s.view != saved.view {
-			s.view.Release()
+		if s.View != nil && s.View != saved.view {
+			s.View.Release()
 		}
-		if s.partitionsOrZero().ValidationView != nil && s.partitionsOrZero().ValidationView != saved.partitionView {
-			s.partitionsOrZero().ValidationView.Release()
+		if s.PartitionsOrZero().ValidationView != nil && s.PartitionsOrZero().ValidationView != saved.partitionView {
+			s.PartitionsOrZero().ValidationView.Release()
 		}
 		if s.authority != nil && s.authority != saved.authority {
 			s.authority.Host = nil

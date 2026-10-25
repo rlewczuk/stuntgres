@@ -32,7 +32,7 @@ func TestTableLikeDefinitionDependencyOrder(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{roleTableRef(t, e, "anchor").Address})
+	edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{roleTableRef(t, e, "anchor").Address})
 	if err != nil {
 		t.Fatal(err)
 	}

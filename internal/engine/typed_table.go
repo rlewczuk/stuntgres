@@ -29,24 +29,24 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 }
 
 func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableOf, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	old, ok := scope.lockedDescriptor.(*catalog.Relation)
+	old, ok := scope.LockedDescriptor.(*catalog.Relation)
 	if !ok {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	next, err := table.AlterTableOf(ddlHost{e: e, op: op}, auth, old, s)
+	next, err := table.AlterTableOf(DDLHost{E: e, Op: op}, auth, old, s)
 	if err != nil {
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	if next.OfType != (ids.ObjectAddress{}) {
-		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(next.OfType))
+		stage.DomainBases = append(stage.DomainBases, auth.Catalog.Get(next.OfType))
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(next); err != nil {
 		return Result{}, err
@@ -54,32 +54,32 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation
 	if s.Type != nil {
 		// Execution can select a source created while target admission waited.
 		// Grant the actual staged attachment, not just the pre-wait source.
-		replacementRead := scope.replacementRead
+		replacementRead := scope.ReplacementRead
 		if err := scope.acquireTypedSources(stage, false); err != nil {
 			return Result{}, err
 		}
 		// Release only this helper's incidental reservation before provider
 		// callbacks; preserve any replacement admission held on entry.
-		if !replacementRead && scope.replacementRead {
-			e.replacementMu.RUnlock()
-			scope.replacementRead = false
+		if !replacementRead && scope.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			scope.ReplacementRead = false
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return Result{}, err
 }
 
 func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool) error {
-	if stage == nil || stage.owner != scope.engine() || stage.Base.Domain() != scope.engine().catalog.Domain || stage.Base.Epoch() != scope.txRef.Epoch() {
+	if stage == nil || stage.Owner != scope.Engine() || stage.Base.Domain() != scope.Engine().Catalog.Domain || stage.Base.Epoch() != scope.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	addresses := table.TypedSources(drop, stage.domainTargets, stage.Descriptors())
+	addresses := table.TypedSources(drop, stage.DomainTargets, stage.Descriptors())
 	if len(addresses) == 0 {
 		return nil
 	}
@@ -95,13 +95,13 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 		if drop {
 			// General DROP roots include scalar/domain types, whose actual
 			// resource class is TypeExclusive, not a zero/fabricated relation.
-			if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), source), lock.TypeExclusive, true); err != nil {
+			if err := scope.AcquireSequence(stage.Owner.Catalog.Domain.Ref(stage.Base.Epoch(), source), lock.TypeExclusive, true); err != nil {
 				return err
 			}
-			e := stage.owner
-			e.mu.Lock()
-			valid := e.privateCatalogLocked(scope.owner.Catalog).Get(source) == typ
-			e.mu.Unlock()
+			e := stage.Owner
+			e.Mu.Lock()
+			valid := e.PrivateCatalogLocked(scope.Owner.Catalog).Get(source) == typ
+			e.Mu.Unlock()
 			if !valid {
 				return catalog.Conflict{}
 			}
@@ -111,17 +111,17 @@ func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool)
 			continue
 		}
 		resource := typ.OwningRelation
-		if err := scope.acquireSequence(stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), resource), mode, true); err != nil {
+		if err := scope.AcquireSequence(stage.Owner.Catalog.Domain.Ref(stage.Base.Epoch(), resource), mode, true); err != nil {
 			return err
 		}
 		// A wait may admit a different definition at the same address. Keep
 		// the copied shape tied to the exact captured reciprocal providers;
 		// neither a new generation nor a same-name source can be adopted.
-		e := stage.owner
-		e.mu.Lock()
-		current := e.privateCatalogLocked(scope.owner.Catalog)
+		e := stage.Owner
+		e.Mu.Lock()
+		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
 		valid := current.Get(source) == typ && current.Get(resource) == stage.Base.Get(resource)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if !valid {
 			return catalog.Conflict{}
 		}

@@ -74,14 +74,14 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			if err := scope.selectPreparedAnalysis(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			analysis, err := e.preparedAnalysisLocked(scope, auth, analyze.Binding{Prepared: first.Prepared})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -107,14 +107,14 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			if err != nil || node.ResultUsage().Type.ID() != captured.Base.Type.ID() {
 				t.Fatal("held cast lost current nominal generation", err)
 			}
-			e.mu.Lock()
-			auth, err = e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err = e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			valid := e.preparedAnalysisValidLocked(auth, analysis, analysis.path)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if !valid || !catalog.SamePreparedTypeDefinition(old, current) {
 				t.Fatal("identity-only edit retired held analysis")
 			}

@@ -44,10 +44,10 @@ func TestForeignKeyIndexProbeVisitBounds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := e.storage.IndexRoots[f.Index]
+	root := e.Storage.IndexRoots[f.Index]
 	original := slices.Clone(root.Entries)
-	rows := table.ForeignKeyRows{Committed: e.storage.Relations[parent.Address()].Versions, Ends: e.storage.Relations[parent.Address()].Ends, Frontier: e.visibility.CommitSeq(), Root: root, Index: f.Index}
-	missing := e.storage.Relations[catalogRef(t, e, view, "probe_input").Address].Versions[0].Values
+	rows := table.ForeignKeyRows{Committed: e.Storage.Relations[parent.Address()].Versions, Ends: e.Storage.Relations[parent.Address()].Ends, Frontier: e.Visibility.CommitSeq(), Root: root, Index: f.Index}
+	missing := e.Storage.Relations[catalogRef(t, e, view, "probe_input").Address].Versions[0].Values
 	for _, target := range []int{0, 2048, 4095, 4096} {
 		t.Run(fmt.Sprint(target), func(t *testing.T) {
 			values := missing
@@ -122,7 +122,7 @@ func TestForeignKeySelectedFamilyAuthority(t *testing.T) {
 	// A reader lacking the exact selected input generation cannot borrow it.
 	state := catalog.CloneState(view.State())
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})
-	if _, err := table.BindForeignKeyComparison(e.catalog.Read(state), child, parent, index, f); err == nil {
+	if _, err := table.BindForeignKeyComparison(e.Catalog.Read(state), child, parent, index, f); err == nil {
 		t.Fatal("missing actual type generation admitted")
 	}
 	if child.Columns[0].Usage.Type.ID() != sqltype.Int4 || child.Constraints.ForeignKeys[0].Index != index.Address() {
@@ -140,9 +140,9 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 	parent := view.MustRelation(parentRef.Address)
 	f := child.Constraints.ForeignKeys[0]
 	index := view.MustRelation(f.Index)
-	parentStore, childStore := e.storage.Relations[parentRef.Address], e.storage.Relations[childRef.Address]
+	parentStore, childStore := e.Storage.Relations[parentRef.Address], e.Storage.Relations[childRef.Address]
 	parentRows, childRows := slices.Clone(parentStore.Versions), slices.Clone(childStore.Versions)
-	root := e.storage.IndexRoots[f.Index]
+	root := e.Storage.IndexRoots[f.Index]
 	entries := slices.Clone(root.Entries)
 	for _, trial := range []struct{ sql, code string }{
 		{"ALTER TABLE p ALTER id TYPE BIGINT USING id+10", "23503"},
@@ -160,7 +160,7 @@ func TestForeignKeyTypeFailedSnapshotAuthority(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != trial.code {
 			t.Fatal(trial.sql, err)
 		}
-		if e.CatalogRead().State() != view.State() || e.storage.Relations[parentRef.Address] != parentStore || e.storage.Relations[childRef.Address] != childStore || e.storage.IndexRoots[f.Index] != root {
+		if e.CatalogRead().State() != view.State() || e.Storage.Relations[parentRef.Address] != parentStore || e.Storage.Relations[childRef.Address] != childStore || e.Storage.IndexRoots[f.Index] != root {
 			t.Fatal("failed TYPE published metadata/storage/index authority", trial.sql)
 		}
 		if !reflect.DeepEqual(parentStore.Versions, parentRows) || !reflect.DeepEqual(childStore.Versions, childRows) || !reflect.DeepEqual(root.Entries, entries) || !reflect.DeepEqual(child.Constraints.ForeignKeys[0], f) {
@@ -189,19 +189,19 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	operationReplay(op).insertAuthority = true
-	e.mu.Lock()
-	originalTargets := e.importTargets
-	e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
-	ordinary, ordinaryErr := e.authorizationLocked(op)
-	trusted, trustedErr := e.statementAuthorizationLocked(op, statement(t, "INSERT INTO nowhere VALUES(1)"))
+	OperationReplay(op).InsertAuthority = true
+	e.Mu.Lock()
+	originalTargets := e.ImportTargets
+	e.ImportTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
+	ordinary, ordinaryErr := e.AuthorizationLocked(op)
+	trusted, trustedErr := e.StatementAuthorizationLocked(op, statement(t, "INSERT INTO nowhere VALUES(1)"))
 	var path []ids.ObjectAddress
 	var pathErr error
 	if trustedErr == nil {
-		path, _, pathErr = explicitPath(trusted)
+		path, _, pathErr = ExplicitPath(trusted)
 	}
-	e.importTargets = originalTargets
-	e.mu.Unlock()
+	e.ImportTargets = originalTargets
+	e.Mu.Unlock()
 	if ordinaryErr != nil || trustedErr != nil || pathErr != nil {
 		t.Fatal(ordinaryErr, trustedErr, pathErr)
 	}
@@ -209,7 +209,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	if ordinary.State.CurrentUser == ordinary.State.Authenticated || trusted.State.CurrentUser != ordinary.State.Authenticated || trusted.namespaceUser != ordinary.State.CurrentUser || !slices.Contains(path, alpha) || trusted.SessionRoleState != ordinary.SessionRoleState {
 		t.Fatal("permission elevation replaced semantic namespace principal", ordinary.State, trusted.State, trusted.namespaceUser, path)
 	}
-	after, err := operationAuthorization(op)
+	after, err := OperationAuthorization(op)
 	if err != nil || after.State != ordinary.State || after.namespaceUser != (authorization.PrincipalRef{}) {
 		t.Fatal("transient replay authority changed public session identity", after.State, err)
 	}
@@ -218,13 +218,13 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 func TestForeignKeyCreateOutcomeIdentity(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
-	created := sessionSQL(t, s, "CREATE TABLE outcome(pid INT)").created
+	created := sessionSQL(t, s, "CREATE TABLE outcome(pid INT)").Created
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "outcome")
 	if created != ref {
 		t.Fatal("creator did not return its exact minted reference", created, ref)
 	}
-	skipped := sessionSQL(t, s, "CREATE TABLE IF NOT EXISTS outcome(pid INT REFERENCES missing_schema.missing_parent)").created
+	skipped := sessionSQL(t, s, "CREATE TABLE IF NOT EXISTS outcome(pid INT REFERENCES missing_schema.missing_parent)").Created
 	if skipped != (ids.ObjectRef{}) || e.CatalogRead().State() != view.State() {
 		t.Fatal("no-op masqueraded as a successful creation", skipped)
 	}

@@ -31,9 +31,9 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	defer readerDone()
 	capture := func(op *session.Operation) AuthorizationView {
 		t.Helper()
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,8 +69,8 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	row := []sqltype.Value{text("abc")}
 	sentinel := []sqltype.Value{text("outer")}
 	newEvaluation := func(auth AuthorizationView) exec.Context {
-		scope := &StatementScope{routineAuth: auth}
-		return exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Row: sentinel, Scope: 7, Frame: 9}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+		scope := &StatementScope{RoutineAuth: auth}
+		return exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope), Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Row: sentinel, Scope: 7, Frame: 9}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	}
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		if plain, ok := descriptor.(*catalog.Relation); ok && plain.Name() == "partition_plain" {
@@ -79,7 +79,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 			if _, err := partition.RowKey(plain, row, &local, buffer[:]); err != nil {
 				t.Fatal("plain key demand", err)
 			}
-			if scopeOf(local.Host).partitionsOrZero().Programs != nil || scopeOf(local.Host).routinePrograms != nil {
+			if ScopeOf(local.Host).PartitionsOrZero().Programs != nil || ScopeOf(local.Host).routinePrograms != nil {
 				t.Fatal("plain key initialized derived preparation")
 			}
 		}
@@ -92,10 +92,10 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if !reflect.DeepEqual(evaluation.Row, sentinel) || evaluation.Scope != 7 || evaluation.Frame != 9 || evaluation.RoutineConsumer != nil {
 		t.Fatal("partition evaluation changed enclosing row or recipe context")
 	}
-	if len(scopeOf(evaluation.Host).partitionsOrZero().Programs) != 1 || len(scopeOf(evaluation.Host).routinePrograms) != 1 {
+	if len(ScopeOf(evaluation.Host).PartitionsOrZero().Programs) != 1 || len(ScopeOf(evaluation.Host).routinePrograms) != 1 {
 		t.Fatal("missing statement-owned successful preparation")
 	}
-	if _, err := partition.EvaluateRecipe(&evaluation, owner, 0, row); err != nil || len(scopeOf(evaluation.Host).routinePrograms) != 1 {
+	if _, err := partition.EvaluateRecipe(&evaluation, owner, 0, row); err != nil || len(ScopeOf(evaluation.Host).routinePrograms) != 1 {
 		t.Fatal("repeated tuple reinitialized consumed program", err)
 	}
 	probe := func(name string, dependencies []ids.ObjectRef) {
@@ -110,7 +110,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 			if _, err := partition.EvaluateRecipe(&local, &copyOwner, 0, row); err == nil {
 				t.Fatal("invalid original lifetime was rescued")
 			}
-			if len(scopeOf(local.Host).partitionsOrZero().Programs) != 0 || len(scopeOf(local.Host).routinePrograms) != 0 {
+			if len(ScopeOf(local.Host).PartitionsOrZero().Programs) != 0 || len(ScopeOf(local.Host).routinePrograms) != 0 {
 				t.Fatal("failed initialization published a partial program")
 			}
 			if !reflect.DeepEqual(local.Row, sentinel) || local.Scope != 7 || local.Frame != 9 {
@@ -134,14 +134,14 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	foreign := slices.Clone(refs)
 	other := New()
 	for i := range foreign {
-		foreign[i] = other.catalog.Domain.Ref(foreign[i].Epoch, foreign[i].Address)
+		foreign[i] = other.Catalog.Domain.Ref(foreign[i].Epoch, foreign[i].Address)
 	}
 	probe("foreign_equal_address", foreign)
 	otherAdmin, otherDone := roleOperation(t, other, "postgres")
 	defer otherDone()
-	other.mu.Lock()
-	otherAuth, err := other.authorizationLocked(otherAdmin)
-	other.mu.Unlock()
+	other.Mu.Lock()
+	otherAuth, err := other.AuthorizationLocked(otherAdmin)
+	other.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	sibling.Partition = &siblingPartition
 	siblingPartition.Keys[0].Derived = &siblingKey
 	siblingKey.Dependencies = []ids.ObjectRef{}
-	if _, err := partition.EvaluateRecipe(&evaluation, &sibling, 0, row); err == nil || len(scopeOf(evaluation.Host).partitionsOrZero().Programs) != 1 {
+	if _, err := partition.EvaluateRecipe(&evaluation, &sibling, 0, row); err == nil || len(ScopeOf(evaluation.Host).PartitionsOrZero().Programs) != 1 {
 		t.Fatal("sibling borrowed an admitted owner's manifest")
 	}
 	multiOwner, multiPartition := *owner, *owner.Partition
@@ -190,7 +190,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if _, err := partition.EvaluateRecipe(&multiEvaluation, &multiOwner, 0, row); err == nil {
 		t.Fatal("later key's missing original manifest was ignored")
 	}
-	if len(scopeOf(multiEvaluation.Host).partitionsOrZero().Programs) != 0 || len(scopeOf(multiEvaluation.Host).routinePrograms) != 0 {
+	if len(ScopeOf(multiEvaluation.Host).PartitionsOrZero().Programs) != 0 || len(ScopeOf(multiEvaluation.Host).routinePrograms) != 0 {
 		t.Fatal("failed multi-key preparation published an earlier partial graph")
 	}
 	roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.octet_length(text) FROM PUBLIC")
@@ -206,11 +206,11 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	_, nullErr := partition.EvaluateRecipe(&nullEvaluation, owner, 0, []sqltype.Value{sqltype.Null(owner.Columns[0].Usage.Type)})
 	requireDenied(nullErr)
 	// No Eval here: a previously consumed body must be fenced after recapture.
-	if err := scopeOf(evaluation.Host).readmitPreparedPrograms(denied); err == nil {
+	if err := ScopeOf(evaluation.Host).readmitPreparedPrograms(denied); err == nil {
 		t.Fatal("consumed body survived revoked EXECUTE without readmission")
 	}
 	fresh := newEvaluation(denied)
-	if _, err := partition.EvaluateRecipe(&fresh, owner, 0, row); err == nil || len(scopeOf(fresh.Host).partitionsOrZero().Programs) != 0 {
+	if _, err := partition.EvaluateRecipe(&fresh, owner, 0, row); err == nil || len(ScopeOf(fresh.Host).PartitionsOrZero().Programs) != 0 {
 		t.Fatal("fresh statement borrowed an earlier actor's admission", err)
 	}
 	// The separately privileged owner cannot license the actual reader phase.
@@ -220,17 +220,17 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("privileged owner phase", err)
 	}
 	phase.RoutineAuthority = &denied
-	if _, err := partition.EvaluateRecipe(&phase, owner, 0, row); err == nil || len(scopeOf(phase.Host).partitionsOrZero().Programs) != 1 {
+	if _, err := partition.EvaluateRecipe(&phase, owner, 0, row); err == nil || len(ScopeOf(phase.Host).PartitionsOrZero().Programs) != 1 {
 		t.Fatal("reader borrowed owner phase or failed phase was published", err)
 	}
 	roleExecute(t, e, admin, "GRANT EXECUTE ON FUNCTION pg_catalog.octet_length(text) TO partition_original_reader")
 	granted := capture(reader)
-	if err := scopeOf(evaluation.Host).readmitPreparedPrograms(granted); err != nil {
+	if err := ScopeOf(evaluation.Host).readmitPreparedPrograms(granted); err != nil {
 		t.Fatal("original consumed graph did not readmit after grant", err)
 	}
-	scopeOf(evaluation.Host).command++
+	ScopeOf(evaluation.Host).CommandID++
 	evaluation.RoutineAuthority = &granted
-	if _, err := partition.EvaluateRecipe(&evaluation, owner, 0, row); err != nil || len(scopeOf(evaluation.Host).partitionsOrZero().Programs) != 2 {
+	if _, err := partition.EvaluateRecipe(&evaluation, owner, 0, row); err != nil || len(ScopeOf(evaluation.Host).PartitionsOrZero().Programs) != 2 {
 		t.Fatal("new command phase reused prior preparation", err)
 	}
 	if !reflect.DeepEqual(original.Dependencies, refs) {

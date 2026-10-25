@@ -133,15 +133,15 @@ func analysisOnlyFixture(t *testing.T, sql string) (*Engine, *plan.Query, []cata
 	raw := statement(t, sql).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	b := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Query.Auth = &auth
 	var q *plan.Query
 	if err == nil {
 		q, err = b.BindSelect(raw, false)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,9 +153,9 @@ func analysisOnlyAuthority(t *testing.T, e *Engine, grant string) AuthorizationV
 	run(t, e, grant)
 	op, done := roleOperation(t, e, "analysis_reader")
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,15 +237,15 @@ func TestQueryAnalysisOnlyOriginalLifetime(t *testing.T) {
 			e, q, dependencies := analysisOnlyFixture(t, sql)
 			original := analysisOnlySnapshot(q.Root, dependencies)
 			if len(original.calls) == 0 { t.Fatal("no retained original manifest") }
-			e.mu.Lock()
-			auth := catalogAuthorization(e, e.catalog.Current())
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth := catalogAuthorization(e, e.Catalog.Current())
+			e.Mu.Unlock()
 			foreign := New()
-			foreign.mu.Lock()
-			other := catalogAuthorization(foreign, foreign.catalog.Current())
-			foreign.mu.Unlock()
+			foreign.Mu.Lock()
+			other := catalogAuthorization(foreign, foreign.Catalog.Current())
+			foreign.Mu.Unlock()
 			for _, call := range original.calls {
-				if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), dependencies, call.Procedure, nil); err != nil { t.Fatal("genuine original", err) }
+				if err := exec.AdmitRoutineDescriptor(RoutineAccessOf(auth), dependencies, call.Procedure, nil); err != nil { t.Fatal("genuine original", err) }
 				for _, kind := range []string{"missing", "revision", "foreign", "epoch", "substitution"} {
 					probe := append([]catalog.ExpressionDependency(nil), dependencies...)
 					selected, authority := call.Procedure, auth
@@ -260,15 +260,15 @@ func TestQueryAnalysisOnlyOriginalLifetime(t *testing.T) {
 						for i := range probe { probe[i].Ref.Epoch++ }
 					case "substitution": selected = other.Catalog.MustProcedure(call.Ref.Address)
 					}
-					analysisOnlyLifetimeRejected(t, kind, exec.AdmitRoutineDescriptor(routineAccessOf(authority), probe, selected, nil))
+					analysisOnlyLifetimeRejected(t, kind, exec.AdmitRoutineDescriptor(RoutineAccessOf(authority), probe, selected, nil))
 				}
 			}
 			if err := e.Reset(context.Background()); err != nil { t.Fatal(err) }
-			e.mu.Lock()
-			after := catalogAuthorization(e, e.catalog.Current())
-			e.mu.Unlock()
+			e.Mu.Lock()
+			after := catalogAuthorization(e, e.Catalog.Current())
+			e.Mu.Unlock()
 			for _, call := range original.calls {
-				analysisOnlyLifetimeRejected(t, "replacement", exec.AdmitRoutineDescriptor(routineAccessOf(after), dependencies, call.Procedure, nil))
+				analysisOnlyLifetimeRejected(t, "replacement", exec.AdmitRoutineDescriptor(RoutineAccessOf(after), dependencies, call.Procedure, nil))
 			}
 			analysisOnlyUnchanged(t, original, q.Root, dependencies)
 		})

@@ -20,7 +20,7 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	if err := exec.SelectQuerySources(op.Ctx, inputs); err != nil {
 		t.Fatal(err)
 	}
-	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: dml.MergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output, VirtualReads: dml.MergeHasVirtualReads(b.Merge)}
 	if !state.VirtualReads {
 		t.Fatal("MERGE action did not establish virtual demand")
 	}
@@ -29,11 +29,11 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	authority := inputs.Authority
-	rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), &cursor, state, false)
-	if err != nil || !cursor.Closed || rows == nil || len(rows.Values) != 3 || len(scope.stage.rows) != 0 {
-		t.Fatal("saved source phase or publication fence", rows, err, cursor.Closed, scope.stage.rows)
+	rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), &cursor, state, false)
+	if err != nil || !cursor.Closed || rows == nil || len(rows.Values) != 3 || len(scope.Stage.Rows) != 0 {
+		t.Fatal("saved source phase or publication fence", rows, err, cursor.Closed, scope.Stage.Rows)
 	}
-	if inputs.Authority != authority || authority == nil || inputs.Sources == nil || scope.active() != nil {
+	if inputs.Authority != authority || authority == nil || inputs.Sources == nil || scope.Active() != nil {
 		t.Fatal("borrowed cursor close retired live input authority")
 	}
 	seen := [3]bool{}

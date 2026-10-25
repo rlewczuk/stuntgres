@@ -44,7 +44,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := holder.gate(statement(t, "SELECT * FROM "+target)); err != nil {
+			if err := holder.Gate(statement(t, "SELECT * FROM "+target)); err != nil {
 				t.Fatal(err)
 			}
 			holderFinished := false
@@ -53,7 +53,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 					_ = holder.Finish(nil)
 				}
 			}()
-			if err := holder.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+			if err := holder.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -67,7 +67,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.gate(statement(t, "CREATE TABLE clone(LIKE src"+options+")")); err != nil {
+			if err := scope.Gate(statement(t, "CREATE TABLE clone(LIKE src"+options+")")); err != nil {
 				t.Fatal(err)
 			}
 			stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(LIKE src"+options+")")
@@ -98,7 +98,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 						retained = retained || dependency == ref
 					}
 					var executionDependencies []ids.ObjectRef
-					if _, err := (stored.ScalarRenderer{Owner: destination, Dependencies: &executionDependencies}).SQL(context.Background(), e.stageRead(stage), index.SQLIndex.Predicate.Execution); err != nil {
+					if _, err := (stored.ScalarRenderer{Owner: destination, Dependencies: &executionDependencies}).SQL(context.Background(), e.StageRead(stage), index.SQLIndex.Predicate.Execution); err != nil {
 						t.Fatal(err)
 					}
 					for _, dependency := range executionDependencies {
@@ -123,11 +123,11 @@ func tableLikeAdmission(t *testing.T, provider string) {
 					}
 				}
 			}()
-			go func() { result <- scope.acquireDefinitionProviders(stage) }()
+			go func() { result <- scope.AcquireDefinitionProviders(stage) }()
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.ticket].Mode&lock.AccessExclusive != 0
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.LockTicket].Mode&lock.AccessExclusive != 0
 			if !queued {
 				t.Fatal("not queued on exact captured provider", ref)
 			}
@@ -181,9 +181,9 @@ func tableLikeAdmission(t *testing.T, provider string) {
 					t.Fatal(err)
 				}
 				assertHeld := func() {
-					lockState := e.locks.Inspect()
+					lockState := e.Locks.Inspect()
 					entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-					held := entry != nil && entry.Holders[scope.ticket].Mode&lock.AccessShare != 0
+					held := entry != nil && entry.Holders[scope.LockTicket].Mode&lock.AccessShare != 0
 					if !held {
 						t.Fatal("provider hold lost before publication finished")
 					}

@@ -22,26 +22,26 @@ func engineDomain(auth AuthorizationView) *ids.Domain {
 	if auth.inputs == nil {
 		return nil
 	}
-	return auth.inputs.domain
+	return auth.inputs.Domain
 }
 
 func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
-	if auth.session == nil || auth.Catalog.State() == nil || auth.session.SessionToken == (ids.SessionToken{}) || auth.session.SessionToken.Domain() != engineDomain(auth) || session.PrivateSessionOf(auth.session.SessionToken) != nil {
+	if auth.Session == nil || auth.Catalog.State() == nil || auth.Session.SessionToken == (ids.SessionToken{}) || auth.Session.SessionToken.Domain() != engineDomain(auth) || session.PrivateSessionOf(auth.Session.SessionToken) != nil {
 		return ids.ObjectAddress{}
 	}
 	table := func(a ids.ObjectAddress) bool {
 		ns, ok := auth.Catalog.Namespace(a)
-		return ok && !ns.TemporaryToast && ns.Temporary == auth.session.SessionToken
+		return ok && !ns.TemporaryToast && ns.Temporary == auth.Session.SessionToken
 	}
-	if table(auth.stagedTemporary) {
-		return auth.stagedTemporary
+	if table(auth.StagedTemporary) {
+		return auth.StagedTemporary
 	}
-	if table(auth.session.TemporaryNamespace) {
-		return auth.session.TemporaryNamespace
+	if table(auth.Session.TemporaryNamespace) {
+		return auth.Session.TemporaryNamespace
 	}
-	if owner := auth.session.Transactions; owner != nil && owner.Catalog != nil {
+	if owner := auth.Session.Transactions; owner != nil && owner.Catalog != nil {
 		for a, d := range auth.Catalog.Descriptors() {
-			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.SessionToken {
+			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.Session.SessionToken {
 				return a
 			}
 		}
@@ -49,7 +49,7 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 	return ids.ObjectAddress{}
 }
 
-func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *session.Journal) (ids.ObjectRef, error) {
+func (e *Engine) RelationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *session.Journal) (ids.ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
 }
 
@@ -60,7 +60,7 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 	temp = temp || len(name.Parts) == 2
 	if !temp {
 		var err error
-		_, temp, err = explicitPath(auth)
+		_, temp, err = ExplicitPath(auth)
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
@@ -73,12 +73,12 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 
 // Engine.mu is held. The caller owns the candidate and its publication.
 func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *session.Journal) (ids.ObjectRef, error) {
-	if auth.session == nil || session.PrivateSessionOf(auth.session.SessionToken) != nil {
+	if auth.Session == nil || session.PrivateSessionOf(auth.Session.SessionToken) != nil {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: private maintenance cannot create a temporary namespace")
 	}
-	auth.session.Transactions.AccessedTemporary = true
+	auth.Session.Transactions.AccessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
-		return e.catalog.Domain.Ref(e.catalog.State.Epoch(), a), nil
+		return e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a), nil
 	}
 	rights, err := access.DatabaseRights(context.Background(), auth.Catalog, auth.Roles, auth.State.CurrentUser)
 	if err != nil {
@@ -86,35 +86,35 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *sessi
 	}
 	if rights&authorization.TemporaryPrivilege == 0 {
 		db := auth.Catalog.MustDatabase(auth.Owner.DatabaseAddress())
-		return ids.ObjectRef{}, sqlError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.Name()))
+		return ids.ObjectRef{}, SQLError("42501", fmt.Sprintf(`permission denied to create temporary tables in database "%s"`, db.Name()))
 	}
-	oid, err := e.catalog.AllocateOIDLocked()
+	oid, err := e.Catalog.AllocateOIDLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	rev, err := e.catalog.RevisionLocked()
+	rev, err := e.Catalog.RevisionLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	toastOID, err := e.catalog.AllocateOIDLocked()
+	toastOID, err := e.Catalog.AllocateOIDLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	toastRevision, err := e.catalog.RevisionLocked()
+	toastRevision, err := e.Catalog.RevisionLocked()
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	owner := e.roles.Domain.Principal(10)
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.SessionToken.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.SessionToken}
-	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.SessionToken.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.SessionToken, TemporaryToast: true}
+	owner := e.RoleStore.Domain.Principal(10)
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.Session.SessionToken.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.Session.SessionToken}
+	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.Session.SessionToken.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.Session.SessionToken, TemporaryToast: true}
 	if c.Originals == nil {
 		c.Originals = make(map[ids.ObjectAddress]catalog.Descriptor)
 		c.Descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
 		c.Names = make(map[ids.NameKey]ids.ObjectAddress)
 	}
-	e.catalogChangeLocked(c, ns.Address(), ns)
-	e.catalogChangeLocked(c, toast.Address(), toast)
-	return e.catalog.Domain.Ref(e.catalog.State.Epoch(), ns.Address()), nil
+	e.CatalogChangeLocked(c, ns.Address(), ns)
+	e.CatalogChangeLocked(c, toast.Address(), toast)
+	return e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ns.Address()), nil
 }
 
 // Physical-end cleanup occurs after command drain. Catalog edits remain coherent
@@ -127,14 +127,14 @@ func (e *Engine) endTemporarySession(s *session.Session) error {
 		return nil
 	}
 	for {
-		e.mu.Lock()
-		base := e.catalog.Current()
+		e.Mu.Lock()
+		base := e.Catalog.Current()
 		for _, d := range base.Descriptors() {
 			if _, ok := d.(*catalog.Collation); !ok {
 				continue
 			}
 			if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == s.SessionToken {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return nil
 			}
 		}
@@ -147,25 +147,25 @@ func (e *Engine) endTemporarySession(s *session.Session) error {
 			}
 		}
 		if len(namespaces) == 0 {
-			payloadOf(s).sequences.ForgetLocked()
+			PayloadOf(s).Sequences.ForgetLocked()
 			s.TemporaryNamespace = ids.ObjectAddress{}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil
 		}
 		targets, err := catalog.NamespaceChildren(base, owned)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
 		stage := e.BeginCatalogStage(base)
 		stage.terminalCleanup = true
 		for _, a := range targets {
-			if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), a)); err != nil {
+			if err = stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), a)); err != nil {
 				break
 			}
 		}
 		if err == nil {
-			err = stageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{})
+			err = StageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{})
 		}
 		if err == nil {
 			err = stageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil)
@@ -177,12 +177,12 @@ func (e *Engine) endTemporarySession(s *session.Session) error {
 		if err == nil {
 			indexes, err = e.prepareTemporarySessionIndexes(stage)
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		installed := false
 		if err == nil {
 			installed, err = e.installTemporarySessionStageLocked(s, stage, namespaces, indexes)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		stale := err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && e.temporaryCleanupStale(stage, indexes)
 		e.DiscardCatalogStage(stage)
 		if err != nil {
@@ -200,25 +200,25 @@ func (e *Engine) endTemporarySession(s *session.Session) error {
 // Retry only a candidate whose captured retirement authority has actually
 // changed. A structural failure against the same roots must escape teardown.
 func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySessionIndexes) bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.catalog.State != stage.Base.State() {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if e.Catalog.State != stage.Base.State() {
 		return true
 	}
-	for address, shape := range stage.rowShapes {
-		store := e.storage.Relations[address]
+	for address, shape := range stage.RowShapes {
+		store := e.Storage.Relations[address]
 		if store != shape.Original || store == nil || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || !storage.SameVersionRoot(store.Versions, shape.Root) {
 			return true
 		}
 	}
-	for address, candidate := range stage.indexesOrZero().Candidates {
-		if index, ok := stage.Get(address).(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.Matches(e.storage.Relations[index.SQLIndex.Parent]) {
+	for address, candidate := range stage.IndexesOrZero().Candidates {
+		if index, ok := stage.Get(address).(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.Matches(e.Storage.Relations[index.SQLIndex.Parent]) {
 			return true
 		}
 	}
 	if indexes != nil {
 		for address, root := range indexes.previous {
-			if e.storage.IndexRoots[address] != root {
+			if e.Storage.IndexRoots[address] != root {
 				return true
 			}
 		}
@@ -230,47 +230,47 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 // dependents. Row-only commits need not change that root: copy their current
 // storage/generator/index maps at this final publication, not at preparation.
 func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *CatalogStage, namespaces []ids.ObjectAddress, indexes *temporarySessionIndexes) (bool, error) {
-	if e.catalog.State != stage.Base.State() {
+	if e.Catalog.State != stage.Base.State() {
 		return false, nil
 	}
 	for _, address := range namespaces {
-		namespace, ok := e.catalog.State.Namespace(address)
+		namespace, ok := e.Catalog.State.Namespace(address)
 		if !ok || namespace.Temporary != s.SessionToken {
 			return false, nil
 		}
 	}
-	for address, shape := range stage.rowShapes {
-		store := e.storage.Relations[address]
+	for address, shape := range stage.RowShapes {
+		store := e.Storage.Relations[address]
 		if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.ObservedEnds || !storage.SameVersionRoot(store.Versions, shape.Root) {
 			return false, nil
 		}
 	}
 	if indexes != nil {
 		for address, root := range indexes.previous {
-			if e.storage.IndexRoots[address] != root {
+			if e.Storage.IndexRoots[address] != root {
 				return false, nil
 			}
 		}
 	}
-	if len(stage.rowShapes) == 0 && stage.lifecycle == catalogOpen {
-		if err := e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil); err != nil {
+	if len(stage.RowShapes) == 0 && stage.Lifecycle == CatalogOpen {
+		if err := e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil); err != nil {
 			return false, err
 		}
 	}
-	next := e.stageRead(stage).State()
-	sequences := make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences))
-	for a, g := range e.storage.Sequences {
+	next := e.StageRead(stage).State()
+	sequences := make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.Storage.Sequences))
+	for a, g := range e.Storage.Sequences {
 		sequences[a] = g
 	}
-	relations := make(map[ids.ObjectAddress]*storage.Relation, len(e.storage.Relations))
-	for a, store := range e.storage.Relations {
+	relations := make(map[ids.ObjectAddress]*storage.Relation, len(e.Storage.Relations))
+	for a, store := range e.Storage.Relations {
 		relations[a] = store
 	}
-	roots := make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.storage.IndexRoots))
-	for a, root := range e.storage.IndexRoots {
+	roots := make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.Storage.IndexRoots))
+	for a, root := range e.Storage.IndexRoots {
 		roots[a] = root
 	}
-	for address, shape := range stage.rowShapes {
+	for address, shape := range stage.RowShapes {
 		relations[address] = shape.Replacement
 	}
 	if indexes != nil {
@@ -284,14 +284,14 @@ func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *C
 		delete(roots, a)
 	}
 	catalog.PruneNamespaceDefaults(stage.Base.State(), next, namespaces)
-	nextRevision := catalog.RevisionFrontier(e.catalog.NextRevision(), stage.Descriptors())
-	e.catalog.PublishLocked(next)
-	e.storage.ReplaceSequencesLocked(sequences)
-	e.storage.ReplaceRelationsLocked(relations)
-	e.storage.ReplaceIndexRootsLocked(roots)
-	stage.lifecycle = catalogPublished
-	e.catalog.InstallRevisionFrontierLocked(nextRevision)
-	payloadOf(s).sequences.ForgetLocked()
+	nextRevision := catalog.RevisionFrontier(e.Catalog.NextRevision(), stage.Descriptors())
+	e.Catalog.PublishLocked(next)
+	e.Storage.ReplaceSequencesLocked(sequences)
+	e.Storage.ReplaceRelationsLocked(relations)
+	e.Storage.ReplaceIndexRootsLocked(roots)
+	stage.Lifecycle = catalogPublished
+	e.Catalog.InstallRevisionFrontierLocked(nextRevision)
+	PayloadOf(s).Sequences.ForgetLocked()
 	s.TemporaryNamespace = ids.ObjectAddress{}
 	return true, nil
 }
@@ -304,33 +304,33 @@ type temporarySessionIndexes struct {
 // Capture affected roots under the mutex; construction remains outside the
 // terminal install. Unrelated root changes are not fenced or overwritten.
 func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporarySessionIndexes, error) {
-	e.mu.Lock()
-	if e.catalog.State != stage.Base.State() {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if e.Catalog.State != stage.Base.State() {
+		e.Mu.Unlock()
 		return nil, catalog.Conflict{}
 	}
 	result := &temporarySessionIndexes{previous: make(map[ids.ObjectAddress]*storage.IndexRoot)}
 	for address := range stage.Removals() {
 		index, ok := stage.Base.Relation(address)
 		if ok && index.SQLIndex != nil {
-			result.previous[address] = e.storage.IndexRoots[address]
+			result.previous[address] = e.Storage.IndexRoots[address]
 		}
 	}
-	if len(stage.rowShapes) == 0 {
-		e.mu.Unlock()
+	if len(stage.RowShapes) == 0 {
+		e.Mu.Unlock()
 		return result, nil
 	}
-	if stage.lifecycle == catalogOpen {
-		if err := e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil); err != nil {
-			e.mu.Unlock()
+	if stage.Lifecycle == CatalogOpen {
+		if err := e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil); err != nil {
+			e.Mu.Unlock()
 			return nil, err
 		}
 	}
-	next := e.stageRead(stage).State()
-	parents := make(map[ids.ObjectAddress]bool, len(stage.rowShapes))
-	for address, shape := range stage.rowShapes {
+	next := e.StageRead(stage).State()
+	parents := make(map[ids.ObjectAddress]bool, len(stage.RowShapes))
+	for address, shape := range stage.RowShapes {
 		if shape.Original == nil || shape.Replacement == nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil, ids.ErrCatalogReplaced
 		}
 		parents[address] = true
@@ -340,17 +340,17 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 		if !ok || index.SQLIndex == nil || !parents[index.SQLIndex.Parent] || !index.SQLIndex.Ready {
 			continue
 		}
-		result.previous[address] = e.storage.IndexRoots[address]
+		result.previous[address] = e.Storage.IndexRoots[address]
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	changes := session.NewJournal()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.catalog.Read(next)}}
-	for address, shape := range stage.rowShapes {
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.Catalog.Read(next)}}
+	for address, shape := range stage.RowShapes {
 		parent, ok := next.Relation(address)
 		if !ok {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if _, _, err := transportIndexLayouts(&evaluation, stage, changes, parent, shape.Original, shape.Replacement, nil, nil); err != nil {
+		if _, _, err := TransportIndexLayouts(&evaluation, stage, changes, parent, shape.Original, shape.Replacement, nil, nil); err != nil {
 			return nil, err
 		}
 	}
@@ -361,7 +361,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 			if !ok || idx.SQLIndex == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			shape, ok := stage.rowShapes[idx.SQLIndex.Parent]
+			shape, ok := stage.RowShapes[idx.SQLIndex.Parent]
 			candidate, produced := index.JournalIndexesOrZero(changes).Candidates[address]
 			if !ok || !produced || !candidate.MatchesIndex(idx, shape.Replacement) {
 				return nil, ids.ErrCatalogReplaced

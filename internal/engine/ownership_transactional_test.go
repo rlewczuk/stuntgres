@@ -18,12 +18,12 @@ import (
 
 func ownershipUnitCapture(t *testing.T, e *Engine, stage *CatalogStage, journal *session.Journal) {
 	t.Helper()
-	e.mu.Lock()
-	err := e.captureCatalogStageLocked(stage, journal, e.privateCatalogLocked(journal).State(), nil)
+	e.Mu.Lock()
+	err := e.captureCatalogStageLocked(stage, journal, e.PrivateCatalogLocked(journal).State(), nil)
 	if err == nil {
 		e.stageCatalogChangesLocked(stage, journal)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,12 +35,12 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	defer done()
 	op.Session.Transactions.RetainedMessage = true
 	defer func() { op.Session.Transactions.RetainedMessage = false; op.Session.Transactions.Catalog = nil }()
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	first.authorizeLocked(auth, op.Session)
-	base, state := e.roles.Published, e.catalog.State
+	first.AuthorizeLocked(auth, op.Session)
+	base, state := e.RoleStore.Published, e.Catalog.State
 	baseEdges := append([]authorization.Membership(nil), fixtureEdges(base)...)
 	bootstrap := auth.Roles.LookupRef("postgres")
 	source, target, reader := auth.Roles.LookupRef("ownership_source"), auth.Roles.LookupRef("ownership_target"), auth.Roles.LookupRef("ownership_reader")
@@ -58,10 +58,10 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	}
 	journal := session.NewJournal()
 	ownershipUnitCapture(t, e, first, journal)
-	if journal.Roles != first.roleCandidate || journal.RolesBase != base {
+	if journal.Roles != first.RoleCandidateRecord || journal.RolesBase != base {
 		t.Fatal("stage lost private role candidate or original committed predecessor")
 	}
-	if e.roles.Published != base || e.catalog.State != state || !reflect.DeepEqual(fixtureEdges(base), baseEdges) {
+	if e.RoleStore.Published != base || e.Catalog.State != state || !reflect.DeepEqual(fixtureEdges(base), baseEdges) {
 		t.Fatal("capture published or mutated retained authority")
 	}
 	if !reflect.DeepEqual(fixtureEdges(journal.Roles), wantFirst) {
@@ -70,9 +70,9 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	mark := journal.Clone()
 	op.Session.Transactions.Catalog = journal
 	// An ordinary descriptor-only stage must preserve the already pending graph.
-	e.mu.Lock()
-	private := e.privateCatalogLocked(journal)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	private := e.PrivateCatalogLocked(journal)
+	e.Mu.Unlock()
 	nilCandidate := e.BeginCatalogStage(private)
 	replacement := *private.MustNamespace(ns.Address())
 	replacement.ObjectRevision++
@@ -80,11 +80,11 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitCapture(t, e, nilCandidate, journal)
-	if journal.Roles != first.roleCandidate || journal.RolesBase != base || mark.Descriptors[ns.Address()] == journal.Descriptors[ns.Address()] {
+	if journal.Roles != first.RoleCandidateRecord || journal.RolesBase != base || mark.Descriptors[ns.Address()] == journal.Descriptors[ns.Address()] {
 		t.Fatal("nil candidate erased graph or modified marked descriptors")
 	}
 	// Stage a second deletion against the private predecessor, not base.Revision.
-	auth, err = operationAuthorization(op)
+	auth, err = OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	}
 	// A source with no outgoing grant can have a nil second candidate; construct
 	// a genuine further deletion of an existing surviving edge for merge proof.
-	if second.roleCandidate == nil {
+	if second.RoleCandidateRecord == nil {
 		next := *auth.RoleRecord
 		edges := fixtureEdges(auth.RoleRecord)
 		kept := make([]authorization.Membership, 0, len(edges)-1)
@@ -112,7 +112,7 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 		}
 		setFixtureEdges(&next, kept)
 		next.Revision++
-		second.roleCandidate = &next
+		second.RoleCandidateRecord = &next
 	}
 	if err := second.validateRoleCandidate(auth.RoleRecord); err != nil {
 		t.Fatal("private predecessor rejected", err)
@@ -125,15 +125,15 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	}
 	child := journal.Clone()
 	ownershipUnitCapture(t, e, second, child)
-	if child.Roles != second.roleCandidate || child.RolesBase != base || journal.Roles != first.roleCandidate || mark.Roles != first.roleCandidate {
+	if child.Roles != second.RoleCandidateRecord || child.RolesBase != base || journal.Roles != first.RoleCandidateRecord || mark.Roles != first.RoleCandidateRecord {
 		t.Fatal("second candidate merge or savepoint clone corrupted roots")
 	}
 	if !reflect.DeepEqual(fixtureEdges(child.Roles), wantSeed) || !reflect.DeepEqual(fixtureEdges(mark.Roles), wantFirst) {
 		t.Fatal("private/marked exact membership provenance changed", fixtureEdges(child.Roles), fixtureEdges(mark.Roles))
 	}
-	e.mu.Lock()
-	err = e.catalogPreflightLocked(child)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.CatalogPreflightLocked(child)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("unchanged original committed predecessor rejected", err)
 	}
@@ -142,24 +142,24 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	survivors[0].Set = !survivors[0].Set
 	setFixtureEdges(&nondeletion, survivors)
 	nondeletion.Revision++
-	second.roleCandidate = &nondeletion
+	second.RoleCandidateRecord = &nondeletion
 	if err := second.validateRoleCandidate(auth.RoleRecord); err == nil {
 		t.Fatal("nondeletion membership candidate accepted")
 	}
-	second.roleCandidate = child.Roles
-	bad := *second.roleCandidate
+	second.RoleCandidateRecord = child.Roles
+	bad := *second.RoleCandidateRecord
 	bad.Revision++
-	second.roleCandidate = &bad
+	second.RoleCandidateRecord = &bad
 	if err := second.validateRoleCandidate(auth.RoleRecord); err == nil {
 		t.Fatal("invalid candidate revision accepted")
 	}
 	exhausted := *auth.RoleRecord
 	exhausted.Revision = ^uint64(0)
-	second.roleRevision = exhausted.Revision
+	second.RoleRevision = exhausted.Revision
 	if err := second.validateRoleCandidate(&exhausted); err == nil {
 		t.Fatal("revision exhaustion accepted")
 	}
-	if e.roles.Published != base || e.catalog.State != state {
+	if e.RoleStore.Published != base || e.Catalog.State != state {
 		t.Fatal("private candidate work escaped into committed roots")
 	}
 	// A legitimate read refresh merges the exact private deletion delta into
@@ -167,13 +167,13 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	privateRoles, privateRevision := child.Roles, child.Roles.Revision
 	op.Session.Transactions.Catalog = child
 	ownershipUnitExec(t, e, "COMMENT ON ROLE ownership_target IS 'ownership overlay peer'")
-	peerRoles := e.roles.Published
-	e.mu.Lock()
+	peerRoles := e.RoleStore.Published
+	e.Mu.Lock()
 	op.Session.Mu.Lock()
 	err = e.refreshOperationRolesLocked(op)
 	refreshed := op.Session.Transactions.Catalog
 	op.Session.Mu.Unlock()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || refreshed == child || refreshed.Roles == privateRoles || refreshed.RolesBase != peerRoles ||
 		!reflect.DeepEqual(fixtureEdges(refreshed.Roles), wantSeed) ||
 		fixtureRole(refreshed.Roles, target).Comment != "ownership overlay peer" {
@@ -183,7 +183,7 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 		!reflect.DeepEqual(fixtureEdges(privateRoles), wantSeed) || !reflect.DeepEqual(fixtureEdges(mark.Roles), wantFirst) ||
 		mark.RolesBase != base || !reflect.DeepEqual(fixtureEdges(base), baseEdges) ||
 		fixtureRole(base, target).Comment != "" || fixtureRole(privateRoles, target).Comment != "" ||
-		e.roles.Published != peerRoles || e.catalog.State != state {
+		e.RoleStore.Published != peerRoles || e.Catalog.State != state {
 		t.Fatal("role refresh mutated private/marked/committed predecessors")
 	}
 }
@@ -194,17 +194,17 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			e, stage, _ := ownershipCleanupStage(t)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
-			stage.authorizeLocked(auth, op.Session)
+			stage.AuthorizeLocked(auth, op.Session)
 			journal := session.NewJournal()
 			ownershipUnitCapture(t, e, stage, journal)
-			if journal.Roles != stage.roleCandidate {
+			if journal.Roles != stage.RoleCandidateRecord {
 				t.Fatal("missing candidate before final publication preflight")
 			}
-			original := e.roles.Published
+			original := e.RoleStore.Published
 			originalEdges := append([]authorization.Membership(nil), fixtureEdges(original)...)
 			privateEdges := append([]authorization.Membership(nil), fixtureEdges(journal.Roles)...)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -217,33 +217,33 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				// not merely the publication revision of an equivalent root.
 				ownershipUnitExec(t, e, "GRANT ownership_target TO ownership_reader WITH SET FALSE GRANTED BY ownership_source")
 			case "database":
-				db := *e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
+				db := *e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 				db.ObjectRevision++
-				next := catalog.CloneState(e.catalog.State)
+				next := catalog.CloneState(e.Catalog.State)
 				next.SetDescriptor(db.Address(), &db)
-				e.catalog.PublishLocked(next)
+				e.Catalog.PublishLocked(next)
 			case "reset":
 				if err := e.Reset(ctx); err != nil {
 					t.Fatal(err)
 				}
 			case "invalid-member":
-				next := *stage.roleCandidate
+				next := *stage.RoleCandidateRecord
 				edges := append([]authorization.Membership(nil), fixtureEdges(&next)...)
 				edges[0].Set = !edges[0].Set
 				setFixtureEdges(&next, edges)
-				stage.roleCandidate = &next
+				stage.RoleCandidateRecord = &next
 			}
-			state, roles := e.catalog.State, e.roles.Published
+			state, roles := e.Catalog.State, e.RoleStore.Published
 			if veto == "invalid-member" {
-				e.mu.Lock()
-				err = e.captureCatalogStageLocked(stage, journal.Clone(), e.privateCatalogLocked(journal).State(), nil)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				err = e.captureCatalogStageLocked(stage, journal.Clone(), e.PrivateCatalogLocked(journal).State(), nil)
+				e.Mu.Unlock()
 			} else {
 				_, err = e.preparePrivateCatalog(ctx, journal, stage.Base.Epoch())
 				if err == nil {
-					e.mu.Lock()
-					err = e.catalogPreflightLocked(journal)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					err = e.CatalogPreflightLocked(journal)
+					e.Mu.Unlock()
 				}
 			}
 			if err == nil {
@@ -252,7 +252,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			if veto == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if e.catalog.State != state || e.roles.Published != roles {
+			if e.Catalog.State != state || e.RoleStore.Published != roles {
 				t.Fatal("failed combined preparation published a prefix")
 			}
 			if !reflect.DeepEqual(fixtureEdges(original), originalEdges) || !reflect.DeepEqual(fixtureEdges(journal.Roles), privateEdges) {
@@ -264,7 +264,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 		t.Run(map[bool]string{false: "combined-commit", true: "combined-cancel"}[cancelCommit], func(t *testing.T) {
 			e, unused, ns := ownershipCleanupStage(t)
 			e.DiscardCatalogStage(unused)
-			oldState, oldRoles := e.catalog.State, e.roles.Published
+			oldState, oldRoles := e.Catalog.State, e.RoleStore.Published
 			oldEdges := append([]authorization.Membership(nil), fixtureEdges(oldRoles)...)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -275,7 +275,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				t.Fatal("retained cleanup stage", err)
 			}
 			candidate := message.op.Session.Transactions.Catalog.Roles
-			if candidate == nil || e.catalog.State != oldState || e.roles.Published != oldRoles {
+			if candidate == nil || e.Catalog.State != oldState || e.RoleStore.Published != oldRoles {
 				t.Fatal("retained cleanup lost candidate or published before message end")
 			}
 			privateEdges := append([]authorization.Membership(nil), fixtureEdges(candidate)...)
@@ -289,30 +289,30 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			}
 			ownershipUnitPublish(t, e, other)
 			ownershipUnitExec(t, e, "COMMENT ON ROLE ownership_target IS 'ownership combined peer'")
-			peerRoles := e.roles.Published
+			peerRoles := e.RoleStore.Published
 			peerEdges := append([]authorization.Membership(nil), fixtureEdges(peerRoles)...)
-			before := e.catalog.State
+			before := e.Catalog.State
 			if cancelCommit {
 				cancel()
 			}
 			err := message.end(nil)
 			if cancelCommit {
-				if !errors.Is(err, context.Canceled) || e.catalog.State != before || e.roles.Published != peerRoles {
+				if !errors.Is(err, context.Canceled) || e.Catalog.State != before || e.RoleStore.Published != peerRoles {
 					t.Fatal("canceled combined commit published a prefix", err)
 				}
 			} else {
-				if err != nil || e.roles.Published == candidate || len(e.catalog.State.MustNamespace(ns.Address()).ACL.Entries) != 0 ||
-					!reflect.DeepEqual(fixtureEdges(e.roles.Published), privateEdges) {
+				if err != nil || e.RoleStore.Published == candidate || len(e.Catalog.State.MustNamespace(ns.Address()).ACL.Entries) != 0 ||
+					!reflect.DeepEqual(fixtureEdges(e.RoleStore.Published), privateEdges) {
 					t.Fatal("combined commit lost catalog/role cleanup", err)
 				}
 			}
-			if fixtureRole(e.roles.Published, target).Comment != "ownership combined peer" ||
+			if fixtureRole(e.RoleStore.Published, target).Comment != "ownership combined peer" ||
 				fixtureRole(oldRoles, target) != oldTarget || fixtureRole(candidate, target) != oldTarget ||
 				!reflect.DeepEqual(fixtureEdges(peerRoles), peerEdges) ||
 				!reflect.DeepEqual(fixtureEdges(candidate), privateEdges) || candidate.Revision != privateRevision {
 				t.Fatal("combined merge/cancel lost peer comment or mutated base/private/peer roots")
 			}
-			if e.catalog.State.Get(unrelated.Address()) != unrelated || !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || oldState.Get(ns.Address()) != ns || len(ns.ACL.Entries) != 2 {
+			if e.Catalog.State.Get(unrelated.Address()) != unrelated || !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || oldState.Get(ns.Address()) != ns || len(ns.ACL.Entries) != 2 {
 				t.Fatal("combined completion lost peer commit or mutated retained roots")
 			}
 		})
@@ -330,7 +330,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			ownershipUnitExec(t, e, alter)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -339,7 +339,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			captured := auth.Catalog.Get(address)
 			stage := e.ownershipStage(auth, op)
 			defer e.DiscardCatalogStage(stage)
-			e.mu.Lock()
+			e.Mu.Lock()
 			if kind == "type" {
 				err = role.StageOwnership(stage, captured, target)
 			} else {
@@ -348,10 +348,10 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				plan, planErr := role.PlanOwned(auth.View, stmt, func(a ids.ObjectAddress) string { return stored.DependencyObject(auth.Catalog, a, path) })
 				err = planErr
 				if err == nil {
-					err = role.StageOwned(ddlHost{e: e, op: op, stage: stage}, auth, plan)
+					err = role.StageOwned(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, plan)
 				}
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -363,7 +363,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			// unlocked admission window, not a fabricated scalar relation lock.
 			ownershipUnitExec(t, e, drop)
 			ownershipUnitExec(t, e, create)
-			current, roles := e.catalog.State, e.roles.Published
+			current, roles := e.Catalog.State, e.RoleStore.Published
 			replacement := current.NameAddress(key)
 			if replacement == address || replacement == (ids.ObjectAddress{}) {
 				t.Fatal("replacement did not remint identity")
@@ -371,7 +371,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("captured ownership stage adopted same-name replacement")
 			}
-			if e.catalog.State != current || e.roles.Published != roles || auth.Catalog.Get(address) != captured || current.Get(address) != nil {
+			if e.Catalog.State != current || e.RoleStore.Published != roles || auth.Catalog.Get(address) != captured || current.Get(address) != nil {
 				t.Fatal("stale stage partially published or mutated retained provider")
 			}
 			owner, _, _ := access.DescriptorACL(captured)
@@ -388,11 +388,11 @@ func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 	e, stage, ns := ownershipCleanupStage(t)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	journal := session.NewJournal()
 	ownershipUnitCapture(t, e, stage, journal)
 	other := e.BeginCatalogStage(e.CatalogRead())
@@ -401,7 +401,7 @@ func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 		t.Fatal(err)
 	}
 	ownershipUnitPublish(t, e, other)
-	committed, roles := e.catalog.State, e.roles.Published
+	committed, roles := e.Catalog.State, e.RoleStore.Published
 	prepared, err := e.preparePrivateCatalog(context.Background(), journal, stage.Base.Epoch())
 	if err != nil {
 		t.Fatal("unrelated commit invalidated ownership journal", err)
@@ -409,10 +409,10 @@ func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 	if prepared.Get(unrelated.Address()) != unrelated || prepared.Get(ns.Address()) != stage.Get(ns.Address()) {
 		t.Fatal("combined preparation lost unrelated or staged descriptors")
 	}
-	if journal.Roles != stage.roleCandidate || journal.RolesBase != roles {
+	if journal.Roles != stage.RoleCandidateRecord || journal.RolesBase != roles {
 		t.Fatal("combined preparation lost private role projection")
 	}
-	if e.catalog.State != committed || e.roles.Published != roles {
+	if e.Catalog.State != committed || e.RoleStore.Published != roles {
 		t.Fatal("preparation installed roots early")
 	}
 	// RolesBase describes the exact cleanup delta, not a blanket publication
@@ -422,25 +422,25 @@ func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 	private := journal.Roles
 	privateEdges := append([]authorization.Membership(nil), fixtureEdges(private)...)
 	ownershipUnitExec(t, e, "COMMENT ON ROLE ownership_target IS 'ownership unrelated peer'")
-	peerRoles := e.roles.Published
-	e.mu.Lock()
-	err = e.catalogPreflightLocked(journal)
-	e.mu.Unlock()
-	if err != nil || e.catalog.State != committed || e.roles.Published != peerRoles ||
+	peerRoles := e.RoleStore.Published
+	e.Mu.Lock()
+	err = e.CatalogPreflightLocked(journal)
+	e.Mu.Unlock()
+	if err != nil || e.Catalog.State != committed || e.RoleStore.Published != peerRoles ||
 		journal.RolesBase != roles || journal.Roles != private ||
 		!reflect.DeepEqual(fixtureEdges(private), privateEdges) || !reflect.DeepEqual(fixtureEdges(roles), baseEdges) {
 		t.Fatal("disjoint role publication failed exact-delta preflight or changed retained roots", err)
 	}
 	ownershipUnitExec(t, e, "GRANT ownership_target TO ownership_reader WITH SET FALSE GRANTED BY ownership_source")
-	competing := e.roles.Published
+	competing := e.RoleStore.Published
 	competingEdges := append([]authorization.Membership(nil), fixtureEdges(competing)...)
-	e.mu.Lock()
-	err = e.catalogPreflightLocked(journal)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.CatalogPreflightLocked(journal)
+	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("competing touched membership predecessor accepted")
 	}
-	if e.catalog.State != committed || e.roles.Published != competing || journal.RolesBase != roles || journal.Roles != private ||
+	if e.Catalog.State != committed || e.RoleStore.Published != competing || journal.RolesBase != roles || journal.Roles != private ||
 		!reflect.DeepEqual(fixtureEdges(competing), competingEdges) || !reflect.DeepEqual(fixtureEdges(private), privateEdges) ||
 		!reflect.DeepEqual(fixtureEdges(roles), baseEdges) || !reflect.DeepEqual(fixtureEdges(peerRoles), baseEdges) {
 		t.Fatal("touched membership veto overwrote committed/private/peer roots")
@@ -461,7 +461,7 @@ func ownershipTransactionalPolicyOverlay(t *testing.T) {
 	} {
 		ownershipUnitExec(t, e, q)
 	}
-	base, roles := e.catalog.State, e.roles.Published
+	base, roles := e.Catalog.State, e.RoleStore.Published
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	address := base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_probe"})
 	provider := base.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ownership_policy_provider"})
@@ -509,7 +509,7 @@ func ownershipTransactionalPolicyOverlay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage.Relations[address]
+	store := e.Storage.Relations[address]
 	versions := store.Versions
 	check := func(relation *catalog.Relation, afterReader bool) {
 		t.Helper()
@@ -537,29 +537,29 @@ func ownershipTransactionalPolicyOverlay(t *testing.T) {
 		}
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	if err := role.StageOwnedCleanup(context.Background(), stage, e.roles.Read(&e.catalog.Owner, stage.Base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	if err := role.StageOwnedCleanup(context.Background(), stage, e.RoleStore.Read(&e.Catalog.Owner, stage.Base, roles), roles, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
 	journal := session.NewJournal()
 	ownershipUnitCapture(t, e, stage, journal)
-	e.mu.Lock()
-	private := e.privateCatalogLocked(journal)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	private := e.PrivateCatalogLocked(journal)
+	e.Mu.Unlock()
 	check(private.MustRelation(address), false)
 	mark := journal.Clone()
 	second := e.BeginCatalogStage(private)
-	if err := role.StageOwnedCleanup(context.Background(), second, e.roles.Read(&e.catalog.Owner, private, roles), roles, map[authorization.PrincipalRef]bool{reader: true}); err != nil {
+	if err := role.StageOwnedCleanup(context.Background(), second, e.RoleStore.Read(&e.Catalog.Owner, private, roles), roles, map[authorization.PrincipalRef]bool{reader: true}); err != nil {
 		t.Fatal(err)
 	}
 	child := journal.Clone()
 	ownershipUnitCapture(t, e, second, child)
-	e.mu.Lock()
-	next := e.privateCatalogLocked(child)
-	marked := e.privateCatalogLocked(mark)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	next := e.PrivateCatalogLocked(child)
+	marked := e.PrivateCatalogLocked(mark)
+	e.Mu.Unlock()
 	check(next.MustRelation(address), true)
 	check(marked.MustRelation(address), false)
-	if e.catalog.State != base || e.roles.Published != roles || !reflect.DeepEqual(original.Security.Policies, originals) {
+	if e.Catalog.State != base || e.RoleStore.Published != roles || !reflect.DeepEqual(original.Security.Policies, originals) {
 		t.Fatal("private policy projection mutated committed/marked originals")
 	}
 	// Finish and combined commit carry the same policy-only projection through
@@ -570,24 +570,24 @@ func ownershipTransactionalPolicyOverlay(t *testing.T) {
 		if _, err := message.step(&parser.DropOwned{Sources: []parser.RoleSpec{{Name: name}}, Mode: parser.DropRestrict}); err != nil {
 			t.Fatal("policy-only Finish", err)
 		}
-		e.mu.Lock()
-		pending := e.privateCatalogLocked(message.op.Session.Transactions.Catalog)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		pending := e.PrivateCatalogLocked(message.op.Session.Transactions.Catalog)
+		e.Mu.Unlock()
 		check(pending.MustRelation(address), i == 1)
-		if e.catalog.State != base || e.roles.Published != roles {
+		if e.Catalog.State != base || e.RoleStore.Published != roles {
 			t.Fatal("policy-only Finish published before outer end")
 		}
 	}
 	if err := message.end(nil); err != nil {
 		t.Fatal("policy-only combined commit", err)
 	}
-	check(e.catalog.State.MustRelation(address), true)
-	if e.roles.Published != roles || e.storage.Relations[address] != store || len(versions) != 1 || len(store.Versions) != 1 ||
+	check(e.Catalog.State.MustRelation(address), true)
+	if e.RoleStore.Published != roles || e.Storage.Relations[address] != store || len(versions) != 1 || len(store.Versions) != 1 ||
 		&store.Versions[0] != &versions[0] || !reflect.DeepEqual(original.Security.Policies, originals) {
 		t.Fatal("policy-only commit changed role/storage or retained policy roots")
 	}
-	e.mu.Lock()
-	marked = e.privateCatalogLocked(mark)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	marked = e.PrivateCatalogLocked(mark)
+	e.Mu.Unlock()
 	check(marked.MustRelation(address), false)
 }

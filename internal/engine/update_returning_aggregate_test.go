@@ -14,8 +14,8 @@ func TestUpdateReturningMalformedSumShape(t *testing.T) {
 	e := New()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	binder.Clause.AggregateClause = "RETURNING"
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	for _, raw := range []parser.AggregateExpr{
 		{Name: "sum"},
 		{Name: "sum", Star: true},

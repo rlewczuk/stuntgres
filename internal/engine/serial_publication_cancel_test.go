@@ -19,20 +19,20 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 				e := New()
 				run(t,e,`CREATE SEQUENCE q`)
 				if alter { run(t,e,`CREATE TABLE consumer(id SERIAL)`); run(t,e,`INSERT INTO consumer VALUES(40)`) }
-				before := e.catalog.State
+				before := e.Catalog.State
 				ctx,cancel := context.WithCancel(context.Background()); defer cancel()
 				reset := make(chan error,1)
 				var once sync.Once
-				provider := e.catalog.Providers[ids.RelationClassID]
-				e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
-					e.catalog.Providers[ids.RelationClassID] = provider
+				provider := e.Catalog.Providers[ids.RelationClassID]
+				e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
+					e.Catalog.Providers[ids.RelationClassID] = provider
 					if replacement {
 						go func(){ reset <- e.Reset(context.Background()) }()
 						deadline := time.Now().Add(5*time.Second)
 						for {
-							e.replacementMu.mu.Lock()
-							waiting := e.replacementMu.writers==1 && e.replacementMu.readers==1 && !e.replacementMu.writing
-							e.replacementMu.mu.Unlock()
+							e.ReplacementMu.mu.Lock()
+							waiting := e.ReplacementMu.writers==1 && e.ReplacementMu.readers==1 && !e.ReplacementMu.writing
+							e.ReplacementMu.mu.Unlock()
 							if waiting { break }
 							if time.Now().After(deadline) {
 								cancel()
@@ -40,7 +40,7 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 							}
 							runtime.Gosched()
 						}
-						if e.catalog.State!=before { t.Fatal("queued replacement changed catalog before publication released its hold") }
+						if e.Catalog.State!=before { t.Fatal("queued replacement changed catalog before publication released its hold") }
 					}
 					cancel()
 				}) }}
@@ -53,9 +53,9 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 					case <-time.After(5*time.Second):
 						t.Fatal("canceled definition did not release replacement admission")
 					}
-					if e.catalog.State.Epoch()==before.Epoch() { t.Fatal("released replacement did not fence the old definition epoch") }
+					if e.Catalog.State.Epoch()==before.Epoch() { t.Fatal("released replacement did not fence the old definition epoch") }
 				}
-				if !replacement && e.catalog.State != before { t.Fatal("canceled default publication changed catalog") }
+				if !replacement && e.Catalog.State != before { t.Fatal("canceled default publication changed catalog") }
 				lockEmpty(t,e)
 				checkReviewDependencyValid(t,e)
 				deleteReplacementAdmissionEmpty(t,e)

@@ -22,7 +22,7 @@ func refreshUnitScope(t *testing.T, e *Engine, ctx context.Context) *StatementSc
 	}
 	t.Cleanup(func() { scope.Finish(nil); op.Done() })
 	stmt := &parser.RefreshMaterializedView{}
-	if err := scope.gate(stmt); err != nil {
+	if err := scope.Gate(stmt); err != nil {
 		t.Fatal(err)
 	}
 	return scope
@@ -46,7 +46,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			d := refreshUnitRelation(t, e)
 			stage, source := queryCreateStage(t, e, "refresh_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), source.Address())
+			sourceRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), source.Address())
 			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
 				p.Sources = []stored.ViewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
@@ -56,7 +56,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			if tc.target {
 				ref.Address = d.Address()
 			}
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, tc.held); err != nil {
+			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -83,17 +83,17 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			} else {
 				lockAwait(t, done, nil)
 				joined = true
-				if tc.noData && len(scope.materializedOrZero().Sources) != 0 {
+				if tc.noData && len(scope.MaterializedOrZero().Sources) != 0 {
 					t.Fatal("NO DATA traversed sources")
 				}
-				if !tc.noData && len(scope.materializedOrZero().Sources) != 2 {
+				if !tc.noData && len(scope.MaterializedOrZero().Sources) != 2 {
 					t.Fatal("DATA did not retain source fences")
 				}
 				if err := scope.Finish(nil); err != nil {
 					t.Fatal(err)
 				}
 			}
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			for _, entry := range lockState.Resources {
 				if len(entry.Pending) != 0 {
 					t.Error("refresh leaked pending lock")
@@ -112,7 +112,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
-			original := e.storage.Relations[d.Address()]
+			original := e.Storage.Relations[d.Address()]
 			first := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: noData}
 			second := &parser.RefreshMaterializedView{Name: first.Name}
 			a := refreshUnitScope(t, e, context.Background())
@@ -133,16 +133,16 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				}
 			}()
 			lockPending(t, e, 1)
-			before := e.visibility.CommitSeq()
+			before := e.Visibility.CommitSeq()
 			execute := func(scope *StatementScope, stmt *parser.RefreshMaterializedView) {
 				t.Helper()
-				e.mu.Lock()
-				auth, err := e.authorizationLocked(scope.op)
+				e.Mu.Lock()
+				auth, err := e.AuthorizationLocked(scope.Op)
 				if err == nil {
-					err = scope.captureIdentityLocked(auth)
+					err = scope.CaptureIdentityLocked(auth)
 				}
 				if err != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					t.Fatal(err)
 				}
 				result, err := e.refreshMaterializedLocked(scope, auth, stmt, 0)
@@ -151,13 +151,13 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				}
 			}
 			execute(a, first)
-			afterA := e.storage.Relations[d.Address()]
-			descriptorA := e.catalog.State.MustRelation(d.Address())
+			afterA := e.Storage.Relations[d.Address()]
+			descriptorA := e.Catalog.State.MustRelation(d.Address())
 			firstCount := 1
 			if noData {
 				firstCount = 0
 			}
-			if descriptorA.Populated == noData || len(afterA.Versions) != firstCount || e.visibility.CommitSeq() != before+1 || len(original.Versions) != 3 {
+			if descriptorA.Populated == noData || len(afterA.Versions) != firstCount || e.Visibility.CommitSeq() != before+1 || len(original.Versions) != 3 {
 				t.Fatal("first refresh did not publish its exact immutable transition")
 			}
 			if err := a.Finish(nil); err != nil {
@@ -165,18 +165,18 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			}
 			lockAwait(t, done, nil)
 			joined = true
-			if b.lockedDescriptor != descriptorA || b.lockedStorage != afterA {
+			if b.LockedDescriptor != descriptorA || b.LockedStorage != afterA {
 				t.Fatal("queued refresh did not capture grant-time store")
 			}
 			execute(b, second)
 			if err := b.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			final := e.catalog.State.MustRelation(d.Address())
-			if e.visibility.CommitSeq() != before+2 || e.storage.Relations[d.Address()] == afterA || len(e.storage.Relations[d.Address()].Versions) != 1 || len(afterA.Versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
+			final := e.Catalog.State.MustRelation(d.Address())
+			if e.Visibility.CommitSeq() != before+2 || e.Storage.Relations[d.Address()] == afterA || len(e.Storage.Relations[d.Address()].Versions) != 1 || len(afterA.Versions) != firstCount || !final.Populated || final.Address() != d.Address() || final.View != d.View || final.RowType != d.RowType {
 				t.Fatal("serialized refresh failed complete immutable replacement")
 			}
-			values := e.storage.Relations[d.Address()].Versions[0].Values
+			values := e.Storage.Relations[d.Address()].Versions[0].Values
 			want := refreshUnitRows(t, d, 1)[0]
 			if len(values) != len(want) || values[0] != want[0] {
 				t.Fatal("queued refresh final typed row differs from defining SELECT1")

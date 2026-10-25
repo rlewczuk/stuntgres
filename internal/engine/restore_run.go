@@ -118,7 +118,7 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), error) {
 	stage := h.run.stage
 	// The isolated role snapshot retains exact target identities for final remapping.
-	sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.roles.Domain.Principal(10)})
+	sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.RoleStore.Domain.Principal(10)})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -128,16 +128,16 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 		endSession()
 		return nil, nil, err
 	}
-	operationReplay(op).stagingEffects = true
+	OperationReplay(op).StagingEffects = true
 	end := func() {
-		operationReplay(op).stagingEffects = false
-		operationReplay(op).sqlBodies = false
-		operationReplay(op).defaultReplay = false
-		operationReplay(op).largeObjectAuthority = false
-		operationReplay(op).partitionAttach = false
-		operationReplay(op).partitionCheck = nil
-		operationReplay(op).partitionUsingIndex = nil
-		operationReplay(op).partitionUnique = nil
+		OperationReplay(op).StagingEffects = false
+		OperationReplay(op).SQLBodies = false
+		OperationReplay(op).DefaultReplay = false
+		OperationReplay(op).LargeObjectAuthority = false
+		OperationReplay(op).PartitionAttach = false
+		OperationReplay(op).PartitionCheck = nil
+		OperationReplay(op).PartitionUsingIndex = nil
+		OperationReplay(op).PartitionUnique = nil
 		op.Done()
 		endSession()
 	}
@@ -157,7 +157,7 @@ func (h *restoreHost) Execute(op *session.Operation, stmt parser.Statement) (con
 
 // Publish installs the stage catalog into the target atomically.
 func (h *restoreHost) Publish(ctx context.Context, op *session.Operation) error {
-	_, err := h.target.replaceCatalog(ctx, h.run.stage, h.run.stage.CatalogRead(), op)
+	_, err := h.target.ReplaceCatalogInOperation(ctx, h.run.stage, h.run.stage.CatalogRead(), op)
 	return err
 }
 
@@ -168,8 +168,8 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	var result Result
 	if domain, ok := stmt.(*parser.CreateDomain); ok {
 		if record, paired := r.domainDefaultPairs[domain]; paired {
-			operationReplay(op).domainDefault = &domainDefaultReplayCapture{Statement: domain, Record: record}
-			defer func() { operationReplay(op).domainDefault = nil }()
+			OperationReplay(op).DomainDefault = &DomainDefaultReplayCapture{Statement: domain, Record: record}
+			defer func() { OperationReplay(op).DomainDefault = nil }()
 		}
 	}
 	if insertion, ok := stmt.(*parser.Insert); ok {
@@ -181,19 +181,19 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	} else {
 		result, err = r.stage.Execute(op, stmt, 0, nil)
 	}
-	operationReplay(op).defaultReplay = false
-	operationReplay(op).largeObjectAuthority = false
-	operationReplay(op).partitionAttach = false
-	operationReplay(op).partitionCheck = nil
-	operationReplay(op).partitionUsingIndex = nil
-	operationReplay(op).partitionUnique = nil
+	OperationReplay(op).DefaultReplay = false
+	OperationReplay(op).LargeObjectAuthority = false
+	OperationReplay(op).PartitionAttach = false
+	OperationReplay(op).PartitionCheck = nil
+	OperationReplay(op).PartitionUsingIndex = nil
+	OperationReplay(op).PartitionUnique = nil
 	if result.Rows != nil {
 		closeErr := result.Rows.Close()
 		if err == nil {
 			err = closeErr
 		}
 	}
-	operationReplay(op).commentAuthority = false
+	OperationReplay(op).CommentAuthority = false
 	op.DetachNotices()
-	return control.Outcome{Created: result.created}, err
+	return control.Outcome{Created: result.Created}, err
 }

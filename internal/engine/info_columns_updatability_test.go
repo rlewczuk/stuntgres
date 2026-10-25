@@ -18,7 +18,7 @@ import (
 )
 
 func columnsUnitView(f columnsUnitFixture, id ids.OID, source *catalog.Relation, slots []int, automatic bool) *catalog.Relation {
-	capture := f.dc.f.e.catalog.Read(f.state)
+	capture := f.dc.f.e.Catalog.Read(f.state)
 	ref := capture.Owner().Domain.Ref(capture.Epoch(), source.Address())
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &plan.ProjectNode{Child: &plan.SourceNode{Ref: ref, Occurrence: 0}, HasTargetSet: !automatic}
@@ -48,7 +48,7 @@ func TestInfoColumnsUpdatability(t *testing.T) {
 	columnsUnitFilteredShape(t, f)
 	check := func(relation *catalog.Relation, attribute int32, want bool) {
 		t.Helper()
-		got, err := view.ColumnUpdatable(t.Context(), f.dc.f.e.catalog.Read(f.state), relation, attribute, fdw.UpdatableEvents)
+		got, err := view.ColumnUpdatable(t.Context(), f.dc.f.e.Catalog.Read(f.state), relation, attribute, fdw.UpdatableEvents)
 		if err != nil || got != want {
 			t.Fatal("column updatability", relation.Address(), attribute, got, want, err)
 		}
@@ -76,7 +76,7 @@ func TestInfoColumnsUpdatability(t *testing.T) {
 		for i, event := range tc.events {
 			parts := stored.RuleParts{OID: ids.OID(22610 + i), Name: event, Event: event, Instead: tc.instead}
 			if tc.conditional {
-				boolean, _ := f.dc.f.e.catalog.Read(f.state).LookupType(sqltype.Bool)
+				boolean, _ := f.dc.f.e.Catalog.Read(f.state).LookupType(sqltype.Bool)
 				parts.Condition = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
 			}
 			rules = append(rules, stored.NewRule(parts))
@@ -92,15 +92,15 @@ func TestInfoColumnsUpdatability(t *testing.T) {
 	check(&ruled, 2, true)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := view.ColumnUpdatable(ctx, f.dc.f.e.catalog.Read(f.state), nested, 1, fdw.UpdatableEvents); !errors.Is(err, context.Canceled) {
+	if _, err := view.ColumnUpdatable(ctx, f.dc.f.e.Catalog.Read(f.state), nested, 1, fdw.UpdatableEvents); !errors.Is(err, context.Canceled) {
 		t.Fatal("view cancellation", err)
 	}
 	walking := &dtpCancelContext{Context: context.Background(), remaining: 3}
-	if _, err := view.ColumnUpdatable(walking, f.dc.f.e.catalog.Read(f.state), nested, 1, fdw.UpdatableEvents); !errors.Is(err, context.Canceled) {
+	if _, err := view.ColumnUpdatable(walking, f.dc.f.e.Catalog.Read(f.state), nested, 1, fdw.UpdatableEvents); !errors.Is(err, context.Canceled) {
 		t.Fatal("recursive view cancellation", err)
 	}
 	cycle := columnsUnitView(f, 22630, &ruled, []int{0}, true)
-	capture := f.dc.f.e.catalog.Read(f.state)
+	capture := f.dc.f.e.Catalog.Read(f.state)
 	own := capture.Owner().Domain.Ref(capture.Epoch(), cycle.Address())
 	parts := stored.ViewOf(cycle).Parts()
 	parts.Query = &plan.Query{Root: &plan.ProjectNode{Child: &plan.SourceNode{Ref: own, Occurrence: 0}, Expressions: []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: cycle.Columns[0].Usage}, Origin: own, Slot: 0}}}}
@@ -169,7 +169,7 @@ func columnsUnitForeignCapabilities(t *testing.T, f columnsUnitFixture) {
 		for _, d := range []catalog.Descriptor{procedure, wrapper, server, &relation} {
 			state.SetDescriptor(d.Address(), d)
 		}
-		capture := f.dc.f.e.catalog.Read(state)
+		capture := f.dc.f.e.Catalog.Read(state)
 		update, remove, err := fdw.UpdatableEvents(t.Context(), capture, &relation)
 		got, viewErr := view.ColumnUpdatable(t.Context(), capture, &relation, 1, fdw.UpdatableEvents)
 		if err != nil || viewErr != nil || update != tc.update || remove != tc.remove || got != tc.want || calls != 0 {
@@ -185,7 +185,7 @@ func columnsUnitFilteredShape(t *testing.T, f columnsUnitFixture) {
 		parts := stored.ViewOf(filtered).Parts()
 		project := *parts.Query.Root.(*plan.ProjectNode)
 		source := project.Child
-		boolean, _ := f.dc.f.e.catalog.Read(f.state).LookupType(sqltype.Bool)
+		boolean, _ := f.dc.f.e.Catalog.Read(f.state).LookupType(sqltype.Bool)
 		var expected []expr.Expr
 		for i := range depth {
 			predicate := plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, i != 0)}
@@ -202,7 +202,7 @@ func columnsUnitFilteredShape(t *testing.T, f columnsUnitFixture) {
 		if allocations := testing.AllocsPerRun(10, func() { stored.ViewUpdatabilityShape(filtered) }); allocations != 0 {
 			t.Fatal("metadata collected execution predicates", depth, allocations)
 		}
-		allowed, err := view.ColumnUpdatable(t.Context(), f.dc.f.e.catalog.Read(f.state), filtered, 1, fdw.UpdatableEvents)
+		allowed, err := view.ColumnUpdatable(t.Context(), f.dc.f.e.Catalog.Read(f.state), filtered, 1, fdw.UpdatableEvents)
 		if err != nil || !allowed {
 			t.Fatal("metadata evaluated a false filter", allowed, err)
 		}

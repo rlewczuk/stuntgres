@@ -17,68 +17,68 @@ import (
 
 // retainProviders captures the exact closure before waits for phased definition
 // consumers. Other callers need only the grants and avoid that allocation.
-func (s *StatementScope) acquireViewSources(retainProviders bool) (providers []exec.Leaf, err error) {
+func (s *StatementScope) AcquireViewSources(retainProviders bool) (providers []exec.Leaf, err error) {
 	var grants map[ids.ObjectRef]lock.Mode
 	defer func() {
 		if err == nil {
 			err = s.acquireInheritanceSources(grants)
 		}
 	}()
-	e := s.engine()
-	e.mu.Lock()
-	catalogView := e.privateCatalogLocked(s.owner.Catalog)
-	d, _ := catalogView.Relation(s.lockedRef.Address)
-	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.materializedOrZero().Refresh && d.RelationKind == catalog.MaterializedViewRelation)
-	for _, leaf := range s.querySources {
+	e := s.Engine()
+	e.Mu.Lock()
+	catalogView := e.PrivateCatalogLocked(s.Owner.Catalog)
+	d, _ := catalogView.Relation(s.LockedRef.Address)
+	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.MaterializedOrZero().Refresh && d.RelationKind == catalog.MaterializedViewRelation)
+	for _, leaf := range s.QuerySources {
 		if leaf.Relation.RelationKind == catalog.ViewRelation {
 			hasView = true
 			break
 		}
 	}
 	if !hasView {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, nil
 	}
-	closure, err := view.SourceWalk{Catalog: catalogView, Domain: e.catalog.Domain, Epoch: e.catalog.State.Epoch(), Locked: s.lockedRef, Leaves: s.querySources, Refresh: s.materializedOrZero().Refresh}.Closure()
-	if s.materializedOrZero().Refresh {
-		s.materialized().Sources = append(s.materializedOrZero().Sources, closure.Sources...)
+	closure, err := view.SourceWalk{Catalog: catalogView, Domain: e.Catalog.Domain, Epoch: e.Catalog.State.Epoch(), Locked: s.LockedRef, Leaves: s.QuerySources, Refresh: s.MaterializedOrZero().Refresh}.Closure()
+	if s.MaterializedOrZero().Refresh {
+		s.materialized().Sources = append(s.MaterializedOrZero().Sources, closure.Sources...)
 	}
 	seen, refs, retainedViews := closure.Modes, closure.Refs, closure.Retained
 	if err == nil && retainProviders {
 		for ref := range seen {
 			d := catalogView.MustRelation(ref.Address)
-			providers = append(providers, exec.Leaf{Ref: ref, Relation: d, Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
+			providers = append(providers, exec.Leaf{Ref: ref, Relation: d, Storage: e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)})
 		}
 	}
-	if err == nil && s.materializedOrZero().Refresh && closure.MaterializedSource {
-		leaves := closure.StoredLeaves(catalogView, s.lockedRef)
+	if err == nil && s.MaterializedOrZero().Refresh && closure.MaterializedSource {
+		leaves := closure.StoredLeaves(catalogView, s.LockedRef)
 		var physical []ids.ObjectRef
-		if err = e.captureCommentSnapshotLocked(s); err == nil {
-			collectAuth := s.inquiry.deparseAuth
+		if err = e.CaptureCommentSnapshotLocked(s); err == nil {
+			collectAuth := s.Inquiry.deparseAuth
 			collectAuth.Recapture(catalogView)
-			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.Session.SessionToken, plan.RowMark{})
+			physical, err = e.QueryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.Op.Session.SessionToken, plan.RowMark{})
 		}
 		if err == nil {
 			var view *visibility.View
-			view, err = s.acquireDataViewsLocked(e, physical)
+			view, err = s.AcquireDataViewsLocked(e, physical)
 			if err == nil {
 				s.materialized().SourceView = view.Load()
 			}
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return providers, err
 	}
 	if err := s.acquireBoundViewRelationModes(refs, seen); err != nil {
 		return providers, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	catalogView = e.privateCatalogLocked(s.owner.Catalog)
-	if s.materializedOrZero().Refresh {
-		for _, observed := range s.materializedOrZero().Sources {
-			if !view.MaterializedSourceCurrent(s.materializedOrZero().SourceView, observed, catalogView.State(), e.privateStorageLocked(s.owner.Catalog, observed.Address())) {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	catalogView = e.PrivateCatalogLocked(s.Owner.Catalog)
+	if s.MaterializedOrZero().Refresh {
+		for _, observed := range s.MaterializedOrZero().Sources {
+			if !view.MaterializedSourceCurrent(s.MaterializedOrZero().SourceView, observed, catalogView.State(), e.PrivateStorageLocked(s.Owner.Catalog, observed.Address())) {
 				return providers, ids.ErrCatalogReplaced
 			}
 		}
@@ -101,53 +101,53 @@ func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
 }
 
 func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]lock.Mode) error {
-	e := s.engine()
+	e := s.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
 	for _, ref := range refs {
-		e.mu.Lock()
-		d, _ := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
+		e.Mu.Lock()
+		d, _ := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
 		unsupported := d != nil && catalog.HierarchyRelation(d) && modes[ref] != 0
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if unsupported {
-			return sqlError("0A000", "row locking partition hierarchies is unsupported")
+			return SQLError("0A000", "row locking partition hierarchies is unsupported")
 		}
 		mode := lock.AccessShare
 		if modes[ref] != 0 {
 			mode = lock.RowShare
 		}
-		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
+		request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			s.admissionWaited = true
 			if len(s.rlsActive) != 0 {
 				s.rlsImportWaits++
 			}
-			if s.replacementRead {
-				e.replacementMu.RUnlock()
-				s.replacementRead = false
+			if s.ReplacementRead {
+				e.ReplacementMu.RUnlock()
+				s.ReplacementRead = false
 			}
 			err = request.Wait()
 		}
 		if err != nil {
 			return err
 		}
-		if err := s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
+		if err := s.AcquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 			return err
 		}
-		s.owner.Mu.Lock()
-		implicit := s.owner.State == session.TxImplicit
-		s.owner.Mu.Unlock()
-		if implicit && !s.replacementRead {
-			e.replacementMu.RLock()
-			s.replacementRead = true
+		s.Owner.Mu.Lock()
+		implicit := s.Owner.State == session.TxImplicit
+		s.Owner.Mu.Unlock()
+		if implicit && !s.ReplacementRead {
+			e.ReplacementMu.RLock()
+			s.ReplacementRead = true
 		}
-		e.mu.Lock()
-		current, exists := e.privateCatalogLocked(s.owner.Catalog).Find(ref.Address)
-		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.State.Epoch() && exists
-		if valid && d != nil && preparedDefinitionStamp(current, s.op.Session) != preparedDefinitionStamp(d, s.op.Session) {
+		e.Mu.Lock()
+		current, exists := e.PrivateCatalogLocked(s.Owner.Catalog).Find(ref.Address)
+		valid := ref.Domain() == e.Catalog.Domain && ref.Epoch == e.Catalog.State.Epoch() && exists
+		if valid && d != nil && PreparedDefinitionStamp(current, s.Op.Session) != PreparedDefinitionStamp(d, s.Op.Session) {
 			s.prepared.changedDuringAdmission = true
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if !valid {
 			return ids.ErrCatalogReplaced
 		}
@@ -156,5 +156,5 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 }
 
 func (s *StatementScope) acquireViewDefinitionReferences(b analyze.Binding) error {
-	return s.acquireBoundViewRelations(view.DefinitionReferences(b, s.lockedRef, s.querySources))
+	return s.acquireBoundViewRelations(view.DefinitionReferences(b, s.LockedRef, s.QuerySources))
 }

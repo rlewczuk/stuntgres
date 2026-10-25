@@ -54,9 +54,9 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 		"CREATE DOMAIN public.rejected AS integer CHECK (missing>0)",
 	} {
 		raw := statement(t, q)
-		e.mu.Lock()
+		e.Mu.Lock()
 		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) {
 			t.Fatal("missing binding diagnostic", err)
@@ -196,7 +196,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	before := e.CatalogRead()
 	dependent := domainUnitType(t, before, "dependent")
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.provider CASCADE")
-	edges, err := domainDependencyClosure(context.Background(), stage, stage.domainTargets)
+	edges, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	if visible != 1 {
 		t.Fatal("CHECK-owned dependency multiplicity", edges)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, stage.domainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := StageExpressionDependencies(context.Background(), stage, stage.DomainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)

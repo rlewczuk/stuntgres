@@ -42,18 +42,18 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			ref := roleTableRef(t, e, "public.tid_inputs")
 			input, _ := reader.Session.Settings.Presentation()
 			raw := statement(t, "SELECT lhs "+test.operator+" rhs").(*parser.Select).Targets[0]
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(reader)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(reader)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
+			binder := NewExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 			bindTestTargetNamespace(binder)
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("actual TID operator selection", err)
 			}
@@ -73,7 +73,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if len(outer.Body) != 0 {
 				t.Fatal("INTERNAL TID operator acquired SQL helper edges", outer.Body)
 			}
-			wantRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
+			wantRef := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 			procedures := 0
 			for _, dependency := range binder.Dependencies {
 				if dependency.Ref.Address.ClassID != ids.ProcedureClassID {
@@ -100,7 +100,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 						case "missing":
 							continue
 						case "foreign":
-							dependency.Ref = foreign.catalog.Domain.Ref(dependency.Ref.Epoch, dependency.Ref.Address)
+							dependency.Ref = foreign.Catalog.Domain.Ref(dependency.Ref.Epoch, dependency.Ref.Address)
 						case "stale epoch":
 							dependency.Ref.Epoch++
 						case "stale revision":

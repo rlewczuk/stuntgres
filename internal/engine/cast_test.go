@@ -84,18 +84,18 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT i,i::int4,int4(i),CAST(i AS bigint),CAST(int8(i) AS text) FROM t")
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+	ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

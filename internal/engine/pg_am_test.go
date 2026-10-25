@@ -17,11 +17,11 @@ import (
 func pgAMUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2601}
-	d, ok := e.catalog.State.Relation(a)
+	d, ok := e.Catalog.State.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_am")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
+	return d, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a)
 }
 
 func pgAMUnitFacts(t *testing.T, source *exec.Source, d *catalog.Relation) [][]any {
@@ -100,16 +100,16 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		}
 	}
 	checkDescriptor(view, d)
-	descriptors, names := maps.Collect(e.catalog.State.Descriptors()), maps.Collect(e.catalog.State.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, d)
+	descriptors, names := maps.Collect(e.Catalog.State.Descriptors()), maps.Collect(e.Catalog.State.Names())
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.State.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.Catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.Catalog.State.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	facts := pgAMUnitFacts(t, rows, d)
-	second, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAM)
+	second, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGAM)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 		badSources = append(badSources, &wrong)
 	}
 	for _, bad := range badSources {
-		got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: bad, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAM)
+		got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: bad, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGAM)
 		message := "stuntgres: foreign access-method source type"
 		if bad == nil || len(bad.Columns) != 4 {
 			message = "stuntgres: invalid access-method source shape"
@@ -155,7 +155,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 			cancel()
 			ctx = during
 		}
-		got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAM)
+		got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGAM)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
@@ -183,14 +183,14 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	if d == fresh || oldRow == newRow || oldArray == newArray {
 		t.Fatal("relation/row/array descriptor reused")
 	}
-	freshRows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: fresh, Owner: (freshCatalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAM)
+	freshRows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: fresh, Owner: (freshCatalog).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGAM)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(pgAMUnitFacts(t, freshRows, fresh), facts) || !reflect.DeepEqual(pgAMUnitFacts(t, rows, d), facts) {
 		t.Fatal("replacement changed retained facts")
 	}
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: d, Owner: (freshCatalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAM); got != nil || err == nil || err.Error() != "stuntgres: foreign access-method source type" {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: d, Owner: (freshCatalog).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGAM); got != nil || err == nil || err.Error() != "stuntgres: foreign access-method source type" {
 		t.Fatal("old source accepted by fresh generation", got, err)
 	}
 }

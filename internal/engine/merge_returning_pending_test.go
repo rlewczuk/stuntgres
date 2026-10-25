@@ -20,7 +20,7 @@ func TestMergeReturningRowRecheck(t *testing.T) {
 		sessionSQL(t, peer, q)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	row := e.storage.Relations[ref.Address].Versions[0].Row
+	row := e.Storage.Relations[ref.Address].Versions[0].Row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=40 WHERE id=1")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING source src ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+src.delta RETURNING merge_action(),src.delta,old.v,new.v")
@@ -52,7 +52,7 @@ func TestMergeReturningCancellation(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT UNIQUE,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	row := e.storage.Relations[ref.Address].Versions[0].Row
+	row := e.Storage.Relations[ref.Address].Versions[0].Row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=40")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -100,7 +100,7 @@ func TestMergeReturningCancellation(t *testing.T) {
 		if !errors.Is(out.err, context.Canceled) || out.result.Rows != nil || out.result.Count != 0 {
 			t.Fatal("cancel exposed provisional output", out.result, out.err)
 		}
-		if out.scope == nil || out.scope.view != nil || out.scope.ticket != nil || !out.scope.finished {
+		if out.scope == nil || out.scope.View != nil || out.scope.LockTicket != nil || !out.scope.Finished {
 			t.Fatal("cancel retained owner", out.scope)
 		}
 	case <-time.After(5 * time.Second):

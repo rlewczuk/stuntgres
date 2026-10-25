@@ -23,7 +23,7 @@ type protocolUnitInput struct {
 
 func (r *protocolUnitInput) Bytes(n int) ([]byte, error) {
 	if n < 0 || n > len(r.data)-r.position {
-		return nil, sqlError("08P01", "insufficient data left in message")
+		return nil, SQLError("08P01", "insufficient data left in message")
 	}
 	p := r.data[r.position : r.position+n]
 	r.position += n
@@ -45,7 +45,7 @@ func (r *protocolUnitInput) Int32() (int32, error) {
 }
 func (r *protocolUnitInput) End() error {
 	if r.position != len(r.data) {
-		return sqlError("08P01", "invalid message format")
+		return SQLError("08P01", "invalid message format")
 	}
 	return nil
 }
@@ -53,7 +53,7 @@ func (r *protocolUnitInput) End() error {
 func TestProtocolPreparedRegistry(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	r := payloadOf(a).preparedSQL
+	r := PayloadOf(a).preparedSQL
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
 	p := &protocolPortal{entry: *entry, context: session.ProtocolContext{Source: "original"}}
 	r.entries["s"] = entry
@@ -81,18 +81,18 @@ func TestProtocolValueCodecs(t *testing.T) {
 		for _, retained := range []bool{false, true} {
 			record := sqltype.DeferredRecord()
 			description := StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{record.Usage()}}}
-			e.mu.Lock()
+			e.Mu.Lock()
 			var expected *StatementDescription
 			if retained {
 				expected = &description
 			}
-			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, expected)
+			binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, expected)
 			if !retained {
 				binder.SeedParameters(description.Parameters.Types)
 			}
 			node, bindErr := binder.Bind(parser.ParameterExpr{Number: 1}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			formal, formalErr := binder.Finish()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if bindErr != nil || formalErr != nil {
 				t.Fatal(bindErr, formalErr)
 			}
@@ -130,7 +130,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 		}
 		rows := exec.NewFinalRows(nil, 1)
 		for _, quoted := range []bool{false, true, false} {
-			scope.output.QuoteAllIdentifiers = quoted
+			scope.Output.QuoteAllIdentifiers = quoted
 			err = scope.captureProtocolOutput(rows, []sqltype.Value{value}, e.CatalogRead())
 			if err != nil {
 				break
@@ -185,7 +185,7 @@ func TestProtocolCycleRetention(t *testing.T) {
 		next.Done()
 		t.Fatal(err)
 	}
-	if nextScope.op == scope.op || nextScope == scope {
+	if nextScope.Op == scope.Op || nextScope == scope {
 		t.Fatal("protocol message reused ended operation")
 	}
 	nextScope.ProtocolSimpleQuery(1)
@@ -210,7 +210,7 @@ func TestProtocolCycleRetention(t *testing.T) {
 func TestProtocolNotificationPoll(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
-	_, available, wake, err := engineOf(s).PollProtocolNotification(s)
+	_, available, wake, err := EngineOf(s).PollProtocolNotification(s)
 	if err != nil || available || wake == nil {
 		t.Fatal(available, wake, err)
 	}
@@ -220,26 +220,26 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	if leases != 0 {
 		t.Fatal("idle poll acquired SQL activity lease")
 	}
-	e.mu.Lock()
-	payloadOf(s).notifications.State = &session.NotificationState{Ready: session.NotificationFIFO{}.Append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
-	payloadOf(s).notifications.SignalLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	PayloadOf(s).notifications.State = &session.NotificationState{Ready: session.NotificationFIFO{}.Append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
+	PayloadOf(s).notifications.SignalLocked()
+	e.Mu.Unlock()
 	select {
 	case <-wake:
 	default:
 		t.Fatal("atomic poll wake lost publication")
 	}
 	for _, want := range []string{"first", "second"} {
-		got, available, _, err := engineOf(s).PollProtocolNotification(s)
+		got, available, _, err := EngineOf(s).PollProtocolNotification(s)
 		if err != nil || !available || got.Payload != want || got.PID != 42 {
 			t.Fatal(got, available, err)
 		}
 	}
-	_, available, wake, err = engineOf(s).PollProtocolNotification(s)
+	_, available, wake, err = EngineOf(s).PollProtocolNotification(s)
 	if err != nil || available || wake == nil {
 		t.Fatal("drained queue lacked new wake", err)
 	}
-	if err = (*notificationSessionEnd)(&payloadOf(s).notifications).EndSession(s.SessionToken, session.CleanClose); err != nil {
+	if err = (*notificationSessionEnd)(&PayloadOf(s).notifications).EndSession(s.SessionToken, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -247,7 +247,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	default:
 		t.Fatal("retirement did not wake idle observer")
 	}
-	if _, _, _, err = engineOf(s).PollProtocolNotification(s); err == nil {
+	if _, _, _, err = EngineOf(s).PollProtocolNotification(s); err == nil {
 		t.Fatal("retired observer accepted poll")
 	}
 }
@@ -294,29 +294,29 @@ func TestProtocolCopyHooks(t *testing.T) {
 		}
 		sentinel := errors.New("protocol terminal failure")
 		called := false
-		e.mu.Lock()
-		frontier := e.visibility.CommitSeq()
-		e.mu.Unlock()
+		e.Mu.Lock()
+		frontier := e.Visibility.CommitSeq()
+		e.Mu.Unlock()
 		count, err := scope.CopyProtocol(copyUnitSyntax(), bytes.NewBufferString("1\n\\.\nignored"), nil, CopyProtocolHooks{FinishInput: func() error {
 			called = true
 			if !s.Transactions.Admission.TryLock() {
 				t.Fatal("terminal hook held owner admission")
 			}
 			s.Transactions.Admission.Unlock()
-			if len(scope.stage.rows) != 0 {
+			if len(scope.Stage.Rows) != 0 {
 				t.Fatal("input rows applied before terminal veto")
 			}
 			return sentinel
 		}})
-		if count != 0 || !called || !errors.Is(err, sentinel) || len(scope.stage.rows) != 0 {
+		if count != 0 || !called || !errors.Is(err, sentinel) || len(scope.Stage.Rows) != 0 {
 			t.Fatal("terminal failure applied staged input", count, called, err)
 		}
 		if err = scope.Finish(err); !errors.Is(err, sentinel) {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		published := e.visibility.CommitSeq() != frontier
-		e.mu.Unlock()
+		e.Mu.Lock()
+		published := e.Visibility.CommitSeq() != frontier
+		e.Mu.Unlock()
 		if published {
 			t.Fatal("terminal veto published rows")
 		}

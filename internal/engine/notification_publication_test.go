@@ -20,7 +20,7 @@ func notificationUnitUtility(t *testing.T, s *session.Session, stmt parser.State
 		t.Fatal(err)
 	}
 	defer op.Done()
-	scope, err := engineOf(s).StartStatement(op)
+	scope, err := EngineOf(s).StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func notificationUnitReceive(t *testing.T, s *session.Session) session.Notificat
 		t.Fatal(err)
 	}
 	defer op.Done()
-	event, err := engineOf(s).WaitForNotification(op)
+	event, err := EngineOf(s).WaitForNotification(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,25 +75,25 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if catalog {
 					changes = session.NewJournal()
 				}
-				original, frontier, root := e.catalog.State, e.visibility.CommitSeq(), payloadOf(receiver).notifications.State
-				head := e.cluster.notificationHead
+				original, frontier, root := e.Catalog.State, e.Visibility.CommitSeq(), PayloadOf(receiver).notifications.State
+				head := e.Cluster.notificationHead
 				switch failure {
 				case "cancel":
 					cancel()
 				case "epoch":
-					next := *e.catalog.State
+					next := *e.Catalog.State
 					next.SetEpoch(next.Epoch() + 1)
-					e.catalog.PublishLocked(&next)
-					original = e.catalog.State
+					e.Catalog.PublishLocked(&next)
+					original = e.Catalog.State
 				case "xid":
-					e.visibility.SetLastAssignedXIDLocked(^uint64(0))
+					e.Visibility.SetLastAssignedXIDLocked(^uint64(0))
 				}
 				err = e.publishRowsPrepared(op, ref, nil, nil, changes, nil, nil, nil)
 				if failure != "success" {
 					if err == nil {
 						t.Fatal("failed preflight published")
 					}
-					if payloadOf(receiver).notifications.State != root || e.catalog.State != original || e.visibility.CommitSeq() != frontier || e.cluster.notificationHead != head {
+					if PayloadOf(receiver).notifications.State != root || e.Catalog.State != original || e.Visibility.CommitSeq() != frontier || e.Cluster.notificationHead != head {
 						t.Fatal("partial catalog/notification installation")
 					}
 					return
@@ -101,18 +101,18 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.cluster.notificationHead == head || *e.cluster.notificationHead != (session.NotificationQueuePosition{Offset: 32}) {
-					t.Fatal("successful publication did not advance the sole head exactly once", e.cluster.notificationHead)
+				if e.Cluster.notificationHead == head || *e.Cluster.notificationHead != (session.NotificationQueuePosition{Offset: 32}) {
+					t.Fatal("successful publication did not advance the sole head exactly once", e.Cluster.notificationHead)
 				}
-				if e.visibility.LastAssignedXID() == 0 {
+				if e.Visibility.LastAssignedXID() == 0 {
 					t.Fatal("notification-only publication did not assign XID")
 				}
 				wantFrontier := frontier
 				if catalog {
 					wantFrontier++
 				}
-				if e.visibility.CommitSeq() != wantFrontier {
-					t.Fatal("notification publication invented row commit sequence", e.visibility.CommitSeq(), wantFrontier)
+				if e.Visibility.CommitSeq() != wantFrontier {
+					t.Fatal("notification publication invented row commit sequence", e.Visibility.CommitSeq(), wantFrontier)
 				}
 				if got := notificationUnitReceive(t, receiver); got.Payload != "published" {
 					t.Fatal(got)
@@ -135,8 +135,8 @@ type notificationRootContext struct {
 
 func (c *notificationRootContext) Err() error {
 	if !c.changed {
-		if c.engine.mu.TryLock() {
-			c.engine.mu.Unlock()
+		if c.engine.Mu.TryLock() {
+			c.engine.Mu.Unlock()
 		} else {
 			c.resource.State = c.replacement
 			c.changed = true
@@ -152,9 +152,9 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			notificationUnitListen(t, r)
 			ref := transactionBegin(t, s)
 			s.Transactions.NotificationEvents = []session.Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
-			replacement := *payloadOf(r).notifications.State
+			replacement := *PayloadOf(r).notifications.State
 			replacement.Ready = replacement.Ready.Append([]session.Notification{{PID: 999, Channel: "unit", Payload: "before"}})
-			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &payloadOf(r).notifications, replacement: &replacement}
+			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &PayloadOf(r).notifications, replacement: &replacement}
 			op := transactionOperation(t, s)
 			op.Ctx = ctx
 			var changes *session.Journal
@@ -172,9 +172,9 @@ func TestNotificationPublicationRoots(t *testing.T) {
 					t.Fatal("retry lost or reordered root", got, want)
 				}
 			}
-			e.mu.Lock()
-			queue := payloadOf(r).notifications.State.Ready
-			e.mu.Unlock()
+			e.Mu.Lock()
+			queue := PayloadOf(r).notifications.State.Ready
+			e.Mu.Unlock()
 			if queue.Front != nil || queue.Back != nil {
 				t.Fatal("retry duplicated delivery")
 			}
@@ -187,26 +187,26 @@ func TestNotificationPublicationRoots(t *testing.T) {
 	for _, change := range []string{"busy", "dequeue", "registration", "retire"} {
 		t.Run(change, func(t *testing.T) {
 			candidate := e.prepareNotificationPublication(s, nil, event)
-			e.mu.Lock()
+			e.Mu.Lock()
 			switch change {
 			case "busy":
-				payloadOf(r).notifications.Busy = !payloadOf(r).notifications.Busy
+				PayloadOf(r).notifications.Busy = !PayloadOf(r).notifications.Busy
 			case "dequeue":
-				next := *payloadOf(r).notifications.State
-				payloadOf(r).notifications.State = &next
+				next := *PayloadOf(r).notifications.State
+				PayloadOf(r).notifications.State = &next
 			case "registration":
 				delete(e.notifications, r.SessionToken)
 			case "retire":
-				payloadOf(r).notifications.Ended = true
+				PayloadOf(r).notifications.Ended = true
 			}
 			unchanged := e.notificationPublicationUnchangedLocked(candidate)
 			if change == "registration" {
-				e.notifications[r.SessionToken] = &payloadOf(r).notifications
+				e.notifications[r.SessionToken] = &PayloadOf(r).notifications
 			}
 			if change == "retire" {
-				payloadOf(r).notifications.Ended = false
+				PayloadOf(r).notifications.Ended = false
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if unchanged {
 				t.Fatal("accepted stale recipient capture")
 			}
@@ -255,19 +255,19 @@ func TestNotificationIdentityAndAssignment(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if e.notifications != nil || payloadOf(s).notifications.State != nil || payloadOf(s).notifications.Wake != nil {
+	if e.notifications != nil || PayloadOf(s).notifications.State != nil || PayloadOf(s).notifications.Wake != nil {
 		t.Fatal("unused feature allocated queue state")
 	}
-	before := e.visibility.LastAssignedXID()
+	before := e.Visibility.LastAssignedXID()
 	notificationUnitListen(t, s)
-	if e.visibility.LastAssignedXID() != before {
+	if e.Visibility.LastAssignedXID() != before {
 		t.Fatal("subscription-only commit assigned XID")
 	}
 	notificationUnitNotify(t, s, "wide")
 	if got := notificationUnitReceive(t, s); got.PID != uint64(s.SessionToken.ID()) || got.PID <= uint64(^uint32(0)) {
 		t.Fatal("sender identity narrowed", got)
 	}
-	if e.visibility.LastAssignedXID() != before+1 {
+	if e.Visibility.LastAssignedXID() != before+1 {
 		t.Fatal("outgoing-only commit missing XID")
 	}
 }
@@ -352,10 +352,10 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 					t.Fatal("detached completion published live-origin effects", got)
 				}
 			}
-			e.mu.Lock()
-			_, kept := payloadOf(finisher).notifications.State.Channels["unit"]
-			_, stolen := payloadOf(finisher).notifications.State.Channels["origin-only"]
-			e.mu.Unlock()
+			e.Mu.Lock()
+			_, kept := PayloadOf(finisher).notifications.State.Channels["unit"]
+			_, stolen := PayloadOf(finisher).notifications.State.Channels["origin-only"]
+			e.Mu.Unlock()
 			if !kept || stolen {
 				t.Fatal("detached completion changed finisher subscriptions")
 			}
@@ -379,7 +379,7 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 	notificationUnitNotify(t, origin, "live")
 	op := transactionOperation(t, origin)
 	defer op.Done()
-	for _, ref := range []ids.TxRef{old, e.catalog.Domain.Tx(other.SessionToken, live.ID(), 0, other.Transactions, 0)} {
+	for _, ref := range []ids.TxRef{old, e.Catalog.Domain.Tx(other.SessionToken, live.ID(), 0, other.Transactions, 0)} {
 		actions, events, err := notificationEffects(op, ref, nil, nil)
 		if err == nil || len(actions) != 0 || len(events) != 0 {
 			t.Fatal("foreign or stale transaction exposed live effects", err, actions, events)
@@ -393,17 +393,17 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 	// A statement of another operation or owner is rejected after the owner
 	// checks; the exact statement's effects follow the owner's, deduplicated.
 	peerOp := transactionOperation(t, origin)
-	for _, scope := range []*StatementScope{{op: peerOp, owner: origin.Transactions}, {op: op, owner: &session.TransactionOwner{}}} {
+	for _, scope := range []*StatementScope{{Op: peerOp, Owner: origin.Transactions}, {Op: op, Owner: &session.TransactionOwner{}}} {
 		actions, events, err := notificationEffects(op, live, nil, scope)
 		if err == nil || err.Error() != "stuntgres: foreign notification statement" || len(actions) != 0 || len(events) != 0 {
 			t.Fatal("foreign statement exposed effects", err, actions, events)
 		}
 	}
-	if _, _, err := notificationEffects(op, old, nil, &StatementScope{op: peerOp, owner: origin.Transactions}); err == nil || err.Error() == "stuntgres: foreign notification statement" {
+	if _, _, err := notificationEffects(op, old, nil, &StatementScope{Op: peerOp, Owner: origin.Transactions}); err == nil || err.Error() == "stuntgres: foreign notification statement" {
 		t.Fatal("statement check preceded the owner check", err)
 	}
 	listen := session.NotificationAction{Channel: "unit", Listen: true}
-	statement := &StatementScope{op: op, owner: origin.Transactions, notificationActions: []session.NotificationAction{listen},
+	statement := &StatementScope{Op: op, Owner: origin.Transactions, notificationActions: []session.NotificationAction{listen},
 		notificationEvents: []session.Notification{events[0], {PID: events[0].PID, Channel: "unit", Payload: "statement"}}}
 	actions, merged, err := notificationEffects(op, live, nil, statement)
 	if err != nil || !reflect.DeepEqual(actions, []session.NotificationAction{listen}) || len(merged) != 2 || merged[0] != events[0] || merged[1].Payload != "statement" {

@@ -36,7 +36,7 @@ func TestCopyFilterFinishVeto(t *testing.T) {
 			if got := op.DetachNotices(); len(got) != 0 {
 				t.Fatal("final failure summary", got)
 			}
-			if scope.stage.rows != nil || scope.owner.CopyLease != nil {
+			if scope.Stage.Rows != nil || scope.Owner.CopyLease != nil {
 				t.Fatal("veto leaked private rows or reservation")
 			}
 		})

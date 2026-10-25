@@ -96,12 +96,12 @@ func testIsnProviderAuthority(t *testing.T, family string) {
 			state.SetDescriptor(wrong.Address(), &wrong)
 		},
 	} {
-		candidate := catalog.CloneState(e.catalog.State)
+		candidate := catalog.CloneState(e.Catalog.State)
 		corrupt(candidate)
-		if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), ext); err == nil {
+		if err := extension.StockIsn.ValidateExtension(e.Catalog.Read(candidate), ext); err == nil {
 			t.Fatal("forged installed provider accepted")
 		}
-		view := e.catalog.Read(candidate)
+		view := e.Catalog.Read(candidate)
 		if _, err := extension.InstalledTypes(view, ext); err == nil {
 			t.Fatal("ownership role accepted forged installed provider")
 		}
@@ -112,7 +112,7 @@ func testIsnProviderAuthority(t *testing.T, family string) {
 	if err := extension.StockIsn.ValidateExtension(e.CatalogRead(), ext); err != nil {
 		t.Fatal("validation mutated original catalog", err)
 	}
-	array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
+	array := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
 	if _, err := extension.MemberTypeRole(e.CatalogRead(), ext, array); err == nil {
 		t.Fatal("automatic array accepted as a direct ownership member")
 	}

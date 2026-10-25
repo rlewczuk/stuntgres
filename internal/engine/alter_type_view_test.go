@@ -15,9 +15,9 @@ func TestAlterTypeUnreferencedViewSourceUsage(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1,7)")
 	run(t, e, "CREATE VIEW v AS SELECT b FROM t")
 	viewRef := roleTableRef(t, e, "v")
-	old := e.catalog.State.Get(viewRef.Address)
+	old := e.Catalog.State.Get(viewRef.Address)
 	run(t, e, "ALTER TABLE t ALTER a TYPE TEXT USING a")
-	if e.catalog.State.Get(viewRef.Address) != old {
+	if e.Catalog.State.Get(viewRef.Address) != old {
 		t.Fatal("rewrote unrelated view definition")
 	}
 	if rows := tuples(run(t, e, "SELECT b FROM v")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(7)}}) {
@@ -36,14 +36,14 @@ func TestAlterTypeQuotedViewIdentityCollationAndCascade(t *testing.T) {
 	run(t, e, `CREATE VIEW s."Odd View" AS SELECT c,discard FROM public.t`)
 	run(t, e, "CREATE VIEW v_keep AS SELECT keep FROM t")
 	survivor := roleTableRef(t, e, "v_keep")
-	survivorDefinition := e.catalog.State.Get(survivor.Address)
+	survivorDefinition := e.Catalog.State.Get(survivor.Address)
 	ref := roleTableRef(t, e, "t")
-	old, storage := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
+	old, storage := e.Catalog.State.Get(ref.Address), e.Storage.Relations[ref.Address]
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot alter type of a column used by a view or rule", Detail: `rule _RETURN on view s."Odd View" depends on column "c"`}
 	for _, action := range []string{"TYPE VARCHAR(5)", `TYPE VARCHAR(5) COLLATE "C"`, `TYPE VARCHAR(5) COLLATE "default"`} {
 		_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE public.t ALTER c "+action), nil)
 		var got *sqlstate.Error
-		if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
+		if !errors.As(err, &got) || !reflect.DeepEqual(got, want) || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage {
 			t.Fatal(got, err)
 		}
 		if rows := tuples(run(t, e, `SELECT * FROM s."Odd View"`)); !reflect.DeepEqual(rows, [][]driver.Value{{"seven", int64(1)}}) {
@@ -57,7 +57,7 @@ func TestAlterTypeQuotedViewIdentityCollationAndCascade(t *testing.T) {
 	if schema := run(t, e, "SELECT * FROM t").Rows.Schema(); len(schema) != 2 || schema[0].Usage.Type.ID() != 25 || schema[0].Usage.Collation.ID != 100 || schema[1].OriginAttribute != 3 {
 		t.Fatal(schema)
 	}
-	if e.catalog.State.Get(survivor.Address) != survivorDefinition {
+	if e.Catalog.State.Get(survivor.Address) != survivorDefinition {
 		t.Fatal("removed or rewrote unrelated view")
 	}
 	if rows := tuples(run(t, e, "SELECT keep FROM v_keep")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(9)}}) {

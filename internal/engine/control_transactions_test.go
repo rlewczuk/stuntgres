@@ -42,7 +42,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						frontier := e.visibility.CommitSeq()
+						frontier := e.Visibility.CommitSeq()
 						if state == "stale_failure" {
 							for range 2 {
 								op := transactionOperation(t, a)
@@ -63,7 +63,7 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 							t.Fatal(err)
 						}
 						chain := !commit && strings.HasSuffix(end, "AND CHAIN")
-						if a.SessionToken != token || a.Transactions.Writes != nil || e.visibility.CommitSeq() != frontier {
+						if a.SessionToken != token || a.Transactions.Writes != nil || e.Visibility.CommitSeq() != frontier {
 							t.Fatal("replacement/end mutated identity/private writes/frontier")
 						}
 						if chain {
@@ -119,8 +119,8 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			defer retained.Close()
 			before := target.CatalogRead()
 			ref := catalogRef(t, target, before, "t")
-			owner, stored, frontier := target.catalog.Domain, target.storage.Relations[ref.Address], target.visibility.CommitSeq()
-			beforeOID := target.catalog.NextOID()
+			owner, stored, frontier := target.Catalog.Domain, target.Storage.Relations[ref.Address], target.Visibility.CommitSeq()
+			beforeOID := target.Catalog.NextOID()
 			var reservedNext ids.OID
 			stage := target.BeginCatalogStage(before)
 			controlsRequire(t, a, "BEGIN")
@@ -134,13 +134,13 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 			replacement := source.CatalogRead()
 			sourceRoles, targetRoles := source.Roles(), target.Roles()
 			preparedStorage := make(map[ids.ObjectAddress]*storage.Relation)
-			source.mu.Lock()
-			for address, relation := range source.storage.Relations {
+			source.Mu.Lock()
+			for address, relation := range source.Storage.Relations {
 				preparedStorage[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 			}
-			preparedSequences, sequenceErr := sequence.CopyGenerators(replacement, source.storage.Sequences)
-			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
-			source.mu.Unlock()
+			preparedSequences, sequenceErr := sequence.CopyGenerators(replacement, source.Storage.Sequences)
+			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
+			source.Mu.Unlock()
 			if sequenceErr != nil {
 				t.Fatal(sequenceErr)
 			}
@@ -148,12 +148,12 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				t.Fatal(indexErr)
 			}
 			err := func() error {
-				target.replacementMu.Lock()
-				defer target.replacementMu.Unlock()
-				target.mu.Lock()
-				defer target.mu.Unlock()
-				oids := target.catalog.OIDReservationLocked()
-				if _, err := target.catalog.AllocateOIDFromLocked(&oids.Next, 0); err != nil {
+				target.ReplacementMu.Lock()
+				defer target.ReplacementMu.Unlock()
+				target.Mu.Lock()
+				defer target.Mu.Unlock()
+				oids := target.Catalog.OIDReservationLocked()
+				if _, err := target.Catalog.AllocateOIDFromLocked(&oids.Next, 0); err != nil {
 					return err
 				}
 				reservedNext = oids.Next
@@ -161,9 +161,9 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				nextRevision := target.catalog.NextRevision()
+				nextRevision := target.Catalog.NextRevision()
 				for _, descriptor := range next.Descriptors() {
-					if err := access.ValidateACL(target.roles.PublishedRead(&target.catalog.Owner, target.catalog.Read(next)), descriptor); err != nil {
+					if err := access.ValidateACL(target.RoleStore.PublishedRead(&target.Catalog.Owner, target.Catalog.Read(next)), descriptor); err != nil {
 						return err
 					}
 					nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
@@ -175,20 +175,20 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				return target.installForeignCatalogLocked(boundary, next, preparedStorage, preparedSequences, nextRevision, prepared, oids)
 			}()
 			if err == nil {
-				target.locks.Fence(target.catalog.Domain, target.CatalogRead().Epoch())
+				target.Locks.Fence(target.Catalog.Domain, target.CatalogRead().Epoch())
 			}
-			if ctx.Err() != context.Canceled || !boundary.observed || target.catalog.Domain != owner {
+			if ctx.Err() != context.Canceled || !boundary.observed || target.Catalog.Domain != owner {
 				t.Fatal("boundary not exercised", boundary.observed, err)
 			}
 			expectedOID := beforeOID
 			if late {
 				expectedOID = reservedNext
 			}
-			if target.catalog.NextOID() != expectedOID {
-				t.Fatal("canceled installation changed OID issuance boundary", target.catalog.NextOID(), expectedOID)
+			if target.Catalog.NextOID() != expectedOID {
+				t.Fatal("canceled installation changed OID issuance boundary", target.Catalog.NextOID(), expectedOID)
 			}
 			if late {
-				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.visibility.CommitSeq() != frontier+1 {
+				if err != nil || target.CatalogRead().Epoch() != before.Epoch()+1 || target.Visibility.CommitSeq() != frontier+1 {
 					t.Fatal("late cancellation retracted install", err)
 				}
 				transactionRows(t, b, "SELECT v FROM t", 99)
@@ -215,7 +215,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
-				if target.CatalogRead().State() != before.State() || target.storage.Relations[ref.Address] != stored || target.visibility.CommitSeq() != frontier {
+				if target.CatalogRead().State() != before.State() || target.Storage.Relations[ref.Address] != stored || target.Visibility.CommitSeq() != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")
 				}
 				if err = target.ValidateObjectRef(before, ref); err != nil {

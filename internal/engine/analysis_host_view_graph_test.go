@@ -24,7 +24,7 @@ func TestAnalysisHostValidatesViewReadGraph(t *testing.T) {
 		t.Helper()
 		return view.MustRelation(view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: public, Name: name}))
 	}
-	host := e.analysisHost(nil)
+	host := e.AnalysisHost(nil)
 	view := e.CatalogRead()
 	if err := host.ValidateViewReadGraph(view, []exec.Leaf{{Relation: relation(view, "base")}, {Relation: relation(view, "w")}}); err != nil {
 		t.Fatalf("acyclic read graph: %v", err)

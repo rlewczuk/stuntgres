@@ -19,10 +19,10 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(description.temporals) != 1 {
-		t.Fatal("enum literal did not enter immutable prepared analysis", description.temporals)
+	if len(description.Temporals) != 1 {
+		t.Fatal("enum literal did not enter immutable prepared analysis", description.Temporals)
 	}
-	capture := description.temporals[0]
+	capture := description.Temporals[0]
 	member, _ := capture.Value.EnumMemberID()
 	members := old.SQLType.EnumMembers()
 	members[1].Label = "end"
@@ -37,19 +37,19 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	err = e.reownStagedTypeGenerationsLocked(stage)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.ReownStagedTypeGenerationsLocked(stage)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &description)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &description)
 	b.Query.Auth = &auth
 	value, failure := b.InputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
 	}
@@ -62,11 +62,11 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	}
 	stale := description
 	stale.catalogEpoch++
-	e.mu.Lock()
-	b = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &stale)
+	e.Mu.Lock()
+	b = NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &stale)
 	b.Query.Auth = &auth
 	_, failure = b.InputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change result type" {
 		t.Fatal("replacement literal bypassed signature fence", failure)
 	}
@@ -95,14 +95,14 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	auth.Catalog = e.stageRead(stage)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	auth.Catalog = e.StageRead(stage)
 	auth.Recapture(auth.Catalog)
-	b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &description)
+	b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &description)
 	b.Query.Auth = &auth
 	node, failure := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
 	}
@@ -111,11 +111,11 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	}
 	stale := description
 	stale.catalogEpoch++
-	e.mu.Lock()
-	b = newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &stale)
+	e.Mu.Lock()
+	b = NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &stale)
 	b.Query.Auth = &auth
 	_, failure = b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change parameter type" {
 		t.Fatal("private refresh bypassed lifetime fence", failure)
 	}

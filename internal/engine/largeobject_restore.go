@@ -16,43 +16,43 @@ import (
 func (e *Engine) restoreLargeObjectACL(op *session.Operation, raw *parser.Update) error {
 	oid, text, absent, ok := largeobject.ACLRepair(raw)
 	if !ok {
-		return sqlError("0A000", "restore accepts only generated large object ACL repairs")
+		return SQLError("0A000", "restore accepts only generated large object ACL repairs")
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	address := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: ids.OID(oid)}
 	old, ok := auth.Catalog.Get(address).(*catalog.LargeObject)
 	if !ok {
-		e.mu.Unlock()
-		return largeObjectMissingError(ids.OID(oid))
+		e.Mu.Unlock()
+		return LargeObjectMissingError(ids.OID(oid))
 	}
 	next := *old
 	next.ACL = authorization.ACLValue{Explicit: !absent}
 	if !absent {
-		output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: auth.Roles}
-		next.ACL.Entries, err = regobj.LargeObjectACL(op.Context(), auth.Catalog, text, e.captureACLItemInput(auth, op), output)
+		output := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: auth.Roles}
+		next.ACL.Entries, err = regobj.LargeObjectACL(op.Context(), auth.Catalog, text, e.CaptureACLItemInput(auth, op), output)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 	}
 	if err = access.ValidateACL(auth.Roles, &next); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
-	next.ObjectRevision, err = e.catalog.RevisionLocked()
+	next.ObjectRevision, err = e.Catalog.RevisionLocked()
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	epoch := auth.Catalog.Epoch()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {
 		return err
@@ -61,6 +61,6 @@ func (e *Engine) restoreLargeObjectACL(op *session.Operation, raw *parser.Update
 	if err != nil {
 		return err
 	}
-	_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: epoch})
+	_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: epoch})
 	return err
 }

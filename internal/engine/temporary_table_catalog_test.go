@@ -33,50 +33,50 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	}
 	t.Cleanup(op.Done)
 	c := session.NewJournal()
-	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: s.SessionToken}
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: s.SessionToken}
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
-	e.mu.Lock()
-	e.catalogChangeLocked(c, namespace.Address(), namespace)
-	e.catalogChangeLocked(c, table.Address(), table)
+	e.Mu.Lock()
+	e.CatalogChangeLocked(c, namespace.Address(), namespace)
+	e.CatalogChangeLocked(c, table.Address(), table)
 	c.Storage[table.Address()] = session.StorageChange{Replacement: &storage.Relation{}, Relation: table}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return e, op, c, table
 }
 
 func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	e, _, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	if err := e.catalogPreflightLocked(c); err != nil {
+	if err := e.CatalogPreflightLocked(c); err != nil {
 		t.Fatal(err)
 	}
-	if c.Storage[table.Address()].Original != nil || e.storage.Relations[table.Address()] != nil {
+	if c.Storage[table.Address()].Original != nil || e.Storage.Relations[table.Address()] != nil {
 		t.Fatal("invented committed predecessor")
 	}
 	mark := c.Clone()
 	replacement := *table
 	replacement.OnCommit = parser.OnCommitDrop
-	e.catalogChangeLocked(c, table.Address(), &replacement)
+	e.CatalogChangeLocked(c, table.Address(), &replacement)
 	if mark.Descriptors[table.Address()] != table || mark.Storage[table.Address()].Replacement != c.Storage[table.Address()].Replacement {
 		t.Fatal("savepoint descriptor/action/store rewritten")
 	}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
-	e.mu.Unlock()
-	if _, ok := e.catalogPreflightLocked(c).(catalog.Conflict); !ok {
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), &storage.Relation{})
+	e.Mu.Unlock()
+	if _, ok := e.CatalogPreflightLocked(c).(catalog.Conflict); !ok {
 		t.Fatal("committed absence was not fenced")
 	}
 }
 
 func TestTemporaryTableProviderAction(t *testing.T) {
 	e, _, c, table := temporaryCatalogCandidate(t, parser.OnCommitDelete)
-	view := e.privateCatalogLocked(c)
+	view := e.PrivateCatalogLocked(c)
 	if err := (relationProvider).Validate(view, table); err != nil {
 		t.Fatal(err)
 	}
 	invalid := *table
 	invalid.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	c2 := c.Clone()
-	e.catalogChangeLocked(c2, table.Address(), &invalid)
-	if err := (relationProvider).Validate(e.privateCatalogLocked(c2), &invalid); err == nil {
+	e.CatalogChangeLocked(c2, table.Address(), &invalid)
+	if err := (relationProvider).Validate(e.PrivateCatalogLocked(c2), &invalid); err == nil {
 		t.Fatal("persistent action descriptor accepted")
 	}
 	invalid = *table
@@ -91,11 +91,11 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
 		writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 		mark := c.Clone()
-		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.State.Epoch(), nil, 0), writes, nil, c)
+		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, c)
 		if err != nil {
 			t.Fatal(action, err)
 		}
-		if e.catalog.State.Get(table.Address()) != nil || e.storage.Relations[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.Descriptors[table.Address()] != table || mark.Descriptors[table.Address()] != table {
+		if e.Catalog.State.Get(table.Address()) != nil || e.Storage.Relations[table.Address()] != nil || len(writes[table.Address()]) != 1 || c.Descriptors[table.Address()] != table || mark.Descriptors[table.Address()] != table {
 			t.Fatal("commit preparation mutated reachable predecessor")
 		}
 		switch action {
@@ -117,16 +117,16 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 
 func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 	e, op, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	view := e.privateCatalogLocked(c)
-	old := e.catalog.Domain.Ref(view.Epoch(), table.Address())
+	view := e.PrivateCatalogLocked(c)
+	old := e.Catalog.Domain.Ref(view.Epoch(), table.Address())
 	advanced := catalog.CloneState(view.State())
 	advanced.SetEpoch(advanced.Epoch() + 1)
-	retained := e.catalog.Read(advanced)
+	retained := e.Catalog.Read(advanced)
 	if !stored.ReferenceEpochValid(retained, table, old) {
 		t.Fatal("exact retained owner rejected")
 	}
 	bad := old
-	bad = New().catalog.Domain.Ref(bad.Epoch, bad.Address)
+	bad = New().Catalog.Domain.Ref(bad.Epoch, bad.Address)
 	if stored.ReferenceEpochValid(retained, table, bad) {
 		t.Fatal("foreign engine accepted")
 	}
@@ -141,7 +141,7 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("future incarnation accepted")
 	}
 	foreign := *advanced.MustNamespace(table.Namespace())
-	foreign.Temporary = e.catalog.Domain.Session(op.Session.SessionToken.ID() + 1)
+	foreign.Temporary = e.Catalog.Domain.Session(op.Session.SessionToken.ID() + 1)
 	consumer := *table
 	consumer.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
 	advanced.SetDescriptor(consumer.Namespace(), &catalog.Namespace{ObjectAddress: consumer.Namespace(), Temporary: op.Session.SessionToken})
@@ -163,44 +163,44 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := &parser.CreateTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: table.Name()}}}, Persistence: "temporary", OnCommit: parser.OnCommitDrop}
-	if err := scope.gate(raw); err != nil {
+	if err := scope.Gate(raw); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(op.Context())
 	cancel()
 	op.Ctx = ctx
-	original := e.catalog.State
+	original := e.Catalog.State
 	writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
-	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
+	err = e.publishRows(op, scope.TxRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.catalog.State != original || e.storage.Relations[table.Address()] != nil || c.Descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
+	if !errors.Is(err, context.Canceled) || e.Catalog.State != original || e.Storage.Relations[table.Address()] != nil || c.Descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
 		t.Fatal("canceled final commit changed catalog/action/write roots", err)
 	}
 }
 
 func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 	e, op, c, table := temporaryCatalogCandidate(t, parser.OnCommitPreserve)
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth.Catalog = e.privateCatalogLocked(c)
+	auth.Catalog = e.PrivateCatalogLocked(c)
 	auth.Recapture(auth.Catalog)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_temp"}, {Text: "explicit_identity"}}}
-	if _, err := e.creationNamespace(auth, name); err == nil {
+	if _, err := e.CreationNamespace(auth, name); err == nil {
 		t.Fatal("generic creation gained TEMP alias authority")
 	}
-	auth.stagedTemporary = table.Namespace()
-	ref, err := e.creationNamespace(auth, name)
+	auth.StagedTemporary = table.Namespace()
+	ref, err := e.CreationNamespace(auth, name)
 	if err != nil || ref.Address != table.Namespace() || temporaryNamespace(auth) != table.Namespace() {
 		t.Fatal("owned stage namespace unresolved", err)
 	}
 	if op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || op.Session.Transactions.Catalog != nil {
 		t.Fatal("stage namespace published before CREATE success")
 	}
-	auth.stagedTemporary = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	if _, err := e.creationNamespace(auth, name); err == nil || temporaryNamespace(auth) != (ids.ObjectAddress{}) {
+	auth.StagedTemporary = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
+	if _, err := e.CreationNamespace(auth, name); err == nil || temporaryNamespace(auth) != (ids.ObjectAddress{}) {
 		t.Fatal("persistent namespace impersonated owner TEMP")
 	}
 }
@@ -212,22 +212,22 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.Persistence = "temporary"
-	columns := sequence.Columns(e.catalog.Current())
+	columns := sequence.Columns(e.Catalog.Current())
 	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
-	e.mu.Lock()
-	e.catalogChangeLocked(c, sequence.Address(), sequence)
-	view := e.privateCatalogLocked(c)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.CatalogChangeLocked(c, sequence.Address(), sequence)
+	view := e.PrivateCatalogLocked(c)
+	e.Mu.Unlock()
 	regclass, ok := view.LookupType(sqltype.Regclass)
 	if !ok {
 		t.Fatal("missing builtin regclass")
 	}
-	ref := e.catalog.Domain.Ref(view.Epoch(), sequence.Address())
-	typeRef := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+	ref := e.Catalog.Domain.Ref(view.Epoch(), sequence.Address())
+	typeRef := e.Catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
-	retained := e.catalog.Read(next)
+	retained := e.Catalog.Read(next)
 	var manifest []ids.ObjectRef
 	renderer := stored.ScalarRenderer{Owner: table, Dependencies: &manifest, CapturedManifest: []ids.ObjectRef{typeRef, ref}}
 	if text, err := renderer.SQL(context.Background(), retained, literal); err != nil || text == "" {
@@ -250,14 +250,14 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal("future regclass epoch admitted")
 	}
 	foreign := literal
-	foreign.RegclassRef = New().catalog.Domain.Ref(foreign.RegclassRef.Epoch, foreign.RegclassRef.Address)
+	foreign.RegclassRef = New().Catalog.Domain.Ref(foreign.RegclassRef.Epoch, foreign.RegclassRef.Address)
 	if _, err := renderer.SQL(context.Background(), retained, foreign); err == nil {
 		t.Fatal("foreign-engine regclass admitted")
 	}
 	retired := catalog.CloneState(next)
 	retired.RemoveDescriptor(sequence.Address())
 	retired.UnbindName(catalog.DescriptorNameKey(sequence))
-	if _, err := renderer.SQL(context.Background(), e.catalog.Read(retired), literal); err == nil {
+	if _, err := renderer.SQL(context.Background(), e.Catalog.Read(retired), literal); err == nil {
 		t.Fatal("retired regclass target resurrected")
 	}
 }
@@ -296,8 +296,8 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	consumer := lookup(before, "live_consumer", owner.SessionToken)
 	persistent := lookup(before, "persistent_consumer", ids.SessionToken{})
 	foreign := lookup(before, "live_provider", peer.SessionToken)
-	store := e.storage.Relations[consumer.Address()]
-	indexRoot := e.storage.IndexRoots[providerIndex.Address()]
+	store := e.Storage.Relations[consumer.Address()]
+	indexRoot := e.Storage.IndexRoots[providerIndex.Address()]
 	if store == nil || len(store.Versions) != 1 || indexRoot == nil {
 		t.Fatal("missing actual stored row or installed index")
 	}
@@ -310,7 +310,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
-	if retained.Epoch() <= before.Epoch() || retained.Get(provider.Address()) != provider || retained.Get(providerIndex.Address()) != providerIndex || retained.Get(consumer.Address()) != consumer || e.storage.Relations[consumer.Address()] != store || e.storage.IndexRoots[providerIndex.Address()] != indexRoot {
+	if retained.Epoch() <= before.Epoch() || retained.Get(provider.Address()) != provider || retained.Get(providerIndex.Address()) != providerIndex || retained.Get(consumer.Address()) != consumer || e.Storage.Relations[consumer.Address()] != store || e.Storage.IndexRoots[providerIndex.Address()] != indexRoot {
 		t.Fatal("replacement did not retain actual descriptors/store/root")
 	}
 	if !storage.SameVersionRoot(store.Versions, rows) || store.Ends != ends || store.Generation != generation {
@@ -335,7 +335,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		}
 	}
 	for _, target := range []*catalog.Relation{provider, providerIndex} {
-		ref := e.catalog.Domain.Ref(before.Epoch(), target.Address())
+		ref := e.Catalog.Domain.Ref(before.Epoch(), target.Address())
 		if !stored.ReferenceEpochValid(retained, consumer, ref) {
 			t.Fatal("actual same-owner relation rejected", target.Name())
 		}
@@ -346,11 +346,11 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 			t.Fatal("non-sequence gained sequence runtime authority")
 		}
 		for _, bad := range []ids.ObjectRef{
-			New().catalog.Domain.Ref(ref.Epoch, ref.Address),
-			e.catalog.Domain.Ref(retained.Epoch()+1, ref.Address),
-			e.catalog.Domain.Ref(0, ref.Address),
-			e.catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID, SubID: 99}),
-			e.catalog.Domain.Ref(ref.Epoch, foreign.Address()),
+			New().Catalog.Domain.Ref(ref.Epoch, ref.Address),
+			e.Catalog.Domain.Ref(retained.Epoch()+1, ref.Address),
+			e.Catalog.Domain.Ref(0, ref.Address),
+			e.Catalog.Domain.Ref(ref.Epoch, ids.ObjectAddress{ClassID: ref.Address.ClassID, ObjectID: ref.Address.ObjectID, SubID: 99}),
+			e.Catalog.Domain.Ref(ref.Epoch, foreign.Address()),
 		} {
 			if stored.ReferenceEpochValid(retained, consumer, bad) {
 				t.Fatal("invalid contextual reference accepted", bad)
@@ -363,12 +363,12 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	sessionSQL(t, owner, "CREATE DOMAIN public.live_domain AS INT")
 	domainView := e.CatalogRead()
 	domain := domainUnitType(t, domainView, "live_domain")
-	domainRef := e.catalog.Domain.Ref(domainView.Epoch(), domain.Address())
+	domainRef := e.Catalog.Domain.Ref(domainView.Epoch(), domain.Address())
 	array, ok := domainView.LookupArray(domain.SQLType)
 	if !ok {
 		t.Fatal("missing actual domain array")
 	}
-	arrayRef := e.catalog.Domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
+	arrayRef := e.Catalog.Domain.Ref(domainView.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
 	if _, err := e.ReplaceCatalog(context.Background(), e, domainView); err != nil {
 		t.Fatal(err)
 	}
@@ -406,13 +406,13 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 			t.Fatal("invalid concrete row authority admitted", bad)
 		}
 	}
-	captured := e.catalog.Domain.Ref(before.Epoch(), provider.Address())
-	capturedIndex := e.catalog.Domain.Ref(before.Epoch(), providerIndex.Address())
+	captured := e.Catalog.Domain.Ref(before.Epoch(), provider.Address())
+	capturedIndex := e.Catalog.Domain.Ref(before.Epoch(), providerIndex.Address())
 	preflight := e.BeginCatalogStage(retained)
-	if err := preflight.Remove(e.catalog.Domain.Ref(retained.Epoch(), providerIndex.Address())); err != nil {
+	if err := preflight.Remove(e.Catalog.Domain.Ref(retained.Epoch(), providerIndex.Address())); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := domainDependencyClosure(context.Background(), preflight, []ids.ObjectAddress{provider.Address()})
+	edges, err := DomainDependencyClosure(context.Background(), preflight, []ids.ObjectAddress{provider.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +433,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		t.Fatal("pre-removed owned-index closure omitted/duplicated sibling or consumed independent generation", ownedIndexes, columns)
 	}
 	e.DiscardCatalogStage(preflight)
-	if e.CatalogRead().State() != retained.State() || e.storage.Relations[consumer.Address()] != store || e.storage.IndexRoots[providerIndex.Address()] != indexRoot || !storage.SameVersionRoot(store.Versions, rows) || store.Ends != ends {
+	if e.CatalogRead().State() != retained.State() || e.Storage.Relations[consumer.Address()] != store || e.Storage.IndexRoots[providerIndex.Address()] != indexRoot || !storage.SameVersionRoot(store.Versions, rows) || store.Ends != ends {
 		t.Fatal("closure discovery mutated genuine catalog/row/index predecessors")
 	}
 	sessionSQL(t, owner, "DROP TABLE live_provider CASCADE")

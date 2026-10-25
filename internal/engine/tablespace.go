@@ -11,9 +11,9 @@ func (e *Engine) executeCreateTablespace(op *session.Operation, stmt *parser.Cre
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return Result{}, err
 	}

@@ -10,9 +10,9 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
-// prepareStoredQueryLocked consumes Engine.mu on every return. Standalone view
+// PrepareStoredQueryLocked consumes Engine.mu on every return. Standalone view
 // and refresh callers use the same complete preparation/materialization split.
-func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (plan.Node, *exec.Source, error) {
+func (e *Engine) PrepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (plan.Node, *exec.Source, error) {
 	scope.rlsAdmissionDepth++
 	prepared, err := e.prepareStoredSourceLocked(scope, ref, definition, invoker, mark, outputUses)
 	err = e.endRowSecurityAdmissionLocked(scope, err)
@@ -20,42 +20,42 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		err = e.materializePolicySourcesLocked(scope)
 	}
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, nil, err
 	}
 	if locks == nil {
-		locks = scope.queryLocks
+		locks = scope.QueryLockContext
 	}
 	source, err := e.captureStoredSourceLocked(scope, prepared, locks)
 	if err == nil {
 		err = e.fenceRowSecurityProgramsLocked(scope)
 	}
 	if err != nil && source != nil {
-		e.closeQuerySourceSetLocked(scope.op.Context(), source, nil)
+		e.closeQuerySourceSetLocked(scope.Op.Context(), source, nil)
 		source = nil
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return prepared.root, source, err
 }
 
 // Metadata only: provider preflight and the complete selected source closure
 // finish before any tuple prefix is pinned. Returns with Engine.mu held.
 func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark, outputUses []int) (*storedSourcePreparation, error) {
-	ctx := scope.op.Context()
+	ctx := scope.Op.Context()
 	if scope.authority == nil {
-		scope.authority = &exec.Authority{Host: hostOf(scope)}
+		scope.authority = &exec.Authority{Host: HostOf(scope)}
 	}
 	auth, err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark)
 	if err != nil {
 		return nil, err
 	}
-	catalog := e.privateCatalogLocked(scope.owner.Catalog)
+	catalog := e.PrivateCatalogLocked(scope.Owner.Catalog)
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || stored.ViewOf(consumer) != definition {
 		return nil, ids.ErrCatalogReplaced
 	}
-	e.mu.Unlock()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	e.Mu.Unlock()
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Catalog: catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.QuoteCaptures = scope.quoteCaptures
 	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.QuoteRevision()}
 	evaluation.RoutineRecipe, evaluation.RoutineConsumer = true, consumer
@@ -65,14 +65,14 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 	if err == nil {
 		err = view.ValidateMarkedQueryJoin(&evaluation, root, catalog, nil, plan.RowMark{}, false, nil, reads)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	if err != nil {
 		return nil, err
 	}
 	if auth, err = e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark); err != nil {
 		return nil, err
 	}
-	catalog = e.privateCatalogLocked(scope.owner.Catalog)
+	catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
 	consumer = catalog.MustRelation(ref.Address)
 	relationPrincipal := consumer.Owner
 	if definition.Invoker() {
@@ -85,17 +85,17 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 		if err != nil {
 			return nil, err
 		}
-		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.Catalog, leaf.Ref.Address), Mark: stored.ViewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.AnalysisOnly}
+		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, Principal: relationPrincipal, Storage: e.PrivateStorageLocked(scope.Owner.Catalog, leaf.Ref.Address), Mark: stored.ViewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.AnalysisOnly}
 		leaves[i].Uses, err = analyze.QuerySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if scope.materializedOrZero().Refresh && ref == scope.lockedRef {
-		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {
+	if scope.MaterializedOrZero().Refresh && ref == scope.LockedRef {
+		if err := e.InitializeQueryLocksLocked(scope, root, leaves); err != nil {
 			return nil, err
 		}
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.Query().VisibilitySnapshot
+		scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || definition.Query().VisibilitySnapshot
 	}
 	sources, err := e.prepareQuerySourcesLocked(scope, leaves, len(leaves) == 0, invoker, plan.RowMark{})
 	if err != nil {
@@ -105,11 +105,11 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 }
 
 func (e *Engine) captureStoredSourceLocked(scope *StatementScope, prepared *storedSourcePreparation, locks *exec.LockContext) (*exec.Source, error) {
-	ctx := scope.op.Context()
+	ctx := scope.Op.Context()
 	definition, consumer, leaves := prepared.definition, prepared.consumer, prepared.sources.leaves
 	source, err := e.capturePreparedQuerySourcesLocked(scope, prepared.sources, locks)
-	e.mu.Unlock()
-	defer e.mu.Lock()
+	e.Mu.Unlock()
+	defer e.Mu.Lock()
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (e *Engine) captureStoredSourceLocked(scope *StatementScope, prepared *stor
 		source.Close()
 		return nil, err
 	}
-	source = view.FreezeStoredSources(source, definition, leaves, scope.authority, hostOf(scope))
+	source = view.FreezeStoredSources(source, definition, leaves, scope.authority, HostOf(scope))
 	// Only this opaque stored tree borrows its defining recipe. User/grafted
 	// replacements retain their existing per-node ancestry rules.
 	source.RoutineRecipe = consumer

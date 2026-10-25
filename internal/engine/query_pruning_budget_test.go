@@ -54,8 +54,8 @@ func TestPartitionPruningSearchBound(t *testing.T) {
 				ctx := &pruningWorkContext{Context: context.Background()}
 				state := &exec.State{Source: source, Frame: project.Frame}
 				evaluation := state.Evaluation(ctx)
-				if scope := scopeOf(source.LiveHost()); scope != nil {
-					evaluation.Input = scope.input
+				if scope := ScopeOf(source.LiveHost()); scope != nil {
+					evaluation.Input = scope.Input
 				}
 				selected, err := source.BranchPruner.Select(ctx, &evaluation, filter.Predicate)
 				if err != nil {

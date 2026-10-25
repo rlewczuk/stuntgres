@@ -21,7 +21,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
+func (e *Engine) BindDomainConstraintDefinitions(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
 	used := catalog.ConstraintNames(auth.Catalog, d.ObjectNamespace, nil)
 	installed := make(map[string]bool)
 	for _, check := range d.DomainChecks {
@@ -39,7 +39,7 @@ func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *sessio
 		// order. CHECK ordinals still use the original raw-list positions;
 		// alphabetical evaluation order is applied after all binding.
 		if column.NotNull {
-			if err := typedef.BindDomainNotNull(ddlHost{e: e, op: op, stage: stage}, auth, d, column.Name.Text); err != nil {
+			if err := typedef.BindDomainNotNull(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, d, column.Name.Text); err != nil {
 				return err
 			}
 			installed[d.DomainNotNull.Name], used[d.DomainNotNull.Name] = true, true
@@ -57,10 +57,10 @@ func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *sessio
 			name = catalog.GeneratedConstraintName(d.Name(), "", "check", used)
 		}
 		if installed[name] {
-			return sqlError("42710", fmt.Sprintf("constraint %q for domain %q already exists", name, d.Name()))
+			return SQLError("42710", fmt.Sprintf("constraint %q for domain %q already exists", name, d.Name()))
 		}
 		installed[name], used[name] = true, true
-		b := newExpressionBinder(ctx, e, input, op, nil)
+		b := NewExpressionBinder(ctx, e, input, op, nil)
 		b.Query.Auth = &auth
 		b.Query.Namespace = &analyze.QueryNamespace{}
 		b.Consumer.CheckConsumer, b.Params.NoParameters = true, true
@@ -74,7 +74,7 @@ func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *sessio
 		if _, err := (stored.ScalarRenderer{DomainValue: &base, Dependencies: &refs}).SQL(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
-		oid, err := e.catalog.AllocateOIDLocked()
+		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func (e *Engine) bindDomainConstraintDefinitions(ctx context.Context, op *sessio
 			}
 			definition.Dependencies = append(definition.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: provider.Revision()})
 			if stage != nil {
-				stage.domainBases = append(stage.domainBases, provider)
+				stage.DomainBases = append(stage.DomainBases, provider)
 			}
 		}
 		d.DomainChecks = append(d.DomainChecks, definition)
@@ -126,7 +126,7 @@ func (enginePreparation) CheckDomain(ctx context.Context, c *exec.Context, targe
 				name = captured
 			}
 		}
-		diagnostic := sqlError("23502", fmt.Sprintf("domain %s does not allow null values", name)).(*sqlstate.Error)
+		diagnostic := SQLError("23502", fmt.Sprintf("domain %s does not allow null values", name)).(*sqlstate.Error)
 		diagnostic.Schema, diagnostic.DataType = view.Get(d.ObjectNamespace).Name(), d.Name()
 		return diagnostic
 	}
@@ -177,33 +177,33 @@ func prepareDomainChecks(c *exec.Context, d *catalog.Type) error {
 // Historical validation initializes only the selected own programme; ordinary
 // conversions retain the ancestor traversal above.
 func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
-	scope := scopeOf(c.LiveHost())
+	scope := ScopeOf(c.LiveHost())
 	if scope != nil {
-		c.PreparedDomainChecks = scope.domains.preparedChecks
-		c.DomainPhase = ids.CommandIdentity{Transaction: scope.txRef, Command: scope.command}
+		c.PreparedDomainChecks = scope.Domains.PreparedChecks
+		c.DomainPhase = ids.CommandIdentity{Transaction: scope.TxRef, Command: scope.CommandID}
 	}
 	if len(d.DomainChecks) == 0 {
 		return nil
 	}
 	var auth AuthorizationView
-	if routineAuth := routineAuthorityView(c); routineAuth != nil {
+	if routineAuth := RoutineAuthorityView(c); routineAuth != nil {
 		auth = *routineAuth
 	} else if scope != nil {
-		auth = scope.routineAuth
+		auth = scope.RoutineAuth
 	}
 	// Only the existing trusted RI phase establishes owner provenance. A
 	// borrowed local capture for input/view admission is still an invoker phase.
-	ri := scope != nil && scope.foreignActionAuth != nil &&
-		scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
+	ri := scope != nil && scope.ForeignActionAuth != nil &&
+		scope.ForeignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	programme, exists := c.PreparedDomainChecks[d]
-	for _, phase := range programPhases(programme) {
-		if phase.number == c.DomainPhase && phase.actor == auth.State.CurrentUser && phase.ri == ri {
+	for _, phase := range ProgramPhases(programme) {
+		if phase.Number == c.DomainPhase && phase.Actor == auth.State.CurrentUser && phase.Ri == ri {
 			return nil // Same initialized programme phase; never a per-row ACL lookup.
 		}
 	}
-	phase := domainCheckPhase{number: c.DomainPhase, actor: auth.State.CurrentUser, ri: ri}
+	phase := DomainCheckPhase{Number: c.DomainPhase, Actor: auth.State.CurrentUser, Ri: ri}
 	if exists {
-		if err := phase.admission.InitializePhase(&programPhases(programme)[0].admission, routineAccessOf(auth)); err != nil {
+		if err := phase.Admission.InitializePhase(&ProgramPhases(programme)[0].Admission, RoutineAccessOf(auth)); err != nil {
 			return err
 		}
 	} else {
@@ -212,7 +212,7 @@ func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 			checkEvaluation.RoutineRecipe, checkEvaluation.RoutineGraft = true, false
 			checkEvaluation.RoutineChecks = check.Dependencies
 			checkEvaluation.RoutineReferences, checkEvaluation.RoutineConsumer = nil, nil
-			checkEvaluation.RoutineProgram = &phase.admission
+			checkEvaluation.RoutineProgram = &phase.Admission
 			node, changed, err := exec.PreflightCoercionsWithPolicy(&checkEvaluation, check.Expression, true)
 			c.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
 			if err != nil {
@@ -233,15 +233,15 @@ func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 		}
 	}
 	if program := c.RoutineProgram; program != nil && scope == nil {
-		program.Include(&phase.admission)
+		program.Include(&phase.Admission)
 	}
-	programme.Phases = append(programPhases(programme), phase)
+	programme.Phases = append(ProgramPhases(programme), phase)
 	if c.PreparedDomainChecks == nil {
 		c.PreparedDomainChecks = make(map[*catalog.Type]exec.DomainCheckProgram)
 	}
 	c.PreparedDomainChecks[d] = programme
 	if scope != nil {
-		scope.domains.preparedChecks = c.PreparedDomainChecks
+		scope.Domains.PreparedChecks = c.PreparedDomainChecks
 	}
 	return nil
 }
@@ -250,9 +250,9 @@ func domainCatalog(c *exec.Context) catalog.Read {
 	if c.Catalog.State() != nil {
 		return c.Catalog
 	}
-	if scope := scopeOf(c.LiveHost()); scope != nil {
-		if scope.domains.inputCatalog.State() != nil {
-			return scope.domains.inputCatalog
+	if scope := ScopeOf(c.LiveHost()); scope != nil {
+		if scope.Domains.InputCatalog.State() != nil {
+			return scope.Domains.InputCatalog
 		}
 		return scope.ResolutionCatalog()
 	}
@@ -262,12 +262,12 @@ func domainCatalog(c *exec.Context) catalog.Read {
 // COPY owns a public transport cursor, rather than an expression node. Its live
 // statement evaluator is allocated only when a checked input is actually used.
 func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
-	if s.domains.evaluation == nil {
-		catalog := s.domains.inputCatalog
+	if s.Domains.evaluation == nil {
+		catalog := s.Domains.InputCatalog
 		if catalog.State() == nil {
 			catalog = s.ResolutionCatalog()
 		}
-		s.domains.evaluation = &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Catalog: catalog, Input: s.input, Output: s.output}}
+		s.Domains.evaluation = &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(s), Catalog: catalog, Input: s.Input, Output: s.Output}}
 	}
-	return s.domains.evaluation.CheckDomain(ctx, target, value)
+	return s.Domains.evaluation.CheckDomain(ctx, target, value)
 }

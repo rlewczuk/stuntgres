@@ -10,11 +10,11 @@ import (
 )
 
 func (h *statementHost) ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error {
-	s, e := h.scope(), h.scope().engine()
-	if err := s.active(); err != nil { return err }
-	e.mu.Lock()
+	s, e := h.scope(), h.scope().Engine()
+	if err := s.Active(); err != nil { return err }
+	e.Mu.Lock()
 	auth, err := s.writeAuthorizationLocked(e)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil { return err }
 	current, ok := auth.Catalog.Procedure(n.Ref.Address)
 	if !ok || n.RoutineReference != n.Procedure || !exec.SameRoutineDeclaration(current, n.Procedure) { return fmt.Errorf("stuntgres: stale installed verify_heapam declaration") }

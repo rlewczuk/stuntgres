@@ -46,11 +46,11 @@ func TestRLSPolicySourcePreparation(t *testing.T) {
 	}
 	refs := []ids.ObjectRef{roleTableRef(t, e, "t"), roleTableRef(t, e, "helper"), roleTableRef(t, e, "leaf")}
 	unrelated := roleTableRef(t, e, "unrelated")
-	e.mu.Lock()
+	e.Mu.Lock()
 	scope.rlsAdmissionDepth++
-	prepared, err := e.prepareQuerySourcesLocked(scope, scope.querySources, false, authorization.PrincipalRef{}, plan.RowMark{})
+	prepared, err := e.prepareQuerySourcesLocked(scope, scope.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{})
 	err = e.endRowSecurityAdmissionLocked(scope, err)
-	earlySnapshot := scope.view != nil
+	earlySnapshot := scope.View != nil
 	earlyInputs := false
 	for _, p := range scope.rlsPrograms {
 		for _, pending := range p.sources {
@@ -63,14 +63,14 @@ func TestRLSPolicySourcePreparation(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = e.capturePreparedQuerySourcesLocked(scope, prepared, scope.queryLocks)
+		source, err = e.capturePreparedQuerySourcesLocked(scope, prepared, scope.QueryLockContext)
 	}
-	first := scope.view
+	first := scope.View
 	secondErr := error(nil)
 	if err == nil {
-		_, secondErr = e.capturePreparedQuerySourcesLocked(scope, prepared, scope.queryLocks)
+		_, secondErr = e.capturePreparedQuerySourcesLocked(scope, prepared, scope.QueryLockContext)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if source != nil {
 		defer source.Close()
 	}
@@ -80,7 +80,7 @@ func TestRLSPolicySourcePreparation(t *testing.T) {
 	if earlySnapshot || earlyInputs {
 		t.Fatal("physical data captured before complete policy/view closure")
 	}
-	if first == nil || scope.view != first {
+	if first == nil || scope.View != first {
 		t.Fatal("missing or replaced shared frontier")
 	}
 	data := first.Load()
@@ -125,10 +125,10 @@ func TestRLSPolicyMutationSourcePreparation(t *testing.T) {
 		t.Fatal(err)
 	}
 	refs := []ids.ObjectRef{roleTableRef(t, e, "t"), roleTableRef(t, e, "helper"), roleTableRef(t, e, "leaf")}
-	if scope.view == nil {
+	if scope.View == nil {
 		t.Fatal("no-source mutation omitted its prepared snapshot")
 	}
-	data := scope.view.Load()
+	data := scope.View.Load()
 	if len(data.Committed) != len(refs) {
 		t.Fatal("mutation target/helper union incomplete", len(data.Committed))
 	}

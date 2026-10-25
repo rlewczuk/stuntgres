@@ -20,11 +20,11 @@ func TestDDLHostStageSchemaTableKeepsAuthority(t *testing.T) {
 	}
 	op, auth := conversionUnitAuth(t, e)
 	table := statement(t, "CREATE TABLE element(id INT)").(*parser.CreateTable)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := ddlHost{e: e, op: op, stage: stage}
+	h := DDLHost{E: e, Op: op, CatalogStage: stage}
 	oid, err := h.AllocateOID()
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,7 @@ func TestDDLHostStageSchemaTableKeepsAuthority(t *testing.T) {
 	if !ok {
 		t.Fatal("no table was staged in the namespace")
 	}
-	if r, ok := e.stageRead(stage).Relation(address); !ok || r.Owner != owner || r.Namespace() != ns.Address() {
+	if r, ok := e.StageRead(stage).Relation(address); !ok || r.Owner != owner || r.Namespace() != ns.Address() {
 		t.Fatal("the staged table has the wrong owner or namespace", ok)
 	}
 }

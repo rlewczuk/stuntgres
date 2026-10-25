@@ -26,22 +26,22 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					before := e.CatalogRead()
 					oldType := before.MustType(observed)
 					oldBacking := before.Get(source.OwningRelation)
-					roles, sessionRevision := e.roles.Published.Revision, reader.Session.Authorization.Revision
+					roles, sessionRevision := e.RoleStore.Published.Revision, reader.Session.Authorization.Revision
 					explicit := mode == "explicit_temporary"
 					if explicit {
 						roleExecute(t, e, reader, "BEGIN")
 						defer roleExecute(t, e, reader, "ROLLBACK")
 					}
-					original := e.catalog.Providers[ids.RelationClassID]
-					defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
+					original := e.Catalog.Providers[ids.RelationClassID]
+					defer func() { e.Catalog.Providers[ids.RelationClassID] = original }()
 					called := false
 					var winner *catalog.State
-					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+					e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 						if called {
 							return
 						}
 						called = true
-						e.catalog.Providers[ids.RelationClassID] = original
+						e.Catalog.Providers[ids.RelationClassID] = original
 						typedReviewTypeACL(t, e, observed, authorization.ACLValue{Explicit: true})
 						winner = e.CatalogRead().State()
 					}}
@@ -55,7 +55,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					defer scope.Finish(errors.New("unit cleanup"))
 					_, executeErr := scope.Execute(statement(t, query), 0, nil)
-					candidate := scope.catalog
+					candidate := scope.Catalog
 					finishErr := scope.Finish(executeErr)
 					if !called {
 						t.Fatal("actual CREATE did not reach provider callback")
@@ -77,7 +77,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					current := e.CatalogRead()
 					changed := current.MustType(observed)
-					if current.State() != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.Published.Revision != roles || reader.Session.Authorization.Revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
+					if current.State() != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.RoleStore.Published.Revision != roles || reader.Session.Authorization.Revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
 						t.Error("rejected CREATE did not retain descriptor-only ACL winner atomically")
 					}
 					for _, d := range current.Descriptors() {
@@ -87,7 +87,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					if candidate != nil {
 						for a := range candidate.Storage {
-							if e.storage.Relations[a] != nil {
+							if e.Storage.Relations[a] != nil {
 								t.Error("failed CREATE published candidate storage", a)
 							}
 						}
@@ -159,7 +159,7 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	winner := e.CatalogRead().Get(observed)
 	roleExecute(t, e, reader, "COMMIT")
 	view := e.CatalogRead()
-	if view.Get(relation.Address()) != relation || view.Get(observed) != winner || e.storage.Relations[relation.Address()] == nil || relation.OfType != source.Address() {
+	if view.Get(relation.Address()) != relation || view.Get(observed) != winner || e.Storage.Relations[relation.Address()] == nil || relation.OfType != source.Address() {
 		t.Fatal("outer COMMIT reauthorized successful statement or lost attachment/store/ACL winner")
 	}
 	roleError(t, e, reader, "CREATE TEMP TABLE fresh OF pair", "42501", "permission denied for type pair", "")

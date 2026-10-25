@@ -21,7 +21,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	row := e.storage.Relations[ref.Address].Versions[0].Row
+	row := e.Storage.Relations[ref.Address].Versions[0].Row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=20")
 	if targetOnly {
@@ -74,7 +74,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 		if !errors.Is(out.err, context.Canceled) || out.result.Count != 0 || out.result.Rows != nil {
 			t.Fatal("cancelled mixed result", out.result, out.err)
 		}
-		if out.scope == nil || out.scope.view != nil || out.scope.ticket != nil || out.scope.lockedDescriptor != nil || !out.scope.finished {
+		if out.scope == nil || out.scope.View != nil || out.scope.LockTicket != nil || out.scope.LockedDescriptor != nil || !out.scope.Finished {
 			t.Fatal("Finish retained mixed pins/holds", out.scope)
 		}
 	case <-time.After(5 * time.Second):
@@ -83,7 +83,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	if targetOnly {
 		sessionSQL(t, worker, "ROLLBACK TO before_cancel")
 		resource := lock.Resource{ObjectRef: ref, Row: row}
-		lockState := e.locks.Inspect(worker.Transactions.Ticket)
+		lockState := e.Locks.Inspect(worker.Transactions.Ticket)
 		entry := lockState.Resources[resource]
 		held := entry != nil && entry.Holders[worker.Transactions.Ticket].Mode != 0
 		_, journaled := lockState.Journals[worker.Transactions.Ticket][resource]

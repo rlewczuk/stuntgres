@@ -24,7 +24,7 @@ type infoSequencesFixture struct {
 func newInfoSequencesFixture(t *testing.T) infoSequencesFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	relation := sequence.NewRelation(sequence.RelationSpec{
 		Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20500}, Namespace: f.schema,
 		Name: "sequence_unit", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead()),
@@ -37,11 +37,11 @@ func newInfoSequencesFixture(t *testing.T) infoSequencesFixture {
 
 func (f infoSequencesFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.Read(state)
+	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSequencesOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 
 func infoSequencesRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -50,7 +50,7 @@ func infoSequencesRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing sequences producer")
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestInfoSequencesDescriptor(t *testing.T) {
 	if rows := infoSequencesRows(t, reader); len(rows) != 0 {
 		t.Fatal("invented reader privilege", rows)
 	}
-	if rows := infoSequencesRows(t, f.input(t, f.f.e.catalog.State, f.f.owner)); len(rows) != 0 {
+	if rows := infoSequencesRows(t, f.input(t, f.f.e.Catalog.State, f.f.owner)); len(rows) != 0 {
 		t.Fatal("invented sequence", rows)
 	}
 }
@@ -158,15 +158,15 @@ func TestInfoSequencesAuthority(t *testing.T) {
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoSequencesOID)
 	in := f.input(t, f.state, f.f.owner)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
-		func(in *pgcatalog.Input) { in.Ref = New().catalog.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
+		func(in *pgcatalog.Input) { in.Ref = New().Catalog.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.RoleRecord = nil
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 	} {
@@ -244,7 +244,7 @@ func TestInfoSequencesAuthority(t *testing.T) {
 		}
 		state.SetDescriptor(relation.Address(), &relation)
 		input := f.input(t, state, f.f.owner)
-		runtime := input.Runtime.(engineCatalogRuntime)
+		runtime := input.Runtime.(EngineCatalogRuntime)
 		runtime.temporary = temporary
 		input.Runtime = runtime
 		if rows := infoSequencesRows(t, input); len(rows) != count {
@@ -271,7 +271,7 @@ func TestInfoSequencesCancellation(t *testing.T) {
 
 func TestInfoSequencesCapture(t *testing.T) {
 	f := newInfoSequencesFixture(t)
-	f.f.e.catalog.PublishLocked(f.state)
+	f.f.e.Catalog.PublishLocked(f.state)
 	f.f.op.Session.DatabaseName = "physical_capture_database"
 	f.f.actor(f.f.member)
 	scope, err := f.f.e.StartStatement(f.f.op)
@@ -283,13 +283,13 @@ func TestInfoSequencesCapture(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	f.f.e.mu.Lock()
-	err = f.f.e.captureCommentSnapshotLocked(scope)
-	f.f.e.mu.Unlock()
+	f.f.e.Mu.Lock()
+	err = f.f.e.CaptureCommentSnapshotLocked(scope)
+	f.f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := scope.inquiry.commentCatalog
+	view := scope.Inquiry.CommentCatalog
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSequencesOID})
 	oldReader := f.input(t, f.state, f.f.reader)
 	// Publish options, ACL and role roots only after capturing the paired frontier.
@@ -300,7 +300,7 @@ func TestInfoSequencesCapture(t *testing.T) {
 	relation.Sequence = &options
 	relation.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.UsagePrivilege, 0)}}
 	next.SetDescriptor(relation.Address(), &relation)
-	roles := cloneRoleFixture(f.f.e.roles.Published)
+	roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 	var edges []authorization.Membership
 	for _, edge := range fixtureEdges(roles) {
 		if edge.Member != f.f.member || edge.Role != f.f.owner {
@@ -308,9 +308,9 @@ func TestInfoSequencesCapture(t *testing.T) {
 		}
 	}
 	setFixtureEdges(roles, edges)
-	f.f.e.catalog.PublishLocked(next)
-	f.f.e.roles.PublishLocked(roles)
-	f.f.e.mu.Lock()
+	f.f.e.Catalog.PublishLocked(next)
+	f.f.e.RoleStore.PublishLocked(roles)
+	f.f.e.Mu.Lock()
 	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("paired statement capture", err)
@@ -332,14 +332,14 @@ func TestInfoSequencesCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.f.e.mu.Lock()
-		err = f.f.e.captureCommentSnapshotLocked(scope)
-		f.f.e.mu.Unlock()
+		f.f.e.Mu.Lock()
+		err = f.f.e.CaptureCommentSnapshotLocked(scope)
+		f.f.e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		freshView := scope.inquiry.commentCatalog
-		f.f.e.mu.Lock()
+		freshView := scope.Inquiry.CommentCatalog
+		f.f.e.Mu.Lock()
 		fresh, err := f.f.e.openRelationSourceLocked(scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 		if err != nil || fresh == nil {
 			t.Fatal("fresh statement capture", err)

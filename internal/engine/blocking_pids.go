@@ -23,7 +23,7 @@ func appendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token id
 
 // blockingPidValues projects the lock manager's blocking PIDs of one session.
 func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
-	pids, err := e.locks.BlockingPids(e.catalog.Domain, pid)
+	pids, err := e.Locks.BlockingPids(e.Catalog.Domain, pid)
 	if err != nil || len(pids) == 0 {
 		return nil, err
 	}
@@ -40,9 +40,9 @@ func (e *Engine) blockingPidValues(pid ids.SessionID, typ *sqltype.Descriptor) (
 // unlike possible/ready alone, which also exist for nondeferrable readers.
 func (e *Engine) safeSnapshotBlockingPidsLocked(pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
 	var values []sqltype.Value
-	for _, writer := range e.visibility.SafeSnapshotBlockersLocked(e.catalog.Domain, e.catalog.State.Epoch(), e.catalog.Domain.Session(pid)) {
+	for _, writer := range e.Visibility.SafeSnapshotBlockersLocked(e.Catalog.Domain, e.Catalog.State.Epoch(), e.Catalog.Domain.Session(pid)) {
 		var err error
-		values, err = appendBlockingPid(values, typ, writer.Session, writer.Prepared, e.catalog.Domain)
+		values, err = appendBlockingPid(values, typ, writer.Session, writer.Prepared, e.Catalog.Domain)
 		if err != nil {
 			return nil, err
 		}

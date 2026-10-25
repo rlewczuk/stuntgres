@@ -37,7 +37,7 @@ func TestDomainIdentityIndexClosure(t *testing.T) {
 	parent := before.MustRelation(address("identity_retire"))
 	domain := domainUnitType(t, before, "d")
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.d CASCADE")
-	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{domain.Address()})
+	edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{domain.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestDomainIdentityIndexClosure(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if err := scope.gate(statement(t, "DROP DOMAIN public.d CASCADE")); err != nil {
+	if err := scope.Gate(statement(t, "DROP DOMAIN public.d CASCADE")); err != nil {
 		t.Fatal(err)
 	}
 	if err := scope.stageDomainDependents(stage, parser.DropCascade); err != nil {

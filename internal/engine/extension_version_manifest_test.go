@@ -26,7 +26,7 @@ func extensionVersionUnitInstalled(t *testing.T, version string) (*Engine, *sess
 	if err := extensionUnitExecute(t, e, op, extensionVersionUnitCreate(version)); err != nil {
 		t.Fatal(err)
 	}
-	ext := e.CatalogRead().MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+	ext := e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 	return e, op, ext
 }
 func extensionVersionUnitRevoke(t *testing.T, e *Engine, op *session.Operation) {
@@ -77,9 +77,9 @@ func TestExtensionVersionManifest(t *testing.T) {
 			t.Fatal("base contains update member or foreign provider")
 		}
 	}
-	e.mu.Lock()
-	stage, err := e.stageExtensionUpdateLocked(&StatementScope{op: op}, extensionVersionUnitUpdate())
-	e.mu.Unlock()
+	e.Mu.Lock()
+	stage, err := e.stageExtensionUpdateLocked(&StatementScope{Op: op}, extensionVersionUnitUpdate())
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 		t.Fatal("private stage mutated predecessor")
 	}
 	extensionVersionUnitUnchanged(t, e.CatalogRead(), members)
-	staged := e.stageRead(stage)
+	staged := e.StageRead(stage)
 	if err := extension.StockFuzzystrmatch.ValidateExtension(staged, candidate); err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent },
-		func(p *catalog.Procedure) { p.Owner = New().roles.Domain.Principal(10) },
+		func(p *catalog.Procedure) { p.Owner = New().RoleStore.Domain.Principal(10) },
 		func(p *catalog.Procedure) { p.Owner = authorization.PrincipalRef{} },
 		func(p *catalog.Procedure) { p.Signature = "23" },
 	} {
@@ -127,7 +127,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 		proc := *staged.MustProcedure(candidate.Members[0])
 		mutate(&proc)
 		state.SetDescriptor(proc.Address(), &proc)
-		if err := extension.StockFuzzystrmatch.ValidateExtension(e.catalog.Read(state), candidate); err == nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.Catalog.Read(state), candidate); err == nil {
 			t.Fatal("foreign member manifest admitted")
 		}
 	}
@@ -158,7 +158,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 				state.BindName(catalog.DescriptorNameKey(d), destination)
 			}
 			remapped := state.MustExtension(mapping[ext.Address()])
-			view := source.catalog.Read(state)
+			view := source.Catalog.Read(state)
 			if remapped.Version != version || remapped.Owner != ext.Owner || remapped.TargetNamespace != ext.TargetNamespace || extension.StockFuzzystrmatch.ValidateExtension(view, remapped) != nil {
 				t.Fatal("version remap changed logical manifest")
 			}

@@ -14,10 +14,10 @@ import (
 // Session.payload before the session is shared; the slot never changes.
 // Each field keeps the lock discipline it had as a Session field.
 type sessionPayload struct {
-	cursors       *cursorRegistry
+	Cursors       *cursorRegistry
 	preparedSQL   *sqlPreparedRegistry
 	sqlRoutines   map[ids.ObjectAddress]sqlRoutineAnalysis
-	sequences     sequence.SessionMemory
+	Sequences     sequence.SessionMemory
 	notifications session.NotificationListener
 }
 
@@ -31,9 +31,9 @@ type sessionAllocation struct {
 	owner   ownerExtension
 }
 
-// payloadOf returns the root payload of s, or nil for a session built without
+// PayloadOf returns the root payload of s, or nil for a session built without
 // one (unit-test literals).
-func payloadOf(s *session.Session) *sessionPayload {
+func PayloadOf(s *session.Session) *sessionPayload {
 	p, _ := s.Payload.(*sessionPayload)
 	return p
 }

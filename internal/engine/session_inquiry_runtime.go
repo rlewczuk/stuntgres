@@ -9,16 +9,16 @@ import (
 
 func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
-	results := scope.inquiry.searchPathResults
-	if scope.inquiry.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleAction.auth != nil {
-		engine := scope.engine()
-		engine.mu.Lock()
-		defer engine.mu.Unlock()
+	results := scope.Inquiry.searchPathResults
+	if scope.Inquiry.searchPathResults[0].Type() == nil || scope.ForeignActionAuth != nil || scope.ruleAction.Auth != nil {
+		engine := scope.Engine()
+		engine.Mu.Lock()
+		defer engine.Mu.Unlock()
 		auth, explicit, err := scope.schemaInquiryPathLocked(engine)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		effective := effectivePath(auth, explicit, analyze.RelationLookup)
+		effective := EffectivePath(auth, explicit, analyze.RelationLookup)
 		names := make([]string, len(effective))
 		for i, path := range [2][]ids.ObjectAddress{explicit, effective} {
 			for j, a := range path {
@@ -29,8 +29,8 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 				return sqltype.Value{}, err
 			}
 		}
-		if scope.foreignActionAuth == nil && scope.ruleAction.auth == nil {
-			scope.inquiry.searchPathResults = results
+		if scope.ForeignActionAuth == nil && scope.ruleAction.Auth == nil {
+			scope.Inquiry.searchPathResults = results
 		}
 	}
 	if implicit {
@@ -41,9 +41,9 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 
 func (h *statementHost) MyTempNamespace() (uint32, error) {
 	scope := h.scope()
-	engine := scope.engine()
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
+	engine := scope.Engine()
+	engine.Mu.Lock()
+	defer engine.Mu.Unlock()
 	auth, err := scope.namespaceAuthorizationLocked(engine)
 	if err != nil {
 		return 0, err
@@ -53,30 +53,30 @@ func (h *statementHost) MyTempNamespace() (uint32, error) {
 
 func (h *statementHost) OtherTempNamespace(oid uint32) (bool, error) {
 	scope := h.scope()
-	engine := scope.engine()
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
+	engine := scope.Engine()
+	engine.Mu.Lock()
+	defer engine.Mu.Unlock()
 	auth, err := scope.namespaceAuthorizationLocked(engine)
 	if err != nil {
 		return false, err
 	}
 	ns, _ := auth.Catalog.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)})
-	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.session.SessionToken, nil
+	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.Session.SessionToken, nil
 }
 
 func (h *statementHost) ListeningChannels(result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	if err := session.ValidateOperation(domainOf(e), scope.op); err != nil {
-		e.mu.Unlock()
+	e := scope.Engine()
+	e.Mu.Lock()
+	if err := session.ValidateOperation(DomainOf(e), scope.Op); err != nil {
+		e.Mu.Unlock()
 		return nil, err
 	}
 	var channels map[string]struct{}
-	if state := payloadOf(scope.op.Session).notifications.State; state != nil {
+	if state := PayloadOf(scope.Op.Session).notifications.State; state != nil {
 		channels = state.Channels
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if len(channels) == 0 {
 		return nil, nil
 	}
@@ -91,10 +91,10 @@ func (h *statementHost) ListeningChannels(result *sqltype.Descriptor) ([]sqltype
 
 func (h *statementHost) NotificationQueueUsage() (float64, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := session.ValidateOperation(domainOf(e), scope.op); err != nil {
+	e := scope.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := session.ValidateOperation(DomainOf(e), scope.Op); err != nil {
 		return 0, err
 	}
 	return e.notificationQueueUsageLocked(), nil

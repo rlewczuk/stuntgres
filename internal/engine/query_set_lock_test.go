@@ -26,30 +26,30 @@ func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.Principa
 	t.Helper()
 	e, query, source := queryCoreFixture(t, "SELECT v FROM t")
 	base := source.Ref
-	owner := e.roles.Domain.Principal(1000000)
-	reader := e.roles.Domain.Principal(1000001)
-	roles := cloneRoleFixture(e.roles.Published)
+	owner := e.RoleStore.Domain.Principal(1000000)
+	reader := e.RoleStore.Domain.Principal(1000001)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 	for _, role := range []authorization.RoleDescriptor{{Ref: owner, Name: "set_owner"}, {Ref: reader, Name: "set_reader"}} {
 		putFixtureRole(roles, role)
 	}
-	e.roles.PublishLocked(roles)
-	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-	original := e.catalog.State.MustRelation(base.Address)
+	e.RoleStore.PublishLocked(roles)
+	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+	original := e.Catalog.State.MustRelation(base.Address)
 	right := base
 	right.Address.ObjectID = 1000000
 	copy := *original
 	copy.ObjectAddress, copy.ObjectName = right.Address, "t_right"
-	e.catalog.State.SetDescriptor(right.Address, &copy)
+	e.Catalog.State.SetDescriptor(right.Address, &copy)
 	refs := make(map[string]ids.ObjectRef)
 	next := ids.OID(1000001)
 	add := func(name string, invoker bool, root *plan.ProjectNode, leaves []stored.ViewLeaf) ids.ObjectRef {
-		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
 		d := *original
 		d.ObjectAddress, d.ObjectName, d.Owner, d.RelationKind = ref.Address, name, owner, catalog.ViewRelation
 		d.Columns, d.Attributes, d.Security.ColumnACL = query.Root.Schema(), []int32{1}, nil
 		d.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: root}, Sources: leaves, Invoker: invoker})
-		e.catalog.State.SetDescriptor(ref.Address, &d)
+		e.Catalog.State.SetDescriptor(ref.Address, &d)
 		refs[name] = ref
 		return ref
 	}
@@ -98,7 +98,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 		t.Helper()
 		auth := catalogAuthorization(e, e.CatalogRead())
 		auth.State.CurrentUser = reader
-		d := e.catalog.State.MustRelation(refs[name].Address)
+		d := e.Catalog.State.MustRelation(refs[name].Address)
 		err := view.CheckRowMarks(auth.View, auth, d, inherited, reader)
 		if denied == "" {
 			if err != nil {
@@ -134,7 +134,7 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 			check(name, plan.RowMark{Mode: lock.ForUpdate}, tc.name)
 		}
 		// Restore this arm before checking the other arm's independent denial.
-		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+		if err := e.SetObjectACL(context.Background(), tc.ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -142,14 +142,14 @@ func TestQuerySetStoredLockAuthority(t *testing.T) {
 
 func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e, _, _, base, _, refs := querySetLockAuthorityFixture(t)
-	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
 	next := ids.OID(1000100)
 	add := func(name string, definition *stored.View, kind catalog.RelationKind) ids.ObjectRef {
-		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
+		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: next})
 		next++
-		d := *e.catalog.State.MustRelation(base.Address)
+		d := *e.Catalog.State.MustRelation(base.Address)
 		d.ObjectAddress, d.ObjectName, d.View, d.RelationKind = ref.Address, name, stored.ViewPayload(definition), kind
-		e.catalog.State.SetDescriptor(ref.Address, &d)
+		e.Catalog.State.SetDescriptor(ref.Address, &d)
 		return ref
 	}
 	sequence := add("kind_sequence", nil, catalog.SequenceRelation)
@@ -186,12 +186,12 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		{localSet, plan.RowMark{}, "42809", `cannot lock rows in sequence "kind_sequence"`},
 		{localCatalogSet, plan.RowMark{}, "0A000", "row locking is not supported for virtual catalog relations"},
 	} {
-		d := e.catalog.State.MustRelation(tc.ref.Address)
-		scope := &StatementScope{owner: &session.TransactionOwner{}}
+		d := e.Catalog.State.MustRelation(tc.ref.Address)
+		scope := &StatementScope{Owner: &session.TransactionOwner{}}
 		leaf := exec.Leaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
-		e.mu.Lock()
-		err := e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{leaf})
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err := e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{leaf})
+		e.Mu.Unlock()
 		if tc.code == "" {
 			if err != nil {
 				t.Fatal(d.Name(), err)
@@ -215,23 +215,23 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		}
 	}
 	// Every stored arm is still admitted, including one whose identity expired.
-	d := *e.catalog.State.MustRelation(set.Address)
+	d := *e.Catalog.State.MustRelation(set.Address)
 	sources := append([]stored.ViewLeaf(nil), stored.ViewOf(&d).Sources()...)
 	sources[1].Ref.Epoch++
 	d.View = stored.ViewOf(&d).With(func(p *stored.ViewParts) { p.Sources = sources })
-	e.catalog.State.SetDescriptor(set.Address, &d)
-	scope := &StatementScope{owner: &session.TransactionOwner{}}
-	e.mu.Lock()
-	err := e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
-	e.mu.Unlock()
+	e.Catalog.State.SetDescriptor(set.Address, &d)
+	scope := &StatementScope{Owner: &session.TransactionOwner{}}
+	e.Mu.Lock()
+	err := e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
+	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("set boundary skipped stale arm admission", err)
 	}
 	// First-mode discovery still finds locally stored marks beneath a set when
 	// there is no inherited outer diagnostic, without granting marks to arms.
-	e.mu.Lock()
-	mode, err := view.FirstQueryRowMode(e.privateCatalogLocked(nil), nil, []exec.Leaf{{Ref: refs["local_set"], Relation: e.catalog.State.MustRelation(refs["local_set"].Address)}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	mode, err := view.FirstQueryRowMode(e.PrivateCatalogLocked(nil), nil, []exec.Leaf{{Ref: refs["local_set"], Relation: e.Catalog.State.MustRelation(refs["local_set"].Address)}})
+	e.Mu.Unlock()
 	if err != nil || mode != lock.ForUpdate {
 		t.Fatal("local first diagnostic lost", mode, err)
 	}
@@ -257,22 +257,22 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := scope.gate(&parser.Select{}); err != nil {
+		if err := scope.Gate(&parser.Select{}); err != nil {
 			t.Fatal(err)
 		}
 		ref := refs[tc.name]
-		scope.lockedRef = ref
-		scope.querySources = []exec.Leaf{{Ref: ref, Relation: e.catalog.State.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
-		_, err = scope.acquireViewSources(false)
+		scope.LockedRef = ref
+		scope.QuerySources = []exec.Leaf{{Ref: ref, Relation: e.Catalog.State.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
+		_, err = scope.AcquireViewSources(false)
 		if err == nil {
 			for _, want := range []struct {
 				ref  ids.ObjectRef
 				mode lock.Mode
 			}{{base, tc.baseMode}, {right, tc.rightMode}} {
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				var got lock.Mode
 				if entry := lockState.Resources[lock.Resource{ObjectRef: want.ref}]; entry != nil {
-					got = entry.Holders[scope.ticket].Mode
+					got = entry.Holders[scope.LockTicket].Mode
 				}
 				if got != want.mode {
 					t.Errorf("%s arm %v got relation mode %v want %v", tc.name, want.ref.Address, got, want.mode)

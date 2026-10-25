@@ -41,22 +41,22 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.gate(&parser.Select{}); err != nil {
+			if err := scope.Gate(&parser.Select{}); err != nil {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
 			formal := analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, tc.formal)}}
 			frame := make([]sqltype.Value, 1)
-			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.Ctx, formal, frame, scope.input)
-			if !e.mu.TryLock() {
+			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.Ctx, formal, frame, scope.Input)
+			if !e.Mu.TryLock() {
 				t.Fatal("SQL actual importer retained engine mutex")
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			if scope.inquiry.commentCatalog.State() != nil || scope.inquiry.deparseAuth.RoleRecord != nil || scope.inquiry.visibilityCatalog.State() != nil || scope.inquiry.deparsePath != nil {
+			if scope.Inquiry.CommentCatalog.State() != nil || scope.Inquiry.deparseAuth.RoleRecord != nil || scope.Inquiry.visibilityCatalog.State() != nil || scope.Inquiry.DeparsePath != nil {
 				t.Fatal("primitive/dead actual captured catalog environment")
 			}
 			if frame[0].Type() != formal.Types[0].Type {
@@ -83,7 +83,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	}
 	var commandErr error
 	defer func() { _ = scope.Finish(commandErr) }()
-	if commandErr = scope.gate(&parser.Select{}); commandErr != nil {
+	if commandErr = scope.Gate(&parser.Select{}); commandErr != nil {
 		t.Fatal(commandErr)
 	}
 	actual := parser.FunctionExpr{
@@ -95,7 +95,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	frame := make([]sqltype.Value, 1)
 	var original []exec.RoutineCall
 	for i := range 32 {
-		if commandErr = importer(op.Context(), formal, frame, scope.input); commandErr != nil {
+		if commandErr = importer(op.Context(), formal, frame, scope.Input); commandErr != nil {
 			t.Fatal(commandErr)
 		}
 		clear(frame)
@@ -120,13 +120,13 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	foreignSession := sessionStart(t, foreign, nil)
 	foreignOp := transactionOperation(t, foreignSession)
 	defer foreignOp.Done()
-	foreign.mu.Lock()
-	auth, authErr := foreign.authorizationLocked(foreignOp)
-	foreign.mu.Unlock()
+	foreign.Mu.Lock()
+	auth, authErr := foreign.AuthorizationLocked(foreignOp)
+	foreign.Mu.Unlock()
 	if authErr != nil {
 		t.Fatal(authErr)
 	}
-	if err := scope.routinePrograms[0].admission.Readmit(routineAccessOf(auth)); err == nil {
+	if err := scope.routinePrograms[0].admission.Readmit(RoutineAccessOf(auth)); err == nil {
 		t.Fatal("coalesced consumed calls accepted a foreign authority")
 	}
 }

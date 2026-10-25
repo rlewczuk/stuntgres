@@ -124,7 +124,7 @@ func TestTransactionalRulesActionAdmission(t *testing.T) {
 	outer := ruleUnitInsert(e, src, 1, 10)
 	nested := ruleUnitInsert(e, sink, 2, 20)
 	binding := nested.Binding()
-	providerRef := e.catalog.Domain.Ref(read.Epoch(), provider.Address())
+	providerRef := e.Catalog.Domain.Ref(read.Epoch(), provider.Address())
 	outer = outer.With(func(p *stored.RuleActionParts) {
 		p.Binding.CTEs = []*plan.CTEDefinition{{Statement: nested.Syntax(), Mutation: &binding, Owner: 1}}
 		p.Binding.Query = &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(provider.Columns), Ref: providerRef}}

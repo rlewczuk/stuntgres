@@ -85,7 +85,7 @@ func lockLifecycleAsync(t *testing.T, e *Engine, s *session.Session, ctx context
 
 func lockObservedRequest(t *testing.T, e *Engine, s *session.Session, resource lock.Resource, mode lock.Mode) {
 	t.Helper()
-	state := e.locks.Inspect()
+	state := e.Locks.Inspect()
 	entry := state.Resources[resource]
 	if entry != nil {
 		for _, request := range entry.Pending {

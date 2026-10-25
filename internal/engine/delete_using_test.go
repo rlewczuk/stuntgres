@@ -35,12 +35,12 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	out := b.Returning.Expressions[0]
 	b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
-		if root := scope.stage.deletes[b.Ref.Address]; root == nil || len(root.Rows) != calls {
+		if root := scope.Stage.Deletes[b.Ref.Address]; root == nil || len(root.Rows) != calls {
 			t.Fatal("output precedes actual unique staging", calls, root)
 		}
 		return out.Eval(c)
 	})
-	r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+	r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
@@ -52,7 +52,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	if !reflect.DeepEqual(got, [][]driver.Value{{int64(2), int64(20), "same", nil}, {int64(2), int64(20), "same", nil}, {int64(3), int64(30), "third", nil}}) {
 		t.Fatal(got)
 	}
-	root := scope.stage.deletes[b.Ref.Address]
+	root := scope.Stage.Deletes[b.Ref.Address]
 	for _, v := range original {
 		candidate, ok := root.Rows[v.Row]
 		if !ok || candidate.Storage != b.Storage || candidate.Ref != b.Ref || candidate.Version != v.Version {
@@ -64,11 +64,11 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if target.View != nil || inputs.Sources != nil || len(scope.querySources) != 0 {
+	if target.View != nil || inputs.Sources != nil || len(scope.QuerySources) != 0 {
 		t.Fatal("capture leaked")
 	}
 	for i, v := range original {
-		if testExport(v.Values[1]) != testExport(e.storage.Relations[b.Ref.Address].Versions[i].Values[1]) {
+		if testExport(v.Values[1]) != testExport(e.Storage.Relations[b.Ref.Address].Versions[i].Values[1]) {
 			t.Fatal("immutable predecessor changed")
 		}
 	}
@@ -122,7 +122,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					out := b.Returning.Expressions[0]
 					b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
-						if len(scope.stage.deletes[b.Ref.Address].Rows) != calls {
+						if len(scope.Stage.Deletes[b.Ref.Address].Rows) != calls {
 							t.Fatal("output before stage")
 						}
 						if calls == 2 {
@@ -137,7 +137,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 						return out.Eval(c)
 					})
 				}
-				r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+				r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 				if r.Rows != nil {
 					t.Cleanup(func() { r.Rows.Close() })
 				}
@@ -162,7 +162,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 						t.Fatal("orphan child view")
 					}
 				}
-				if target.View != nil || inputs.Sources != nil || len(scope.querySources) != 0 {
+				if target.View != nil || inputs.Sources != nil || len(scope.QuerySources) != 0 {
 					t.Fatal("orphan command view")
 				}
 				if explicit {
@@ -190,7 +190,7 @@ func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 	sessionSQL(t, a, "UPDATE s SET n=999")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
 	sessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
-	r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+	r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}

@@ -84,12 +84,12 @@ func partitionAttachUnitScope(t *testing.T, e *Engine, session *session.Session)
 	}
 	t.Cleanup(func() {
 		cancel()
-		if !scope.finished {
+		if !scope.Finished {
 			scope.Finish(context.Canceled)
 		}
 		op.Done()
 	})
-	if err := scope.gate(&parser.Select{}); err != nil {
+	if err := scope.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := scope.snapshotPhase(&parser.Select{}); err != nil {
@@ -106,14 +106,14 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			child := inheritanceUnitRelation(e, "attach_fence_child", 46001, "k")
 			child.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, child)
-			parent = e.catalog.State.MustRelation(parent.Address())
-			child = e.catalog.State.MustRelation(child.Address())
+			parent = e.Catalog.State.MustRelation(parent.Address())
+			child = e.Catalog.State.MustRelation(child.Address())
 			stage := partitionAttachUnitStage(t, e, e.CatalogRead(), parent, child)
-			store := e.storage.Relations[child.Address()]
-			stage.storageReads = []session.StorageReadFence{session.NewStorageReadFence(child.Address(), store)}
+			store := e.Storage.Relations[child.Address()]
+			stage.StorageReads = []session.StorageReadFence{session.NewStorageReadFence(child.Address(), store)}
 			// A real captured type provider is an exact publication predecessor.
 			providerAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
-			stage.domainBases = append(stage.domainBases, e.catalog.State.Get(providerAddress))
+			stage.DomainBases = append(stage.DomainBases, e.Catalog.State.Get(providerAddress))
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
@@ -123,9 +123,9 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			switch change {
 			case "store":
 				copy := *store
-				e.mu.Lock()
-				e.storage.InstallRelationLocked(child.Address(), &copy)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Storage.InstallRelationLocked(child.Address(), &copy)
+				e.Mu.Unlock()
 			case "length":
 				store.Versions = append(store.Versions, storage.RowVersion{Row: 1, Version: 1})
 			case "ends":
@@ -133,16 +133,16 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			case "generation":
 				store.Generation++
 			case "provider":
-				typ := *e.catalog.State.MustType(providerAddress)
+				typ := *e.Catalog.State.MustType(providerAddress)
 				typ.ObjectRevision++
-				next := catalog.CloneState(e.catalog.State)
+				next := catalog.CloneState(e.Catalog.State)
 				next.SetDescriptor(providerAddress, &typ)
-				e.catalog.PublishLocked(next)
+				e.Catalog.PublishLocked(next)
 			case "cancel":
 				cancel()
 			}
-			before := e.catalog.State
-			stores, roots := maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots)
+			before := e.Catalog.State
+			stores, roots := maps.Clone(e.Storage.Relations), maps.Clone(e.Storage.IndexRoots)
 			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("stale validation published an attachment")
@@ -150,10 +150,10 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			if change == "cancel" && !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			if e.catalog.State != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || len(changes.Definitions) != 0 {
+			if e.Catalog.State != before || !maps.Equal(e.Storage.Relations, stores) || !maps.Equal(e.Storage.IndexRoots, roots) || len(changes.Definitions) != 0 {
 				t.Fatal("failed final veto installed partial catalog/storage/index roots")
 			}
-			if e.catalog.State.Get(parent.Address()) != parent || e.catalog.State.Get(child.Address()) != child || child.Membership != nil || len(parent.Partition.Children) != 0 {
+			if e.Catalog.State.Get(parent.Address()) != parent || e.Catalog.State.Get(child.Address()) != child || child.Membership != nil || len(parent.Partition.Children) != 0 {
 				t.Fatal("failed attachment changed original edges")
 			}
 		})

@@ -11,14 +11,14 @@ func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *pars
 	if handled, err := table.CompetingUniqueShape(op, raw, provider); !handled || err != nil {
 		return nil, err
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || !provider.Holds(auth.RoleRecord, auth.Catalog) || created[provider.Ref.Address] != provider.Ref {
-		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if !PartitionConstraintReplayImport(e, op, auth) || !provider.Holds(auth.RoleRecord, auth.Catalog) || created[provider.Ref.Address] != provider.Ref {
+		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return table.PreparePhysicalCompetingUnique(auth.Catalog, raw, provider)
 }

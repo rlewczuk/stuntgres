@@ -19,11 +19,11 @@ import (
 func pgOpclassUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2616}
-	d, ok := e.catalog.State.Relation(a)
+	d, ok := e.Catalog.State.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_opclass")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
+	return d, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a)
 }
 
 func pgOpclassUnitBag(t *testing.T, rows *exec.Source, d *catalog.Relation) map[uint32][]any {
@@ -89,12 +89,12 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if err := (relationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	descriptors, names := maps.Collect(e.catalog.State.Descriptors()), maps.Collect(e.catalog.State.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, d)
+	descriptors, names := maps.Collect(e.Catalog.State.Descriptors()), maps.Collect(e.Catalog.State.Names())
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.State.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.Catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.Catalog.State.Names())) {
 		t.Fatal("capture changed catalog/ref")
 	}
 	bag := pgOpclassUnitBag(t, rows, d)
@@ -110,7 +110,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:8]}} {
-		if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOpclass); rows != nil || err == nil {
+		if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOpclass); rows != nil || err == nil {
 			t.Fatal("invalid source accepted", rows, err)
 		}
 	}
@@ -119,7 +119,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	during, cancelDuring := context.WithCancel(context.Background())
 	defer cancelDuring()
 	for _, ctx := range []context.Context{ctx, &cancelAtErrCheck{Context: during, cancel: cancelDuring, at: 5}} {
-		if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOpclass); rows != nil || !errors.Is(err, context.Canceled) {
+		if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOpclass); rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", rows, err)
 		}
 	}
@@ -127,7 +127,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgOpclassUnitSource(t, e)
-	freshRows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOpclass)
+	freshRows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOpclass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if !reflect.DeepEqual(pgOpclassUnitBag(t, freshRows, fresh), bag) || !reflect.DeepEqual(pgOpclassUnitBag(t, rows, d), bag) {
 		t.Fatal("replacement changed immutable facts/old capture")
 	}
-	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOpclass); rows != nil || err == nil {
+	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOpclass); rows != nil || err == nil {
 		t.Fatal("old descriptors accepted by new generation", rows, err)
 	}
 }
@@ -186,8 +186,8 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 		}
 		parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48100 + i*2), 0}, ObjectNamespace: ids.ObjectAddress{ids.NamespaceClassID, ids.PublicNamespaceOID, 0}, ObjectName: "identity_parent", RelationKind: catalog.TableRelation, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "k", Usage: typ.Usage()}}, Index: map[string]int{"k": 0}}
 		idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ids.RelationClassID, ids.OID(48101 + i*2), 0}, ObjectNamespace: parent.Namespace(), ObjectName: "identity_index", RelationKind: catalog.IndexRelation, Columns: parent.Columns, Attributes: []int32{1}, SQLIndex: &catalog.IndexDefinition{Parent: parent.Address(), Method: tc.method, MethodOID: tc.method.OID(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class, ExplicitClass: true}}, Ready: true, Valid: true, Live: true}}
-		e.catalog.State.SetDescriptor(parent.Address(), parent)
-		e.catalog.State.SetDescriptor(idx.Address(), idx)
+		e.Catalog.State.SetDescriptor(parent.Address(), parent)
+		e.Catalog.State.SetDescriptor(idx.Address(), idx)
 		value, err := typ.Input(context.Background(), tc.input, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -197,12 +197,12 @@ func TestPGOpclassIndexIdentity(t *testing.T) {
 			t.Fatal("real root", tc, root, err)
 		}
 		view := e.CatalogRead()
-		m, _, err := index.ProjectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), idx.Address()))
+		m, _, err := index.ProjectIndexMetadata(context.Background(), view, e.Catalog.Domain.Ref(view.Epoch(), idx.Address()))
 		if err != nil || !reflect.DeepEqual(m.IndClass, []ids.OID{tc.oid}) {
 			t.Fatal("projected index identity", tc, m.IndClass, err)
 		}
 		d, ref := pgOpclassUnitSource(t, e)
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOpclass)
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOpclass)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -26,7 +26,7 @@ func pgSequencesRows(t *testing.T, s *session.Session, query string, want [][]dr
 func TestPGSequencesDescriptors(t *testing.T) {
 	e := New()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048}
-	d := e.catalog.State.MustRelation(address)
+	d := e.Catalog.State.MustRelation(address)
 	if !d.VirtualView || d.RowType != 12050 || len(d.Columns) != 11 {
 		t.Fatal(d)
 	}
@@ -40,8 +40,8 @@ func TestPGSequencesDescriptors(t *testing.T) {
 			t.Fatal("NAME collation", column)
 		}
 	}
-	row := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12050})
-	array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12049})
+	row := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12050})
+	array := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12049})
 	if row.OwningRelation != address || row.Array != 12049 || array.OwningRelation != address || array.SQLType.Element() != row.SQLType {
 		t.Fatal(row, array)
 	}
@@ -60,9 +60,9 @@ func TestPGSequencesProvider(t *testing.T) {
 	sequenceScalar(t, a, "SELECT nextval('s')", 1)
 	sequenceScalar(t, b, "SELECT nextval('s')", 11)
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
-	before := *e.storage.Sequences[ref.Address]
+	before := *e.Storage.Sequences[ref.Address]
 	pgSequencesRows(t, a, "SELECT start_value,cache_size,last_value FROM pg_sequences WHERE sequencename='s'", [][]driver.Value{{int64(1), int64(10), int64(20)}})
-	if *e.storage.Sequences[ref.Address] != before {
+	if *e.Storage.Sequences[ref.Address] != before {
 		t.Fatal("provider changed generator")
 	}
 	sequenceScalar(t, a, "SELECT nextval('s')", 2)
@@ -107,7 +107,7 @@ func TestPGSequencesACL(t *testing.T) {
 	sequenceScalar(t, a, "SELECT setval('s',42)", 42)
 	sessionSQL(t, a, "CREATE ROLE reader")
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
-	owner := e.catalog.State.MustRelation(ref.Address).Owner
+	owner := e.Catalog.State.MustRelation(ref.Address).Owner
 	sessionSQL(t, a, "SET SESSION AUTHORIZATION reader")
 	for _, mask := range []authorization.Privileges{0, authorization.UpdatePrivilege, authorization.UsagePrivilege, authorization.SelectPrivilege, authorization.UsagePrivilege | authorization.UpdatePrivilege} {
 		acl := authorization.ACLValue{Explicit: true}
@@ -168,7 +168,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			sequencePreparedDescription(t, e, a, query)
 			for _, name := range []string{"a", "b"} {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				held := entry != nil && entry.Holders[a.Transactions.Ticket].Mode != 0
 				if held {
@@ -179,7 +179,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			result.Rows.Close()
 			for _, name := range []string{"a", "b"} {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				held := entry != nil && entry.Holders[a.Transactions.Ticket].Mode == lock.RowExclusive
 				want := (name == "a" && query != "SELECT last_value FROM pg_sequences WHERE FALSE" && query != "SELECT last_value FROM pg_sequences WHERE FALSE FOR UPDATE") || query == "SELECT count(*) FROM pg_sequences"
@@ -188,7 +188,7 @@ func TestPGSequencesDemand(t *testing.T) {
 				}
 			}
 			tableRef := catalogRef(t, e, e.CatalogRead(), "t")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			tableMarked := false
 			for resource, entry := range lockState.Resources {
 				if resource.ObjectRef == tableRef && resource.Row != 0 && entry.Holders[a.Transactions.Ticket].Mode == lock.ForUpdate {
@@ -248,13 +248,13 @@ func TestPGSequencesCancellation(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "s")
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "ALTER SEQUENCE s RESTART 19")
-	before := *e.storage.Sequences[ref.Address]
+	before := *e.Storage.Sequences[ref.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	done := lockAsync(e, b, ctx, "SELECT sequencename FROM pg_sequences", false)
 	ownedLockQueued(t, e, ref, lock.RowExclusive, done)
 	cancel()
 	lockAwait(t, done, context.Canceled)
-	if *e.storage.Sequences[ref.Address] != before {
+	if *e.Storage.Sequences[ref.Address] != before {
 		t.Fatal("canceled provider mutated generator")
 	}
 	transactionEnd(t, a, tx, false)

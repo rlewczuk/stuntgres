@@ -18,28 +18,28 @@ import (
 func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
-	before := e.catalog.State
+	before := e.Catalog.State
 	op, done := roleOperation(t, e, "postgres")
 	const failed = `CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('bad_id_seq')>0),CHECK(missing>0))`
 	roleErrorPosition(t, e, op, failed, "42703", `column "missing" does not exist`, "", strconv.Itoa(strings.Index(failed, "missing")+1))
-	if e.catalog.State != before || len(e.storage.Sequences) != 0 {
+	if e.Catalog.State != before || len(e.Storage.Sequences) != 0 {
 		t.Fatal("failed CHECK construction published descriptor/generator")
 	}
 	const failedSchema = `CREATE SCHEMA failed CREATE TABLE prior(id INT GENERATED ALWAYS AS IDENTITY) CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY,CHECK(nextval('failed.bad_id_seq')>0),CHECK(missing>0))`
 	roleErrorPosition(t, e, op, failedSchema, "42703", `column "missing" does not exist`, "", strconv.Itoa(strings.Index(failedSchema, "missing")+1))
 	done()
-	if e.catalog.State != before || len(e.storage.Sequences) != 0 {
+	if e.Catalog.State != before || len(e.Storage.Sequences) != 0 {
 		t.Fatal("failed CHECK construction published descriptor/generator")
 	}
 	sessionSQL(t, s, `CREATE SCHEMA portable CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY,CHECK(pg_catalog.nextval('i_id_seq')>0)) CREATE TABLE c(p INT CHECK(nextval('portable.i_id_seq')>0))`)
-	table := e.catalog.State.MustRelation(roleTableRef(t, e, "portable.i").Address)
+	table := e.Catalog.State.MustRelation(roleTableRef(t, e, "portable.i").Address)
 	identity := table.ColumnMeta.Identities[table.Attributes[0]]
-	provider := e.catalog.State.MustRelation(identity.Sequence)
+	provider := e.Catalog.State.MustRelation(identity.Sequence)
 	found := false
 	for _, dependency := range table.Constraints.Check[0].Dependencies {
 		if dependency.Ref.Address == identity.Sequence {
 			found = true
-			if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.State.Epoch() || dependency.Revision != provider.Revision() {
+			if dependency.Ref.Domain() != e.Catalog.Domain || dependency.Ref.Epoch != e.Catalog.State.Epoch() || dependency.Revision != provider.Revision() {
 				t.Fatal("CHECK did not capture exact candidate provider", dependency)
 			}
 		}
@@ -47,7 +47,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	if !found {
 		t.Fatal("CHECK lost its identity sequence dependency")
 	}
-	g := e.storage.Sequences[identity.Sequence]
+	g := e.Storage.Sequences[identity.Sequence]
 	beforeGenerator := *g
 	var dump bytes.Buffer
 	if err := e.Dump(context.Background(), &dump); err != nil {
@@ -63,7 +63,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	sequenceScalar(t, s, `SELECT last_value FROM portable.i_id_seq`, 3)
 	sessionSQL(t, s, `DROP TABLE portable.c`)
 	sessionSQL(t, s, `DROP TABLE portable.i`)
-	if e.catalog.State.Get(identity.Sequence) != nil || e.storage.Sequences[identity.Sequence] != nil {
+	if e.Catalog.State.Get(identity.Sequence) != nil || e.Storage.Sequences[identity.Sequence] != nil {
 		t.Fatal("own CHECK blocked reciprocal cleanup")
 	}
 }
@@ -86,13 +86,13 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 10`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
-			temp := description.sequences.Constants[0].Ref.Address
+			temp := description.Sequences.Constants[0].Ref.Address
 			owner := roleTableRef(t, source, "portable.i").Address
 			originalView, originalCheck := roleTableRef(t, source, "portable.v").Address, roleTableRef(t, source, "portable.c").Address
 			if temp != owner {
 				t.Fatal("fixture lacks owner-table collision", temp, owner)
 			}
-			definition, generator, memory := dest.catalog.State.Get(temp), dest.storage.Sequences[temp], payloadOf(b).sequences.Memory(temp)
+			definition, generator, memory := dest.Catalog.State.Get(temp), dest.Storage.Sequences[temp], PayloadOf(b).Sequences.Memory(temp)
 			generatorState, memoryState := *generator, *memory
 			// Force the required relationship using observed object identities,
 			// independently of how many embedded definitions consume OIDs.
@@ -123,9 +123,9 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			if owner.ObjectID <= view.ObjectID || owner.ObjectID <= check.ObjectID {
 				t.Fatal("fixture lacks predecessor inversion", owner, view, check)
 			}
-			table := dest.catalog.State.MustRelation(owner)
+			table := dest.Catalog.State.MustRelation(owner)
 			identity := table.ColumnMeta.Identities[table.Attributes[0]]
-			sequence := dest.catalog.State.MustRelation(identity.Sequence)
+			sequence := dest.Catalog.State.MustRelation(identity.Sequence)
 			owned := owner
 			owned.SubID = table.Attributes[0]
 			if !sequence.Sequence.Identity || sequence.Sequence.Owned != owned {
@@ -145,7 +145,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			if err := dest.Restore(context.Background(), bytes.NewReader(again.Bytes())); err != nil {
 				t.Fatal("second remapped dump cannot restore", err)
 			}
-			if dest.catalog.State.Get(temp) != definition || dest.storage.Sequences[temp] != generator || payloadOf(b).sequences.Memory(temp) != memory || *generator != generatorState || *memory != memoryState {
+			if dest.Catalog.State.Get(temp) != definition || dest.Storage.Sequences[temp] != generator || PayloadOf(b).Sequences.Memory(temp) != memory || *generator != generatorState || *memory != memoryState {
 				t.Fatal("retained TEMP state changed")
 			}
 			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 1)
@@ -157,7 +157,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			sessionSQL(t, b, `DROP TABLE portable.i CASCADE`)
 			sequenceScalar(t, b, `SELECT COUNT(*) FROM portable.c`, 1)
 			sessionSQL(t, b, `INSERT INTO portable.c VALUES(9)`)
-			if dest.catalog.State.Get(identity.Sequence) != nil || dest.storage.Sequences[identity.Sequence] != nil {
+			if dest.Catalog.State.Get(identity.Sequence) != nil || dest.Storage.Sequences[identity.Sequence] != nil {
 				t.Fatal("linked sequence survived owner cleanup")
 			}
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
@@ -177,7 +177,7 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	defer cancel()
 	waiting := lockAsync(e, b, ctx, create, false)
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare
 	if !queued {
@@ -185,10 +185,10 @@ func TestIdentityOwnCheckIncumbentAdmission(t *testing.T) {
 	}
 	cancel()
 	lockAwait(t, waiting, context.Canceled)
-	e.mu.Lock()
-	read := e.catalog.Current()
-	leaked := len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}), Name: "i"})) != 0 || len(e.storage.Sequences) != 1
-	e.mu.Unlock()
+	e.Mu.Lock()
+	read := e.Catalog.Current()
+	leaked := len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"}), Name: "i"})) != 0 || len(e.Storage.Sequences) != 1
+	e.Mu.Unlock()
 	if leaked {
 		t.Fatal("canceled provider admission published staged identity")
 	}
@@ -235,15 +235,15 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	bad.Sequence = &options
 	stage := e.BeginCatalogStage(read)
 	stage.UpdateDescriptor(&bad)
-	if _, err := (control.Resolver{}).Predecessor(e.stageRead(stage), sequence, consumer); err == nil {
+	if _, err := (control.Resolver{}).Predecessor(e.StageRead(stage), sequence, consumer); err == nil {
 		t.Fatal("invalid reciprocal identity silently lost predecessor")
 	}
 	var dump bytes.Buffer
-	state := *e.storage.Sequences[sequence]
+	state := *e.Storage.Sequences[sequence]
 	if err := e.Dump(context.Background(), &dump); err != nil {
 		t.Fatal(err)
 	}
-	if *e.storage.Sequences[sequence] != state {
+	if *e.Storage.Sequences[sequence] != state {
 		t.Fatal("scalar view/CHECK Dump evaluated provider")
 	}
 	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
@@ -276,15 +276,15 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	ast := statement(t, `SELECT pg_catalog.nextval('candidate_only')`).(*parser.Select)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Search paths resolve lexical schema names against the candidate too.
 	// The real public namespace now has only its private candidate_schema name.
-	path, err := e.settings.Definitions()["search_path"].Parse("candidate_schema")
+	path, err := e.Settings.Definitions()["search_path"].Parse("candidate_schema")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,9 +292,9 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	auth.settings.Typed["search_path"] = path
 	auth.settings.Values["search_path"] = "candidate_schema"
 	auth.settings.Mu.Unlock()
-	auth.Catalog = e.stageRead(stage)
+	auth.Catalog = e.StageRead(stage)
 	auth.Recapture(auth.Catalog)
-	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	binder.Query.Auth = &auth
 	if _, err := functions.BindSequenceCall(binder, ast.Targets[0].(parser.CallExpr)); err != nil {
 		t.Fatal(err)
@@ -303,14 +303,14 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 		t.Fatal(binder.Prepared.SequenceConstants)
 	}
 	constant := binder.Prepared.SequenceConstants[0]
-	if constant.Ref.Address != address || constant.Ref.Domain() != e.catalog.Domain || constant.Ref.Epoch != read.Epoch() || constant.Stamp != candidate.SequencePlanStamp {
+	if constant.Ref.Address != address || constant.Ref.Domain() != e.Catalog.Domain || constant.Ref.Epoch != read.Epoch() || constant.Stamp != candidate.SequencePlanStamp {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}
 	qualified := statement(t, `SELECT candidate_schema.nextval('candidate_only')`).(*parser.Select).Targets[0].(parser.CallExpr)
 	if visible, err := binder.BuiltinVisible(qualified.Name); err != nil || visible {
 		t.Fatal("builtin namespace lookup ignored candidate authority", visible, err)
 	}
-	if e.catalog.State != read.State() || e.catalog.State.Get(address) != original || e.storage.Sequences[address].Called {
+	if e.Catalog.State != read.State() || e.Catalog.State.Get(address) != original || e.Storage.Sequences[address].Called {
 		t.Fatal("binding published or evaluated the candidate")
 	}
 }

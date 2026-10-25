@@ -14,7 +14,7 @@ func TestUserOperatorCatalogEstimatorReleasedIdentity(t *testing.T) {
 	create.Options = append(create.Options, operatorParsedOptions(t, "restrict=pg_catalog.eqsel,join=pg_catalog.eqjoinsel")...)
 	stage := operatorUnitStage(t, e, op, auth, create)
 	defer e.DiscardCatalogStage(stage)
-	d := operatorUnitLookup(t, e.stageRead(stage), "#=#")
+	d := operatorUnitLookup(t, e.StageRead(stage), "#=#")
 	for _, tc := range []struct {
 		name     string
 		id, want ids.OID

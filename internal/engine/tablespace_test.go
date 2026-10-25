@@ -28,7 +28,7 @@ func TestTablespaceExecutorNoPublication(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	state, roles, oid, revision, principal := e.catalog.State, e.roles.Published, e.catalog.NextOID(), e.catalog.NextRevision(), e.roles.NextPrincipal()
+	state, roles, oid, revision, principal := e.Catalog.State, e.RoleStore.Published, e.Catalog.NextOID(), e.Catalog.NextRevision(), e.RoleStore.NextPrincipal()
 	identity, authorizationRevision := op.RoleState(), op.Session.Authorization.Revision
 	for _, tc := range []struct {
 		stmt          parser.CreateTablespace
@@ -43,7 +43,7 @@ func TestTablespaceExecutorNoPublication(t *testing.T) {
 		if result.Rows != nil || result.CommandTag != "" {
 			t.Fatal("refusal exposed result", result)
 		}
-		if e.catalog.State != state || e.catalog.State.Epoch() != state.Epoch() || e.roles.Published != roles || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.roles.NextPrincipal() != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision {
+		if e.Catalog.State != state || e.Catalog.State.Epoch() != state.Epoch() || e.RoleStore.Published != roles || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.RoleStore.NextPrincipal() != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision {
 			t.Fatal("refusal published catalog/identity/allocator changes")
 		}
 	}
@@ -53,7 +53,7 @@ func TestTablespaceExecutorNoPublication(t *testing.T) {
 	op.Ctx = ctx
 	_, err := e.Execute(op, &parser.CreateTablespace{Name: parser.Identifier{Text: "ordinary"}, Location: "/valid"}, 0, nil)
 	op.Ctx = original
-	if !errors.Is(err, context.Canceled) || e.catalog.State != state || e.roles.Published != roles || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.roles.NextPrincipal() != principal {
+	if !errors.Is(err, context.Canceled) || e.Catalog.State != state || e.RoleStore.Published != roles || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.RoleStore.NextPrincipal() != principal {
 		t.Fatal("canceled create published", err)
 	}
 }

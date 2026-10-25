@@ -23,7 +23,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	s.sqlRoutine.plDiagnostic = diagnosticIdentity
 	var result Result
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, plIntoAction)
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	diagnostic := proc.PLDiagnosticQuery{Text: raw.Text, Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
 	failure := func(cause error) error {
 		return s.plRuntimeQueryError(cause, h.read, h.d, in.Syntax.Pos, plIntoAction, diagnostic)
@@ -43,10 +43,10 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		err = restore(err)
 	}()
 	s.sqlRoutine.plPlanning = true
-	if err = s.acquireRelation(checked.Query, true); err != nil {
+	if err = s.AcquireRelation(checked.Query, true); err != nil {
 		return failure(err)
 	}
-	description, e := s.engine().describeOperation(s, checked.Query)
+	description, e := s.Engine().describeOperation(s, checked.Query)
 	if e != nil {
 		return failure(e)
 	}
@@ -63,7 +63,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 			if index < 0 {
 				return fmt.Errorf("stuntgres: missing capture command")
 			}
-			if index == s.activeMutation {
+			if index == s.ActiveMutation {
 				s.Command.Capture = capture
 			} else {
 				s.mutations[index].Command.Capture = capture
@@ -74,7 +74,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	if e != nil {
 		return e
 	}
-	result, e = s.engine().executeStatement(s, checked.Query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+	result, e = s.Engine().executeStatement(s, checked.Query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, f.Values[:f.Program.FormalCount])
 		return nil
 	})
@@ -88,7 +88,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 		return failure(e)
 	}
 	if result.Rows == nil {
-		return s.plRuntimeQueryError(sqlError("42601", "INTO used with a command that cannot return data"), h.read, h.d, in.Syntax.Pos, plIntoAction, proc.PLDiagnosticQuery{})
+		return s.plRuntimeQueryError(SQLError("42601", "INTO used with a command that cannot return data"), h.read, h.d, in.Syntax.Pos, plIntoAction, proc.PLDiagnosticQuery{})
 	}
 	schema := result.Rows.Schema()
 	fields, present, more, e := demandPLCapture(h.Context(), result.Rows, plColumns(schema), checked.Strict || mutation)

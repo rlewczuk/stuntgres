@@ -44,19 +44,19 @@ func stageOf(s extension.Stage) (*CatalogStage, error) {
 func (h *extensionHost) Context() context.Context { return h.op.Context() }
 func (h *extensionHost) Notice(n sqlstate.Error)  { h.op.EmitNotice(session.LevelNotice, n) }
 func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
-	path, _, err := explicitPath(h.auth)
+	path, _, err := ExplicitPath(h.auth)
 	return path, err
 }
 func (h *extensionHost) ReplayingTableDestination() bool {
-	return operationReplayOrZero(h.op).tableDestination
+	return OperationReplayOrZero(h.op).TableDestination
 }
 func (h *extensionHost) BootstrapSuperuser() authorization.PrincipalRef {
-	return h.engine.roles.Domain.Principal(10)
+	return h.engine.RoleStore.Domain.Principal(10)
 }
 func (h *extensionHost) BeginStage(namespace ids.ObjectAddress) extension.Stage {
 	stage := h.engine.BeginCatalogStage(h.auth.Catalog)
-	stage.authorizeLocked(h.auth, h.op.Session)
-	stage.extensionNamespace = namespace
+	stage.AuthorizeLocked(h.auth, h.op.Session)
+	stage.ExtensionNamespace = namespace
 	h.stage = stage
 	return h
 }
@@ -67,15 +67,15 @@ func (h *extensionHost) LookupName(key ids.NameKey) ids.ObjectAddress {
 }
 func (h *extensionHost) Create(d catalog.Descriptor) error  { return h.stage.Create(d) }
 func (h *extensionHost) Replace(d catalog.Descriptor) error { return h.stage.Replace(d) }
-func (h *extensionHost) AllocateOID() (ids.OID, error)      { return h.engine.catalog.AllocateOIDLocked() }
+func (h *extensionHost) AllocateOID() (ids.OID, error)      { return h.engine.Catalog.AllocateOIDLocked() }
 func (h *extensionHost) Revision() (ids.DefinitionRevision, error) {
-	return h.engine.catalog.RevisionLocked()
+	return h.engine.Catalog.RevisionLocked()
 }
 func (h *extensionHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {
-	return h.engine.displaceAssociatedArrayLocked(h.stage, namespace, name)
+	return h.engine.DisplaceAssociatedArrayLocked(h.stage, namespace, name)
 }
 func (h *extensionHost) AssociatedArrayName(namespace ids.ObjectAddress, name string) string {
-	return associatedArrayName(h.stage, namespace, name)
+	return AssociatedArrayName(h.stage, namespace, name)
 }
 func (h *extensionHost) CreationTypeACL(owner authorization.PrincipalRef, namespace ids.ObjectAddress) (authorization.ACLValue, bool) {
 	return h.stage.CreationTypeACL(owner, namespace)
@@ -86,16 +86,16 @@ func (h *extensionHost) CreationTypeACL(owner authorization.PrincipalRef, namesp
 // unqualified function lookup excludes the installer's own TEMP namespace.
 func (h *extensionHost) ScriptFunctions(owner authorization.PrincipalRef, namespace ids.ObjectAddress, helpers []extension.ScriptFunction) ([]*catalog.Procedure, error) {
 	e, auth := h.engine, h.auth
-	auth.Catalog = e.stageRead(h.stage)
+	auth.Catalog = e.StageRead(h.stage)
 	auth.Recapture(auth.Catalog)
 	auth.State.CurrentUser = owner
-	if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), namespace)); err != nil {
+	if err := auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), namespace)); err != nil {
 		return nil, err
 	}
 	// Extension scripts replace, rather than prefix, the caller's path. The
 	// stock scripts have no prerequisite schemas; implicit pg_catalog remains,
 	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := effectivePath(auth, []ids.ObjectAddress{namespace}, analyze.InstalledFunctionLookup)
+	path := EffectivePath(auth, []ids.ObjectAddress{namespace}, analyze.InstalledFunctionLookup)
 	found := make([]*catalog.Procedure, len(helpers))
 	for i, helper := range helpers {
 		found[i] = analyze.ProcedureInNamespaces(auth.Catalog, analyze.NamespaceSelection{Path: path}, helper.Name, helper.Signature)

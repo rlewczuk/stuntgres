@@ -41,9 +41,9 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tempAddress := tempDescription.sequences.Constants[0].Ref.Address
+	tempAddress := tempDescription.Sequences.Constants[0].Ref.Address
 	tempNamespace, tempToken := op.Session.TemporaryNamespace, op.Session.SessionToken
-	tempDescriptor, tempNamespaceDescriptor := e.catalog.State.Get(tempAddress), e.catalog.State.Get(tempNamespace)
+	tempDescriptor, tempNamespaceDescriptor := e.Catalog.State.Get(tempAddress), e.Catalog.State.Get(tempNamespace)
 	tempDemand := func(want int64) {
 		t.Helper()
 		scope, err := e.StartStatement(op)
@@ -65,18 +65,18 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 		}
 	}
 	tempDemand(1)
-	tempGenerator, tempMemory := e.storage.Sequences[tempAddress], payloadOf(op.Session).sequences.Memory(tempAddress)
+	tempGenerator, tempMemory := e.Storage.Sequences[tempAddress], PayloadOf(op.Session).Sequences.Memory(tempAddress)
 	roleExecute(t, e, op, "CREATE TEMP TABLE retained_table(k INT,payload INT DEFAULT nextval('retained_temp'),g INT GENERATED ALWAYS AS(payload+1) STORED,CONSTRAINT retained_positive CHECK(payload>0))")
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX retained_table_key ON retained_table(k) WHERE payload>0")
 	roleExecute(t, e, op, "CREATE INDEX retained_table_expression ON retained_table((k+0)) WHERE payload>0")
 	roleExecute(t, e, op, "INSERT INTO retained_table(k) VALUES(1)")
 	tempGeneratorState, tempMemoryState := *tempGenerator, *tempMemory
-	tempTableAddress := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table"})
-	tempIndexAddress := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_key"})
-	tempTableDescriptor, tempIndexDescriptor := e.catalog.State.Get(tempTableAddress), e.catalog.State.Get(tempIndexAddress)
-	tempTableStore, tempIndexRoot := e.storage.Relations[tempTableAddress], e.storage.IndexRoots[tempIndexAddress]
-	tempExpressionAddress := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_expression"})
-	tempExpressionDescriptor, tempExpressionRoot := e.catalog.State.Get(tempExpressionAddress), e.storage.IndexRoots[tempExpressionAddress]
+	tempTableAddress := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table"})
+	tempIndexAddress := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_key"})
+	tempTableDescriptor, tempIndexDescriptor := e.Catalog.State.Get(tempTableAddress), e.Catalog.State.Get(tempIndexAddress)
+	tempTableStore, tempIndexRoot := e.Storage.Relations[tempTableAddress], e.Storage.IndexRoots[tempIndexAddress]
+	tempExpressionAddress := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "retained_table_expression"})
+	tempExpressionDescriptor, tempExpressionRoot := e.Catalog.State.Get(tempExpressionAddress), e.Storage.IndexRoots[tempExpressionAddress]
 	tempVersions := slices.Clone(tempTableStore.Versions)
 	tempTableCursor := roleExecute(t, e, op, "SELECT k,payload FROM retained_table")
 	retained := e.CatalogRead()
@@ -100,14 +100,14 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if err != nil || !changes.Replacement || e.CatalogRead().Epoch() != retained.Epoch()+1 {
 		t.Fatal(changes, err)
 	}
-	if op.Session.SessionToken != tempToken || op.Session.TemporaryNamespace != tempNamespace || e.catalog.State.Get(tempAddress) != tempDescriptor || e.catalog.State.Get(tempNamespace) != tempNamespaceDescriptor || e.storage.Sequences[tempAddress] != tempGenerator || payloadOf(op.Session).sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
+	if op.Session.SessionToken != tempToken || op.Session.TemporaryNamespace != tempNamespace || e.Catalog.State.Get(tempAddress) != tempDescriptor || e.Catalog.State.Get(tempNamespace) != tempNamespaceDescriptor || e.Storage.Sequences[tempAddress] != tempGenerator || PayloadOf(op.Session).Sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
 		t.Fatal("hierarchy self remap changed exact live TEMP identity/cache")
 	}
 	tempDemand(3)
-	if e.catalog.State.Get(tempTableAddress) != tempTableDescriptor || e.catalog.State.Get(tempIndexAddress) != tempIndexDescriptor || e.storage.Relations[tempTableAddress] != tempTableStore || e.storage.IndexRoots[tempIndexAddress] != tempIndexRoot || !reflect.DeepEqual(tempTableStore.Versions, tempVersions) {
+	if e.Catalog.State.Get(tempTableAddress) != tempTableDescriptor || e.Catalog.State.Get(tempIndexAddress) != tempIndexDescriptor || e.Storage.Relations[tempTableAddress] != tempTableStore || e.Storage.IndexRoots[tempIndexAddress] != tempIndexRoot || !reflect.DeepEqual(tempTableStore.Versions, tempVersions) {
 		t.Fatal("hierarchy replacement reminted retained TEMP table definitions/storage/index")
 	}
-	if e.catalog.State.Get(tempExpressionAddress) != tempExpressionDescriptor || e.storage.IndexRoots[tempExpressionAddress] != tempExpressionRoot {
+	if e.Catalog.State.Get(tempExpressionAddress) != tempExpressionDescriptor || e.Storage.IndexRoots[tempExpressionAddress] != tempExpressionRoot {
 		t.Fatal("hierarchy replacement reminted retained TEMP expression/predicate index")
 	}
 	if !reflect.DeepEqual(tuples(tempTableCursor), [][]driver.Value{{int64(1), int64(2)}}) {
@@ -181,7 +181,7 @@ func TestRangePartitionRemapFailedCandidatePreservesTarget(t *testing.T) {
 	partition.Children = append(slices.Clone(partition.Children), partition.Children[0])
 	candidate.Partition = &partition
 	state.SetDescriptor(root.Address(), &candidate)
-	if _, err := e.ReplaceCatalog(context.Background(), e, e.catalog.Read(state)); err == nil {
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.Catalog.Read(state)); err == nil {
 		t.Fatal("malformed replacement accepted")
 	}
 	if e.CatalogRead().State() != before.State() {
@@ -308,7 +308,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}
 	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	for _, typesOnly := range []bool{false, true} {
-		mapped, err := stored.RemapPartitionDescriptor(e.catalog.Read(next), source,
+		mapped, err := stored.RemapPartitionDescriptor(e.Catalog.Read(next), source,
 			func(ref ids.ObjectRef) ids.ObjectRef { return ref },
 			func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ },
 			mapping, typesOnly, collation, nil)

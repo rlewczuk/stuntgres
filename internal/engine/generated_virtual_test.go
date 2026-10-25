@@ -130,8 +130,8 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	typ := d.Columns[0].Usage.Type
 	base := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
-	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	node := b.QueryColumnAt(analyze.QueryColumn{Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}, parser.Position{})
 	if len(b.Query.Sources[0].Uses) != 1 || b.Query.Sources[0].Uses[0] != 1 {
@@ -166,7 +166,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	original := d.Address()
 	d.ObjectAddress.ObjectID++
 	d.Columns[1].Usage = oid.Usage()
-	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
+	ref := e.Catalog.Domain.Ref(view.Epoch()+1, d.Address())
 	node := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: node, Planned: node}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)

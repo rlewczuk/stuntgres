@@ -59,13 +59,13 @@ func rowLockViewRows(t *testing.T, e *Engine, s *session.Session, q string, prep
 func rowLockViewGrants(t *testing.T, e *Engine, ticket *lock.Ticket, table string, ids ...int) {
 	t.Helper()
 	ref := roleTableRef(t, e, table)
-	e.mu.Lock()
+	e.Mu.Lock()
 	want := make(map[lock.Resource]bool, len(ids))
 	for _, id := range ids {
-		want[lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[id-1].Row}] = true
+		want[lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[id-1].Row}] = true
 	}
-	e.mu.Unlock()
-	lockState := e.locks.Inspect()
+	e.Mu.Unlock()
+	lockState := e.Locks.Inspect()
 	got := make(map[lock.Resource]bool)
 	for resource, entry := range lockState.Resources {
 		if resource.Row != 0 && entry.Holders[ticket].Mode != 0 {
@@ -85,7 +85,7 @@ func rowLockViewAsync(t *testing.T, s *session.Session, parent context.Context, 
 		op, _, err := s.AcquireCommand(ctx)
 		var result Result
 		if err == nil {
-			result, err = engineOf(s).Execute(op, ast, 0, nil)
+			result, err = EngineOf(s).Execute(op, ast, 0, nil)
 			err = op.CommandError(err)
 			op.Done()
 		}
@@ -111,9 +111,9 @@ func rowLockViewAsync(t *testing.T, s *session.Session, parent context.Context, 
 func rowLockViewFirstResource(t *testing.T, e *Engine, table string) lock.Resource {
 	t.Helper()
 	ref := roleTableRef(t, e, table)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[0].Row}
 }
 
 func rowLockViewFixture(t *testing.T) (*Engine, *session.Session, *session.Session, *session.Session) {

@@ -11,10 +11,10 @@ import (
 func TestAlterHostInputReflectsCheckSnapshotCapture(t *testing.T) {
 	e := New()
 	op, _ := conversionUnitAuth(t, e)
-	scope := &StatementScope{op: op, owner: op.Session.Transactions}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	var h table.AlterHost = alterHost{ddlHost: ddlHost{e: e, op: op}, scope: scope}
+	scope := &StatementScope{Op: op, Owner: op.Session.Transactions}
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	var h table.AlterHost = alterHost{DDLHost: DDLHost{E: e, Op: op}, scope: scope}
 	if h.Input().Regcollation != nil {
 		t.Fatal("a fresh scope already resolves regcollation input")
 	}

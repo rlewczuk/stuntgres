@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure) error {
+func (e *Engine) CompilePLRoutineLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure) error {
 	language, ok := auth.Catalog.Get(d.Language).(*catalog.Language)
 	if !ok || language.Name() != "plpgsql" {
 		return fmt.Errorf("stuntgres: PL routine has no language authority")
@@ -52,7 +52,7 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 			if raw.Type.Name == "record" && raw.Type.Schema == nil {
 				return sqltype.Usage{}, true, nil
 			}
-			usage, err := e.analysisHost(op).ResolveAnnotationTypeInput(raw.Type, false, false, false, false, false)
+			usage, err := e.AnalysisHost(op).ResolveAnnotationTypeInput(raw.Type, false, false, false, false, false)
 			return usage, false, err
 		}
 		if raw.Row {
@@ -61,10 +61,10 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 			if len(parts) == 2 {
 				annotation.Schema = &parts[0]
 			}
-			usage, err := e.analysisHost(op).ResolveAnnotationTypeInput(annotation, false, false, false, false, false)
+			usage, err := e.AnalysisHost(op).ResolveAnnotationTypeInput(annotation, false, false, false, false, false)
 			if err == nil {
 				if !usage.Type.BaseType().IsComposite() {
-					err = sqlError("42809", "%ROWTYPE requires a composite type")
+					err = SQLError("42809", "%ROWTYPE requires a composite type")
 				} else if typ, ok := auth.Catalog.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}).(*catalog.Type); ok {
 					dependency(typ.OwningRelation)
 				}
@@ -73,7 +73,7 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 		}
 		parts := raw.Copy.Parts
 		if len(parts) < 2 {
-			return sqltype.Usage{}, false, sqlError("42704", fmt.Sprintf("variable %q does not exist", parts[0].Text))
+			return sqltype.Usage{}, false, SQLError("42704", fmt.Sprintf("variable %q does not exist", parts[0].Text))
 		}
 		name := parser.ObjectName{Parts: parts[:len(parts)-1]}
 		path, err := e.lookupNamespaces(auth, name, analyze.RelationLookup)
@@ -93,9 +93,9 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 					return column.Usage, false, nil
 				}
 			}
-			return sqltype.Usage{}, false, sqlError("42703", fmt.Sprintf("column %q does not exist", parts[len(parts)-1].Text))
+			return sqltype.Usage{}, false, SQLError("42703", fmt.Sprintf("column %q does not exist", parts[len(parts)-1].Text))
 		}
-		return sqltype.Usage{}, false, sqlError("42P01", fmt.Sprintf("relation %q does not exist", catalog.ObjectNameText(name)))
+		return sqltype.Usage{}, false, SQLError("42P01", fmt.Sprintf("relation %q does not exist", catalog.ObjectNameText(name)))
 	}
 	checkedResolve := func(raw parser.PLType) (sqltype.Usage, bool, error) {
 		usage, record, err := resolve(raw)
@@ -103,7 +103,7 @@ func (e *Engine) compilePLRoutineLocked(op *session.Operation, auth Authorizatio
 			return usage, record, err
 		}
 		if !usage.Valid() || !usage.Type.Concrete() {
-			return sqltype.Usage{}, false, sqlError("0A000", "unsupported PL variable type")
+			return sqltype.Usage{}, false, SQLError("0A000", "unsupported PL variable type")
 		}
 		err = auth.Check(access.Requirement{Object: auth.Ref(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}), Privileges: authorization.UsagePrivilege})
 		if err == nil {

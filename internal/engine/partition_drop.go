@@ -11,13 +11,13 @@ import (
 )
 
 func (stage *CatalogStage) removePartitionHierarchyLocked(relation *catalog.Relation) error {
-	return stageDropProvider(nil, stage, nil, nil, nil).removePartitionHierarchyLocked(relation)
+	return StageDropProvider(nil, stage, nil, nil, nil).removePartitionHierarchyLocked(relation)
 }
 
-func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.Relation) error {
+func (provider *DropProvider) removePartitionHierarchyLocked(relation *catalog.Relation) error {
 	if relation.Partition != nil {
 		for _, address := range relation.Partition.Children {
-			ref := provider.owner.catalog.Domain.Ref(provider.base.Epoch(), address)
+			ref := provider.Owner.Catalog.Domain.Ref(provider.Base.Epoch(), address)
 			if err := provider.removeObjectLocked(ref, false); err != nil {
 				return err
 			}
@@ -47,13 +47,13 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.R
 	return index.PartitionIndexValidity(provider, ids.ObjectAddress{})
 }
 
-func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
-	e := s.engine()
-	e.mu.Lock()
-	view := e.privateCatalogLocked(s.owner.Catalog)
+func (s *StatementScope) AcquirePartitionDropLocks(ref ids.ObjectRef) error {
+	e := s.Engine()
+	e.Mu.Lock()
+	view := e.PrivateCatalogLocked(s.Owner.Catalog)
 	ancestors, err := partition.Ancestors(view, ref)
 	hierarchy := err == nil && catalog.HierarchyRelation(view.MustRelation(ref.Address))
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || !hierarchy {
 		return err
 	}
@@ -62,12 +62,12 @@ func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
 		if i == len(ancestors)-1 {
 			mode = lock.AccessExclusive
 		}
-		if err := s.acquirePartitionLock(ancestor, mode); err != nil {
+		if err := s.AcquirePartitionLock(ancestor, mode); err != nil {
 			return err
 		}
 	}
-	if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
+	if err := s.AcquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 		return err
 	}
-	return s.acquirePartitionDescendants(ref, lock.AccessExclusive)
+	return s.AcquirePartitionDescendants(ref, lock.AccessExclusive)
 }

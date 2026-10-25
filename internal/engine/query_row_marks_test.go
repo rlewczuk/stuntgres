@@ -78,7 +78,7 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	}
 	roleExecute(t, e, op, "CREATE SEQUENCE s")
 	reader, _ := e.Roles().Lookup("mark_reader")
-	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true}
@@ -100,14 +100,14 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 	grant(roleTableRef(t, e, "invoker"), authorization.SelectPrivilege)
 	check := func(q string) error {
 		t.Helper()
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return err
 		}
 		auth.State.CurrentUser = reader.Ref
-		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+		binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		binder.Query.Auth = &auth
 		raw := statement(t, q).(*parser.Select)
 		if _, err = binder.BindSelect(raw, false); err != nil {
@@ -155,7 +155,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 
 func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
-	view := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
+	view := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	table := &catalog.Relation{RelationKind: catalog.TableRelation}
 	requested := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
 	locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{

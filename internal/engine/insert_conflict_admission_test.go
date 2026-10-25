@@ -37,9 +37,9 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.mu.Lock()
-	f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	f.e.Storage.InstallIndexRootLocked(f.index.Address(), root)
+	f.e.Mu.Unlock()
 	return f
 }
 func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementScope, ids.ObjectRef) {
@@ -51,16 +51,16 @@ func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementSco
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(errors.New("unit rollback"))
 		}
 	})
-	if err := scope.gate(&parser.Insert{}); err != nil {
+	if err := scope.Gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := f.e.catalog.Domain.Ref(f.e.catalog.State.Epoch(), f.parent.Address())
+	ref := f.e.Catalog.Domain.Ref(f.e.Catalog.State.Epoch(), f.parent.Address())
 	action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}}, Predicate: f.predicate, Reads: []int{0, 1}, Targets: []int{0, 1}})
-	ctx := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	ctx := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: op.Context(), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err := action.SelectArbiters(&ctx, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -84,19 +84,19 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 			purpose := test.purpose
 			f := insertConflictUniqueFixture(t)
 			scope, ref := insertConflictUnitScope(t, f)
-			binding, err := dml.BindUniqueWrite(scope.writeHost(), ref)
+			binding, err := dml.BindUniqueWrite(scope.WriteHost(), ref)
 			if err != nil {
 				t.Fatal(err)
 			}
 			bound := &binding.Keys[0]
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: scope.op.Context(), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: scope.Op.Context(), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			proposal := insertConflictUnitRow(t, f, 20)
 			key, err := bound.Load(proposal, &evaluation)
 			if err != nil {
 				t.Fatal(err)
 			}
 			own := storage.RowVersion{Row: 200, Version: 200, Values: insertConflictUnitRow(t, f, 10)}
-			member, existing, err := dml.ExistingUniqueOutput(scope.writeHost(), bound, own, &evaluation, purpose)
+			member, existing, err := dml.ExistingUniqueOutput(scope.WriteHost(), bound, own, &evaluation, purpose)
 			if err != nil || !member {
 				t.Fatal("existing row lost membership", member, err)
 			}
@@ -113,7 +113,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 					t.Fatal(comparison.name+" key was overwritten", cmp, err)
 				}
 			}
-			if purpose == index.ProbeRuntime && scope.indexesOrZero().ExistingOutputs != nil {
+			if purpose == index.ProbeRuntime && scope.IndexesOrZero().ExistingOutputs != nil {
 				t.Fatal("ordinary fast path retained tracked outputs")
 			}
 		})
@@ -123,22 +123,22 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	manager := f.e.locks
+	manager := f.e.Locks
 	first := insertConflictUnitRow(t, f, 20)
-	admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: first}, index.WriteBatch{}, nil)
+	admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: first}, index.WriteBatch{}, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	baseline := manager.CheckpointUnique(scope.ticket, nil)
+	baseline := manager.CheckpointUnique(scope.LockTicket, nil)
 	if len(baseline) != 1 {
 		t.Fatal("accepted proposal owns one actual key", baseline)
 	}
 	for _, row := range [][]sqltype.Value{insertConflictUnitRow(t, f, 10), first} {
-		admitted, err = dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
+		admitted, err = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
 		if err != nil || admitted {
 			t.Fatal("duplicate was not omitted", admitted, err)
 		}
-		after := manager.CheckpointUnique(scope.ticket, nil)
+		after := manager.CheckpointUnique(scope.LockTicket, nil)
 		if len(after) != len(baseline) {
 			t.Fatal("omission retained a new grant", after)
 		}
@@ -148,11 +148,11 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 			}
 		}
 	}
-	admitted, err = dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 30)}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
+	admitted, err = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 30)}, index.WriteBatch{Values: [][]sqltype.Value{first}}, nil)
 	if err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	if len(manager.CheckpointUnique(scope.ticket, nil)) != 2 {
+	if len(manager.CheckpointUnique(scope.LockTicket, nil)) != 2 {
 		t.Fatal("accepted claims were lost")
 	}
 }
@@ -160,9 +160,9 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 	for _, isolation := range []session.Isolation{session.ReadCommitted, session.RepeatableRead, session.Serializable} {
 		f := insertConflictUniqueFixture(t)
 		scope, ref := insertConflictUnitScope(t, f)
-		scope.owner.Isolation = isolation
-		scope.owner.Frontier = 0
-		admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+		scope.Owner.Isolation = isolation
+		scope.Owner.Frontier = 0
+		admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 		if isolation == session.ReadCommitted {
 			if err != nil || admitted {
 				t.Fatal("read committed", admitted, err)
@@ -173,10 +173,10 @@ func TestInsertConflictCommittedVisibility(t *testing.T) {
 				t.Fatal("post-frontier tuple", admitted, err)
 			}
 		}
-		if err := dml.InsertConflictVisible(scope.writeHost(), storage.RowVersion{Born: 10}, false); err != nil {
+		if err := dml.InsertConflictVisible(scope.WriteHost(), storage.RowVersion{Born: 10}, false); err != nil {
 			t.Fatal("own proposal is visible", err)
 		}
-		if err := dml.InsertConflictVisible(scope.writeHost(), storage.RowVersion{Born: 0}, true); err != nil {
+		if err := dml.InsertConflictVisible(scope.WriteHost(), storage.RowVersion{Born: 0}, true); err != nil {
 			t.Fatal("frontier tuple is visible", err)
 		}
 	}
@@ -194,27 +194,27 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	def.Keys = []catalog.IndexKey{{Attribute: 20, Class: class}}
 	def.Predicate = nil
 	second.SQLIndex = &def
-	f.e.catalog.State.SetDescriptor(second.Address(), &second)
+	f.e.Catalog.State.SetDescriptor(second.Address(), &second)
 	root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &def, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.mu.Lock()
-	f.e.storage.InstallIndexRootLocked(second.Address(), root)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	f.e.Storage.InstallIndexRootLocked(second.Address(), root)
+	f.e.Mu.Unlock()
 	scope.UniqueBinding = nil
 	scope.InsertConflict.Catalog = nil
-	admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+	admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal("selected provider must win", admitted, err)
 	}
-	admitted, err = dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
+	admitted, err = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 20)}, index.WriteBatch{}, nil)
 	var diagnostic *sqlstate.Error
 	if admitted || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("unselected violation", admitted, err)
 	}
 	scope.InsertConflict = nil
-	err = dml.CheckUniqueRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
+	err = dml.CheckUniqueRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, nil, index.WriteBatch{})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("ordinary route changed", err)
 	}
@@ -255,14 +255,14 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		idx.Columns = []catalog.Column{f.parent.Columns[1], f.parent.Columns[0]}
 		idx.Attributes = []int32{1, 2}
 		idx.ColumnMeta.HighWater = 2
-		f.e.catalog.State.SetDescriptor(idx.Address(), &idx)
+		f.e.Catalog.State.SetDescriptor(idx.Address(), &idx)
 		root, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.e.mu.Lock()
-		f.e.storage.InstallIndexRootLocked(idx.Address(), root)
-		f.e.mu.Unlock()
+		f.e.Mu.Lock()
+		f.e.Storage.InstallIndexRootLocked(idx.Address(), root)
+		f.e.Mu.Unlock()
 	}
 	action := dml.NewInsertConflictState(&analyze.InsertConflict{Keys: []analyze.ConflictKey{{Attribute: 10}, {Expression: expression}, {Expression: expression}}, Predicate: f.predicate})
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}

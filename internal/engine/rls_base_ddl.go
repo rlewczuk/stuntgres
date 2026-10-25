@@ -12,13 +12,13 @@ import (
 // relation-option lists stage only metadata: no storage clone, row scan, policy
 // copy or definition OID reminting. StatementScope owns merge/publication.
 func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, old, next *catalog.Relation) (Result, error) {
-	scope.catalogAuthority = auth.catalogAuthorityLocked(scope.lockedRef, e.catalog.State.Get(old.Address()))
+	scope.CatalogAuthority = auth.CatalogAuthorityLocked(scope.LockedRef, e.Catalog.State.Get(old.Address()))
 	if next == old {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, op.Context().Err()
 	}
-	changes := scope.owner.Catalog.Clone()
-	e.mu.Unlock()
+	changes := scope.Owner.Catalog.Clone()
+	e.Mu.Unlock()
 	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
@@ -31,12 +31,12 @@ func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *session.
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	err := scope.validateLockedRelation(e)
+	e.Mu.Lock()
+	err := scope.ValidateLockedRelation(e)
 	if err == nil {
-		e.catalogChangeLocked(changes, old.Address(), next)
-		scope.catalog = changes
+		e.CatalogChangeLocked(changes, old.Address(), next)
+		scope.Catalog = changes
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return Result{}, err
 }

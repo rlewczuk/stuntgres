@@ -359,9 +359,9 @@ func TestCastExpressionEqualityBoundDiagnosticOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,11 +372,11 @@ func TestCastExpressionEqualityBoundDiagnosticOwnership(t *testing.T) {
 		{"SELECT id FROM t WHERE i=TRUE::bool", "operator does not exist: integer = boolean", "No operator matches the given name and argument types. You might need to add explicit type casts.", "25"},
 	} {
 		ast := statement(t, tc.query)
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+		ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		_, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != tc.message || diagnostic.Hint != tc.hint || diagnostic.Position != tc.position {
 			t.Fatal(tc.query, diagnostic, err)

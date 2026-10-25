@@ -119,9 +119,9 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					}
 				}
 				assertKey(original, view)
-				e.mu.Lock()
-				roles := e.roles.PublishedRead(&e.catalog.Owner, view)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, view)
+				e.Mu.Unlock()
 				groups, err := stored.RuleDumpGroups(context.Background(), view, roles)
 				if err != nil {
 					t.Fatal(err)

@@ -78,7 +78,7 @@ func TestRoutinePathCandidateMasking(t *testing.T) {
 	view := e.CatalogRead()
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.Domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
+	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.RoleStore.Domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
 	second := *first
 	second.ObjectAddress.ObjectID, second.ObjectNamespace, second.Signature = 90001, catalogAddress, catalog.UnaccentDictionarySignature
 	stage := e.BeginCatalogStage(view)
@@ -197,11 +197,11 @@ func TestRoutineDomainCompositeRemap(t *testing.T) {
 func TestRoutineDiagnosticOwnership(t *testing.T) {
 	view := New()
 	op, auth := conversionUnitAuth(t, view)
-	types, err := captureRegtypeInput(auth, op)
+	types, err := CaptureRegtypeInput(auth, op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := captureRoutineInput(auth, types)
+	input, err := CaptureRoutineInput(auth, types)
 	if err != nil {
 		t.Fatal(err)
 	}

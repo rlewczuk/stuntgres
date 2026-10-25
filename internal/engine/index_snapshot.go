@@ -22,18 +22,18 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.Owner() != &e.catalog.Owner || view.State() == nil || e.catalog.State.Epoch() != view.Epoch() || frontier != e.visibility.CommitSeq() {
+	if view.Owner() == nil || view.Owner() != &e.Catalog.Owner || view.State() == nil || e.Catalog.State.Epoch() != view.Epoch() || frontier != e.Visibility.CommitSeq() {
 		return nil, ids.ErrCatalogReplaced
 	}
-	authority := e.catalog.State
+	authority := e.Catalog.State
 	if private != nil {
-		authority = e.privateCatalogLocked(private).State()
+		authority = e.PrivateCatalogLocked(private).State()
 	}
 	return index.CaptureSnapshot(ctx, index.SnapshotCapture{
 		View: view, Authority: authority, Relations: relations, Roots: roots, Frontier: frontier, Parents: parents,
-		Store: func(address ids.ObjectAddress) *storage.Relation { return e.privateStorageLocked(private, address) },
+		Store: func(address ids.ObjectAddress) *storage.Relation { return e.PrivateStorageLocked(private, address) },
 		Root: func(address ids.ObjectAddress) *storage.IndexRoot {
-			return index.EffectiveRoot(e.storage.IndexRoots, private, address)
+			return index.EffectiveRoot(e.Storage.IndexRoots, private, address)
 		},
 	})
 }

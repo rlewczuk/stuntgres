@@ -64,7 +64,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	current.Index = map[string]int{"v": 0, "id": 1}
 	catalog := catalog.CloneState(auth.Catalog.State())
 	catalog.SetDescriptor(sink.Address(), &current)
-	view := e.catalog.Read(catalog)
+	view := e.Catalog.Read(catalog)
 	check := func(next analyze.Binding) {
 		t.Helper()
 		if !slices.Equal(next.Targets, []int{1, 0}) || !slices.Equal(next.Insert.Conflict.Targets, []int{1, 0}) || !slices.Equal(next.Insert.Conflict.UpdateTargets, []int{0}) || !slices.Equal(next.Insert.Conflict.Reads, []int{1}) || !slices.Equal(next.Insert.Conflict.ActionReads, []int{0}) {

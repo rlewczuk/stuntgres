@@ -21,7 +21,7 @@ func newDomainsUnitFixture(t *testing.T) dcUnitFixture {
 	// The domains producer validates descriptor/name-index coherence. The
 	// constraint fixture only needs descriptor addresses, so publish the
 	// genuine type name bindings as well for this stronger consumer.
-	for _, descriptor := range f.f.e.catalog.Read(f.state).Descriptors() {
+	for _, descriptor := range f.f.e.Catalog.Read(f.state).Descriptors() {
 		if d, ok := descriptor.(*catalog.Type); ok && d.Namespace() == f.f.schema {
 			f.state.BindName(catalog.DescriptorNameKey(d), d.Address())
 		}
@@ -35,7 +35,7 @@ func domainsUnitInput(t *testing.T, f dcUnitFixture, state *catalog.State, actor
 	in.Source = in.Catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoDomainsOID})
 	in.Ref = in.Owner.Domain.Ref(in.Catalog.Epoch(), in.Source.Address())
 	var err error
-	in.TypeNamePath, err = referencePath(in.Runtime.(engineCatalogRuntime).auth)
+	in.TypeNamePath, err = ReferencePath(in.Runtime.(EngineCatalogRuntime).Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func domainsUnitCapture(t *testing.T, in pgcatalog.Input, want map[[27]any]int) 
 	if !ok {
 		t.Fatal("missing domains producer")
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,9 +208,11 @@ func TestInfoDomainsCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoDomainsOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
-		func(in *pgcatalog.Input) { in.Roles = New().roles.Published.Root.Read(authorization.PrincipalRef{}) },
+		func(in *pgcatalog.Input) {
+			in.Roles = New().RoleStore.Published.Root.Read(authorization.PrincipalRef{})
+		},
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Epoch = 0 },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
@@ -218,13 +220,13 @@ func TestInfoDomainsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.TypeNamePath = nil },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.RoleRecord = nil
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.State.CurrentUser = authorization.PrincipalRef{}
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
 	} {
@@ -334,7 +336,7 @@ func TestInfoDomainsCancellation(t *testing.T) {
 func infoDomainsPairedCapture(t *testing.T) {
 	t.Helper()
 	f := newDomainsUnitFixture(t)
-	f.f.e.catalog.PublishLocked(f.state)
+	f.f.e.Catalog.PublishLocked(f.state)
 	f.f.op.Session.DatabaseName = "captured_database"
 	f.f.actor(f.f.owner)
 	scope, err := f.f.e.StartStatement(f.f.op)
@@ -346,19 +348,19 @@ func infoDomainsPairedCapture(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	f.f.e.mu.Lock()
-	err = f.f.e.captureCommentSnapshotLocked(scope)
-	f.f.e.mu.Unlock()
+	f.f.e.Mu.Lock()
+	err = f.f.e.CaptureCommentSnapshotLocked(scope)
+	f.f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := scope.inquiry.commentCatalog
+	view := scope.Inquiry.CommentCatalog
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoDomainsOID})
 	next := catalog.CloneState(f.state)
 	next.UnbindName(catalog.DescriptorNameKey(f.plain))
 	next.RemoveDescriptor(f.plain.Address())
-	f.f.e.catalog.PublishLocked(next)
-	f.f.e.mu.Lock()
+	f.f.e.Catalog.PublishLocked(next)
+	f.f.e.Mu.Lock()
 	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -396,7 +398,7 @@ func TestInfoDomainsSearchPathCapture(t *testing.T) {
 		{"json_sample", sqltype.JSON},
 		{"json_array", 199},
 	} {
-		base, ok := f.f.e.catalog.Read(f.state).LookupType(item.base)
+		base, ok := f.f.e.Catalog.Read(f.state).LookupType(item.base)
 		if !ok || !base.Concrete() {
 			t.Fatal("missing admitted base", item.base)
 		}

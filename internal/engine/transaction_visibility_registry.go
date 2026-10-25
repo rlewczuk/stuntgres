@@ -19,75 +19,75 @@ func (e *Engine) registerTransactionLocks(ref ids.TxRef) (*lock.Ticket, error) {
 	if !session.TxOwnerAttached(ref) {
 		return nil, errors.New("stuntgres: invalid lock owner")
 	}
-	ticket, err := e.locks.Register(ref)
+	ticket, err := e.Locks.Register(ref)
 	if err != nil {
 		return nil, err
 	}
-	e.mu.Lock()
-	if ref.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
-		e.endLockOwner(ticket)
+	e.Mu.Lock()
+	if ref.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
+		e.EndLockOwner(ticket)
 		return nil, ids.ErrCatalogReplaced
 	}
-	e.visibility.AttachTicketLocked(ref, ticket)
-	e.mu.Unlock()
+	e.Visibility.AttachTicketLocked(ref, ticket)
+	e.Mu.Unlock()
 	return ticket, nil
 }
 
-// visibilityWriteLocked fences ref against this engine's current catalog
+// VisibilityWriteLocked fences ref against this engine's current catalog
 // epoch before the registry orders it as a writer.
-func (e *Engine) visibilityWriteLocked(ref ids.TxRef) error {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
+func (e *Engine) VisibilityWriteLocked(ref ids.TxRef) error {
+	if ref.Domain() != DomainOf(e) || ref.Epoch() != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	return e.visibility.WriteLocked(ref)
+	return e.Visibility.WriteLocked(ref)
 }
 
-// visibilitySnapshotLocked fences ref against this engine's current catalog
+// VisibilitySnapshotLocked fences ref against this engine's current catalog
 // epoch before the registry advertises its snapshot.
-func (e *Engine) visibilitySnapshotLocked(ref ids.TxRef, safeBuilder bool) (uint64, error) {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
+func (e *Engine) VisibilitySnapshotLocked(ref ids.TxRef, safeBuilder bool) (uint64, error) {
+	if ref.Domain() != DomainOf(e) || ref.Epoch() != e.Catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
-	return e.visibility.SnapshotLocked(ref, safeBuilder)
+	return e.Visibility.SnapshotLocked(ref, safeBuilder)
 }
 
 func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 	if stable {
 		return
 	}
-	e.mu.Lock()
-	e.visibility.DropSnapshotLocked(ref)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Visibility.DropSnapshotLocked(ref)
+	e.Mu.Unlock()
 }
 
 func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddress) error {
-	e := s.engine()
-	e.mu.Lock()
-	if s.txRef.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
 	// Drop every advertised builder phase before collecting the real wait cohort.
-	e.visibility.ResetPhaseLocked(s.txRef)
-	refs := e.visibility.OlderSnapshotsLocked(s.txRef, xmin)
+	e.Visibility.ResetPhaseLocked(s.TxRef)
+	refs := e.Visibility.OlderSnapshotsLocked(s.TxRef, xmin)
 	// Publish only after dropping validation ownership and freezing the cohort,
 	// under the same critical section used by the sole coordinator observation.
-	if err := e.admitIndexBuildWaitLocked(idx, s.txRef, index.WaitOlderSnapshots); err != nil {
-		e.mu.Unlock()
+	if err := e.admitIndexBuildWaitLocked(idx, s.TxRef, index.WaitOlderSnapshots); err != nil {
+		e.Mu.Unlock()
 		return err
 	}
-	e.mu.Unlock()
-	defer e.clearIndexBuildWait(idx, s.txRef, index.WaitOlderSnapshots)
+	e.Mu.Unlock()
+	defer e.clearIndexBuildWait(idx, s.TxRef, index.WaitOlderSnapshots)
 	for _, ref := range refs {
-		e.mu.Lock()
-		eligible := e.visibility.SnapshotOlderLocked(ref, xmin)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		eligible := e.Visibility.SnapshotOlderLocked(ref, xmin)
+		e.Mu.Unlock()
 		if !eligible {
 			continue
 		}
-		if owner := e.locks.TransactionTicket(ref); owner != nil {
-			if err := s.writeHost().WaitTransaction(owner, lock.CompletionVirtual); err != nil {
+		if owner := e.Locks.TransactionTicket(ref); owner != nil {
+			if err := s.WriteHost().WaitTransaction(owner, lock.CompletionVirtual); err != nil {
 				return err
 			}
 		}
@@ -95,20 +95,20 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddr
 	return nil
 }
 
-// assignTransactionXIDLocked fences ref against the current catalog epoch.
-func (e *Engine) assignTransactionXIDLocked(ref ids.TxRef) error {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
+// AssignTransactionXIDLocked fences ref against the current catalog epoch.
+func (e *Engine) AssignTransactionXIDLocked(ref ids.TxRef) error {
+	if ref.Domain() != DomainOf(e) || ref.Epoch() != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	return e.visibility.AssignTransactionXIDLocked(ref)
+	return e.Visibility.AssignTransactionXIDLocked(ref)
 }
 
 // transactionAgeLocked fences ref against the current catalog epoch.
 func (e *Engine) transactionAgeLocked(ref ids.TxRef, xid uint32) (int32, error) {
-	if ref.Domain() != domainOf(e) || ref.Epoch() != e.catalog.State.Epoch() {
+	if ref.Domain() != DomainOf(e) || ref.Epoch() != e.Catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
-	return e.visibility.TransactionAgeLocked(ref, xid)
+	return e.Visibility.TransactionAgeLocked(ref, xid)
 }
 
 // pinUniqueKey hashes the claimed values, then pins their interned lock
@@ -118,5 +118,5 @@ func (e *Engine) pinUniqueKey(ctx context.Context, ticket *lock.Ticket, ref ids.
 	if err != nil {
 		return lock.Resource{}, nil, err
 	}
-	return e.locks.PinUniqueKey(ctx, ticket, ref, hash, &index.UniqueKeyValues{Ordering: ordering, Values: values})
+	return e.Locks.PinUniqueKey(ctx, ticket, ref, hash, &index.UniqueKeyValues{Ordering: ordering, Values: values})
 }

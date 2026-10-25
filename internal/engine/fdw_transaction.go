@@ -34,9 +34,9 @@ func (h *statementHost) TouchForeignScan(ctx context.Context, source *exec.Forei
 	return err
 }
 func (s *StatementScope) foreignUnlocked() {
-	if s.replacementRead {
-		s.engine().replacementMu.RUnlock()
-		s.replacementRead = false
+	if s.ReplacementRead {
+		s.Engine().ReplacementMu.RUnlock()
+		s.ReplacementRead = false
 	}
 }
 
@@ -51,10 +51,10 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		}
 		return nil, nil
 	}
-	t := s.owner
+	t := s.Owner
 	key := fdw.ParticipantKey{Handler: request.HandlerOID, Server: request.ServerOID, Mapping: request.MappingOID, Role: request.RoleOID}
 	t.Mu.Lock()
-	if err := t.Validate(s.txRef); err != nil {
+	if err := t.Validate(s.TxRef); err != nil {
 		t.Mu.Unlock()
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 			return nil, err
 		}
 		t.Mu.Lock()
-		err = t.Validate(s.txRef)
+		err = t.Validate(s.TxRef)
 		if err == nil {
 			ownerExtensionOf(t).foreign.Enlist(participant)
 		}
@@ -83,7 +83,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		return nil, errors.New("stuntgres: foreign transaction is already disposed")
 	}
 	if len(marks) != 0 && !participant.Capabilities.Savepoints {
-		return nil, sqlError("0A000", "foreign transaction does not support savepoints")
+		return nil, SQLError("0A000", "foreign transaction does not support savepoints")
 	}
 	if !slices.Contains(s.foreignTablesOrZero().statements, participant) {
 		// Record before entry: a partial BeginStatement must be rolled back.
@@ -100,7 +100,7 @@ func (s *StatementScope) finishForeignModifications(primary error) error {
 		s.foreignUnlocked()
 	}
 	for _, modification := range s.foreignTablesOrZero().modifications {
-		if err := modification.End(s.op.Context()); primary == nil {
+		if err := modification.End(s.Op.Context()); primary == nil {
 			primary = err
 		}
 	}
@@ -113,7 +113,7 @@ func (s *StatementScope) finishForeignStatements(primary error) error {
 	if len(s.foreignTablesOrZero().statements) != 0 {
 		s.foreignUnlocked()
 	}
-	primary = fdw.EndStatements(s.op.Context(), s.foreignTablesOrZero().statements, primary)
+	primary = fdw.EndStatements(s.Op.Context(), s.foreignTablesOrZero().statements, primary)
 	s.foreignTablesSlot.clearStatements()
 	return primary
 }

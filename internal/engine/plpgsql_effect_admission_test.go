@@ -29,7 +29,7 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 		if group.Unique == nil || group.Unique.Ref != group.Ref || group.Unique.Catalog != view.State() || group.Unique.Parent != view.MustRelation(group.Ref.Address) || group.Unique.ConstraintEffectsRelevant {
 			t.Fatal("physical group lost its exact irrelevant admission", group)
 		}
-		if len(scope.stage.rows[group.Ref.Address]) != 2 {
+		if len(scope.Stage.Rows[group.Ref.Address]) != 2 {
 			t.Fatal("alternating accepted destinations lost rows")
 		}
 	}
@@ -42,7 +42,7 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	for range 4 {
 		for i, group := range state.Order {
 			scope.UniqueBinding = group.Unique
-			binding, err := dml.BindUniqueWrite(scope.writeHost(), group.Ref)
+			binding, err := dml.BindUniqueWrite(scope.WriteHost(), group.Ref)
 			if err != nil || binding != original[i] || scope.foreignEffectRelevant(group.Ref, view) || scope.effectAdmission.catalog != nil {
 				t.Fatal("alternation discarded retained physical admission", err)
 			}
@@ -63,7 +63,7 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 		if scope.foreignEffectRelevant(group.Ref, current) || scope.effectAdmission.catalog != current.State() || scope.effectAdmission.ref != group.Ref {
 			t.Fatal("stale catalog binding bypassed current-authority classification")
 		}
-		binding, err := dml.BindUniqueWrite(scope.writeHost(), group.Ref)
+		binding, err := dml.BindUniqueWrite(scope.WriteHost(), group.Ref)
 		if err != nil || binding == original[i] || binding.Ref != group.Ref || binding.Catalog != current.State() || binding.ConstraintEffectsRelevant {
 			t.Fatal("physical admission did not rebuild under new catalog authority", err)
 		}

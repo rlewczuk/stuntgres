@@ -51,10 +51,10 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	host := e.analysisHost(op)
-	current, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	host := e.AnalysisHost(op)
+	current, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,13 +63,13 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := authorizationOf(fresh); got.State.CurrentUser != current.State.CurrentUser || got.Catalog.Epoch() != current.Catalog.Epoch() || got.definition != op.Definition {
+	if got := authorizationOf(fresh); got.State.CurrentUser != current.State.CurrentUser || got.Catalog.Epoch() != current.Catalog.Epoch() || got.Definition != op.Definition {
 		t.Fatalf("fresh binding authority = %+v, want the operation's current authority", got.State)
 	}
 
 	own, opReader := namedDefinitionReader{"own"}, namedDefinitionReader{"op"}
 	base := current
-	base.definition = own
+	base.Definition = own
 	raw := analyze.Authority(&base)
 	op.Definition = nil
 	if got, _ := host.BindingAuthority(raw); got != raw {
@@ -97,19 +97,19 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 	if got := host.DefinitionOf(overlay); got != opReader {
 		t.Fatalf("DefinitionOf(overlay) = %v, want the operation's reader", got)
 	}
-	if got := host.view(overlay).definition; got != opReader {
+	if got := host.view(overlay).Definition; got != opReader {
 		t.Fatalf("overlay view reader = %v, want the operation's reader", got)
 	}
 	if got := host.DefinitionOf(raw); got != own {
 		t.Fatalf("DefinitionOf(raw) = %v, want the stored reader", got)
 	}
-	if got := host.view(raw).definition; got != own {
+	if got := host.view(raw).Definition; got != own {
 		t.Fatalf("raw view reader = %v, want the stored reader", got)
 	}
 	if got := host.BindingDefinition(raw); got != opReader {
 		t.Fatalf("BindingDefinition = %v, want the operation's reader", got)
 	}
-	if base.definition != own {
+	if base.Definition != own {
 		t.Fatal("binding changed the stored authority")
 	}
 

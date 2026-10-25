@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindDomainDefault(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func (e *Engine) BindDomainDefault(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	return e.bindDomainDefaultUsage(ctx, op, auth, stage, d, raw, d.SQLType.DomainBase(), input, output)
 }
 
@@ -30,7 +30,7 @@ func (e *Engine) bindDomainDefaultUsage(ctx context.Context, op *session.Operati
 			d.DomainDefaultText = parent.(*catalog.Type).DomainDefaultText
 		}
 	} else {
-		b := newExpressionBinder(ctx, e, input, op, nil)
+		b := NewExpressionBinder(ctx, e, input, op, nil)
 		b.Query.Auth = &auth
 		b.Query.Namespace = &analyze.QueryNamespace{}
 		b.Params.NoParameters = true
@@ -46,12 +46,12 @@ func (e *Engine) bindDomainDefaultUsage(ctx context.Context, op *session.Operati
 		}
 		d.DomainDefaultOwn = true
 		definition := catalog.ColumnDefault{Expression: node}
-		if _, err = (stored.ScalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(ctx, auth.Catalog, node); err != nil {
+		if _, err = (stored.ScalarRenderer{Definition: b.DefinitionReader(), ACLOutput: regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: auth.Roles}, Dependencies: &definition.Dependencies, CommentSnapshot: &definition.CatalogSnapshot, CatalogAliasReferences: &definition.CatalogAliasReferences}).SQL(ctx, auth.Catalog, node); err != nil {
 			return err
 		}
 		var path []ids.ObjectAddress
 		if op != nil {
-			path, err = referencePath(auth)
+			path, err = ReferencePath(auth)
 			if err != nil {
 				return err
 			}
@@ -74,7 +74,7 @@ func (e *Engine) bindDomainDefaultUsage(ctx context.Context, op *session.Operati
 			if !ok {
 				return fmt.Errorf("stuntgres: missing domain default provider")
 			}
-			stage.domainBases = append(stage.domainBases, provider)
+			stage.DomainBases = append(stage.DomainBases, provider)
 		}
 	}
 	return nil

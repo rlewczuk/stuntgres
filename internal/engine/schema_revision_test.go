@@ -58,8 +58,8 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 				r := *next.MustRelation(addr)
 				r.ObjectRevision = 200
 				next.SetDescriptor(addr, &r)
-				e.catalog.InstallRevisionFrontierLocked(frontier)
-				if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.Read(next)); err != nil {
+				e.Catalog.InstallRevisionFrontierLocked(frontier)
+				if _, err := e.ReplaceCatalog(context.Background(), source, source.Catalog.Read(next)); err != nil {
 					t.Fatal(err)
 				}
 				before := e.CatalogRead()
@@ -93,7 +93,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			n := *next.MustNamespace(addr)
 			n.ObjectRevision = revision
 			next.SetDescriptor(addr, &n)
-			if _, err := e.ReplaceCatalog(context.Background(), source, source.catalog.Read(next)); err != nil {
+			if _, err := e.ReplaceCatalog(context.Background(), source, source.Catalog.Read(next)); err != nil {
 				t.Fatal(err)
 			}
 			name := "terminal"
@@ -105,18 +105,18 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 					t.Fatal("last revision not allocated", d.Revision())
 				}
 			}
-			before, storage, sequence := e.CatalogRead(), e.storage.Relations, e.visibility.CommitSeq()
+			before, storage, sequence := e.CatalogRead(), e.Storage.Relations, e.Visibility.CommitSeq()
 			op, done := roleOperation(t, e, "postgres")
 			_, err := e.Execute(op, statement(t, "ALTER SCHEMA "+name+" RENAME TO forbidden"), 0, nil)
 			done()
-			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage.Relations, storage) || e.visibility.CommitSeq() != sequence {
+			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.Storage.Relations, storage) || e.Visibility.CommitSeq() != sequence {
 				t.Fatal("terminal mutation published or returned wrong failure", err)
 			}
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if e.catalog.NextRevision() != maximum {
-				t.Fatal("Reset rewound exhausted frontier", e.catalog.NextRevision())
+			if e.Catalog.NextRevision() != maximum {
+				t.Fatal("Reset rewound exhausted frontier", e.Catalog.NextRevision())
 			}
 		})
 	}
@@ -129,11 +129,11 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
 		next.SetDescriptor(addr, &n)
-		frontier, before := e.catalog.NextRevision(), e.CatalogRead()
+		frontier, before := e.Catalog.NextRevision(), e.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := e.ReplaceCatalog(ctx, source, source.catalog.Read(next))
-		if !errors.Is(err, context.Canceled) || e.catalog.NextRevision() != frontier || e.CatalogRead().State() != before.State() {
+		_, err := e.ReplaceCatalog(ctx, source, source.Catalog.Read(next))
+		if !errors.Is(err, context.Canceled) || e.Catalog.NextRevision() != frontier || e.CatalogRead().State() != before.State() {
 			t.Fatal("canceled import advanced allocator/catalog", err)
 		}
 	})
@@ -147,9 +147,9 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 		n := *next.MustNamespace(addr)
 		n.ObjectRevision = 1000
 		next.SetDescriptor(addr, &n)
-		frontier, before := e.catalog.NextRevision(), e.CatalogRead()
-		_, err := e.ReplaceCatalog(context.Background(), source, source.catalog.Read(next))
-		if err == nil || e.catalog.NextRevision() != frontier || e.CatalogRead().State() != before.State() {
+		frontier, before := e.Catalog.NextRevision(), e.CatalogRead()
+		_, err := e.ReplaceCatalog(context.Background(), source, source.Catalog.Read(next))
+		if err == nil || e.Catalog.NextRevision() != frontier || e.CatalogRead().State() != before.State() {
 			t.Fatal("failed principal remap advanced allocator/catalog", err)
 		}
 	})

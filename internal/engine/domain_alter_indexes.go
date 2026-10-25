@@ -13,7 +13,7 @@ import (
 // turn a metadata generation change into another CHECK or index truth event.
 func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *catalog.State, stores map[ids.ObjectAddress]*storage.Relation) error {
 	for address, store := range stores {
-		rebound, err := index.ReownDomainIndexOutputs(stage.domainAlter.AlterContext(), stage.Base.State(), next, e.stageStorageLocked(stage, address), store)
+		rebound, err := index.ReownDomainIndexOutputs(stage.domainAlter.AlterContext(), stage.Base.State(), next, e.StageStorageLocked(stage, address), store)
 		if err != nil {
 			return err
 		}
@@ -21,7 +21,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	}
 	sources := make(map[ids.ObjectAddress]*storage.Relation, len(stores))
 	for address := range stores {
-		sources[address] = e.stageStorageLocked(stage, address)
+		sources[address] = e.StageStorageLocked(stage, address)
 	}
 	sourceRoots := make(map[ids.ObjectAddress]*storage.IndexRoot)
 	for address, descriptor := range stage.Base.Descriptors() {
@@ -30,10 +30,10 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 		}
 	}
 	var private *session.Journal
-	if stage.authSession != nil && (stage.authSession.Transactions.State == session.TxActive || stage.authSession.Transactions.RetainsTransaction()) {
-		private = stage.authSession.Transactions.Catalog
+	if stage.AuthSession != nil && (stage.AuthSession.Transactions.State == session.TxActive || stage.AuthSession.Transactions.RetainsTransaction()) {
+		private = stage.AuthSession.Transactions.Catalog
 	}
-	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter.AlterContext(), stage.Base, sources, sourceRoots, e.visibility.CommitSeq(), stores, private)
+	snapshot, err := e.captureIndexSnapshotParents(stage.domainAlter.AlterContext(), stage.Base, sources, sourceRoots, e.Visibility.CommitSeq(), stores, private)
 	if err != nil {
 		return err
 	}
@@ -57,17 +57,17 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	if err != nil {
 		return err
 	}
-	if stage.indexesOrZero().Candidates == nil {
-		stage.indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate, len(roots))
+	if stage.IndexesOrZero().Candidates == nil {
+		stage.Indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate, len(roots))
 	}
-	domain := stage.domainAlterState()
+	domain := stage.DomainAlterState()
 	if domain.IndexRoots == nil {
 		domain.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(roots))
 	}
 	for address, root := range roots {
 		idx := next.MustRelation(address)
 		store := stores[idx.SQLIndex.Parent]
-		stage.indexes().Candidates[address] = index.RootCandidate{Index: idx, Root: root, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends, Length: len(store.Versions)}
+		stage.Indexes().Candidates[address] = index.RootCandidate{Index: idx, Root: root, Storage: store.IndexIdentity(), Generation: store.Generation, Ends: store.Ends, Length: len(store.Versions)}
 		domain.IndexRoots[address] = snapshot.Sources[address].Root
 	}
 	return nil

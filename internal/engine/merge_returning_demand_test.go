@@ -28,7 +28,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if err := exec.SelectQuerySources(op.Context(), inputs); err != nil {
 			t.Fatal(err)
 		}
-		state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
+		state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
 		for _, expr := range b.Returning.Expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
 		}
@@ -39,7 +39,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, state, false)
+		rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, state, false)
 		if err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
@@ -83,7 +83,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("drained source/transition recipe provenance", got, want)
 		}
-		if err = dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+		if err = dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
 		}

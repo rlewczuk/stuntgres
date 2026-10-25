@@ -24,7 +24,7 @@ func TestPrimaryKeyKindControls(t *testing.T) {
 	for _, name := range []string{"ordinary_unique", "standalone_unique"} {
 		idx := primaryKeyUnitRelation(t, e, name)
 		view := e.CatalogRead()
-		metadata, _, err := index.ProjectIndexMetadata(context.Background(), view, e.catalog.Domain.Ref(view.Epoch(), idx.Address()))
+		metadata, _, err := index.ProjectIndexMetadata(context.Background(), view, e.Catalog.Domain.Ref(view.Epoch(), idx.Address()))
 		if err != nil || !metadata.IndIsUnique || metadata.IndIsPrimary || !metadata.IndImmediate {
 			t.Fatal("ordinary unique provider became primary", name, metadata, err)
 		}
@@ -47,7 +47,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 	})
 	parent := primaryKeyUnitRelation(t, e, "typed")
 	constraint := parent.Constraints.Unique[0]
-	idx := e.catalog.State.MustRelation(constraint.Index)
+	idx := e.Catalog.State.MustRelation(constraint.Index)
 	if !constraint.Primary || !idx.SQLIndex.Constraint.Primary {
 		t.Fatal("claim fixture lacks real primary attachment")
 	}
@@ -59,7 +59,7 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	if err := scope.gate(ast); err != nil {
+	if err := scope.Gate(ast); err != nil {
 		t.Fatal(err)
 	}
 	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, idx.SQLIndex)
@@ -83,13 +83,13 @@ func TestPrimaryKeyTypedClaimInterning(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), idx.Address())
-	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, firstValues)
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), idx.Address())
+	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, groups, firstValues)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer releaseFirst()
-	equivalent, releaseEquivalent, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, groups, equivalentValues)
+	equivalent, releaseEquivalent, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, groups, equivalentValues)
 	if err != nil {
 		t.Fatal(err)
 	}

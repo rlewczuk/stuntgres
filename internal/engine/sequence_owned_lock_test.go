@@ -40,7 +40,7 @@ func ownedLockQueued(t *testing.T, e *Engine, ref ids.ObjectRef, mode lock.Mode,
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		var request *lock.Request
 		if entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == mode {
@@ -95,15 +95,15 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 				ownedLockQueued(t, e, ref, lock.AccessShare, done)
 				transactionEnd(t, a, ar, false)
 				lockAwait(t, done, nil)
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				retained := entry != nil && entry.Holders[b.Transactions.Ticket].Mode&lock.AccessShare != 0
 				if !retained {
 					t.Fatal("ownership table AS not retained to transaction end")
 				}
 				transactionEnd(t, b, br, true)
-				late := e.catalog.State.MustRelation(catalogRef(t, e, e.CatalogRead(), "late").Address)
-				table := e.catalog.State.MustRelation(ref.Address)
+				late := e.Catalog.State.MustRelation(catalogRef(t, e, e.CatalogRead(), "late").Address)
+				table := e.Catalog.State.MustRelation(ref.Address)
 				want := ref.Address
 				want.SubID = table.Attributes[table.Index["c"]]
 				if late.Sequence.Owned != want {
@@ -148,12 +148,12 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("late ownership did not finish")
 				}
-				table := e.catalog.State.MustRelation(ref.Address)
+				table := e.Catalog.State.MustRelation(ref.Address)
 				if _, ok := table.Index["c"]; ok {
 					t.Fatal("column survived drop")
 				}
 				transactionRows(t, c, "SELECT keep FROM t", 9)
-				if _, ok := e.catalog.State.Find(blocker.Address); ok {
+				if _, ok := e.Catalog.State.Find(blocker.Address); ok {
 					t.Fatal("owned blocker survived drop")
 				}
 				found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: "late"})
@@ -162,7 +162,7 @@ func TestSequenceOwnedColumnDropAdmission(t *testing.T) {
 						t.Fatal("failed CREATE published late sequence")
 					}
 				} else {
-					if len(found) != 1 || e.catalog.State.MustRelation(found[0]).Sequence.Owned != (ids.ObjectAddress{}) {
+					if len(found) != 1 || e.Catalog.State.MustRelation(found[0]).Sequence.Owned != (ids.ObjectAddress{}) {
 						t.Fatal("failed ALTER published association")
 					}
 					sequenceScalar(t, c, "SELECT nextval('late')", 17)
@@ -195,7 +195,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					var generator storage.SequenceGenerator
 					if !create {
 						sequence = catalogRef(t, e, before, "late")
-						generator = *e.storage.Sequences[sequence.Address]
+						generator = *e.Storage.Sequences[sequence.Address]
 					}
 					ctx, cancel := context.WithCancel(context.Background())
 					defer cancel()
@@ -207,7 +207,7 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 					} else {
 						// The statement runs without command admission, so the session's
 						// lock_timeout never reaches the request; fire its timeout directly.
-						e.locks.ExpireLockTimeout(request)
+						e.Locks.ExpireLockTimeout(request)
 					}
 					if failure == "Cancel" {
 						lockAwait(t, done, context.Canceled)
@@ -219,10 +219,10 @@ func TestSequenceOwnedTableLockFailure(t *testing.T) {
 							t.Fatal("timeout did not terminate ownership")
 						}
 					}
-					if e.catalog.State != before.State() {
+					if e.Catalog.State != before.State() {
 						t.Fatal("failed ownership published catalog")
 					}
-					if !create && *e.storage.Sequences[sequence.Address] != generator {
+					if !create && *e.Storage.Sequences[sequence.Address] != generator {
 						t.Fatal("failed association changed generator")
 					}
 					assertTemporaryProjectionProviders(t, e)
@@ -263,14 +263,14 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			sequence := catalogRef(t, e, before, "late")
 			table := catalogRef(t, e, before, "t")
 			// Real admission fixes sequence-first ordering without a pause hook.
-			if err := e.locks.Acquire(context.Background(), bticket, lock.Resource{ObjectRef: sequence}, lock.ShareRowExclusive); err != nil {
+			if err := e.Locks.Acquire(context.Background(), bticket, lock.Resource{ObjectRef: sequence}, lock.ShareRowExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			dropping := lockAsync(e, a, ctx, "ALTER TABLE t DROP COLUMN c", false)
 			dropRequest := ownedLockQueued(t, e, sequence, lock.AccessExclusive, dropping)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: table}]
 			cycle := entry != nil && entry.Holders[dropRequest.Ticket()].Mode&lock.AccessExclusive != 0
 			if !cycle {
@@ -316,10 +316,10 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			_, err := e.Execute(op, statement(t, "SELECT keep FROM t"), 0, nil)
 			op.Done()
 			sequenceOwnerDiagnostic(t, err, "25P02", "current transaction is aborted, commands ignored until end of transaction block", "")
-			if _, ok := e.catalog.State.Find(sequence.Address); ok {
+			if _, ok := e.Catalog.State.Find(sequence.Address); ok {
 				t.Fatal("original OWNED BY dependency did not cascade after victim release")
 			}
-			if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.catalog.State.MustRelation(table.Address).Namespace(), Name: "victim_staged"})) != 0 {
+			if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: e.Catalog.State.MustRelation(table.Address).Namespace(), Name: "victim_staged"})) != 0 {
 				t.Fatal("deadlock victim published previously staged sequence")
 			}
 			transactionEnd(t, b, br, false)

@@ -24,13 +24,13 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	}
 	late := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(late)
-	e.mu.Lock()
-	attached, err := table.NewRelation(ddlHost{e: e}, tbl.Namespace(), "late", tbl.Owner, append([]catalog.Column(nil), tbl.Columns...), tbl.Index)
+	e.Mu.Lock()
+	attached, err := table.NewRelation(DDLHost{E: e}, tbl.Namespace(), "late", tbl.Owner, append([]catalog.Column(nil), tbl.Columns...), tbl.Index)
 	if err == nil {
 		attached.OfType = tbl.OfType
-		err = e.stageRowTypeLocked(late, attached)
+		err = e.StageRowTypeLocked(late, attached)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,26 +53,26 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	stage := typedRenameStage(t, e, source, table)
 	defer e.DiscardCatalogStage(stage)
-	e.mu.Lock()
-	store := e.storage.Relations[table.Address()]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	store := e.Storage.Relations[table.Address()]
+	e.Mu.Unlock()
 	if store == nil {
 		t.Fatal("unit fixture missing physical table")
 	}
-	stage.rowShapes = map[ids.ObjectAddress]storage.RowShape{table.Address(): {Original: store, Replacement: &storage.Relation{Generation: store.Generation + 1}, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, Generation: store.Generation}}
+	stage.RowShapes = map[ids.ObjectAddress]storage.RowShape{table.Address(): {Original: store, Replacement: &storage.Relation{Generation: store.Generation + 1}, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, Generation: store.Generation}}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	concurrent := *store
 	concurrent.Generation++
-	e.storage.InstallRelationLocked(table.Address(), &concurrent)
-	e.mu.Unlock()
+	e.Storage.InstallRelationLocked(table.Address(), &concurrent)
+	e.Mu.Unlock()
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
 	var conflict catalog.Conflict
-	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.storage.Relations[table.Address()] != &concurrent {
+	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.Storage.Relations[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
 	}
 }
@@ -123,12 +123,12 @@ func TestTypedInheritanceStableDropOriginRetention(t *testing.T) {
 	changed := *root
 	changed.Columns, changed.Attributes, changed.Index = root.Columns[1:], root.Attributes[1:], map[string]int{"note": 0}
 	state := catalogStateFixture(0, map[ids.ObjectAddress]catalog.Descriptor{root.Address(): &changed, other.Address(): &other}, nil)
-	actions, renames, graph, err := table.TypedInheritedActions(e.catalog.Read(state), &child, nil)
+	actions, renames, graph, err := table.TypedInheritedActions(e.Catalog.Read(state), &child, nil)
 	if err != nil || len(actions) != 0 || len(renames) != 0 || !reflect.DeepEqual(graph.Columns[3].Origins, []catalog.InheritanceOrigin{{Parent: other.Address(), Attribute: 1}}) || len(child.Inheritance.Columns[3].Origins) != 2 {
 		t.Fatal("surviving other-parent origin lost", actions, renames, graph, err)
 	}
 	other.Columns, other.Attributes, other.Index = nil, nil, map[string]int{}
-	actions, _, graph, err = table.TypedInheritedActions(e.catalog.Read(state), &child, nil)
+	actions, _, graph, err = table.TypedInheritedActions(e.Catalog.Read(state), &child, nil)
 	if err != nil || len(actions) != 1 || actions[0].Action.Column.Text != "id" || !graph.Columns[8].Local {
 		t.Fatal("local column or retired origin lost", actions, graph, err)
 	}
@@ -140,13 +140,13 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 			e, source, table := typedUnitCatalog(t, false)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
 			stage := typedRenameStage(t, e, source, table)
 			defer e.DiscardCatalogStage(stage)
-			stage.authSession, stage.authRevision, stage.roleRevision = op.Session, auth.Revision, auth.RoleRecord.Revision
+			stage.AuthSession, stage.AuthRevision, stage.RoleRevision = op.Session, auth.Revision, auth.RoleRecord.Revision
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {
 				t.Fatal(err)
@@ -158,11 +158,11 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 				op.Session.Authorization = &next
 				op.Session.Mu.Unlock()
 			} else {
-				e.mu.Lock()
-				next := *e.roles.Published
+				e.Mu.Lock()
+				next := *e.RoleStore.Published
 				next.Revision++
-				e.roles.PublishLocked(&next)
-				e.mu.Unlock()
+				e.RoleStore.PublishLocked(&next)
+				e.Mu.Unlock()
 			}
 			before := e.CatalogRead()
 			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})

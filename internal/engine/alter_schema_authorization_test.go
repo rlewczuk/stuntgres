@@ -34,9 +34,9 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			schemaOwner, _ := e.Roles().Lookup("move_schema_owner")
 			set := func(name string, grantee authorization.PrincipalRef, privileges authorization.Privileges) {
 				t.Helper()
-				a := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
+				a := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: privileges}}}
-				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), a), acl); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a), acl); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -52,30 +52,30 @@ func TestAlterSchemaAuthorization(t *testing.T) {
 			}
 			set("s1", actor.Ref, tc.source)
 			set("s2", actor.Ref, tc.target)
-			source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+			source := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 			a := NameAddressForTempMove(t, e, source, "t")
 			q := NameAddressForTempMove(t, e, source, "q")
 			if tc.name == "nonowner_with_table_rights" {
-				table := e.catalog.State.MustRelation(a)
+				table := e.Catalog.State.MustRelation(a)
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.SelectPrivilege}}}
-				if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(e.catalog.State.Epoch(), a), acl); err != nil {
+				if err := e.SetObjectACL(context.Background(), e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a), acl); err != nil {
 					t.Fatal(err)
 				}
 			}
-			before, sequence, storage := e.catalog.State.Get(a), e.catalog.State.Get(q), e.storage.Relations[a]
+			before, sequence, storage := e.Catalog.State.Get(a), e.Catalog.State.Get(q), e.Storage.Relations[a]
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION "+tc.actor)
 			_, err := e.Execute(op, statement(t, "ALTER TABLE s1.t SET SCHEMA "+tc.destination), 0, nil)
 			if tc.code != "" {
 				renameWantError(t, err, tc.code, tc.message)
-				if e.catalog.State.Get(a) != before || e.catalog.State.Get(q) != sequence || e.storage.Relations[a] != storage {
+				if e.Catalog.State.Get(a) != before || e.Catalog.State.Get(q) != sequence || e.Storage.Relations[a] != storage {
 					t.Fatal("denial changed closure")
 				}
 			} else {
 				if err != nil {
 					t.Fatal(err)
 				}
-				dest := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.destination})
-				if e.catalog.State.Get(a).Namespace() != dest || e.catalog.State.Get(q).Namespace() != dest || e.storage.Relations[a] != storage {
+				dest := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: tc.destination})
+				if e.Catalog.State.Get(a).Namespace() != dest || e.Catalog.State.Get(q).Namespace() != dest || e.Storage.Relations[a] != storage {
 					t.Fatal("successful authorized move lost closure")
 				}
 			}

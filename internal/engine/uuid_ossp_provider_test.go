@@ -33,15 +33,15 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	e.mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "uuid-ossp"}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "uuid-ossp"}})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"})
-	return e, e.catalog.State.MustExtension(address)
+	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "uuid-ossp"})
+	return e, e.Catalog.State.MustExtension(address)
 }
 
 func TestUUIDOsspProviderIdentity(t *testing.T) {
@@ -55,10 +55,10 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if proc.Name() != "uuid_generate_v4" || proc.Signature != "" || pgcatalog.ProcedureArity(proc) != 0 || proc.RoutineKind != catalog.FunctionRoutine || proc.Builtin != nil || proc.Result != 2950 || proc.Volatility != expr.Volatile || !proc.Strict || proc.Owner != ext.Owner || proc.Namespace() != ext.TargetNamespace {
 		t.Fatal(proc)
 	}
-	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
+	if err := e.Catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	state.UnbindName(catalog.DescriptorNameKey(proc))
 	state.SetDescriptor(address, &renamed)
 	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
-	current := e.catalog.Read(state)
+	current := e.Catalog.Read(state)
 	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "uuid_generate_v4" {
 		t.Fatal("relabel lost UUID symbol", symbol, err)
 	}
@@ -119,8 +119,8 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		state.UnbindName(catalog.DescriptorNameKey(proc))
 		state.SetDescriptor(address, &bad)
 		state.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
-		current := e.catalog.Read(state)
-		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(current, &bad)
+		current := e.Catalog.Read(state)
+		failure := e.Catalog.Providers[ids.ProcedureClassID].Validate(current, &bad)
 		manifest := extension.StockUUIDOssp.ValidateExtension(current, ext)
 		if failure == nil || manifest == nil {
 			t.Fatal("corrupt UUID member accepted", bad)
@@ -158,7 +158,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 		bad.Implementation = extension.StockUUIDOssp
 		intaggView.State().SetDescriptor(address, &bad)
 		manifestFailure := extension.StockIntagg.ValidateExtension(intaggView, intaggExt)
-		admissionFailure := intaggEngine.catalog.Providers[ids.ProcedureClassID].Validate(intaggView, &bad)
+		admissionFailure := intaggEngine.Catalog.Providers[ids.ProcedureClassID].Validate(intaggView, &bad)
 		intaggView.State().SetDescriptor(address, original)
 		if manifestFailure == nil || admissionFailure == nil {
 			t.Fatal("mixed intagg/uuid-ossp authority accepted")
@@ -167,26 +167,26 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	builtin := view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 	mixed := *builtin
 	mixed.Implementation = extension.StockUUIDOssp
-	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
+	if err := e.Catalog.Providers[ids.ProcedureClassID].Validate(view, &mixed); err == nil {
 		t.Fatal("mixed builtin/uuid-ossp authority accepted")
 	}
 }
 
 func TestUUIDOsspProviderCollision(t *testing.T) {
 	e, ext := uuidOsspUnitInstalled(t)
-	before := e.catalog.State
+	before := e.Catalog.State
 	member := ext.Members[0]
 	procedure := before.Get(member)
 	descriptors, names := before.DescriptorCount(), before.NameCount()
 	key := catalog.DescriptorNameKey(procedure)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	copy := *ext
-	e.mu.Lock()
+	e.Mu.Lock()
 	err := extension.StockUUIDOssp.Stage(&extensionHost{engine: e, stage: stage}, &copy, ext.Owner)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	// CatalogStage is a sparse private overlay, not a copy of its base.
 	// Atomicity concerns the published root and its existing identities.
-	if err == nil || e.catalog.State != before || e.catalog.State.DescriptorCount() != descriptors || e.catalog.State.NameCount() != names || e.catalog.State.Get(member) != procedure || e.catalog.State.Get(ext.Address()) != ext || e.catalog.State.NameAddress(key) != member {
+	if err == nil || e.Catalog.State != before || e.Catalog.State.DescriptorCount() != descriptors || e.Catalog.State.NameCount() != names || e.Catalog.State.Get(member) != procedure || e.Catalog.State.Get(ext.Address()) != ext || e.Catalog.State.NameAddress(key) != member {
 		t.Fatal("procedure collision was not rejected atomically", err)
 	}
 	if state, ok := err.(interface{ SQLState() string }); !ok || state.SQLState() != "42723" {

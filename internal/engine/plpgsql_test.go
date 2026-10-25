@@ -49,12 +49,12 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 				t.Fatal(err)
 			}
 			d := &catalog.Procedure{ObjectName: "procedure_unit", RoutineKind: catalog.ProcedureRoutine, Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "procedure_unit", Source: source, Result: void.Usage(), PLSyntax: raw}}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(s.op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(s.Op)
 			if err == nil {
-				err = e.compilePLRoutineLocked(s.op, auth, d)
+				err = e.CompilePLRoutineLocked(s.Op, auth, d)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -79,12 +79,12 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := &catalog.Procedure{ObjectName: "bad_procedure", RoutineKind: catalog.ProcedureRoutine, Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "bad_procedure", Source: source, Result: void.Usage(), PLSyntax: raw}}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {
-		err = e.compilePLRoutineLocked(s.op, auth, d)
+		err = e.CompilePLRoutineLocked(s.Op, auth, d)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" || diagnostic.Message != "RETURN cannot have a parameter in a procedure" {
 		t.Fatal(err)
@@ -196,12 +196,12 @@ func TestPLpgSQLCompositeAssignmentAtomicity(t *testing.T) {
 	defer s.Finish(nil)
 	// Direct converter entry still needs the real owning statement's invoker
 	// authority for the domain CHECK's ordinary int4gt routine admission.
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		s.routineAuth = auth
+		s.RoutineAuth = auth
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,7 +454,7 @@ func TestPLpgSQLDiagnosticIdentity(t *testing.T) {
 			t.Fatalf("identity %q, want %q", got, tc.want)
 		}
 		d.SQL = &proc.Definition{Source: "BEGIN RETURN; END"}
-		err := scope.plRuntimeError(sqlError("22012", "division by zero"), read, d, parser.Position{}, parser.Position{}, parser.Position{}, "at assignment", false)
+		err := scope.plRuntimeError(SQLError("22012", "division by zero"), read, d, parser.Position{}, parser.Position{}, parser.Position{}, "at assignment", false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Context != "PL/pgSQL function "+tc.want+" line 1 at assignment" {
 			t.Fatal("runtime context lost canonical identity", err)

@@ -18,27 +18,27 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.State.MustRelation(d.Address())
-	original := e.storage.Relations[d.Address()]
+	d = e.Catalog.State.MustRelation(d.Address())
+	original := e.Storage.Relations[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
-	scope.querySources = []exec.Leaf{{Ref: ref, Relation: d, Storage: original}, {Ref: ref, Relation: d, Storage: original}}
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
+	scope.QuerySources = []exec.Leaf{{Ref: ref, Relation: d, Storage: original}, {Ref: ref, Relation: d, Storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
-	current := e.storage.Relations[d.Address()]
-	e.mu.Lock()
-	err := scope.refreshRelationGrantsLocked(e)
-	e.mu.Unlock()
+	current := e.Storage.Relations[d.Address()]
+	e.Mu.Lock()
+	err := scope.RefreshRelationGrantsLocked(e)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("admission-to-publication recapture", err)
 	}
-	for _, source := range scope.querySources {
+	for _, source := range scope.QuerySources {
 		if source.Relation != d || source.Storage != current {
 			t.Fatal("aliases did not recapture one coherent manifest")
 		}
 	}
-	e.mu.Lock()
-	view, err := scope.acquireDataViewsLocked(e, []ids.ObjectRef{ref, ref})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	view, err := scope.AcquireDataViewsLocked(e, []ids.ObjectRef{ref, ref})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,12 +48,12 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 		t.Fatal("capture did not own current immutable root")
 	}
 	next := concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 2), true, true)
-	e.mu.Lock()
-	err = scope.refreshRelationGrantsLocked(e)
+	e.Mu.Lock()
+	err = scope.RefreshRelationGrantsLocked(e)
 	if err == nil {
-		err = scope.validateLockedRelation(e)
+		err = scope.ValidateLockedRelation(e)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("captured reader rejected compatible publication", err)
 	}
@@ -64,7 +64,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	if again.Data().Frontier != frontier || !storage.SameVersionRoot(again.Data().Committed[d.Address()], current.Versions) || len(again.Data().Committed[d.Address()]) != 4 {
 		t.Fatal("reader mixed incarnations")
 	}
-	for _, source := range scope.querySources {
+	for _, source := range scope.QuerySources {
 		if source.Relation != d || source.Storage != current {
 			t.Fatal("postcapture layout/storage was recaptured")
 		}
@@ -72,10 +72,10 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	// Shared token alone cannot authorize a metadata/owner rewrite.
 	incompatible := *next
 	incompatible.ObjectName = "renamed"
-	e.mu.Lock()
-	e.catalog.State.SetDescriptor(next.Address(), &incompatible)
-	err = scope.validateLockedRelation(e)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Catalog.State.SetDescriptor(next.Address(), &incompatible)
+	err = scope.ValidateLockedRelation(e)
+	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("defining authority fence weakened", err)
 	}
@@ -87,22 +87,22 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.State.MustRelation(d.Address())
+			d = e.Catalog.State.MustRelation(d.Address())
 			stage, unrelated := queryCreateStage(t, e, "unrelated_snapshot", 1)
 			queryCreatePublish(t, e, stage)
-			original := e.storage.Relations[d.Address()]
+			original := e.Storage.Relations[d.Address()]
 			original.Ends = &storage.DeletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
-			scope.owner.Isolation = session.RepeatableRead
+			scope.Owner.Isolation = session.RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			root := scope.owner.Roots[d.Address()]
-			frontier := scope.owner.Frontier
-			if root.Storage != original || root.Ends != original.Ends || scope.owner.Roots[unrelated.Address()].Storage != e.storage.Relations[unrelated.Address()] {
+			root := scope.Owner.Roots[d.Address()]
+			frontier := scope.Owner.Frontier
+			if root.Storage != original || root.Ends != original.Ends || scope.Owner.Roots[unrelated.Address()].Storage != e.Storage.Relations[unrelated.Address()] {
 				t.Fatal("snapshot did not capture database roots")
 			}
-			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 			if !beforeCapture {
 				if _, err := scope.AcquireDataView(ref); err != nil {
 					t.Fatal(err)
@@ -110,9 +110,9 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			}
 			for _, count := range []int{4, 1} {
 				d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, count), true, true)
-				if scope.view != nil {
-					scope.view.Release()
-					scope.view = nil
+				if scope.View != nil {
+					scope.View.Release()
+					scope.View = nil
 				}
 				view, err := scope.AcquireDataView(ref)
 				if err != nil {
@@ -130,15 +130,15 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.State.MustRelation(d.Address())
+			d = e.Catalog.State.MustRelation(d.Address())
 			scope := refreshUnitScope(t, e, context.Background())
-			scope.owner.Isolation = session.RepeatableRead
+			scope.Owner.Isolation = session.RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			originalEpoch := e.catalog.State.Epoch()
-			defer func() { e.catalog.State.SetEpoch(originalEpoch) }()
-			ref := e.catalog.Domain.Ref(originalEpoch, d.Address())
+			originalEpoch := e.Catalog.State.Epoch()
+			defer func() { e.Catalog.State.SetEpoch(originalEpoch) }()
+			ref := e.Catalog.Domain.Ref(originalEpoch, d.Address())
 			d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 			switch phase {
 			case "plain_data":
@@ -146,13 +146,13 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			case "plain_no_data":
 				d = concurrentUnitReplace(t, e, d, nil, false, false)
 			case "control_epoch":
-				e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
+				e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
 			case "ordinary_incarnation":
-				copy := *e.storage.Relations[d.Address()]
+				copy := *e.Storage.Relations[d.Address()]
 				copy.MaterializedLineage = nil
-				e.mu.Lock()
-				e.storage.InstallRelationLocked(d.Address(), &copy)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Storage.InstallRelationLocked(d.Address(), &copy)
+				e.Mu.Unlock()
 			default:
 				copy := *d
 				switch phase {
@@ -174,7 +174,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 				case "ordinary_table":
 					copy.RelationKind = catalog.TableRelation
 				}
-				e.catalog.State.SetDescriptor(d.Address(), &copy)
+				e.Catalog.State.SetDescriptor(d.Address(), &copy)
 			}
 			view, err := scope.AcquireDataView(ref)
 			if view != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -188,7 +188,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.State.MustRelation(d.Address())
+	d = e.Catalog.State.MustRelation(d.Address())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	scope := refreshUnitScope(t, e, ctx)
@@ -196,26 +196,26 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	if err := scope.acquireMaterializedRefresh(stmt); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	_, err = e.refreshMaterializedLocked(scope, auth, stmt, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	frontier := e.visibility.CommitSeq()
-	published := e.storage.Relations[d.Address()]
-	if !scope.completed || len(published.Versions) != 1 {
+	frontier := e.Visibility.CommitSeq()
+	published := e.Storage.Relations[d.Address()]
+	if !scope.Completed || len(published.Versions) != 1 {
 		t.Fatal("actual refresh did not complete publication")
 	}
 	cancel()
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal("late cancellation retracted completed utility", err)
 	}
-	if e.storage.Relations[d.Address()] != published || e.visibility.CommitSeq() != frontier {
+	if e.Storage.Relations[d.Address()] != published || e.Visibility.CommitSeq() != frontier {
 		t.Fatal("late completion published twice")
 	}
 }

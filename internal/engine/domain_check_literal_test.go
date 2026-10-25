@@ -28,16 +28,16 @@ func TestDomainCheckNominalLiteralAdmissionInternal(t *testing.T) {
 			if !raw.RequiresDomain {
 				t.Fatal("nominal syntax lost domain-only admission fact")
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+			binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 			binder.Query.Auth = &auth
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if tc.bindCode != "" {
 				var d *sqlstate.Error
 				if !errors.As(err, &d) || d.Code != tc.bindCode {

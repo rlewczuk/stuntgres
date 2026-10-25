@@ -77,7 +77,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("retained row-expression copy", err)
 			}
 			local := func(attribute int32) ids.ObjectRef {
-				return e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: attribute})
+				return e.Catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: attribute})
 			}
 			assertTree := func(node expr.Expr) {
 				t.Helper()
@@ -86,11 +86,11 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 					t.Fatal("fixture lost row reference")
 				}
 				for _, ref := range refs {
-					if ref.Domain() != e.catalog.Domain || ref.Epoch != stage.Base.Epoch() || ref.Address.ObjectID != destination.Address().ObjectID {
+					if ref.Domain() != e.Catalog.Domain || ref.Epoch != stage.Base.Epoch() || ref.Address.ObjectID != destination.Address().ObjectID {
 						t.Fatal("mapped row lacks fresh destination authority", ref)
 					}
 				}
-				if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
+				if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.StageRead(stage), node); err != nil {
 					t.Fatal("mapped analyzed/execution tree not renderable", err)
 				}
 			}
@@ -155,7 +155,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal("duplicate copied column accepted")
 			}
 			for address := range candidate.Descriptors() {
-				if e.CatalogRead().Get(address) != nil || e.storage.Relations[address] != nil || e.storage.IndexRoots[address] != nil || e.storage.Sequences[address] != nil {
+				if e.CatalogRead().Get(address) != nil || e.Storage.Relations[address] != nil || e.Storage.IndexRoots[address] != nil || e.Storage.Sequences[address] != nil {
 					t.Fatal("failed copied candidate published a fragment", address)
 				}
 			}
@@ -168,12 +168,12 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, index := range clonedIndexes {
-				root := e.storage.IndexRoots[index.Address()]
+				root := e.Storage.IndexRoots[index.Address()]
 				if root == nil || len(root.Entries) != 0 {
 					t.Fatal("copied root not fresh empty", root)
 				}
 				for _, old := range indexes {
-					if root == e.storage.IndexRoots[old.Address()] {
+					if root == e.Storage.IndexRoots[old.Address()] {
 						t.Fatal("copied root aliases source")
 					}
 				}
@@ -196,7 +196,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	sessionSQL(t, owner, "CREATE INDEX source_partial ON src(a) WHERE active AND ('pg_temp.anchor'::regclass IS NOT NULL)")
 	source := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "src")
 	anchor := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "anchor")
-	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), anchor.Address())
+	oldRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), anchor.Address())
 	oldGeneration := source.ColumnMeta.Generations[2]
 	oldCheck := source.Constraints.Check[0]
 	oldIndex := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "source_partial")
@@ -226,7 +226,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		plan.WalkExpression(node, func(node expr.Expr) {
 			switch n := node.(type) {
 			case plan.ColumnExpr:
-				if n.Origin.Domain() != e.catalog.Domain || n.Origin.Epoch != stage.Base.Epoch() || n.Origin.Address.ObjectID != destination.Address().ObjectID {
+				if n.Origin.Domain() != e.Catalog.Domain || n.Origin.Epoch != stage.Base.Epoch() || n.Origin.Address.ObjectID != destination.Address().ObjectID {
 					t.Fatal("local row authority not current", n.Origin)
 				}
 			case plan.LiteralExpr:
@@ -264,10 +264,10 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	// epoch, even when a permanent copied consumer would otherwise be valid.
 	permanent := *destination
 	permanent.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	if stored.ReferenceEpochValid(e.stageRead(stage), &permanent, oldRef) {
+	if stored.ReferenceEpochValid(e.StageRead(stage), &permanent, oldRef) {
 		t.Fatal("permanent consumer gained stale TEMP external authority")
 	}
-	if err := e.ValidateObjectRef(e.stageRead(stage), oldRef); err == nil {
+	if err := e.ValidateObjectRef(e.StageRead(stage), oldRef); err == nil {
 		t.Fatal("generic stale reference rule widened")
 	}
 }

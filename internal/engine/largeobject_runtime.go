@@ -13,28 +13,28 @@ import (
 
 func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.LargeObjectResult, error) {
 	s := h.scope()
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return functions.LargeObjectResult{}, err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	out := functions.LargeObjectResult{}
-	if s.txRef.Epoch() != e.catalog.State.Epoch() {
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return out, ids.ErrCatalogReplaced
 	}
 	if r.Name == "lo_get" && r.Fragment && r.Length < 0 {
-		return out, sqlError("22023", "requested length cannot be negative")
+		return out, SQLError("22023", "requested length cannot be negative")
 	}
-	if r.Name != "lo_get" && s.owner.ReadOnly {
-		return out, sqlError("25006", "cannot execute "+r.Name+"() in a read-only transaction")
+	if r.Name != "lo_get" && s.Owner.ReadOnly {
+		return out, SQLError("25006", "cannot execute "+r.Name+"() in a read-only transaction")
 	}
 	// Freeze this query's read view before its first command candidate. SQL
 	// body activation supplies its own fresh view and restores the outer one.
 	if s.largeObjectRead.State() == nil {
-		s.largeObjectRead = s.routineAuth.Catalog
+		s.largeObjectRead = s.RoutineAuth.Catalog
 		if s.largeObjectRead.State() == nil {
-			s.largeObjectRead = e.privateCatalogLocked(s.owner.Catalog)
+			s.largeObjectRead = e.PrivateCatalogLocked(s.Owner.Catalog)
 		}
 	}
 	auth, err := s.writeAuthorizationLocked(e)
@@ -46,7 +46,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 		auth.Recapture(auth.Catalog)
 		d, ok := auth.Catalog.Get(ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: r.OID}).(*catalog.LargeObject)
 		if !ok {
-			return out, largeObjectMissingError(r.OID)
+			return out, LargeObjectMissingError(r.OID)
 		}
 		if err := auth.Check(access.Requirement{Object: auth.Ref(d.Address()), Privileges: authorization.SelectPrivilege}); err != nil {
 			return out, err
@@ -58,15 +58,15 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 		out.Data = data
 		return out, nil
 	}
-	changes := s.catalog
+	changes := s.Catalog
 	if changes == nil {
 		if r.Name == "lo_put" && len(r.Data) == 0 {
-			changes = s.owner.Catalog
+			changes = s.Owner.Catalog
 		} else {
-			changes = s.owner.Catalog.Clone()
+			changes = s.Owner.Catalog.Clone()
 		}
 	}
-	view := e.privateCatalogLocked(changes)
+	view := e.PrivateCatalogLocked(changes)
 	auth.Catalog = view
 	auth.Recapture(view)
 	a := ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: r.OID}
@@ -74,7 +74,7 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 	if r.Name == "lo_create" || r.Name == "lo_creat" || r.Name == "lo_from_bytea" {
 		if a.ObjectID == 0 {
 			for {
-				oid, err := e.catalog.AllocateOIDLocked()
+				oid, err := e.Catalog.AllocateOIDLocked()
 				if err != nil {
 					return out, err
 				}
@@ -87,26 +87,26 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 		if view.Get(a) != nil {
 			return out, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505", Message: `duplicate key value violates unique constraint "pg_largeobject_metadata_oid_index"`, Detail: fmt.Sprintf("Key (oid)=(%d) already exists.", a.ObjectID), Schema: "pg_catalog", Table: "pg_largeobject_metadata", Constraint: "pg_largeobject_metadata_oid_index"}
 		}
-		revision, err := e.catalog.RevisionLocked()
+		revision, err := e.Catalog.RevisionLocked()
 		if err != nil {
 			return out, err
 		}
 		d = &catalog.LargeObject{ObjectAddress: a, ObjectRevision: revision, ObjectName: strconv.FormatUint(uint64(a.ObjectID), 10), Owner: auth.State.CurrentUser}
-		d.ACL = e.creationACLChangesLocked(changes, view, d.Owner, ids.ObjectAddress{}, authorization.DefaultLargeObjects)
-		e.catalogChangeLocked(changes, a, d)
+		d.ACL = e.CreationACLChangesLocked(changes, view, d.Owner, ids.ObjectAddress{}, authorization.DefaultLargeObjects)
+		e.CatalogChangeLocked(changes, a, d)
 		if r.Name == "lo_from_bytea" {
-			view = e.privateCatalogLocked(changes)
+			view = e.PrivateCatalogLocked(changes)
 			auth.Catalog = view
 			auth.Recapture(view)
 		}
 	} else {
 		d, _ = view.Get(a).(*catalog.LargeObject)
 		if d == nil {
-			return out, largeObjectMissingError(r.OID)
+			return out, LargeObjectMissingError(r.OID)
 		}
 	}
 	if r.Name == "lo_put" || r.Name == "lo_from_bytea" {
-		if !operationReplayOrZero(s.op).largeObjectAuthority {
+		if !OperationReplayOrZero(s.Op).LargeObjectAuthority {
 			if err := auth.Check(access.Requirement{Object: auth.Ref(a), Privileges: authorization.SelectPrivilege | authorization.UpdatePrivilege}); err != nil {
 				return out, err
 			}
@@ -123,25 +123,25 @@ func (h *statementHost) LargeObject(r functions.LargeObjectRequest) (functions.L
 		} else {
 			n := *d
 			n.Content = content
-			n.ObjectRevision, err = e.catalog.RevisionLocked()
+			n.ObjectRevision, err = e.Catalog.RevisionLocked()
 			if err != nil {
 				return out, err
 			}
 			d = &n
-			e.catalogChangeLocked(changes, a, d)
+			e.CatalogChangeLocked(changes, a, d)
 		}
 	}
 	if r.Name == "lo_unlink" {
 		if err := auth.Check(access.Requirement{Object: auth.Ref(a), OwnerOnly: true}); err != nil {
 			return out, err
 		}
-		e.catalogChangeLocked(changes, a, nil)
+		e.CatalogChangeLocked(changes, a, nil)
 	}
-	s.catalog = changes
+	s.Catalog = changes
 	out.OID = a.ObjectID
 	return out, nil
 }
 
-func largeObjectMissingError(oid ids.OID) error {
-	return sqlError("42704", fmt.Sprintf("large object %d does not exist", oid))
+func LargeObjectMissingError(oid ids.OID) error {
+	return SQLError("42704", fmt.Sprintf("large object %d does not exist", oid))
 }

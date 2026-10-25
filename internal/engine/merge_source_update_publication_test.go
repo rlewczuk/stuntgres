@@ -13,7 +13,7 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	before := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+	before := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -28,9 +28,9 @@ func TestMergeSourceUpdatePublication(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	if result.Count != 2 || len(scope.stage.rows) == 0 {
+	if result.Count != 2 || len(scope.Stage.Rows) == 0 {
 		scope.Finish(context.Canceled)
-		t.Fatal(result, scope.stage.rows)
+		t.Fatal(result, scope.Stage.Rows)
 	}
 	transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 10, 20)
 	if err := scope.Finish(nil); err != nil {

@@ -21,20 +21,20 @@ func TestQueryLockConditionalRowManager(t *testing.T) {
 				rb := transactionBegin(t, b)
 				t.Cleanup(func() { transactionEnd(t, b, rb, false) })
 				ref := roleTableRef(t, e, "t")
-				e.mu.Lock()
-				row := e.storage.Relations[ref.Address].Versions[0].Row
-				e.mu.Unlock()
+				e.Mu.Lock()
+				row := e.Storage.Relations[ref.Address].Versions[0].Row
+				e.Mu.Unlock()
 				resource := lock.Resource{ObjectRef: ref, Row: row}
-				if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, resource, held); err != nil {
+				if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, resource, held); err != nil {
 					t.Fatal(err)
 				}
-				before := len(e.locks.Inspect(b.Transactions.Ticket).Journals[b.Transactions.Ticket])
-				request, err := e.locks.StartAcquire(context.Background(), b.Transactions.Ticket, resource, requested, lock.Policy{NoWait: true, Timeout: time.Hour})
+				before := len(e.Locks.Inspect(b.Transactions.Ticket).Journals[b.Transactions.Ticket])
+				request, err := e.Locks.StartAcquire(context.Background(), b.Transactions.Ticket, resource, requested, lock.Policy{NoWait: true, Timeout: time.Hour})
 				conflict := lock.Conflicts(requested, held)
 				if request != nil || conflict && !errors.Is(err, lock.ErrUnavailable) || !conflict && err != nil {
 					t.Fatal(request, err, conflict)
 				}
-				lockState := e.locks.Inspect(b.Transactions.Ticket)
+				lockState := e.Locks.Inspect(b.Transactions.Ticket)
 				entry := lockState.Resources[resource]
 				bad := len(entry.Pending) != 0 || entry.Holders[a.Transactions.Ticket].Mode != held
 				if conflict {
@@ -59,29 +59,29 @@ func TestQueryLockConditionalQueueAndSelfReentry(t *testing.T) {
 	rc := transactionBegin(t, c)
 	t.Cleanup(func() { transactionEnd(t, c, rc, false) })
 	ref := roleTableRef(t, e, "t")
-	e.mu.Lock()
-	row := e.storage.Relations[ref.Address].Versions[0].Row
-	e.mu.Unlock()
+	e.Mu.Lock()
+	row := e.Storage.Relations[ref.Address].Versions[0].Row
+	e.Mu.Unlock()
 	resource := lock.Resource{ObjectRef: ref, Row: row}
-	if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.ForKeyShare); err != nil {
+	if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.ForKeyShare); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	waiter, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, resource, lock.ForUpdate, lock.Policy{})
+	waiter, err := e.Locks.StartAcquire(ctx, b.Transactions.Ticket, resource, lock.ForUpdate, lock.Policy{})
 	if err != nil || waiter == nil {
 		t.Fatal("missing exact incompatible waiter", waiter, err)
 	}
-	before := len(e.locks.Inspect(c.Transactions.Ticket).Journals[c.Transactions.Ticket])
-	probe, err := e.locks.StartAcquire(context.Background(), c.Transactions.Ticket, resource, lock.ForKeyShare, lock.Policy{NoWait: true})
+	before := len(e.Locks.Inspect(c.Transactions.Ticket).Journals[c.Transactions.Ticket])
+	probe, err := e.Locks.StartAcquire(context.Background(), c.Transactions.Ticket, resource, lock.ForKeyShare, lock.Policy{NoWait: true})
 	if probe != nil || !errors.Is(err, lock.ErrUnavailable) {
 		t.Fatal("compatible newcomer barged past earlier UPDATE", probe, err)
 	}
-	self, err := e.locks.StartAcquire(context.Background(), a.Transactions.Ticket, resource, lock.ForShare, lock.Policy{NoWait: true})
+	self, err := e.Locks.StartAcquire(context.Background(), a.Transactions.Ticket, resource, lock.ForShare, lock.Policy{NoWait: true})
 	if self != nil || err != nil {
 		t.Fatal("self upgrade joined its own blocked queue", self, err)
 	}
-	lockState := e.locks.Inspect(c.Transactions.Ticket)
+	lockState := e.Locks.Inspect(c.Transactions.Ticket)
 	entry := lockState.Resources[resource]
 	bad := len(entry.Pending) != 1 || entry.Pending[0].Request != waiter || entry.Holders[a.Transactions.Ticket].Mode != (lock.ForKeyShare|lock.ForShare) || len(lockState.Journals[c.Transactions.Ticket]) != before
 	if bad {
@@ -91,7 +91,7 @@ func TestQueryLockConditionalQueueAndSelfReentry(t *testing.T) {
 	if err := waiter.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	probe, err = e.locks.StartAcquire(context.Background(), c.Transactions.Ticket, resource, lock.ForKeyShare, lock.Policy{NoWait: true})
+	probe, err = e.Locks.StartAcquire(context.Background(), c.Transactions.Ticket, resource, lock.ForKeyShare, lock.Policy{NoWait: true})
 	if probe != nil || err != nil {
 		t.Fatal("cancelled predecessor left ghost conditional denial", probe, err)
 	}

@@ -222,9 +222,9 @@ func TestVacuumPublicationFences(t *testing.T) {
 					t.Fatal("maintenance clobbered compatible metadata")
 				}
 			}
-			e.mu.Lock()
-			progress := len(e.vacuumProgress)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			progress := len(e.VacuumProgress)
+			e.Mu.Unlock()
 			if progress != 0 {
 				t.Fatal("residual progress", progress)
 			}
@@ -262,7 +262,7 @@ func TestVacuumAuthorizationLocks(t *testing.T) {
 			sessionSQL(t, holder, "CREATE TABLE target(id INT)")
 			ref, _ := vacuumStore(t, e, "target")
 			transactionBegin(t, holder)
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
+			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -276,7 +276,7 @@ func TestVacuumAuthorizationLocks(t *testing.T) {
 				}
 			}()
 			lockPending(t, e, 1)
-			snapshot := e.locks.Inspect()
+			snapshot := e.Locks.Inspect()
 			entry := snapshot.Resources[lock.Resource{ObjectRef: ref}]
 			want := lock.AccessShare
 			if mode == lock.Share {
@@ -285,9 +285,9 @@ func TestVacuumAuthorizationLocks(t *testing.T) {
 			if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Mode != want {
 				t.Fatal("wrong actual maintenance lock", entry)
 			}
-			e.mu.Lock()
-			active := len(e.vacuumProgress)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			active := len(e.VacuumProgress)
+			e.Mu.Unlock()
 			if active != 0 {
 				t.Fatal("fake progress while waiting")
 			}
@@ -306,7 +306,7 @@ func TestVacuumAuthorizationLocks(t *testing.T) {
 		ref, second := vacuumStore(t, e, "second_target")
 		_, first := vacuumStore(t, e, "first_target")
 		transactionBegin(t, holder)
-		if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
+		if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
@@ -320,15 +320,15 @@ func TestVacuumAuthorizationLocks(t *testing.T) {
 			}
 		}()
 		lockPending(t, e, 1)
-		e.mu.Lock()
+		e.Mu.Lock()
 		firstCount, secondCount := first.Maintenance.VacuumCount, second.Maintenance.VacuumCount
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if firstCount != 1 || secondCount != 0 {
 			t.Fatal("per-target completion not visible", firstCount, secondCount)
 		}
 		// The completed first relation must no longer own SUE while second waits.
 		firstRef := catalogRef(t, e, e.CatalogRead(), "first_target")
-		if entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: firstRef}]; entry != nil {
+		if entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: firstRef}]; entry != nil {
 			for _, hold := range entry.Holders {
 				if hold.Mode&lock.ShareUpdateExclusive != 0 {
 					t.Fatal("first target retained SUE")

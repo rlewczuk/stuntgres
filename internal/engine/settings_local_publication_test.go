@@ -36,8 +36,8 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 					}
 				case "inspect":
 					// Taking these locks proves staging did not retain publication locks.
-					e.mu.Lock()
-					e.mu.Unlock()
+					e.Mu.Lock()
+					e.Mu.Unlock()
 					s.Settings.Mu.Lock()
 					s.Settings.Mu.Unlock()
 					s.Mu.Lock()

@@ -16,9 +16,9 @@ import (
 func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
-	idx := e.catalog.State.MustRelation(ref.Address)
-	root := e.storage.IndexRoots[ref.Address]
-	if idx.RelationKind != catalog.IndexRelation || idx.SQLIndex == nil || root == nil || e.storage.Relations[ref.Address] != nil {
+	idx := e.Catalog.State.MustRelation(ref.Address)
+	root := e.Storage.IndexRoots[ref.Address]
+	if idx.RelationKind != catalog.IndexRelation || idx.SQLIndex == nil || root == nil || e.Storage.Relations[ref.Address] != nil {
 		t.Fatal("not a substantive index", idx, root)
 	}
 	if err := index.ValidateIndexDefinition(e.CatalogRead(), idx); err != nil {
@@ -132,14 +132,14 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 	run(t, e, "CREATE SCHEMA moved")
 	run(t, e, "ALTER TABLE renamed SET SCHEMA moved")
 	index, _ := btreeRoot(t, e, "moved.ni")
-	if e.catalog.State.Get(index.Namespace()).Name() != "moved" {
+	if e.Catalog.State.Get(index.Namespace()).Name() != "moved" {
 		t.Fatal(index)
 	}
 	run(t, e, "ALTER TABLE moved.renamed DROP s")
 	if len(e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: index.Namespace(), Name: "si"})) != 0 {
 		t.Fatal("indexed column left orphan")
 	}
-	old := e.storage.IndexRoots[index.Address()]
+	old := e.Storage.IndexRoots[index.Address()]
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -148,8 +148,8 @@ func TestBtreeIndexLifecycleAndReplacement(t *testing.T) {
 		t.Fatal("replacement retained source identities")
 	}
 	run(t, e, "DROP TABLE moved.renamed RESTRICT")
-	if len(e.storage.IndexRoots) != 0 {
-		t.Fatal("orphan roots", e.storage.IndexRoots)
+	if len(e.Storage.IndexRoots) != 0 {
+		t.Fatal("orphan roots", e.Storage.IndexRoots)
 	}
 	run(t, e, "CREATE TABLE moved.ni(n INT)")
 }
@@ -238,8 +238,8 @@ func TestBtreeIndexSchemaDropClosure(t *testing.T) {
 		t.Fatal("failed RESTRICT changed root")
 	}
 	run(t, e, "DROP SCHEMA scoped CASCADE")
-	if len(e.storage.IndexRoots) != 0 {
-		t.Fatal("schema drop left roots", e.storage.IndexRoots)
+	if len(e.Storage.IndexRoots) != 0 {
+		t.Fatal("schema drop left roots", e.Storage.IndexRoots)
 	}
 	for _, q := range []string{"CREATE SCHEMA scoped", "CREATE TABLE scoped.t(n INT)", "CREATE INDEX idx ON scoped.t(n)"} {
 		run(t, e, q)

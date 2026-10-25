@@ -22,7 +22,7 @@ func BenchmarkPLpgSQLWalk(b *testing.B) {
 	} {
 		b.Run(tc.name, func(b *testing.B) {
 			s, d := plWalkBenchmarkRoutine(b, tc.source)
-			read := s.engine().CatalogRead()
+			read := s.Engine().CatalogRead()
 			input := proc.NewFrame(nil)
 			defer input.Close()
 			if _, err := s.invokePLRoutine(d, input, read, sqltype.CollationRef{}); err != nil {
@@ -62,12 +62,12 @@ func plWalkBenchmarkRoutine(b *testing.B, source string) (*StatementScope, *cata
 		b.Fatal(err)
 	}
 	d := &catalog.Procedure{ObjectName: "walk_bench", Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "walk_bench", Source: source, Result: integer.Usage(), PLSyntax: raw}}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {
-		err = e.compilePLRoutineLocked(s.op, auth, d)
+		err = e.CompilePLRoutineLocked(s.Op, auth, d)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		b.Fatal(err)
 	}

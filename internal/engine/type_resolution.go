@@ -22,11 +22,11 @@ func (e *Engine) resolveType(raw parser.TypeName, op *session.Operation) (sqltyp
 		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	if u.Type.IsArray() && u.Type.Element().IsDomain() {
-		auth, err := e.authorizationLocked(op)
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return sqltype.Usage{}, err
 		}
-		if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
+		if err := auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(u.Type.ID())})); err != nil {
 			return sqltype.Usage{}, err
 		}
 	}
@@ -47,19 +47,19 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *session.Operati
 	if privateScalar == 0 {
 		return u, err
 	}
-	if op == nil || !operationReplayOrZero(op).tableDestination {
+	if op == nil || !OperationReplayOrZero(op).TableDestination {
 		return u, err
 	}
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "0A000" {
 		return u, err
 	}
-	auth, authErr := e.authorizationLocked(op)
+	auth, authErr := e.AuthorizationLocked(op)
 	if authErr != nil {
 		return sqltype.Usage{}, authErr
 	}
 	bootstrap, authErr := auth.Roles.Descriptor(auth.State.Authenticated)
-	if authErr != nil || !bootstrap.Superuser || e.importTargets == nil {
+	if authErr != nil || !bootstrap.Superuser || e.ImportTargets == nil {
 		return sqltype.Usage{}, fmt.Errorf("stuntgres: invalid trusted restore column authority")
 	}
 	typ, ok := auth.Catalog.LookupType(privateScalar)
@@ -91,7 +91,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 	if !raw.Quoted && raw.Schema == nil {
 		name = typedef.CanonicalDeclarationTypeName(name)
 	}
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
@@ -104,7 +104,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 		return sqltype.Usage{}, err
 	}
 	in := analyze.TypeNameInput{
-		Catalog: auth.Catalog, Definition: auth.definition,
+		Catalog: auth.Catalog, Definition: auth.Definition,
 		UnknownNull: unknownNull, DomainBase: domainBase, StringInput: stringInput,
 		JSONReturning: jsonReturning, ThresholdArrayInput: thresholdArrayInput,
 	}

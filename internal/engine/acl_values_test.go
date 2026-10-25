@@ -19,21 +19,21 @@ func aclValuesUnitContext(t *testing.T) (*Engine, *exec.Context) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	return e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: op})}}
+	return e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(&StatementScope{Op: op})}}
 }
 func TestACLValuesZeroIdentity(t *testing.T) {
 	e, c := aclValuesUnitContext(t)
 	view := e.CatalogRead()
 	d, _ := view.LookupType(sqltype.ACLItem)
-	value, err := sqltype.ACLItemValue(d, &e.roles.ACLAuthority, 0, 0, 2, 2)
+	value, err := sqltype.ACLItemValue(d, &e.RoleStore.ACLAuthority, 0, 0, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a, g, r, p, o, err := value.ACLItem()
-	if err != nil || a != &e.roles.ACLAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
+	if err != nil || a != &e.RoleStore.ACLAuthority || g != 0 || r != 0 || p != 2 || o != 2 {
 		t.Fatal("zero identity datum", err)
 	}
-	output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
+	output := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(c.Context, value, sqltype.OutputEnvironment{ACLItem: output})
 	if err != nil || text != "=r*/0" {
 		t.Fatal(text, err)
@@ -46,16 +46,16 @@ func TestACLValuesZeroIdentity(t *testing.T) {
 	if err != nil || text != "=r*/0" {
 		t.Fatal("retained all-zero output", text, err)
 	}
-	if err := regobj.PreflightACLItemValue(c.Context, regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles(), Lossless: true}, value); err == nil {
+	if err := regobj.PreflightACLItemValue(c.Context, regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles(), Lossless: true}, value); err == nil {
 		t.Fatal("zero grantor dump accepted")
 	}
 	target := New()
-	mapped, err := target.roles.ACLItemImporter(e.roles, &target.catalog, e.Roles(), target.Roles(), nil)(value)
+	mapped, err := target.RoleStore.ACLItemImporter(e.RoleStore, &target.Catalog, e.Roles(), target.Roles(), nil)(value)
 	if err != nil {
 		t.Fatal(err)
 	}
 	aa, gg, rr, _, _, err := mapped.ACLItem()
-	if err != nil || aa != &target.roles.ACLAuthority || gg != 0 || rr != 0 {
+	if err != nil || aa != &target.RoleStore.ACLAuthority || gg != 0 || rr != 0 {
 		t.Fatal("zero remap", err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
@@ -134,7 +134,7 @@ func TestACLValuesStoredRecipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles(), Lossless: true}
+	output := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles(), Lossless: true}
 	if err := regobj.PreflightACLItemValue(context.Background(), output, carrier); err != nil {
 		t.Fatal("representable composite rejected", err)
 	}

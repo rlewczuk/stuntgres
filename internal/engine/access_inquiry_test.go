@@ -72,9 +72,9 @@ func TestAccessInquiryRoleOIDs(t *testing.T) {
 	for _, q := range []string{"CREATE ROLE ar_unit_actor", "CREATE ROLE ar_unit_middle", "CREATE ROLE ar_unit_target", "GRANT ar_unit_middle TO ar_unit_actor WITH INHERIT FALSE, SET TRUE", "GRANT ar_unit_target TO ar_unit_middle WITH ADMIN TRUE, INHERIT TRUE, SET FALSE"} {
 		roleExecute(t, e, op, q)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,14 +97,14 @@ func TestAccessInquiryRoleOIDs(t *testing.T) {
 		{actor.Ref.ID(), 4294967295, authorization.RoleMember, false},
 		{auth.State.CurrentUser.ID(), 4294967295, authorization.RoleAdmin, true},
 	} {
-		got, err := authorization.HasRole(context.Background(), auth.Roles, &e.roles.Domain, tc.a, tc.b, tc.mask)
+		got, err := authorization.HasRole(context.Background(), auth.Roles, &e.RoleStore.Domain, tc.a, tc.b, tc.mask)
 		if err != nil || got != tc.want {
 			t.Fatalf("raw boundary %+v: %v %v", tc, got, err)
 		}
 	}
 	// SQL shortcuts do not weaken any trusted authority entry point.
 	foreign := authorization.Domain{}
-	for _, ref := range []authorization.PrincipalRef{e.roles.Domain.Principal(0), foreign.Principal(actor.Ref.ID()), e.roles.Domain.Principal(4294967295)} {
+	for _, ref := range []authorization.PrincipalRef{e.RoleStore.Domain.Principal(0), foreign.Principal(actor.Ref.ID()), e.RoleStore.Domain.Principal(4294967295)} {
 		if _, err := auth.Roles.InheritsRole(ref, ref); err == nil {
 			t.Fatal("trusted inheritance accepted invalid self")
 		}
@@ -123,9 +123,9 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 	for _, q := range []string{"CREATE ROLE ar_unit_owner", "CREATE ROLE ar_unit_reader", "CREATE ROLE ar_unit_bypass BYPASSRLS", "GRANT ar_unit_owner TO ar_unit_reader WITH INHERIT TRUE"} {
 		roleExecute(t, e, op, q)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestAccessInquiryRLSDecision(t *testing.T) {
 				if err != nil || (selection.Count != 0) != active {
 					t.Fatal("enforcement eligibility diverged", selection, active, err)
 				}
-				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.roles.Domain.Principal(4294967295)}}
+				next.Security.Policies[0].Roles = []catalog.PolicyRole{{Ref: e.RoleStore.Domain.Principal(4294967295)}}
 				active, err = access.RowSecurityApplies(auth.Roles, &next, actor)
 				if err != nil || active != want {
 					t.Fatal("inquiry inspected policy", active, err)

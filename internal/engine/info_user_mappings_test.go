@@ -20,22 +20,22 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 20200}, ObjectName: "Mixed Server", ObjectRevision: 1, Owner: f.owner, ACL: authorization.ACLValue{Explicit: true}}
 	state.SetDescriptor(server.Address(), server)
 	for i, role := range []authorization.PrincipalRef{f.reader, {}} {
 		mapping := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignMappingClassID, ObjectID: ids.OID(20201 + i)}, ObjectName: catalog.ForeignMappingName(server.Address(), role), ObjectRevision: 1, Server: server.Address(), MappedRole: role, MappedName: "obsolete diagnostic name"}
 		state.SetDescriptor(mapping.Address(), mapping)
 	}
-	view := f.e.catalog.Read(state)
+	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingsOID})
 	input := func(v catalog.Read, a AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: engineCatalogRuntime{auth: a, database: "captured_database"}}
+		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
 	}
 	checkRows := func(in pgcatalog.Input, want map[string]int) [][]sqltype.Value {
 		t.Helper()
-		captured, err := captureCatalogSourceRows(in, produce)
+		captured, err := CaptureCatalogSourceRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -131,7 +131,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 	allowed := *server
 	allowed.ACL.Entries = []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UsagePrivilege, 0)}
 	granted.SetDescriptor(server.Address(), &allowed)
-	grantedView := f.e.catalog.Read(granted)
+	grantedView := f.e.Catalog.Read(granted)
 	grantedAuth := auth
 	grantedAuth.Recapture(grantedView)
 	held := checkRows(input(grantedView, grantedAuth), want)
@@ -140,9 +140,9 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 		t.Fatal("retained row mutated")
 	}
 	// A server without mappings must not manufacture a PUBLIC/default row.
-	empty := catalog.CloneState(f.e.catalog.State)
+	empty := catalog.CloneState(f.e.Catalog.State)
 	empty.SetDescriptor(server.Address(), server)
-	emptyView := f.e.catalog.Read(empty)
+	emptyView := f.e.Catalog.Read(empty)
 	emptyAuth := auth
 	emptyAuth.Recapture(emptyView)
 	checkRows(input(emptyView, emptyAuth), map[string]int{})
@@ -154,14 +154,14 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 		}
 	}
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
 			a := grantedAuth
 			a.RoleRecord = nil
-			in.Runtime = engineCatalogRuntime{auth: a}
+			in.Runtime = EngineCatalogRuntime{Auth: a}
 		},
 	} {
 		in := input(grantedView, grantedAuth)
@@ -186,11 +186,11 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 			if malformed == "server" {
 				mapping.Server.ObjectID++
 			} else {
-				mapping.MappedRole = f.e.roles.Domain.Principal(99999)
+				mapping.MappedRole = f.e.RoleStore.Domain.Principal(99999)
 			}
 			bad.SetDescriptor(mapping.Address(), &mapping)
 		}
-		badView := f.e.catalog.Read(bad)
+		badView := f.e.Catalog.Read(bad)
 		badAuth := grantedAuth
 		badAuth.Recapture(badView)
 		if rows, err := produce(input(badView, badAuth)); rows != nil || err == nil {

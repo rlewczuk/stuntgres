@@ -17,20 +17,20 @@ func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser
 	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partition.ReplayStem) {
 		return partition.ReplayTeardown{}, nil
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return partition.ReplayTeardown{}, err
 	}
-	if e.importTargets == nil {
+	if e.ImportTargets == nil {
 		return partition.ReplayTeardown{}, fmt.Errorf("stuntgres: invalid private partition replay")
 	}
-	parent, err := e.resolveRelationReference(auth, s.Name, true)
+	parent, err := e.ResolveRelationReference(auth, s.Name, true)
 	if err != nil {
 		return partition.ReplayTeardown{}, err
 	}
-	child, err := e.resolveRelationReference(auth, s.Partition, true)
+	child, err := e.ResolveRelationReference(auth, s.Partition, true)
 	if err != nil {
 		return partition.ReplayTeardown{}, err
 	}
@@ -39,7 +39,7 @@ func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser
 	if p.Partition == nil || len(p.Partition.Children) != 1 || c.Partition != nil || c.Membership == nil || !c.Membership.DefaultBound || c.Membership.Parent != p.Address() {
 		return partition.ReplayTeardown{}, nil
 	}
-	store := e.storage.Relations[child.Address]
+	store := e.Storage.Relations[child.Address]
 	if store == nil || len(store.Versions) != 0 {
 		return partition.ReplayTeardown{}, nil
 	}
@@ -47,28 +47,28 @@ func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser
 }
 
 func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return err
 	}
-	ref, err := e.resolveRelationReference(auth, name, true)
+	ref, err := e.ResolveRelationReference(auth, name, true)
 	if err != nil {
 		return err
 	}
 	record, ok := records[ref.Address]
-	if !ok || record.Child != ref || e.importTargets == nil {
-		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
+	if !ok || record.Child != ref || e.ImportTargets == nil {
+		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	child, ok := auth.Catalog.Relation(ref.Address)
 	parent, live := auth.Catalog.Relation(record.Parent.Address)
 	if !ok || !live || record.Parent.Epoch != auth.Catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
-		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
+		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
-	store := e.storage.Relations[ref.Address]
+	store := e.Storage.Relations[ref.Address]
 	if store == nil || len(store.Versions) != 0 {
-		return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
+		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
@@ -77,5 +77,5 @@ func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name par
 			return nil
 		}
 	}
-	return sqlError("0A000", "restore accepts only generated empty partition replay teardown")
+	return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 }

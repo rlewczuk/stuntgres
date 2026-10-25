@@ -88,7 +88,7 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				}
 				stage := e.BeginCatalogStage(catalogView)
 				defer e.DiscardCatalogStage(stage)
-				edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{constraint, backing})
+				edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{constraint, backing})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -118,9 +118,9 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 			for _, cascade := range []bool{false, true} {
 				t.Run(fmt.Sprintf("modifier=%v/inferred=%v/cascade=%v", modifier, inferred, cascade), func(t *testing.T) {
 					e, session, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
-					before := e.catalog.State
+					before := e.Catalog.State
 					op := alterConstraintOperation(t, session)
-					auth, err := operationAuthorization(op)
+					auth, err := OperationAuthorization(op)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -149,7 +149,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						current := e.stageRead(stage).MustRelation(event.Address())
+						current := e.StageRead(stage).MustRelation(event.Address())
 						rules := len(stored.RulesOf(current))
 						want := 1
 						if inferred {
@@ -163,7 +163,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 							t.Fatal("constraint retirement lost backing lifecycle")
 						}
 					}
-					if e.catalog.State != before || len(stored.RulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
+					if e.Catalog.State != before || len(stored.RulesOf(event)) != 2 || len(parent.Constraints.Unique) != 1 {
 						t.Fatal("private retirement mutated published catalog")
 					}
 				})
@@ -237,10 +237,10 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			e, _, event, parent := ruleNamedDependencyFixture(t, modifier, false)
 			oldRule, oldConflict := ruleNamedDependencyAction(t, event, modifier)
 			oldConstraint := oldConflict.Constraint
-			unchanged := catalog.CloneState(e.catalog.State)
-			e.mu.Lock()
-			err := control.RemapDefinitionOIDs(e.catalog.Read(unchanged), e.catalog.AllocateOIDLocked)
-			e.mu.Unlock()
+			unchanged := catalog.CloneState(e.Catalog.State)
+			e.Mu.Lock()
+			err := control.RemapDefinitionOIDs(e.Catalog.Read(unchanged), e.Catalog.AllocateOIDLocked)
+			e.Mu.Unlock()
 			if err != nil || unchanged.Get(event.Address()) != event || unchanged.Get(parent.Address()) != parent {
 				t.Fatal("no-collision import copied unchanged rule/provider owners", err)
 			}
@@ -252,7 +252,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}); allocations != 0 {
 				t.Fatal("no-change constraint visitor allocated", allocations)
 			}
-			next := catalog.CloneState(e.catalog.State)
+			next := catalog.CloneState(e.Catalog.State)
 			// Model an imported attached definition colliding with a descriptor
 			// identity. The real analyzed rule/provider graphs remain intact;
 			// the canonical import remint pass must propagate its chosen OID.
@@ -260,13 +260,13 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			collision.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oldConstraint.ObjectID}
 			collision.ObjectName = "collision"
 			next.SetDescriptor(collision.Address(), &collision)
-			e.mu.Lock()
-			err = control.RemapDefinitionOIDs(e.catalog.Read(next), e.catalog.AllocateOIDLocked)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err = control.RemapDefinitionOIDs(e.Catalog.Read(next), e.Catalog.AllocateOIDLocked)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			catalogView := e.catalog.Read(next)
+			catalogView := e.Catalog.Read(next)
 			mappedParent := next.MustRelation(parent.Address())
 			provider := ids.ObjectAddress{ClassID: 2606, ObjectID: mappedParent.Constraints.Unique[0].OID}
 			if provider == oldConstraint {
@@ -318,7 +318,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(catalogView)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider})
+			edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider})
 			if err != nil {
 				t.Fatal(err)
 			}

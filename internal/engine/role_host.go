@@ -18,61 +18,61 @@ import (
 // methods reads it. AddDomainBase (typedef_host.go) and RemoveObject
 // (schema_host.go) are shared with the other feature hosts.
 var (
-	_ role.Host      = ddlHost{}
-	_ role.StageHost = ddlHost{}
+	_ role.Host      = DDLHost{}
+	_ role.StageHost = DDLHost{}
 )
 
-func (h ddlHost) ResolveRelation(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
-	return h.e.resolveRelationReference(ddlAuthorityOf(a), name, true)
+func (h DDLHost) ResolveRelation(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
+	return h.E.ResolveRelationReference(DDLAuthorityOf(a), name, true)
 }
 
-func (h ddlHost) ArgumentTypes(a ddl.Authority) (func(context.Context, parser.TypeName) (uint32, error), error) {
-	types, err := captureRegtypeInput(ddlAuthorityOf(a), h.op)
+func (h DDLHost) ArgumentTypes(a ddl.Authority) (func(context.Context, parser.TypeName) (uint32, error), error) {
+	types, err := CaptureRegtypeInput(DDLAuthorityOf(a), h.Op)
 	if err != nil {
 		return nil, err
 	}
 	return func(ctx context.Context, raw parser.TypeName) (uint32, error) {
-		return types.ResolveParsedTypeName(ctx, raw, h.op)
+		return types.ResolveParsedTypeName(ctx, raw, h.Op)
 	}, nil
 }
 
-func (h ddlHost) CanonicalParameter(name string) (string, error) {
-	return role.CanonicalGrantParameter(h.e.settings, name)
+func (h DDLHost) CanonicalParameter(name string) (string, error) {
+	return role.CanonicalGrantParameter(h.E.Settings, name)
 }
 
-func (h ddlHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter, error) {
-	return role.GrantParameterDescriptorLocked(h.e.settings, ddlAuthorityOf(a).Catalog, key, &h.e.roles.Domain, h.e.catalog.AllocateOIDLocked, h.e.catalog.RevisionLocked)
+func (h DDLHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter, error) {
+	return role.GrantParameterDescriptorLocked(h.E.Settings, DDLAuthorityOf(a).Catalog, key, &h.E.RoleStore.Domain, h.E.Catalog.AllocateOIDLocked, h.E.Catalog.RevisionLocked)
 }
 
-func (h ddlHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []access.RoleDependency {
+func (h DDLHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []access.RoleDependency {
 	var result []access.RoleDependency
-	for _, target := range h.e.cluster.targets {
-		if target == h.e {
+	for _, target := range h.E.Cluster.Targets {
+		if target == h.E {
 			continue
 		}
 		var dependencies []access.RoleDependency
-		for address, descriptor := range target.catalog.State.Descriptors() {
+		for address, descriptor := range target.Catalog.State.Descriptors() {
 			if address.ClassID != ids.DatabaseClassID {
 				access.DescriptorRoleDependencies(descriptor, ref, &dependencies)
 			}
 		}
-		view := target.catalog.Current()
-		access.DefaultRoleDependencies(view, target.roles.PublishedRead(&target.catalog.Owner, view), ref, &dependencies)
+		view := target.Catalog.Current()
+		access.DefaultRoleDependencies(view, target.RoleStore.PublishedRead(&target.Catalog.Owner, view), ref, &dependencies)
 		if len(dependencies) != 0 {
 			kind := "objects"
 			if len(dependencies) == 1 {
 				kind = "object"
 			}
-			result = append(result, access.RoleDependency{Kind: 'a', Description: fmt.Sprintf("%d %s in database %s", len(dependencies), kind, target.databaseName)})
+			result = append(result, access.RoleDependency{Kind: 'a', Description: fmt.Sprintf("%d %s in database %s", len(dependencies), kind, target.DatabaseName)})
 		}
 	}
 	return result
 }
 
-func (h ddlHost) DescribeRoleDependency(a ddl.Authority, dep access.RoleDependency) string {
-	auth := ddlAuthorityOf(a)
-	path, _ := referencePath(auth)
+func (h DDLHost) DescribeRoleDependency(a ddl.Authority, dep access.RoleDependency) string {
+	auth := DDLAuthorityOf(a)
+	path, _ := ReferencePath(auth)
 	return role.DependencyDescription(auth.View, path, dep)
 }
 
-func (h ddlHost) OwnerStage() role.OwnedCleanupStage { return h.stage }
+func (h DDLHost) OwnerStage() role.OwnedCleanupStage { return h.CatalogStage }

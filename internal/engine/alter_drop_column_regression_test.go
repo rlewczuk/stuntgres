@@ -23,11 +23,11 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT,b TEXT,c BIGINT)")
 			run(t, e, "INSERT INTO t VALUES(1,'gone',9)")
 			ref := roleTableRef(t, e, "t")
-			beforeDropRevision := e.catalog.State.Get(ref.Address).Revision()
+			beforeDropRevision := e.Catalog.State.Get(ref.Address).Revision()
 			entered, release := make(chan struct{}), make(chan struct{})
 			var first, unblock sync.Once
 			t.Cleanup(func() { unblock.Do(func() { close(release) }) })
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{e.Catalog.Providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
 			dropping := lockAsync(e, sessionStart(t, e, nil), context.Background(), "ALTER TABLE t DROP b", false)
 			select {
 			case <-entered:
@@ -86,15 +86,15 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 				if !reflect.DeepEqual(got.notices, want) {
 					t.Fatal(got.notices, want)
 				}
-				descriptor := e.catalog.State.Get(ref.Address)
-				storage := e.storage.Relations[ref.Address]
+				descriptor := e.Catalog.State.Get(ref.Address)
+				storage := e.Storage.Relations[ref.Address]
 				if descriptor.Revision() != beforeDropRevision+1 || len(storage.Versions) != 1 || len(storage.Versions[0].Values) != 2 {
 					t.Fatal(descriptor, storage)
 				}
 				if _, err := e.Execute(op, stmt, 0, nil); err != nil {
 					t.Fatal(err)
 				}
-				if !reflect.DeepEqual(op.DetachNotices(), want) || e.catalog.State.Get(ref.Address) != descriptor || e.storage.Relations[ref.Address] != storage {
+				if !reflect.DeepEqual(op.DetachNotices(), want) || e.Catalog.State.Get(ref.Address) != descriptor || e.Storage.Relations[ref.Address] != storage {
 					t.Fatal("repeated skip changed descriptor/storage or notices")
 				}
 			}
@@ -111,7 +111,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	var unblock sync.Once
 	t.Cleanup(func() { unblock.Do(func() { close(release) }) })
 	var gated atomic.Bool
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() {
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{e.Catalog.Providers[ids.RelationClassID], func() {
 		if !gated.CompareAndSwap(false, true) {
 			return
 		}
@@ -132,7 +132,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	lockAwait(t, queued, ids.ErrCatalogReplaced)
 	unblock.Do(func() { close(release) })
 	lockAwait(t, dropping, ids.ErrCatalogReplaced)
-	e.catalog.Providers[ids.RelationClassID] = relationProvider
+	e.Catalog.Providers[ids.RelationClassID] = relationProvider
 	run(t, e, "CREATE TABLE t(replacement INT)")
 	result := run(t, e, "SELECT * FROM t")
 	if result.Count != 0 || result.Rows.Schema()[0].Name != "replacement" {
@@ -217,7 +217,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 					}
 				}()
 				lockPending(t, e, 1)
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: lateRef}]
 				queuedOnLate := entry != nil && len(entry.Pending) == 1
 				if !queuedOnLate {
@@ -234,8 +234,8 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 						transactionEnd(t, early, earlyTx, false)
 					}
 				}()
-				lateDescriptor, earlyDescriptor := e.catalog.State.Get(lateRef.Address), e.catalog.State.Get(earlyRef.Address)
-				lateStorage, earlyStorage := e.storage.Relations[lateRef.Address], e.storage.Relations[earlyRef.Address]
+				lateDescriptor, earlyDescriptor := e.Catalog.State.Get(lateRef.Address), e.Catalog.State.Get(earlyRef.Address)
+				lateStorage, earlyStorage := e.Storage.Relations[lateRef.Address], e.Storage.Relations[earlyRef.Address]
 				var before bytes.Buffer
 				if err := e.Dump(context.Background(), &before); err != nil {
 					t.Fatal(err)
@@ -251,7 +251,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("native ALTER did not reject shadow while early AX held")
 				}
-				if e.catalog.State.Get(lateRef.Address) != lateDescriptor || e.catalog.State.Get(earlyRef.Address) != earlyDescriptor || e.storage.Relations[lateRef.Address] != lateStorage || e.storage.Relations[earlyRef.Address] != earlyStorage {
+				if e.Catalog.State.Get(lateRef.Address) != lateDescriptor || e.Catalog.State.Get(earlyRef.Address) != earlyDescriptor || e.Storage.Relations[lateRef.Address] != lateStorage || e.Storage.Relations[earlyRef.Address] != earlyStorage {
 					t.Error("shadow ALTER changed descriptor or storage")
 				}
 				var after bytes.Buffer

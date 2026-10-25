@@ -20,11 +20,11 @@ import (
 func pgOperatorUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2617}
-	d, ok := e.catalog.State.Relation(a)
+	d, ok := e.Catalog.State.Relation(a)
 	if !ok {
 		t.Fatal("missing pg_operator")
 	}
-	return d, e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
+	return d, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a)
 }
 
 func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
@@ -128,12 +128,12 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	if err := (relationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
-	descriptors, names := maps.Collect(e.catalog.State.Descriptors()), maps.Collect(e.catalog.State.Names())
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, d)
+	descriptors, names := maps.Collect(e.Catalog.State.Descriptors()), maps.Collect(e.Catalog.State.Names())
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.State.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.Catalog.State.Descriptors())) || !maps.Equal(names, maps.Collect(e.Catalog.State.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	bag := pgOperatorUnitBag(t, rows, d)
@@ -160,7 +160,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
 	for _, source := range []*catalog.Relation{&invalid, {Columns: d.Columns[:14]}} {
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOperator); got != nil || err == nil {
+		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOperator); got != nil || err == nil {
 			t.Fatal("invalid source accepted", got, err)
 		}
 	}
@@ -169,7 +169,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	during, cancelDuring := context.WithCancel(context.Background())
 	defer cancelDuring()
 	for _, c := range []context.Context{ctx, &cancelAtErrCheck{Context: during, cancel: cancelDuring, at: 5}} {
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: c, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOperator); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: c, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOperator); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
 		}
 	}
@@ -177,14 +177,14 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgOperatorUnitSource(t, e)
-	freshRows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOperator)
+	freshRows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOperator)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type || !reflect.DeepEqual(pgOperatorUnitBag(t, freshRows, fresh), want) || !reflect.DeepEqual(pgOperatorUnitBag(t, rows, d), want) {
 		t.Fatal("replacement changed facts/old capture or retained generation")
 	}
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGOperator); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGOperator); got != nil || err == nil {
 		t.Fatal("foreign generation accepted", got, err)
 	}
 }

@@ -24,8 +24,8 @@ type dcUnitFixture struct {
 func newDCUnitFixture(t *testing.T) dcUnitFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
-	view := f.e.catalog.Read(state)
+	state := catalog.CloneState(f.e.Catalog.State)
+	view := f.e.Catalog.Read(state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
@@ -57,11 +57,11 @@ func newDCUnitFixture(t *testing.T) dcUnitFixture {
 
 func (f dcUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.Read(state)
+	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoDomainConstraintsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
 }
 
 func dcUnitExpected(user ...[3]string) map[[8]string]int {
@@ -101,7 +101,7 @@ func dcUnitCheck(t *testing.T, in pgcatalog.Input, want map[[8]string]int) [][]s
 	if !ok {
 		t.Fatal("missing domain_constraints producer")
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,22 +202,24 @@ func TestInfoDomainConstraintsCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoDomainConstraintsOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
-		func(in *pgcatalog.Input) { in.Roles = New().roles.Published.Root.Read(authorization.PrincipalRef{}) },
+		func(in *pgcatalog.Input) {
+			in.Roles = New().RoleStore.Published.Root.Read(authorization.PrincipalRef{})
+		},
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Epoch = 0 },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { in.Ref = new(ids.Domain).Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.RoleRecord = nil
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.State.CurrentUser = authorization.PrincipalRef{}
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
 	} {
@@ -317,7 +319,7 @@ func TestInfoDomainConstraintsCancellation(t *testing.T) {
 func infoDomainConstraintsPairedCapture(t *testing.T) {
 	t.Helper()
 	f := newDCUnitFixture(t)
-	f.f.e.catalog.PublishLocked(f.state)
+	f.f.e.Catalog.PublishLocked(f.state)
 	f.f.op.Session.DatabaseName = "captured_database"
 	f.f.actor(f.f.owner)
 	scope, err := f.f.e.StartStatement(f.f.op)
@@ -329,20 +331,20 @@ func infoDomainConstraintsPairedCapture(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	f.f.e.mu.Lock()
-	err = f.f.e.captureCommentSnapshotLocked(scope)
-	f.f.e.mu.Unlock()
+	f.f.e.Mu.Lock()
+	err = f.f.e.CaptureCommentSnapshotLocked(scope)
+	f.f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := scope.inquiry.commentCatalog
+	view := scope.Inquiry.CommentCatalog
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoDomainConstraintsOID})
 	next := catalog.CloneState(f.state)
 	a := *f.a
 	a.DomainChecks = nil
 	next.SetDescriptor(a.Address(), &a)
-	f.f.e.catalog.PublishLocked(next)
-	f.f.e.mu.Lock()
+	f.f.e.Catalog.PublishLocked(next)
+	f.f.e.Mu.Lock()
 	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)

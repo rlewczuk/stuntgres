@@ -49,7 +49,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	}
 	closure := func(target ids.ObjectAddress) []table.DomainDependency {
 		t.Helper()
-		edges, err := domainDependencyClosure(context.Background(), e.BeginCatalogStage(catalogView), []ids.ObjectAddress{target})
+		edges, err := DomainDependencyClosure(context.Background(), e.BeginCatalogStage(catalogView), []ids.ObjectAddress{target})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -82,10 +82,10 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 		t.Fatal("view SELECT definition disappeared from the same canonical closure")
 	}
 	stage := e.BeginCatalogStage(catalogView)
-	if err := stageDropProvider(context.Background(), stage, nil, nil, nil).ApplyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
+	if err := StageDropProvider(context.Background(), stage, nil, nil, nil).ApplyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
-	current := e.stageRead(stage).MustRelation(event.Address())
+	current := e.StageRead(stage).MustRelation(event.Address())
 	if current.View != event.View || len(stored.RulesOf(current)) != 1 || stored.RulesOf(current)[0].Name != "keep_r" {
 		t.Fatal("rule-only retirement changed SELECT identity or unrelated ordinary rule")
 	}

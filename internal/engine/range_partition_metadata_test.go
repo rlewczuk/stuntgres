@@ -145,16 +145,16 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	middle := rangePartitionRelation(t, e, "middle")
 	leaf := rangePartitionRelation(t, e, "leaf")
 	rest := rangePartitionRelation(t, e, "rest")
-	e.mu.Lock()
+	e.Mu.Lock()
 	for _, virtual := range []*catalog.Relation{root, middle} {
-		if e.storage.Relations[virtual.Address()] != nil {
+		if e.Storage.Relations[virtual.Address()] != nil {
 			t.Errorf("virtual relation owns storage: %v", virtual.Address())
 		}
 	}
-	if e.storage.Relations[leaf.Address()] == nil || e.storage.Relations[rest.Address()] == nil {
+	if e.Storage.Relations[leaf.Address()] == nil || e.Storage.Relations[rest.Address()] == nil {
 		t.Error("physical leaf lacks storage")
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	for _, relation := range []*catalog.Relation{root, middle, leaf, rest} {
 		if err := partition.ValidateDescriptor(e.CatalogRead(), relation); err != nil {
 			t.Fatal(relation.Name(), err)
@@ -183,14 +183,14 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 		}
 		missing := catalog.CloneState(view.State())
 		missing.RemoveDescriptor(address)
-		if err := partition.ValidateDescriptor(e.catalog.Read(missing), relation); err == nil {
+		if err := partition.ValidateDescriptor(e.Catalog.Read(missing), relation); err == nil {
 			t.Fatal("admitted key whose immutable comparator outlived its provider")
 		}
 		mismatch := catalog.CloneState(view.State())
 		changed := *provider
 		changed.Semantics = other.Semantics
 		mismatch.SetDescriptor(address, &changed)
-		if err := partition.ValidateDescriptor(e.catalog.Read(mismatch), relation); err == nil {
+		if err := partition.ValidateDescriptor(e.Catalog.Read(mismatch), relation); err == nil {
 			t.Fatal("admitted key with a different live provider capability")
 		}
 		candidate := *relation
@@ -272,7 +272,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	cyclicMiddle.Partition = &middleDefinition
 	cyclic.SetDescriptor(root.Address(), &cyclicRoot)
 	cyclic.SetDescriptor(middle.Address(), &cyclicMiddle)
-	if err := partition.ValidateDescriptor(e.catalog.Read(cyclic), &cyclicRoot); err == nil {
+	if err := partition.ValidateDescriptor(e.Catalog.Read(cyclic), &cyclicRoot); err == nil {
 		t.Fatal("reciprocal hierarchy cycle admitted")
 	}
 	overlapping := catalog.CloneState(e.CatalogRead().State())
@@ -283,7 +283,7 @@ func TestRangePartitionDescriptorAdmissionAndNoVirtualHeap(t *testing.T) {
 	overlappingRest.Membership = &catalog.PartitionMembership{Parent: root.Address(), Lower: slices.Clone(middle.Membership.Lower), Upper: slices.Clone(middle.Membership.Upper)}
 	overlapping.SetDescriptor(root.Address(), &overlappingRoot)
 	overlapping.SetDescriptor(rest.Address(), &overlappingRest)
-	if err := partition.ValidateDescriptor(e.catalog.Read(overlapping), &overlappingRoot); err == nil {
+	if err := partition.ValidateDescriptor(e.Catalog.Read(overlapping), &overlappingRoot); err == nil {
 		t.Fatal("overlapping catalog child bounds admitted")
 	}
 	if len(root.Partition.Children) != 2 || root.Partition.DefaultChild != rest.Address() || middle.Membership.Lower[1].Kind != -1 {

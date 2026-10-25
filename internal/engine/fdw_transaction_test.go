@@ -68,29 +68,29 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.txRef = ref
+	s.TxRef = ref
 	defer s.Finish(errors.New("unit cleanup"))
 	p := &fdwUnitLifecycle{tx: &fdwUnitTransaction{}}
 	p.tx.check = func() {
-		if !e.mu.TryLock() {
+		if !e.Mu.TryLock() {
 			t.Error("transaction callback holds Engine.mu")
 		} else {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
-		if !s.owner.Mu.TryLock() {
+		if !s.Owner.Mu.TryLock() {
 			t.Error("transaction callback holds owner.mu")
 		} else {
-			s.owner.Mu.Unlock()
+			s.Owner.Mu.Unlock()
 		}
 		if !sess.Mu.TryLock() {
 			t.Error("transaction callback holds Session.mu")
 		} else {
 			sess.Mu.Unlock()
 		}
-		if !e.replacementMu.TryLock() {
+		if !e.ReplacementMu.TryLock() {
 			t.Error("transaction callback holds replacement reservation")
 		} else {
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 		}
 	}
 	r := catalog.ForeignRequest{HandlerOID: 1, ServerOID: 2, MappingOID: 3, RoleOID: 4}
@@ -99,7 +99,7 @@ func TestFDWTransactionParticipants(t *testing.T) {
 		t.Fatal(err)
 	}
 	second, err := s.enlistForeign(op.Context(), p, r, false)
-	foreign := ownerExtensionOrZero(s.owner).foreign
+	foreign := ownerExtensionOrZero(s.Owner).foreign
 	if shared := foreign.Participant(fdw.ParticipantKey{Handler: 1, Server: 2, Mapping: 3, Role: 4}); err != nil || first != second || shared == nil || shared.Tx != first {
 		t.Fatal("participant not shared", err)
 	}
@@ -109,20 +109,20 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	if err := s.finishForeignStatements(nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := foreignSavepoint(s.owner, op.Context(), 0, 7); err != nil {
+	if err := foreignSavepoint(s.Owner, op.Context(), 0, 7); err != nil {
 		t.Fatal(err)
 	}
-	if err := foreignSavepoint(s.owner, op.Context(), 1, 7); err != nil {
+	if err := foreignSavepoint(s.Owner, op.Context(), 1, 7); err != nil {
 		t.Fatal(err)
 	}
-	if err := foreignSavepoint(s.owner, op.Context(), 2, 7); err != nil {
+	if err := foreignSavepoint(s.Owner, op.Context(), 2, 7); err != nil {
 		t.Fatal(err)
 	}
-	if err := commitForeign(s.owner, op.Context(), ref); err != nil {
+	if err := commitForeign(s.Owner, op.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
-	ownerExtensionOf(s.owner).retireForeign()
-	if err := fdw.Rollback(op.Context(), ownerExtensionOf(s.owner).foreign.TakeCleanup()); err != nil {
+	ownerExtensionOf(s.Owner).retireForeign()
+	if err := fdw.Rollback(op.Context(), ownerExtensionOf(s.Owner).foreign.TakeCleanup()); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(p.tx.calls, []string{"begin-statement", "statement-success", "save:stuntgres_sql_7", "rollback:stuntgres_sql_7", "release:stuntgres_sql_7", "commit"}) {
@@ -134,9 +134,9 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	b := &fdwUnitTransaction{name: "b", order: &order, commitError: failure}
 	c := &fdwUnitTransaction{name: "c", order: &order}
 	for _, tx := range []*fdwUnitTransaction{a, b, c} {
-		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx})
+		ownerExtensionOf(s.Owner).foreign.Enlist(&fdw.Participant{Tx: tx})
 	}
-	if err := commitForeign(s.owner, op.Context(), ref); !errors.Is(err, failure) {
+	if err := commitForeign(s.Owner, op.Context(), ref); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(order, []string{"a", "b"}) || !reflect.DeepEqual(a.calls, []string{"commit"}) || !reflect.DeepEqual(b.calls, []string{"commit"}) || !reflect.DeepEqual(c.calls, []string{"rollback"}) {

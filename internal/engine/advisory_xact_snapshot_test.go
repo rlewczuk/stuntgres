@@ -15,19 +15,19 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		peer := sessionStart(t, e, nil)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
-		mark := e.locks.Checkpoint(a.Transactions.Ticket)
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 1, Low: 2}
+		mark := e.Locks.Checkpoint(a.Transactions.Ticket)
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		advisoryXactUnitGrant(t, a, key, sessionMode, false)
-		err := e.locks.CheckPreparedAdvisory(a.Transactions.Ticket)
+		err := e.Locks.CheckPreparedAdvisory(a.Transactions.Ticket)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "cannot PREPARE while holding both session-level and transaction-level locks on the same object" {
 			t.Fatal("mixed actual tags", err)
 		}
 		// A rolled-back transaction contribution is absent even when the persistent
 		// hold and its genuine resource journal still exist.
-		e.locks.Restore(a.Transactions.Ticket, mark)
-		if err := e.locks.CheckPreparedAdvisory(a.Transactions.Ticket); err != nil {
+		e.Locks.Restore(a.Transactions.Ticket, mark)
+		if err := e.Locks.CheckPreparedAdvisory(a.Transactions.Ticket); err != nil {
 			t.Fatal("restriction on journal rather than grant", err)
 		}
 		pair := key
@@ -37,7 +37,7 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		if err := preparedUnitControl(t, e, a, parser.KindPrepareTransaction, "advisory_xact_unit"); err != nil {
 			t.Fatal(err)
 		}
-		lockState := e.locks.Inspect(old)
+		lockState := e.Locks.Inspect(old)
 		if e.prepared.Lookup("advisory_xact_unit").Ticket != old || !lockState.Detached[old] || lockState.Participant(old) == lockState.Participant(a.Advisory.Ticket) {
 			t.Fatal("prepared owner did not detach")
 		}
@@ -52,13 +52,13 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		if err := a.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if e.locks.TransactionTicket(old.Ref()) != old {
+		if e.Locks.TransactionTicket(old.Ref()) != old {
 			t.Fatal("origin close released detached hold")
 		}
 		if err := preparedUnitControl(t, e, peer, parser.KindRollbackPrepared, "advisory_xact_unit"); err != nil {
 			t.Fatal(err)
 		}
-		if e.locks.TransactionTicket(old.Ref()) != nil || len(e.locks.Inspect(old).Journals[old]) != 0 {
+		if e.Locks.TransactionTicket(old.Ref()) != nil || len(e.Locks.Inspect(old).Journals[old]) != 0 {
 			t.Fatal("completion leaked exact prepared owner")
 		}
 	}
@@ -68,13 +68,13 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	e := New()
 	a, _ := advisoryUnitOwner(t, e)
 	b, _ := advisoryUnitOwner(t, e)
-	key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 0xffffffff, Low: 2}
+	key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 0xffffffff, Low: 2}
 	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, false)
 	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, false)
 	advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, true)
 	capture := func() []lock.Record {
 		t.Helper()
-		records, err := e.locks.PGLocks(e.catalog.Domain, e.CatalogRead().Epoch())
+		records, err := e.Locks.PGLocks(e.Catalog.Domain, e.CatalogRead().Epoch())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -97,7 +97,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	request, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, key, lock.AdvisoryExclusive, lock.Policy{})
+	request, err := e.Locks.StartAcquire(ctx, b.Transactions.Ticket, key, lock.AdvisoryExclusive, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
@@ -120,7 +120,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	e.endLockOwner(a.Transactions.Ticket)
+	e.EndLockOwner(a.Transactions.Ticket)
 	rows = capture()
 	if len(rows) != 1 || rows[0].Mode != lock.AdvisoryShare {
 		t.Fatal("transaction end crossed session mode", rows)
@@ -134,7 +134,7 @@ func TestAdvisoryXactLockSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	transactionBegin(t, b)
-	records, err := e.locks.PGLocks(e.catalog.Domain, e.CatalogRead().Epoch())
+	records, err := e.Locks.PGLocks(e.Catalog.Domain, e.CatalogRead().Epoch())
 	if err != nil {
 		t.Fatal(err)
 	}

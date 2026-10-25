@@ -51,7 +51,7 @@ func roleDependencyReferences(base catalog.Read, descriptors iter.Seq2[ids.Objec
 
 // No role root or catalog candidate is installed before these ordinary AS
 // resources are admitted and their exact principal identities are rechecked.
-func (s *StatementScope) acquireRoleDependencies(references iter.Seq[authorization.PrincipalRef]) error {
+func (s *StatementScope) AcquireRoleDependencies(references iter.Seq[authorization.PrincipalRef]) error {
 	var scratch [16]authorization.PrincipalRef
 	seen := scratch[:0]
 	var large map[authorization.PrincipalRef]bool
@@ -78,17 +78,17 @@ func (s *StatementScope) acquireRoleDependencies(references iter.Seq[authorizati
 				seen = append(seen, ref)
 			}
 		}
-		e := s.engine()
-		e.mu.Lock()
-		_, present := e.sessionRolesLocked(s.op.Session).Root.Read(authorization.PrincipalRef{}).Find(ref)
-		e.mu.Unlock()
+		e := s.Engine()
+		e.Mu.Lock()
+		_, present := e.sessionRolesLocked(s.Op.Session).Root.Read(authorization.PrincipalRef{}).Find(ref)
+		e.Mu.Unlock()
 		if !present {
 			return catalog.Conflict{}
 		}
-		if err := s.acquireRolePrincipal(ref, lock.AccessShare, false); err != nil {
+		if err := s.AcquireRolePrincipal(ref, lock.AccessShare, false); err != nil {
 			return err
 		}
-		if err := s.roleStillPresent(ref); err != nil {
+		if err := s.RoleStillPresent(ref); err != nil {
 			return err
 		}
 	}
@@ -96,14 +96,14 @@ func (s *StatementScope) acquireRoleDependencies(references iter.Seq[authorizati
 }
 
 func (s *StatementScope) acquireStageRoleDependencies(stage *CatalogStage) error {
-	return s.acquireRoleDependencies(roleDependencyReferences(stage.Base, stage.Descriptors(), stage.DefaultACLs()))
+	return s.AcquireRoleDependencies(roleDependencyReferences(stage.Base, stage.Descriptors(), stage.DefaultACLs()))
 }
 
 // Caller holds Engine.mu; restore that ownership on every exit. Manual catalog
 // lanes join the same statement ticket before retaining their candidate journal.
-func (s *StatementScope) acquireJournalRoleDependenciesLocked(changes *session.Journal) error {
-	e := s.engine()
-	base := e.privateCatalogLocked(s.owner.Catalog)
+func (s *StatementScope) AcquireJournalRoleDependenciesLocked(changes *session.Journal) error {
+	e := s.Engine()
+	base := e.PrivateCatalogLocked(s.Owner.Catalog)
 	references := roleDependencyReferences(base, func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address, descriptor := range changes.Descriptors {
 			if !yield(address, descriptor) {
@@ -117,8 +117,8 @@ func (s *StatementScope) acquireJournalRoleDependenciesLocked(changes *session.J
 			}
 		}
 	})
-	e.mu.Unlock()
-	err := s.acquireRoleDependencies(references)
-	e.mu.Lock()
+	e.Mu.Unlock()
+	err := s.AcquireRoleDependencies(references)
+	e.Mu.Lock()
 	return err
 }

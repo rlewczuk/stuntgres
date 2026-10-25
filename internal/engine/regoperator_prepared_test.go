@@ -22,7 +22,7 @@ import (
 func regoperatorPreparedInstall(t *testing.T, e *Engine, namespace ids.ObjectAddress, oid, left, right ids.OID) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: "#=#", Left: left, Right: right, Owner: e.roles.Domain.Principal(10)}
+	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: oid}, ObjectNamespace: namespace, ObjectRevision: 1, ObjectName: "#=#", Left: left, Right: right, Owner: e.RoleStore.Domain.Principal(10)}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +64,9 @@ func regoperatorPreparedCellValid(t *testing.T, e *Engine, s *session.Session, c
 		t.Fatal(err)
 	}
 	defer op.Done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,10 +107,10 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		op.Done()
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		{Offset: 7, Operator: sqltype.Regoperator, ID: 551},
 		{Offset: 8, Operator: sqltype.Regoper, ID: 597},
 	}}}
-	b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &shared)
+	b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &shared)
 	b.Query.Auth = &auth
 	for i, id := range ids {
 		pos := parser.Position{Offset: 7, Character: 8}
@@ -136,12 +136,12 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 			value, failure = b.OperatorConstant("no_such_operator", typ, pos)
 		}
 		if failure != nil || value.Type().ID() != id || !sqltype.SameDatum(value, values[i]) {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			op.Done()
 			t.Fatal("offset/alias discriminator re-input or cross-retagged", i, value, failure)
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	op.Done()
 	for _, query := range []string{"CREATE ROLE regop_unrelated", "ALTER ROLE regop_unrelated LOGIN", "DROP ROLE regop_unrelated"} {
 		sessionSQL(t, s, query)
@@ -293,9 +293,9 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 				if err := stage.Replace(&changed); err != nil {
 					t.Fatal(err)
 				}
-				e.mu.Lock()
-				err = e.reownStagedTypeGenerationsLocked(stage)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				err = e.ReownStagedTypeGenerationsLocked(stage)
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -389,9 +389,9 @@ func TestRegOperatorSignatureArgumentLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

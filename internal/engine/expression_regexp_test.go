@@ -132,14 +132,14 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT v.id,(SELECT (SELECT count(*) FROM regexp_split_to_table(v.s,' ') r(s))) AS n FROM (VALUES(1,'a b'),(2,'c')) v(id,s)`).(*parser.Select)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(binderOperation(b))
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(binderOperation(b))
 	b.Query.Auth = &auth
 	var query *plan.Query
 	if err == nil {
 		query, err = b.BindSelect(raw, false)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,14 +215,14 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.Params.NoParameters = true
 			raw := statement(t, sql).(*parser.Select)
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(binderOperation(b))
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(binderOperation(b))
 			b.Query.Auth = &auth
 			var query *plan.Query
 			if err == nil {
 				query, err = b.BindSelect(raw, false)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}

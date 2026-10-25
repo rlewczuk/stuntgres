@@ -16,13 +16,13 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 AS projected FROM unit_rows ORDER BY i FOR UPDATE")
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
-	c := payloadOf(s).cursors.entries["c"]
+	c := PayloadOf(s).Cursors.Entries["c"]
 	source, index, root := c.CurrentSource, c.CurrentIndex, c.root
-	ref := catalogRef(t, engineOf(s), engineOf(s).CatalogRead(), "unit_rows")
+	ref := catalogRef(t, EngineOf(s), EngineOf(s).CatalogRead(), "unit_rows")
 	identity := exec.CursorOccurrenceVersion(source, index, 0, c.locks)
-	engineOf(s).mu.Lock()
-	want := engineOf(s).storage.Relations[ref.Address].Versions[1].Row
-	engineOf(s).mu.Unlock()
+	EngineOf(s).Mu.Lock()
+	want := EngineOf(s).Storage.Relations[ref.Address].Versions[1].Row
+	EngineOf(s).Mu.Unlock()
 	if identity.Row != want {
 		t.Fatal("wrong original RowID", identity.Row, want)
 	}
@@ -46,7 +46,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 	sessionSQL(t, s, "SAVEPOINT recover")
-	c := payloadOf(s).cursors.entries["c"]
+	c := PayloadOf(s).Cursors.Entries["c"]
 	identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -54,7 +54,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := engineOf(s).StartStatement(op)
+	scope, err := EngineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -63,13 +63,13 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	if result.Rows != nil {
 		defer result.Rows.Close()
 	}
-	if err != nil || result.Count != 1 || scope.sessionCompleted || !scope.stage.replacing || len(scope.stage.rows) == 0 {
+	if err != nil || result.Count != 1 || scope.sessionCompleted || !scope.Stage.replacing || len(scope.Stage.Rows) == 0 {
 		scope.Finish(context.Canceled)
 		op.Done()
 		t.Fatal("replacement not privately staged", result, err)
 	}
 	staged := false
-	for _, rows := range scope.stage.rows {
+	for _, rows := range scope.Stage.Rows {
 		for _, row := range rows {
 			if row.Row == identity.Row && row.Version != identity.Version && len(row.Values) == 1 && testExport(row.Values[0]) == int64(11) {
 				staged = true
@@ -109,7 +109,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 		}
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if payloadOf(s).cursors.entries["c"] != c || c.Place != exec.CursorOn || c.authority.Host != nil {
+	if PayloadOf(s).Cursors.Entries["c"] != c || c.Place != exec.CursorOn || c.authority.Host != nil {
 		t.Fatal("mutation cancellation invalidated healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -126,18 +126,18 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		sessionSQL(t, s, "BEGIN")
 		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 FROM keyed WHERE id=1 FOR KEY SHARE")
 		cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
-		c := payloadOf(s).cursors.entries["c"]
+		c := PayloadOf(s).Cursors.Entries["c"]
 		identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks)
 		ref := catalogRef(t, e, e.CatalogRead(), "keyed")
 		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 		ordinary := entry != nil && entry.Holders[s.Transactions.Ticket].Mode&lock.ForNoKeyUpdate != 0
 		if !ordinary {
 			t.Fatal("FETCH key-share skipped automatic UPDATE grant")
 		}
 		deleteCount(t, s, "UPDATE keyed SET id=3 WHERE CURRENT OF c", 1)
-		lockState = e.locks.Inspect()
+		lockState = e.Locks.Inspect()
 		entry = lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 		escalated := entry != nil && entry.Holders[s.Transactions.Ticket].Mode&lock.ForUpdate != 0
 		if !escalated {
@@ -153,7 +153,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	sessionSQL(t, worker, "BEGIN")
 	sessionSQL(t, worker, "DECLARE c CURSOR FOR SELECT 99 FROM t")
 	cursorUnitBatch(t, worker, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
-	c := payloadOf(worker).cursors.entries["c"]
+	c := PayloadOf(worker).Cursors.Entries["c"]
 	identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks)
 	tx := transactionBegin(t, holder)
 	deleteCount(t, holder, "UPDATE t SET v=8 WHERE v=7", 2)
@@ -173,7 +173,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	}()
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
 	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.Transactions.Ticket && entry.Pending[0].Mode == lock.ForNoKeyUpdate
 	if !queued {
@@ -191,27 +191,27 @@ func TestUpdateCurrentOfLifetime(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT FROM unit_rows FOR UPDATE")
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{}})
-	old := payloadOf(s).cursors.entries["c"]
+	old := PayloadOf(s).Cursors.Entries["c"]
 	source, index := old.CurrentSource, old.CurrentIndex
 	sessionSQL(t, s, "SAVEPOINT keep")
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	sessionSQL(t, s, "ROLLBACK TO keep")
-	if payloadOf(s).cursors.entries["c"] != old || old.CurrentSource != source || old.CurrentIndex != index {
+	if PayloadOf(s).Cursors.Entries["c"] != old || old.CurrentSource != source || old.CurrentIndex != index {
 		t.Fatal("rollback rewound borrowed identity")
 	}
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 2, 3, 11)
 	sessionSQL(t, s, "CLOSE c")
-	if old.CurrentSource != nil || old.source != nil || old.authority.Host != nil {
+	if old.CurrentSource != nil || old.Source != nil || old.authority.Host != nil {
 		t.Fatal("disposed cursor retains authority")
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")
-	fresh := payloadOf(s).cursors.entries["c"]
+	fresh := PayloadOf(s).Cursors.Entries["c"]
 	if fresh == old || fresh.CurrentSource != nil || fresh.Place != exec.CursorBefore {
 		t.Fatal("new name incarnation inherited position")
 	}
 	sessionSQL(t, s, "ROLLBACK")
-	if len(payloadOf(s).cursors.entries) != 0 || fresh.CurrentSource != nil {
+	if len(PayloadOf(s).Cursors.Entries) != 0 || fresh.CurrentSource != nil {
 		t.Fatal("transaction end retains positioned authority")
 	}
 }

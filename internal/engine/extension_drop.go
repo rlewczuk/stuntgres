@@ -16,33 +16,33 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return fail(err)
 	}
-	selected, err := extension.DropTargets(auth, auth.View, s, func(n sqlstate.Error) { scope.op.EmitNotice(session.LevelNotice, n) })
+	selected, err := extension.DropTargets(auth, auth.View, s, func(n sqlstate.Error) { scope.Op.EmitNotice(session.LevelNotice, n) })
 	if err != nil {
 		return fail(err)
 	}
 	roots := extension.RemovalRoots(auth.Catalog, selected)
-	stage := e.ownershipStage(auth, scope.op)
-	stage.dependencyPath, _ = referencePath(auth)
-	e.mu.Unlock()
+	stage := e.ownershipStage(auth, scope.Op)
+	stage.DependencyPath, _ = ReferencePath(auth)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, address := range access.OwnershipRelationLocks(stage.Base, roots, nil) {
-		if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), address), lock.AccessExclusive, true); err != nil {
+		if err := scope.AcquireSequence(e.Catalog.Domain.Ref(stage.Base.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	for _, address := range roots {
-		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
+		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
 			break
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
@@ -50,27 +50,27 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 	if len(selected) == 1 {
 		subject = selected[0]
 	}
-	if err = stageExpressionDependencies(scope.op.Context(), stage, roots, s.Mode, scope, nil, nil, subject); err != nil {
+	if err = StageExpressionDependencies(scope.Op.Context(), stage, roots, s.Mode, scope, nil, nil, subject); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "2BP01" && len(selected) > 1 {
 			diagnostic.Message = "cannot drop desired object(s) because other objects depend on them"
 		}
 		return Result{}, err
 	}
-	if err = scope.stageOwnedSequences(stage, roots, s.Mode, nil); err != nil {
+	if err = scope.StageOwnedSequences(stage, roots, s.Mode, nil); err != nil {
 		return Result{}, err
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	result, err := e.publishOwnership(scope, stage)
-	if err == nil && s.Mode == parser.DropCascade && len(stage.dropCascadeNames) > 0 {
-		message, detail := stage.dropCascadeNames[0], ""
-		if len(stage.dropCascadeNames) > 1 {
-			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.dropCascadeNames))
-			detail = strings.Join(stage.dropCascadeNames, "\n")
+	if err == nil && s.Mode == parser.DropCascade && len(stage.DropCascadeNames) > 0 {
+		message, detail := stage.DropCascadeNames[0], ""
+		if len(stage.DropCascadeNames) > 1 {
+			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.DropCascadeNames))
+			detail = strings.Join(stage.DropCascadeNames, "\n")
 		}
-		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+		scope.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 	}
 	return result, err
 }

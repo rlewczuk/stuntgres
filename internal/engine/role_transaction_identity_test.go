@@ -52,16 +52,16 @@ func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 			// The failed-statement restoration path consumes a cloned settings mark
 			// and exact refs; it neither resolves names nor repeats SET eligibility.
 			restoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
-			e.locks.Restore(s.Transactions.Ticket, mark.Locks)
+			e.Locks.Restore(s.Transactions.Ticket, mark.Locks)
 			if s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction || peer.Authorization.State != peerEntry {
 				t.Fatal("cached restoration changed peer/physical identity or role action")
 			}
 			revision := s.Authorization.Revision
 			s.Authorization.Revision = ^uint64(0) - 1
 			op := transactionOperation(t, s)
-			e.mu.Lock()
+			e.Mu.Lock()
 			err := e.switchSessionRoleLocked(op, entry.CurrentUser, false, true)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			op.Done()
 			if err == nil || s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction {
 				t.Fatal("exhausted revision changed identity/settings")
@@ -85,13 +85,13 @@ func TestRoleTransactionalProtocolIdentityStatus(t *testing.T) {
 	check := func(name string, superuser, retired bool) {
 		t.Helper()
 		identity, revision := s.Authorization.State, s.Authorization.Revision
-		journal, published := s.Transactions.Catalog, e.roles.Published
-		principal, version := e.roles.NextPrincipal(), e.roles.NextRevision()
+		journal, published := s.Transactions.Catalog, e.RoleStore.Published
+		principal, version := e.RoleStore.NextPrincipal(), e.RoleStore.NextRevision()
 		got, privileged, missing, err := e.ProtocolAuthorizationStatus(s)
 		if err != nil || missing != retired || !retired && (got != name || privileged != superuser) {
 			t.Fatal("identity status", got, privileged, missing, err)
 		}
-		if s.Authorization.State != identity || s.Authorization.Revision != revision || s.Transactions.Catalog != journal || e.roles.Published != published || e.roles.NextPrincipal() != principal || e.roles.NextRevision() != version {
+		if s.Authorization.State != identity || s.Authorization.Revision != revision || s.Transactions.Catalog != journal || e.RoleStore.Published != published || e.RoleStore.NextPrincipal() != principal || e.RoleStore.NextRevision() != version {
 			t.Fatal("transport snapshot changed identity, roots or allocation")
 		}
 	}

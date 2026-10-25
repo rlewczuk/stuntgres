@@ -24,7 +24,7 @@ func heapUnitInstalled(t *testing.T, e *Engine) *catalog.Extension {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "amcheck", ""))
-	return e.CatalogRead().MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "amcheck"}))
+	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "amcheck"}))
 }
 func heapUnitExpression(t *testing.T, e *Engine) plan.InstalledVerifyHeapamExpr {
 	t.Helper()
@@ -70,16 +70,16 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		if err != nil { t.Fatal(err) }
 		bad := []storage.RowVersion{{Row: 11, Version: 101, Born: 5, Values: []sqltype.Value{v, v}}, {Row: 12, Version: 102, Born: 6, Values: []sqltype.Value{v}}}
 		old := append([]storage.RowVersion(nil), bad...)
-		e.mu.Lock()
-		store := e.storage.Relations[d.Address()]
+		e.Mu.Lock()
+		store := e.Storage.Relations[d.Address()]
 		store.Versions = bad
 		store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{11: {Version: 101, End: 6}}}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		reader, ticket := blockingUnitOwner(t, e)
 		scope := pgrowlocksUnitScope(t, e, reader)
-		scope.routineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
+		scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
 		if err := scope.snapshotDataPhase(); err != nil { t.Fatal(err) }
-		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 		resource := lock.Resource{ObjectRef: ref}
 		want := [][]any{{nil, nil, int64(7), "logical row 11 version 101: attribute 7 has an invalid typed value"}, {nil, nil, nil, "logical row 12 version 102: row has 1 values but relation has 2 columns"}}
 		for _, stop := range []bool{false, true} {
@@ -87,7 +87,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 			expected := want
 			if stop { expected = want[:1] }
 			if err != nil || !reflect.DeepEqual(heapUnitRows(t, rows), expected) { t.Fatal("unfiltered exact findings", rows, err, expected) }
-			if e.locks.HasAccessShare(ticket, resource) { t.Fatal("verification retained added AccessShare") }
+			if e.Locks.HasAccessShare(ticket, resource) { t.Fatal("verification retained added AccessShare") }
 		}
 		if !reflect.DeepEqual(bad, old) || !reflect.DeepEqual(bad[0].Values, []sqltype.Value{v, v}) || !reflect.DeepEqual(bad[1].Values, []sqltype.Value{v}) { t.Fatal("verification mutated retained rows/values") }
 		// Retain an explicit prefix, replace only the live COW vector, and
@@ -95,44 +95,44 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		data := &visibility.Data{Catalog: e.CatalogRead(), Committed: map[ids.ObjectAddress][]storage.RowVersion{ref.Address: bad}, Ends: map[ids.ObjectAddress]*storage.DeletionRoot{ref.Address: store.Ends}, Frontier: 99}
 		view := visibility.NewView(data)
 		defer view.Release()
-		e.mu.Lock()
+		e.Mu.Lock()
 		store.Versions = nil
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		findings, err := exec.VerifyHeapamPrefix(context.Background(), view, ref, d, false)
 		if err != nil || len(findings) != 2 || findings[0].Row != 11 || findings[0].Version != 101 { t.Fatal("old roots lost", findings, err) }
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if rows, err := exec.VerifyHeapamPrefix(ctx, view, ref, d, false); !errors.Is(err, context.Canceled) || rows != nil { t.Fatal("canceled captured scan", rows, err) }
-		request, err := e.locks.StartAcquire(context.Background(), ticket, resource, lock.AccessShare, lock.Policy{})
+		request, err := e.Locks.StartAcquire(context.Background(), ticket, resource, lock.AccessShare, lock.Policy{})
 		if err != nil || request != nil { t.Fatal(request, err) }
 		args := heapUnitArgs(t, e, d, false)
 		args[2] = sqltype.Boolean(testUsage(e, sqltype.Bool).Type, true)
 		_, err = (*statementHost)(scope).VerifyHeapam(args, n.Usage.Type)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || !e.locks.HasAccessShare(ticket, resource) { t.Fatal("prior contribution/error release", err) }
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || !e.Locks.HasAccessShare(ticket, resource) { t.Fatal("prior contribution/error release", err) }
 	})
 	t.Run("readmission-fences-descriptor-and-storage", func(t *testing.T) {
 		e, _, d := typedUnitCatalog(t, false)
 		reader, _ := blockingUnitOwner(t, e)
 		scope := pgrowlocksUnitScope(t, e, reader)
-		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
-		store := e.storage.Relations[d.Address()]
-		e.mu.Lock()
+		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
+		store := e.Storage.Relations[d.Address()]
+		e.Mu.Lock()
 		auth, err := scope.writeAuthorizationLocked(e)
 		if err == nil { err = scope.verifyHeapamReadmitLocked(e, auth, ref, d, store, nil) }
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil { t.Fatal(err) }
-		e.mu.Lock()
-		e.storage.Relations[d.Address()] = &storage.Relation{}
+		e.Mu.Lock()
+		e.Storage.Relations[d.Address()] = &storage.Relation{}
 		err = scope.verifyHeapamReadmitLocked(e, auth, ref, d, store, nil)
-		e.storage.Relations[d.Address()] = store
+		e.Storage.Relations[d.Address()] = store
 		bad := *d
 		bad.ObjectRevision++
 		errDescriptor := scope.verifyHeapamReadmitLocked(e, auth, ref, &bad, store, nil)
 		foreign := ref
 		foreign.Epoch++
 		errEpoch := scope.verifyHeapamReadmitLocked(e, auth, foreign, d, store, nil)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		for _, err := range []error{err, errDescriptor, errEpoch} { if !errors.Is(err, ids.ErrCatalogReplaced) { t.Fatal("readmission accepted replaced authority", err) } }
 	})
 }
@@ -146,8 +146,8 @@ func TestVerifyHeapamCaptureWait(t *testing.T) {
 			holderSession, holder := blockingUnitOwner(t, e)
 			reader, ticket := blockingUnitOwner(t, e)
 			scope := pgrowlocksUnitScope(t, e, reader)
-			resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())}
-			request, err := e.locks.StartAcquire(context.Background(), holder, resource, lock.AccessExclusive, lock.Policy{})
+			resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())}
+			request, err := e.Locks.StartAcquire(context.Background(), holder, resource, lock.AccessExclusive, lock.Policy{})
 			if err != nil || request != nil { t.Fatal(request, err) }
 			held := true
 			defer func() { if held { transactionEnd(t, holderSession, holder.Ref(), false) } }()
@@ -156,26 +156,26 @@ func TestVerifyHeapamCaptureWait(t *testing.T) {
 			go func() { _, err := (*statementHost)(scope).VerifyHeapam(args, n.Usage.Type); done <- err }()
 			joined := false
 			defer func() {
-				if !joined { scope.op.Cancel(context.Canceled); <-done }
+				if !joined { scope.Op.Cancel(context.Canceled); <-done }
 			}()
 			lockPending(t, e, 1)
-			snapshot := e.locks.Inspect()
+			snapshot := e.Locks.Inspect()
 			entry := snapshot.Resources[resource]
 			if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Ticket != ticket || entry.Pending[0].Mode != lock.AccessShare {
 				t.Fatal("heap verification did not queue its exact temporary contribution")
 			}
 			want := context.Canceled
-			if cancel { scope.op.Cancel(context.Canceled) } else {
-				e.mu.Lock()
-				e.storage.Relations[d.Address()] = &storage.Relation{}
-				e.mu.Unlock()
+			if cancel { scope.Op.Cancel(context.Canceled) } else {
+				e.Mu.Lock()
+				e.Storage.Relations[d.Address()] = &storage.Relation{}
+				e.Mu.Unlock()
 				transactionEnd(t, holderSession, holder.Ref(), false)
 				held = false
 				want = ids.ErrCatalogReplaced
 			}
 			err = <-done
 			joined = true
-			if !errors.Is(err, want) || e.locks.HasAccessShare(ticket, resource) { t.Fatal("wait lost cancellation/incarnation or retained grant", err, want) }
+			if !errors.Is(err, want) || e.Locks.HasAccessShare(ticket, resource) { t.Fatal("wait lost cancellation/incarnation or retained grant", err, want) }
 		})
 	}
 }

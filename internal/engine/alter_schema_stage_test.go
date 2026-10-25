@@ -39,35 +39,35 @@ func alterSchemaPublishDescriptor(t *testing.T, e *Engine, d *catalog.Relation) 
 func TestAlterSchemaWholeCandidate(t *testing.T) {
 	e := New()
 	alterSchemaEngineFixture(t, e)
-	source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
-	destination := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
+	source := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+	destination := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 	addresses := []ids.ObjectAddress{}
 	for _, name := range []string{"t", "q1", "q2"} {
 		addresses = append(addresses, NameAddressForTempMove(t, e, source, name))
 	}
 	calls := 0
-	provider := e.catalog.Providers[ids.RelationClassID]
-	e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{Provider: provider, inspect: func(v catalog.Read) {
+	provider := e.Catalog.Providers[ids.RelationClassID]
+	e.Catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{Provider: provider, inspect: func(v catalog.Read) {
 		calls++
 		for _, address := range addresses {
 			d, ok := v.Descriptor(address)
 			if !ok || d.Namespace() != destination {
 				t.Fatal("provider saw partial namespace closure", address, d)
 			}
-			if e.catalog.State.Get(address).Namespace() != source {
+			if e.Catalog.State.Get(address).Namespace() != source {
 				t.Fatal("candidate escaped before validation")
 			}
 		}
 	}}
 	run(t, e, "ALTER TABLE s1.t SET SCHEMA s2")
-	e.catalog.Providers[ids.RelationClassID] = provider
+	e.Catalog.Providers[ids.RelationClassID] = provider
 	if calls == 0 {
 		t.Fatal("candidate was not validated")
 	}
-	frontier := e.catalog.NextRevision()
+	frontier := e.Catalog.NextRevision()
 	run(t, e, "COMMENT ON TABLE s2.t IS 'new comment'")
 	ref := roleTableRef(t, e, "s2.t")
-	if e.catalog.State.Get(ref.Address).Revision() < frontier {
+	if e.Catalog.State.Get(ref.Address).Revision() < frontier {
 		t.Fatal("move failed to advance allocator")
 	}
 }
@@ -77,25 +77,25 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
-			source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+			source := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 			name := "q2"
 			if field == "table_revision" {
 				name = "t"
 			}
 			address := NameAddressForTempMove(t, e, source, name)
-			d := *e.catalog.State.MustRelation(address)
+			d := *e.Catalog.State.MustRelation(address)
 			if field == "sequence_stamp" {
 				d.SequencePlanStamp = ids.DefinitionRevision(^uint64(0))
 			} else {
 				d.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 			}
 			alterSchemaPublishDescriptor(t, e, &d)
-			before, frontier := e.catalog.State, e.catalog.NextRevision()
+			before, frontier := e.Catalog.State, e.Catalog.NextRevision()
 			_, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE s1.t SET SCHEMA s2"), nil)
 			if err == nil || err.Error() != "stuntgres: definition revision exhausted" {
 				t.Fatal(err)
 			}
-			if e.catalog.State != before || e.catalog.NextRevision() != frontier {
+			if e.Catalog.State != before || e.Catalog.NextRevision() != frontier {
 				t.Fatal("overflow changed catalog/frontier")
 			}
 			lockEmpty(t, e)
@@ -103,10 +103,10 @@ func TestAlterSchemaOverflowAndSkip(t *testing.T) {
 	}
 	e := New()
 	alterSchemaEngineFixture(t, e)
-	before, frontier := e.catalog.State, e.catalog.NextRevision()
+	before, frontier := e.Catalog.State, e.Catalog.NextRevision()
 	run(t, e, "ALTER TABLE IF EXISTS absent.missing SET SCHEMA absent")
 	run(t, e, "ALTER TABLE s1.t SET SCHEMA s1")
-	if e.catalog.State != before || e.catalog.NextRevision() != frontier {
+	if e.Catalog.State != before || e.Catalog.NextRevision() != frontier {
 		t.Fatal("skip consumed catalog/frontier")
 	}
 }
@@ -116,7 +116,7 @@ func TestAlterSchemaGrantTimeDefinition(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	ref := roleTableRef(t, e, "s1.t")
-	old := e.catalog.State.MustRelation(ref.Address)
+	old := e.Catalog.State.MustRelation(ref.Address)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "LOCK TABLE s1.t IN ACCESS EXCLUSIVE MODE")
 	done := lockAsync(e, b, context.Background(), "ALTER TABLE s1.t SET SCHEMA s2", false)
@@ -127,7 +127,7 @@ func TestAlterSchemaGrantTimeDefinition(t *testing.T) {
 	alterSchemaPublishDescriptor(t, e, &next)
 	transactionEnd(t, a, tx, false)
 	lockAwait(t, done, nil)
-	moved := e.catalog.State.MustRelation(ref.Address)
+	moved := e.Catalog.State.MustRelation(ref.Address)
 	if moved.Comment != "grant-time comment" || moved.Revision() <= next.Revision() || roleTableRef(t, e, "s2.t") != ref {
 		t.Fatal("prewait descriptor used", moved)
 	}
@@ -139,11 +139,11 @@ func TestAlterSchemaActualTemporaryDestination(t *testing.T) {
 	alterSchemaEngineFixture(t, e)
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TEMP SEQUENCE temporary_probe")
-	destination := e.catalog.State.MustNamespace(s.TemporaryNamespace).Name()
-	before, frontier := e.catalog.State, e.catalog.NextRevision()
+	destination := e.Catalog.State.MustNamespace(s.TemporaryNamespace).Name()
+	before, frontier := e.Catalog.State, e.Catalog.NextRevision()
 	err := sequenceTempMoveCommand(t, e, s, "ALTER TABLE s1.t SET SCHEMA "+destination, true)
 	renameWantError(t, err, "0A000", "temporary schema creation is unsupported")
-	if e.catalog.State != before || e.catalog.NextRevision() != frontier {
+	if e.Catalog.State != before || e.Catalog.NextRevision() != frontier {
 		t.Fatal("temporary destination changed closure")
 	}
 	lockEmpty(t, e)
@@ -155,11 +155,11 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			e := New()
 			alterSchemaEngineFixture(t, e)
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			source := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
+			source := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s1"})
 			address := NameAddressForTempMove(t, e, source, "q2")
-			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
+			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 			tx := transactionBegin(t, a)
-			if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+			if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			if collision {
@@ -167,25 +167,25 @@ func TestAlterSchemaDependentGrantTimeName(t *testing.T) {
 			}
 			done := lockAsync(e, b, context.Background(), "ALTER TABLE s1.t SET SCHEMA s2", false)
 			lockPending(t, e, 1)
-			next := *e.catalog.State.MustRelation(address)
+			next := *e.Catalog.State.MustRelation(address)
 			next.ObjectName = "grant_q2"
 			next.ObjectRevision++
 			next.SequencePlanStamp++
 			alterSchemaPublishDescriptor(t, e, &next)
-			before, frontier := e.catalog.State, e.catalog.NextRevision()
+			before, frontier := e.Catalog.State, e.Catalog.NextRevision()
 			transactionEnd(t, a, tx, false)
 			if collision {
 				renameWantError(t, <-done, "42P07", `relation "grant_q2" already exists in schema "s2"`)
-				if e.catalog.State != before || e.catalog.NextRevision() != frontier {
+				if e.Catalog.State != before || e.Catalog.NextRevision() != frontier {
 					t.Fatal("grant-time collision changed closure")
 				}
 			} else {
 				lockAwait(t, done, nil)
-				moved := e.catalog.State.MustRelation(address)
+				moved := e.Catalog.State.MustRelation(address)
 				if moved.Name() != "grant_q2" || moved.Sequence != next.Sequence || moved.SequencePlanStamp <= next.SequencePlanStamp {
 					t.Fatal("stale dependency definition", moved)
 				}
-				destination := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
+				destination := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s2"})
 				if NameAddressForTempMove(t, e, destination, "grant_q2") != address {
 					t.Fatal("dependency identity changed")
 				}

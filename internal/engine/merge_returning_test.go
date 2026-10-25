@@ -109,7 +109,7 @@ func TestMergeReturningPublication(t *testing.T) {
 			if b.Returning != nil {
 				b.Returning.Expressions[1] = queryProbe(b.Returning.Schema[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
-					if cursor.closed != 1 || len(scope.stage.rows) != 0 || c.MergeAction != parser.MergeUpdateAction {
+					if cursor.closed != 1 || len(scope.Stage.Rows) != 0 || c.MergeAction != parser.MergeUpdateAction {
 						t.Fatal("projection crossed source/publication boundary", cursor.closed, calls)
 					}
 					if phase == "outputLate" && calls == 2 {
@@ -121,8 +121,8 @@ func TestMergeReturningPublication(t *testing.T) {
 					return c.Row[1], nil
 				})
 			}
-			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), cursor, state, false)
+			state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), cursor, state, false)
 			if phase == "producerClose" || phase == "outputLate" || phase == "typeDrift" {
 				if rows != nil || err == nil {
 					t.Fatal("failed private output escaped", rows, err)
@@ -151,7 +151,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					t.Fatal("accepted output count", calls, rows.Returning.Count)
 				}
 			}
-			if err = dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+			if err = dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
@@ -170,7 +170,7 @@ func TestMergeReturningPublication(t *testing.T) {
 			if phase == "success" && !reflect.DeepEqual(tuples(Result{Rows: rows.Returning}), [][]driver.Value{{int64(10), int64(11)}, {int64(20), int64(21)}}) {
 				t.Fatal("completed output changed")
 			}
-			if scope.view != nil || scope.ticket != nil || !scope.finished {
+			if scope.View != nil || scope.LockTicket != nil || !scope.Finished {
 				t.Fatal("Finish retained owners")
 			}
 			lockEmpty(t, e)

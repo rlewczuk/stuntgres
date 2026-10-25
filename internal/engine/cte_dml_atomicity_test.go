@@ -19,13 +19,13 @@ func cteDMLUnitScope(t *testing.T, session *session.Session, ctx context.Context
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := engineOf(session).StartStatement(op)
+	scope, err := EngineOf(session).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			scope.Finish(errors.New("unit cleanup"))
 		}
 		op.Done()
@@ -55,11 +55,11 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 				t.Fatal(result, err)
 			}
 			defer result.Rows.Close()
-			if scope.completed || len(scope.stage.rows[b.Address]) != 2 || scope.stage.deletes[a.Address] == nil || len(scope.stage.deletes[a.Address].Rows) != 2 || scope.cteInvocation != nil {
+			if scope.Completed || len(scope.Stage.Rows[b.Address]) != 2 || scope.Stage.Deletes[a.Address] == nil || len(scope.Stage.Deletes[a.Address].Rows) != 2 || scope.cteInvocation != nil {
 				t.Fatal("not one unpublished complete stage")
 			}
-			view := scope.view.Load()
-			if view == nil || len(view.Committed) < 2 || &view.Committed[a.Address][0].Values[0] != &e.storage.Relations[a.Address].Versions[0].Values[0] || &view.Committed[b.Address][0].Values[0] != &e.storage.Relations[b.Address].Versions[0].Values[0] {
+			view := scope.View.Load()
+			if view == nil || len(view.Committed) < 2 || &view.Committed[a.Address][0].Values[0] != &e.Storage.Relations[a.Address].Versions[0].Values[0] || &view.Committed[b.Address][0].Values[0] != &e.Storage.Relations[b.Address].Versions[0].Values[0] {
 				t.Fatal("snapshot did not retain both original roots")
 			}
 			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -70,7 +70,7 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 			}
 			result.Rows.Close()
 			op.Done()
-			if scope.view != nil || scope.ticket != nil || scope.stage.rows != nil || scope.stage.deletes != nil || scope.mutations != nil || scope.cteInvocation != nil {
+			if scope.View != nil || scope.LockTicket != nil || scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.mutations != nil || scope.cteInvocation != nil {
 				t.Fatal("cancel retained statement roots")
 			}
 			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -102,22 +102,22 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 		t.Fatal(result, err)
 	}
 	defer result.Rows.Close()
-	before := e.visibility.CommitSeq()
+	before := e.Visibility.CommitSeq()
 	transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
 	transactionRows(t, observer, "SELECT id FROM b")
-	if scope.completed {
+	if scope.Completed {
 		t.Fatal("auxiliary published before Finish")
 	}
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
 	op.Done()
-	if e.visibility.CommitSeq() != before+1 {
-		t.Fatal("more than one publication frontier", before, e.visibility.CommitSeq())
+	if e.Visibility.CommitSeq() != before+1 {
+		t.Fatal("more than one publication frontier", before, e.Visibility.CommitSeq())
 	}
 	transactionRows(t, observer, "SELECT id FROM a")
 	transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 1, 2)
-	if scope.view != nil || scope.ticket != nil || scope.mutations != nil {
+	if scope.View != nil || scope.LockTicket != nil || scope.mutations != nil {
 		t.Fatal("successful Finish retained owner")
 	}
 	lockEmpty(t, e)
@@ -144,16 +144,16 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			if _, err := scope.Describe(ast); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			auth, err := e.statementAuthorizationLocked(op, ast)
+			e.Mu.Lock()
+			auth, err := e.StatementAuthorizationLocked(op, ast)
 			if err == nil {
-				err = scope.captureIdentityLocked(auth)
+				err = scope.CaptureIdentityLocked(auth)
 			}
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = describe(ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+				bound, err = Describe(ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -164,7 +164,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			calls, closes := 0, 0
 			probe := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
-				if len(scope.stage.rows[a.Address]) != 1 {
+				if len(scope.Stage.Rows[a.Address]) != 1 {
 					t.Fatal("later output did not follow accepted earlier private write")
 				}
 				if phase == "close_veto" || phase == "close_veto_exec" || phase == "primary_error_before_close" {
@@ -182,8 +182,8 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			})
 			cteMutationOf(bound.CTEs[1]).Returning.Expressions = []expr.Expr{probe}
 			quotes := exec.QuoteCaptureCandidate{}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: &quotes}}
-			e.mu.Lock()
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output, QuoteCaptures: &quotes}}
+			e.Mu.Lock()
 			result, err := e.executeCTECommandsLocked(scope, ast, bound, auth, nil, evaluation, nil, nil)
 			want := primary
 			if phase == "output_cancel" {
@@ -220,16 +220,16 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 			defer cancel()
 			scope, op := cteDMLUnitScope(t, worker, ctx)
 			result, err := scope.Execute(statement(t, "CREATE TABLE copied AS WITH d AS (DELETE FROM a RETURNING id) SELECT * FROM d"), 0, nil)
-			if err != nil || result.Count != 2 || result.Rows != nil || scope.completed || scope.catalog == nil {
+			if err != nil || result.Count != 2 || result.Rows != nil || scope.Completed || scope.Catalog == nil {
 				t.Fatal("creation did not join the private statement stage", result, err)
 			}
 			var created ids.ObjectAddress
-			for address, descriptor := range scope.catalog.Descriptors {
+			for address, descriptor := range scope.Catalog.Descriptors {
 				if address.ClassID == ids.RelationClassID && descriptor.Name() == "copied" {
 					created = address
 				}
 			}
-			if created == (ids.ObjectAddress{}) || e.catalog.State.Get(created) != nil || e.storage.Relations[created] != nil || len(scope.stage.rows[created]) != 2 {
+			if created == (ids.ObjectAddress{}) || e.Catalog.State.Get(created) != nil || e.Storage.Relations[created] != nil || len(scope.Stage.Rows[created]) != 2 {
 				t.Fatal("destination published before Finish")
 			}
 			transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -239,12 +239,12 @@ func TestCTEDMLCTASPublication(t *testing.T) {
 			err = scope.Finish(nil)
 			op.Done()
 			if canceled {
-				if err != context.Canceled || e.catalog.State.Get(created) != nil || e.storage.Relations[created] != nil {
+				if err != context.Canceled || e.Catalog.State.Get(created) != nil || e.Storage.Relations[created] != nil {
 					t.Fatal("cancellation published destination", err)
 				}
 				transactionRows(t, peer, "SELECT id FROM a ORDER BY id", 1, 2)
 			} else {
-				if err != nil || e.catalog.State.Get(created) == nil {
+				if err != nil || e.Catalog.State.Get(created) == nil {
 					t.Fatal(err)
 				}
 				transactionRows(t, peer, "SELECT id FROM a")

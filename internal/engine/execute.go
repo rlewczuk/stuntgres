@@ -19,12 +19,12 @@ import (
 )
 
 func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, count int, importFrame FrameImporter) (Result, error) {
-	op := scope.op
-	if err := e.validateOperation(op); err != nil {
+	op := scope.Op
+	if err := e.ValidateOperation(op); err != nil {
 		return Result{}, err
 	}
-	captureEnumOperationSafety(op, &scope.input)
-	scope.input.LockedDomainInput, scope.input.DomainChecks = scope, scope
+	CaptureEnumOperationSafety(op, &scope.Input)
+	scope.Input.LockedDomainInput, scope.Input.DomainChecks = scope, scope
 	if !op.CommandAdmission {
 		op.SnapshotNoticeThreshold()
 	}
@@ -39,7 +39,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	case *parser.ForeignDDL:
 		result, err := e.executeForeignDDL(scope, stmt.(*parser.ForeignDDL), count)
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.CreateDatabaseStmt:
@@ -75,12 +75,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// A modifying WITH is an analysis error, before cursor installation
 		// checks. Ordinary declarations keep their existing execution order.
 		if !parser.HasModifyingCTE(declaration.Query) {
-			if !scope.owner.InBlock() && !declaration.Hold {
-				return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
+			if !scope.Owner.InBlock() && !declaration.Hold {
+				return Result{}, SQLError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
 			}
 			name := declaration.Name.Text
-			if payloadOf(op.Session).cursors.entries[name] != nil || protocolPortalExists(op.Session, name) {
-				return Result{}, sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
+			if PayloadOf(op.Session).Cursors.Entries[name] != nil || protocolPortalExists(op.Session, name) {
+				return Result{}, SQLError("42P03", fmt.Sprintf("cursor %q already exists", name))
 			}
 		}
 	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
@@ -117,12 +117,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		var result Result
 		var err error
 		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
-			result, err = e.executeSchema(scope, op, stmt, count, scope.input)
+			result, err = e.executeSchema(scope, op, stmt, count, scope.Input)
 		} else {
 			result, err = e.executeAlterDomain(scope, domain, count)
 		}
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.AlterComposite:
@@ -133,31 +133,31 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		result, err := e.executeComment(scope, stmt.(*parser.Comment), count)
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.CreateSchema, *parser.CreateLanguage, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.AlterType, *parser.DropType, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
+		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
+		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.input)
+		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.CreateRole, *parser.AlterRole:
 		result, err := e.executeRoleAttributes(scope, stmt, count)
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.ObjectGrant:
@@ -177,55 +177,55 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, err
 			}
 		}
-		result, err := e.executeRole(op, stmt, count, !scope.owner.InBlock())
+		result, err := e.executeRole(op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.Set, *parser.Show, *parser.Reset:
-		result, err := e.executeSetting(op, stmt, count, !scope.owner.InBlock())
+		result, err := e.executeSetting(op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	case *parser.SettingCall:
-		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame, scope.input, scope.output)
+		result, err := e.executeSettingCall(op, stmt.(*parser.SettingCall), count, importFrame, scope.Input, scope.Output)
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return result, err
 	}
-	e.mu.Lock()
-	if err := scope.refreshRelationGrantsLocked(e); err != nil {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if err := ctx.Err(); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	auth, err := scope.statementAuthorizationLocked(stmt)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	scope.routineAuth = auth
+	scope.RoutineAuth = auth
 	// Trusted Restore insertion elevates permissions, not session identity.
 	// Defaults and CHECK providers must observe the actual owner directive.
 	identityAuth := auth
-	if _, inserting := stmt.(*parser.Insert); inserting && operationReplayOrZero(op).insertAuthority {
-		identityAuth, err = e.authorizationLocked(op)
+	if _, inserting := stmt.(*parser.Insert); inserting && OperationReplayOrZero(op).InsertAuthority {
+		identityAuth, err = e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
-	if err := scope.captureIdentityLocked(identityAuth); err != nil {
-		e.mu.Unlock()
+	if err := scope.CaptureIdentityLocked(identityAuth); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if err := captureEnumOperationInput(auth, &scope.input); err != nil {
-		e.mu.Unlock()
+	if err := captureEnumOperationInput(auth, &scope.Input); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if s, ok := stmt.(*parser.AlterTable); ok {
@@ -271,7 +271,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if expected != nil && expected.analysis != nil {
 		path, er := e.sequenceEnvironmentLocked(auth)
 		if er != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, er
 		}
 		// Evolution during a wait can invalidate captures, but admission has
@@ -288,31 +288,31 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if replan {
 			rebindTypes = expected.retireAnalysisTypeCastsForRebind(isnAuthorityRebind)
 		}
-		valid, err = e.sequenceAnalysisValidLocked(auth, expected.sequences)
+		valid, err = e.sequenceAnalysisValidLocked(auth, expected.Sequences)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		candidate = *expected
 		if rebindTemporals != nil {
-			candidate.temporals = rebindTemporals
+			candidate.Temporals = rebindTemporals
 		}
 		if replan {
 			candidate.types = rebindTypes
 		}
 		if expected.Parameters.Count != 0 {
 			// Parameterized executions never borrow a retained quote group.
-			candidate.quotes = nil
+			candidate.Quotes = nil
 		} else if expected.quoteGeneration != op.Session.DiscardPlansGeneration {
-			candidate.quotes = nil
+			candidate.Quotes = nil
 			quoteCapturesChanged = true
 		}
 		if !valid {
-			candidate.sequences = nil
+			candidate.Sequences = nil
 		}
 		regtypeValid, er := e.regtypeAnalysisValidLocked(auth, expected.regtypes)
 		if er != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, er
 		}
 		if !regtypeValid {
@@ -323,21 +323,21 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		if replan {
 			candidate.refreshTemporals = true
-			candidate.sequences, candidate.regtypes = nil, nil
+			candidate.Sequences, candidate.regtypes = nil, nil
 			// Analysis changes retire statement-root captures, not unchanged
 			// stored definitions. DISCARD already cleared the complete group.
-			for i, saved := range candidate.quotes {
+			for i, saved := range candidate.Quotes {
 				if saved.Origin.Owner != (ids.ObjectRef{}) {
 					continue
 				}
-				quotes := make([]exec.QuoteConstant, 0, len(candidate.quotes)-1)
-				quotes = append(quotes, candidate.quotes[:i]...)
-				for _, remaining := range candidate.quotes[i+1:] {
+				quotes := make([]exec.QuoteConstant, 0, len(candidate.Quotes)-1)
+				quotes = append(quotes, candidate.Quotes[:i]...)
+				for _, remaining := range candidate.Quotes[i+1:] {
 					if remaining.Origin.Owner != (ids.ObjectRef{}) {
 						quotes = append(quotes, remaining)
 					}
 				}
-				candidate.quotes = quotes
+				candidate.Quotes = quotes
 				quoteCapturesChanged = true
 				break
 			}
@@ -347,7 +347,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	b, err := e.describeScoped(scope, stmt, auth, expected)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if scope.sqlRoutine.lexical != nil && scope.sqlRoutine.lexical.Program.Trigger {
 			return Result{}, &proc.PLExpressionBindingError{Err: err}
 		}
@@ -356,7 +356,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	if scope.sqlRoutine.terminal {
 		scope.sqlRoutine.resultPlan, err = validateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
@@ -364,77 +364,77 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	// Rewrite metadata must not become caller-owned native lifetime provenance.
 	callerSequences, callerRegtypes := b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
 	if b.ViewWrite != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if view.ViewWriteOf(b.ViewWrite).BaseRelation.RelationKind != catalog.ViewRelation {
 			if err := scope.acquireViewWriteTarget(view.ViewWriteOf(b.ViewWrite)); err != nil {
 				return Result{}, err
 			}
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		auth, err = scope.statementAuthorizationLocked(stmt)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		scope.routineAuth = auth
-		if err := scope.validateAdmissionNamesLocked(e, auth); err != nil {
-			e.mu.Unlock()
+		scope.RoutineAuth = auth
+		if err := scope.ValidateAdmissionNamesLocked(e, auth); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		b.Storage = scope.lockedStorage
+		b.Storage = scope.LockedStorage
 		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
 	if err := e.attachCTEViewTargetsLocked(scope, &b, true); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if b.Resolvers.Regclass != nil {
-		scope.input.Regclass = b.Resolvers.Regclass
+		scope.Input.Regclass = b.Resolvers.Regclass
 	}
 	if b.Resolvers.Regtype != nil {
-		scope.input.Regtype = b.Resolvers.Regtype
+		scope.Input.Regtype = b.Resolvers.Regtype
 	}
 	if b.Resolvers.Regrole != nil {
-		scope.input.Regrole = b.Resolvers.Regrole
+		scope.Input.Regrole = b.Resolvers.Regrole
 	}
 	if b.Resolvers.Operator != nil {
-		scope.input.Operator = b.Resolvers.Operator
+		scope.Input.Operator = b.Resolvers.Operator
 	}
 	if b.Resolvers.Regproc != nil {
-		scope.input.Regproc = b.Resolvers.Regproc
+		scope.Input.Regproc = b.Resolvers.Regproc
 	}
 	if b.Resolvers.Regcollation != nil {
-		scope.input.Regcollation = b.Resolvers.Regcollation
+		scope.Input.Regcollation = b.Resolvers.Regcollation
 	}
 	if b.Resolvers.Regnamespace != nil {
-		scope.input.Regnamespace = b.Resolvers.Regnamespace
+		scope.Input.Regnamespace = b.Resolvers.Regnamespace
 	}
 	if b.Resolvers.RegTS != nil {
-		scope.input.RegTS = b.Resolvers.RegTS
+		scope.Input.RegTS = b.Resolvers.RegTS
 	}
 	if b.Resolvers.ACLItem != nil {
-		scope.input.ACLItem = b.Resolvers.ACLItem
+		scope.Input.ACLItem = b.Resolvers.ACLItem
 	}
 	if b.Resolvers.FTS != nil {
-		scope.input.FTS = b.Resolvers.FTS
+		scope.Input.FTS = b.Resolvers.FTS
 	}
 	if b.Resolvers.TypeDiagnosticName != nil {
-		scope.input.TypeDiagnosticName = b.Resolvers.TypeDiagnosticName
+		scope.Input.TypeDiagnosticName = b.Resolvers.TypeDiagnosticName
 	}
-	scope.input.EnumMemberSafe = b.Resolvers.EnumMemberSafe
+	scope.Input.EnumMemberSafe = b.Resolvers.EnumMemberSafe
 	if err := scope.captureFormalInputLocked(auth, b.Parameters.Types); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if err := scope.validateQuerySources(b.QuerySources); err != nil {
-		e.mu.Unlock()
+	if err := scope.ValidateQuerySources(b.QuerySources); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, stmt, &b); err != nil {
-		e.mu.Unlock()
+	if err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, auth, stmt, &b); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if scope.Expected != nil {
@@ -451,40 +451,40 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			results = scope.Expected.Results
 		}
 		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch()}); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		if err = sequence.PinReplacement(auth.Catalog.Epoch(), auth.session.SessionToken, scope.Expected.sequences, callerSequences); err != nil {
-			e.mu.Unlock()
+		if err = sequence.PinReplacement(auth.Catalog.Epoch(), auth.Session.SessionToken, scope.Expected.Sequences, callerSequences); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		if !valid || scope.Expected.regtypes != nil && candidate.regtypes == nil {
 			analysis, er := e.sequenceAnalysisLocked(auth, callerSequences)
 			if er != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, er
 			}
 			regtypes, er := e.regtypeAnalysisLocked(auth, callerRegtypes)
 			if er != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, er
 			}
 			var prepared *preparedAnalysis
 			if replan && session.PreparableBody(stmt) {
 				prepared, er = e.preparedAnalysisLocked(scope, auth, b)
 				if er != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					return Result{}, er
 				}
 			}
 			if er := ctx.Err(); er != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, er
 			}
-			if scope.Expected.sequences != nil {
-				*scope.Expected.sequences = analysis
+			if scope.Expected.Sequences != nil {
+				*scope.Expected.Sequences = analysis
 			} else if len(analysis.Constants) != 0 {
-				scope.Expected.sequences = &analysis
+				scope.Expected.Sequences = &analysis
 			}
 			if scope.Expected.regtypes != nil && regtypes != nil {
 				*scope.Expected.regtypes = *regtypes
@@ -492,7 +492,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				scope.Expected.regtypes = regtypes
 			}
 			if replan {
-				scope.Expected.temporals = b.Prepared.Temporals
+				scope.Expected.Temporals = b.Prepared.Temporals
 				scope.Expected.types = analyze.PublishDomainCasts(scope.Expected.types, b.Prepared.Types)
 				if session.PreparableBody(stmt) {
 					scope.Expected.analysis = prepared
@@ -502,14 +502,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	if count != b.Parameters.Count {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.Parameters.Count)
 	}
 	canonical := make([]sqltype.Value, count)
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
-	scope.domains.inputCatalog = auth.Catalog
-	scope.routineAuth = auth
-	scope.routineDependencies = b.Dependencies
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
+	scope.Domains.InputCatalog = auth.Catalog
+	scope.RoutineAuth = auth
+	scope.RoutineDependencies = b.Dependencies
 	for _, usage := range b.Parameters.Types {
 		if sqltype.ContainsDomainConstraints(usage.Type) {
 			evaluation.Input.DomainChecks = &evaluation
@@ -518,36 +518,36 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if count != 0 || scope.protocolOrZero().bind != nil {
 		if importFrame == nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
 		}
 		// Complete each parameter/member input before decoding the next one.
 		// CHECK recipes use this captured authority and run without Engine.mu.
 		captured := auth.Catalog
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		err = importFrame(ctx, b.Parameters, canonical, evaluation.Input)
-		e.mu.Lock()
+		e.Mu.Lock()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		if err = scope.validateLockedRelation(e); err != nil {
-			e.mu.Unlock()
+		if err = scope.ValidateLockedRelation(e); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		auth, err = scope.statementAuthorizationLocked(stmt)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		scope.routineAuth = auth
+		scope.RoutineAuth = auth
 		if err := typedef.ValidateCapturedInputBinding(captured, auth.Catalog, b.Dependencies); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		for i, v := range canonical {
 			if v.Type() != b.Parameters.Types[i].Type {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: invalid parameter frame")
 			}
 		}
@@ -561,7 +561,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			p.columns = b.Query.Root.Schema()
 		}
 		if !session.ProtocolPlainSelect(stmt) {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, nil
 		}
 	}
@@ -571,10 +571,10 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			// and target/source authority before rejecting that capability,
 			// without demanding arbiters, defaults or routed row effects.
 			if err := analyze.CheckBinding(auth, b, stmt); err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, boundary
 		}
 	}
@@ -587,9 +587,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 // The caller owns Engine.mu. Every return releases it. Rule programs reuse this
 // executor without importing parameters again or opening another statement.
 func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
-	op := scope.op
+	op := scope.Op
 	ctx := op.Context()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
 	if scope.sqlRoutine.binding != nil {
 		evaluation.PlanStaticOperators, evaluation.SpecializeRuleParameters = true, true
 		// This binding is the validated frozen SQL-standard action, not newly
@@ -605,48 +605,48 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 		// binder. Read-only utility execution follows that analysis, but precedes
 		// destination construction and every planner/producer demand.
 		captured := auth.Catalog
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err := scope.readOnlyUtilityEligibility(creation); err != nil {
 			return Result{}, err
 		}
-		e.mu.Lock()
-		if err := e.visibilityWriteLocked(scope.txRef); err != nil {
-			e.mu.Unlock()
+		e.Mu.Lock()
+		if err := e.VisibilityWriteLocked(scope.TxRef); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		auth, err = e.statementAuthorizationLocked(op, stmt)
+		auth, err = e.StatementAuthorizationLocked(op, stmt)
 		if err == nil {
 			err = typedef.ValidateCapturedInputBinding(captured, auth.Catalog, b.Dependencies)
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		evaluation.Catalog, scope.routineAuth = auth.Catalog, auth
+		evaluation.Catalog, scope.RoutineAuth = auth.Catalog, auth
 		// CTAS is a utility after canonical analysis/import. NoData and an
 		// existing destination skip the internal SELECT planner entirely.
 		if scope.protocolOrZero().simple && !scope.protocolOrZero().simpleCreated {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err := scope.beginProtocolSimplePortal(); err != nil {
 				return Result{}, err
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 		}
 		var skipped bool
 		creationStage, creationDescriptor, skipped, err = e.prepareQueryTableLocked(op, auth, creation, b)
 		if err != nil || skipped {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err == nil {
 				return Result{CommandTag: session.QueryCreationUtilityTag(creation.Form)}, nil
 			}
 			return Result{}, err
 		}
 		defer e.DiscardCatalogStage(creationStage)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err := scope.acquireCatalogNames(creationStage); err != nil {
 			if creation.IfNotExists {
 				key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: creationDescriptor.Namespace(), Name: creationDescriptor.Name()}
-				skipped, failure := scope.skipConcurrentRelation(creationStage.Base, key, creation.Name, err)
+				skipped, failure := scope.SkipConcurrentRelation(creationStage.Base, key, creation.Name, err)
 				if skipped {
 					return Result{CommandTag: session.QueryCreationUtilityTag(creation.Form)}, nil
 				}
@@ -654,26 +654,26 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 			}
 			return Result{}, err
 		}
-		e.mu.Lock()
-		if e.catalog.State.Epoch() != scope.txRef.Epoch() {
-			e.mu.Unlock()
+		e.Mu.Lock()
+		if e.Catalog.State.Epoch() != scope.TxRef.Epoch() {
+			e.Mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		if creation.NoData {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			err = e.publishQueryTable(scope, creationStage)
 			return Result{}, err
 		}
 		if creation.Form == parser.CreateMaterializedView {
-			operationReplay(op).materializedPopulation = true
-			defer func() { operationReplay(op).materializedPopulation = false }()
+			OperationReplay(op).MaterializedPopulation = true
+			defer func() { OperationReplay(op).MaterializedPopulation = false }()
 		}
 	}
 	// Native has no cost-based custom/generic planner. Parameterized consumers
 	// fold into a fresh operation-local group, including stored origins.
 	quoteCaptures := exec.QuoteCaptureCandidate{}
 	if b.Parameters.Count == 0 {
-		quoteCaptures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteCapturesChanged}
+		quoteCaptures = exec.QuoteCaptureCandidate{Entries: candidate.Quotes, Private: quoteCapturesChanged}
 		stored.PruneQuoteCaptures(&quoteCaptures, auth.Catalog)
 	}
 	evaluation.QuoteCaptures = &quoteCaptures

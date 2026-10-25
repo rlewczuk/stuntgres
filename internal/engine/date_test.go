@@ -29,8 +29,8 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if _, err := b.Bind(raw, policy); err != nil {
 				t.Fatal(err)
 			}
-			desc := StatementDescription{temporals: b.Prepared.Temporals}
-			before := append([]analyze.TemporalConstant(nil), desc.temporals...)
+			desc := StatementDescription{Temporals: b.Prepared.Temporals}
+			before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 			if len(before) != 1 || before[0].TypeID != sqltype.Date {
 				t.Fatal(before)
 			}
@@ -49,8 +49,8 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 				t.Fatal(err)
 			}
 			out, err := d.Output(ctx, v)
-			if err != nil || out != tc.want || v.Type() != d || !reflect.DeepEqual(before, desc.temporals) {
-				t.Fatal(out, err, desc.temporals)
+			if err != nil || out != tc.want || v.Type() != d || !reflect.DeepEqual(before, desc.Temporals) {
+				t.Fatal(out, err, desc.Temporals)
 			}
 			b = newTestExpressionBinder(t, ctx, e, later, &desc)
 			if _, err = b.Bind(parser.ParameterExpr{Number: 1}, policy); err != nil {

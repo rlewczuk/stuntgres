@@ -53,7 +53,7 @@ type partitionStagedCancelContext struct {
 }
 
 func (c *partitionStagedCancelContext) Err() error {
-	if !c.entered.Load() && len(c.scope.stage.rows[c.first]) != 0 && len(c.scope.stage.rows[c.second]) == 0 && c.entered.CompareAndSwap(false, true) {
+	if !c.entered.Load() && len(c.scope.Stage.Rows[c.first]) != 0 && len(c.scope.Stage.Rows[c.second]) == 0 && c.entered.CompareAndSwap(false, true) {
 		c.cancel()
 	}
 	return c.Context.Err()
@@ -118,14 +118,14 @@ func TestRangePartitionPublicationResetDuringBoundDemand(t *testing.T) {
 	if !ctx.entered.Load() || resetErr != nil || err == nil {
 		t.Fatal("control callback failed to invalidate private DDL publication", ctx.entered.Load(), resetErr, err)
 	}
-	e.mu.Lock()
-	storage := len(e.storage.Relations)
-	for _, descriptor := range e.catalog.State.Descriptors() {
+	e.Mu.Lock()
+	storage := len(e.Storage.Relations)
+	for _, descriptor := range e.Catalog.State.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && (relation.Name() == "root" || relation.Name() == "leaf") {
 			t.Error("stale hierarchy definition published after reset")
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if storage != 0 {
 		t.Fatal("reset retained physical storage", storage)
 	}

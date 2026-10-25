@@ -14,8 +14,8 @@ func (e *Engine) roleSessionCountLocked(ref authorization.PrincipalRef) int {
 			n++
 		}
 	}
-	if e.cluster != nil {
-		for _, target := range e.cluster.targets {
+	if e.Cluster != nil {
+		for _, target := range e.Cluster.Targets {
 			if target == e {
 				continue
 			}

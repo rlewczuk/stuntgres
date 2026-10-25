@@ -22,7 +22,7 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.gate(&parser.CreateTable{}); err != nil {
+			if err := scope.Gate(&parser.CreateTable{}); err != nil {
 				t.Fatal(err)
 			}
 			defer func() {
@@ -32,39 +32,39 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 			}()
 			before := e.CatalogRead()
 			usage := testUsage(e, sqltype.Int4)
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			provider := e.BeginCatalogStage(auth.Catalog)
-			source, err := table.NewRelation(ddlHost{e: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "private_composite", auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
+			source, err := table.NewRelation(DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "private_composite", auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
 			if err == nil {
 				source.RelationKind = catalog.CompositeRelation
-				err = e.stageRowTypeLocked(provider, source)
+				err = e.StageRowTypeLocked(provider, source)
 			}
 			if err == nil {
 				err = provider.Create(source)
 			}
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			journal := scope.owner.Catalog.Clone()
+			journal := scope.Owner.Catalog.Clone()
 			for address, descriptor := range provider.Descriptors() {
-				e.catalogChangeLocked(journal, address, descriptor)
+				e.CatalogChangeLocked(journal, address, descriptor)
 			}
-			scope.owner.Catalog = journal
-			private := e.privateCatalogLocked(journal)
+			scope.Owner.Catalog = journal
+			private := e.PrivateCatalogLocked(journal)
 			consumer := e.BeginCatalogStage(private)
-			target, err := table.NewRelation(ddlHost{e: e}, source.Namespace(), "private_typed", source.Owner, nil, nil)
+			target, err := table.NewRelation(DDLHost{E: e}, source.Namespace(), "private_typed", source.Owner, nil, nil)
 			if err == nil {
 				target.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
 				err = consumer.Create(target)
 			}
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			captured := private.MustType(target.OfType)
@@ -73,15 +73,15 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 				if stale == "type" {
 					changed := *captured
 					changed.ObjectRevision++
-					e.catalogChangeLocked(next, changed.Address(), &changed)
+					e.CatalogChangeLocked(next, changed.Address(), &changed)
 				} else {
 					changed := *source
 					changed.ObjectRevision++
-					e.catalogChangeLocked(next, changed.Address(), &changed)
+					e.CatalogChangeLocked(next, changed.Address(), &changed)
 				}
-				scope.owner.Catalog = next
+				scope.Owner.Catalog = next
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if stale == "foreign" {
 				consumer.Base = New().CatalogRead()
 			}

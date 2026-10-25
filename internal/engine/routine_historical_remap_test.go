@@ -19,7 +19,7 @@ import (
 func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	source, target := New(), New()
 	originals := make(map[string]*catalog.Procedure)
-	for _, descriptor := range source.catalog.State.Descriptors() {
+	for _, descriptor := range source.Catalog.State.Descriptors() {
 		if p, ok := descriptor.(*catalog.Procedure); ok && (p.Name() == "bool_and" || p.Name() == "every" || p.Name() == "row_number") {
 			originals[p.Name()] = p
 		}
@@ -32,7 +32,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	boolean, _ := source.CatalogRead().LookupType(sqltype.Bool)
 	integer, _ := source.CatalogRead().LookupType(sqltype.Int8)
 	ref := func(p *catalog.Procedure) ids.ObjectRef {
-		return source.catalog.Domain.Ref(source.catalog.State.Epoch(), p.Address())
+		return source.Catalog.Domain.Ref(source.Catalog.State.Epoch(), p.Address())
 	}
 	aggregate := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{
 		Provider: functions.NewBooleanAggregateProvider(boolean.Usage(), true),
@@ -42,15 +42,15 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		Routine: ref(originals["every"]), Procedure: originals["every"],
 	}}}
 	window := &plan.WindowNode{Child: aggregate, Calls: []plan.WindowCall{{Routine: ref(originals["row_number"]), Procedure: originals["row_number"], Expression: &plan.WindowExpr{Info: expr.Info{Usage: integer.Usage()}}}}}
-	candidate := catalog.CloneState(source.catalog.State)
+	candidate := catalog.CloneState(source.Catalog.State)
 	for _, original := range originals {
 		current := *original
 		current.ObjectName = "current_" + original.Name()
 		current.ObjectRevision++
 		candidate.SetDescriptor(current.Address(), &current)
 	}
-	sourceRoles := source.roles.PublishedRead(&source.catalog.Owner, source.CatalogRead())
-	targetRoles := target.roles.PublishedRead(&target.catalog.Owner, target.CatalogRead())
+	sourceRoles := source.RoleStore.PublishedRead(&source.Catalog.Owner, source.CatalogRead())
+	targetRoles := target.RoleStore.PublishedRead(&target.Catalog.Owner, target.CatalogRead())
 	structural, err := stored.RemapViewQuery(target.CatalogRead(), aggregate, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 	if err != nil {
 		t.Fatal(err)
@@ -61,15 +61,15 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	if unproven.Procedure != originals["bool_and"] || exec.AdmitRoutineDescriptor(auth, checks, unproven.Procedure, nil) == nil {
 		t.Fatal("structural type copying acquired foreign routine authority")
 	}
-	target.mu.Lock()
+	target.Mu.Lock()
 	prepared, procedure, err := target.remapPreparedCatalog(candidate, sourceRoles, targetRoles, nil)
-	target.mu.Unlock()
+	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := target.catalog.Read(prepared)
+	view := target.Catalog.Read(prepared)
 	mapper := &stored.ViewQueryRemapper{Catalog: view, Procedure: procedure, Ref: func(old ids.ObjectRef) ids.ObjectRef {
-		return target.catalog.Domain.Ref(view.Epoch(), old.Address)
+		return target.Catalog.Domain.Ref(view.Epoch(), old.Address)
 	}, Type: func(old *sqltype.Descriptor) *sqltype.Descriptor { return old }}
 	mapped, err := mapper.Query(window)
 	if err != nil {
@@ -81,10 +81,10 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 	for i, name := range []string{"bool_and", "every", "row_number"} {
 		old, got := originals[name], captured[i]
 		current, _ := view.Procedure(old.Address())
-		if got == old || got == current || got.Name() != old.Name() || got.Revision() != old.Revision() || got.Owner != target.roles.Domain.Principal(old.Owner.ID()) || current.Revision() == got.Revision() {
+		if got == old || got == current || got.Name() != old.Name() || got.Revision() != old.Revision() || got.Owner != target.RoleStore.Domain.Principal(old.Owner.ID()) || current.Revision() == got.Revision() {
 			t.Fatal("historical carrier replaced rather than reprovenanced", name, got, current)
 		}
-		if old.Owner != source.roles.Domain.Principal(old.Owner.ID()) || old.Name() != name {
+		if old.Owner != source.RoleStore.Domain.Principal(old.Owner.ID()) || old.Name() != name {
 			t.Fatal("source original mutated", name)
 		}
 	}
@@ -98,7 +98,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, dependency := range rebound.Dependencies() {
-		if dependency.Revision != dependencies[i].Revision || dependency.Ref.Domain() != target.catalog.Domain || frozen.Dependencies()[i] != dependencies[i] {
+		if dependency.Revision != dependencies[i].Revision || dependency.Ref.Domain() != target.Catalog.Domain || frozen.Dependencies()[i] != dependencies[i] {
 			t.Fatal("raw remap refreshed a historical manifest or changed its source", dependency)
 		}
 	}
@@ -106,7 +106,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		t.Fatal("aggregate/window references separated from their original proofs")
 	}
 	forged := *originals["every"]
-	forged.Owner = target.roles.Domain.Principal(forged.Owner.ID())
+	forged.Owner = target.RoleStore.Domain.Principal(forged.Owner.ID())
 	if _, err := procedure(&forged); err == nil {
 		t.Fatal("target-domain owner rescued an imported-source carrier")
 	}
@@ -118,7 +118,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 	e := New()
 	var original *catalog.Procedure
-	for _, descriptor := range e.catalog.State.Descriptors() {
+	for _, descriptor := range e.Catalog.State.Descriptors() {
 		if p, ok := descriptor.(*catalog.Procedure); ok && p.Name() == "row_number" {
 			original = p
 			break
@@ -128,11 +128,11 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 		t.Fatal("missing seeded window declaration")
 	}
 	// Retired owners/grantees are provenance, not the current EXECUTE policy.
-	owner := e.roles.Domain.Principal(900001)
-	grantee := e.roles.Domain.Principal(900002)
+	owner := e.RoleStore.Domain.Principal(900001)
+	grantee := e.RoleStore.Domain.Principal(900002)
 	oldOwner := authorization.RoleDescriptor{Ref: owner, Name: "historical_owner"}
 	oldGrantee := authorization.RoleDescriptor{Ref: grantee, Name: "historical_reader"}
-	roleRoot, err := e.roles.Published.Root.PutDescriptor(oldOwner)
+	roleRoot, err := e.RoleStore.Published.Root.PutDescriptor(oldOwner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,14 +141,14 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleRoot = roleRoot.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{owner: oldOwner, grantee: oldGrantee})
-	e.roles.PublishLocked(&access.RoleRecord{Root: roleRoot, Revision: e.roles.Published.Revision + 1})
+	e.RoleStore.PublishLocked(&access.RoleRecord{Root: roleRoot, Revision: e.RoleStore.Published.Revision + 1})
 	historical := *original
 	historical.Owner = owner
 	historical.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ExecutePrivilege}}}
 	current := *original
 	current.ObjectRevision++
-	e.catalog.State.SetDescriptor(current.Address(), &current)
-	roles := e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead())
+	e.Catalog.State.SetDescriptor(current.Address(), &current)
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.CatalogRead())
 	if _, err := roles.Descriptor(owner); err == nil {
 		t.Fatal("historical-owner control unexpectedly live")
 	}
@@ -177,7 +177,7 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 // replacementProcedurePolicyFixture supplies the real host policy for private
 // address/type remap fixtures; it does not manufacture numeric principal links.
 func replacementProcedurePolicyFixture(source, target *Engine) catalog.ProcedureRemapper {
-	sourceRoles := source.roles.PublishedRead(&source.catalog.Owner, source.catalog.Current())
-	targetRoles := target.roles.PublishedRead(&target.catalog.Owner, target.catalog.Current())
-	return catalog.NewProcedureRemapper(target.roles.PrincipalRemap(&target.catalog, sourceRoles, targetRoles, nil, routine.OperatorSeeded))
+	sourceRoles := source.RoleStore.PublishedRead(&source.Catalog.Owner, source.Catalog.Current())
+	targetRoles := target.RoleStore.PublishedRead(&target.Catalog.Owner, target.Catalog.Current())
+	return catalog.NewProcedureRemapper(target.RoleStore.PrincipalRemap(&target.Catalog, sourceRoles, targetRoles, nil, routine.OperatorSeeded))
 }

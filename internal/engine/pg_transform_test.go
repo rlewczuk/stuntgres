@@ -21,13 +21,13 @@ func TestPGTransformCapture(t *testing.T) {
 	if !ok {
 		t.Fatal("missing transform producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: engineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: EngineCatalogRuntime{}}
 	if rows, err := produce(input); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("truthful empty transform inventory", rows, err)
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
-	captured, err := captureCatalogSourceRows(input, produce)
+	captured, err := CaptureCatalogSourceRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 0 {
 		t.Fatal("empty capture lost source identity", captured, err)
 	}
@@ -59,7 +59,7 @@ func TestPGTransformCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation must precede shape admission", rows, err)
 	}
-	if got, err := captureCatalogSourceRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := CaptureCatalogSourceRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published source", got, err)
 	}
 }
@@ -131,7 +131,7 @@ func TestPGTransformOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("missing transform producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: engineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: EngineCatalogRuntime{}}
 	if rows, err := produce(input); rows == nil || len(rows) != 0 || err != nil {
 		t.Fatal("replacement transform capture", rows, err)
 	}

@@ -45,7 +45,7 @@ func TestRLSPolicyFreshness(t *testing.T) {
 			helper := roleTableRef(t, e, "helper")
 			resource := lock.Resource{ObjectRef: helper}
 			ticket := holder.Session.Transactions.Ticket
-			request, err := e.locks.StartAcquire(holder.Context(), ticket, resource, lock.AccessExclusive, lock.Policy{})
+			request, err := e.Locks.StartAcquire(holder.Context(), ticket, resource, lock.AccessExclusive, lock.Policy{})
 			if err == nil && request != nil {
 				err = request.Wait()
 			}
@@ -70,10 +70,10 @@ func TestRLSPolicyFreshness(t *testing.T) {
 				t.Fatal(err)
 			}
 			target := roleTableRef(t, e, "t")
-			e.mu.Lock()
-			descriptor := e.privateCatalogLocked(scope.owner.Catalog).MustRelation(target.Address)
-			actor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("freshness_actor")
-			e.mu.Unlock()
+			e.Mu.Lock()
+			descriptor := e.PrivateCatalogLocked(scope.Owner.Catalog).MustRelation(target.Address)
+			actor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("freshness_actor")
+			e.Mu.Unlock()
 			type outcome struct {
 				program *exec.RLSProgram
 				err     error
@@ -92,9 +92,9 @@ func TestRLSPolicyFreshness(t *testing.T) {
 				}
 			}()
 			go func() {
-				e.mu.Lock()
+				e.Mu.Lock()
 				p, err := e.captureRowSecurityLocked(scope, descriptor, actor, catalog.PolicySelect, false, false)
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				results <- outcome{p, err}
 			}()
 			waiting := false
@@ -106,7 +106,7 @@ func TestRLSPolicyFreshness(t *testing.T) {
 					t.Fatalf("importer exited before helper lock wait: %v", out.err)
 				default:
 				}
-				state := e.locks.Inspect(ticket)
+				state := e.Locks.Inspect(ticket)
 				if entry := state.Resources[resource]; entry != nil {
 					for _, waiter := range entry.Pending {
 						if !waiter.Terminal && waiter.Mode == lock.AccessShare {
@@ -146,7 +146,7 @@ func TestRLSPolicyFreshness(t *testing.T) {
 			} else if out.err != nil || out.program == nil || out.program.Denied() {
 				t.Fatal("unrelated role revision invalidated same program", out.program, out.err)
 			}
-			if len(scope.stage.rows) != 0 || len(scope.stage.deletes) != 0 {
+			if len(scope.Stage.Rows) != 0 || len(scope.Stage.Deletes) != 0 {
 				t.Fatal("admission published row side effects")
 			}
 		})
@@ -195,7 +195,7 @@ func TestRLSPolicyDependencyFreshness(t *testing.T) {
 			defer e.Rollback(holder, tx)
 			resource := lock.Resource{ObjectRef: roleTableRef(t, e, "helper")}
 			ticket := holder.Session.Transactions.Ticket
-			request, err := e.locks.StartAcquire(holder.Context(), ticket, resource, lock.AccessExclusive, lock.Policy{})
+			request, err := e.Locks.StartAcquire(holder.Context(), ticket, resource, lock.AccessExclusive, lock.Policy{})
 			if err == nil && request != nil {
 				err = request.Wait()
 			}
@@ -219,8 +219,8 @@ func TestRLSPolicyDependencyFreshness(t *testing.T) {
 			if _, err := scope.Describe(statement(t, "SELECT t.id FROM t JOIN later ON t.id=later.id")); err != nil {
 				t.Fatal(err)
 			}
-			if len(scope.querySources) != 2 {
-				t.Fatal("fixture source order", scope.querySources)
+			if len(scope.QuerySources) != 2 {
+				t.Fatal("fixture source order", scope.QuerySources)
 			}
 			type outcome struct {
 				source *exec.Source
@@ -240,9 +240,9 @@ func TestRLSPolicyDependencyFreshness(t *testing.T) {
 				}
 			}()
 			go func() {
-				e.mu.Lock()
-				source, err := e.captureQuerySourcesLocked(scope, scope.querySources, false)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				source, err := e.CaptureQuerySourcesLocked(scope, scope.QuerySources, false)
+				e.Mu.Unlock()
 				results <- outcome{source, err}
 			}()
 			waiting := false
@@ -257,7 +257,7 @@ func TestRLSPolicyDependencyFreshness(t *testing.T) {
 					t.Fatalf("later importer exited before actual wait: %v", out.err)
 				default:
 				}
-				state := e.locks.Inspect(ticket)
+				state := e.Locks.Inspect(ticket)
 				if entry := state.Resources[resource]; entry != nil {
 					for _, waiter := range entry.Pending {
 						if !waiter.Terminal && waiter.Mode == lock.AccessShare {
@@ -303,7 +303,7 @@ func TestRLSPolicyDependencyFreshness(t *testing.T) {
 			if scope.rlsAdmissionDepth != 0 || len(scope.rlsActive) != 0 {
 				t.Fatal("nested admission leaked depth/active state", scope.rlsAdmissionDepth, scope.rlsActive)
 			}
-			if len(scope.stage.rows) != 0 || len(scope.stage.deletes) != 0 {
+			if len(scope.Stage.Rows) != 0 || len(scope.Stage.Deletes) != 0 {
 				t.Fatal("failed final fence published row work")
 			}
 		})
@@ -343,7 +343,7 @@ func TestRLSPolicyOriginalAuthority(t *testing.T) {
 			defer e.Rollback(holder, tx)
 			resource := lock.Resource{ObjectRef: roleTableRef(t, e, "helper")}
 			ticket := holder.Session.Transactions.Ticket
-			request, err := e.locks.StartAcquire(holder.Context(), ticket, resource, lock.AccessExclusive, lock.Policy{})
+			request, err := e.Locks.StartAcquire(holder.Context(), ticket, resource, lock.AccessExclusive, lock.Policy{})
 			if err == nil && request != nil {
 				err = request.Wait()
 			}
@@ -400,7 +400,7 @@ func TestRLSPolicyOriginalAuthority(t *testing.T) {
 					t.Fatalf("executor exited before policy helper wait: %v", out.err)
 				default:
 				}
-				state := e.locks.Inspect(ticket)
+				state := e.Locks.Inspect(ticket)
 				if entry := state.Resources[resource]; entry != nil {
 					for _, waiter := range entry.Pending {
 						if !waiter.Terminal && waiter.Mode == lock.AccessShare {
@@ -463,10 +463,10 @@ func TestRLSAuthorityFrame(t *testing.T) {
 	outer := &preparedCommandExecution{policyWaits: 1}
 	inner := &preparedCommandExecution{policyWaits: 2}
 	scope.rlsCommand, scope.rlsImportWaits = outer, 1
-	rule := scope.ruleScratch()
+	rule := scope.RuleScratch()
 	scope.rlsCommand = inner
 	scope.rlsImportWaits++
-	scope.installRuleScratch(rule)
+	scope.InstallRuleScratch(rule)
 	if scope.rlsCommand != outer || scope.rlsImportWaits != 2 || outer.policyWaits != 1 {
 		t.Fatal("rule frame lost pending original authority")
 	}

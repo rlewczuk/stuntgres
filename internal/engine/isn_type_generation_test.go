@@ -38,10 +38,10 @@ func testIsnTypeGenerationIdentity(t *testing.T, family string) {
 		{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}},
 		{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{sqltype.Null(base.SQLType)}},
 	}}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), original)
-	e.visibility.SetCommitSeqLocked(1)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), original)
+	e.Visibility.SetCommitSeqLocked(1)
+	e.Mu.Unlock()
 
 	// Exercise the private generation seam directly, without executing SQL.
 	next := *base
@@ -59,17 +59,17 @@ func testIsnTypeGenerationIdentity(t *testing.T, family string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	err = e.reownStagedTypeGenerationsLocked(stage)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.ReownStagedTypeGenerationsLocked(stage)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	shape := stage.rowShapes[table.Address()]
+	shape := stage.RowShapes[table.Address()]
 	if shape.Replacement == nil || shape.Replacement == original {
 		t.Fatal("changed generation did not copy its store")
 	}
-	current := e.stageRead(stage)
+	current := e.StageRead(stage)
 	if got := current.MustRelation(table.Address()).Columns[0].Usage.Type; got != next.SQLType {
 		t.Fatalf("stale column generation: got %p, want %p", got, next.SQLType)
 	}
@@ -100,7 +100,7 @@ func testIsnTypeGenerationIdentity(t *testing.T, family string) {
 			t.Fatal("exact source/destination authorization rejected", err)
 		}
 	}
-	if before.MustType(base.Address()) != base || original.Versions[0].Values[0].Type() != base.SQLType || e.storage.Relations[table.Address()] != original || e.CatalogRead().State() != before.State() {
+	if before.MustType(base.Address()) != base || original.Versions[0].Values[0].Type() != base.SQLType || e.Storage.Relations[table.Address()] != original || e.CatalogRead().State() != before.State() {
 		t.Fatal("private generation changed published or retained roots")
 	}
 	if _, err := value.Retag(next.SQLType); err == nil {

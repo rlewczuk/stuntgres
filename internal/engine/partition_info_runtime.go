@@ -12,7 +12,7 @@ import (
 // partitionInquiry checks cancellation and returns the retained inquiry
 // catalog. Nothing is held.
 func (h *statementHost) partitionInquiry() (context.Context, catalog.Read, error) {
-	ctx := h.scope().op.Context()
+	ctx := h.scope().Op.Context()
 	if err := ctx.Err(); err != nil {
 		return nil, catalog.Read{}, err
 	}

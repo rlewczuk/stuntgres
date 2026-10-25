@@ -13,15 +13,15 @@ import (
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
 func stageCheckDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.CheckDependencyEdge, error) {
-	return table.CheckDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+	return table.CheckDependents(StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }
 
 // stageDefaultDependents lists the column defaults that depend on targets.
 func stageDefaultDependents(stage *CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.DefaultDependencyEdge, error) {
-	return table.DefaultDependents(stageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+	return table.DefaultDependents(StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }
 
 // viewDependencyClosure lists the views that depend on targets.
 func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *CatalogStage) []view.DependencyEdge {
-	return view.DependentViews(&dropProvider{base: catalog, stage: stage}, targets)
+	return view.DependentViews(&DropProvider{Base: catalog, Stage: stage}, targets)
 }

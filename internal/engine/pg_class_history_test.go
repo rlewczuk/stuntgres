@@ -11,10 +11,10 @@ import (
 
 func pgClassHistoryCatalog(e *Engine) (catalog.Read, *catalog.Relation) {
 	state := catalog.CloneState(e.CatalogRead().State())
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.roles.Domain.Principal(10)}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10)}
 	state.SetDescriptor(parent.Address(), parent)
 	state.BindName(catalog.DescriptorNameKey(parent), parent.Address())
-	return e.catalog.Read(state), parent
+	return e.Catalog.Read(state), parent
 }
 
 func TestPgClassSubclassPublication(t *testing.T) {
@@ -44,9 +44,9 @@ func TestPgClassSubclassPublication(t *testing.T) {
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			err := stage.MarkSubclassHistoryLocked(e.catalog.RevisionLocked, stage.Replace)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err := stage.MarkSubclassHistoryLocked(e.Catalog.RevisionLocked, stage.Replace)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -74,7 +74,7 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "same_stage", ObjectRevision: 7, RowType: 200112, Owner: e.roles.Domain.Principal(10)}
+	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200110}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "same_stage", ObjectRevision: 7, RowType: 200112, Owner: e.RoleStore.Domain.Principal(10)}
 	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200111}, ObjectNamespace: parent.Namespace(), ObjectName: "same_child", ObjectRevision: 8, Owner: parent.Owner, Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}}
 	if err := stage.Create(parent); err != nil {
 		t.Fatal(err)
@@ -82,9 +82,9 @@ func TestPgClassSubclassPublication(t *testing.T) {
 	if err := stage.Create(child); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	err := stage.MarkSubclassHistoryLocked(e.catalog.RevisionLocked, stage.Replace)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := stage.MarkSubclassHistoryLocked(e.Catalog.RevisionLocked, stage.Replace)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	view, parent := pgClassHistoryCatalog(e)
 	child := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200101}, Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}}
 	view.State().SetDescriptor(child.Address(), child)
-	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, History: catalog.PublicationHistory{HasSubclasses: true}, Owner: e.roles.Domain.Principal(authorization.BootstrapPrincipalID)}
+	history := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200102}, History: catalog.PublicationHistory{HasSubclasses: true}, Owner: e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)}
 	view.State().SetDescriptor(history.Address(), history)
 	if err := catalog.NormalizeReplacementSubclassHistory(context.Background(), view); err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if !got.History.HasSubclasses || got == parent || parent.History.HasSubclasses || !history.History.HasSubclasses {
 		t.Fatal("normalization mutated retained roots", got, parent)
 	}
-	base := e.catalog.Read(catalog.CloneState(view.State()))
+	base := e.Catalog.Read(catalog.CloneState(view.State()))
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	cleared := *got
@@ -121,7 +121,7 @@ func TestPgClassSubclassReplacement(t *testing.T) {
 	if err := catalog.NormalizeReplacementSubclassHistory(canceled, view); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	missing := e.catalog.Read(catalog.CloneState(view.State()))
+	missing := e.Catalog.Read(catalog.CloneState(view.State()))
 	missing.State().RemoveDescriptor(parent.Address())
 	if err := catalog.NormalizeReplacementSubclassHistory(context.Background(), missing); err == nil {
 		t.Fatal("dangling edge accepted")

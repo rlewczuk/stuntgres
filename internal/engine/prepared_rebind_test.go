@@ -22,9 +22,9 @@ func preparedRebindValid(t *testing.T, e *Engine, s *session.Session, cell *prep
 		t.Fatal(err)
 	}
 	defer op.Done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,13 +246,13 @@ func TestPreparedRebindPublication(t *testing.T) {
 		ast := statement(t, "SELECT 'q'::mood,'(q,now)'::mixed_capture,'{now}'::timestamp[],TIMESTAMP 'now'")
 		bind := func(input sqltype.InputEnvironment, expected *StatementDescription) analyze.Binding {
 			t.Helper()
-			engine.mu.Lock()
-			defer engine.mu.Unlock()
-			auth, err := engine.authorizationLocked(op)
+			engine.Mu.Lock()
+			defer engine.Mu.Unlock()
+			auth, err := engine.AuthorizationLocked(op)
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound, err := describe(op.Ctx, engine.analysisHost(op), ast, auth, ids.ObjectRef{}, input, expected, nil)
+			bound, err := Describe(op.Ctx, engine.AnalysisHost(op), ast, auth, ids.ObjectRef{}, input, expected, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -262,7 +262,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		if len(first.Prepared.Temporals) != 4 {
 			t.Fatal("missing logical and genuine temporal captures", first.Prepared.Temporals)
 		}
-		description := StatementDescription{Parameters: first.Parameters, Results: first.Query.Root.Schema(), temporals: first.Prepared.Temporals, catalogOwner: &engine.catalog.Owner, catalogEpoch: engine.CatalogRead().Epoch()}
+		description := StatementDescription{Parameters: first.Parameters, Results: first.Query.Root.Schema(), Temporals: first.Prepared.Temporals, catalogOwner: &engine.Catalog.Owner, catalogEpoch: engine.CatalogRead().Epoch()}
 		frozen := append([]analyze.TemporalConstant(nil), first.Prepared.Temporals...)
 		run(t, engine, "ALTER TYPE mood RENAME VALUE 'q' TO 'end'")
 		description.refreshTemporals = true
@@ -276,7 +276,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 				t.Fatal("incorrect temporal/logical candidate boundary", i, old, fresh.Prepared.Temporals[i])
 			}
 		}
-		if !reflect.DeepEqual(description.temporals, frozen) {
+		if !reflect.DeepEqual(description.Temporals, frozen) {
 			t.Fatal("candidate mutated original logical/temporal group")
 		}
 	})
@@ -284,8 +284,8 @@ func TestPreparedRebindPublication(t *testing.T) {
 		engine := New()
 		session := sessionStart(t, engine, nil)
 		ast, description := sequencePreparedDescription(t, engine, session, "VALUES(TIMESTAMP 'now',('{now}'::timestamp[])[1])")
-		if len(description.temporals) != 2 || description.analysis == nil {
-			t.Fatal("missing initial VALUES analysis", description.temporals)
+		if len(description.Temporals) != 2 || description.analysis == nil {
+			t.Fatal("missing initial VALUES analysis", description.Temporals)
 		}
 		original := description
 		for range 2 {
@@ -294,7 +294,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			result.Rows.Close()
-			if description.analysis != original.analysis || len(description.temporals) != 2 || &description.temporals[0] != &original.temporals[0] {
+			if description.analysis != original.analysis || len(description.Temporals) != 2 || &description.Temporals[0] != &original.Temporals[0] {
 				t.Fatal("unchanged VALUES use replaced retained capture state")
 			}
 		}
@@ -305,14 +305,14 @@ func TestPreparedRebindPublication(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT t.*,TIMESTAMP 'now','{now}'::timestamp[],nextval('q'),'integer'::regtype FROM t")
-	if len(d.temporals) < 2 || d.sequences == nil || d.regtypes == nil || d.analysis == nil {
+	if len(d.Temporals) < 2 || d.Sequences == nil || d.regtypes == nil || d.analysis == nil {
 		t.Fatal("missing genuine capture groups")
 	}
 	before := d
-	sequenceBefore, regtypeBefore := *d.sequences, *d.regtypes
+	sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
 	assertUnchanged := func() {
 		t.Helper()
-		if d.analysis != before.analysis || len(d.temporals) != len(before.temporals) || &d.temporals[0] != &before.temporals[0] || d.sequences != before.sequences || d.regtypes != before.regtypes || !reflect.DeepEqual(*d.sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) || !reflect.DeepEqual(d.Parameters, before.Parameters) || !reflect.DeepEqual(d.Results, before.Results) {
+		if d.analysis != before.analysis || len(d.Temporals) != len(before.Temporals) || &d.Temporals[0] != &before.Temporals[0] || d.Sequences != before.Sequences || d.regtypes != before.regtypes || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) || !reflect.DeepEqual(d.Parameters, before.Parameters) || !reflect.DeepEqual(d.Results, before.Results) {
 			t.Fatal("failed analysis published retained state")
 		}
 	}
@@ -339,7 +339,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if d.analysis == before.analysis || len(d.temporals) != len(before.temporals) || &d.temporals[0] == &before.temporals[0] || d.sequences != before.sequences || d.regtypes != before.regtypes {
+	if d.analysis == before.analysis || len(d.Temporals) != len(before.Temporals) || &d.Temporals[0] == &before.Temporals[0] || d.Sequences != before.Sequences || d.regtypes != before.regtypes {
 		t.Fatal("complete group did not publish together")
 	}
 	if err := checkStatementSignature(before, d); err != nil {
@@ -351,7 +351,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if d.analysis != stable.analysis || len(d.temporals) != len(stable.temporals) || &d.temporals[0] != &stable.temporals[0] || d.sequences != stable.sequences || d.regtypes != stable.regtypes {
+	if d.analysis != stable.analysis || len(d.Temporals) != len(stable.Temporals) || &d.Temporals[0] != &stable.Temporals[0] || d.Sequences != stable.Sequences || d.regtypes != stable.regtypes {
 		t.Fatal("valid use allocated retained state")
 	}
 
@@ -385,7 +385,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		}
 		ast, description := sequencePreparedDescription(t, engine, session, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('source_q'),'integer'::regtype FROM source")
 		old := description
-		sequence, regtype := *description.sequences, *description.regtypes
+		sequence, regtype := *description.Sequences, *description.regtypes
 		if err := engine.Reset(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -397,7 +397,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 			result.Rows.Close()
 			t.Fatal("retired provenance exposed rows")
 		}
-		if !errors.Is(err, ids.ErrCatalogReplaced) || description.analysis != old.analysis || len(description.temporals) != len(old.temporals) || &description.temporals[0] != &old.temporals[0] || !reflect.DeepEqual(*description.sequences, sequence) || !reflect.DeepEqual(*description.regtypes, regtype) {
+		if !errors.Is(err, ids.ErrCatalogReplaced) || description.analysis != old.analysis || len(description.Temporals) != len(old.Temporals) || &description.Temporals[0] != &old.Temporals[0] || !reflect.DeepEqual(*description.Sequences, sequence) || !reflect.DeepEqual(*description.regtypes, regtype) {
 			t.Fatal("native lifetime rejection published capture/identity state", err)
 		}
 	})

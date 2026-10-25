@@ -58,7 +58,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	state := partition.InsertState{Target: parent, Destination: child, Layouts: map[ids.ObjectAddress]*exec.InheritanceQuerySegment{child.Address(): &back}}
 	state.PhysicalRow = state.RowFor(child, logical)
 	owned := append([]sqltype.Value(nil), logical...)
-	scope := StatementScope{statementMutation: statementMutation{Command: dml.Command{Partition: dml.Partition{PartitionInsert: &state}}}}
+	scope := StatementScope{StatementMutation: StatementMutation{Command: dml.Command{Partition: dml.Partition{PartitionInsert: &state}}}}
 	stored := scope.Command.PartitionStoredRow(owned)
 	if &stored[0] != &owned[0] || !reflect.DeepEqual(stored, physical) {
 		t.Fatal("non-returning storage ownership")
@@ -118,7 +118,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	}
 	parent.Partition = &catalog.PartitionDefinition{Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: usage, Class: class, Comparison: ordering, Label: "k"}}}
 	view := inheritanceUnitView(e, parent, child)
-	ref := e.catalog.Domain.Ref(view.Epoch(), child.Address())
+	ref := e.Catalog.Domain.Ref(view.Epoch(), child.Address())
 	ref.Address.SubID = 1
 	key := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
 	boolean := testUsage(e, sqltype.Bool)

@@ -14,7 +14,7 @@ import (
 
 func (h *statementHost) LookupObjectAddress(c *exec.Context, values [3]sqltype.Value) (ids.ObjectAddress, error) {
 	scope := h.scope()
-	if scope.inquiry.commentCatalog.State() == nil {
+	if scope.Inquiry.CommentCatalog.State() == nil {
 		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
 	return addressLookup(scope).Lookup(c.Context, values)
@@ -24,18 +24,18 @@ func (h *statementHost) LookupObjectAddress(c *exec.Context, values [3]sqltype.V
 // use the deparse authority as captured; notices go to the statement's
 // operation.
 func addressLookup(scope *StatementScope) regobj.AddressLookup {
-	auth := scope.inquiry.deparseAuth
+	auth := scope.Inquiry.deparseAuth
 	return regobj.AddressLookup{
-		Catalog: scope.inquiry.commentCatalog,
-		Roles:   scope.inquiry.commentRoles,
+		Catalog: scope.Inquiry.CommentCatalog,
+		Roles:   scope.Inquiry.commentRoles,
 		Capture: regobj.InputCapture{
-			Authority: inputAuthority(auth), Path: scope.inquiry.deparsePath,
-			Database: scope.op.Session.DatabaseName, Token: scope.op.Session.SessionToken, Temporary: temporaryNamespace(auth),
+			Authority: inputAuthority(auth), Path: scope.Inquiry.DeparsePath,
+			Database: scope.Op.Session.DatabaseName, Token: scope.Op.Session.SessionToken, Temporary: temporaryNamespace(auth),
 		},
 		Namespace: func(name parser.ObjectName) (analyze.NamespaceSelection, error) {
-			return lookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)
+			return LookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)
 		},
-		Notice: scope.op.EmitNotice,
+		Notice: scope.Op.EmitNotice,
 	}
 }
 
@@ -51,9 +51,9 @@ func (h *statementHost) DescribeObject(c *exec.Context, values [3]sqltype.Value,
 	return identifyObjectValues(c, values, result, functions.DescribeObject)
 }
 func identifyObjectValues(c *exec.Context, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
-	scope := scopeOf(c.LiveHost())
-	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
+	scope := ScopeOf(c.LiveHost())
+	if scope == nil || scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
-	return regobj.IdentifyValues(scope.inquiry.commentCatalog, scope.inquiry.commentRoles, scope.inquiry.deparsePath, values, result, operation)
+	return regobj.IdentifyValues(scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles, scope.Inquiry.DeparsePath, values, result, operation)
 }

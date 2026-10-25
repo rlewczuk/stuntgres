@@ -16,15 +16,15 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	run(t, e, `CREATE TABLE sentinel(id INT,a INT DEFAULT 7,b INT DEFAULT 9)`)
 	run(t, e, `INSERT INTO sentinel(id) VALUES(1)`)
 	ref := roleTableRef(t, e, "sentinel")
-	old := e.catalog.State.MustRelation(ref.Address)
-	storage := e.storage.Relations[ref.Address]
+	old := e.Catalog.State.MustRelation(ref.Address)
+	storage := e.Storage.Relations[ref.Address]
 	epoch := e.CatalogRead().Epoch()
-	owner := e.catalog.Domain
+	owner := e.Catalog.Domain
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	next := *old
 	next.ObjectRevision++
 	next.Comment = "eligible default descriptor"
-	next.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
+	next.Owner = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("default_owner")
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore accepted", script)
 		}
-		if e.catalog.Domain != owner || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
+		if e.Catalog.Domain != owner || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
 			t.Fatal("failed restore changed identity/storage")
 		}
 		var after bytes.Buffer
@@ -56,7 +56,7 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 		t.Fatal("eligible stage fenced", err)
 	}
 	run(t, e, `ALTER TABLE sentinel DROP a`)
-	live := e.catalog.State.MustRelation(ref.Address)
+	live := e.Catalog.State.MustRelation(ref.Address)
 	if len(live.ColumnMeta.Defaults) != 1 || live.ColumnMeta.Defaults[3].Expression == nil || old.ColumnMeta.Defaults[2].Expression == nil {
 		t.Fatal("attribute-key ownership changed", live.ColumnMeta.Defaults, old.ColumnMeta.Defaults)
 	}

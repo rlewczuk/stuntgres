@@ -13,9 +13,9 @@ import (
 // independent of stage ownership. Admission retains this exact result; the
 // sole physical pipeline installs it and scans rows once.
 func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (table.PreparedAddedChecks, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return table.PrepareAddedChecks(alterHost{ddlHost{e: e, op: op}, scope}, scope.inheritancePlan(), auth, parent, raw)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return table.PrepareAddedChecks(alterHost{DDLHost{E: e, Op: op}, scope}, scope.inheritancePlan(), auth, parent, raw)
 }
 
 func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
@@ -48,9 +48,9 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, 
 }
 
 func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	h := ddlHost{e: e, op: op, stage: stage}
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	h := DDLHost{E: e, Op: op, CatalogStage: stage}
 	next, err := table.StageAddedUnique(h, op, parent, raw)
 	if err != nil {
 		return nil, index.DefaultClassDiagnostic(h, auth, err)
@@ -59,7 +59,7 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 }
 
 func (e *Engine) stageAddedForeignKey(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return table.StageAddedForeignKey(ddlHost{e: e, op: scope.op, stage: stage}, auth, parent, raw, target, supporting)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return table.StageAddedForeignKey(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, parent, raw, target, supporting)
 }

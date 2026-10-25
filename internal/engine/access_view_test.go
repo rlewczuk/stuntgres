@@ -38,7 +38,7 @@ func TestAccessViewRejectsForeignOwner(t *testing.T) {
 	e, foreign := New(), New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestAccessViewRejectsForeignOwner(t *testing.T) {
 		t.Fatalf("own owner: %v", err)
 	}
 	stolen := auth
-	stolen.Owner = &foreign.catalog.Owner
+	stolen.Owner = &foreign.Catalog.Owner
 	if err := stolen.CanUse(public); err == nil || !strings.Contains(err.Error(), "foreign or stale") {
 		t.Fatalf("foreign owner: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestAccessViewTemporaryNamespaceFromEnvironment(t *testing.T) {
 	defer readerDone()
 	effective := func() (none, own authorization.Privileges) {
 		t.Helper()
-		auth, err := operationAuthorization(readerOp)
+		auth, err := OperationAuthorization(readerOp)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +96,7 @@ func TestAccessViewTemporaryNamespaceFromEnvironment(t *testing.T) {
 	view := e.CatalogRead()
 	owner := view.MustDatabase(catalog.CurrentDatabaseAddress).Owner
 	ownerOnly := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
-	if err := e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(view.Epoch(), catalog.CurrentDatabaseAddress), ownerOnly); err != nil {
+	if err := e.SetObjectACL(context.Background(), e.Catalog.Domain.Ref(view.Epoch(), catalog.CurrentDatabaseAddress), ownerOnly); err != nil {
 		t.Fatal(err)
 	}
 	none, own = effective()
@@ -116,7 +116,7 @@ func TestAccessViewTypeDenialQualifiesByReferencePath(t *testing.T) {
 	roleExecute(t, e, op, "REVOKE USAGE ON TYPE moods.mood FROM PUBLIC")
 	readerOp, readerDone := roleOperation(t, e, "type_reader")
 	defer readerDone()
-	auth, err := operationAuthorization(readerOp)
+	auth, err := OperationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestAccessViewTypeDenialFollowsLiveSearchPath(t *testing.T) {
 		if tc.set != "" {
 			roleExecute(t, e, readerOp, tc.set)
 		}
-		auth, err := operationAuthorization(readerOp)
+		auth, err := OperationAuthorization(readerOp)
 		if err != nil {
 			t.Fatal(err)
 		}

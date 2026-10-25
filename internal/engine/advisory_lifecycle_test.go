@@ -27,19 +27,19 @@ func advisoryUnitScopeWait(t *testing.T, s *session.Session, key lock.Resource, 
 		cancel()
 		t.Fatal(err)
 	}
-	scope, err := engineOf(s).StartStatement(op)
+	scope, err := EngineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		cancel()
 		t.Fatal(err)
 	}
-	if err = scope.gate(statement(t, "SELECT pg_advisory_lock(1)")); err != nil {
+	if err = scope.Gate(statement(t, "SELECT pg_advisory_lock(1)")); err != nil {
 		_ = scope.Finish(err)
 		op.Done()
 		cancel()
 		t.Fatal(err)
 	}
-	ticket, provenance := scope.ticket, scope.txRef
+	ticket, provenance := scope.LockTicket, scope.TxRef
 	done := make(chan advisoryScopeOutcome, 1)
 	joined := make(chan struct{})
 	go func() {
@@ -57,7 +57,7 @@ func advisoryUnitScopeWait(t *testing.T, s *session.Session, key lock.Resource, 
 			t.Error("advisory scope worker failed to join")
 		}
 	})
-	lockPending(t, engineOf(s), 1)
+	lockPending(t, EngineOf(s), 1)
 	return ticket, provenance, done
 }
 func advisoryUnitScopeResult(t *testing.T, done <-chan advisoryScopeOutcome, want error) {
@@ -80,25 +80,25 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 	replacement := source.CatalogRead()
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
 	relations := make(map[ids.ObjectAddress]*storage.Relation)
-	source.mu.Lock()
-	for address, relation := range source.storage.Relations {
+	source.Mu.Lock()
+	for address, relation := range source.Storage.Relations {
 		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
-	sequences, err := sequence.CopyGenerators(replacement, source.storage.Sequences)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
-	source.mu.Unlock()
+	sequences, err := sequence.CopyGenerators(replacement, source.Storage.Sequences)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
+	source.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if indexErr != nil {
 		t.Fatal(indexErr)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	next, _, err := e.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 	if err == nil {
-		nextRevision := e.catalog.NextRevision()
+		nextRevision := e.Catalog.NextRevision()
 		for _, descriptor := range next.Descriptors() {
-			if err = access.ValidateACL(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Read(next)), descriptor); err != nil {
+			if err = access.ValidateACL(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(next)), descriptor); err != nil {
 				break
 			}
 			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
@@ -107,16 +107,16 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
-				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.catalog.OIDReservationLocked())
+				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
 			}
 		}
 	}
-	epoch := e.catalog.State.Epoch()
-	e.mu.Unlock()
+	epoch := e.Catalog.State.Epoch()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.locks.Fence(e.catalog.Domain, epoch)
+	e.Locks.Fence(e.Catalog.Domain, epoch)
 }
 func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 	for _, grantBeforeFence := range []bool{false, true} {
@@ -124,12 +124,12 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			e := New()
 			a, ra := advisoryUnitOwner(t, e)
 			b, rb := advisoryUnitOwner(t, e)
-			key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 0x80000000, Low: 9}
+			key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 0x80000000, Low: 9}
 			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 			advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 			transactionEnd(t, b, rb, false)
 			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
-			m := e.locks
+			m := e.Locks
 			lockState := m.Inspect(ticket)
 			waiter := lockState.Resources[key].Pending[0]
 			request := waiter.Request
@@ -138,11 +138,11 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				t.Fatal("persistent request lost current transient provenance")
 			}
 			if grantBeforeFence {
-				e.replacementMu.Lock()
+				e.ReplacementMu.Lock()
 				held := true
 				t.Cleanup(func() {
 					if held {
-						e.replacementMu.Unlock()
+						e.ReplacementMu.Unlock()
 					}
 				})
 				advisoryUnitUnlock(t, a, key, lock.AdvisoryShare, true)
@@ -157,7 +157,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				default:
 				}
 				advisoryUnitReplaceReserved(t, e)
-				e.replacementMu.Unlock()
+				e.ReplacementMu.Unlock()
 				held = false
 			} else {
 				if err := e.Reset(context.Background()); err != nil {
@@ -194,7 +194,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 10, Low: 11}
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 10, Low: 11}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 		transactionEnd(t, b, rb, false)
@@ -228,7 +228,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		default:
 			t.Fatal("prepared resource cleanup callback missing")
 		}
-		lockState := e.locks.Inspect(b.Advisory.Ticket)
+		lockState := e.Locks.Inspect(b.Advisory.Ticket)
 		persistentLive := lockState.Valid(b.Advisory.Ticket)
 		sourceLive := lockState.Valid(ticket)
 		journal := len(lockState.Journals[b.Advisory.Ticket])

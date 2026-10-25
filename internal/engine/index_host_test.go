@@ -10,20 +10,20 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func indexHostFixture(t *testing.T) (ddlHost, AuthorizationView, partialIndexFixture) {
+func indexHostFixture(t *testing.T) (DDLHost, AuthorizationView, partialIndexFixture) {
 	t.Helper()
 	f := newPartialIndexFixture(t)
 	op, done := roleOperation(t, f.e, "postgres")
 	t.Cleanup(done)
-	f.e.mu.Lock()
-	auth, err := f.e.authorizationLocked(op)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	auth, err := f.e.AuthorizationLocked(op)
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	stage := f.e.BeginCatalogStage(auth.Catalog)
 	t.Cleanup(func() { f.e.DiscardCatalogStage(stage) })
-	return ddlHost{e: f.e, op: op, stage: stage}, auth, f
+	return DDLHost{E: f.e, Op: op, CatalogStage: stage}, auth, f
 }
 
 func TestIndexHostBindPredicateMatchesEngineBinding(t *testing.T) {
@@ -34,9 +34,9 @@ func TestIndexHostBindPredicateMatchesEngineBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	predicate := raw[0].(*parser.CreateIndex).Predicate
-	f.e.mu.Lock()
-	defer f.e.mu.Unlock()
-	want, err := f.e.bindIndexPredicate(h.op, sqltype.InputEnvironment{}, auth, f.parent, predicate)
+	f.e.Mu.Lock()
+	defer f.e.Mu.Unlock()
+	want, err := f.e.bindIndexPredicate(h.Op, sqltype.InputEnvironment{}, auth, f.parent, predicate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,8 +51,8 @@ func TestIndexHostBindPredicateMatchesEngineBinding(t *testing.T) {
 
 func TestIndexHostLookupCollationKeepsUnsupportedDiagnostic(t *testing.T) {
 	h, _, f := indexHostFixture(t)
-	f.e.mu.Lock()
-	defer f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	defer f.e.Mu.Unlock()
 	_, err := h.LookupCollation(ddlHostName("ucs_basic"))
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "collation is unsupported" {

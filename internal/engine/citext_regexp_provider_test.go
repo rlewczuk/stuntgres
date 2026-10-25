@@ -47,24 +47,24 @@ func citextRegexpLateConflict(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	before := e.catalog.State
-	e.mu.Lock()
+	before := e.Catalog.State
+	e.Mu.Lock()
 	var injected bool
 	err := func() error {
-		auth, err := e.authorizationLocked(op)
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return err
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
 		defer e.DiscardCatalogStage(stage)
-		stage.authorizeLocked(auth, op.Session)
+		stage.AuthorizeLocked(auth, op.Session)
 		namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		stage.extensionNamespace = namespace
-		oid, err := e.catalog.AllocateOIDLocked()
+		stage.ExtensionNamespace = namespace
+		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
 			return err
 		}
-		revision, err := e.catalog.RevisionLocked()
+		revision, err := e.Catalog.RevisionLocked()
 		if err != nil {
 			return err
 		}
@@ -84,9 +84,9 @@ func citextRegexpLateConflict(t *testing.T) {
 		}
 		return err
 	}()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
-	if !injected || !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != `function "regexp_split_to_table" already exists with same argument types` || e.catalog.State != before {
+	if !injected || !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != `function "regexp_split_to_table" already exists with same argument types` || e.Catalog.State != before {
 		t.Fatal("late routine collision published an installation prefix", injected, err)
 	}
 }

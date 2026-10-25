@@ -17,11 +17,11 @@ import (
 func TestSQLCursorHoldOwner(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE h NO SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-	c := payloadOf(s).cursors.entries["h"]
-	pin, cell, epoch := c.source.View, c.authority, c.epoch
+	c := PayloadOf(s).Cursors.Entries["h"]
+	pin, cell, epoch := c.Source.View, c.authority, c.epoch
 	first := cursorUnitBatch(t, s, "FETCH 1 FROM h", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "COMMIT")
-	if !c.promoted || c.tx != (ids.TxRef{}) || c.epoch != epoch || c.root != nil || c.source != nil || c.stage != nil || c.authority != nil || c.leaves != nil || c.locks != nil || c.CurrentSource != nil || c.state.Source != nil || c.state.Parameters != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil || c.count != 2 || c.storeOffset != 1 || c.OrdinalPosition != 1 {
+	if !c.promoted || c.tx != (ids.TxRef{}) || c.epoch != epoch || c.root != nil || c.Source != nil || c.stage != nil || c.authority != nil || c.leaves != nil || c.locks != nil || c.CurrentSource != nil || c.state.Source != nil || c.state.Parameters != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil || c.count != 2 || c.storeOffset != 1 || c.OrdinalPosition != 1 {
 		t.Fatal("export retains producer or loses owned remainder", c, cell)
 	}
 	if c.catalog.State() != nil || !reflect.DeepEqual(first.Rows.Schema(), c.schema) {
@@ -30,7 +30,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "DECLARE fresh CURSOR WITH HOLD FOR SELECT 9")
 	sessionSQL(t, s, "ROLLBACK")
-	if payloadOf(s).cursors.entries["h"] != c || payloadOf(s).cursors.entries["fresh"] != nil {
+	if PayloadOf(s).Cursors.Entries["h"] != c || PayloadOf(s).Cursors.Entries["fresh"] != nil {
 		t.Fatal("later rollback crosses exported ownership")
 	}
 	second := cursorUnitBatch(t, s, "FETCH 1 FROM h", [][]driver.Value{{int64(2)}})
@@ -45,7 +45,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 		t.Fatal("close mutates detached batches")
 	}
 	sessionSQL(t, s, "DECLARE fenced CURSOR WITH HOLD FOR SELECT 7")
-	if err := engineOf(s).Reset(context.Background()); err != nil {
+	if err := EngineOf(s).Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	result, err := cursorUnitExecute(t, s, context.Background(), "FETCH ALL FROM fenced")
@@ -53,7 +53,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 		t.Fatal("export loses original epoch fence", result, err)
 	}
 	s.RequestEnd(session.CleanClose)
-	if err := s.WaitEnd(context.Background()); err != nil || len(payloadOf(s).cursors.entries) != 0 {
+	if err := s.WaitEnd(context.Background()); err != nil || len(PayloadOf(s).Cursors.Entries) != 0 {
 		t.Fatal("physical end retains store", err)
 	}
 	if !reflect.DeepEqual(tuples(second), [][]driver.Value{{int64(2)}}) {
@@ -66,7 +66,7 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 		t.Run(fmt.Sprint(fetched), func(t *testing.T) {
 			s := cursorUnitSetup(t)
 			sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-			c := payloadOf(s).cursors.entries["h"]
+			c := PayloadOf(s).Cursors.Entries["h"]
 			original := c.root.Expressions[0]
 			calls := 0
 			c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
@@ -104,7 +104,7 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 		sessionSQL(t, s, "DECLARE z CURSOR WITH HOLD FOR SELECT FROM unit_rows")
 		sessionSQL(t, s, "DECLARE e CURSOR WITH HOLD FOR SELECT i FROM unit_rows WHERE FALSE")
 		sessionSQL(t, s, "COMMIT")
-		z := payloadOf(s).cursors.entries["z"]
+		z := PayloadOf(s).Cursors.Entries["z"]
 		if z.count != 3 || len(z.schema) != 0 || len(z.values) != 0 {
 			t.Fatal("zero-width cardinality lost", z)
 		}
@@ -119,7 +119,7 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 	t.Run("move_position_drain", func(t *testing.T) {
 		s := cursorUnitSetup(t)
 		sessionSQL(t, s, "DECLARE h NO SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-		c := payloadOf(s).cursors.entries["h"]
+		c := PayloadOf(s).Cursors.Entries["h"]
 		move := sessionSQL(t, s, "MOVE 2 FROM h")
 		if move.Rows != nil || move.Count != 2 || c.stage.Position != 2 || c.OrdinalPosition != 2 {
 			t.Fatal("live MOVE and producer drain position diverge", move, c)
@@ -137,8 +137,8 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 		t.Run(fmt.Sprint(fetched), func(t *testing.T) {
 			s := cursorUnitSetup(t)
 			sessionSQL(t, s, "DECLARE h SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-			c := payloadOf(s).cursors.entries["h"]
-			pin, cell := c.source.View, c.authority
+			c := PayloadOf(s).Cursors.Entries["h"]
+			pin, cell := c.Source.View, c.authority
 			original, calls := c.root.Expressions[0], 0
 			c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 				calls++
@@ -154,7 +154,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 			}
 			ordinal, position, end := c.OrdinalPosition, c.Place, c.AtEnd
 			sessionSQL(t, s, "COMMIT")
-			if calls != min(fetched, 3)+3 || !c.promoted || c.count != 3 || c.storeOffset != 0 || c.OrdinalPosition != ordinal || c.Place != position || c.AtEnd != end || c.stage != nil || c.root != nil || c.source != nil || c.authority != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil {
+			if calls != min(fetched, 3)+3 || !c.promoted || c.count != 3 || c.storeOffset != 0 || c.OrdinalPosition != ordinal || c.Place != position || c.AtEnd != end || c.stage != nil || c.root != nil || c.Source != nil || c.authority != nil || pin.Load() != nil || cell.Host != nil || cell.Expression != nil {
 				t.Fatal("SCROLL promotion loses position/full store or retains producer", calls, c)
 			}
 			sessionSQL(t, s, "MOVE FORWARD ALL FROM h")
@@ -186,7 +186,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 		s := cursorUnitSetup(t)
 		sessionSQL(t, s, "DECLARE e SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows WHERE FALSE")
 		cursorUnitBatch(t, s, "FETCH ALL FROM e", [][]driver.Value{})
-		c := payloadOf(s).cursors.entries["e"]
+		c := PayloadOf(s).Cursors.Entries["e"]
 		sessionSQL(t, s, "COMMIT")
 		if !c.promoted || c.count != 0 || c.OrdinalPosition != 0 || !c.AtEnd || c.Place != exec.CursorAfter {
 			t.Fatal("empty SCROLL export loses attempted EOF", c)
@@ -205,7 +205,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 			t.Run(fmt.Sprint(fetched), func(t *testing.T) {
 				s := cursorUnitSetup(t)
 				sessionSQL(t, s, "DECLARE h SCROLL CURSOR WITH HOLD FOR SELECT i FROM (SELECT i FROM unit_rows ORDER BY i OFFSET 0) AS ordered")
-				c := payloadOf(s).cursors.entries["h"]
+				c := PayloadOf(s).Cursors.Entries["h"]
 				original, calls := c.root.Expressions[0], 0
 				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 					calls++
@@ -232,24 +232,24 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 			t.Run(fmt.Sprintf("native=%t/prior=%t", native, before), func(t *testing.T) {
 				s := cursorUnitSetup(t)
 				sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-				c, ref := payloadOf(s).cursors.entries["h"], s.Transactions.Ref
+				c, ref := PayloadOf(s).Cursors.Entries["h"], s.Transactions.Ref
 				cell := c.authority
 				original := c.root.Expressions[0]
 				phase, calls := "fetch", 0
 				var first *exec.CursorExpressionData
 				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
-					scope := scopeOf(ctx.LiveHost())
-					if scope == nil || scope.finished || scope.txRef != ref || scope.ticket != s.Transactions.Ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.op.Released {
+					scope := ScopeOf(ctx.LiveHost())
+					if scope == nil || scope.Finished || scope.TxRef != ref || scope.LockTicket != s.Transactions.Ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.Op.Released {
 						return sqltype.Value{}, errors.New("producer borrows stale commit authority")
 					}
-					if !scope.owner.Mu.TryLock() {
+					if !scope.Owner.Mu.TryLock() {
 						return sqltype.Value{}, errors.New("projection holds transaction mutex")
 					}
-					scope.owner.Mu.Unlock()
-					if !engineOf(s).mu.TryLock() {
+					scope.Owner.Mu.Unlock()
+					if !EngineOf(s).Mu.TryLock() {
 						return sqltype.Value{}, errors.New("projection holds engine mutex")
 					}
-					engineOf(s).mu.Unlock()
+					EngineOf(s).Mu.Unlock()
 					if !s.Mu.TryLock() {
 						return sqltype.Value{}, errors.New("projection holds session mutex")
 					}
@@ -279,7 +279,7 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					result, err := engineOf(s).Commit(op, ref)
+					result, err := EngineOf(s).Commit(op, ref)
 					op.Done()
 					if err != nil || !result.Committed {
 						t.Fatal(result, err)
@@ -289,7 +289,7 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if calls != 3 || cell.Host != nil || cell.Expression != nil || c.authority != nil || c.source != nil {
+				if calls != 3 || cell.Host != nil || cell.Expression != nil || c.authority != nil || c.Source != nil {
 					t.Fatal("commit retains scope/producer", calls, cell)
 				}
 			})

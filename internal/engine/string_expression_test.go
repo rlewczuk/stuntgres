@@ -157,7 +157,7 @@ func TestStringCoreRegclassSnapshotManifest(t *testing.T) {
 	}
 	sourceRef := catalogRef(t, engine, view, "regclass_source")
 	source := view.MustRelation(sourceRef.Address)
-	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: view, deparsePath: []ids.ObjectAddress{source.Namespace()}}}
+	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: view, DeparsePath: []ids.ObjectAddress{source.Namespace()}}}
 	got, err := scope.FormatRegclass(uint32(sourceRef.Address.ObjectID))
 	if err != nil || got != "regclass_source" {
 		t.Fatal(got, err)
@@ -177,7 +177,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE deparse_args(v CHAR(4),s CHAR(4),e TEXT,CHECK(btrim(v,s)=e))")
 	ref := roleTableRef(t, e, "deparse_args")
-	relation := e.catalog.State.MustRelation(ref.Address)
+	relation := e.Catalog.State.MustRelation(ref.Address)
 	node := relation.Constraints.Check[0].Expression.(plan.ComparisonExpr).Left.(functions.String)
 	args := append([]expr.Expr(nil), node.Args...)
 	stringPlan := node.Plan
@@ -208,7 +208,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE trim_copies(v BYTEA,s BYTEA,e BYTEA,CHECK(TRIM(LEADING s FROM v)=e))")
 	ref := roleTableRef(t, e, "trim_copies")
-	relation := e.catalog.State.MustRelation(ref.Address)
+	relation := e.Catalog.State.MustRelation(ref.Address)
 	node := relation.Constraints.Check[0].Expression.(plan.ComparisonExpr).Left.(functions.Binary)
 	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")

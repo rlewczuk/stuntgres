@@ -29,7 +29,7 @@ type deleteAdmissionContext struct {
 
 func (c *deleteAdmissionContext) Err() error {
 	c.checks++
-	a := &c.engine.replacementMu
+	a := &c.engine.ReplacementMu
 	a.mu.Lock()
 	c.lost = c.lost || a.readers != 1 || a.writing
 	a.mu.Unlock()
@@ -38,7 +38,7 @@ func (c *deleteAdmissionContext) Err() error {
 
 func deleteReplacementAdmissionEmpty(t *testing.T, e *Engine) {
 	t.Helper()
-	a := &e.replacementMu
+	a := &e.ReplacementMu
 	a.mu.Lock()
 	readers, writers, writing := a.readers, a.writers, a.writing
 	a.mu.Unlock()
@@ -65,46 +65,46 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	}
 	defer func() { _ = scope.Finish(errors.New("test cleanup")) }()
 	stmt := statement(t, "DELETE FROM t WHERE v<=2")
-	if err = scope.gate(stmt); err != nil {
+	if err = scope.Gate(stmt); err != nil {
 		t.Fatal(err)
 	}
 	probe := &deleteAdmissionContext{Context: op.Context(), engine: e}
 	op.Ctx = probe
 	result, err := scope.Execute(stmt, 0, nil)
-	if err != nil || result.Count != 2 || result.Rows != nil || !scope.replacementRead {
+	if err != nil || result.Count != 2 || result.Rows != nil || !scope.ReplacementRead {
 		t.Fatal("immediate DELETE failed", result, err)
 	}
-	ref := scope.lockedRef
+	ref := scope.LockedRef
 	rows := 0
-	for resource, entry := range e.locks.Inspect().Resources {
-		if resource.ObjectRef == ref && resource.Row != 0 && entry.Holders[scope.ticket].Mode == lock.ForUpdate && len(entry.Pending) == 0 {
+	for resource, entry := range e.Locks.Inspect().Resources {
+		if resource.ObjectRef == ref && resource.Row != 0 && entry.Holders[scope.LockTicket].Mode == lock.ForUpdate && len(entry.Pending) == 0 {
 			rows++
 		}
 	}
 	if rows != 2 {
 		t.Fatal("immediate DELETE lacks exact row grants", rows)
 	}
-	if e.replacementMu.TryLock() {
-		e.replacementMu.Unlock()
+	if e.ReplacementMu.TryLock() {
+		e.ReplacementMu.Unlock()
 		t.Fatal("immediate row grants lost continuous replacement reservation")
 	}
 	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 3)
-	frontier := e.visibility.CommitSeq()
+	frontier := e.Visibility.CommitSeq()
 	writer := make(chan bool, 1)
 	go func() {
-		e.replacementMu.Lock()
-		e.mu.Lock()
-		root := e.storage.Relations[ref.Address].Ends
-		published := root != nil && len(root.Rows) == 2 && e.visibility.CommitSeq() == frontier+1
-		e.mu.Unlock()
-		e.replacementMu.Unlock()
+		e.ReplacementMu.Lock()
+		e.Mu.Lock()
+		root := e.Storage.Relations[ref.Address].Ends
+		published := root != nil && len(root.Rows) == 2 && e.Visibility.CommitSeq() == frontier+1
+		e.Mu.Unlock()
+		e.ReplacementMu.Unlock()
 		writer <- published
 	}()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.replacementMu.mu.Lock()
-		waiting := e.replacementMu.writers == 1 && e.replacementMu.readers == 1 && !e.replacementMu.writing
-		e.replacementMu.mu.Unlock()
+		e.ReplacementMu.mu.Lock()
+		waiting := e.ReplacementMu.writers == 1 && e.ReplacementMu.readers == 1 && !e.ReplacementMu.writing
+		e.ReplacementMu.mu.Unlock()
 		if waiting {
 			break
 		}
@@ -139,7 +139,7 @@ func deleteReplacementQueued(t *testing.T, e *Engine, resource lock.Resource, ho
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[resource]
 		var request *lock.Request
 		if entry != nil && entry.Holders[holder].Mode == lock.ForUpdate && len(entry.Pending) == 1 {
@@ -173,18 +173,18 @@ func deleteReplacementScope(t *testing.T, e *Engine, s *session.Session) (*State
 		t.Fatal(err)
 	}
 	stmt := statement(t, "DELETE FROM t WHERE v<=2")
-	if err = scope.gate(stmt); err != nil {
+	if err = scope.Gate(stmt); err != nil {
 		_ = scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
 	}
-	ticket := scope.ticket
+	ticket := scope.LockTicket
 	done := make(chan deleteOutcome, 1)
 	stopped := make(chan struct{})
 	t.Cleanup(func() {
 		cancel()
 		<-stopped
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(context.Canceled)
 		}
 	})
@@ -208,22 +208,22 @@ func deleteReplacementReject(t *testing.T, scope *StatementScope, done <-chan de
 	if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || errors.As(outcome.err, &diagnostic) || outcome.result.Count != 0 || outcome.result.Rows != nil {
 		t.Fatal("replacement must return ordinary ErrCatalogReplaced and no successful result", outcome)
 	}
-	ticket := scope.ticket
+	ticket := scope.LockTicket
 	if err := scope.Finish(outcome.err); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
-	scope.op.Done()
-	manager := scope.engine().locks
+	scope.Op.Done()
+	manager := scope.Engine().Locks
 	lockState := manager.Inspect(ticket)
 	resources := len(lockState.Journals[ticket])
 	_, registered := lockState.Owners[ticket.Ref()]
 	if resources != 0 || registered {
 		t.Fatal("stale DELETE ticket retained lock journal", resources, registered)
 	}
-	if scope.stage.rows != nil || scope.stage.deletes != nil || scope.view != nil || scope.ticket != nil || scope.replacementRead {
+	if scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.View != nil || scope.LockTicket != nil || scope.ReplacementRead {
 		t.Fatal("stale DELETE retained stage/view/grants/reservation")
 	}
-	owner := scope.owner
+	owner := scope.Owner
 	if owner.Writes != nil || owner.Deletes != nil || owner.Ticket != nil {
 		t.Fatal("stale DELETE retained prior private work")
 	}
@@ -240,7 +240,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				oldStorage := e.storage.Relations[ref.Address]
+				oldStorage := e.Storage.Relations[ref.Address]
 				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.Versions[1].Row}
 				hr := transactionBegin(t, holder)
 				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
@@ -252,7 +252,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				}
 				scope, ticket, done := deleteReplacementScope(t, e, waiter)
 				request := deleteReplacementQueued(t, e, resource, holder.Transactions.Ticket, ticket)
-				root := scope.stage.deletes[ref.Address]
+				root := scope.Stage.Deletes[ref.Address]
 				first := oldStorage.Versions[0].Row
 				if root == nil || len(root.Rows) != 1 || root.Rows[first].Row != first {
 					t.Fatal("earlier matching row was not privately staged before wait")
@@ -309,7 +309,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	oldStorage := e.storage.Relations[ref.Address]
+	oldStorage := e.Storage.Relations[ref.Address]
 	first, blocked := oldStorage.Versions[0].Row, oldStorage.Versions[1].Row
 	resource := lock.Resource{ObjectRef: ref, Row: blocked}
 	hr := transactionBegin(t, holder)
@@ -325,31 +325,31 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	replacement := source.CatalogRead()
 	sourceRoles, targetRoles := source.Roles(), e.Roles()
 	relations := make(map[ids.ObjectAddress]*storage.Relation)
-	source.mu.Lock()
-	for address, relation := range source.storage.Relations {
+	source.Mu.Lock()
+	for address, relation := range source.Storage.Relations {
 		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
-	sequences, sequenceErr := sequence.CopyGenerators(replacement, source.storage.Sequences)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.storage.Relations, source.storage.IndexRoots, source.visibility.CommitSeq())
-	source.mu.Unlock()
+	sequences, sequenceErr := sequence.CopyGenerators(replacement, source.Storage.Sequences)
+	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
+	source.Mu.Unlock()
 	if sequenceErr != nil {
 		t.Fatal(sequenceErr)
 	}
 	if indexErr != nil {
 		t.Fatal(indexErr)
 	}
-	e.replacementMu.Lock()
+	e.ReplacementMu.Lock()
 	writerHeld := true
 	defer func() {
 		// Also release on assertion failure, so a blocked readmission can finish.
 		if writerHeld {
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 		}
 	}()
 	transactionEnd(t, holder, hr, false)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect(ticket)
+		lockState := e.Locks.Inspect(ticket)
 		entry := lockState.Resources[resource]
 		granted := request.Terminal() && request.Err() == nil && entry != nil && entry.Holders[ticket].Mode == lock.ForUpdate && len(entry.Pending) == 0
 		_, journaled := lockState.Journals[ticket][resource]
@@ -363,7 +363,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	}
 	// The writer excludes implicit readmission: row one was staged before the
 	// wait, but the newly granted row two must not reach the stage/publication.
-	root := scope.stage.deletes[ref.Address]
+	root := scope.Stage.Deletes[ref.Address]
 	if root == nil || len(root.Rows) != 1 || root.Rows[first].Row != first || oldStorage.Ends != nil {
 		t.Fatal("DELETE advanced past readmission or failed to stage earlier private row")
 	}
@@ -372,12 +372,12 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 		t.Fatal("DELETE returned while writer excluded readmission", outcome)
 	default:
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	next, _, err := e.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 	if err == nil {
-		nextRevision := e.catalog.NextRevision()
+		nextRevision := e.Catalog.NextRevision()
 		for _, descriptor := range next.Descriptors() {
-			if err = access.ValidateACL(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Read(next)), descriptor); err != nil {
+			if err = access.ValidateACL(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(next)), descriptor); err != nil {
 				break
 			}
 			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
@@ -386,17 +386,17 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
-				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.catalog.OIDReservationLocked())
+				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
 			}
 		}
 	}
-	epoch := e.catalog.State.Epoch()
-	e.mu.Unlock()
+	epoch := e.Catalog.State.Epoch()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.locks.Fence(e.catalog.Domain, epoch)
-	e.replacementMu.Unlock()
+	e.Locks.Fence(e.Catalog.Domain, epoch)
+	e.ReplacementMu.Unlock()
 	writerHeld = false
 	deleteReplacementReject(t, scope, done)
 	if epoch != ref.Epoch+1 || oldStorage.Ends != nil || waiter.TransactionState() != session.TxIdle {

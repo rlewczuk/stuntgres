@@ -281,15 +281,15 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 func domainUnitBindSelect(t *testing.T, e *Engine, op *session.Operation, q string) *plan.Query {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	b := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Query.Auth = &auth
 	var query *plan.Query
 	if err == nil {
 		query, err = b.BindSelect(raw, false)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(q, err)
 	}

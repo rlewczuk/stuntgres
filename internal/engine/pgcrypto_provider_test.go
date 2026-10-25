@@ -28,15 +28,15 @@ func pgcryptoUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	e.mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	extensionUnitPublish(t, e, op, stage)
-	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"})
-	return e, e.catalog.State.MustExtension(address)
+	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"})
+	return e, e.Catalog.State.MustExtension(address)
 }
 
 func TestPgcryptoProviderIdentity(t *testing.T) {
@@ -67,11 +67,11 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal(proc)
 		}
 		seen[address] = true
-		if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
+		if err := e.Catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		bad := *original.(*catalog.Procedure)
 		mutate(&bad)
 		view.State().SetDescriptor(ext.Members[0], &bad)
-		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
+		failure := e.Catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
 		manifestFailure := extension.StockPgcrypto.ValidateExtension(view, ext)
 		view.State().SetDescriptor(ext.Members[0], original)
 		if failure == nil {

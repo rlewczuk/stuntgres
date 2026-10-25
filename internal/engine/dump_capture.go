@@ -18,30 +18,30 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	state := e.catalog.State
+	state := e.Catalog.State
 	if err := control.CheckPortable(state); err != nil {
 		return nil, err
 	}
-	catalogView := e.catalog.Read(state)
+	catalogView := e.Catalog.Read(state)
 	originalCatalog := catalogView
-	originalRoles := e.roles.PublishedRead(&e.catalog.Owner, originalCatalog)
+	originalRoles := e.RoleStore.PublishedRead(&e.Catalog.Owner, originalCatalog)
 	recipePlan, err := table.CapturedGenerationReplayPlan(originalCatalog)
 	if err != nil {
 		return nil, err
 	}
-	aclOutput := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: originalRoles, Lossless: true}
+	aclOutput := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: originalRoles, Lossless: true}
 	ctx = regobj.ACLItemOutputContext(ctx, aclOutput)
-	if err := control.PreflightACLItems(ctx, originalCatalog, e.storage.Relations, e.visibility.CommitSeq(), aclOutput); err != nil {
+	if err := control.PreflightACLItems(ctx, originalCatalog, e.Storage.Relations, e.Visibility.CommitSeq(), aclOutput); err != nil {
 		return nil, err
 	}
 	// Declarations bind private key names until the terminal renames. Later
 	// definitions and values must render against the original captured names.
 	catalogView, constraintReplay := partition.ConstraintDumpCatalog(control.Resolver{}, catalogView)
-	domainRoles := e.roles.PublishedRead(&e.catalog.Owner, catalogView)
+	domainRoles := e.RoleStore.PublishedRead(&e.Catalog.Owner, catalogView)
 	if err := e.validateTemporaryCollationDump(ctx, catalogView); err != nil {
 		return nil, err
 	}
-	for address, name := range e.foreign.NamespaceEntries() {
+	for address, name := range e.Foreign.NamespaceEntries() {
 		ns, ok := state.Namespace(address)
 		if !ok || ns.Name() != name {
 			return nil, fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
@@ -56,10 +56,10 @@ func (e *Engine) captureDumpLocked(ctx context.Context) (*control.Capture, error
 		ACLOutput:        aclOutput,
 		RecipePlan:       recipePlan,
 		State:            state,
-		Relations:        e.storage.Relations,
-		Sequences:        e.storage.Sequences,
-		Frontier:         e.visibility.CommitSeq(),
-		Bootstrap:        e.roles.Domain.Principal(authorization.BootstrapPrincipalID),
-		Foreign:          e.foreign,
+		Relations:        e.Storage.Relations,
+		Sequences:        e.Storage.Sequences,
+		Frontier:         e.Visibility.CommitSeq(),
+		Bootstrap:        e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID),
+		Foreign:          e.Foreign,
 	})
 }

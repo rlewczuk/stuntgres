@@ -76,10 +76,10 @@ func TestListPartitionLogicalRemap(t *testing.T) {
 	roleExecute(t, target, targetOp, "CREATE TEMP TABLE list_remap_retained(k BIGINT,t TEXT,c REGCLASS,y REGTYPE,r REGPROCEDURE)")
 	roleExecute(t, target, targetOp, "INSERT INTO list_remap_retained VALUES(42,'retained','pg_class'::REGCLASS,'integer'::REGTYPE,'abs(integer)'::REGPROCEDURE)")
 	tempNamespace := targetOp.Session.TemporaryNamespace
-	tempNamespaceDescriptor := target.catalog.State.Get(tempNamespace)
-	tempAddress := target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "list_remap_retained"})
-	tempDescriptor := target.catalog.State.Get(tempAddress)
-	tempStore := target.storage.Relations[tempAddress]
+	tempNamespaceDescriptor := target.Catalog.State.Get(tempNamespace)
+	tempAddress := target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: tempNamespace, Name: "list_remap_retained"})
+	tempDescriptor := target.Catalog.State.Get(tempAddress)
+	tempStore := target.Storage.Relations[tempAddress]
 	tempVersions := slices.Clone(tempStore.Versions)
 	before := target.CatalogRead()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -131,7 +131,7 @@ func TestListPartitionLogicalRemap(t *testing.T) {
 			t.Fatal("destination comparator lost NULL or nonnull routing", c.name, got)
 		}
 	}
-	if targetOp.Session.TemporaryNamespace != tempNamespace || target.catalog.State.Get(tempNamespace) != tempNamespaceDescriptor || target.catalog.State.Get(tempAddress) != tempDescriptor || target.storage.Relations[tempAddress] != tempStore || !reflect.DeepEqual(tempStore.Versions, tempVersions) {
+	if targetOp.Session.TemporaryNamespace != tempNamespace || target.Catalog.State.Get(tempNamespace) != tempNamespaceDescriptor || target.Catalog.State.Get(tempAddress) != tempDescriptor || target.Storage.Relations[tempAddress] != tempStore || !reflect.DeepEqual(tempStore.Versions, tempVersions) {
 		t.Fatal("LIST import changed exact retained TEMP descriptor/storage state")
 	}
 	if got := tuples(roleExecute(t, target, targetOp, "SELECT k,t FROM list_remap_retained")); !reflect.DeepEqual(got, [][]driver.Value{{int64(42), "retained"}}) {

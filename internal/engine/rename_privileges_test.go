@@ -21,7 +21,7 @@ func TestAlterRenamePrivileges(t *testing.T) {
 	schemaOwner, _ := e.Roles().Lookup("rename_schema_owner")
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})
-	ns := e.catalog.Domain.Ref(view.Epoch(), address)
+	ns := e.Catalog.Domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
 		{Grantor: schemaOwner.Ref, Grantee: authorization.ACLGrantee{Role: schemaOwner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege},
@@ -74,15 +74,15 @@ func TestAlterRenameDependencies(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), column, acl); err != nil {
 		t.Fatal(err)
 	}
-	old := e.catalog.State.MustRelation(ref.Address)
+	old := e.Catalog.State.MustRelation(ref.Address)
 	roleExecute(t, e, op, "ALTER TABLE t RENAME c TO renamed")
 	roleExecute(t, e, op, "ALTER TABLE t RENAME TO newtable")
-	next := e.catalog.State.MustRelation(ref.Address)
+	next := e.Catalog.State.MustRelation(ref.Address)
 	if !reflect.DeepEqual(next.Security.ColumnACL, old.Security.ColumnACL) || !reflect.DeepEqual(next.Constraints.NotNull, old.Constraints.NotNull) || len(next.Constraints.NotNull) != 1 || next.Constraints.NotNull[0].Name != "nn" || next.Constraints.NotNull[0].Attribute != 3 || next.Constraints.NotNull[0].OID == 0 || next.ColumnMeta.Comments[3] != "keep" {
 		t.Fatal(next)
 	}
 	roleExecute(t, e, op, "COMMENT ON COLUMN newtable.renamed IS 'updated'")
-	if e.catalog.State.MustRelation(ref.Address).ColumnMeta.Comments[3] != "updated" || old.ColumnMeta.Comments[3] != "keep" {
+	if e.Catalog.State.MustRelation(ref.Address).ColumnMeta.Comments[3] != "updated" || old.ColumnMeta.Comments[3] != "keep" {
 		t.Fatal("comment identity")
 	}
 	_, err := e.Execute(op, statement(t, "DROP ROLE rename_reader"), 0, nil)

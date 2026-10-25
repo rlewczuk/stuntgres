@@ -25,10 +25,10 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 			old := base.MustRelation(oldRef.Address)
 			next := *old
 			mint := func(d *catalog.Relation) {
-				e.mu.Lock()
-				id, err := e.catalog.AllocateOIDLocked()
-				revision, revisionErr := e.catalog.RevisionLocked()
-				e.mu.Unlock()
+				e.Mu.Lock()
+				id, err := e.Catalog.AllocateOIDLocked()
+				revision, revisionErr := e.Catalog.RevisionLocked()
+				e.Mu.Unlock()
 				if err != nil || revisionErr != nil {
 					t.Fatal(err, revisionErr)
 				}
@@ -51,7 +51,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if mode == "stale_removal" {
 					invalid.Epoch++
 				} else {
-					invalid = New().catalog.Domain.Ref(invalid.Epoch, invalid.Address)
+					invalid = New().Catalog.Domain.Ref(invalid.Epoch, invalid.Address)
 				}
 				if stage.Remove(invalid) == nil {
 					t.Fatal("invalid removal admitted")
@@ -79,7 +79,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			private := e.stageRead(stage)
+			private := e.StageRead(stage)
 			if _, ok := private.Find(oldRef.Address); ok || private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: old.Name()}) != next.Address() {
 				t.Fatal("private overlay retained incumbent")
 			}
@@ -144,7 +144,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, ok := e.catalog.State.Find(oldRef.Address); ok {
+				if _, ok := e.Catalog.State.Find(oldRef.Address); ok {
 					t.Fatal("old identity survived")
 				}
 				index, _ := btreeRoot(t, e, "idx")
@@ -160,40 +160,40 @@ func TestUniqueCoCreatedParentStorageFence(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE)")
 	ref := roleTableRef(t, e, "t")
-	parent := e.catalog.State.MustRelation(ref.Address)
+	parent := e.Catalog.State.MustRelation(ref.Address)
 	idx := parent.Constraints.Unique[0].Index
-	if e.storage.Relations[ref.Address] == nil || e.storage.IndexRoots[idx] == nil || len(e.storage.IndexRoots[idx].Entries) != 0 {
+	if e.Storage.Relations[ref.Address] == nil || e.Storage.IndexRoots[idx] == nil || len(e.Storage.IndexRoots[idx].Entries) != 0 {
 		t.Fatal("co-created parent and empty backing root did not publish together")
 	}
-	captured := index.CaptureIndexStores(e.storage.Relations, e.catalog.State)
-	if !index.StoresUnchanged(e.storage.Relations, captured, e.catalog.State, e.catalog.State, e.storage.IndexRoots, nil) {
+	captured := index.CaptureIndexStores(e.Storage.Relations, e.Catalog.State)
+	if !index.StoresUnchanged(e.Storage.Relations, captured, e.Catalog.State, e.Catalog.State, e.Storage.IndexRoots, nil) {
 		t.Fatal("unchanged existing parent failed its storage fence")
 	}
-	if index.StoresUnchanged(nil, captured, e.catalog.State, e.catalog.State, e.storage.IndexRoots, nil) {
+	if index.StoresUnchanged(nil, captured, e.Catalog.State, e.Catalog.State, e.Storage.IndexRoots, nil) {
 		t.Fatal("existing parent disappearance passed its storage fence")
 	}
 	absent := &catalog.State{}
-	if !index.StoresUnchanged(nil, nil, absent, e.catalog.State, e.storage.IndexRoots, nil) {
+	if !index.StoresUnchanged(nil, nil, absent, e.Catalog.State, e.Storage.IndexRoots, nil) {
 		t.Fatal("new parent must fence committed absence, not its candidate store")
 	}
-	if index.StoresUnchanged(e.storage.Relations, nil, absent, e.catalog.State, e.storage.IndexRoots, nil) ||
-		index.StoresUnchanged(nil, captured, absent, e.catalog.State, e.storage.IndexRoots, nil) {
+	if index.StoresUnchanged(e.Storage.Relations, nil, absent, e.Catalog.State, e.Storage.IndexRoots, nil) ||
+		index.StoresUnchanged(nil, captured, absent, e.Catalog.State, e.Storage.IndexRoots, nil) {
 		t.Fatal("new-parent fence accepted committed or captured incumbent storage")
 	}
-	changed := *e.storage.Relations[ref.Address]
+	changed := *e.Storage.Relations[ref.Address]
 	changed.Generation++
-	if index.StoresUnchanged(map[ids.ObjectAddress]*storage.Relation{ref.Address: &changed}, captured, e.catalog.State, e.catalog.State, e.storage.IndexRoots, nil) {
+	if index.StoresUnchanged(map[ids.ObjectAddress]*storage.Relation{ref.Address: &changed}, captured, e.Catalog.State, e.Catalog.State, e.Storage.IndexRoots, nil) {
 		t.Fatal("existing parent generation change passed its storage fence")
 	}
-	before, root, stores := e.catalog.State, e.storage.IndexRoots[idx], len(e.storage.Relations)
+	before, root, stores := e.Catalog.State, e.Storage.IndexRoots[idx], len(e.Storage.Relations)
 	_, err := testExecute(e, context.Background(), statement(t, "CREATE TABLE other(k INT CONSTRAINT u UNIQUE)"), nil)
-	if err == nil || e.catalog.State != before || len(e.storage.Relations) != stores || e.storage.IndexRoots[idx] != root {
+	if err == nil || e.Catalog.State != before || len(e.Storage.Relations) != stores || e.Storage.IndexRoots[idx] != root {
 		t.Fatal("failed backing-name reservation partially published a new parent", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err = testExecute(e, ctx, statement(t, "CREATE TABLE canceled(k INT UNIQUE)"), nil)
-	if !errors.Is(err, context.Canceled) || e.catalog.State != before || len(e.storage.Relations) != stores || e.storage.IndexRoots[idx] != root {
+	if !errors.Is(err, context.Canceled) || e.Catalog.State != before || len(e.Storage.Relations) != stores || e.Storage.IndexRoots[idx] != root {
 		t.Fatal("canceled atomic parent/backing publication changed state", err)
 	}
 }

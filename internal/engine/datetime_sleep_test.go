@@ -91,7 +91,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { scope.Finish(context.Canceled) })
-		if err := scope.gate(&parser.Select{}); err != nil {
+		if err := scope.Gate(&parser.Select{}); err != nil {
 			scope.Finish(err)
 			op.Done()
 			t.Fatal(err)
@@ -103,7 +103,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 		}
 		done := make(chan error, 1)
 		go func() {
-			_, err := wait.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope)}})
+			_, err := wait.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope)}})
 			done <- err
 		}()
 		datetimeSleepCleanupAdmission(t, done)
@@ -117,7 +117,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			t.Fatal("finish original cause", err)
 		}
 		op.Done()
-		if !scope.finished || scope.view != nil || scope.ticket != nil || scope.stage.rows != nil {
+		if !scope.Finished || scope.View != nil || scope.LockTicket != nil || scope.Stage.Rows != nil {
 			t.Fatal("execution resources retained")
 		}
 		if explicit {

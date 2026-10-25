@@ -18,10 +18,10 @@ import (
 func TestStatementTimeoutAdmissionPreScope(t *testing.T) {
 	e, sess, ref := statementTimeoutAdmissionOwner(t)
 	op, cancel := statementTimeoutAdmissionCommand(t, sess)
-	frontier := e.visibility.CommitSeq()
+	frontier := e.Visibility.CommitSeq()
 	cancel(session.StatementTimeoutCause)
 	scope, err := e.StartStatement(op)
-	if e.visibility.CommitSeq() != frontier {
+	if e.Visibility.CommitSeq() != frontier {
 		t.Fatal("pre-scope timeout advanced the committed frontier")
 	}
 	statementTimeoutAdmissionOutcome(t, e, sess, ref, op, scope, err)
@@ -35,11 +35,11 @@ func TestStatementTimeoutAdmissionPreScope(t *testing.T) {
 func TestStatementTimeoutAdmissionQueued(t *testing.T) {
 	e, sess, ref := statementTimeoutAdmissionOwner(t)
 	op, cancel := statementTimeoutAdmissionCommand(t, sess)
-	frontier := e.visibility.CommitSeq()
+	frontier := e.Visibility.CommitSeq()
 	scope, err := statementTimeoutAdmissionContended(t, e, op, cancel, func() {
 		cancel(session.StatementTimeoutCause)
 	})
-	if e.visibility.CommitSeq() != frontier {
+	if e.Visibility.CommitSeq() != frontier {
 		t.Fatal("queued timeout advanced the committed frontier")
 	}
 	statementTimeoutAdmissionOutcome(t, e, sess, ref, op, scope, err)

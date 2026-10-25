@@ -23,9 +23,9 @@ func isnUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema s
 	if schema != "" {
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
-	e.mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{op: op}, creation)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, creation)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,8 +39,8 @@ func isnUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type)
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, isnUnitStage(t, e, op, "isn", ""))
-	ext := e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
-	return e, ext, e.catalog.State.MustType(ext.Members[0])
+	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
+	return e, ext, e.Catalog.State.MustType(ext.Members[0])
 }
 
 func TestIsnProviderIdentity(t *testing.T) {
@@ -103,7 +103,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 			t.Fatal("missing extension edge", address)
 		}
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.PublishedRead(&e.catalog.Owner, view), ext)
+	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,8 +160,8 @@ func TestIsnProviderIdentity(t *testing.T) {
 	if record.Members[2].Kind != "procedure" || record.Members[2].Name != "ean13_out" || record.Members[2].Signature != "ean13" {
 		t.Fatal("symbolic output ownership signature", record.Members[2])
 	}
-	candidate := catalog.CloneState(e.catalog.State)
-	changed, err := extension.ImportOwners(context.Background(), e.catalog.Read(candidate), e.Roles(), records)
+	candidate := catalog.CloneState(e.Catalog.State)
+	changed, err := extension.ImportOwners(context.Background(), e.Catalog.Read(candidate), e.Roles(), records)
 	if err != nil || changed {
 		t.Fatal("unchanged owner metadata import", changed, err)
 	}
@@ -187,7 +187,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 		t.Fatal("renamed canonical ownership identity", movedRecord, found, err)
 	}
 	candidate = catalog.CloneState(current.State())
-	if changed, err := extension.ImportOwners(context.Background(), e.catalog.Read(candidate), e.Roles(), []extension.OwnerRecord{movedRecord}); err != nil || changed {
+	if changed, err := extension.ImportOwners(context.Background(), e.Catalog.Read(candidate), e.Roles(), []extension.OwnerRecord{movedRecord}); err != nil || changed {
 		t.Fatal("renamed unchanged owner import", changed, err)
 	}
 	for _, address := range ext.Members[1:] {
@@ -218,22 +218,22 @@ func TestIsnProviderImport(t *testing.T) {
 		// Reserve enough destination allocator space for even the last ISN
 		// scalar to collide with a genuine, later-created TEMP provider member.
 		// A source allocator cannot be padded backwards to reach an earlier OID.
-		source.mu.Lock()
-		minimumCollision := source.catalog.NextOID() + ids.OID(slot) + 1
-		source.mu.Unlock()
-		target.mu.Lock()
-		for target.catalog.NextOID() != 0 && target.catalog.NextOID() < minimumCollision {
-			if _, err := target.catalog.AllocateOIDLocked(); err != nil {
-				target.mu.Unlock()
+		source.Mu.Lock()
+		minimumCollision := source.Catalog.NextOID() + ids.OID(slot) + 1
+		source.Mu.Unlock()
+		target.Mu.Lock()
+		for target.Catalog.NextOID() != 0 && target.Catalog.NextOID() < minimumCollision {
+			if _, err := target.Catalog.AllocateOIDLocked(); err != nil {
+				target.Mu.Unlock()
 				t.Fatal(err)
 			}
 		}
-		target.mu.Unlock()
+		target.Mu.Unlock()
 		installer, closeInstaller := extensionTemporaryOperation(t, target, "postgres")
 		extensionUnitPublish(t, target, installer, isnUnitStage(t, target, installer, "pgcrypto", namespace.Name()))
-		retainedExtension := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"}))
+		retainedExtension := target.Catalog.State.MustExtension(target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgcrypto"}))
 		collisionAddress := retainedExtension.Members[len(retainedExtension.Members)-1]
-		collision := target.catalog.State.Get(collisionAddress)
+		collision := target.Catalog.State.Get(collisionAddress)
 		if collision == nil || retainedExtension.TargetNamespace != namespace.Address() {
 			t.Fatal("missing genuine retained TEMP provider member")
 		}
@@ -244,20 +244,20 @@ func TestIsnProviderImport(t *testing.T) {
 			t.Fatal("retained member cannot accommodate the source recipe prefix")
 		}
 		extensionOID := collisionAddress.ObjectID-ids.OID(slot)-1
-		source.mu.Lock()
-		for source.catalog.NextOID() != 0 && source.catalog.NextOID() < extensionOID {
-			if _, err := source.catalog.AllocateOIDLocked(); err != nil {
-				source.mu.Unlock()
+		source.Mu.Lock()
+		for source.Catalog.NextOID() != 0 && source.Catalog.NextOID() < extensionOID {
+			if _, err := source.Catalog.AllocateOIDLocked(); err != nil {
+				source.Mu.Unlock()
 				t.Fatal(err)
 			}
 		}
-		frontier := source.catalog.NextOID()
-		source.mu.Unlock()
+		frontier := source.Catalog.NextOID()
+		source.Mu.Unlock()
 		if frontier != extensionOID {
 			t.Fatal("cannot align source recipe to retained member", frontier, extensionOID)
 		}
 		extensionUnitPublish(t, source, op, isnUnitStage(t, source, op, "isn", ""))
-		installed := source.catalog.State.MustExtension(source.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
+		installed := source.Catalog.State.MustExtension(source.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
 		base := source.CatalogRead().MustType(installed.Members[slot])
 		if base.Address().ObjectID != collisionAddress.ObjectID {
 			t.Fatal("source scalar did not occupy the genuine retained TEMP member OID", base.Address(), collisionAddress)
@@ -274,8 +274,8 @@ func TestIsnProviderImport(t *testing.T) {
 		if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		ext := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
-		imported := target.catalog.State.MustType(ext.Members[slot])
+		ext := target.Catalog.State.MustExtension(target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
+		imported := target.Catalog.State.MustType(ext.Members[slot])
 		if imported.SQLType == base.SQLType || imported.SQLType.ID() == base.SQLType.ID() {
 			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")
 		}
@@ -285,7 +285,7 @@ func TestIsnProviderImport(t *testing.T) {
 		if roles, err := extension.InstalledTypes(target.CatalogRead(), ext); err != nil || len(roles) != 8 || roles[slot/3].Name != family || roles[slot/3].Type != imported || imported.Name() != "moved" || imported.SQLType.SQLName() != "isn_import_dst.moved" {
 			t.Fatal("imported mutable identity lost canonical role", roles, err)
 		}
-		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(retainedExtension.Address()) != retainedExtension || target.catalog.State.Get(collision.Address()) != collision {
+		if target.Catalog.State.Get(namespace.Address()) != namespace || target.Catalog.State.Get(retainedExtension.Address()) != retainedExtension || target.Catalog.State.Get(collision.Address()) != collision {
 			t.Fatal("import changed live TEMP provider authority")
 		}
 		mapped, err := typedef.ReownDomainDatum(value, imported.SQLType, nil, map[*sqltype.Descriptor]*sqltype.Descriptor{base.SQLType: imported.SQLType}, nil)
@@ -335,7 +335,7 @@ func TestIsnProviderImport(t *testing.T) {
 		}
 		closeOwner()
 		assertTemporaryNamespacePair(t, target, namespace.Temporary, namespace.Address())
-		if target.catalog.State.Get(namespace.Address()) != namespace || target.catalog.State.Get(retainedExtension.Address()) != nil || target.catalog.State.Get(collision.Address()) != nil {
+		if target.Catalog.State.Get(namespace.Address()) != namespace || target.Catalog.State.Get(retainedExtension.Address()) != nil || target.Catalog.State.Get(collision.Address()) != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
 		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {

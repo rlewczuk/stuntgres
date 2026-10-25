@@ -19,13 +19,13 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	run(t, e, "CREATE TYPE private_composite.source_type AS (a INT)")
 	sourceRef := roleTableRef(t, e, "source_type")
 	source := e.CatalogRead().MustRelation(sourceRef.Address)
-	typeRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
+	typeRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 	sourceType := e.CatalogRead().MustType(typeRef.Address)
 	if sourceType.OwningRelation != source.Address() {
 		t.Fatal("composite fixture lacks reciprocal type authority")
 	}
 	reader, _ := e.Roles().Lookup("composite_reader")
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	denied := authorization.ACLValue{Explicit: true}
 	grant := func(privilege authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: privilege}}}
@@ -94,7 +94,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	for _, descriptor := range stage.tableOrZero().LikeSources {
 		capturedRelation = capturedRelation || descriptor == source
 	}
-	for _, descriptor := range stage.domainBases {
+	for _, descriptor := range stage.DomainBases {
 		capturedType = capturedType || descriptor == sourceType
 	}
 	if !capturedRelation || !capturedType {
@@ -118,7 +118,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if !errors.As(err, &conflict) {
 		t.Fatal("changed reciprocal type authority was not fenced", err)
 	}
-	if e.CatalogRead().Get(destination.Address()) != nil || e.storage.Relations[destination.Address()] != nil {
+	if e.CatalogRead().Get(destination.Address()) != nil || e.Storage.Relations[destination.Address()] != nil {
 		t.Fatal("type-incarnation conflict published destination fragments")
 	}
 }

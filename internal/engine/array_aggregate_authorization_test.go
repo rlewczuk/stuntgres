@@ -20,12 +20,12 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.aa_column_acl(id INT,v INT,a INT[])")
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), table.Address())
-	reader := e.roles.Domain.Principal(1000000)
-	roles := cloneRoleFixture(e.roles.Published)
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), table.Address())
+	reader := e.RoleStore.Domain.Principal(1000000)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "aa_unit_reader"})
 
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	grant := func(object ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
@@ -63,7 +63,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 				grant(column(i), rights)
 			}
 			auth := catalogAuthorization(e, e.CatalogRead())
-			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+			b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			query, err := b.BindSelect(statement(t, tc.query).(*parser.Select), false)
 			if err != nil {

@@ -75,8 +75,8 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	oldCtx, oldCancel := context.WithCancel(context.Background())
 	defer oldCancel()
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	resource := lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
-	request, err := e.locks.StartAcquire(oldCtx, oldTicket, resource, lock.ForNoKeyUpdate, lock.Policy{})
+	resource := lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[0].Row}
+	request, err := e.Locks.StartAcquire(oldCtx, oldTicket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
@@ -92,11 +92,11 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	sessionSQL(t, c, "UPDATE t SET v=10")
 	newTicket := c.Transactions.Ticket
 	newRef := catalogRef(t, e, e.CatalogRead(), "t")
-	newResource := lock.Resource{ObjectRef: newRef, Row: e.storage.Relations[newRef.Address].Versions[0].Row}
+	newResource := lock.Resource{ObjectRef: newRef, Row: e.Storage.Relations[newRef.Address].Versions[0].Row}
 	oldCancel()
-	e.endLockOwner(oldTicket)
-	e.locks.Fence(e.catalog.Domain, ref.Epoch)
-	lockState := e.locks.Inspect(oldTicket)
+	e.EndLockOwner(oldTicket)
+	e.Locks.Fence(e.Catalog.Domain, ref.Epoch)
+	lockState := e.Locks.Inspect(oldTicket)
 	entry := lockState.Resources[newResource]
 	held := lock.Mode(0)
 	if entry != nil {
@@ -124,7 +124,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			saved := e.storage.Relations[ref.Address].Versions
+			saved := e.Storage.Relations[ref.Address].Versions
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "UPDATE t SET v=2")
 			oldTicket := a.Transactions.Ticket
@@ -188,7 +188,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 				join(ids.ErrCatalogReplaced)
 				transactionEnd(t, a, tx, false)
 				transactionRows(t, peer, "SELECT v FROM t", 9)
-				if len(e.locks.Inspect(oldTicket).Journals[oldTicket]) != 0 {
+				if len(e.Locks.Inspect(oldTicket).Journals[oldTicket]) != 0 {
 					t.Fatal("fenced owner retained row resources")
 				}
 			} else {

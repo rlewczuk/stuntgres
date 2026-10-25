@@ -21,9 +21,9 @@ func TestCollationDirectStageTemporaryAuthority(t *testing.T) {
 			admin, closeAdmin := roleOperation(t, e, "postgres")
 			defer closeAdmin()
 			roleExecute(t, e, admin, "CREATE ROLE direct_collation_creator LOGIN NOSUPERUSER")
-			roleExecute(t, e, admin, "REVOKE TEMPORARY ON DATABASE "+e.databaseName+" FROM PUBLIC")
+			roleExecute(t, e, admin, "REVOKE TEMPORARY ON DATABASE "+e.DatabaseName+" FROM PUBLIC")
 			if name != "database_temp_denied" {
-				roleExecute(t, e, admin, "GRANT TEMPORARY ON DATABASE "+e.databaseName+" TO direct_collation_creator")
+				roleExecute(t, e, admin, "GRANT TEMPORARY ON DATABASE "+e.DatabaseName+" TO direct_collation_creator")
 			}
 			creator, closeCreator := roleOperation(t, e, "direct_collation_creator")
 			defer closeCreator()
@@ -68,20 +68,20 @@ func TestCollationDirectStageTemporaryAuthority(t *testing.T) {
 			}()
 
 			ast := statement(t, query)
-			e.mu.Lock()
-			oid, revision := e.catalog.NextOID(), e.catalog.NextRevision()
+			e.Mu.Lock()
+			oid, revision := e.Catalog.NextOID(), e.Catalog.NextRevision()
 			stage, err := e.stageSchemaLocked(creator, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if stage != nil {
 				defer e.DiscardCatalogStage(stage)
 			}
 			if name != "candidate_success" {
-				message := `permission denied to create temporary tables in database "` + e.databaseName + `"`
+				message := `permission denied to create temporary tables in database "` + e.DatabaseName + `"`
 				if foreign != nil {
 					message = "permission denied for schema " + foreign.Name()
 				}
 				domainUnitDiagnostic(t, err, "42501", message)
-				if stage != nil || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision {
+				if stage != nil || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision {
 					t.Fatal("denied direct stage allocated catalog identity or returned a candidate")
 				}
 				return
@@ -89,7 +89,7 @@ func TestCollationDirectStageTemporaryAuthority(t *testing.T) {
 			if err != nil || stage == nil {
 				t.Fatal("first ordinary-creator TEMP collation must stage successfully", err)
 			}
-			candidate := e.stageRead(stage)
+			candidate := e.StageRead(stage)
 			var namespace *catalog.Namespace
 			var toast *catalog.Namespace
 			var collation *catalog.Collation

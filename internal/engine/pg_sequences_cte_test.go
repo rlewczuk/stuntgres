@@ -101,7 +101,7 @@ func pgSequencesCTEHolder(t *testing.T, e *Engine, s *session.Session, used bool
 	t.Helper()
 	for _, name := range []string{"a", "b"} {
 		ref := catalogRef(t, e, e.CatalogRead(), name)
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		var mode lock.Mode
 		if entry != nil {

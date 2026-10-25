@@ -52,7 +52,7 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *se
 		sessionSQL(t, a, "CREATE SERVER fdw_retire_server FOREIGN DATA WRAPPER fdw_retire")
 	}
 	drop, create := "DROP FOREIGN DATA WRAPPER fdw_retire CASCADE", "CREATE SERVER fdw_late FOREIGN DATA WRAPPER fdw_retire"
-	target := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_retire"})
+	target := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_retire"})
 	switch edge {
 	case "server_mapping", "server_table":
 		drop = "DROP SERVER fdw_retire_server CASCADE"
@@ -60,7 +60,7 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *se
 		if edge == "server_table" {
 			create = "CREATE FOREIGN TABLE fdw_late(id integer) SERVER fdw_retire_server"
 		}
-		target = e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_retire_server"})
+		target = e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_retire_server"})
 	case "procedure_wrapper", "validator_wrapper", "transitive_procedure_mapping":
 		drop = "DROP SCHEMA fdw_cap CASCADE"
 		create = "CREATE FOREIGN DATA WRAPPER fdw_late HANDLER fdw_cap.handler"
@@ -70,7 +70,7 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *se
 		if edge == "transitive_procedure_mapping" {
 			create = "CREATE USER MAPPING FOR PUBLIC SERVER fdw_retire_server"
 		}
-		target = e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "fdw_cap"})
+		target = e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "fdw_cap"})
 	}
 	if target == (ids.ObjectAddress{}) {
 		t.Fatal("missing actual retirement root", edge)
@@ -84,32 +84,32 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 	var stage *CatalogStage
 	var roots []ids.ObjectAddress
 	var err error
-	e.mu.Lock()
+	e.Mu.Lock()
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		var auth AuthorizationView
-		auth, err = e.authorizationLocked(scope.op)
+		auth, err = e.AuthorizationLocked(scope.Op)
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			stage.authorizeLocked(auth, scope.op.Session)
+			stage.AuthorizeLocked(auth, scope.Op.Session)
 			_, roots, err = e.stageForeignLocked(scope, auth, stage, foreign)
 		}
 	} else {
-		stage, err = e.stageSchemaLocked(scope.op, stmt, sqltype.InputEnvironment{}, scope.output)
+		stage, err = e.stageSchemaLocked(scope.Op, stmt, sqltype.InputEnvironment{}, scope.Output)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	if len(roots) != 0 {
-		err = scope.stageExpressionDependents(stage, roots, parser.DropCascade, nil)
+		err = scope.StageExpressionDependents(stage, roots, parser.DropCascade, nil)
 	} else {
 		err = scope.stageDomainDependents(stage, parser.DropCascade)
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
+	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func fdwLateUnitConflict(t *testing.T, err error, e *Engine, before *catalog.Sta
 	if !errors.As(err, &conflict) || err.Error() != "stuntgres: catalog publication conflict" {
 		t.Fatal("late incoming dependency did not reject retirement before publication", err)
 	}
-	if e.catalog.State != before {
+	if e.Catalog.State != before {
 		t.Fatal("failed retirement changed the complete committed metadata graph")
 	}
 }
@@ -148,8 +148,8 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 					// The incoming edge is published after provider validation,
 					// not merely before preparation of the retirement candidate.
 					sessionSQL(t, b, create)
-					before := e.catalog.State
-					_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch})
+					before := e.Catalog.State
+					_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch})
 					fdwLateUnitConflict(t, err, e, before)
 				case "active":
 					sessionSQL(t, a, "BEGIN")
@@ -166,7 +166,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 						sessionSQL(t, a, drop)
 					}
 					sessionSQL(t, b, create)
-					before := e.catalog.State
+					before := e.Catalog.State
 					op, err := a.Acquire(context.Background())
 					if err != nil {
 						t.Fatal(err)
@@ -181,10 +181,10 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 						// Admit an ordinary statement to create the retained
 						// implicit transaction, then use the real stage publisher.
 						// This does not add public transactional schema support.
-						err := message.scope.gate(statement(t, "SELECT 1"))
+						err := message.scope.Gate(statement(t, "SELECT 1"))
 						if err == nil {
 							prepared := fdwPrepareLateUnitDrop(t, e, message.scope, drop)
-							_, err = e.publishCatalogOperation(message.op, message.scope, prepared, PublicationToken{Epoch: prepared.epoch})
+							_, err = e.PublishCatalogOperation(message.op, message.scope, prepared, PublicationToken{Epoch: prepared.epoch})
 						}
 						if finish := message.scope.Finish(err); err == nil {
 							err = finish
@@ -196,7 +196,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					sessionSQL(t, b, create)
-					before := e.catalog.State
+					before := e.Catalog.State
 					fdwLateUnitConflict(t, message.end(nil), e, before)
 				}
 			})
@@ -218,7 +218,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				}
 				defer scope.Finish(context.Canceled)
 				prepared := fdwPrepareLateUnitDrop(t, e, scope, drop)
-				if _, err := e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch}); err != nil {
+				if _, err := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch}); err != nil {
 					t.Fatal(err)
 				}
 			case "active":
@@ -235,7 +235,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if e.catalog.State.Get(target) != nil || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_retire"}) != (ids.ObjectAddress{}) {
+			if e.Catalog.State.Get(target) != nil || e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_retire"}) != (ids.ObjectAddress{}) {
 				t.Fatal("uncontended retirement retained descriptor or name")
 			}
 		})
@@ -248,16 +248,16 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, "CREATE SERVER fdw_private_server FOREIGN DATA WRAPPER fdw_private")
 		sessionSQL(t, a, "DROP FOREIGN DATA WRAPPER fdw_private CASCADE")
 		sessionSQL(t, a, "COMMIT")
-		if e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_private"}) != (ids.ObjectAddress{}) || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_private_server"}) != (ids.ObjectAddress{}) {
+		if e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_private"}) != (ids.ObjectAddress{}) || e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_private_server"}) != (ids.ObjectAddress{}) {
 			t.Fatal("private creation/retirement published ghost names")
 		}
 	})
 	t.Run("retargeted_committed_owner", func(t *testing.T) {
 		e, a, b, drop, _, _ := fdwLateUnitSetup(t, "wrapper_server")
-		target := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_retire"})
+		target := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_retire"})
 		sessionSQL(t, b, "CREATE FOREIGN DATA WRAPPER fdw_other")
 		sessionSQL(t, b, "CREATE SERVER fdw_retarget FOREIGN DATA WRAPPER fdw_other")
-		server := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_retarget"})
+		server := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_retarget"})
 		sessionSQL(t, a, "BEGIN")
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, "BEGIN")
@@ -265,7 +265,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 			next := *old
 			next.Wrapper = target
 			var err error
-			next.ObjectRevision, err = e.catalog.RevisionLocked()
+			next.ObjectRevision, err = e.Catalog.RevisionLocked()
 			if err != nil {
 				return err
 			}
@@ -274,7 +274,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		sessionSQL(t, b, "COMMIT")
-		before := e.catalog.State
+		before := e.Catalog.State
 		op, err := a.Acquire(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -288,14 +288,14 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, "BEGIN")
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, create)
-		late := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
+		late := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
 		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *catalog.ForeignObject) error {
-			return stage.removeObjectLocked(e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address()), false)
+			return stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address()), false)
 		}); err != nil {
 			t.Fatal(err)
 		}
 		sessionSQL(t, a, "COMMIT")
-		if e.catalog.State.Get(target) != nil || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"}) != (ids.ObjectAddress{}) {
+		if e.Catalog.State.Get(target) != nil || e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"}) != (ids.ObjectAddress{}) {
 			t.Fatal("own removal did not publish a coherent empty graph")
 		}
 	})
@@ -312,7 +312,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 			}
 			sessionSQL(t, b, create)
 			sessionSQL(t, a, "ROLLBACK TO SAVEPOINT before_late")
-			before := e.catalog.State
+			before := e.Catalog.State
 			op, err := a.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -321,7 +321,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 			op.Done()
 			if restoreRetirement {
 				fdwLateUnitConflict(t, err, e, before)
-			} else if err != nil || e.catalog.State.Get(target) == nil {
+			} else if err != nil || e.Catalog.State.Get(target) == nil {
 				t.Fatal("rolled-back retirement retained a false dependency fence", err)
 			}
 		})
@@ -346,7 +346,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				defer scope.Finish(context.Canceled)
 				prepared := fdwPrepareLateUnitDrop(t, e, scope, drop)
 				sessionSQL(t, b, "ALTER SERVER fdw_unrelated_server OPTIONS(tag 'changed')")
-				_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch})
+				_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch})
 			case "active":
 				sessionSQL(t, a, "BEGIN")
 				sessionSQL(t, a, drop)
@@ -366,10 +366,10 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				sessionSQL(t, b, "ALTER SERVER fdw_unrelated_server OPTIONS(tag 'changed')")
 				err = message.end(nil)
 			}
-			if err != nil || e.catalog.State.Get(target) != nil || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_unrelated"}) == (ids.ObjectAddress{}) {
+			if err != nil || e.Catalog.State.Get(target) != nil || e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_unrelated"}) == (ids.ObjectAddress{}) {
 				t.Fatal("unrelated metadata change blocked or lost independent retirement", err)
 			}
-			server := e.catalog.State.MustForeign(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_unrelated_server"}))
+			server := e.Catalog.State.MustForeign(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_unrelated_server"}))
 			if len(server.Options) != 1 || server.Options[0] != (catalog.ForeignOption{Name: "tag", Value: "changed"}) {
 				t.Fatal("unrelated committed server revision was lost", server)
 			}
@@ -380,11 +380,11 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	e, a, b, drop, create, target := fdwLateUnitSetup(t, "wrapper_server")
 	sessionSQL(t, a, "CREATE FOREIGN DATA WRAPPER fdw_survivor")
-	survivor := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_survivor"})
+	survivor := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignWrapperClassID, Name: "fdw_survivor"})
 	sessionSQL(t, a, "BEGIN")
 	sessionSQL(t, a, drop)
 	sessionSQL(t, b, create)
-	late := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
+	late := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
 	// Exercise an actual provider-valid private catalog replacement. This is
 	// not a new SQL ALTER SERVER ... WRAPPER spelling: it tests the common
 	// publisher's final candidate override when the old incoming edge is gone.
@@ -392,7 +392,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 		next := *old
 		next.Wrapper = survivor
 		var err error
-		next.ObjectRevision, err = e.catalog.RevisionLocked()
+		next.ObjectRevision, err = e.Catalog.RevisionLocked()
 		if err != nil {
 			return err
 		}
@@ -402,8 +402,8 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 		t.Fatal(err)
 	}
 	sessionSQL(t, a, "COMMIT")
-	server, ok := e.catalog.State.Foreign(late)
-	if !ok || server.Wrapper != survivor || e.catalog.State.Get(target) != nil || e.catalog.State.Get(survivor) == nil {
+	server, ok := e.Catalog.State.Foreign(late)
+	if !ok || server.Wrapper != survivor || e.Catalog.State.Get(target) != nil || e.Catalog.State.Get(survivor) == nil {
 		t.Fatal("final valid rewire falsely conflicted or published a dangling edge", server)
 	}
 }
@@ -422,7 +422,7 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, pr
 	defer scope.Finish(context.Canceled)
 	// Enter the existing eligible statement/transaction lifecycle; the
 	// retirement itself is prepared and published through the catalog API.
-	if err := scope.gate(statement(t, "SELECT 1")); err != nil {
+	if err := scope.Gate(statement(t, "SELECT 1")); err != nil {
 		return err
 	}
 	prepared, err := prepare(scope)
@@ -430,7 +430,7 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, pr
 		defer e.DiscardCatalogStage(prepared.stage)
 	}
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: prepared.epoch})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: prepared.epoch})
 	}
 	if finish := scope.Finish(err); err == nil {
 		err = finish
@@ -441,25 +441,25 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, pr
 func fdwEditLateUnitServer(t *testing.T, e *Engine, session *session.Session, address ids.ObjectAddress, edit func(*CatalogStage, *catalog.ForeignObject) error) error {
 	t.Helper()
 	return fdwApplyLateUnitStage(t, e, session, func(scope *StatementScope) (*PreparedCatalogPublication, error) {
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(scope.op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(scope.Op)
 		var stage *CatalogStage
 		if err == nil {
 			// Capture the authentic committed predecessor, where the late
 			// server's wrapper still exists. The common overlay publisher then
 			// merges this valid removal/rewire with our earlier retirement.
-			stage = e.BeginCatalogStage(e.catalog.Current())
-			stage.authorizeLocked(auth, scope.op.Session)
+			stage = e.BeginCatalogStage(e.Catalog.Current())
+			stage.AuthorizeLocked(auth, scope.Op.Session)
 			err = edit(stage, stage.Base.MustForeign(address))
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			if stage != nil {
 				e.DiscardCatalogStage(stage)
 			}
 			return nil, err
 		}
-		prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
+		prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 		if err != nil {
 			e.DiscardCatalogStage(stage)
 		}

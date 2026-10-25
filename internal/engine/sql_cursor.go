@@ -19,7 +19,7 @@ import (
 
 // Admission, not a second mutex hierarchy, protects the one session registry.
 type cursorRegistry struct {
-	entries map[string]*sqlCursor
+	Entries map[string]*sqlCursor
 	ordinal uint64
 	token   ids.SessionToken
 }
@@ -39,7 +39,7 @@ type sqlCursor struct {
 	root                                        *plan.ProjectNode
 	schema                                      []catalog.Column
 	recordShape                                 *sqltype.Descriptor // Lazy FETCH record descriptor, immutable after publication.
-	source                                      *exec.Source
+	Source                                      *exec.Source
 	state                                       exec.State
 	stage                                       *exec.Stage
 	authority                                   *exec.Authority
@@ -84,9 +84,9 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 		c.foreignOwner = nil
 	}
 	failure = c.state.FinishSources(failure)
-	if c.source != nil {
-		c.source.Close()
-		c.source = nil
+	if c.Source != nil {
+		c.Source.Close()
+		c.Source = nil
 	}
 	for _, program := range c.rlsPrograms {
 		failure = program.FinishSources(failure)
@@ -132,10 +132,10 @@ func (r *cursorRegistry) detach(match func(*sqlCursor) bool) []*sqlCursor {
 		return nil
 	}
 	var detached []*sqlCursor
-	for name, c := range r.entries {
+	for name, c := range r.Entries {
 		if match(c) {
 			detached = append(detached, c)
-			delete(r.entries, name)
+			delete(r.Entries, name)
 		}
 	}
 	if len(detached) > 1 {
@@ -169,13 +169,13 @@ func (r *cursorRegistry) EndSession(token ids.SessionToken, _ session.EndReason)
 	return disposeSQLCursors(context.Background(), r.clear())
 }
 func missingSQLCursor(name string) error {
-	return sqlError("34000", fmt.Sprintf("cursor \"%s\" does not exist", name))
+	return SQLError("34000", fmt.Sprintf("cursor \"%s\" does not exist", name))
 }
 
 func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root plan.Node, source *exec.Source, parameters []sqltype.Value) (Result, error) {
 	_, _, err := s.installCursor(declaration, &declaration.Name.Text, root, source, parameters, declaration.Scroll == parser.CursorScrollEnabled)
 	if err == nil {
-		s.completed, s.sessionCompleted = !(declaration.Hold && s.implicit), true
+		s.Completed, s.sessionCompleted = !(declaration.Hold && s.implicit), true
 	}
 	return Result{}, err
 }
@@ -185,8 +185,8 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, requestedName *string, root plan.Node, source *exec.Source, parameters []sqltype.Value, scroll bool) (*sqlCursor, string, error) {
 	keep := false
 	defer func() {
-		s.routineAuth = AuthorizationView{}
-		s.routineDependencies = nil
+		s.RoutineAuth = AuthorizationView{}
+		s.RoutineDependencies = nil
 		s.authority.Host = nil
 		if !keep {
 			source.Close()
@@ -196,8 +196,8 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	if !ok {
 		return nil, "", fmt.Errorf("stuntgres: cursor query lacks final projection")
 	}
-	r := payloadOf(s.op.Session).cursors
-	timestampType, ok := s.inquiry.commentCatalog.LookupType(sqltype.Timestamptz)
+	r := PayloadOf(s.Op.Session).Cursors
+	timestampType, ok := s.Inquiry.CommentCatalog.LookupType(sqltype.Timestamptz)
 	if !ok {
 		return nil, "", fmt.Errorf("stuntgres: missing cursor creation timestamp type")
 	}
@@ -205,15 +205,15 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	if err != nil {
 		return nil, "", err
 	}
-	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), hold: declaration.Hold, root: project, schema: project.Schema(), source: source, authority: s.authority,
-		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles,
-		routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
-		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog,
-		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
+	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), hold: declaration.Hold, root: project, schema: project.Schema(), Source: source, authority: s.authority,
+		leaves: s.QuerySources, locks: s.QueryLockContext, catalog: s.Inquiry.CommentCatalog, roles: s.Inquiry.commentRoles,
+		routineDependencies: s.RoutineDependencies, routineAuth: s.RoutineAuth,
+		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog,
+		visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
 	c.statement, c.created = declaration.Source, created
 	c.scroll = scroll
-	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: s.Input, Output: s.Output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.CaptureAsyncAdmission()
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
@@ -223,7 +223,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	c.state.Output.Operator = nil
 	c.state.Output.Regcollation, c.state.Output.Regnamespace = nil, nil
 	c.state.Output.RegTS = nil
-	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
+	c.deparseAuth.Session, c.deparseAuth.settings = nil, nil
 	regobj.DetachCursorInput(&c.state.Input, c.authority)
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return nil, "", err
@@ -234,7 +234,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 		return nil, "", fmt.Errorf("stuntgres: cursor declaration counter exhausted")
 	}
 	inUse := func(name string) bool {
-		return name == "" || r.entries[name] != nil || protocolPortalExists(s.op.Session, name)
+		return name == "" || r.Entries[name] != nil || protocolPortalExists(s.Op.Session, name)
 	}
 	name := ""
 	if requestedName == nil {
@@ -250,13 +250,13 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	} else {
 		name = *requestedName
 		if inUse(name) {
-			return nil, "", sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
+			return nil, "", SQLError("42P03", fmt.Sprintf("cursor %q already exists", name))
 		}
 	}
 	c.ordinal = r.ordinal + 1
 	c.foreignOwner = s.foreignTablesSlot.takeOwner()
 	s.takeRowSecurityPrograms(c)
-	r.entries[name] = c
+	r.Entries[name] = c
 	r.ordinal = c.ordinal
 	keep = true
 	return c, name, nil
@@ -271,7 +271,7 @@ type sqlCursorProducer struct {
 
 var _ exec.CursorProducer = sqlCursorProducer{}
 
-func (p sqlCursorProducer) Context() context.Context { return p.scope.op.Context() }
+func (p sqlCursorProducer) Context() context.Context { return p.scope.Op.Context() }
 func (p sqlCursorProducer) Open() (*exec.Stage, error) {
 	if err := p.cursor.openProducer(p.scope); err != nil {
 		return nil, err
@@ -296,42 +296,42 @@ func (c *sqlCursor) motionInput(s *StatementScope) exec.CursorInput {
 // admitted FETCH; the initialized producer retains DECLARE's routine authority.
 func (c *sqlCursor) admit(s *StatementScope) {
 	s.currentSnapshot, s.snapshotFrontier = c.currentSnapshot, c.snapshotFrontier
-	s.querySources, s.queryLocks = c.leaves, c.locks
-	s.inquiry.commentCatalog, s.inquiry.commentRoles = c.catalog, c.roles
-	s.routineDependencies = c.routineDependencies
-	s.routineAuth = c.routineAuth
-	s.inquiry.deparseAuth, s.inquiry.deparsePath = c.deparseAuth, c.deparsePath
-	s.inquiry.collationPath = c.collationPath
-	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.Session, s.op.Session.Settings
-	s.inquiry.visibilityCatalog = c.visibilityCatalog
-	s.inquiry.visibilityRelationPath, s.inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
-	c.authority.Host = hostOf(s)
+	s.QuerySources, s.QueryLockContext = c.leaves, c.locks
+	s.Inquiry.CommentCatalog, s.Inquiry.commentRoles = c.catalog, c.roles
+	s.RoutineDependencies = c.routineDependencies
+	s.RoutineAuth = c.routineAuth
+	s.Inquiry.deparseAuth, s.Inquiry.DeparsePath = c.deparseAuth, c.deparsePath
+	s.Inquiry.collationPath = c.collationPath
+	s.Inquiry.deparseAuth.Session, s.Inquiry.deparseAuth.settings = s.Op.Session, s.Op.Session.Settings
+	s.Inquiry.visibilityCatalog = c.visibilityCatalog
+	s.Inquiry.visibilityRelationPath, s.Inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
+	c.authority.Host = HostOf(s)
 	s.foreignTables().cursor = c
 }
 func (s *StatementScope) sessionPublicationPreflight() error {
-	e := s.engine()
-	s.owner.Mu.Lock()
-	defer s.owner.Mu.Unlock()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	s.op.Session.Mu.Lock()
-	defer s.op.Session.Mu.Unlock()
-	if err := publicationOperationLocked(e, s.op); err != nil {
+	e := s.Engine()
+	s.Owner.Mu.Lock()
+	defer s.Owner.Mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	s.Op.Session.Mu.Lock()
+	defer s.Op.Session.Mu.Unlock()
+	if err := PublicationOperationLocked(e, s.Op); err != nil {
 		return err
 	}
-	if err := s.owner.Validate(s.txRef); err != nil {
+	if err := s.Owner.Validate(s.TxRef); err != nil {
 		return err
 	}
-	if s.txRef.Epoch() != e.catalog.State.Epoch() {
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if err := s.validateLockedRelation(e); err != nil {
+	if err := s.ValidateLockedRelation(e); err != nil {
 		return err
 	}
-	if s.queryLocks != nil {
-		catalog := e.privateCatalogLocked(s.owner.Catalog)
-		for _, entry := range s.queryLocks.Leaves {
-			if _, err := currentQuerySourceLocked(e, catalog, s.owner.Catalog, entry.Leaf); err != nil {
+	if s.QueryLockContext != nil {
+		catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+		for _, entry := range s.QueryLockContext.Leaves {
+			if _, err := CurrentQuerySourceLocked(e, catalog, s.Owner.Catalog, entry.Leaf); err != nil {
 				return err
 			}
 		}
@@ -344,27 +344,27 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	}
 	result, err = s.fetchCursor(fetch)
 	if err == nil {
-		s.completed, s.sessionCompleted = true, true
+		s.Completed, s.sessionCompleted = true, true
 	}
 	return result, err
 }
 
 func (s *StatementScope) fetchCursor(fetch *parser.FetchCursor) (result Result, err error) {
-	return s.fetchCursorPortal(payloadOf(s.op.Session).cursors.entries[fetch.Name.Text], fetch)
+	return s.fetchCursorPortal(PayloadOf(s.Op.Session).Cursors.Entries[fetch.Name.Text], fetch)
 }
 
 // Identity movement is shared by named SQL/PL commands and implicit FOR NEXT.
 // A retained handle must still be this physical session's exact registered
 // portal; matching names cannot redirect it to a replacement.
 func (s *StatementScope) validateCursorPortal(c *sqlCursor, name string) error {
-	if c == nil || payloadOf(s.op.Session).cursors.entries[name] != c || (!c.promoted && c.tx != s.txRef) {
+	if c == nil || PayloadOf(s.Op.Session).Cursors.Entries[name] != c || (!c.promoted && c.tx != s.TxRef) {
 		return missingSQLCursor(name)
 	}
-	if c.epoch != s.txRef.Epoch() {
+	if c.epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	if c.Place == exec.CursorFailed {
-		return sqlError("55000", fmt.Sprintf("portal %q cannot be run", name))
+		return SQLError("55000", fmt.Sprintf("portal %q cannot be run", name))
 	}
 	return nil
 }
@@ -372,7 +372,7 @@ func (s *StatementScope) validateCursorPortal(c *sqlCursor, name string) error {
 // Resolve without admitting sources or moving the producer. PL counts execute
 // only after this validation and retain this exact identity for later motion.
 func (s *StatementScope) resolveCursorPortal(name string) (*sqlCursor, error) {
-	c := payloadOf(s.op.Session).cursors.entries[name]
+	c := PayloadOf(s.Op.Session).Cursors.Entries[name]
 	if err := s.validateCursorPortal(c, name); err != nil {
 		return nil, err
 	}
@@ -389,11 +389,11 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	// Live movement restrictions use the effective direction in the shared owner.
 	c.admit(s)
 	defer func() {
-		s.routineAuth = AuthorizationView{}
-		s.routineDependencies = nil
+		s.RoutineAuth = AuthorizationView{}
+		s.RoutineDependencies = nil
 		if err != nil {
 			c.Place = exec.CursorFailed
-			_ = c.dispose(s.op.Context())
+			_ = c.dispose(s.Op.Context())
 		}
 		c.authority.Host = nil
 	}()
@@ -409,7 +409,7 @@ func (s *StatementScope) fetchCursorPortal(c *sqlCursor, fetch *parser.FetchCurs
 	if motionErr != nil {
 		return Result{}, motionErr
 	}
-	if err := c.foreignOwner.Quiesce(s.op.Context()); err != nil {
+	if err := c.foreignOwner.Quiesce(s.Op.Context()); err != nil {
 		return Result{}, err
 	}
 	// HOLD commit continues from the same live producer's next occurrence.
@@ -436,45 +436,45 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	}
 	result, err := s.closeCursor(close)
 	if err == nil {
-		s.completed, s.sessionCompleted = true, true
+		s.Completed, s.sessionCompleted = true, true
 	}
 	return result, err
 }
 
 func (s *StatementScope) closeCursor(close *parser.CloseCursor) (Result, error) {
-	r := payloadOf(s.op.Session).cursors
-	c := r.entries[close.Name.Text]
-	if !close.All && c == nil && !protocolPortalExists(s.op.Session, close.Name.Text) {
+	r := PayloadOf(s.Op.Session).Cursors
+	c := r.Entries[close.Name.Text]
+	if !close.All && c == nil && !protocolPortalExists(s.Op.Session, close.Name.Text) {
 		return Result{}, missingSQLCursor(close.Name.Text)
 	}
 	if close.All {
-		for name, cursor := range r.entries {
+		for name, cursor := range r.Entries {
 			if cursor.pinned {
-				return Result{}, sqlError("24000", fmt.Sprintf("cannot drop pinned portal %q", name))
+				return Result{}, SQLError("24000", fmt.Sprintf("cannot drop pinned portal %q", name))
 			}
 		}
 	} else if c != nil && c.pinned {
-		return Result{}, sqlError("24000", fmt.Sprintf("cannot drop pinned portal %q", close.Name.Text))
+		return Result{}, SQLError("24000", fmt.Sprintf("cannot drop pinned portal %q", close.Name.Text))
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
-	if s.replacementRead {
-		s.engine().replacementMu.RUnlock()
-		s.replacementRead = false
+	if s.ReplacementRead {
+		s.Engine().ReplacementMu.RUnlock()
+		s.ReplacementRead = false
 	}
 	var cleanupErr error
 	if close.All {
-		cleanupErr = disposeSQLCursors(s.op.Context(), r.clear())
-		for name := range payloadOf(s.op.Session).preparedSQL.portals {
+		cleanupErr = disposeSQLCursors(s.Op.Context(), r.clear())
+		for name := range PayloadOf(s.Op.Session).preparedSQL.portals {
 			if err := s.CloseProtocolPortal(name); cleanupErr == nil {
 				cleanupErr = err
 			}
 		}
 	} else {
-		delete(r.entries, close.Name.Text)
+		delete(r.Entries, close.Name.Text)
 		if c != nil {
-			cleanupErr = c.dispose(s.op.Context())
+			cleanupErr = c.dispose(s.Op.Context())
 		} else {
 			cleanupErr = s.CloseProtocolPortal(close.Name.Text)
 		}

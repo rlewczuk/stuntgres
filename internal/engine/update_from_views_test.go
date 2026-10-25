@@ -21,7 +21,7 @@ func TestUpdateFromStoredSourceMarksOwnFrontier(t *testing.T) {
 		done := lockAsync(e, writer, ctx, "UPDATE t SET v=t.v+wrapped.n FROM wrapped WHERE t.id=wrapped.k RETURNING old.v,new.v,wrapped.n", false)
 		lockPending(t, e, 1)
 		sref := catalogRef(t, e, e.CatalogRead(), "s")
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		sourceWait := false
 		for resource, entry := range lockState.Resources {
 			if resource.ObjectRef == sref && resource.Row != 0 && len(entry.Pending) == 1 {

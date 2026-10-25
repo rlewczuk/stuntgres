@@ -36,7 +36,7 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 			defer scope.Finish(context.Canceled)
 			var restore func()
 			ctx.visit = func() {
-				if scope.view != nil || len(scope.stage.deletes) != 0 {
+				if scope.View != nil || len(scope.Stage.Deletes) != 0 {
 					t.Error("DELETE captured data or staged a row before preflight")
 				}
 				switch mode {
@@ -45,15 +45,15 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					op.Session.Authorization.State.CurrentUser = actor.Ref
 					op.Session.Mu.Unlock()
 				case "metadata":
-					address := scope.lockedRef.Address
-					original := e.catalog.State.Get(address)
+					address := scope.LockedRef.Address
+					original := e.Catalog.State.Get(address)
 					replacement := *original.(*catalog.Relation)
-					e.catalog.State.SetDescriptor(address, &replacement)
-					restore = func() { e.catalog.State.SetDescriptor(address, original) }
+					e.Catalog.State.SetDescriptor(address, &replacement)
+					restore = func() { e.Catalog.State.SetDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.State.Epoch()
-					e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
-					restore = func() { e.catalog.State.SetEpoch(original) }
+					original := e.Catalog.State.Epoch()
+					e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
+					restore = func() { e.Catalog.State.SetEpoch(original) }
 				case "teardown":
 					op.Session.RequestEnd(session.CleanClose)
 				}
@@ -69,9 +69,9 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 			})
 			ctx.armed = false
 			if restore != nil {
-				e.mu.Lock()
+				e.Mu.Lock()
 				restore()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
 			if !ctx.entered {
 				t.Error("DELETE preflight was not exercised")
@@ -92,13 +92,13 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					t.Error(result, executeErr)
 				}
 			}
-			if executeErr != nil && (result.Count != 0 || result.Rows != nil || scope.view != nil) {
+			if executeErr != nil && (result.Count != 0 || result.Rows != nil || scope.View != nil) {
 				t.Error("failed preflight acquired a view or exposed a result")
 			}
 			if err := scope.Finish(executeErr); err != executeErr {
 				t.Error(err, executeErr)
 			}
-			if scope.view != nil || scope.ticket != nil || scope.lockedStorage != nil || !scope.finished {
+			if scope.View != nil || scope.LockTicket != nil || scope.LockedStorage != nil || !scope.Finished {
 				t.Error("DELETE resources survived Finish")
 			}
 		})
@@ -129,7 +129,7 @@ func TestDeleteCoreExpressionPreflightEmptyAndDecisive(t *testing.T) {
 					return err
 				})
 				state(t, executeErr, "22P02")
-				if result.Count != 0 || result.Rows != nil || scope.view != nil || len(scope.stage.deletes) != 0 {
+				if result.Count != 0 || result.Rows != nil || scope.View != nil || len(scope.Stage.Deletes) != 0 {
 					t.Error("frame conversion failure captured or mutated rows")
 				}
 				if err := scope.Finish(executeErr); err != executeErr {
@@ -190,7 +190,7 @@ func TestDeleteCoreExpressionACLPrecedence(t *testing.T) {
 			if !errors.As(executeErr, &diagnostic) || *diagnostic != want {
 				t.Error(executeErr, diagnostic, want)
 			}
-			if result.Count != 0 || result.Rows != nil || scope.view != nil || len(scope.stage.deletes) != 0 {
+			if result.Count != 0 || result.Rows != nil || scope.View != nil || len(scope.Stage.Deletes) != 0 {
 				t.Error("failed precedence captured rows")
 			}
 			if err := scope.Finish(executeErr); err != executeErr {
@@ -223,7 +223,7 @@ func TestDeleteCoreRowCastLateAtomicity(t *testing.T) {
 	}
 	result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE int4(s) IS DISTINCT FROM 0"), 0, nil)
 	state(t, executeErr, "22P02")
-	root := scope.stage.deletes[scope.lockedRef.Address]
+	root := scope.Stage.Deletes[scope.LockedRef.Address]
 	if result.Count != 0 || result.Rows != nil || root == nil || len(root.Rows) != 1 {
 		t.Fatal("actual first row was not staged before late cast failure", result, root)
 	}

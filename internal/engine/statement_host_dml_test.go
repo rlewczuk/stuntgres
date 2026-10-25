@@ -32,7 +32,7 @@ func TestStatementHostLatestRowGates(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	scope, b, source := deleteProbeScope(t, s)
-	h := scope.writeHost()
+	h := scope.WriteHost()
 	version := source.Committed[0]
 	deletion := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: version.Row, Version: version.Version}
 	update := dml.UpdateCandidate{RowVersion: version}
@@ -102,7 +102,7 @@ func TestStatementHostLatestRowIsolation(t *testing.T) {
 	sessionSQL(t, writer, "UPDATE t SET v = 10 WHERE v = 1")
 	sessionSQL(t, writer, "DELETE FROM t WHERE v = 2")
 	scope, b, source := deleteProbeScope(t, reader)
-	h := scope.writeHost()
+	h := scope.WriteHost()
 	if len(source.Committed) != 2 {
 		t.Fatal("snapshot rows", len(source.Committed))
 	}
@@ -146,13 +146,13 @@ func TestStatementHostStageReplacement(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	scope, b, source := deleteProbeScope(t, s)
-	h := scope.writeHost()
+	h := scope.WriteHost()
 	old := source.Committed[:1]
 	batch := index.WriteBatch{Values: [][]sqltype.Value{old[0].Values}, ActionMode: lock.MultiNoKeyAction}
 
 	scope.UniqueBinding = &index.UniqueWriteBinding{}
 	stale, err := h.StageReplacement(b.Ref, old, batch, nil, dml.ReplaceMerge)
-	if err != nil || !stale || len(scope.stage.rows[b.Ref.Address]) != 0 {
+	if err != nil || !stale || len(scope.Stage.Rows[b.Ref.Address]) != 0 {
 		t.Fatal("stale binding staged", stale, err)
 	}
 	scope.UniqueBinding = nil
@@ -168,7 +168,7 @@ func TestStatementHostStageReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale, err = h.StageReplacement(b.Ref, old, batch, nil, dml.ReplaceMerge)
-	staged := scope.stage.rows[b.Ref.Address]
+	staged := scope.Stage.Rows[b.Ref.Address]
 	if err != nil || stale || len(staged) != 1 || staged[0].Row != old[0].Row || staged[0].Version == old[0].Version {
 		t.Fatal("replacement not staged", stale, err, staged)
 	}
@@ -188,20 +188,20 @@ func TestStatementHostPrepareReplacement(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	scope, b, source := deleteProbeScope(t, s)
 	old := source.Committed[:1]
-	if err := scope.writeHost().PrepareReplacement(b.Ref, old); err != nil {
+	if err := scope.WriteHost().PrepareReplacement(b.Ref, old); err != nil {
 		t.Fatal(err)
 	}
-	scope.foreignActionAuth = &AuthorizationView{}
-	wantErrorText(t, scope.writeHost().PrepareReplacement(b.Ref, old), "stuntgres: missing writable internal action admission")
-	scope.foreignActionAuth = nil
+	scope.ForeignActionAuth = &AuthorizationView{}
+	wantErrorText(t, scope.WriteHost().PrepareReplacement(b.Ref, old), "stuntgres: missing writable internal action admission")
+	scope.ForeignActionAuth = nil
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
 	copied := *scope
-	wantErrorText(t, copied.writeHost().PrepareReplacement(b.Ref, old), "stuntgres: foreign or missing write stage")
-	scope.foreignActionAuth = &AuthorizationView{}
-	wantErrorText(t, scope.writeHost().PrepareReplacement(b.Ref, old), "stuntgres: inactive statement scope")
-	scope.foreignActionAuth = nil
+	wantErrorText(t, copied.WriteHost().PrepareReplacement(b.Ref, old), "stuntgres: foreign or missing write stage")
+	scope.ForeignActionAuth = &AuthorizationView{}
+	wantErrorText(t, scope.WriteHost().PrepareReplacement(b.Ref, old), "stuntgres: inactive statement scope")
+	scope.ForeignActionAuth = nil
 	lockEmpty(t, e)
 }
 
@@ -212,7 +212,7 @@ func TestStatementHostStatementSlots(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TABLE t(v INT)")
 	scope, _, _ := deleteProbeScope(t, s)
-	h := scope.writeHost()
+	h := scope.WriteHost()
 	if h.IndexScope(false) != nil || h.ForeignActions(false) != nil {
 		t.Fatal("slot read allocated")
 	}
@@ -220,13 +220,13 @@ func TestStatementHostStatementSlots(t *testing.T) {
 	if indexes == nil || actions == nil || h.IndexScope(false) != indexes || h.ForeignActions(false) != actions {
 		t.Fatal("allocated slot not retained", indexes, actions)
 	}
-	if h.Ticket() == nil || h.Ticket() != scope.ticket {
+	if h.Ticket() == nil || h.Ticket() != scope.LockTicket {
 		t.Fatal("ticket", h.Ticket())
 	}
-	if h.Operation() == nil || h.Operation() != scope.op {
+	if h.Operation() == nil || h.Operation() != scope.Op {
 		t.Fatal("operation of another statement", h.Operation())
 	}
-	state := e.catalog.State
+	state := e.Catalog.State
 	if read := h.CatalogRead(state); read.State() != state {
 		t.Fatal("catalog read of another state")
 	}
@@ -247,27 +247,27 @@ func TestStatementHostReadmitRevalidation(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TABLE t(v INT UNIQUE)")
 	scope, b, _ := deleteProbeScope(t, s)
-	h := scope.writeHost()
-	binding, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
+	h := scope.WriteHost()
+	binding, err := dml.BindUniqueWrite(scope.WriteHost(), b.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := h.ReadmitRevalidation(binding, binding); err != nil {
 		t.Fatal(err)
 	}
-	if !e.mu.TryLock() {
+	if !e.Mu.TryLock() {
 		t.Fatal("Engine.mu held after readmission")
 	}
-	e.mu.Unlock()
-	scope.foreignActionAuth = &AuthorizationView{}
+	e.Mu.Unlock()
+	scope.ForeignActionAuth = &AuthorizationView{}
 	if err := h.ReadmitRevalidation(binding, binding); err == nil {
 		t.Fatal("unknown acting principal admitted")
 	}
-	scope.foreignActionAuth = nil
-	if !e.mu.TryLock() {
+	scope.ForeignActionAuth = nil
+	if !e.Mu.TryLock() {
 		t.Fatal("Engine.mu held after a failed capture")
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	_ = scope.Finish(errors.New("rollback"))
 	lockEmpty(t, e)
 }

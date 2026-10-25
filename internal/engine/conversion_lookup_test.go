@@ -26,7 +26,7 @@ import (
 func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	earlier := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "earlier", ObjectRevision: 1, Owner: e.roles.Domain.Principal(10)}
+	earlier := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "earlier", ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10)}
 	low := conversionUnitDefinition(e, 90000, "z_low_oid", true)
 	high := conversionUnitDefinition(e, 90001, "a_high_oid", true)
 	first := conversionUnitDefinition(e, 90002, "first_namespace", true)
@@ -41,12 +41,12 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	scope := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}}}
+	scope := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}}}
 	procedure, err := scope.conversionProcedure(6, 8)
 	if err != nil || procedure == nil || procedure.Address() != low.Handler || scope.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != first {
 		t.Fatal("namespace priority", procedure, err)
 	}
-	reversed := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}}}
+	reversed := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}}}
 	if _, err = reversed.conversionProcedure(6, 8); err != nil || reversed.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("default index OID order, not name order", err)
 	}
@@ -57,7 +57,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	fresh := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: e.CatalogRead(), visibilityOtherPath: scope.inquiry.visibilityOtherPath}}
+	fresh := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: e.CatalogRead(), visibilityOtherPath: scope.Inquiry.visibilityOtherPath}}
 	if _, err = fresh.conversionProcedure(6, 8); err != nil || fresh.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != low {
 		t.Fatal("nondefault repaired lookup", err)
 	}
@@ -75,7 +75,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "é")},
 		plan.LiteralExpr{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "LATIN1")},
 	}}
-	result, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(fresh)}})
+	result, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(fresh)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,8 +83,8 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if err != nil || raw != "\xe9" {
 		t.Fatal("actual selected handler output", raw, err)
 	}
-	missing := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}}
-	if _, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(missing)}}); err == nil {
+	missing := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}}
+	if _, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(missing)}}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
 	node.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "")}
@@ -98,16 +98,16 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	actor := auth.Roles.LookupRef("pg_monitor")
 	auth.State.CurrentUser = actor
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, refreshErr := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, refreshErr := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
@@ -115,9 +115,9 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	var stage *CatalogStage
 	var err error
 	withPublicSchemaUnitOwner(t, e, "pg_monitor", func() {
-		e.mu.Lock()
-		auth, refreshErr = e.authorizationLocked(op)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		auth, refreshErr = e.AuthorizationLocked(op)
+		e.Mu.Unlock()
 		if refreshErr != nil {
 			t.Fatal(refreshErr)
 		}
@@ -125,9 +125,9 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		create := &parser.CreateConversion{Name: conversionUnitName("public", "denied"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1")}
 		stage = e.BeginCatalogStage(auth.Catalog)
 		before := auth.Catalog.State()
-		e.mu.Lock()
-		err = typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err = typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for function pg_catalog.utf8_to_iso8859_1" {
 			t.Fatal("actual routine ACL denial", err)
@@ -139,17 +139,17 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		if err = e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		auth, refreshErr = e.authorizationLocked(op)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		auth, refreshErr = e.AuthorizationLocked(op)
+		e.Mu.Unlock()
 		if refreshErr != nil {
 			t.Fatal(refreshErr)
 		}
 		auth.State.CurrentUser = actor
 		stage = e.BeginCatalogStage(auth.Catalog)
-		e.mu.Lock()
-		err = typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err = typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal("restored real handler grant did not recover CREATE", err)
 		}
@@ -171,40 +171,40 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 			t.Fatal("recovered CREATE did not publish real descriptor")
 		}
 	})
-	e.mu.Lock()
-	auth, refreshErr = e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, refreshErr = e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
 	auth.State.CurrentUser = actor
-	private := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.roles.Domain.Principal(10)}
+	private := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90010}, ObjectName: "private", ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10)}
 	stage = e.BeginCatalogStage(auth.Catalog)
 	if err = stage.Create(private); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	e.mu.Lock()
-	auth, refreshErr = e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, refreshErr = e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
 	auth.State.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address())); err == nil {
+	if err = auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address())); err == nil {
 		t.Fatal("private schema supplied implicit USAGE")
 	}
-	if err = e.SetObjectACL(context.Background(), e.catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address()), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err = e.SetObjectACL(context.Background(), e.Catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address()), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, refreshErr = e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, refreshErr = e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if refreshErr != nil {
 		t.Fatal(refreshErr)
 	}
 	auth.State.CurrentUser = actor
-	if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address())); err != nil {
+	if err = auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address())); err != nil {
 		t.Fatal("actual namespace USAGE grant", err)
 	}
 }
@@ -216,7 +216,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	catalogAddress := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	// Use actual registered unaccent providers for overload/name shadowing, not
 	// an invented conversion callback or generic SQL CREATE FUNCTION fixture.
-	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.roles.Domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
+	first := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 90000}, ObjectNamespace: public, ObjectRevision: 1, ObjectName: "unaccent", Signature: catalog.UnaccentTextSignature, RoutineKind: catalog.FunctionRoutine, Owner: e.RoleStore.Domain.Principal(10), Result: 25, Volatility: expr.Stable, Strict: true, Implementation: extension.StockUnaccent}
 	second := *first
 	second.ObjectAddress.ObjectID, second.ObjectNamespace = 90001, catalogAddress
 	stage := e.BeginCatalogStage(view)
@@ -245,7 +245,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage = e.BeginCatalogStage(view)
-	if err = stage.Remove(e.catalog.Domain.Ref(view.Epoch(), first.Address())); err != nil {
+	if err = stage.Remove(e.Catalog.Domain.Ref(view.Epoch(), first.Address())); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
@@ -269,7 +269,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	}
 	heldDescription := &StatementDescription{regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
 	stage = e.BeginCatalogStage(view)
-	if err := stage.Remove(e.catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
+	if err := stage.Remove(e.Catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
@@ -282,11 +282,11 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal("retained literal identity changed", id, err)
 	}
 	op, auth := conversionUnitAuth(t, e)
-	types, err := captureRegtypeInput(auth, op)
+	types, err := CaptureRegtypeInput(auth, op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	fresh, err := captureRoutineInput(auth, types)
+	fresh, err := CaptureRoutineInput(auth, types)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -36,10 +36,10 @@ func TestViewReplaceCurrentVisibilityCaptureDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		if got := scope.inquiry.visibilityCatalog.State() != nil; got != captured {
+		if got := scope.Inquiry.visibilityCatalog.State() != nil; got != captured {
 			t.Fatalf("%s visibility capture=%v want %v", query, got, captured)
 		}
-		if !captured && (scope.inquiry.visibilityRelationPath != nil || scope.inquiry.visibilityOtherPath != nil) {
+		if !captured && (scope.Inquiry.visibilityRelationPath != nil || scope.Inquiry.visibilityOtherPath != nil) {
 			t.Fatal("unneeded visibility paths captured", query)
 		}
 		if want != nil {

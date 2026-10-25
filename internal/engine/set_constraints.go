@@ -19,15 +19,15 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 }
 
 func (s *StatementScope) checkExclusionCommandEvents(all bool, selected map[ids.OID]bool, bounded bool) error {
-	if !s.indexesOrZero().ExclusionStarted {
-		s.indexes().ExclusionModes = ownerExtensionOrZero(s.owner).exclusionModes
+	if !s.IndexesOrZero().ExclusionStarted {
+		s.indexes().ExclusionModes = ownerExtensionOrZero(s.Owner).exclusionModes
 	}
-	if len(s.indexesOrZero().ExclusionModes.Events) == 0 {
+	if len(s.IndexesOrZero().ExclusionModes.Events) == 0 {
 		return nil
 	}
-	remaining := make([]index.ExclusionEvent, 0, len(s.indexesOrZero().ExclusionModes.Events))
-	e := s.engine()
-	for _, event := range s.indexesOrZero().ExclusionModes.Events {
+	remaining := make([]index.ExclusionEvent, 0, len(s.IndexesOrZero().ExclusionModes.Events))
+	e := s.Engine()
+	for _, event := range s.IndexesOrZero().ExclusionModes.Events {
 		if bounded {
 			owned := false
 			for _, effect := range s.foreignActionsOrZero().Transitions {
@@ -41,11 +41,11 @@ func (s *StatementScope) checkExclusionCommandEvents(all bool, selected map[ids.
 				continue
 			}
 		}
-		e.mu.Lock()
-		view := e.privateCatalogLocked(s.owner.Catalog)
+		e.Mu.Lock()
+		view := e.PrivateCatalogLocked(s.Owner.Catalog)
 		parent, live := view.Relation(event.Parent.Address)
 		idx, exists := view.Relation(event.Index.Address)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if event.Parent.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
@@ -56,12 +56,12 @@ func (s *StatementScope) checkExclusionCommandEvents(all bool, selected map[ids.
 		if c == nil {
 			continue
 		}
-		due := all || selected != nil && selected[c.OID] || selected == nil && !s.indexesOrZero().ExclusionModes.Deferred(c)
+		due := all || selected != nil && selected[c.OID] || selected == nil && !s.IndexesOrZero().ExclusionModes.Deferred(c)
 		if !due {
 			remaining = append(remaining, event)
 			continue
 		}
-		binding, err := dml.BindUniqueWrite(s.writeHost(), event.Parent)
+		binding, err := dml.BindUniqueWrite(s.WriteHost(), event.Parent)
 		if err != nil {
 			return err
 		}
@@ -75,12 +75,12 @@ func (s *StatementScope) checkExclusionCommandEvents(all bool, selected map[ids.
 		if bound == nil {
 			continue
 		}
-		conflict, _, err := dml.ProbeExclusion(s.writeHost(), event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
+		conflict, _, err := dml.ProbeExclusion(s.WriteHost(), event.Parent, binding, bound, storage.RowVersion{Row: event.Row, Version: event.Version}, true, index.ProbeRuntime)
 		if err != nil {
 			return err
 		}
 		if conflict.Index != nil {
-			return conflict.Diagnostic(s.writeHost(), event.Parent)
+			return conflict.Diagnostic(s.WriteHost(), event.Parent)
 		}
 	}
 	s.indexes().ExclusionModes.Events = remaining
@@ -96,20 +96,20 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 			return Result{}, err
 		}
 	}
-	if !s.owner.InBlock() {
-		s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET CONSTRAINTS can only be used in transaction blocks"})
+	if !s.Owner.InBlock() {
+		s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET CONSTRAINTS can only be used in transaction blocks"})
 	}
-	e := s.engine()
-	auth, err := operationAuthorization(s.op)
+	e := s.Engine()
+	auth, err := OperationAuthorization(s.Op)
 	if err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
+	e.Mu.Lock()
+	auth.Catalog = e.PrivateCatalogLocked(s.Owner.Catalog)
 	auth.Recapture(auth.Catalog)
-	s.beginExclusionProjectionLocked(e)
-	e.mu.Unlock()
-	candidate := s.indexesOrZero().ExclusionModes
+	s.BeginExclusionProjectionLocked(e)
+	e.Mu.Unlock()
+	candidate := s.IndexesOrZero().ExclusionModes
 	candidate.ByConstraint = maps.Clone(candidate.ByConstraint)
 	selected := make(map[ids.OID]bool)
 	if raw.All {
@@ -138,9 +138,9 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		if err := s.checkExclusionEvents(raw.All, selected); err != nil {
 			return Result{}, err
 		}
-		candidate.Events = s.indexesOrZero().ExclusionModes.Events
+		candidate.Events = s.IndexesOrZero().ExclusionModes.Events
 	}
-	if s.owner.InBlock() {
+	if s.Owner.InBlock() {
 		s.indexes().ExclusionModes = candidate
 	}
 	return Result{}, nil

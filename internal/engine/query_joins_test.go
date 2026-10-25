@@ -49,7 +49,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 		if source != nil {
 			source.Close()
 		}
-		if scope != nil && !scope.finished {
+		if scope != nil && !scope.Finished {
 			_ = scope.Finish(context.Canceled)
 		}
 		done()
@@ -68,17 +68,17 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		b, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
+		source, err = e.CaptureQuerySourcesForInvokerLocked(scope, b.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.QueryLockContext)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil {
 		err = exec.SelectQuerySources(op.Ctx, source)
 	}

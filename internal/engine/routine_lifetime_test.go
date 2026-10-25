@@ -32,14 +32,14 @@ func TestRoutineDirectStrictNullLifetime(t *testing.T) {
 	evaluation.RoutineAuthority = nil
 	evaluation.RoutineRecipe = false
 	evaluation.RoutineChecks = nil
-	scope.routineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
-	scope.routineDependencies = original
+	scope.RoutineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
+	scope.RoutineDependencies = original
 	if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 		t.Fatal("strict NULL acquired EXECUTE demand", err)
 	}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	target := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
+	target := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
 	if err := role.StageOwnership(stage, base.MustProcedure(captured.Address()), target); err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestRoutineDirectStrictNullLifetime(t *testing.T) {
 	if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 		t.Fatal("owner COW changed retained source authority snapshot", err)
 	}
-	scope.routineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
+	scope.RoutineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
 	err = exec.AdmitRoutineCall(&evaluation, node, false, false)
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {

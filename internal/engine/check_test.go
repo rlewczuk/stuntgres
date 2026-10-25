@@ -28,7 +28,7 @@ func TestCheckACLCompletedProtectedRow(t *testing.T) {
 				grant := func(id int32, p authorization.Privileges) {
 					target := ref
 					target.Address.SubID = id
-					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: p}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: p}}}); err != nil {
 						t.Fatal(err)
 					}
 				}

@@ -52,7 +52,7 @@ func TestRoutineEqualityRecipeAuthority(t *testing.T) {
 	})
 	owner.Rules = stored.RulesPayload([]stored.Rule{rule})
 	state.SetDescriptor(owner.Address(), &owner)
-	read := e.catalog.Read(state)
+	read := e.Catalog.Read(state)
 	auth := catalogAuthorization(e, read)
 	grafted, err := stored.GraftRuleRoutineRecipes(read, &owner, rule)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestRoutineEqualityRecipeAuthority(t *testing.T) {
 	})})
 	stale := catalog.CloneState(state)
 	stale.SetDescriptor(staleOwner.Address(), &staleOwner)
-	staleAuth := catalogAuthorization(e, e.catalog.Read(stale))
+	staleAuth := catalogAuthorization(e, e.Catalog.Read(stale))
 	if err := validate(root, exec.Context{EvalStatement: context.EvalStatement, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &staleAuth}}); err == nil {
 		t.Fatal("stale original rule presentation was healed by manifest membership")
 	}

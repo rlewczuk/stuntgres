@@ -21,9 +21,9 @@ func TestCollationProviderConcurrentRolePublication(t *testing.T) {
 	view := e.CatalogRead()
 	address := view.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "concurrent_provider"})
 	descriptor := view.MustCollation(address)
-	e.mu.Lock()
-	beforeRoles := e.roles.Published
-	e.mu.Unlock()
+	e.Mu.Lock()
+	beforeRoles := e.RoleStore.Published
+	e.Mu.Unlock()
 	commands := []parser.Statement{statement(t, `ALTER ROLE concurrent_provider_role LOGIN`), statement(t, `ALTER ROLE concurrent_provider_role NOLOGIN`)}
 	start := make(chan struct{})
 	ready := make(chan struct{}, 2)
@@ -67,9 +67,9 @@ func TestCollationProviderConcurrentRolePublication(t *testing.T) {
 	for err := range errors {
 		t.Error(err)
 	}
-	e.mu.Lock()
-	published := e.roles.Published != beforeRoles
-	e.mu.Unlock()
+	e.Mu.Lock()
+	published := e.RoleStore.Published != beforeRoles
+	e.Mu.Unlock()
 	if !published {
 		t.Fatal("regression did not publish a genuine successor role catalog")
 	}

@@ -33,10 +33,10 @@ func TestSessionIdentityTypedStableBinding(t *testing.T) {
 			t.Fatal(c)
 		}
 	}
-	e.mu.Lock()
-	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	e.Mu.Lock()
+	binder := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	bound, err := binder.Bind(parser.IdentityExpr{Name: "current_user", Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || bound.Properties() != (expr.Properties{Volatility: expr.Stable}) {
 		t.Fatal(bound, err)
 	}
@@ -60,11 +60,11 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 	}
 	before := op.RoleState()
 	revision := op.Session.Authorization.Revision
-	catalogRevision := e.roles.Published.Revision
+	catalogRevision := e.RoleStore.Published.Revision
 	execute("SET ROLE b")
 	after := op.RoleState()
 	b, _ := e.Roles().Lookup("b")
-	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.Session.Authorization.Revision != revision+1 || e.roles.Published.Revision != catalogRevision {
+	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.Session.Authorization.Revision != revision+1 || e.RoleStore.Published.Revision != catalogRevision {
 		t.Fatal(before, after)
 	}
 	// A session superuser is still authoritative while CurrentUser is ordinary.
@@ -251,7 +251,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	before := op.RoleState()
-	revision, roles, catalog := op.Session.Authorization.Revision, e.roles.Published, e.catalog.State
+	revision, roles, catalog := op.Session.Authorization.Revision, e.RoleStore.Published, e.Catalog.State
 	ctx, cancel := context.WithCancel(op.Context())
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: op.Session, cancel: cancel}
@@ -260,7 +260,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	if !boundary.observed || ctx.Err() != context.Canceled || !errors.Is(err, context.Canceled) {
 		t.Fatal(boundary.observed, err)
 	}
-	if op.RoleState() != before || op.Session.Authorization.Revision != revision || e.roles.Published != roles || e.catalog.State != catalog {
+	if op.RoleState() != before || op.Session.Authorization.Revision != revision || e.RoleStore.Published != roles || e.Catalog.State != catalog {
 		t.Fatal("canceled role selection published state")
 	}
 }

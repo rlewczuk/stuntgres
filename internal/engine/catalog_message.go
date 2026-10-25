@@ -14,21 +14,21 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
-func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalog.State {
-	if s.authSession != nil && (s.authSession.Transactions.State == session.TxActive || s.authSession.Transactions.RetainsTransaction()) {
-		return e.privateCatalogLocked(s.authSession.Transactions.Catalog).State()
+func (e *Engine) StageCatalogBaseLocked(s *CatalogStage) *catalog.State {
+	if s.AuthSession != nil && (s.AuthSession.Transactions.State == session.TxActive || s.AuthSession.Transactions.RetainsTransaction()) {
+		return e.PrivateCatalogLocked(s.AuthSession.Transactions.Catalog).State()
 	}
-	return e.catalog.State
+	return e.Catalog.State
 }
-func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *storage.Relation {
-	if s.authSession != nil && (s.authSession.Transactions.State == session.TxActive || s.authSession.Transactions.RetainsTransaction()) {
-		return e.privateStorageLocked(s.authSession.Transactions.Catalog, a)
+func (e *Engine) StageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *storage.Relation {
+	if s.AuthSession != nil && (s.AuthSession.Transactions.State == session.TxActive || s.AuthSession.Transactions.RetainsTransaction()) {
+		return e.PrivateStorageLocked(s.AuthSession.Transactions.Catalog, a)
 	}
-	return e.storage.Relations[a]
+	return e.Storage.Relations[a]
 }
 func (e *Engine) storageReadsValidLocked(stage *CatalogStage) bool {
-	for _, read := range stage.storageReads {
-		if current := e.stageStorageLocked(stage, read.Address()); current == nil || !read.Matches(current) {
+	for _, read := range stage.StorageReads {
+		if current := e.StageStorageLocked(stage, read.Address()); current == nil || !read.Matches(current) {
 			return false
 		}
 	}
@@ -36,12 +36,12 @@ func (e *Engine) storageReadsValidLocked(stage *CatalogStage) bool {
 }
 func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
 	for _, fence := range typedef.DomainJournalOf(c.Domain).ValidationFences() {
-		if !fence.Current(e.catalog.Current(), e.storage.Relations) {
+		if !fence.Current(e.Catalog.Current(), e.Storage.Relations) {
 			return catalog.Conflict{}
 		}
 	}
 	for address, root := range typedef.DomainJournalOf(c.Domain).CommittedIndexRoots() {
-		if e.storage.IndexRoots[address] != root {
+		if e.Storage.IndexRoots[address] != root {
 			return catalog.Conflict{}
 		}
 	}
@@ -59,7 +59,7 @@ type catalogRoleReadFence struct {
 func (catalogRoleReadFence) Kind() session.FenceKind { return fenceCatalogRoleRead }
 
 func (f catalogRoleReadFence) currentLocked(e *Engine, _ *session.Journal) error {
-	if e.roles.Published != f.roles {
+	if e.RoleStore.Published != f.roles {
 		return catalog.Conflict{}
 	}
 	return nil
@@ -70,7 +70,7 @@ func (f catalogRoleReadFence) currentLocked(e *Engine, _ *session.Journal) error
 func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *session.CatalogAuthority) error {
 	// Cleanup candidates derive from the operation's exact private predecessor,
 	// while the journal keeps the original committed root as its commit fence.
-	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.authSession)); err != nil {
+	if err := s.validateRoleCandidate(e.sessionRolesLocked(s.AuthSession)); err != nil {
 		return err
 	}
 	if err := s.DefaultPreflight(current); err != nil {
@@ -79,19 +79,19 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	if err := e.captureDomainStageLocked(s, c, current); err != nil {
 		return err
 	}
-	if r := s.materializedOrZero().Replacement; r != nil {
-		if err := s.materializedReplacementCurrent(current, e.stageStorageLocked(s, r.Original.Address())); err != nil {
+	if r := s.MaterializedOrZero().Replacement; r != nil {
+		if err := s.materializedReplacementCurrent(current, e.StageStorageLocked(s, r.Original.Address())); err != nil {
 			return err
 		}
 	}
-	capture := session.JournalCapture{Journal: c, Candidate: &s.Candidate, Committed: e.catalog.State, Current: current}
-	if s.databasePredecessor != nil {
-		if err := capture.ObserveDatabase(e.catalog.Owner.DatabaseAddress(), s.databaseAuthority, s.databasePredecessor); err != nil {
+	capture := session.JournalCapture{Journal: c, Candidate: &s.Candidate, Committed: e.Catalog.State, Current: current}
+	if s.DatabasePredecessor != nil {
+		if err := capture.ObserveDatabase(e.Catalog.Owner.DatabaseAddress(), s.DatabaseAuthority, s.DatabasePredecessor); err != nil {
 			return err
 		}
 		if authority != nil {
-			authority.DatabaseAuthority = s.databaseAuthority
-			authority.DatabasePredecessor = s.databasePredecessor
+			authority.DatabaseAuthority = s.DatabaseAuthority
+			authority.DatabasePredecessor = s.DatabasePredecessor
 		}
 	}
 	if err := capture.ObserveCandidate(); err != nil {
@@ -102,20 +102,20 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			return err
 		}
 	}
-	domainBases := s.domainBases
-	if authority != nil && authority.Session == s.authSession && authority.Authorization == s.authRevision && authority.Roles == s.roleRevision &&
+	domainBases := s.DomainBases
+	if authority != nil && authority.Session == s.AuthSession && authority.Authorization == s.AuthRevision && authority.Roles == s.RoleRevision &&
 		len(domainBases) != 0 && len(authority.Observations) == len(domainBases) && &authority.Observations[0] == &domainBases[0] {
 		// These exact validated providers belong to this statement's Finish
 		// authority, not to the outer transaction's predecessor fences.
 		domainBases = nil
 	}
-	for _, source := range s.querySources {
-		if !view.MaterializedSourceCurrent(s.materializedOrZero().SourceView, source, current, e.stageStorageLocked(s, source.Address())) {
+	for _, source := range s.QuerySources {
+		if !view.MaterializedSourceCurrent(s.MaterializedOrZero().SourceView, source, current, e.StageStorageLocked(s, source.Address())) {
 			return catalog.Conflict{}
 		}
-		if snapshot := s.materializedOrZero().SourceView; snapshot != nil {
+		if snapshot := s.MaterializedOrZero().SourceView; snapshot != nil {
 			if relation, ok := source.(*catalog.Relation); ok && relation.RelationKind == catalog.MaterializedViewRelation {
-				fence := materializedSourceFence{ref: e.catalog.Domain.Ref(snapshot.Catalog.Epoch(), relation.Address()), relation: relation, storage: snapshot.GenerationAt(relation.Address())}
+				fence := materializedSourceFence{ref: e.Catalog.Domain.Ref(snapshot.Catalog.Epoch(), relation.Address()), relation: relation, storage: snapshot.GenerationAt(relation.Address())}
 				if fence.storage != nil && e.materializedSourceFenceCurrent(fence) && c.Descriptors[relation.Address()] == nil {
 					c.AddFence(fence)
 					continue
@@ -133,7 +133,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 			}
 		}
 	}
-	stageIndexes := s.indexesOrZero()
+	stageIndexes := s.IndexesOrZero()
 	for a, d := range stageIndexes.Parents {
 		if err := capture.Observe(a, d); err != nil {
 			return err
@@ -152,9 +152,9 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		return err
 	}
 	captureStorage := func(a ids.ObjectAddress) {
-		c.AddFence(session.NewStorageReadFence(a, e.storage.Relations[a]))
+		c.AddFence(session.NewStorageReadFence(a, e.Storage.Relations[a]))
 	}
-	for _, f := range s.storageReads {
+	for _, f := range s.StorageReads {
 		captureStorage(f.Address())
 	}
 	for _, d := range stageIndexes.Parents {
@@ -164,7 +164,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 	// the successful fence order.
 	if !index.CandidatesMatch(stageIndexes.Candidates, &s.Candidate, current, func(parent ids.ObjectAddress) *storage.Relation {
 		captureStorage(parent)
-		if shape, changed := s.rowShapes[parent]; changed {
+		if shape, changed := s.RowShapes[parent]; changed {
 			// capture precedes stageCatalogChangesLocked: supplied generation
 			// roots belong to this stage's destination heap, not c's predecessor.
 			return shape.Replacement
@@ -174,20 +174,20 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 		if shape, staged := c.Storage[parent]; staged {
 			return shape.Replacement
 		}
-		return e.stageStorageLocked(s, parent)
+		return e.StageStorageLocked(s, parent)
 	}) {
 		return catalog.Conflict{}
 	}
-	c.Dependencies = append(c.Dependencies, s.sequence.IdentityDependencyList()...)
+	c.Dependencies = append(c.Dependencies, s.Sequence.IdentityDependencyList()...)
 	// Detached producer rows are still pending publication after statement
 	// Finish. Keep their role read separate from actual private role writes.
-	if s.initialTx != (ids.TxRef{}) || s.materializedOrZero().Replacement != nil {
-		c.AddFence(catalogRoleReadFence{roles: e.roles.Published})
+	if s.InitialTx != (ids.TxRef{}) || s.MaterializedOrZero().Replacement != nil {
+		c.AddFence(catalogRoleReadFence{roles: e.RoleStore.Published})
 	}
-	if s.roleCandidate != nil && c.RolesBase == nil {
-		c.RolesBase = e.roles.Published
+	if s.RoleCandidateRecord != nil && c.RolesBase == nil {
+		c.RolesBase = e.RoleStore.Published
 	}
-	c.DomainChanged = c.DomainChanged || len(s.domainTargets) != 0
+	c.DomainChanged = c.DomainChanged || len(s.DomainTargets) != 0
 	for _, d := range s.Descriptors() {
 		if typ, ok := d.(*catalog.Type); ok && typ.SQLType.IsUserDefined() {
 			c.DomainChanged = true
@@ -198,19 +198,19 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, 
 }
 
 func (e *Engine) stageMessageCatalog(op *session.Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
-	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
+	if p == nil || p.stage == nil || p.stage.Owner != e || p.stage.Lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
 	op.Session.Mu.Lock()
-	scope := scopeOfLease(op.Lease)
+	scope := ScopeOfLease(op.Lease)
 	op.Session.Mu.Unlock()
-	if scope == nil || scope.op != op || scope.owner != op.Session.Transactions || !scope.ownsMessageScope() || !scope.owner.RetainsTransaction() {
+	if scope == nil || scope.Op != op || scope.Owner != op.Session.Transactions || !scope.ownsMessageScope() || !scope.Owner.RetainsTransaction() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: missing message scope")
 	}
 	if token.Epoch != p.epoch {
 		return ChangeSet{}, ids.ErrCatalogReplaced
 	}
-	if err := e.stageCatalogOverlay(scope, p.stage, scope.owner.Catalog.Clone()); err != nil {
+	if err := e.StageCatalogOverlay(scope, p.stage, scope.Owner.Catalog.Clone()); err != nil {
 		return ChangeSet{}, err
 	}
 	return catalogStageChanges(p.stage), nil

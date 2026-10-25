@@ -17,7 +17,7 @@ import (
 func TestInfoRoleRoutineGrantsDefaultDeparse(t *testing.T) {
 	e := New()
 	read := e.CatalogRead()
-	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: read, deparseAuth: catalogAuthorization(e, read), deparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
+	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: read, deparseAuth: catalogAuthorization(e, read), DeparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
 	text, ok := read.LookupType(sqltype.Text)
 	if !ok {
 		t.Fatal("missing text")
@@ -90,7 +90,7 @@ func TestInfoRoleRoutineGrantsDeparseFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldScope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: base, deparseAuth: catalogAuthorization(e, base), deparsePath: []ids.ObjectAddress{pg}}}
+	oldScope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: base, deparseAuth: catalogAuthorization(e, base), DeparsePath: []ids.ObjectAddress{pg}}}
 	oldInputs := oldScope.deparseInputs()
 	const oldDefinition = ` SELECT n.nspname AS schemaname,
     c.relname AS viewname,
@@ -138,13 +138,13 @@ func TestInfoRoleRoutineGrantsDeparseFrontier(t *testing.T) {
 	index := catalog.ProcedureIndexEdit{Index: next.ProcedureNames()}
 	index.Replace(original, &current)
 	next.SetProcedureNames(index.Index)
-	e.catalog.PublishLocked(next)
+	e.Catalog.PublishLocked(next)
 	// A captured inquiry must retain both the old read and copied presentation
 	// even after publication and mutation of the scope that supplied them.
-	oldScope.output.QuoteAllIdentifiers = true
+	oldScope.Output.QuoteAllIdentifiers = true
 	fresh := e.CatalogRead()
-	freshScope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: fresh, deparseAuth: catalogAuthorization(e, fresh), deparsePath: []ids.ObjectAddress{pg}}}
-	freshScope.output.QuoteAllIdentifiers = true
+	freshScope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: fresh, deparseAuth: catalogAuthorization(e, fresh), DeparsePath: []ids.ObjectAddress{pg}}}
+	freshScope.Output.QuoteAllIdentifiers = true
 	freshInputs := freshScope.deparseInputs()
 	check(oldInputs, oldDefinition)
 	check(freshInputs, freshDefinition)

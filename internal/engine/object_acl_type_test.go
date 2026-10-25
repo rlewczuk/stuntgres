@@ -42,13 +42,13 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	// Ordinary relation row and associated array constructors also materialize
 	// effective USAGE without materializing a raw ACL.
 	stage := e.BeginCatalogStage(view)
-	e.mu.Lock()
+	e.Mu.Lock()
 	integer, _ := view.LookupType(sqltype.Int4)
-	relation, err := table.NewRelation(ddlHost{e: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []catalog.Column{{Name: "a", Usage: integer.Usage()}}, nil)
+	relation, err := table.NewRelation(DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_provenance_row", op.RoleState().CurrentUser, []catalog.Column{{Name: "a", Usage: integer.Usage()}}, nil)
 	if err == nil {
-		err = e.stageRowTypeLocked(stage, relation)
+		err = e.StageRowTypeLocked(stage, relation)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	})
 	d := domainUnitType(t, view, "acl_provenance_domain")
 	ownerStage := e.BeginCatalogStage(view)
-	target := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
+	target := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_database_owner")
 	if err := role.StageOwnership(ownerStage, d, target); err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("owner remap lost raw absence", d)
 	}
 	other := New()
-	remapped, _, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.roles.Published.Root.Read(authorization.PrincipalRef{}), other.roles.Published.Root.Read(authorization.PrincipalRef{}), nil)
+	remapped, _, err := other.remapPreparedCatalog(catalog.CloneState(view.State()), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}), other.RoleStore.Published.Root.Read(authorization.PrincipalRef{}), nil)
 	if err != nil {
 		t.Fatal("principal remap", err)
 	}
@@ -197,7 +197,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 							Privileges: authorization.UsagePrivilege,
 						})
 					}
-					ref := e.catalog.Domain.Ref(oldView.Epoch(), old.Address())
+					ref := e.Catalog.Domain.Ref(oldView.Epoch(), old.Address())
 					if err := e.SetObjectACL(context.Background(), ref, want); err != nil {
 						t.Fatal("SetObjectACL", err)
 					}

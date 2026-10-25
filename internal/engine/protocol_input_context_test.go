@@ -46,7 +46,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		if observed, ok := input.Deadline(); !ok || !observed.Equal(deadline) {
 			t.Fatal("COPY input changed its captured absolute deadline", observed, ok)
 		}
-		if err := e.validateOperation(op); err != nil {
+		if err := e.ValidateOperation(op); err != nil {
 			t.Fatal("input view lost actual operation admission", err)
 		}
 		typ := testUsage(e, sqltype.Int4).Type
@@ -67,11 +67,11 @@ func TestProtocolCopyInputContext(t *testing.T) {
 			t.Fatal("successful conversion lost pending cancellation", err)
 		}
 		op.CopyInput.Decoding.Store(false)
-		if !errors.Is(e.validateOperation(op), context.Canceled) || op.Context().Err() != context.Canceled {
+		if !errors.Is(e.ValidateOperation(op), context.Canceled) || op.Context().Err() != context.Canceled {
 			t.Fatal("input cancellation hold escaped decoder into assembly")
 		}
 		op.StopCopyInput()
-		if op.Ctx != original || op.SourceContext != originalSource || !errors.Is(e.validateOperation(op), context.Canceled) || cause.Context != "" {
+		if op.Ctx != original || op.SourceContext != originalSource || !errors.Is(e.ValidateOperation(op), context.Canceled) || cause.Context != "" {
 			t.Fatal("input hold changed source authority or leaked past its lifetime")
 		}
 	})

@@ -42,17 +42,17 @@ func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *pa
 		copy.Targets = append(slices.Clone(statement.Targets), assignment.Raw)
 		admission = &copy
 	}
-	if err := s.acquireRelation(admission, true); err != nil {
+	if err := s.AcquireRelation(admission, true); err != nil {
 		return Result{}, &proc.PLExpressionPlanningError{Err: err}
 	}
 	if admission != statement {
-		s.queryLockAdmission.SelectQuery = statement
-		if root := s.queryLockAdmission.Queries[admission]; root != nil {
+		s.QueryLockAdmission.SelectQuery = statement
+		if root := s.QueryLockAdmission.Queries[admission]; root != nil {
 			root.SelectQuery = statement
-			s.queryLockAdmission.Queries[statement] = root
+			s.QueryLockAdmission.Queries[statement] = root
 		}
 	}
-	result, err := s.engine().executeStatement(s, statement, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+	result, err := s.Engine().executeStatement(s, statement, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, f.Values[:f.Program.FormalCount])
 		return nil
 	})
@@ -66,7 +66,7 @@ func (s *StatementScope) executePLExpressionQuery(f *proc.PLFrame, statement *pa
 }
 
 func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser.Select, read catalog.Read, assignment *analyze.PLAssignment, origin plNoticeOrigin) (value sqltype.Value, usage sqltype.Usage, present bool, err error) {
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() {
 		err = restore(err)
@@ -90,11 +90,11 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 	}
 	schema := result.Rows.Schema()
 	if len(schema) != 1 {
-		return value, usage, false, sqlError("42601", "query returned more than one column")
+		return value, usage, false, SQLError("42601", "query returned more than one column")
 	}
 	usage = schema[0].Usage
 	var row [1]sqltype.Value
-	present, err = result.Rows.Next(s.op.Context(), row[:])
+	present, err = result.Rows.Next(s.Op.Context(), row[:])
 	if err != nil {
 		return value, usage, false, err
 	}
@@ -102,12 +102,12 @@ func (s *StatementScope) evaluatePLExpression(f *proc.PLFrame, statement *parser
 		return sqltype.Null(usage.Type), usage, false, nil
 	}
 	value = row[0]
-	more, err := result.Rows.Next(s.op.Context(), row[:])
+	more, err := result.Rows.Next(s.Op.Context(), row[:])
 	if err != nil {
 		return value, usage, false, err
 	}
 	if more {
-		return sqltype.Value{}, usage, false, &proc.PLCardinalityError{Err: sqlError("21000", "query returned more than one row")}
+		return sqltype.Value{}, usage, false, &proc.PLCardinalityError{Err: SQLError("21000", "query returned more than one row")}
 	}
 	return value, usage, true, nil
 }
@@ -151,30 +151,30 @@ func (s *StatementScope) convertPLTargetValue(value sqltype.Value, target sqltyp
 	if value.IsNull() {
 		value = sqltype.Null(target.Type.BaseType())
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return sqltype.Value{}, err
 	}
-	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+	binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 	binder.Query.Auth = &auth
 	node, selected, err := binder.PLAssignment(value, target)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	evaluation.Input.DomainChecks = &evaluation
 	if selected {
 		return node.Eval(&evaluation)
 	}
-	text, err := value.Type().OutputWithEnvironment(s.op.Context(), value, s.output)
+	text, err := value.Type().OutputWithEnvironment(s.Op.Context(), value, s.Output)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return target.Type.InputWithEnvironment(s.op.Context(), text, target.Typmod, evaluation.Input)
+	return target.Type.InputWithEnvironment(s.Op.Context(), text, target.Typmod, evaluation.Input)
 }
 
 // The candidate has the physical base descriptor. Validate fresh reconstructed
@@ -184,23 +184,23 @@ func (s *StatementScope) finishPLComposite(candidate sqltype.Value, target *sqlt
 		return candidate, nil
 	}
 	if target.HasDomainConstraints() {
-		e := s.engine()
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(s.op)
+		e := s.Engine()
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(s.Op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return sqltype.Value{}, err
 		}
-		binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+		binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 		binder.Query.Auth = &auth
 		err = binder.CaptureTypeDiagnosticInput(target)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 		evaluation.Input.DomainChecks = &evaluation
-		if err := target.CheckDomainInput(s.op.Context(), candidate, evaluation.Input); err != nil {
+		if err := target.CheckDomainInput(s.Op.Context(), candidate, evaluation.Input); err != nil {
 			return sqltype.Value{}, &plan.AssignmentDomainError{Err: err}
 		}
 	}

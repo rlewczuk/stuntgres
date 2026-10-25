@@ -12,14 +12,14 @@ import (
 // Registration is initialization-only: the registry closes when New seeds the
 // catalog. extension.Register holds the checks.
 func (e *Engine) registerExtension(name string, implementation extension.Installer) error {
-	if e.catalog.State != nil {
+	if e.Catalog.State != nil {
 		return fmt.Errorf("stuntgres: extension registry is closed")
 	}
-	registry, err := extension.Register(e.catalog.Extensions, name, implementation)
+	registry, err := extension.Register(e.Catalog.Extensions, name, implementation)
 	if err != nil {
 		return err
 	}
-	e.catalog.Extensions = registry
+	e.Catalog.Extensions = registry
 	return nil
 }
 
@@ -27,9 +27,9 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	stage, err := e.stageExtensionLocked(scope, s)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
@@ -40,11 +40,11 @@ func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtensi
 // Provider callbacks run in ValidateCatalogStage outside the engine mutex.
 func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
-	if _, err := e.ValidateCatalogStage(scope.op.Context(), stage); err != nil {
+	if _, err := e.ValidateCatalogStage(scope.Op.Context(), stage); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	changes := scope.owner.Catalog.Clone()
+	e.Mu.Lock()
+	changes := scope.Owner.Catalog.Clone()
 	for a, d := range stage.Descriptors() {
 		// Validation ran without the mutex. Capture the stage's exact
 		// predecessor, never whatever a peer published during validation.
@@ -60,24 +60,24 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 				}
 			}
 		}
-		e.catalogChangeLocked(changes, a, d)
+		e.CatalogChangeLocked(changes, a, d)
 	}
 	for key, original := range stage.Touched() {
 		changes.Names[key] = original
 	}
-	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor}})
-	scope.catalog = changes
-	scope.catalogAuthority = &session.CatalogAuthority{Session: scope.op.Session, Authorization: stage.authRevision, Roles: stage.roleRevision, Ref: ids.ObjectRef{Address: e.catalog.Owner.DatabaseAddress()}, Descriptor: stage.databasePredecessor, DatabaseAuthority: stage.databaseAuthority, DatabasePredecessor: stage.databasePredecessor}
-	e.mu.Unlock()
+	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.RoleRevision, Namespace: stage.Base.Get(stage.ExtensionNamespace), Database: stage.DatabasePredecessor}})
+	scope.Catalog = changes
+	scope.CatalogAuthority = &session.CatalogAuthority{Session: scope.Op.Session, Authorization: stage.AuthRevision, Roles: stage.RoleRevision, Ref: ids.ObjectRef{Address: e.Catalog.Owner.DatabaseAddress()}, Descriptor: stage.DatabasePredecessor, DatabaseAuthority: stage.DatabaseAuthority, DatabasePredecessor: stage.DatabasePredecessor}
+	e.Mu.Unlock()
 	return Result{}, nil
 }
 
 func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExtension) (*CatalogStage, error) {
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err
 	}
-	staged, err := extension.StageCreate(&extensionHost{engine: e, op: scope.op, auth: auth}, auth, auth.View, s)
+	staged, err := extension.StageCreate(&extensionHost{engine: e, op: scope.Op, auth: auth}, auth, auth.View, s)
 	if err != nil || staged == nil {
 		return nil, err
 	}

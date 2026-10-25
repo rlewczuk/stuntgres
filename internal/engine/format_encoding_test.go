@@ -21,10 +21,10 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 	values := map[string]string{"client_encoding": "utf-8", "lc_messages": "POSIX", "lc_monetary": "", "lc_numeric": "POSIX", "lc_time": "C", "icu_validation_level": "DEBUG", "extra_float_digits": "-1"}
 	provider := &settingsDefaultProviderForTest{values: values, calls: map[string]int{}}
 	store := session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
-	if err := store.Initialize(ctx, e.settings.Definitions(), e.settings.Order(), provider); err != nil {
+	if err := store.Initialize(ctx, e.Settings.Definitions(), e.Settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range e.settings.Order() {
+	for _, name := range e.Settings.Order() {
 		if provider.calls[name] != 1 {
 			t.Fatal("default not captured exactly once", name, provider.calls)
 		}
@@ -45,11 +45,11 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 	for _, bad := range []struct{ name, value string }{{"lc_numeric", "C.UTF-8"}, {"lc_messages", ""}, {"client_encoding", "LATIN1"}, {"icu_validation_level", "bogus"}, {"extra_float_digits", "4"}} {
 		owner := session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
 		p := &settingsDefaultProviderForTest{values: map[string]string{bad.name: bad.value}, calls: map[string]int{}}
-		if err := owner.Initialize(ctx, e.settings.Definitions(), e.settings.Order(), p); err == nil {
+		if err := owner.Initialize(ctx, e.Settings.Definitions(), e.Settings.Order(), p); err == nil {
 			t.Fatal("invalid physical default accepted", bad)
 		}
 	}
-	float, err := e.settings.Lookup("extra_float_digits")
+	float, err := e.Settings.Lookup("extra_float_digits")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,13 +66,13 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 			t.Fatal(input, err)
 		}
 	}
-	messages, _ := e.settings.Lookup("lc_messages")
-	stats, _ := e.settings.Lookup("log_statement_stats")
+	messages, _ := e.Settings.Lookup("lc_messages")
+	stats, _ := e.Settings.Lookup("log_statement_stats")
 	if messages.Access != settings.Privileged || stats.Access != settings.Privileged {
 		t.Fatal("privileged classification changed")
 	}
 	for _, name := range []string{"client_encoding", "lc_monetary", "lc_numeric", "lc_time", "icu_validation_level", "extra_float_digits"} {
-		d, err := e.settings.Lookup(name)
+		d, err := e.Settings.Lookup(name)
 		if err != nil || d.Access != settings.Session {
 			t.Fatal(name, d, err)
 		}
@@ -91,8 +91,8 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}
-	messages, _ := e.settings.Lookup("lc_messages")
-	stats, _ := e.settings.Lookup("log_statement_stats")
+	messages, _ := e.Settings.Lookup("lc_messages")
+	stats, _ := e.Settings.Lookup("log_statement_stats")
 	if err := settingAccess(messages, op); err != nil {
 		t.Fatal("real bootstrap superuser denied", err)
 	}

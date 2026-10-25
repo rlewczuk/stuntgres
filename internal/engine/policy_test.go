@@ -31,13 +31,13 @@ func policyUnitFixture(t *testing.T) (*Engine, *session.Operation, func(), *cata
 func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
 	t.Helper()
 	raw := statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ddlHost{e: e, op: op}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return DDLHost{E: e, Op: op}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }
 func TestRLSPolicyFrozenExpression(t *testing.T) {
 	for _, condition := range []string{
@@ -100,7 +100,7 @@ func TestRLSPolicyFrozenExpression(t *testing.T) {
 			owner.Columns = append([]catalog.Column(nil), d.Columns...)
 			owner.Columns[0].Name = "key"
 			next.SetDescriptor(d.Address(), &owner)
-			text, err := stored.PolicySQL(context.Background(), e.catalog.Read(next), expression)
+			text, err := stored.PolicySQL(context.Background(), e.Catalog.Read(next), expression)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -141,9 +141,9 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	base := e.CatalogRead()
 	next := *d
 	next.ObjectRevision++
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,9 +179,9 @@ func TestRLSPolicyRemap(t *testing.T) {
 	}
 	next := *d
 	next.ObjectRevision++
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err = view.ValidatePolicies(catalogView, copied); err != nil {
 		t.Fatal(err)
 	}
-	if stored.PolicyOf(p.Using) == expression || expression.Presentation().Sources()[0].Ref.Domain() != e.catalog.Domain {
+	if stored.PolicyOf(p.Using) == expression || expression.Presentation().Sources()[0].Ref.Domain() != e.Catalog.Domain {
 		t.Fatal("remap mutated original expression")
 	}
 	originalSQL, err := stored.PolicySQL(context.Background(), e.CatalogRead(), expression)
@@ -252,9 +252,9 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			oid, err := e.catalog.AllocateOIDLocked()
-			e.mu.Unlock()
+			e.Mu.Lock()
+			oid, err := e.Catalog.AllocateOIDLocked()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -276,7 +276,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{target})
+			edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{target})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -293,15 +293,15 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if strings.Join(labels, "\n") != want {
 				t.Fatal("incomplete or unordered closure", labels)
 			}
-			if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			survivor, ok := stage.Get(owner.Address()).(*catalog.Relation)
 			if !ok || len(survivor.Security.Policies) != 0 || len(attached.Security.Policies) != 1 {
 				t.Fatal("cascade failed to prune only the staged policy")
 			}
-			if strings.Join(stage.dropCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {
-				t.Fatal("cascade lost mixed closure notices", stage.dropCascadeNames)
+			if strings.Join(stage.DropCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {
+				t.Fatal("cascade lost mixed closure notices", stage.DropCascadeNames)
 			}
 		})
 	}

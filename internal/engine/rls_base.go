@@ -25,18 +25,18 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Bin
 	if !applies {
 		return nil
 	}
-	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
+	auth, err := e.StatementAuthorizationLocked(scope.Op, stmt)
 	if err != nil {
 		return err
 	}
-	if scope.ruleAction.auth != nil {
-		auth.State.CurrentUser = scope.ruleAction.auth.State.CurrentUser
+	if scope.ruleAction.Auth != nil {
+		auth.State.CurrentUser = scope.ruleAction.Auth.State.CurrentUser
 	}
-	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	principal := access.RowSecurityPrincipal(auth.State.CurrentUser, view.RowSecurityLayers(auth.Catalog, b))
 	if _, merge := stmt.(*parser.Merge); merge || b.Insert.Conflict != nil {
-		scope.RLS, err = view.SelectAdjacentRowSecurity(scope.RLS, auth.View, scope.rowSecurity, b, stmt, command)
+		scope.RLS, err = view.SelectAdjacentRowSecurity(scope.RLS, auth.View, scope.RowSecurity, b, stmt, command)
 		return err
 	}
 	reads := b.Returning != nil || len(b.UsedColumns) != 0

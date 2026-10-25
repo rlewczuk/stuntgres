@@ -66,7 +66,7 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 				rollback := parse("ROLLBACK")
 				command := parse("INSERT INTO t VALUES" + conflictUpdateBatchValues(size, 1) + " ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
 				ref := func() ids.ObjectAddress {
-					for address, descriptor := range e.catalog.State.Descriptors() {
+					for address, descriptor := range e.Catalog.State.Descriptors() {
 						if relation, ok := descriptor.(*catalog.Relation); ok && relation.SQLIndex == nil && relation.Name() == "t" {
 							return address
 						}

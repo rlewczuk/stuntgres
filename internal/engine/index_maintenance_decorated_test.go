@@ -40,17 +40,17 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	originalEntries := append([]storage.IndexEntry(nil), oldRoot.Entries...)
 	originalTuples := expressionRootTuples(t, oldRoot)
 	run(t, e, "ALTER INDEX decorated RENAME TO renamed")
-	if e.storage.IndexRoots[idx.Address()] != oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
+	if e.Storage.IndexRoots[idx.Address()] != oldRoot || e.Storage.IndexRoots[plain.Address()] != oldSibling {
 		t.Fatal("decorated rename rebuilt substantive roots")
 	}
 	run(t, e, "REINDEX INDEX renamed")
-	if e.storage.IndexRoots[idx.Address()] == oldRoot || e.storage.IndexRoots[plain.Address()] != oldSibling {
+	if e.Storage.IndexRoots[idx.Address()] == oldRoot || e.Storage.IndexRoots[plain.Address()] != oldSibling {
 		t.Fatal("selected decorated rebuild affected a sibling or did no real work")
 	}
 	expressionWantRoot(t, e, "renamed", tuples)
-	selected := e.storage.IndexRoots[idx.Address()]
+	selected := e.Storage.IndexRoots[idx.Address()]
 	run(t, e, "REINDEX TABLE t")
-	if e.storage.IndexRoots[idx.Address()] == selected || e.storage.IndexRoots[plain.Address()] == oldSibling {
+	if e.Storage.IndexRoots[idx.Address()] == selected || e.Storage.IndexRoots[plain.Address()] == oldSibling {
 		t.Fatal("TABLE omitted an implemented root")
 	}
 	if !reflect.DeepEqual(oldRoot.Entries, originalEntries) || !reflect.DeepEqual(expressionRootTuples(t, oldRoot), originalTuples) {
@@ -61,7 +61,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	if !reflect.DeepEqual(current, want) || currentNames.IndexDef != `CREATE INDEX renamed ON public.t USING btree (n oid_ops DESC NULLS LAST, s COLLATE "C" bpchar_ops NULLS FIRST) INCLUDE (payload, payload, j)` {
 		t.Fatal("current include names/stable vector lost", current, currentNames)
 	}
-	old, oldNames, err := index.ProjectIndexMetadata(context.Background(), capture, e.catalog.Domain.Ref(capture.Epoch(), idx.Address()))
+	old, oldNames, err := index.ProjectIndexMetadata(context.Background(), capture, e.Catalog.Domain.Ref(capture.Epoch(), idx.Address()))
 	if err != nil || !reflect.DeepEqual(old, want) || oldNames != names {
 		t.Fatal("old decorated capture consulted current names", old, oldNames, err)
 	}
@@ -74,7 +74,7 @@ func TestIndexMaintenanceMetadataDecorated(t *testing.T) {
 	run(t, e, "REINDEX INDEX renamed")
 	expressionWantRoot(t, e, "renamed", tuples)
 	run(t, e, "DROP INDEX renamed,renamed")
-	if e.storage.IndexRoots[idx.Address()] != nil || e.storage.IndexRoots[plain.Address()] == nil {
+	if e.Storage.IndexRoots[idx.Address()] != nil || e.Storage.IndexRoots[plain.Address()] == nil {
 		t.Fatal("decorated DROP removed a sibling or retained selected root")
 	}
 }

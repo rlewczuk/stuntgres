@@ -41,13 +41,13 @@ type policySourcePreparation struct {
 }
 
 func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf, singleton bool, invoker authorization.PrincipalRef, inherited plan.RowMark) (*querySourcePreparation, error) {
-	if err := s.op.Context().Err(); err != nil {
+	if err := s.Op.Context().Err(); err != nil {
 		return nil, err
 	}
 	if s.authority == nil {
-		s.authority = &exec.Authority{Host: hostOf(s)}
+		s.authority = &exec.Authority{Host: HostOf(s)}
 	}
-	if err := e.captureCommentSnapshotLocked(s); err != nil {
+	if err := e.CaptureCommentSnapshotLocked(s); err != nil {
 		return nil, err
 	}
 	p := &querySourcePreparation{leaves: leaves, singleton: singleton, invoker: invoker, inherited: inherited}
@@ -56,12 +56,12 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 	} else if len(leaves) > 1 {
 		p.occurrences = make([]querySourceOccurrence, len(leaves))
 	}
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return nil, err
 	}
-	auth.Recapture(partition.CaptureCatalog(s.inheritanceRead(e.privateCatalogLocked(s.owner.Catalog)), s.PartitionRelations))
-	p.refs, err = e.queryTableRefsLocked(auth, invoker, leaves, nil, s.op.Session.SessionToken, inherited)
+	auth.Recapture(partition.CaptureCatalog(s.inheritanceRead(e.PrivateCatalogLocked(s.Owner.Catalog)), s.PartitionRelations))
+	p.refs, err = e.QueryTableRefsLocked(auth, invoker, leaves, nil, s.Op.Session.SessionToken, inherited)
 	if err != nil {
 		return nil, err
 	}
@@ -82,9 +82,9 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 		if p.occurrences[i].program.Denied() || leaf.Relation.RelationKind != catalog.ViewRelation {
 			continue
 		}
-		for _, active := range s.viewCreationOrZero().Active {
+		for _, active := range s.ViewCreationOrZero().Active {
 			if active == leaf.Relation.Address() {
-				return nil, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, leaf.Relation.Name()))
+				return nil, SQLError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, leaf.Relation.Name()))
 			}
 		}
 		active := s.viewCreation()
@@ -94,7 +94,7 @@ func (e *Engine) prepareQuerySourcesLocked(s *StatementScope, leaves []exec.Leaf
 			uses = []int{}
 		}
 		sourceInvoker := invoker
-		if s.ruleAction.auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
+		if s.ruleAction.Auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
 			sourceInvoker = leaf.Principal
 		}
 		p.occurrences[i].view, err = e.prepareStoredSourceLocked(s, leaf.Ref, stored.ViewOf(leaf.Relation), sourceInvoker, mark, uses)
@@ -127,21 +127,21 @@ func (e *Engine) prepareCommandSourcesLocked(s *StatementScope, bRef ids.ObjectR
 		return nil
 	}
 	binding := view.PhysicalBinding(command.binding)
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return err
 	}
 	auth.State.CurrentUser = command.auth.State.CurrentUser
-	auth.Recapture(s.inheritanceRead(e.privateCatalogLocked(s.owner.Catalog)))
+	auth.Recapture(s.inheritanceRead(e.PrivateCatalogLocked(s.Owner.Catalog)))
 	if binding.Relation != nil && binding.Relation.RelationKind.Stored() {
-		s.rlsDataRefs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, nil, append(s.rlsDataRefs, s.Command.TargetRefs(bRef)...), s.op.Session.SessionToken, plan.RowMark{})
+		s.rlsDataRefs, err = e.QueryTableRefsLocked(auth, auth.State.CurrentUser, nil, append(s.rlsDataRefs, s.Command.TargetRefs(bRef)...), s.Op.Session.SessionToken, plan.RowMark{})
 		if err != nil {
 			return err
 		}
 	}
 	if binding.Relation != nil && binding.Relation.RelationKind == catalog.PartitionedRelation {
 		target := [1]exec.Leaf{{Ref: binding.Ref, Relation: binding.Relation}}
-		s.rlsDataRefs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, target[:], s.rlsDataRefs, s.op.Session.SessionToken, plan.RowMark{})
+		s.rlsDataRefs, err = e.QueryTableRefsLocked(auth, auth.State.CurrentUser, target[:], s.rlsDataRefs, s.Op.Session.SessionToken, plan.RowMark{})
 		if err != nil {
 			return err
 		}
@@ -159,7 +159,7 @@ func (e *Engine) materializePolicySourcesLocked(s *StatementScope) error {
 	if err := e.fenceRowSecurityProgramsLocked(s); err != nil {
 		return err
 	}
-	if len(s.rlsDataRefs) != 0 && s.view == nil {
+	if len(s.rlsDataRefs) != 0 && s.View == nil {
 		if _, err := s.captureDataRootsAtLocked(e, s.rlsDataRefs, false, nil); err != nil {
 			return err
 		}
@@ -170,17 +170,17 @@ func (e *Engine) materializePolicySourcesLocked(s *StatementScope) error {
 			if pending.sources == nil {
 				continue
 			}
-			inputs, err := e.capturePreparedQuerySourcesLocked(s, pending.sources, s.queryLocks)
+			inputs, err := e.capturePreparedQuerySourcesLocked(s, pending.sources, s.QueryLockContext)
 			if err != nil {
 				return err
 			}
-			pending.clause.State = exec.State{Source: inputs, SourceMode: exec.SourceReusable, Input: s.input, Output: s.output, Locking: inputs.Locks.RowMarked()}
-			e.mu.Unlock()
-			err = exec.SelectQuerySources(s.op.Context(), inputs)
+			pending.clause.State = exec.State{Source: inputs, SourceMode: exec.SourceReusable, Input: s.Input, Output: s.Output, Locking: inputs.Locks.RowMarked()}
+			e.Mu.Unlock()
+			err = exec.SelectQuerySources(s.Op.Context(), inputs)
 			if err == nil {
-				pending.clause.State.Source = view.FreezeWriteSources(inputs, pending.sources.leaves, s.authority, hostOf(s))
+				pending.clause.State.Source = view.FreezeWriteSources(inputs, pending.sources.leaves, s.authority, HostOf(s))
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			if err != nil {
 				return err
 			}

@@ -47,7 +47,7 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 			t.Fatal("view owner remap", name, descriptor.Owner)
 		}
 		for _, leaf := range stored.ViewOf(descriptor).Sources() {
-			if leaf.Ref.Domain() != e.catalog.Domain || leaf.Ref.Epoch != e.catalog.State.Epoch() {
+			if leaf.Ref.Domain() != e.Catalog.Domain || leaf.Ref.Epoch != e.Catalog.State.Epoch() {
 				t.Fatal("view identity remap", name, leaf.Ref)
 			}
 		}
@@ -71,8 +71,8 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TEMPORARY SEQUENCE retained")
-	oldInt8 := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).SQLType
-	oldBool := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).SQLType
+	oldInt8 := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).SQLType
+	oldBool := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).SQLType
 	const script = "CREATE TABLE t(id BIGINT,flag BOOL); INSERT INTO t VALUES(7,true); CREATE VIEW v(k,flag) AS SELECT COALESCE(id,0),CASE WHEN flag THEN true ELSE false END FROM t WHERE flag ORDER BY id; CREATE VIEW w(k,n) AS SELECT k,COUNT(*) FROM v GROUP BY k HAVING COUNT(*)>0;"
 	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
 		t.Fatal(err)
@@ -81,12 +81,12 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 		t.Fatal(got)
 	}
 	ref := roleTableRef(t, e, "v")
-	definition := stored.ViewOf(e.catalog.State.MustRelation(ref.Address))
+	definition := stored.ViewOf(e.Catalog.State.MustRelation(ref.Address))
 	if definition.Query().Root.Schema()[0].Usage.Type != oldInt8 || definition.Query().Root.Schema()[1].Usage.Type != oldBool {
 		t.Fatal("view retained type generation")
 	}
 	for _, dependency := range definition.Dependencies() {
-		if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != e.catalog.State.Epoch() {
+		if dependency.Ref.Domain() != e.Catalog.Domain || dependency.Ref.Epoch != e.Catalog.State.Epoch() {
 			t.Fatal("view dependency generation", dependency)
 		}
 	}

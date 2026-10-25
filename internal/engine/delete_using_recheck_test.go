@@ -25,7 +25,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 	failed := false
 	b.Predicate = queryProbe(predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		if testExport(c.Row[1]) == int64(21) {
-			root := scope.stage.deletes[b.Ref.Address]
+			root := scope.Stage.Deletes[b.Ref.Address]
 			if root == nil || len(root.Rows) != 1 {
 				t.Fatal("recheck did not follow a staged earlier target", root)
 			}
@@ -34,7 +34,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 		}
 		return predicate.Eval(c)
 	})
-	r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+	r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
@@ -60,7 +60,7 @@ func TestDeleteUsingSourceGrantsStayReadOnly(t *testing.T) {
 	deleteCount(t, writer, "DELETE FROM t USING s WHERE t.id=s.k", 1)
 	target := catalogRef(t, e, e.CatalogRead(), "t")
 	source := catalogRef(t, e, e.CatalogRead(), "s")
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	var targetMode, sourceMode lock.Mode
 	for resource, entry := range lockState.Resources {
 		if resource.ObjectRef == target && resource.Row == 0 {

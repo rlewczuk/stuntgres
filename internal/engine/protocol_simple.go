@@ -20,7 +20,7 @@ func (s *StatementScope) ExecuteProtocolSimple(stmt parser.Statement, describe f
 		s.protocol().simpleStreaming = false
 		s.protocol().bind = nil
 		if p := s.protocolOrZero().simplePortal; p != nil {
-			if closeErr := s.protocolTerminalIO(func() error { return p.close(s.op.Context()) }); err == nil {
+			if closeErr := s.protocolTerminalIO(func() error { return p.close(s.Op.Context()) }); err == nil {
 				err = closeErr
 			}
 			s.protocol().simplePortal = nil
@@ -52,16 +52,16 @@ func (s *StatementScope) beginProtocolSimplePortal() error {
 		return nil
 	}
 	s.protocol().simpleCreated = true
-	if payloadOf(s.op.Session).preparedSQL.portals[""] == nil {
+	if PayloadOf(s.Op.Session).preparedSQL.portals[""] == nil {
 		return nil
 	}
 	// A non-retained transaction control gates without admitting an incarnation.
 	// Its pre-execution disposal still borrows the current owner's exact fence;
 	// it must not start a new transaction or relax copyIO's resume validation.
-	if s.txRef == (ids.TxRef{}) {
-		s.owner.Mu.Lock()
+	if s.TxRef == (ids.TxRef{}) {
+		s.Owner.Mu.Lock()
 		s.attachTransactionLocked()
-		s.owner.Mu.Unlock()
+		s.Owner.Mu.Unlock()
 	}
 	return s.CloseProtocolPortal("")
 }

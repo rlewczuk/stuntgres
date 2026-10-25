@@ -132,20 +132,20 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 		defer func() { rand.Reader = original }()
 		failure := errors.New("salt source unavailable")
 		rand.Reader = rolePasswordReader(func(p []byte) (int, error) {
-			if !e.mu.TryLock() {
+			if !e.Mu.TryLock() {
 				t.Fatal("random I/O holds engine mutex")
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if !op.Session.Mu.TryLock() {
 				t.Fatal("random I/O holds session mutex")
 			}
 			op.Session.Mu.Unlock()
 			return 0, failure
 		})
-		beforePublication := e.roles.Published
-		next := e.roles.NextPrincipal()
+		beforePublication := e.RoleStore.Published
+		next := e.RoleStore.NextPrincipal()
 		_, err := e.Execute(op, &parser.CreateRole{Name: parser.Identifier{Text: "random_failure"}, Options: parser.RoleOptions{Present: parser.RolePassword, Password: "secret"}}, 0, nil)
-		if !errors.Is(err, failure) || e.roles.Published != beforePublication || e.roles.NextPrincipal() != next {
+		if !errors.Is(err, failure) || e.RoleStore.Published != beforePublication || e.RoleStore.NextPrincipal() != next {
 			t.Fatal("random failure published role or allocator", err)
 		}
 	})
@@ -156,10 +156,10 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 		original := rand.Reader
 		defer func() { rand.Reader = original }()
 		rand.Reader = rolePasswordReader(func(p []byte) (int, error) {
-			if !e.mu.TryLock() {
+			if !e.Mu.TryLock() {
 				t.Fatal("password preparation holds engine mutex")
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if !actor.Session.Mu.TryLock() {
 				t.Fatal("password preparation holds session mutex")
 			}
@@ -170,10 +170,10 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 			}
 			return len(p), nil
 		})
-		next := e.roles.NextPrincipal()
+		next := e.RoleStore.NextPrincipal()
 		_, err := e.Execute(actor, &parser.CreateRole{Name: parser.Identifier{Text: "stale_authority"}, Options: parser.RoleOptions{Present: parser.RolePassword, Password: "secret"}}, 0, nil)
 		state(t, err, "42501")
-		if _, ok := e.Roles().Lookup("stale_authority"); ok || e.roles.NextPrincipal() != next {
+		if _, ok := e.Roles().Lookup("stale_authority"); ok || e.RoleStore.NextPrincipal() != next {
 			t.Fatal("stale creator published role/edge/allocator")
 		}
 		if len(e.Roles().Memberships()) != 3 {
@@ -204,10 +204,10 @@ func TestRoleAttributesValidityInput(t *testing.T) {
 		}
 	}
 	for _, tc := range []struct{ text, code string }{{"bad", "22007"}, {"2025-02-30", "22008"}, {"2025-01-01 00:00:00+16", "22009"}} {
-		before := e.roles.Published
+		before := e.RoleStore.Published
 		_, err := e.Execute(op, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0, nil)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Hint != "" || diagnostic.Position != "" || e.roles.Published != before {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Hint != "" || diagnostic.Position != "" || e.RoleStore.Published != before {
 			t.Fatal(tc, err)
 		}
 	}
@@ -233,7 +233,7 @@ func TestRoleAttributesValidityInput(t *testing.T) {
 	}{
 		{"2000-01-01 02:00:00", 0}, {"02/01/2000 02:00:00", 86400000000}, {"2000-01-01 09:30 CST", 0}, {"now", 0},
 	} {
-		scope := &StatementScope{op: op, input: captured}
+		scope := &StatementScope{Op: op, Input: captured}
 		if _, err := e.executeRoleAttributes(scope, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0); err != nil {
 			t.Fatal(tc, err)
 		}

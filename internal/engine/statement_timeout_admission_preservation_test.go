@@ -19,7 +19,7 @@ func statementTimeoutAdmissionPreserved(t *testing.T, e *Engine, sess *session.S
 	ref, command, ticket := o.Ref, o.Command, o.Ticket
 	writes, deletes, roots, frontier := len(o.Writes), len(o.Deletes), len(o.Roots), o.Frontier
 	o.Mu.Unlock()
-	holds := e.locks.Checkpoint(ticket)
+	holds := e.Locks.Checkpoint(ticket)
 	sess.Mu.Lock()
 	budget := sess.Timeouts.Transaction.Generation
 	timer, deadline, budgetRef := sess.Timeouts.Transaction.Timer, sess.Timeouts.Transaction.Deadline, sess.Timeouts.Transaction.Ref
@@ -29,7 +29,7 @@ func statementTimeoutAdmissionPreserved(t *testing.T, e *Engine, sess *session.S
 		o.Mu.Lock()
 		preserved := o.State == session.TxActive && o.Ref == ref && o.Command == command && o.Ticket == ticket && len(o.Writes) == writes && len(o.Deletes) == deletes && len(o.Roots) == roots && o.Frontier == frontier
 		o.Mu.Unlock()
-		if !preserved || e.locks.TransactionTicket(ref) != ticket || !reflect.DeepEqual(e.locks.Checkpoint(ticket), holds) {
+		if !preserved || e.Locks.TransactionTicket(ref) != ticket || !reflect.DeepEqual(e.Locks.Checkpoint(ticket), holds) {
 			t.Fatal("canceled waiter changed active incarnation, private data, snapshot or live lock owner")
 		}
 		sess.Settings.Mu.Lock()
@@ -216,7 +216,7 @@ func TestStatementTimeoutAdmissionAuthority(t *testing.T) {
 			if kind == "nonmember" {
 				defer func() { sess.Mu.Lock(); sess.Operations[op] = struct{}{}; sess.Mu.Unlock() }()
 			}
-			want := session.TransactionAuthority(domainOf(target), op)
+			want := session.TransactionAuthority(DomainOf(target), op)
 			scope, err := target.StartStatement(op)
 			if scope != nil || err == nil || want == nil || err.Error() != want.Error() || errors.Is(err, context.Canceled) {
 				t.Fatal("invalid authority lost precedence to own cause", scope, err, want)

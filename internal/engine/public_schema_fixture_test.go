@@ -32,7 +32,7 @@ func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func(
 	if err != nil {
 		t.Fatal(err)
 	}
-	bootstrap, err := roles.Descriptor(e.roles.Domain.Principal(10))
+	bootstrap, err := roles.Descriptor(e.RoleStore.Domain.Principal(10))
 	if err != nil {
 		t.Fatal(err)
 	}

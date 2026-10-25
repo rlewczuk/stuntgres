@@ -16,10 +16,10 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	c := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE advisory_soft_relation(v INT)")
 	ra, rb, rc := transactionBegin(t, a), transactionBegin(t, b), transactionBegin(t, c)
-	x := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 21, Low: 22}
+	x := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, High: 21, Low: 22}
 	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "advisory_soft_relation")}
 	advisoryUnitGrant(t, a, ra, x, lock.AdvisoryShare)
-	if err := e.locks.Acquire(context.Background(), c.Transactions.Ticket, y, lock.AccessExclusive); err != nil {
+	if err := e.Locks.Acquire(context.Background(), c.Transactions.Ticket, y, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	writer, err := advisoryUnitAcquire(t, b, rb, x, lock.AdvisoryExclusive, false)
@@ -30,7 +30,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if err != nil || reader == nil {
 		t.Fatal(reader, err)
 	}
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	queue := lockState.Resources[x].Pending
 	ordered := len(queue) == 2 && queue[0].Request == writer && queue[1].Request == reader
 	if !ordered {
@@ -43,7 +43,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if err = deadlockResult(t, reader); err != nil {
 		t.Fatal("resolvable physical soft cycle aborted", err)
 	}
-	lockState = e.locks.Inspect()
+	lockState = e.Locks.Inspect()
 	writerPending := !writer.Terminal()
 	ordinaryPending := !ordinaryWait.Terminal()
 	if !writerPending || !ordinaryPending || advisoryUnitHold(a, x).Shared != 1 || advisoryUnitHold(c, x).Shared != 1 {
@@ -56,7 +56,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	// Releasing ordinary transactions does not erase the advisory contributions
 	// that still block the writer, even after successful soft-cycle repair.
 	transactionEnd(t, a, ra, false)
-	lockState = e.locks.Inspect()
+	lockState = e.Locks.Inspect()
 	writerPending = !writer.Terminal()
 	if !writerPending || advisoryUnitHold(a, x).Shared != 1 || advisoryUnitHold(c, x).Shared != 1 {
 		t.Fatal("transaction release crossed persistent lifetime")

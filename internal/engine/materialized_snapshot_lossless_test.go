@@ -22,7 +22,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	input, _ := op.Session.Settings.Presentation()
 	input.ExactSnapshot = true
 	for _, id := range []sqltype.ID{sqltype.Timestamp, sqltype.Time, sqltype.Timestamptz} {
-		b := newExpressionBinder(context.Background(), e, input, op, nil)
+		b := NewExpressionBinder(context.Background(), e, input, op, nil)
 		u, _, err := b.Type(id).ResolveModifiers(3)
 		if err != nil {
 			t.Fatal(err)
@@ -41,7 +41,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 			t.Fatal("failed input installed temporal capture")
 		}
 	}
-	b := newExpressionBinder(context.Background(), e, input, op, nil)
+	b := NewExpressionBinder(context.Background(), e, input, op, nil)
 	u, _, err := b.Type(sqltype.Numeric).ResolveModifiers(5, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -134,13 +134,13 @@ func TestMaterializedViewSnapshotConstructorTargets(t *testing.T) {
 // Exercise the closed snapshot transport and destination-owned evaluation
 // together: recognizing a function name alone must never authorize its children.
 func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_leaf(c circle)")
 	relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_nested(v public.snapshot_leaf[])")
 	holder := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_holder(v public.snapshot_nested)")
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,24 +253,24 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 		{"cat", `CREATE FUNCTION pg_catalog.array_cat(integer[],integer[]) RETURNS integer[] LANGUAGE SQL AS $$SELECT $1$$`, `pg_catalog.array_cat(pg_catalog.array_fill(7,ARRAY[1],ARRAY[-2]),CAST(ARRAY[8] AS pg_catalog.int4[]))`},
 	} {
 		t.Run(sample.name, func(t *testing.T) {
-			e := New().restoreStage()
+			e := New().RestoreStage()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_provider(v integer[])")
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
 			declaration := statement(t, sample.definition).(*parser.CreateFunction)
-			e.mu.Lock()
+			e.Mu.Lock()
 			stage := e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(ddlHost{e: e, op: op, stage: stage}, auth, declaration, sqltype.InputEnvironment{})
-			e.mu.Unlock()
+			err = routine.StageCreateFunction(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, declaration, sqltype.InputEnvironment{})
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("private callable declaration", err)
 			}
 			domainUnitPublish(t, e, stage)
-			auth, err = operationAuthorization(op)
+			auth, err = OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}

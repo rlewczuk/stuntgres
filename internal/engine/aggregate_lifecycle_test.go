@@ -45,9 +45,9 @@ func TestAggregateLifecycleDescriptor(t *testing.T) {
 	op, _ := conversionUnitAuth(t, e)
 	command.Routine.Name.Parts[0].Text = newKey.Name
 	command.Target.Text = "aggregate_lifecycle_cancelled"
-	e.mu.Lock()
+	e.Mu.Lock()
 	stage, err := e.stageSchemaLocked(op, command, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

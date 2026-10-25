@@ -46,14 +46,14 @@ func TestTransactionalDefinitionPublication(t *testing.T) {
 			if target == "source" {
 				mode = parser.DropCascade
 			}
-			if err := stageExpressionDependencies(context.Background(), retire, retire.domainTargets, mode, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := StageExpressionDependencies(context.Background(), retire, retire.DomainTargets, mode, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			journal := session.NewJournal()
 			for address := range retire.Removals() {
 				journal.RecordDescriptor(base.State(), address, nil)
 			}
-			journal.Dependencies = append(journal.Dependencies, retire.sequence.IdentityDependencyList()...)
+			journal.Dependencies = append(journal.Dependencies, retire.Sequence.IdentityDependencyList()...)
 			addition := domainUnitStage(t, e, op, create)
 			var added *catalog.Cast
 			for _, descriptor := range addition.Descriptors() {
@@ -67,9 +67,9 @@ func TestTransactionalDefinitionPublication(t *testing.T) {
 			}
 			domainUnitPublish(t, e, addition)
 			committed := e.CatalogRead()
-			e.mu.Lock()
-			err := e.catalogPreflightLocked(journal)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err := e.CatalogPreflightLocked(journal)
+			e.Mu.Unlock()
 			if _, ok := err.(catalog.Conflict); !ok {
 				t.Fatal("captured retirement admitted a new surviving cast edge", err)
 			}
@@ -85,9 +85,9 @@ func TestTransactionalDefinitionPublication(t *testing.T) {
 			// surviving dependency. Unrelated published work is retained.
 			withoutEdge := journal.Clone()
 			withoutEdge.RecordDescriptor(committed.State(), added.Address(), nil)
-			e.mu.Lock()
-			err = e.catalogPreflightLocked(withoutEdge)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err = e.CatalogPreflightLocked(withoutEdge)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("candidate's own edge retirement falsely conflicted", err)
 			}

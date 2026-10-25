@@ -20,10 +20,10 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE INDEX refresh_source_idx ON refresh_source(v)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
 					sessionSQL(t, s, q)
 				}
-				base, frontier := e.catalog.State, e.visibility.CommitSeq()
+				base, frontier := e.Catalog.State, e.Visibility.CommitSeq()
 				source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 				index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
-				indexRoot := e.storage.IndexRoots[index.Address]
+				indexRoot := e.Storage.IndexRoots[index.Address]
 				m := batchUnitStart(t, s, context.Background())
 				defer m.end(context.Canceled)
 				name := "refresh_target"
@@ -33,12 +33,12 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				e.mu.Lock()
-				view := e.privateCatalogLocked(s.Transactions.Catalog)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				view := e.PrivateCatalogLocked(s.Transactions.Catalog)
+				e.Mu.Unlock()
 				target := catalogRef(t, e, view, name)
-				original := e.storage.Relations[target.Address]
-				originalDescriptor := e.catalog.State.Get(target.Address)
+				original := e.Storage.Relations[target.Address]
+				originalDescriptor := e.Catalog.State.Get(target.Address)
 				var root []storage.RowVersion
 				var ends *storage.DeletionRoot
 				var generation uint64
@@ -50,9 +50,9 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				}
 				var previous *storage.Relation
 				for _, suffix := range []string{"WITH DATA", "WITH NO DATA", "WITH DATA"} {
-					e.mu.Lock()
-					entry := e.privateStorageLocked(s.Transactions.Catalog, target.Address)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					entry := e.PrivateStorageLocked(s.Transactions.Catalog, target.Address)
+					e.Mu.Unlock()
 					if _, err := m.step(statement(t, "REFRESH MATERIALIZED VIEW "+name+" "+suffix)); err != nil {
 						t.Fatal(err)
 					}
@@ -75,7 +75,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 							t.Fatal("replacement row born before true end", row)
 						}
 					}
-					if e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original || e.catalog.State.Get(target.Address) != originalDescriptor || e.storage.IndexRoots[index.Address] != indexRoot {
+					if e.Catalog.State != base || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[target.Address] != original || e.Catalog.State.Get(target.Address) != originalDescriptor || e.Storage.IndexRoots[index.Address] != indexRoot {
 						t.Fatal("replacement/source index escaped before message end")
 					}
 					previous = shape.Replacement
@@ -85,7 +85,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err := m.end(nil); err != nil {
 						t.Fatal(err)
 					}
-					if e.storage.Relations[target.Address] != latest || e.visibility.CommitSeq() != frontier+1 || len(e.storage.Relations[source.Address].Versions) != 2 || len(e.storage.IndexRoots[index.Address].Entries) != 2 || len(indexRoot.Entries) != 1 {
+					if e.Storage.Relations[target.Address] != latest || e.Visibility.CommitSeq() != frontier+1 || len(e.Storage.Relations[source.Address].Versions) != 2 || len(e.Storage.IndexRoots[index.Address].Entries) != 2 || len(indexRoot.Entries) != 1 {
 						t.Fatal("source rows/index and latest replacement did not publish together")
 					}
 					for _, row := range latest.Versions {
@@ -98,7 +98,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					if err == nil || m.end(err) != err {
 						t.Fatal("late failure disposition", err)
 					}
-					if e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original || e.storage.IndexRoots[index.Address] != indexRoot || len(e.storage.Relations[source.Address].Versions) != 1 {
+					if e.Catalog.State != base || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[target.Address] != original || e.Storage.IndexRoots[index.Address] != indexRoot || len(e.Storage.Relations[source.Address].Versions) != 1 {
 						t.Fatal("late failure published replacement/source/index")
 					}
 					for _, row := range latest.Versions {
@@ -126,7 +126,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 			source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
 			index := catalogRef(t, e, e.CatalogRead(), "refresh_source_idx")
-			original, indexRoot := e.storage.Relations[target.Address], e.storage.IndexRoots[index.Address]
+			original, indexRoot := e.Storage.Relations[target.Address], e.Storage.IndexRoots[index.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			m := batchUnitStart(t, s, ctx)
@@ -136,9 +136,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			e.mu.Lock()
-			view := e.privateCatalogLocked(s.Transactions.Catalog)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			view := e.PrivateCatalogLocked(s.Transactions.Catalog)
+			e.Mu.Unlock()
 			pending := catalogRef(t, e, view, "refresh_pending_idx")
 			replacement := s.Transactions.Catalog.Storage[target.Address].Replacement
 			var err error
@@ -146,9 +146,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "epoch":
-				next := catalog.CloneState(e.catalog.State)
+				next := catalog.CloneState(e.Catalog.State)
 				next.SetEpoch(next.Epoch() + 1)
-				e.catalog.PublishLocked(next)
+				e.Catalog.PublishLocked(next)
 			case "ref":
 				stale := s.Transactions.Ref
 				stale = withTxID(stale, stale.ID()+1)
@@ -162,25 +162,25 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				original.Ends = &storage.DeletionRoot{}
 			case "store":
 				copy := *original
-				e.mu.Lock()
-				e.storage.InstallRelationLocked(target.Address, &copy)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Storage.InstallRelationLocked(target.Address, &copy)
+				e.Mu.Unlock()
 			case "descriptor":
-				next := catalog.CloneState(e.catalog.State)
+				next := catalog.CloneState(e.Catalog.State)
 				copy := *next.MustRelation(target.Address)
 				copy.ObjectRevision++
 				next.SetDescriptor(target.Address, &copy)
-				e.catalog.PublishLocked(next)
+				e.Catalog.PublishLocked(next)
 			case "roles":
-				copy := *e.roles.Published
+				copy := *e.RoleStore.Published
 				copy.Revision++
-				e.roles.PublishLocked(&copy)
+				e.RoleStore.PublishLocked(&copy)
 			case "source_index_generation":
-				e.storage.Relations[source.Address].Generation++
+				e.Storage.Relations[source.Address].Generation++
 			}
-			state, store, frontier := e.catalog.State, e.storage.Relations[target.Address], e.visibility.CommitSeq()
+			state, store, frontier := e.Catalog.State, e.Storage.Relations[target.Address], e.Visibility.CommitSeq()
 			err = m.end(err)
-			if err == nil || e.catalog.State != state || e.storage.Relations[target.Address] != store || e.visibility.CommitSeq() != frontier || e.storage.IndexRoots[index.Address] != indexRoot || e.storage.IndexRoots[pending.Address] != nil || len(e.storage.Relations[source.Address].Versions) != 1 {
+			if err == nil || e.Catalog.State != state || e.Storage.Relations[target.Address] != store || e.Visibility.CommitSeq() != frontier || e.Storage.IndexRoots[index.Address] != indexRoot || e.Storage.IndexRoots[pending.Address] != nil || len(e.Storage.Relations[source.Address].Versions) != 1 {
 				t.Fatal("rejected replacement published rows/catalog/index", err)
 			}
 			if fence == "cancel" && !errors.Is(err, context.Canceled) || fence == "epoch" && !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -203,7 +203,7 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	}
 	target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
 	source := catalogRef(t, e, e.CatalogRead(), "refresh_source")
-	original, frontier := e.storage.Relations[target.Address], e.visibility.CommitSeq()
+	original, frontier := e.Storage.Relations[target.Address], e.Visibility.CommitSeq()
 	m := batchUnitStart(t, s, context.Background())
 	defer m.end(context.Canceled)
 	for _, q := range []string{"INSERT INTO refresh_source VALUES(2)", "REFRESH MATERIALIZED VIEW refresh_target"} {
@@ -224,11 +224,11 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 	}
 	sessionSQL(t, s, "ROLLBACK TO kept")
 	restored := s.Transactions.Catalog.Storage[target.Address]
-	if s.Transactions.State != session.TxActive || s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || restored.Original != shape.Original || restored.Replacement != shape.Replacement || restored.Generation != shape.Generation || restored.Ends != shape.Ends || !restored.Rewritten || len(s.Transactions.Writes[source.Address]) != 1 || e.storage.Relations[target.Address] != original || e.visibility.CommitSeq() != frontier {
+	if s.Transactions.State != session.TxActive || s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || restored.Original != shape.Original || restored.Replacement != shape.Replacement || restored.Generation != shape.Generation || restored.Ends != shape.Ends || !restored.Rewritten || len(s.Transactions.Writes[source.Address]) != 1 || e.Storage.Relations[target.Address] != original || e.Visibility.CommitSeq() != frontier {
 		t.Fatal("savepoint recovery rebuilt or published retained replacement authority")
 	}
 	sessionSQL(t, s, "COMMIT")
-	if e.storage.Relations[target.Address] != shape.Replacement || len(shape.Replacement.Versions) != 2 || e.visibility.CommitSeq() != frontier+1 {
+	if e.Storage.Relations[target.Address] != shape.Replacement || len(shape.Replacement.Versions) != 2 || e.Visibility.CommitSeq() != frontier+1 {
 		t.Fatal("promoted replacement did not survive savepoint publication")
 	}
 	for _, row := range shape.Replacement.Versions {
@@ -259,9 +259,9 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 				for _, q := range []string{"CREATE TABLE refresh_source(v INT)", "INSERT INTO refresh_source VALUES(1)", "CREATE MATERIALIZED VIEW refresh_target AS SELECT v FROM refresh_source"} {
 					sessionSQL(t, s, q)
 				}
-				base, roles, frontier := e.catalog.State, e.roles.Published, e.visibility.CommitSeq()
+				base, roles, frontier := e.Catalog.State, e.RoleStore.Published, e.Visibility.CommitSeq()
 				target := catalogRef(t, e, e.CatalogRead(), "refresh_target")
-				original := e.storage.Relations[target.Address]
+				original := e.Storage.Relations[target.Address]
 				m := batchUnitStart(t, s, context.Background())
 				defer m.end(context.Canceled)
 				if _, err := m.step(statement(t, tc.query)); err != nil {
@@ -292,11 +292,11 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 					}
 				} else {
 					sessionSQL(t, peer, "CREATE ROLE producer_peer")
-					roles, frontier = e.roles.Published, e.visibility.CommitSeq()
+					roles, frontier = e.RoleStore.Published, e.Visibility.CommitSeq()
 				}
 				err := m.end(nil)
 				if !own && tc.producer {
-					if err == nil || e.catalog.State != base || e.roles.Published != roles || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address] != original {
+					if err == nil || e.Catalog.State != base || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[target.Address] != original {
 						t.Fatal("stale producer role read published or overwrote peer", err)
 					}
 					if _, ok := e.Roles().Lookup("producer_peer"); !ok {
@@ -311,7 +311,7 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 				if _, ok := e.Roles().Lookup(role); !ok {
 					t.Fatal("successful publication lost role", role)
 				}
-				if e.catalog.State == base || e.visibility.CommitSeq() != frontier+1 {
+				if e.Catalog.State == base || e.Visibility.CommitSeq() != frontier+1 {
 					t.Fatal("producer catalog did not publish once")
 				}
 				name := "produced"

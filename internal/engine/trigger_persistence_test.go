@@ -23,15 +23,15 @@ func TestTriggerCorePersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := syntax[0].(*parser.Select).Targets[0]
-	source.mu.Lock()
-	auth, err := source.authorizationLocked(scope.op)
+	source.Mu.Lock()
+	auth, err := source.AuthorizationLocked(scope.Op)
 	var condition expr.Expr
 	var query *parser.Select
 	var binding analyze.Binding
 	if err == nil {
-		condition, query, binding, err = (ddlHost{e: source, op: scope.op}).BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.input)
+		condition, query, binding, err = (DDLHost{E: source, Op: scope.Op}).BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.Input)
 	}
-	source.mu.Unlock()
+	source.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestTriggerCorePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	refs, err := stored.ExpressionDependRefs(scope.op.Context(), read, condition)
+	refs, err := stored.ExpressionDependRefs(scope.Op.Context(), read, condition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,14 +70,14 @@ func TestTriggerCorePersistence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	destination.mu.Lock()
-	state := catalog.CloneState(destination.catalog.State)
+	destination.Mu.Lock()
+	state := catalog.CloneState(destination.Catalog.State)
 	rowtype := *state.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(target.RowType)})
 	rowtype.SQLType = shape
 	state.SetDescriptor(rowtype.Address(), &rowtype)
 	state.SetDescriptor(reordered.Address(), &reordered)
-	destination.catalog.PublishLocked(state)
-	destination.mu.Unlock()
+	destination.Catalog.PublishLocked(state)
+	destination.Mu.Unlock()
 	targetRead = destination.CatalogRead()
 	doubleRef, doubleType := false, false
 	mapRef := func(old ids.ObjectRef) ids.ObjectRef {
@@ -104,7 +104,7 @@ func TestTriggerCorePersistence(t *testing.T) {
 	}
 	mappedOwner := reordered
 	mappedOwner.Triggers = relation.Triggers
-	principal := catalog.NewProcedureRemapper(destination.roles.PrincipalRemap(&destination.catalog, source.Roles(), destination.Roles(), nil, routine.OperatorSeeded))
+	principal := catalog.NewProcedureRemapper(destination.RoleStore.PrincipalRemap(&destination.Catalog, source.Roles(), destination.Roles(), nil, routine.OperatorSeeded))
 	remap := stored.NewRoutineRemap(targetRead, nil, mapType, principal, false)
 	mapped, err := stored.RemapTriggers(targetRead, &mappedOwner, nil, mapRef, remap.Type, remap.Collation, remap.Procedure)
 	if err == nil {
@@ -136,8 +136,8 @@ func TestTriggerCorePersistence(t *testing.T) {
 		{triggerUnitInt(t, integer, 4), plan.False}, {triggerUnitInt(t, integer, 6), plan.True}, {sqltype.Null(integer), plan.Unknown},
 	} {
 		row := []sqltype.Value{tc.value, triggerUnitInt(t, integer, 1)}
-		frame := exec.Context{EvalStatement: exec.EvalStatement{Context: targetScope.op.Context(), Host: targetScope.writeHost(), Catalog: targetRead, Input: targetScope.input, Output: targetScope.output}, EvalFrame: exec.EvalFrame{Scope: analyze.RulePseudoScope, Frame: 2, Row: row}}
-		frame.RoutineAuthority = &targetScope.routineAuth
+		frame := exec.Context{EvalStatement: exec.EvalStatement{Context: targetScope.Op.Context(), Host: targetScope.WriteHost(), Catalog: targetRead, Input: targetScope.Input, Output: targetScope.Output}, EvalFrame: exec.EvalFrame{Scope: analyze.RulePseudoScope, Frame: 2, Row: row}}
+		frame.RoutineAuthority = &targetScope.RoutineAuth
 		frame.RoutineRecipe = true
 		frame.RoutineChecks = mappedDefinition.Parts().Binding.Dependencies
 		if err := exec.AdmitExpression(&frame, mappedDefinition.Parts().When, targetRead); err != nil {

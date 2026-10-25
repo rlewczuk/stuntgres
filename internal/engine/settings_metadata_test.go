@@ -15,7 +15,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	a := sessionStart(t, e, provider)
 	capture := func(s *session.Session) map[string]string {
 		t.Helper()
-		facts, err := (engineCatalogRuntime{settings: s.Settings, registry: e.settings}).SessionSettings(t.Context())
+		facts, err := (EngineCatalogRuntime{settings: s.Settings, registry: e.Settings}).SessionSettings(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -38,7 +38,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		if _, err := e.applySetting(op, a.Settings, e.settings.Definitions()["application_name"], value, false); err != nil {
+		if _, err := e.applySetting(op, a.Settings, e.Settings.Definitions()["application_name"], value, false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -67,11 +67,11 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if facts, err := (engineCatalogRuntime{settings: a.Settings, registry: e.settings}).SessionSettings(ctx); facts != nil || err != context.Canceled {
+	if facts, err := (EngineCatalogRuntime{settings: a.Settings, registry: e.Settings}).SessionSettings(ctx); facts != nil || err != context.Canceled {
 		t.Fatal(facts, err)
 	}
 	store := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
-	if err := store.Initialize(t.Context(), e.settings.Definitions(), e.settings.Order(), provider); err != nil {
+	if err := store.Initialize(t.Context(), e.Settings.Definitions(), e.Settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.EndSession(ids.SessionToken{}, session.CleanClose); err != nil || store.ProviderDefaults != nil || store.DefaultTyped != nil {
@@ -100,7 +100,7 @@ func TestPGSettingsCoherentCapture(t *testing.T) {
 	}()
 	defer func() { <-done }()
 	for range 1000 {
-		facts, err := (engineCatalogRuntime{settings: s.Settings, registry: e.settings}).SessionSettings(ctx)
+		facts, err := (EngineCatalogRuntime{settings: s.Settings, registry: e.Settings}).SessionSettings(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}

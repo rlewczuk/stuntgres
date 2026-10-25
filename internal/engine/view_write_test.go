@@ -37,9 +37,9 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	base := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ns, ObjectName: "base", ObjectRevision: 1, Owner: owner, RelationKind: catalog.TableRelation, Attributes: []int32{7, 11, 19}, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "a", Usage: integer.Usage(), Nullable: true}, {Name: "hidden", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"id": 0, "a": 1, "hidden": 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 19}}
-	baseRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), base.Address())
+	baseRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), base.Address())
 	column := func(slot int) expr.Expr {
 		ref := baseRef
 		ref.Address.SubID = base.Attributes[slot]
@@ -49,11 +49,11 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	syntax := &parser.Select{From: &parser.TableReference{}}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
 	view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: project}, Sources: []stored.ViewLeaf{{Ref: baseRef, Attributes: []int32{7, 11, 19}, Reads: []int32{7, 11}}}})
-	viewRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), view.Address())
-	e.catalog.State.SetDescriptor(base.Address(), base)
-	e.catalog.State.SetDescriptor(view.Address(), view)
-	e.catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())
-	e.catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.Name()}, view.Address())
+	viewRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), view.Address())
+	e.Catalog.State.SetDescriptor(base.Address(), base)
+	e.Catalog.State.SetDescriptor(view.Address(), view)
+	e.Catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: base.Name()}, base.Address())
+	e.Catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: view.Name()}, view.Address())
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(integer, n)
 		if err != nil {
@@ -61,19 +61,19 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 		}
 		return v
 	}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(base.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}})
-	e.mu.Unlock()
-	e.visibility.SetCommitSeqLocked(1)
-	e.storage.SetFrontierLocked(2, 2)
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(base.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}})
+	e.Mu.Unlock()
+	e.Visibility.SetCommitSeqLocked(1)
+	e.Storage.SetFrontierLocked(2, 2)
 	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}
 }
 
 func (f viewWriteFixture) authorization(t *testing.T, op *session.Operation) AuthorizationView {
 	t.Helper()
-	f.e.mu.Lock()
-	defer f.e.mu.Unlock()
-	v, err := f.e.statementAuthorizationLocked(op, &parser.Update{})
+	f.e.Mu.Lock()
+	defer f.e.Mu.Unlock()
+	v, err := f.e.StatementAuthorizationLocked(op, &parser.Update{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,16 +90,16 @@ func (f viewWriteFixture) scope(t *testing.T, explicit ...bool) (*StatementScope
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.gate(&parser.Update{}); err != nil {
+	if err := scope.Gate(&parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(errors.New("mechanics cleanup"))
 		}
 	})
 	w := &view.Write{BaseRelation: f.base, Ref: f.baseRef, Layers: []view.WriteLayer{{Relation: f.view, Ref: f.viewRef, Source: f.base, SourceRef: f.baseRef}}}
-	scope.lockedRef, scope.lockedDescriptor = f.viewRef, f.view
+	scope.LockedRef, scope.LockedDescriptor = f.viewRef, f.view
 	if err := scope.acquireViewWriteTarget(w); err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestViewWriteMapping(t *testing.T) {
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := view.BindViewWrite(&f.e.catalog.Owner, auth.Catalog, &b, &parser.Update{}); err != nil {
+	if err := view.BindViewWrite(&f.e.Catalog.Owner, auth.Catalog, &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	if b.Relation != f.view || b.Ref != f.viewRef || b.Targets[0] != 1 || view.PhysicalBinding(b).Ref != f.baseRef {
@@ -169,7 +169,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	constant, _ := sqltype.Integer(f.integer, 42)
 	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Expressions: [][]expr.Expr{{nil}}}
-	if err := view.BindViewWrite(&f.e.catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
+	if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(b.Insert.Defaults) != 3 || b.Insert.Defaults[2] == nil || b.Targets[0] != 1 {
@@ -178,7 +178,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}
-	f.e.catalog.State.SetDescriptor(indexAddress, &catalog.Relation{
+	f.e.Catalog.State.SetDescriptor(indexAddress, &catalog.Relation{
 		ObjectAddress: indexAddress,
 		SQLIndex:      &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
@@ -250,14 +250,14 @@ func TestViewWriteDemand(t *testing.T) {
 	}
 	t.Run("frozen_live_prefix", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		f.e.visibility.SetCommitSeqLocked(2)
-		store := f.e.storage.Relations[f.base.Address()]
+		f.e.Visibility.SetCommitSeqLocked(2)
+		store := f.e.Storage.Relations[f.base.Address()]
 		store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}
 		scope, op := f.scope(t)
 		leaves := []exec.Leaf{{Ref: f.baseRef, Relation: f.base, Storage: store, FrozenAttributes: []int32{11, 7}}}
-		f.e.mu.Lock()
-		source, err := f.e.captureQuerySourcesLocked(scope, leaves, false)
-		f.e.mu.Unlock()
+		f.e.Mu.Lock()
+		source, err := f.e.CaptureQuerySourcesLocked(scope, leaves, false)
+		f.e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -268,7 +268,7 @@ func TestViewWriteDemand(t *testing.T) {
 		if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 			t.Fatal(err)
 		}
-		source = view.FreezeWriteSources(source, leaves, scope.authority, hostOf(scope))
+		source = view.FreezeWriteSources(source, leaves, scope.authority, HostOf(scope))
 		if source.Input == nil || source.Count() != 1 {
 			source.Close()
 			t.Fatal("frozen bridge exposed a deleted version")
@@ -291,23 +291,23 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	waiter, _ := f.scope(t)
-	old := f.e.storage.Relations[f.base.Address()].Versions[0]
+	old := f.e.Storage.Relations[f.base.Address()].Versions[0]
 	resource := lock.Resource{ObjectRef: f.baseRef, Row: old.Row}
-	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
+	if request, err := f.e.Locks.StartAcquire(holder.Op.Context(), holder.LockTicket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
-	request, err := f.e.locks.StartAcquire(waiter.op.Context(), waiter.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
+	request, err := f.e.Locks.StartAcquire(waiter.Op.Context(), waiter.LockTicket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("not actually queued", request, err)
 	}
-	lockState := f.e.locks.Inspect()
+	lockState := f.e.Locks.Inspect()
 	pending := len(lockState.Resources[resource].Pending)
 	if pending != 1 {
 		t.Fatal("missing physical queue", pending)
 	}
 	row := append([]sqltype.Value(nil), old.Values...)
 	row[1], _ = sqltype.Integer(f.integer, 0)
-	if err := dml.ReplaceRows(holder.writeHost(), f.baseRef, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(holder.WriteHost(), f.baseRef, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	if err := holder.Finish(nil); err != nil {
@@ -316,7 +316,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	latest, err := waiter.writeHost().LatestRow(dml.UpdateRowRequest(f.baseRef, dml.UpdateCandidate{RowVersion: old, Slot: 0}))
+	latest, err := waiter.WriteHost().LatestRow(dml.UpdateRowRequest(f.baseRef, dml.UpdateCandidate{RowVersion: old, Slot: 0}))
 	current, live := latest.Version, latest.Live
 	if err != nil || !live || current.Version == old.Version {
 		t.Fatal(current, live, err)
@@ -340,18 +340,18 @@ func TestViewWriteCancellation(t *testing.T) {
 	f := viewWriteMechanics(t)
 	holder, _ := f.scope(t)
 	scope, _ := f.scope(t)
-	originals := f.e.storage.Relations[f.base.Address()].Versions
+	originals := f.e.Storage.Relations[f.base.Address()].Versions
 	resource := lock.Resource{ObjectRef: f.baseRef, Row: originals[0].Row}
-	if request, err := f.e.locks.StartAcquire(holder.op.Context(), holder.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
+	if request, err := f.e.Locks.StartAcquire(holder.Op.Context(), holder.LockTicket, resource, lock.ForNoKeyUpdate, lock.Policy{}); err != nil || request != nil {
 		t.Fatal(request, err)
 	}
 	row := append([]sqltype.Value(nil), originals[1].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := dml.ReplaceRows(scope.writeHost(), f.baseRef, []storage.RowVersion{originals[1]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(scope.WriteHost(), f.baseRef, []storage.RowVersion{originals[1]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(scope.op.Context())
-	request, err := f.e.locks.StartAcquire(ctx, scope.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
+	ctx, cancel := context.WithCancel(scope.Op.Context())
+	request, err := f.e.Locks.StartAcquire(ctx, scope.LockTicket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("missing actual pending row", request, err)
 	}
@@ -362,14 +362,14 @@ func TestViewWriteCancellation(t *testing.T) {
 	if err := scope.Finish(context.Canceled); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	current := f.e.storage.Relations[f.base.Address()].Versions
-	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.visibility.CommitSeq() != 1 || len(scope.stage.rows) != 0 || scope.ViewWrite != nil {
+	current := f.e.Storage.Relations[f.base.Address()].Versions
+	if current[0].Version != originals[0].Version || current[1].Version != originals[1].Version || f.e.Visibility.CommitSeq() != 1 || len(scope.Stage.Rows) != 0 || scope.ViewWrite != nil {
 		t.Fatal("canceled stage published or retained resources")
 	}
-	lockState := f.e.locks.Inspect()
+	lockState := f.e.Locks.Inspect()
 	entry := lockState.Resources[resource]
 	pending := len(entry.Pending)
-	hold := entry.Holders[holder.ticket].Mode
+	hold := entry.Holders[holder.LockTicket].Mode
 	if pending != 0 || hold != lock.ForNoKeyUpdate {
 		t.Fatal("cancel damaged holder or leaked queue", pending, hold)
 	}
@@ -387,9 +387,9 @@ func TestViewWriteReplacement(t *testing.T) {
 	if err := f.e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	f.e.mu.Lock()
-	err := scope.validateLockedRelation(f.e)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	err := scope.ValidateLockedRelation(f.e)
+	f.e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("old write grant survived replacement", err)
 	}

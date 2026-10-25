@@ -32,25 +32,25 @@ func (x *plExceptionFaultTx) RollbackTo(ctx context.Context, name string) error 
 func plExceptionUnlocked(t *testing.T, e *Engine, s *StatementScope) func() {
 	return func() {
 		t.Helper()
-		if !e.mu.TryLock() {
+		if !e.Mu.TryLock() {
 			t.Error("provider callback holds engine publication lock")
 		} else {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
-		if !s.owner.Mu.TryLock() {
+		if !s.Owner.Mu.TryLock() {
 			t.Error("provider callback holds owner lock")
 		} else {
-			s.owner.Mu.Unlock()
+			s.Owner.Mu.Unlock()
 		}
-		if !s.op.Session.Mu.TryLock() {
+		if !s.Op.Session.Mu.TryLock() {
 			t.Error("provider callback holds session lock")
 		} else {
-			s.op.Session.Mu.Unlock()
+			s.Op.Session.Mu.Unlock()
 		}
-		if !e.replacementMu.TryLock() {
+		if !e.ReplacementMu.TryLock() {
 			t.Error("provider callback holds replacement reservation")
 		} else {
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 		}
 	}
 }
@@ -69,7 +69,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		provider := &fdwUnitLifecycle{tx: &fdwUnitTransaction{}}
 		provider.tx.check = plExceptionUnlocked(t, e, s)
 		request := catalog.ForeignRequest{HandlerOID: 1, ServerOID: 2, MappingOID: 3, RoleOID: 4}
-		if _, err := s.enlistForeign(s.op.Context(), provider, request, true); err != nil {
+		if _, err := s.enlistForeign(s.Op.Context(), provider, request, true); err != nil {
 			t.Fatal(err)
 		}
 		if err := s.endPLException(inner, true, errors.New("body")); err != nil {
@@ -88,11 +88,11 @@ func TestPLExceptionParticipants(t *testing.T) {
 		failure := errors.New("savepoint acquisition failure")
 		tx := &plExceptionFaultTx{saveError: failure}
 		tx.check = plExceptionUnlocked(t, e, s)
-		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
+		ownerExtensionOf(s.Owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}}}}
 		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(block)
-		if flow.Kind != proc.PLNormal || !errors.Is(err, failure) || len(s.owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
+		if flow.Kind != proc.PLNormal || !errors.Is(err, failure) || len(s.Owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
 			t.Fatal("failed acquisition ran body/retained provider mark", flow, err, tx.calls)
 		}
 	})
@@ -101,7 +101,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		failure := errors.New("provider rollback failure")
 		tx := &plExceptionFaultTx{rollbackError: failure}
 		tx.check = plExceptionUnlocked(t, e, s)
-		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
+		ownerExtensionOf(s.Owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
 		boolean, ok := e.CatalogRead().LookupType(sqltype.Bool)
 		if !ok {
@@ -130,14 +130,14 @@ func TestPLExceptionParticipants(t *testing.T) {
 		e, s := plExceptionUnitScope(t)
 		tx := &plExceptionFaultTx{}
 		tx.check = plExceptionUnlocked(t, e, s)
-		ownerExtensionOf(s.owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
+		ownerExtensionOf(s.Owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		mark, err := s.beginPLException()
 		if err != nil {
 			t.Fatal(err)
 		}
-		ctx, cancel := context.WithCancel(s.op.Context())
+		ctx, cancel := context.WithCancel(s.Op.Context())
 		cancel()
-		s.op.Ctx = ctx
+		s.Op.Ctx = ctx
 		if err := s.endPLException(mark, true, context.Canceled); err != nil {
 			t.Fatal(err)
 		}
@@ -147,13 +147,13 @@ func TestPLExceptionParticipants(t *testing.T) {
 	})
 	t.Run("ordinary_errors_not_caught", func(t *testing.T) {
 		e, s := plExceptionUnitScope(t)
-		ctx, cancel := context.WithCancel(s.op.Context())
+		ctx, cancel := context.WithCancel(s.Op.Context())
 		cancel()
-		s.op.Ctx = ctx
+		s.Op.Ctx = ctx
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
 		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(block)
-		if flow.Kind != proc.PLNormal || !errors.Is(err, context.Canceled) || len(s.owner.Savepoints) != 0 {
+		if flow.Kind != proc.PLNormal || !errors.Is(err, context.Canceled) || len(s.Owner.Savepoints) != 0 {
 			t.Fatal("OTHERS swallowed ordinary context error", flow, err)
 		}
 	})

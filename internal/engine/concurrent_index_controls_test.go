@@ -110,9 +110,9 @@ func TestConcurrentIndexU6ReadyCancellationReleasesSUE(t *testing.T) {
 	sessionSQL(t, consumer, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, reader, "ROLLBACK")
 	lockEmpty(t, e)
-	e.mu.Lock()
-	remaining := len(e.visibility.Entries)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	remaining := len(e.Visibility.Entries)
+	e.Mu.Unlock()
 	if remaining != 0 {
 		t.Fatal("canceled builder registry leak")
 	}
@@ -135,7 +135,7 @@ func TestConcurrentIndexU6BeforeDescriptorAndWriterCancellation(t *testing.T) {
 			if phase == "before_descriptor" {
 				lockPending(t, e, 1)
 				ref := roleTableRef(t, e, "t")
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				exact := len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ShareUpdateExclusive
 				if !exact {
@@ -207,7 +207,7 @@ func TestConcurrentIndexU6LateSuccessCannotBeRetracted(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := scope.Execute(statement(t, "CREATE INDEX CONCURRENTLY ix ON t(n)"), 0, nil)
-	if err != nil || result.Count != 0 || !scope.completed {
+	if err != nil || result.Count != 0 || !scope.Completed {
 		scope.Finish(err)
 		t.Fatal(result, err)
 	}
@@ -253,11 +253,11 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 	sessionSQL(t, b, "CREATE TABLE sentinel(n INT)")
 	sessionSQL(t, b, "INSERT INTO sentinel VALUES(9)")
 	sourceState, targetState := source.CatalogRead().State(), target.CatalogRead().State()
-	oldOID, oldRevision, oldRow, oldVersion := target.catalog.NextOID(), target.catalog.NextRevision(), target.storage.RowFrontier(), target.storage.VersionFrontier()
+	oldOID, oldRevision, oldRow, oldVersion := target.Catalog.NextOID(), target.Catalog.NextRevision(), target.Storage.RowFrontier(), target.Storage.VersionFrontier()
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err == nil {
 		t.Fatal("invalid source was imported/healed")
 	}
-	if target.CatalogRead().State() != targetState || source.CatalogRead().State() != sourceState || target.catalog.NextOID() != oldOID || target.catalog.NextRevision() != oldRevision || target.storage.RowFrontier() != oldRow || target.storage.VersionFrontier() != oldVersion {
+	if target.CatalogRead().State() != targetState || source.CatalogRead().State() != sourceState || target.Catalog.NextOID() != oldOID || target.Catalog.NextRevision() != oldRevision || target.Storage.RowFrontier() != oldRow || target.Storage.VersionFrontier() != oldVersion {
 		t.Fatal("failed replacement changed source or destination authority")
 	}
 	for _, stream := range []string{
@@ -268,7 +268,7 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 		if err := target.Restore(context.Background(), strings.NewReader(stream)); err == nil {
 			t.Fatal("invalid isolated stream succeeded", stream)
 		}
-		if target.CatalogRead().State() != targetState || target.catalog.NextOID() != oldOID || target.catalog.NextRevision() != oldRevision {
+		if target.CatalogRead().State() != targetState || target.Catalog.NextOID() != oldOID || target.Catalog.NextRevision() != oldRevision {
 			t.Fatal("isolated failed stream mutated destination", stream)
 		}
 	}
@@ -290,25 +290,25 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	sessionSQL(t, s, "INSERT INTO retained_ci_temp VALUES(1),(1)")
 	concurrentUnitError(t, s, "CREATE UNIQUE INDEX CONCURRENTLY retained_ci_temp_index ON retained_ci_temp(n)", "23505")
 	var original *catalog.Relation
-	e.mu.Lock()
-	for _, descriptor := range e.catalog.State.Descriptors() {
+	e.Mu.Lock()
+	for _, descriptor := range e.Catalog.State.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.Name() == "retained_ci_temp_index" {
-			namespace := e.catalog.State.MustNamespace(index.Namespace())
+			namespace := e.Catalog.State.MustNamespace(index.Namespace())
 			if namespace.Temporary == s.SessionToken {
 				original = index
 			}
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if original == nil || original.SQLIndex.Ready || original.SQLIndex.Valid {
 		t.Fatal("real retained TEMP invalid descriptor missing")
 	}
 	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE imported(n INT); INSERT INTO imported VALUES(7);")); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	retained := e.catalog.State.Get(original.Address()) == original && e.storage.IndexRoots[original.Address()] == nil
-	e.mu.Unlock()
+	e.Mu.Lock()
+	retained := e.Catalog.State.Get(original.Address()) == original && e.Storage.IndexRoots[original.Address()] == nil
+	e.Mu.Unlock()
 	if !retained {
 		t.Fatal("replacement healed or replaced retained not-ready TEMP descriptor")
 	}
@@ -329,11 +329,11 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(2)")
 			original, _ := concurrentUnitIndex(t, e, "ui", false, false)
 			base := e.CatalogRead()
-			e.mu.Lock()
-			parent := e.catalog.State.MustRelation(original.SQLIndex.Parent)
-			store := e.storage.Relations[parent.Address()]
+			e.Mu.Lock()
+			parent := e.Catalog.State.MustRelation(original.SQLIndex.Parent)
+			store := e.Storage.Relations[parent.Address()]
 			snapshot := *store
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			next, definition := *original, *original.SQLIndex
 			definition.Ready = true
 			next.SQLIndex = &definition
@@ -347,8 +347,8 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
-			stage.indexes().Candidates = map[ids.ObjectAddress]index.RootCandidate{next.Address(): {Index: &next, Root: root, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
+			stage.Indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+			stage.Indexes().Candidates = map[ids.ObjectAddress]index.RootCandidate{next.Address(): {Index: &next, Root: root, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}
@@ -399,9 +399,9 @@ func TestConcurrentIndexU7OlderAdmissionEpochFence(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	fenced := e.indexWaits.CountLocked() == 0
-	e.mu.Unlock()
+	e.Mu.Lock()
+	fenced := e.IndexWaits.CountLocked() == 0
+	e.Mu.Unlock()
 	if !fenced {
 		t.Fatal("replacement retained an older-cohort observation")
 	}

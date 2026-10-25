@@ -82,7 +82,7 @@ func definitionDefaultPublication(t *testing.T) {
 	// TEMP exclusion belongs to replay only. Build a valid immutable catalog
 	// fixture with the second class in its owner's real temporary namespace.
 	temporary := catalog.CloneState(committed.State())
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 98080}, ObjectName: "pg_temp_default_guard", ObjectRevision: 1, Temporary: b.SessionToken, Owner: e.roles.Domain.Principal(10)}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 98080}, ObjectName: "pg_temp_default_guard", ObjectRevision: 1, Temporary: b.SessionToken, Owner: e.RoleStore.Domain.Principal(10)}
 	if temporary.Get(ns.Address()) != nil {
 		t.Fatal("temporary fixture address collision")
 	}
@@ -101,9 +101,9 @@ func definitionDefaultPublication(t *testing.T) {
 	if _, ok, err := replay.DefaultIndexClassID(method.Address().ObjectID, sqltype.Int4); ok || !errors.As(err, &diagnostic) || diagnostic.Code != "42710" {
 		t.Fatal("replay filtering leaked into runtime default selection", ok, err)
 	}
-	e.mu.Lock()
-	e.catalog.State = temporary
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Catalog.State = temporary
+	e.Mu.Unlock()
 	var encoded bytes.Buffer
 	if err := e.Dump(context.Background(), &encoded); err != nil {
 		t.Fatal("one persistent plus one TEMP default must remain representable", err)

@@ -21,8 +21,8 @@ func TestDeleteCoreRowLifecycle(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			ar, br := transactionBegin(t, a), transactionBegin(t, b)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lock.Resource{ObjectRef: target, Row: e.storage.Relations[target.Address].Versions[0].Row}
-			manager := e.locks
+			resource := lock.Resource{ObjectRef: target, Row: e.Storage.Relations[target.Address].Versions[0].Row}
+			manager := e.Locks
 			if err := manager.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.ForUpdate); err != nil {
 				t.Fatal(err)
 			}
@@ -81,7 +81,7 @@ func TestDeleteCoreRowDeadlinePolicy(t *testing.T) {
 			ar, br := transactionBegin(t, a), transactionBegin(t, b)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
 			resource := lock.Resource{ObjectRef: target, Row: 1}
-			manager := e.locks
+			manager := e.Locks
 			if err := manager.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.ForUpdate); err != nil {
 				t.Fatal(err)
 			}
@@ -163,7 +163,7 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: target}]
 			queuedRX := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.RowExclusive
 			for resource := range lockState.Resources {
@@ -202,7 +202,7 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 			t.Fatal(description, err)
 		}
 		held := 0
-		for resource, entry := range e.locks.Inspect().Resources {
+		for resource, entry := range e.Locks.Inspect().Resources {
 			if resource.Row != 0 || entry.Holders[s.Transactions.Ticket].Mode != lock.RowExclusive {
 				held = -100
 				break

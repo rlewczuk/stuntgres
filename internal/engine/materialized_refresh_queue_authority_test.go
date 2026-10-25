@@ -26,16 +26,16 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if concurrent {
 				materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			}
-			oldStorage := e.storage.Relations[d.Address()]
-			originalEpoch := e.catalog.State.Epoch()
+			oldStorage := e.Storage.Relations[d.Address()]
+			originalEpoch := e.Catalog.State.Epoch()
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
-			ref := e.catalog.Domain.Ref(originalEpoch, d.Address())
+			ref := e.Catalog.Domain.Ref(originalEpoch, d.Address())
 			mode := lock.AccessShare
 			if concurrent {
 				mode = lock.Exclusive
 			}
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
+			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -50,10 +50,10 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			joined := false
 			defer func() {
 				cancel()
-				e.mu.Lock()
-				e.catalog.State.SetEpoch(originalEpoch)
-				e.mu.Unlock()
-				e.endLockOwner(holder.Transactions.Ticket)
+				e.Mu.Lock()
+				e.Catalog.State.SetEpoch(originalEpoch)
+				e.Mu.Unlock()
+				e.EndLockOwner(holder.Transactions.Ticket)
 				if !joined {
 					select {
 					case <-done:
@@ -65,8 +65,8 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			lockPending(t, e, 1)
 			// Mutate authoritative immutable catalog roots while the actual request
 			// is pending. These are package fixtures, not added SQL ALTER capabilities.
-			e.mu.Lock()
-			nextState := *e.catalog.State
+			e.Mu.Lock()
+			nextState := *e.Catalog.State
 			next := *d
 			next.ObjectRevision++
 			expectedAddress := d.Address()
@@ -96,17 +96,17 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				nextState.BindName(ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}, next.Address())
 				storage := *oldStorage
 				expectedStorage = &storage
-				e.storage.ReplaceRelationsLocked(maps.Clone(e.storage.Relations))
-				e.storage.RemoveRelationLocked(d.Address())
-				e.storage.InstallRelationLocked(next.Address(), expectedStorage)
+				e.Storage.ReplaceRelationsLocked(maps.Clone(e.Storage.Relations))
+				e.Storage.RemoveRelationLocked(d.Address())
+				e.Storage.InstallRelationLocked(next.Address(), expectedStorage)
 			case "epoch":
 				nextState.SetEpoch(nextState.Epoch() + 1)
 			}
 			nextState.SetDescriptor(expectedAddress, &next)
-			e.catalog.PublishLocked(&nextState)
-			before, rowCounter, versionCounter := e.visibility.CommitSeq(), e.storage.RowFrontier(), e.storage.VersionFrontier()
-			e.mu.Unlock()
-			e.endLockOwner(holder.Transactions.Ticket)
+			e.Catalog.PublishLocked(&nextState)
+			before, rowCounter, versionCounter := e.Visibility.CommitSeq(), e.Storage.RowFrontier(), e.Storage.VersionFrontier()
+			e.Mu.Unlock()
+			e.EndLockOwner(holder.Transactions.Ticket)
 			var err error
 			select {
 			case err = <-done:
@@ -117,16 +117,16 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("changed frozen authority was admitted", phase, err)
 			}
-			if scope.lockedDescriptor != nil || scope.lockedStorage != nil || scope.lockedRef != (ids.ObjectRef{}) || len(scope.materializedOrZero().Sources) != 0 {
+			if scope.LockedDescriptor != nil || scope.LockedStorage != nil || scope.LockedRef != (ids.ObjectRef{}) || len(scope.MaterializedOrZero().Sources) != 0 {
 				t.Fatal("rejected queue captured or retargeted a producer")
 			}
-			if e.catalog.State.Get(expectedAddress) != &next || e.storage.Relations[expectedAddress] != expectedStorage || len(expectedStorage.Versions) != 3 || e.visibility.CommitSeq() != before || e.storage.RowFrontier() != rowCounter || e.storage.VersionFrontier() != versionCounter || !next.Populated {
+			if e.Catalog.State.Get(expectedAddress) != &next || e.Storage.Relations[expectedAddress] != expectedStorage || len(expectedStorage.Versions) != 3 || e.Visibility.CommitSeq() != before || e.Storage.RowFrontier() != rowCounter || e.Storage.VersionFrontier() != versionCounter || !next.Populated {
 				t.Fatal("rejected queue changed current metadata/store/frontier/counters")
 			}
 			// Restore only the fixture epoch before normal session/transaction cleanup.
-			e.mu.Lock()
-			e.catalog.State.SetEpoch(originalEpoch)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			e.Catalog.State.SetEpoch(originalEpoch)
+			e.Mu.Unlock()
 			scope.Finish(err)
 			transactionEnd(t, holder, tx, false)
 			lockEmpty(t, e)

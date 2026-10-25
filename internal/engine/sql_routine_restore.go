@@ -13,9 +13,9 @@ import (
 // invocation must bind and check the declared result before opening producers.
 
 func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Operation) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return err
 	}
@@ -30,12 +30,12 @@ func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Op
 		if d, ok := descriptor.(*catalog.Procedure); ok && d.SQL != nil {
 			auth.State.CurrentUser = d.Owner
 			if d.SQL.Kind == proc.PLpgSQLBody {
-				if err := e.compilePLRoutineLocked(op, auth, d); err != nil {
+				if err := e.CompilePLRoutineLocked(op, auth, d); err != nil {
 					return err
 				}
 				continue
 			}
-			binding, _, bindErr := e.bindSQLRoutineLocked(op, auth, d, input, nil)
+			binding, _, bindErr := e.BindSQLRoutineLocked(op, auth, d, input, nil)
 			if bindErr != nil && !binding.UnresolvedCallable {
 				return bindErr
 			}

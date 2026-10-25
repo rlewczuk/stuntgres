@@ -23,7 +23,7 @@ func TestDropReaderSeam(t *testing.T) {
 	read := e.CatalogRead()
 	relation := read.MustRelation(roleTableRef(t, e, "retiring").Address)
 
-	var bare view.DropReader = stageDropProvider(context.Background(), nil, nil, nil, nil)
+	var bare view.DropReader = StageDropProvider(context.Background(), nil, nil, nil, nil)
 	if input := bare.DefinitionInput(); input != nil {
 		t.Fatalf("bare DefinitionInput = %T, want nil", input)
 	}
@@ -31,15 +31,15 @@ func TestDropReaderSeam(t *testing.T) {
 	stage := e.BeginCatalogStage(read)
 	defer e.DiscardCatalogStage(stage)
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
-	stage.dependencyPath = path
-	var staged view.DropReader = stageDropProvider(context.Background(), stage, nil, nil, nil)
+	stage.DependencyPath = path
+	var staged view.DropReader = StageDropProvider(context.Background(), stage, nil, nil, nil)
 	if input, ok := staged.DefinitionInput().(stageDefinitionReader); !ok || input.stage != stage {
 		t.Fatalf("staged DefinitionInput = %T, want the stage reader", staged.DefinitionInput())
 	}
 	if !slices.Equal(staged.Path(), path) {
 		t.Fatalf("Path = %v, want %v", staged.Path(), path)
 	}
-	if err := stage.Remove(e.catalog.Domain.Ref(read.Epoch(), relation.Address())); err != nil {
+	if err := stage.Remove(e.Catalog.Domain.Ref(read.Epoch(), relation.Address())); err != nil {
 		t.Fatal(err)
 	}
 	if !staged.Removed(relation.Address()) || staged.RetirementDescriptor(relation.Address()) != relation {
@@ -47,7 +47,7 @@ func TestDropReaderSeam(t *testing.T) {
 	}
 
 	prepared := &table.DropPreparation{Base: read, Discovery: read}
-	var preparedReader view.DropReader = &dropProvider{base: read, prepared: prepared}
+	var preparedReader view.DropReader = &DropProvider{Base: read, Prepared: prepared}
 	if input, ok := preparedReader.DefinitionInput().(*table.DropPreparation); !ok || input != prepared {
 		t.Fatalf("prepared DefinitionInput = %T, want the preparation", preparedReader.DefinitionInput())
 	}

@@ -21,7 +21,7 @@ func TestRowLockRelationAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			op.Done()
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			rowHolds := 0
 			relationHolds := 0
 			for resource, entry := range lockState.Resources {

@@ -10,10 +10,10 @@ func (e *Engine) executeComment(scope *StatementScope, s *parser.Comment, count 
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	op := scope.op
-	e.mu.Lock()
+	op := scope.Op
+	e.Mu.Lock()
 	stage, err := e.stageCommentLocked(scope, s)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
@@ -22,16 +22,16 @@ func (e *Engine) executeComment(scope *StatementScope, s *parser.Comment, count 
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	return Result{}, err
 }
 
 func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*CatalogStage, error) {
-	op := scope.op
-	if err := scope.validateLockedRelation(e); err != nil {
+	op := scope.Op
+	if err := scope.ValidateLockedRelation(e); err != nil {
 		return nil, err
 	}
-	auth, err := e.statementAuthorizationLocked(op, s)
+	auth, err := e.StatementAuthorizationLocked(op, s)
 	if err != nil {
 		return nil, err
 	}
@@ -49,17 +49,17 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		}
 		op.Session.Mu.Lock()
 		defer op.Session.Mu.Unlock()
-		if err := publicationOperationLocked(e, op); err != nil {
+		if err := PublicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}
 		return nil, e.installOperationRolesLocked(op, roles)
 	}
-	updated, err := role.PlanObjectComment(auth.View, auth, e.catalog.Domain, s, scope.lockedRef, text, e.catalog.RevisionLocked)
+	updated, err := role.PlanObjectComment(auth.View, auth, e.Catalog.Domain, s, scope.LockedRef, text, e.Catalog.RevisionLocked)
 	if err != nil {
 		return nil, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	if err := stage.Replace(updated); err != nil {
 		return nil, err
 	}

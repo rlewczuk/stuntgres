@@ -129,8 +129,8 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	}
 	int4 := e.CatalogRead().Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	want := []catalog.ExpressionDependency{
-		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision()},
-		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision()},
+		{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision()},
+		{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision()},
 	}
 	if !reflect.DeepEqual(c.Operands, want) || !slices.Contains(c.Qualified, ns) {
 		t.Fatal("mixed owner lost exact operand stamps or qualified authority", c)
@@ -152,9 +152,9 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -163,10 +163,10 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 			cells[i].Offset = 7
 		}
 		expected := StatementDescription{regtypes: &regobj.Analysis{Constants: cells}}
-		b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &expected)
+		b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &expected)
 		b.Query.Auth = &auth
 		pos := parser.Position{Offset: 7, Character: 8}
-		fresh := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
+		fresh := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 		fresh.Query.Auth = &auth
 		freshValue, err := fresh.RoutineConstant(`("abs(integer)","public.#=#(routine_types.secret,integer)",integer)`, c.Value.Type().Usage(), pos)
 		if err != nil || !sqltype.SameDatum(freshValue, c.Value) || len(fresh.Prepared.RegtypeConstants) != 1 {

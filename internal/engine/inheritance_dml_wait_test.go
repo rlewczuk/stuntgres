@@ -16,13 +16,13 @@ func inheritanceDMLPublishedGraph(t *testing.T) (*Engine, *catalog.Relation, *ca
 	t.Helper()
 	e := New()
 	ps, p := queryCreateStage(t, e, "p", 1)
-	if err := e.stageQueryTableRows(context.Background(), ps, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), ps, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, ps)
 	cs, c := queryCreateStage(t, e, "c", 1)
 	c.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(p.Address()), Columns: map[int32]catalog.InheritedColumn{c.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: p.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}
-	if err := e.stageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), cs, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, cs)
@@ -48,11 +48,11 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		t.Fatal(err)
 	}
 	defer holder.Finish(nil)
-	if err = holder.gate(&parser.Select{}); err != nil {
+	if err = holder.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	old := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
-	if err = e.locks.Acquire(op.Context(), holder.ticket, lock.Resource{ObjectRef: old}, lock.AccessExclusive); err != nil {
+	old := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
+	if err = e.Locks.Acquire(op.Context(), holder.LockTicket, lock.Resource{ObjectRef: old}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -74,9 +74,9 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		}
 	}()
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: old}]
-	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == s.ticket && entry.Pending[0].Mode == lock.RowExclusive
+	correct := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == s.LockTicket && entry.Pending[0].Mode == lock.RowExclusive
 	if !correct {
 		t.Fatal("descendant did not queue an actual physical RX request")
 	}
@@ -91,7 +91,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 		stage, next := queryCreateStage(t, e, "c", 1)
 		next.Inheritance = catalog.CloneInheritance(c.Inheritance)
 		queryCreatePublish(t, e, stage)
-		if next.Address() == old.Address || e.storage.Relations[next.Address()] == e.storage.Relations[old.Address] {
+		if next.Address() == old.Address || e.Storage.Relations[next.Address()] == e.Storage.Relations[old.Address] {
 			t.Fatal("replacement did not mint a fresh physical identity")
 		}
 		if err = holder.Finish(nil); err != nil {

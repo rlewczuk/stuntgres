@@ -10,31 +10,31 @@ import (
 )
 
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime functions.AdvisoryLifetime, try bool) (bool, error) {
-	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, NoWait: try, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext, Provenance: s.txRef}
-	ticket := s.op.Session.Advisory.Ticket
+	e := s.Engine()
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, NoWait: try, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext, Provenance: s.TxRef}
+	ticket := s.Op.Session.Advisory.Ticket
 	if lifetime == functions.AdvisoryTransaction {
-		ticket = s.ticket
+		ticket = s.LockTicket
 	}
-	request, err := e.locks.StartAcquire(ctx, ticket, ref, mode, policy)
+	request, err := e.Locks.StartAcquire(ctx, ticket, ref, mode, policy)
 	if errors.Is(err, lock.ErrUnavailable) {
 		return false, nil
 	}
 	if request != nil {
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 		if err == nil {
 			// Retain the original provenance, never retry a replacement name.
-			e.replacementMu.RLock()
-			s.replacementRead = true
-			e.mu.Lock()
-			if s.txRef.Epoch() != e.catalog.State.Epoch() {
+			e.ReplacementMu.RLock()
+			s.ReplacementRead = true
+			e.Mu.Lock()
+			if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
 	}
 	return err == nil, err

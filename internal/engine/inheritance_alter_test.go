@@ -78,7 +78,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					view := inheritanceUnitView(e, p, q, c)
 					stage := e.BeginCatalogStage(view)
 					stage.UpdateDescriptor(&next)
-					state := &inheritanceAlterState{stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Root: p, Targets: []*catalog.Relation{p, c}, Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, Only: only, Actions: []parser.AlterTableAction{action}, Events: make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)}}
+					state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Root: p, Targets: []*catalog.Relation{p, c}, Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, Only: only, Actions: []parser.AlterTableAction{action}, Events: make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)}}
 					state.InheritanceAlterPlan.RecordAction(p, &next, action)
 					actions, graph, err := e.inheritedAlterActions(state, c)
 					if err != nil {
@@ -122,7 +122,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 func TestInheritanceAlterAtomicity(t *testing.T) {
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	before := e.CatalogRead()
-	parentStore, childStore := e.storage.Relations[p.Address()], e.storage.Relations[c.Address()]
+	parentStore, childStore := e.Storage.Relations[p.Address()], e.Storage.Relations[c.Address()]
 	parentRows := append([]storage.RowVersion(nil), parentStore.Versions...)
 	childRows := append([]storage.RowVersion(nil), childStore.Versions...)
 	stage := e.BeginCatalogStage(before)
@@ -131,9 +131,9 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 		next := *old
 		next.ObjectRevision++
 		next.Comment = "candidate"
-		store := e.storage.Relations[old.Address()]
-		ref := e.catalog.Domain.Ref(before.Epoch(), old.Address())
-		if err := stage.alterRelation(context.Background(), ref, &next, store, store, len(store.Versions), store.Generation, store.Ends); err != nil {
+		store := e.Storage.Relations[old.Address()]
+		ref := e.Catalog.Domain.Ref(before.Epoch(), old.Address())
+		if err := stage.AlterRelation(context.Background(), ref, &next, store, store, len(store.Versions), store.Generation, store.Ends); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -143,7 +143,7 @@ func TestInheritanceAlterAtomicity(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err == nil {
 		t.Fatal("stale later child observation validated")
 	}
-	if e.CatalogRead().State() != before.State() || e.storage.Relations[p.Address()] != parentStore || e.storage.Relations[c.Address()] != childStore {
+	if e.CatalogRead().State() != before.State() || e.Storage.Relations[p.Address()] != parentStore || e.Storage.Relations[c.Address()] != childStore {
 		t.Fatal("late child veto partially published catalog/store identities")
 	}
 	if !reflect.DeepEqual(parentRows, parentStore.Versions) || !reflect.DeepEqual(childRows, childStore.Versions) {
@@ -208,7 +208,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	}
 	foreign := New()
 	definition := c.ColumnMeta.Generations[2]
-	definition.Dependencies = []ids.ObjectRef{foreign.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
+	definition.Dependencies = []ids.ObjectRef{foreign.Catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)})}
 	invalid := *c
 	invalid.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: definition}
 	if err := table.ValidateGenerationProviders(view, &invalid); err == nil {
@@ -252,7 +252,7 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 		{Action: parser.SetExpression, Column: parser.Identifier{Text: "g"}},
 		{Action: parser.AddUnique},
 	} {
-		state := &inheritanceAlterState{stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
+		state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
 			Root: p, Targets: []*catalog.Relation{p, c}, Only: true,
 			Selected: map[ids.ObjectAddress]bool{p.Address(): true},
 			Actions:  []parser.AlterTableAction{drop, later},
@@ -294,7 +294,7 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 	nextParent.Constraints.Check = []catalog.CheckConstraint{{OID: 23002, Name: "ck"}}
 	stage.UpdateDescriptor(&nextParent)
 	drop := parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "ck"}}
-	state := &inheritanceAlterState{stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
+	state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
 		Root: p, Targets: []*catalog.Relation{p, c}, Descendant: true,
 		Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true},
 		Actions:  []parser.AlterTableAction{drop},
@@ -308,7 +308,7 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 	state.Graph = graph
 	nextChild := *c
 	nextChild.Constraints.Check = []catalog.CheckConstraint{{OID: 23003, Name: "ck"}}
-	candidate, err := table.FinishInheritanceAlterCandidate(&state.InheritanceAlterPlan, e.stageRead(stage), c, &nextChild)
+	candidate, err := table.FinishInheritanceAlterCandidate(&state.InheritanceAlterPlan, e.StageRead(stage), c, &nextChild)
 	if err != nil {
 		t.Fatal(err)
 	}

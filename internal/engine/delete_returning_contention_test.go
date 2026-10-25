@@ -38,8 +38,8 @@ func TestDeleteReturningCurrentPredecessor(t *testing.T) {
 			await := updateDeleteAsync(t, e, worker, context.Background(), query)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			resource := lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
-			lockState := e.locks.Inspect()
+			resource := lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[0].Row}
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[resource]
 			actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.Transactions.Ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
 			if !actual {
@@ -97,9 +97,9 @@ func TestDeleteReturningWaitCancellation(t *testing.T) {
 	await := updateDeleteAsync(t, e, worker, ctx, "DELETE FROM t RETURNING id")
 	lockPending(t, e, 1)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	lockState := e.locks.Inspect()
-	first := lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
-	second := lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[1].Row}
+	lockState := e.Locks.Inspect()
+	first := lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[0].Row}
+	second := lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[1].Row}
 	entry := lockState.Resources[second]
 	actual := entry != nil && len(entry.Pending) == 1 && lockState.Resources[first] != nil
 	if actual {

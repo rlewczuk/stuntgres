@@ -43,18 +43,18 @@ func TestPLpgSQLRaiseNoticeContext(t *testing.T) {
 			if err := stage.Create(d); err != nil { t.Fatal(err) }
 			routines = append(routines,d)
 		}
-		op.Definition = stageDefinitions(stage)
+		op.Definition = StageDefinitions(stage)
 		defer func() { op.Definition = nil }()
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err == nil {
-			auth.Recapture(e.stageRead(stage))
-			auth.definition = op.Definition
+			auth.Recapture(e.StageRead(stage))
+			auth.Definition = op.Definition
 			for _, d := range routines {
-				if err = e.compilePLRoutineLocked(op,auth,d); err != nil { break }
+				if err = e.CompilePLRoutineLocked(op,auth,d); err != nil { break }
 			}
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil { t.Fatal(err) }
 		collationUnitPublish(t,e,stage)
 	}()
@@ -64,7 +64,7 @@ func TestPLpgSQLRaiseNoticeContext(t *testing.T) {
 	s, err := e.StartStatement(op)
 	if err != nil { t.Fatal(err) }
 	t.Cleanup(func() { s.Finish(nil) })
-	if err := s.gate(&parser.Select{}); err != nil { t.Fatal(err) }
+	if err := s.Gate(&parser.Select{}); err != nil { t.Fatal(err) }
 	s.worked = true
 	input := proc.NewFrame(nil)
 	defer input.Close()

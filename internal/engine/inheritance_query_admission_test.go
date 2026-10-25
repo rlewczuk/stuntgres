@@ -22,7 +22,7 @@ import (
 func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	e := New()
 	parentStage, p := queryCreateStage(t, e, "p", 1)
-	if err := e.stageQueryTableRows(context.Background(), parentStage, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), parentStage, p, [][]sqltype.Value{{inheritanceQueryInt(e, 10)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, parentStage)
@@ -31,12 +31,12 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	childStage, c := queryCreateStage(t, e, "c", 1)
 	inherit(c)
-	if err := e.stageQueryTableRows(context.Background(), childStage, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), childStage, c, [][]sqltype.Value{{inheritanceQueryInt(e, 20)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, childStage)
-	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
-	oldStorage := e.storage.Relations[c.Address()]
+	oldRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
+	oldStorage := e.Storage.Relations[c.Address()]
 	holderOp, holderDone, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -47,10 +47,10 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer holder.Finish(nil)
-	if err = holder.gate(&parser.Select{}); err != nil {
+	if err = holder.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.locks.Acquire(holderOp.Context(), holder.ticket, lock.Resource{ObjectRef: oldRef}, lock.AccessExclusive); err != nil {
+	if err = e.Locks.Acquire(holderOp.Context(), holder.LockTicket, lock.Resource{ObjectRef: oldRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -64,13 +64,13 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.gate(&parser.Select{}); err != nil {
+	if err = scope.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	parentRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	parent := exec.Leaf{Ref: parentRef, Relation: p, Storage: e.storage.Relations[p.Address()]}
-	scope.querySources = []exec.Leaf{parent}
-	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
+	parentRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
+	parent := exec.Leaf{Ref: parentRef, Relation: p, Storage: e.Storage.Relations[p.Address()]}
+	scope.QuerySources = []exec.Leaf{parent}
+	if err = e.Locks.Acquire(op.Context(), scope.LockTicket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	joined := false
@@ -89,9 +89,9 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		scope.Finish(err)
 	}()
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: oldRef}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.ticket].Mode&lock.AccessExclusive != 0
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == scope.LockTicket && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.LockTicket].Mode&lock.AccessExclusive != 0
 	if !queued {
 		t.Fatal("SELECT did not wait on admitted original descendant identity")
 	}
@@ -102,11 +102,11 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	queryCreatePublish(t, e, remove)
 	replacementStage, replacement := queryCreateStage(t, e, "c", 1)
 	inherit(replacement)
-	if err = e.stageQueryTableRows(context.Background(), replacementStage, replacement, [][]sqltype.Value{{inheritanceQueryInt(e, 9)}}, ids.TxRef{}); err != nil {
+	if err = e.StageQueryTableRows(context.Background(), replacementStage, replacement, [][]sqltype.Value{{inheritanceQueryInt(e, 9)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, replacementStage)
-	if replacement.Address() == c.Address() || e.storage.Relations[replacement.Address()] == oldStorage || e.storage.Relations[c.Address()] != nil {
+	if replacement.Address() == c.Address() || e.Storage.Relations[replacement.Address()] == oldStorage || e.Storage.Relations[c.Address()] != nil {
 		t.Fatal("replacement did not change physical identity and storage")
 	}
 	if children := catalog.InheritanceChildren(e.CatalogRead(), p.Address()); len(children) != 1 || children[0] != replacement {
@@ -136,32 +136,32 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fresh.Finish(nil)
-	if err = fresh.gate(&parser.Select{}); err != nil {
+	if err = fresh.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	fresh.querySources = []exec.Leaf{parent}
-	if err = e.locks.Acquire(freshOp.Context(), fresh.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
+	fresh.QuerySources = []exec.Leaf{parent}
+	if err = e.Locks.Acquire(freshOp.Context(), fresh.LockTicket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	if err = fresh.acquireInheritanceSources(nil); err != nil {
 		t.Fatal(err)
 	}
-	collectAuth, err := operationAuthorization(freshOp)
+	collectAuth, err := OperationAuthorization(freshOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(fresh.inheritance.catalog)
-	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, fresh.querySources, nil, freshOp.Session.SessionToken, plan.RowMark{})
+	collectAuth.Recapture(fresh.Inheritance.catalog)
+	e.Mu.Lock()
+	refs, err := e.QueryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, fresh.QuerySources, nil, freshOp.Session.SessionToken, plan.RowMark{})
 	var view *visibility.View
 	if err == nil {
-		view, err = fresh.acquireDataViewsLocked(e, refs)
+		view, err = fresh.AcquireDataViewsLocked(e, refs)
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = table.CaptureInheritanceQueryPrefix(fresh.inheritance.catalog, view, parent, freshOp.Session.SessionToken)
+		source, err = table.CaptureInheritanceQueryPrefix(fresh.Inheritance.catalog, view, parent, freshOp.Session.SessionToken)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,18 +25,18 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		}
 		t.Cleanup(done)
 		if mode != "raw" {
-			operationReplay(op).tableDestination = true
+			OperationReplay(op).TableDestination = true
 		}
 		if mode == "isolated" {
-			e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
+			e.ImportTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
 		}
-		before := e.catalog.State
+		before := e.Catalog.State
 		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}, {Name: "cid"}, {Name: "xid8"}} {
-			e.mu.Lock()
+			e.Mu.Lock()
 			usage, err := e.resolveTableColumnType(raw, op)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if mode == "forged" {
-				if err == nil || usage.Type != nil || e.catalog.State != before {
+				if err == nil || usage.Type != nil || e.Catalog.State != before {
 					t.Fatal("forged marker admitted a type or changed catalog state", raw, usage, err)
 				}
 				continue
@@ -66,7 +66,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 			}
 		}
 		// The private caller never changes ordinary cast or domain-base admission.
-		e.mu.Lock()
+		e.Mu.Lock()
 		_, castErr := e.resolveAnnotationType(parser.TypeName{Name: "char", Quoted: true}, op, false)
 		_, domainErr := e.resolveAnnotationTypeMode(parser.TypeName{Name: "char", Quoted: true}, op, false, true)
 		arrayUsage, arrayErr := e.resolveTableColumnType(parser.TypeName{Name: "char", Quoted: true, ArrayBounds: []int32{0}}, op)
@@ -74,14 +74,14 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		_, xidDomainErr := e.resolveAnnotationTypeMode(parser.TypeName{Name: "xid"}, op, false, true)
 		_, xidArrayErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
 		_, xidModifierErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", Modifiers: []parser.TypeModifier{{Integer: new(int32)}}}, op)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if mode == "forged" {
 			for _, err := range []error{castErr, domainErr, arrayErr, xidCastErr, xidDomainErr, xidArrayErr, xidModifierErr} {
 				if err == nil {
 					t.Fatal("forged marker admitted ordinary type resolution")
 				}
 			}
-			if e.catalog.State != before {
+			if e.Catalog.State != before {
 				t.Fatal("forged marker changed catalog state")
 			}
 			continue
@@ -120,7 +120,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 		t.Fatal(err)
 	}
 	target := New()
-	target.catalog.InstallOIDFrontierLocked(anchor.Address().ObjectID + 100)
+	target.Catalog.InstallOIDFrontierLocked(anchor.Address().ObjectID + 100)
 	targetAnchorStage, targetAnchor := queryCreateStage(t, target, "anchor", 0)
 	queryCreatePublish(t, target, targetAnchorStage)
 	targetArray, ok := target.CatalogRead().LookupArray(testUsage(target, sqltype.Regclass).Type)
@@ -129,7 +129,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	}
 	sourceStage, sourceCopy := queryCreateStage(t, source, "copy", 1)
 	sourceCopy.Columns[0].Usage = array.Usage()
-	if err = source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
+	if err = source.StageQueryTableRows(context.Background(), sourceStage, sourceCopy, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, source, sourceStage)
@@ -141,7 +141,7 @@ func TestQueryTableCreateRegclassArrayReownership(t *testing.T) {
 	imported.Columns = append([]catalog.Column(nil), d.Columns...)
 	imported.Columns[0].Usage = array.Usage()
 	candidate.SetDescriptor(d.Address(), &imported)
-	stores := map[ids.ObjectAddress]*storage.Relation{d.Address(): source.storage.Relations[sourceCopy.Address()]}
+	stores := map[ids.ObjectAddress]*storage.Relation{d.Address(): source.Storage.Relations[sourceCopy.Address()]}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{anchor.Address(): targetAnchor.Address()}
 	if err = stored.ReownScalarTypes(candidate, stores, mapping); err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	rows = append(rows, []sqltype.Value{sqltype.Null(sourceType)})
 	sourceStage, sourceCopy := queryCreateStage(t, source, "xid_copy", 1)
 	sourceCopy.Columns[0].Usage = sourceType.Usage()
-	if err := source.stageQueryTableRows(context.Background(), sourceStage, sourceCopy, rows, ids.TxRef{}); err != nil {
+	if err := source.StageQueryTableRows(context.Background(), sourceStage, sourceCopy, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, source, sourceStage)
@@ -202,7 +202,7 @@ func identifierScalarReownership(t *testing.T, id sqltype.ID) {
 	imported.Columns = append([]catalog.Column(nil), d.Columns...)
 	imported.Columns[0].Usage = sourceType.Usage()
 	candidate.SetDescriptor(d.Address(), &imported)
-	stores := map[ids.ObjectAddress]*storage.Relation{d.Address(): source.storage.Relations[sourceCopy.Address()]}
+	stores := map[ids.ObjectAddress]*storage.Relation{d.Address(): source.Storage.Relations[sourceCopy.Address()]}
 	if err := stored.ReownScalarTypes(candidate, stores, nil); err != nil {
 		t.Fatal(err)
 	}

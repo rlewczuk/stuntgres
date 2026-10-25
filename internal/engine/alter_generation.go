@@ -9,7 +9,7 @@ import (
 
 // generationCandidate binds the replacement under Engine.mu.
 func (e *Engine) generationCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return table.GenerationCandidate(alterHost{ddlHost{e: e, op: op}, scope}, auth, old, action)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return table.GenerationCandidate(alterHost{DDLHost{E: e, Op: op}, scope}, auth, old, action)
 }

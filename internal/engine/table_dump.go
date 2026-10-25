@@ -9,13 +9,13 @@ import (
 // Replay uses the ordinary binder/publication path, then admits the same
 // validated captured-reference and selected regclass definitions Dump defers.
 func (e *Engine) validateRestoredDefault(op *session.Operation, s *parser.AlterTableDefault) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return err
 	}
-	ref, err := e.resolveReference(auth, s.Name)
+	ref, err := e.ResolveReference(auth, s.Name)
 	if err != nil {
 		return err
 	}

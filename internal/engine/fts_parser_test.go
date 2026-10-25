@@ -46,7 +46,7 @@ func TestFTSParserCatalog(t *testing.T) {
 	if source.Name()!="pg_ts_parser" || len(source.Columns)!=8 || !source.History.HasIndexes { t.Fatal("parser relation",source) }
 	producer,ok:=pgcatalog.ProducerFor(3601)
 	if !ok { t.Fatal("missing parser producer") }
-	input:=pgcatalog.Input{Context:context.Background(),Catalog:view,Source:source,Owner:view.Owner(),Runtime:engineCatalogRuntime{}}
+	input:=pgcatalog.Input{Context:context.Background(),Catalog:view,Source:source,Owner:view.Owner(),Runtime:EngineCatalogRuntime{}}
 	rows,err:=producer(input)
 	if err!=nil || len(rows)!=1 || len(rows[0])!=8 { t.Fatal("parser row",rows,err) }
 	idsExpected:=[]uint32{3722,0,11,3717,3718,3719,3720,3721}

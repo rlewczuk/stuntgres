@@ -13,8 +13,8 @@ func (s *StatementScope) partitions() *partition.Scope {
 	return s.partitionsSlot
 }
 
-// partitionsOrZero reads the partitions slot; a nil slot reads as zero.
-func (s *StatementScope) partitionsOrZero() partition.Scope {
+// PartitionsOrZero reads the partitions slot; a nil slot reads as zero.
+func (s *StatementScope) PartitionsOrZero() partition.Scope {
 	if s.partitionsSlot == nil {
 		return partition.Scope{}
 	}

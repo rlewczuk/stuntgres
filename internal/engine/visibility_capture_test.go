@@ -59,10 +59,10 @@ func TestVisibilityInquiryCaptureDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := scope.inquiry.visibilityCatalog.State() != nil; got != tc.captured {
+			if got := scope.Inquiry.visibilityCatalog.State() != nil; got != tc.captured {
 				t.Fatalf("visibility capture=%v, want %v", got, tc.captured)
 			}
-			if !tc.captured && (scope.inquiry.visibilityRelationPath != nil || scope.inquiry.visibilityOtherPath != nil) {
+			if !tc.captured && (scope.Inquiry.visibilityRelationPath != nil || scope.Inquiry.visibilityOtherPath != nil) {
 				t.Fatal("unrelated statement retained visibility paths")
 			}
 		})

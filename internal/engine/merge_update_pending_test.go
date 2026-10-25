@@ -22,7 +22,7 @@ func mergeUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.R
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
 		found := false
 		if entry != nil && entry.Holders[blocker].Mode != 0 {
@@ -54,7 +54,7 @@ func mergeUpdatePendingExecute(t *testing.T, s *session.Session, q string) <-cha
 		op, err := s.Acquire(ctx)
 		var result Result
 		if err == nil {
-			result, err = engineOf(s).Execute(op, ast, 0, nil)
+			result, err = EngineOf(s).Execute(op, ast, 0, nil)
 			op.Done()
 		}
 		done <- deleteOutcome{result, err}
@@ -105,7 +105,7 @@ func TestMergeUpdateReadCommittedPending(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE source(id INT,x INT)")
 				sessionSQL(t, peer, "INSERT INTO source VALUES(1,7)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				row := e.storage.Relations[ref.Address].Versions[0].Row
+				row := e.Storage.Relations[ref.Address].Versions[0].Row
 				tx := transactionBegin(t, holder)
 				hold := "UPDATE t SET v=20 WHERE id=1"
 				if lane == "keyChange" || lane == "keyChangeNoInsert" {
@@ -203,7 +203,7 @@ func mergeUpdateRepeatableReadPending(t *testing.T, targetOnly bool) {
 				sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				original := e.storage.Relations[ref.Address].Versions[0]
+				original := e.Storage.Relations[ref.Address].Versions[0]
 				sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 				transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 				worker.Transactions.Mu.Lock()
@@ -342,7 +342,7 @@ func mergeUpdateFollowChainPending(t *testing.T, targetOnly bool) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage.Relations[ref.Address].Versions[0].Row
+			row := e.Storage.Relations[ref.Address].Versions[0].Row
 			a := transactionBegin(t, holder)
 			r := sessionSQL(t, holder, "SELECT id FROM t FOR KEY SHARE")
 			r.Rows.Close()

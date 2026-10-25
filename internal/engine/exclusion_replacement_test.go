@@ -23,7 +23,7 @@ func TestExclusionReplacement(t *testing.T) {
 			before := source.CatalogRead()
 			original := before.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			constraint := original.Constraints.Exclusion[0]
-			sourceRoot := source.storage.IndexRoots[constraint.Index]
+			sourceRoot := source.Storage.IndexRoots[constraint.Index]
 			target := New()
 			b := sessionStart(t, target, nil)
 			if self {
@@ -32,18 +32,18 @@ func TestExclusionReplacement(t *testing.T) {
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE kept CACHE 10")
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
-			tempRef := description.sequences.Constants[0].Ref
-			temp, generator, memory := target.catalog.State.Get(tempRef.Address), target.storage.Sequences[tempRef.Address], payloadOf(b).sequences.Memory(tempRef.Address)
+			tempRef := description.Sequences.Constants[0].Ref
+			temp, generator, memory := target.Catalog.State.Get(tempRef.Address), target.Storage.Sequences[tempRef.Address], PayloadOf(b).Sequences.Memory(tempRef.Address)
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.State.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || payloadOf(b).sequences.Memory(tempRef.Address) != memory {
+			if target.Catalog.State.Get(tempRef.Address) != temp || target.Storage.Sequences[tempRef.Address] != generator || PayloadOf(b).Sequences.Memory(tempRef.Address) != memory {
 				t.Fatal("replacement changed retained TEMP identity")
 			}
-			parent := target.catalog.State.MustRelation(roleTableRef(t, target, "portable.t").Address)
+			parent := target.Catalog.State.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			idx, root := btreeRoot(t, target, "portable.ex")
 			current := parent.Constraints.Exclusion[0]
 			if current.Index != idx.Address() || !index.BackingConstraintPresent(parent, idx) || !current.Deferrable || !current.InitiallyDeferred || len(root.Entries) != 1 {
@@ -61,7 +61,7 @@ func TestExclusionReplacement(t *testing.T) {
 				t.Fatal("destination domain equality did not recognize its imported key")
 			}
 			sequenceScalar(t, b, "SELECT nextval('kept')", 2)
-			if target.exclusions.CountLocked() != 0 {
+			if target.Exclusions.CountLocked() != 0 {
 				t.Fatal("replacement retained transient exclusion state")
 			}
 			uniqueClaimsEmpty(t, target)

@@ -30,7 +30,7 @@ func TestRuleAuthorityAsUserAndRecovery(t *testing.T) {
 	if original.State.CurrentUser != caller {
 		t.Fatal("AsUser changed the caller's authority")
 	}
-	recovered := ruleAuthorizationOf(switched)
+	recovered := RuleAuthorizationOf(switched)
 	if recovered.State.CurrentUser != owner || recovered.pathPrefix != original.pathPrefix {
 		t.Fatal("ruleAuthorizationOf lost authorization view fields")
 	}
@@ -40,5 +40,5 @@ func TestRuleAuthorityAsUserAndRecovery(t *testing.T) {
 			t.Fatal("ruleAuthorizationOf accepted a foreign rule authority")
 		}
 	}()
-	ruleAuthorizationOf(foreignRuleAuthority{})
+	RuleAuthorizationOf(foreignRuleAuthority{})
 }

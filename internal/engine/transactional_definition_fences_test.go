@@ -39,9 +39,9 @@ func TestTransactionalDefinitionDependencyFences(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		err = e.catalogPreflightLocked(owner.Transactions.Catalog)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err = e.CatalogPreflightLocked(owner.Transactions.Catalog)
+		e.Mu.Unlock()
 		var conflict catalog.Conflict
 		if !errors.As(err, &conflict) {
 			t.Fatal("stale exact handler predecessor admitted", err)

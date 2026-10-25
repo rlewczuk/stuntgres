@@ -18,7 +18,7 @@ import (
 func TestSQLRoutineProviderCallShapes(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, tc := range []struct {
@@ -82,7 +82,7 @@ func TestSQLRoutineProviderCallShapes(t *testing.T) {
 					continue
 				}
 				found = true
-				candidate, ok := analyze.SQLCallableShape(auth.Catalog, auth.definition, d, raw)
+				candidate, ok := analyze.SQLCallableShape(auth.Catalog, auth.Definition, d, raw)
 				if !ok {
 					t.Fatal("metadata expansion rejected existing callable shape")
 				}
@@ -155,7 +155,7 @@ func TestSQLRoutineCallableShapeMasking(t *testing.T) {
 func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	raw := statement(t, "SELECT 1+2").(*parser.Select).Targets[0]
 	node := &plan.LiteralExpr{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}}
@@ -190,7 +190,7 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	raw := parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lag"}}},
@@ -201,7 +201,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	for d := range auth.definitionProceduresNamed(namespace, "lag") {
 		if d.Signature == "5077,23,5077" {
 			var ok bool
-			template, ok = analyze.SQLCallableShape(auth.Catalog, auth.definition, d, raw)
+			template, ok = analyze.SQLCallableShape(auth.Catalog, auth.Definition, d, raw)
 			if !ok {
 				t.Fatal("missing declared window call shape")
 			}
@@ -250,7 +250,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 func TestSQLRoutineNamedProviderShapes(t *testing.T) {
 	e := New()
 	auth := catalogAuthorization(e, e.CatalogRead())
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, tc := range []struct {
@@ -281,7 +281,7 @@ func TestSQLRoutineNamedProviderShapes(t *testing.T) {
 					continue
 				}
 				found = true
-				candidate, valid := analyze.SQLCallableShape(auth.Catalog, auth.definition, d, raw)
+				candidate, valid := analyze.SQLCallableShape(auth.Catalog, auth.Definition, d, raw)
 				if !valid || !b.ProbeSQLCallable(raw, args, &candidate) {
 					t.Fatal("named provider rejected checked shape", candidate)
 				}
@@ -313,10 +313,10 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 			e := New()
 			for i, target := range []sqltype.ID{sqltype.Int4, sqltype.Float8, sqltype.Text, sqltype.Bool, sqltype.JSON, sqltype.Interval} {
 				cast := &catalog.Cast{OID: ids.OID(90000 + i), ObjectRevision: 1, Source: sqltype.Xid, Target: target, Context: mode, Method: "i"}
-				e.catalog.State.SetDescriptor(cast.Address(), cast)
+				e.Catalog.State.SetDescriptor(cast.Address(), cast)
 			}
 			auth := catalogAuthorization(e, e.CatalogRead())
-			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 			b.Query.Auth = &auth
 			namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 			for _, tc := range []struct {
@@ -341,7 +341,7 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 						continue
 					}
 					found = true
-					candidate, ok := analyze.SQLCallableShape(auth.Catalog, auth.definition, d, raw)
+					candidate, ok := analyze.SQLCallableShape(auth.Catalog, auth.Definition, d, raw)
 					if !ok {
 						t.Fatal("missing checked named shape", tc.name)
 					}
@@ -367,5 +367,5 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 // definitionProceduresNamed lists the procedures named name in namespace as
 // a's definition reader sees them.
 func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
-	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.definition, namespace, name)
+	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.Definition, namespace, name)
 }

@@ -23,18 +23,18 @@ var _ dml.Host = (*statementHost)(nil)
 
 // Command is the active slot: activateMutation and the rule and SQL routine
 // save/restore copy whole mutations into it.
-func (h *statementHost) Command() *dml.Command { return &h.statementMutation.Command }
+func (h *statementHost) Command() *dml.Command { return &h.StatementMutation.Command }
 
 func (h *statementHost) Target() (ids.ObjectRef, *storage.Relation) {
-	return h.lockedRef, h.lockedStorage
+	return h.LockedRef, h.LockedStorage
 }
 
 func (h *statementHost) PrivateRows(a ids.ObjectAddress) dml.PrivateRows {
-	return dml.PrivateRows{Own: h.ownWrites[a], OwnDeletes: h.ownDeletes[a], Staged: h.stage.rows[a], StagedDeletes: h.stage.deletes[a]}
+	return dml.PrivateRows{Own: h.OwnWrites[a], OwnDeletes: h.OwnDeletes[a], Staged: h.Stage.Rows[a], StagedDeletes: h.Stage.Deletes[a]}
 }
 
 func (h *statementHost) Snapshot() (bool, ids.CommitSeq) {
-	return h.owner.Isolation.Stable(), h.owner.Frontier
+	return h.Owner.Isolation.Stable(), h.Owner.Frontier
 }
 
 func (h *statementHost) UniqueJournal() lock.UniqueJournal { return h.scope().uniqueJournal() }
@@ -54,10 +54,10 @@ func (h *statementHost) IndexScope(allocate bool) *index.Scope {
 	return h.indexesSlot
 }
 
-func (h *statementHost) Ticket() *lock.Ticket { return h.ticket }
+func (h *statementHost) Ticket() *lock.Ticket { return h.LockTicket }
 
 func (h *statementHost) CatalogRead(state *catalog.State) catalog.Read {
-	return h.scope().engine().catalog.Read(state)
+	return h.scope().Engine().Catalog.Read(state)
 }
 
 func (h *statementHost) PositionedRow(b analyze.Binding) (dml.MutationRowIdentity, error) {
@@ -67,18 +67,18 @@ func (h *statementHost) PositionedRow(b analyze.Binding) (dml.MutationRowIdentit
 // CheckWriteBinding is the ON CONFLICT binding check of b over v with the
 // operation's environment. It never locks.
 func (h *statementHost) CheckWriteBinding(v access.View, b analyze.Binding) error {
-	return analyze.CheckBinding(h.scope().engine().operationAuthority(h.op, v), b, &parser.Insert{})
+	return analyze.CheckBinding(h.scope().Engine().operationAuthority(h.Op, v), b, &parser.Insert{})
 }
 
 // DisclosureEnv is the access environment of the statement's operation over
 // v, for key disclosure decisions. It never locks.
 func (h *statementHost) DisclosureEnv(v access.View) access.Environment {
-	return h.scope().engine().operationAuthority(h.op, v)
+	return h.scope().Engine().operationAuthority(h.Op, v)
 }
 
-func (h *statementHost) CommandError(err error) error     { return h.op.CommandError(err) }
+func (h *statementHost) CommandError(err error) error     { return h.Op.CommandError(err) }
 func (h *statementHost) CopyCommandError(err error) error { return h.scope().copyCommandError(err) }
-func (h *statementHost) Operation() *session.Operation    { return h.op }
+func (h *statementHost) Operation() *session.Operation    { return h.Op }
 
 func (h *statementHost) AcquireRow(c visibility.DeleteCandidate) error {
 	return h.scope().acquireRow(c)
@@ -89,7 +89,7 @@ func (h *statementHost) AcquireUpdateRow(ref ids.ObjectRef, row ids.RowID, mode 
 }
 
 func (h *statementHost) AcquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error {
-	return h.scope().acquirePartitionLock(ref, mode)
+	return h.scope().AcquirePartitionLock(ref, mode)
 }
 
 func (h *statementHost) PhysicalRowEvent(ref ids.ObjectRef, row storage.RowVersion, mode lock.MultiMode, successor ids.VersionID) error {
@@ -101,18 +101,18 @@ func (h *statementHost) PhysicalRowEvent(ref ids.ObjectRef, row storage.RowVersi
 func (h *statementHost) RowDetail(b *analyze.Binding, row []sqltype.Value, p dml.DetailPurpose) (string, error) {
 	s := h.scope()
 	if p == dml.DetailViewCheck {
-		return s.engine().rowDiagnosticDetail(s, b, row, true)
+		return s.Engine().rowDiagnosticDetail(s, b, row, true)
 	}
-	return s.engine().rowConstraintDetail(s, b, row)
+	return s.Engine().rowConstraintDetail(s, b, row)
 }
 
 // SchemaName takes Engine.mu for one private catalog read.
 func (h *statementHost) SchemaName(ns ids.ObjectAddress) (string, bool) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if d := e.privateCatalogLocked(s.owner.Catalog).Get(ns); d != nil {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if d := e.PrivateCatalogLocked(s.Owner.Catalog).Get(ns); d != nil {
 		return d.Name(), true
 	}
 	return "", false
@@ -120,10 +120,10 @@ func (h *statementHost) SchemaName(ns ids.ObjectAddress) (string, bool) {
 
 func (h *statementHost) CaptureRegclassOutput(rows *exec.FinalRows) error {
 	s := h.scope()
-	return s.engine().captureRegclassOutput(s.op, rows)
+	return s.Engine().captureRegclassOutput(s.Op, rows)
 }
 
 // uniqueJournal is the statement ticket's unique-key journal.
 func (s *StatementScope) uniqueJournal() lock.UniqueJournal {
-	return s.engine().locks.UniqueJournal(s.ticket)
+	return s.Engine().Locks.UniqueJournal(s.LockTicket)
 }

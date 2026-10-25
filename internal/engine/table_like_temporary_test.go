@@ -39,7 +39,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			seed := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "seed")
 			old := source.ColumnMeta.Defaults[2]
 			manifest := slices.Clone(old.Dependencies)
-			generator := *e.storage.Sequences[seed.Address()]
+			generator := *e.Storage.Sequences[seed.Address()]
 			var call functions.SequenceCall
 			calls := 0
 			plan.WalkExpression(old.Expression, func(node expr.Expr) {
@@ -48,7 +48,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 					calls++
 				}
 			})
-			if calls != 1 || call.Temporary != owner.SessionToken || call.Ref.Address != seed.Address() || call.Ref.Domain() != e.catalog.Domain {
+			if calls != 1 || call.Temporary != owner.SessionToken || call.Ref.Address != seed.Address() || call.Ref.Domain() != e.Catalog.Domain {
 				t.Fatal("fixture lacks exact temporary sequence authority", call, calls)
 			}
 			op, err := owner.Acquire(context.Background())
@@ -65,31 +65,31 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			if !reflect.DeepEqual(copied.Expression, old.Expression) || copied.OID == 0 || copied.OID == old.OID || !slices.Equal(copied.Dependencies, manifest) || len(destination.ColumnMeta.Identities) != 0 {
 				t.Fatal("cooked default identity/provider drift", copied)
 			}
-			if _, err := (stored.ScalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies}).SQL(context.Background(), e.stageRead(stage), copied.Expression); err != nil {
+			if _, err := (stored.ScalarRenderer{Provenance: destination, CapturedManifest: copied.Dependencies}).SQL(context.Background(), e.StageRead(stage), copied.Expression); err != nil {
 				t.Fatal(err)
 			}
 			foreign := *destination
 			foreign.ObjectNamespace = peer.TemporaryNamespace
 			foreign.ColumnMeta.Defaults = nil
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err == nil {
-				err = table.StageLikeColumns(ddlHost{e: e, op: op, stage: stage}, auth, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
+				err = table.StageLikeColumns(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			sequenceOwnerDiagnostic(t, err, "0A000", "temporary sequence DEFAULT is unsupported", "")
 			if len(foreign.ColumnMeta.Defaults) != 0 {
 				t.Fatal("foreign physical token imported default")
 			}
-			before := e.catalog.State
-			stores, generators := len(e.storage.Relations), len(e.storage.Sequences)
+			before := e.Catalog.State
+			stores, generators := len(e.Storage.Relations), len(e.Storage.Sequences)
 			bad, _, err := tableLikeBuild(t, e, op, "CREATE TABLE public.rejected(LIKE pg_temp.src INCLUDING ALL)")
 			defer e.DiscardCatalogStage(bad)
 			sequenceOwnerDiagnostic(t, err, "0A000", "temporary sequence DEFAULT is unsupported", "")
-			if len(bad.sequence.StagedGenerators()) == 0 {
+			if len(bad.Sequence.StagedGenerators()) == 0 {
 				t.Fatal("fixture did not stage fresh identity before rejection")
 			}
-			if e.catalog.State != before || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators || *e.storage.Sequences[seed.Address()] != generator || !reflect.DeepEqual(source.ColumnMeta.Defaults[2].Expression, old.Expression) || !slices.Equal(source.ColumnMeta.Defaults[2].Dependencies, manifest) {
+			if e.Catalog.State != before || len(e.Storage.Relations) != stores || len(e.Storage.Sequences) != generators || *e.Storage.Sequences[seed.Address()] != generator || !reflect.DeepEqual(source.ColumnMeta.Defaults[2].Expression, old.Expression) || !slices.Equal(source.ColumnMeta.Defaults[2].Dependencies, manifest) {
 				t.Fatal("rejected/default cooking evaluated or published source state")
 			}
 			for _, name := range []string{"rejected", "rejected_id_seq"} {
@@ -120,8 +120,8 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				sessionSQL(t, owner, "INSERT INTO "+sourceName+" DEFAULT VALUES")
 				source := tableLikeTemporaryRelation(t, e, sourceNamespace, "src")
 				sourceIdentity := source.ColumnMeta.Identities[1]
-				sourceSequence := e.catalog.State.MustRelation(sourceIdentity.Sequence)
-				generator := *e.storage.Sequences[sourceIdentity.Sequence]
+				sourceSequence := e.Catalog.State.MustRelation(sourceIdentity.Sequence)
+				generator := *e.Storage.Sequences[sourceIdentity.Sequence]
 				op, err := owner.Acquire(context.Background())
 				if err != nil {
 					t.Fatal(err)
@@ -142,17 +142,17 @@ func TestTableLikeTemporaryIdentityStage(t *testing.T) {
 				}
 				identity := destination.ColumnMeta.Identities[1]
 				sequence := stage.Get(identity.Sequence).(*catalog.Relation)
-				fresh := stage.sequence.Generator(identity.Sequence)
+				fresh := stage.Sequence.Generator(identity.Sequence)
 				want := *sourceSequence.Sequence
 				want.Persistence = persistence
 				want.Owned = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 1}
 				if destination.Namespace() != namespace || sequence.Namespace() != namespace || sequence.Owner != destination.Owner || identity.Sequence == sourceIdentity.Sequence || sequence.Revision() == sourceSequence.Revision() || !reflect.DeepEqual(*sequence.Sequence, want) || fresh == nil || fresh.Called || fresh.Last != 7 || identity.Mode != sourceIdentity.Mode || len(destination.ColumnMeta.Defaults) != 0 {
 					t.Fatal("fresh identity destination ownership/persistence/config/state", destination, sequence, fresh)
 				}
-				if ns := e.catalog.State.MustNamespace(namespace); destinationTemporary && ns.Temporary != owner.SessionToken {
+				if ns := e.Catalog.State.MustNamespace(namespace); destinationTemporary && ns.Temporary != owner.SessionToken {
 					t.Fatal("destination temporary token drift")
 				}
-				if *e.storage.Sequences[sourceIdentity.Sequence] != generator {
+				if *e.Storage.Sequences[sourceIdentity.Sequence] != generator {
 					t.Fatal("identity CREATE advanced source")
 				}
 			})
@@ -169,7 +169,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	old := source.ColumnMeta.Defaults[1]
 	manifest := slices.Clone(old.Dependencies)
 	seed := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "seed")
-	generator := *e.storage.Sequences[seed.Address()]
+	generator := *e.Storage.Sequences[seed.Address()]
 	var call functions.SequenceCall
 	plan.WalkExpression(old.Expression, func(node expr.Expr) {
 		if n, ok := node.(functions.SequenceCall); ok {
@@ -194,7 +194,7 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 			_ = scope.Finish(context.Canceled)
 		}
 	}()
-	if err := scope.gate(statement(t, "CREATE TEMP TABLE retained_copy(LIKE pg_temp.src INCLUDING DEFAULTS)")); err != nil {
+	if err := scope.Gate(statement(t, "CREATE TEMP TABLE retained_copy(LIKE pg_temp.src INCLUDING DEFAULTS)")); err != nil {
 		t.Fatal(err)
 	}
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TEMP TABLE retained_copy(LIKE pg_temp.src INCLUDING DEFAULTS)")
@@ -205,17 +205,17 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	copied := destination.ColumnMeta.Defaults[1]
-	if !reflect.DeepEqual(copied.Expression, old.Expression) || copied.OID == old.OID || !slices.Equal(copied.Dependencies, manifest) || *e.storage.Sequences[seed.Address()] != generator {
+	if !reflect.DeepEqual(copied.Expression, old.Expression) || copied.OID == old.OID || !slices.Equal(copied.Dependencies, manifest) || *e.Storage.Sequences[seed.Address()] != generator {
 		t.Fatal("retained cooked default lost original manifest/identity or advanced provider", copied)
 	}
-	view := e.stageRead(stage)
+	view := e.StageRead(stage)
 	if call.Ref.Epoch == view.Epoch() || !stored.SequenceEpochValid(view, destination, call.Ref, call.Temporary) {
 		t.Fatal("retained manifest lacks bounded old-epoch authority", call.Ref)
 	}
 	if err := e.ValidateObjectRef(view, call.Ref); err == nil {
 		t.Fatal("generic stale ObjectRef admitted")
 	}
-	for _, bad := range []ids.ObjectRef{New().catalog.Domain.Ref(call.Ref.Epoch, call.Ref.Address), e.catalog.Domain.Ref(view.Epoch()+1, call.Ref.Address)} {
+	for _, bad := range []ids.ObjectRef{New().Catalog.Domain.Ref(call.Ref.Epoch, call.Ref.Address), e.Catalog.Domain.Ref(view.Epoch()+1, call.Ref.Address)} {
 		if stored.SequenceEpochValid(view, destination, bad, call.Temporary) {
 			t.Fatal("foreign/future reference admitted", bad)
 		}
@@ -229,17 +229,17 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 	}
 	// The copied DEFAULT owner must retain its closed-row policy, not borrow a row owner.
 	integer, _ := view.LookupType(sqltype.Int8)
-	row := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 1}), Scope: 1, Frame: 1, Slot: 0}
+	row := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: e.Catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 1}), Scope: 1, Frame: 1, Slot: 0}
 	if _, err := (stored.ScalarRenderer{Provenance: destination}).SQL(context.Background(), view, row); err == nil {
 		t.Fatal("DEFAULT provenance widened row policy")
 	}
 	// Admission must prove the original SubID before whole-object lock dedup.
-	attribute := e.catalog.Domain.Ref(call.Ref.Epoch, source.Address())
+	attribute := e.Catalog.Domain.Ref(call.Ref.Epoch, source.Address())
 	attribute.Address.SubID = 1
 	removed := attribute
 	removed.Address.SubID = 2
 	foreign := call.Ref
-	foreign = New().catalog.Domain.Ref(foreign.Epoch, foreign.Address)
+	foreign = New().Catalog.Domain.Ref(foreign.Epoch, foreign.Address)
 	future := call.Ref
 	future.Epoch = stage.Base.Epoch() + 1
 	for _, tc := range []struct {
@@ -263,13 +263,13 @@ func TestTableLikeTemporaryRetainedCopy(t *testing.T) {
 		if err := candidate.Create(&consumer); err != nil {
 			t.Fatal(err)
 		}
-		err := scope.acquireDefinitionProviders(candidate)
+		err := scope.AcquireDefinitionProviders(candidate)
 		e.DiscardCatalogStage(candidate)
 		if (err == nil) != tc.want {
 			t.Fatal("retained admission contextual authority", tc.name, err)
 		}
 	}
-	if err := scope.acquireDefinitionProviders(stage); err != nil {
+	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		t.Fatal("retained copied DEFAULT provider admission", err)
 	}
 	if !slices.Equal(destination.ColumnMeta.Defaults[1].Dependencies, manifest) {

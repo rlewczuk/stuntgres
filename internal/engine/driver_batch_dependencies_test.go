@@ -16,7 +16,7 @@ func TestDriverBatchDependencyCascadesProjectOwnRows(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			before, frontier := e.catalog.State, e.visibility.CommitSeq()
+			before, frontier := e.Catalog.State, e.Visibility.CommitSeq()
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			for _, q := range []string{"CREATE DOMAIN d AS INT", "CREATE TABLE t(v d,x INT)", "INSERT INTO t VALUES(1,4)"} {
@@ -53,7 +53,7 @@ func TestDriverBatchDependencyCascadesProjectOwnRows(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal(end)
 				}
-				if e.catalog.State != before || e.visibility.CommitSeq() != frontier {
+				if e.Catalog.State != before || e.Visibility.CommitSeq() != frontier {
 					t.Fatal("dependency utility prefix escaped rollback")
 				}
 			}
@@ -87,8 +87,8 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE SEQUENCE s START 5 CACHE 1")
 			seq := catalogRef(t, e, e.CatalogRead(), "s")
-			generator := e.storage.Sequences[seq.Address]
-			before, frontier := e.catalog.State, e.visibility.CommitSeq()
+			generator := e.Storage.Sequences[seq.Address]
+			before, frontier := e.Catalog.State, e.Visibility.CommitSeq()
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			for _, q := range []string{"CREATE TABLE t(v INT DEFAULT nextval('s'),x INT)", "INSERT INTO t(x) VALUES(1)", "DROP SEQUENCE s CASCADE", "INSERT INTO t(x) VALUES(2)"} {
@@ -104,14 +104,14 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 			if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(5), int64(1)}, {nil, int64(2)}}) {
 				t.Fatal("private dependent default consumer", got)
 			}
-			if generator.Last != 5 || e.storage.Sequences[seq.Address] != generator || e.catalog.State != before || e.visibility.CommitSeq() != frontier {
+			if generator.Last != 5 || e.Storage.Sequences[seq.Address] != generator || e.Catalog.State != before || e.Visibility.CommitSeq() != frontier {
 				t.Fatal("draw or pending sequence disposition")
 			}
 			if commit {
 				if err = m.end(nil); err != nil {
 					t.Fatal(err)
 				}
-				if e.storage.Sequences[seq.Address] != nil {
+				if e.Storage.Sequences[seq.Address] != nil {
 					t.Fatal("sequence retirement not committed")
 				}
 			} else {
@@ -122,7 +122,7 @@ func TestDriverBatchSequenceCascadePrivateConsumers(t *testing.T) {
 				if end := m.end(err); end != err {
 					t.Fatal(end)
 				}
-				if e.catalog.State != before || e.visibility.CommitSeq() != frontier || e.storage.Sequences[seq.Address] != generator {
+				if e.Catalog.State != before || e.Visibility.CommitSeq() != frontier || e.Storage.Sequences[seq.Address] != generator {
 					t.Fatal("sequence/default graph rollback")
 				}
 				transactionRows(t, s, "SELECT nextval('s')", 6)
@@ -136,7 +136,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
-			frontier := e.visibility.CommitSeq()
+			frontier := e.Visibility.CommitSeq()
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
 			if counter == "command" {
@@ -147,7 +147,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			} else if counter == "tx" {
 				s.Transactions.Next = ids.TxID(^uint64(0))
 			} else {
-				e.visibility.SetDiagnosticTxLocked(^uint32(0))
+				e.Visibility.SetDiagnosticTxLocked(^uint32(0))
 			}
 			_, err := m.step(statement(t, "INSERT INTO t VALUES(2)"))
 			var diagnostic interface{ SQLState() string }
@@ -158,13 +158,13 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			if end := m.end(err); end != err {
 				t.Fatal("counter primary replaced", end)
 			}
-			if e.visibility.CommitSeq() != frontier || s.TransactionState() != session.TxIdle || s.Transactions.Ticket != nil || s.Transactions.RetainedMessage {
+			if e.Visibility.CommitSeq() != frontier || s.TransactionState() != session.TxIdle || s.Transactions.Ticket != nil || s.Transactions.RetainedMessage {
 				t.Fatal("counter failure published or retained admission")
 			}
-			if counter == "tx" && s.Transactions.Next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.visibility.DiagnosticTx() != ^uint32(0) {
+			if counter == "tx" && s.Transactions.Next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.Visibility.DiagnosticTx() != ^uint32(0) {
 				t.Fatal("identity counter wrapped")
 			}
-			if got := len(e.storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions); got != 0 {
+			if got := len(e.Storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions); got != 0 {
 				t.Fatal("counter failed message left prefix", got)
 			}
 			lockEmpty(t, e)

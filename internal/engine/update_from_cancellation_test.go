@@ -85,7 +85,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 						t.Fatal("orphan source view", child)
 					}
 				}
-				if target.View != nil || from.Sources != nil || len(scope.querySources) != 0 {
+				if target.View != nil || from.Sources != nil || len(scope.QuerySources) != 0 {
 					t.Fatal("orphan captured statement")
 				}
 				if explicit {

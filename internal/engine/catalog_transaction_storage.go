@@ -8,8 +8,8 @@ import (
 )
 
 // Caller holds Engine.mu; never derive entry authority from a later live view.
-func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor catalog.Descriptor) *session.CatalogAuthority {
-	return &session.CatalogAuthority{Session: v.session, Authorization: v.Revision, Roles: v.RoleRecord.Revision, Ref: ref, Descriptor: descriptor, DatabaseAuthority: v.Catalog.Get(v.Owner.DatabaseAddress()), DatabasePredecessor: v.DatabasePredecessor}
+func (v AuthorizationView) CatalogAuthorityLocked(ref ids.ObjectRef, descriptor catalog.Descriptor) *session.CatalogAuthority {
+	return &session.CatalogAuthority{Session: v.Session, Authorization: v.Revision, Roles: v.RoleRecord.Revision, Ref: ref, Descriptor: descriptor, DatabaseAuthority: v.Catalog.Get(v.Owner.DatabaseAddress()), DatabasePredecessor: v.DatabasePredecessor}
 }
 
 // catalogAuthorityPreflightLocked fences a statement's catalog authority (nil
@@ -18,10 +18,10 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *session.CatalogAuthority, c 
 	if a == nil {
 		return nil
 	}
-	return a.PreflightLocked(e.catalog.State, e.sessionRolesLocked(a.Session), e.roles.Published, e.catalog.DatabaseAddress(), c)
+	return a.PreflightLocked(e.Catalog.State, e.sessionRolesLocked(a.Session), e.RoleStore.Published, e.Catalog.DatabaseAddress(), c)
 }
 
 // Callers hold Engine.mu; private storage is never installed before Finish/Commit.
-func (e *Engine) privateStorageLocked(c *session.Journal, a ids.ObjectAddress) *storage.Relation {
-	return session.PrivateStorage(&e.storage, c, a)
+func (e *Engine) PrivateStorageLocked(c *session.Journal, a ids.ObjectAddress) *storage.Relation {
+	return session.PrivateStorage(&e.Storage, c, a)
 }

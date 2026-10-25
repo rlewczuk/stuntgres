@@ -25,9 +25,9 @@ func TestBtreeIndexUnchangedParentEvolution(t *testing.T) {
 	}
 	var evolutionErr error
 	allocations := testing.AllocsPerRun(10, func() {
-		e.mu.Lock()
-		evolutionErr = e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		evolutionErr = e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
+		e.Mu.Unlock()
 	})
 	if evolutionErr != nil || allocations != 0 {
 		t.Fatal("untouched parent performs evolution work", evolutionErr, allocations)

@@ -36,9 +36,9 @@ type settingCallBinding struct {
 // The caller holds e.mu over descriptor lookup and binding.
 func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input *sqltype.InputEnvironment, op *session.Operation) (settingCallBinding, error) {
 	if !(s.Name == "current_setting" && len(s.Args) == 1 || s.Name == "set_config" && len(s.Args) == 3) {
-		return settingCallBinding{}, sqlError("0A000", "unsupported setting function signature")
+		return settingCallBinding{}, SQLError("0A000", "unsupported setting function signature")
 	}
-	binder := newExpressionBinder(ctx, e, *input, op, nil)
+	binder := NewExpressionBinder(ctx, e, *input, op, nil)
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: s.Name, Pos: s.NamePos}}}
 	if s.Schema != nil {
 		name.Parts = []parser.Identifier{*s.Schema, {Text: s.Name, Pos: s.NamePos}}
@@ -53,12 +53,12 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	return settingCallBinding{parameters: info, arguments: bound, routine: routine, dependencies: binder.Dependencies}, err
 }
 func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
-	e.mu.Lock()
+	e.Mu.Lock()
 	binding, err := e.describeSettingCall(op.Ctx, s, &input, op)
-	typ, typeOK := e.catalog.Current().LookupType(sqltype.Text)
-	read := e.catalog.Current()
-	auth, authErr := e.authorizationLocked(op)
-	e.mu.Unlock()
+	typ, typeOK := e.Catalog.Current().LookupType(sqltype.Text)
+	read := e.Catalog.Current()
+	auth, authErr := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
@@ -74,9 +74,9 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: hostOf(scope), Catalog: read}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: HostOf(scope), Catalog: read}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
 	if scope != nil {
-		scope.domains.inputCatalog = read
+		scope.Domains.InputCatalog = read
 	}
 	for _, usage := range info.Types {
 		if sqltype.ContainsDomainConstraints(usage.Type) {
@@ -122,20 +122,20 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	current, captureErr := e.authorizationLocked(op)
+	e.Mu.Lock()
+	current, captureErr := e.AuthorizationLocked(op)
 	if captureErr != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, captureErr
 	}
 	if current.Catalog.Owner() != read.Owner() || current.Catalog.Epoch() != read.Epoch() {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	evaluation.RoutineAuthority = &current
 	if invoke {
 		if err := exec.AdmitRoutineReference(&evaluation, binding.routine, nil, "function"); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
@@ -149,12 +149,12 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		})
 	}
 	if !validInputs {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, catalog.Conflict{}
 	}
 	owner := op.Session.Settings
 	locked := true
-	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.Mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()
@@ -162,16 +162,16 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}()
 	owner.Mu.Lock()
 	op.Session.Mu.Lock()
-	if err := owner.AdmitLocked(domainOf(e), op); err != nil {
+	if err := owner.AdmitLocked(DomainOf(e), op); err != nil {
 		return Result{}, err
 	}
 	var output sqltype.Value
 	if s.Name == "current_setting" {
-		if output, err = owner.CurrentSettingLocked(op.Ctx, e.settings, typ, inputs[0]); err != nil {
+		if output, err = owner.CurrentSettingLocked(op.Ctx, e.Settings, typ, inputs[0]); err != nil {
 			return Result{}, err
 		}
 	} else {
-		d, input, local, err := owner.SetConfigInputLocked(e.settings, inputs)
+		d, input, local, err := owner.SetConfigInputLocked(e.Settings, inputs)
 		if err != nil {
 			return Result{}, err
 		}

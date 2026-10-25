@@ -25,51 +25,51 @@ type preparedIdentityDrop struct {
 }
 
 type identityDropCapture struct {
-	sequence ids.ObjectRef
-	original catalog.Descriptor
+	Sequence ids.ObjectRef
+	Original catalog.Descriptor
 }
 
 // CaptureIdentitySequence waits for the exact sequence's AX grant, then in one
 // Engine.mu window captures its definition: refreshed into the stage, or as
 // the prepared drop's immutable observation.
-func (p *dropProvider) CaptureIdentitySequence(relation *catalog.Relation, attribute int32, ref ids.ObjectRef) error {
+func (p *DropProvider) CaptureIdentitySequence(relation *catalog.Relation, attribute int32, ref ids.ObjectRef) error {
 	// Do not capture the sequence definition before its actual operation grant:
 	// the incumbent refresh selects this provider at grant time, not by name.
-	if err := p.scope.acquireSequence(ref, lock.AccessExclusive, false); err != nil {
+	if err := p.Scope.AcquireSequence(ref, lock.AccessExclusive, false); err != nil {
 		return err
 	}
-	e := p.owner
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if p.stage == nil {
+	e := p.Owner
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if p.Stage == nil {
 		capture, err := e.captureIdentityDropDefinitionLocked(p, relation, attribute, ref)
-		p.identityDrop = capture
+		p.IdentityDrop = capture
 		return err
 	}
-	if err := e.refreshIdentitySequenceLocked(p.scope, p.stage, relation, attribute, ref.Address); err != nil {
+	if err := e.RefreshIdentitySequenceLocked(p.Scope, p.Stage, relation, attribute, ref.Address); err != nil {
 		return err
 	}
-	p.base = p.stage.Base
-	p.identityDrop = identityDropCapture{sequence: ref, original: e.catalog.State.Get(ref.Address)}
-	p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{e.catalog.State, []ids.ObjectAddress{ref.Address}})
+	p.Base = p.Stage.Base
+	p.IdentityDrop = identityDropCapture{Sequence: ref, Original: e.Catalog.State.Get(ref.Address)}
+	p.Stage.SequenceState().ObserveIdentityDependencies(session.DependencyObservation{e.Catalog.State, []ids.ObjectAddress{ref.Address}})
 	return nil
 }
 
-func (p *dropProvider) TombstoneIdentity(address ids.ObjectAddress) {
-	if p.stage != nil {
-		applyIdentityDropTombstone(p.stage, address)
+func (p *DropProvider) TombstoneIdentity(address ids.ObjectAddress) {
+	if p.Stage != nil {
+		ApplyIdentityDropTombstone(p.Stage, address)
 	}
 }
 
 // The caller holds Engine.mu after the exact sequence's AX grant. This captures
 // existing immutable definitions only: no generator, scalar or stage is touched.
-func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, relation *catalog.Relation, attribute int32, ref ids.ObjectRef) (identityDropCapture, error) {
+func (e *Engine) captureIdentityDropDefinitionLocked(provider *DropProvider, relation *catalog.Relation, attribute int32, ref ids.ObjectRef) (identityDropCapture, error) {
 	var capture identityDropCapture
-	fresh, err := e.authorizationLocked(provider.scope.op)
+	fresh, err := e.AuthorizationLocked(provider.Scope.Op)
 	if err != nil {
 		return capture, err
 	}
-	if fresh.Catalog.Epoch() != provider.base.Epoch() || provider.Removed(ref.Address) {
+	if fresh.Catalog.Epoch() != provider.Base.Epoch() || provider.Removed(ref.Address) {
 		return capture, ids.ErrCatalogReplaced
 	}
 	descriptor := fresh.Catalog.Get(ref.Address)
@@ -82,29 +82,29 @@ func (e *Engine) captureIdentityDropDefinitionLocked(provider *dropProvider, rel
 	}
 	// An earlier genuine observation is never overwritten by the refresh.
 	observed := fresh.Catalog.Get(ref.Address)
-	if !provider.prepared.CaptureObservation(ref.Address, observed) {
+	if !provider.Prepared.CaptureObservation(ref.Address, observed) {
 		return capture, ids.ErrCatalogReplaced
 	}
-	provider.prepared.Grants = append(provider.prepared.Grants, ref)
-	provider.base = fresh.Catalog
-	provider.prepared.Discovery = fresh.Catalog
+	provider.Prepared.Grants = append(provider.Prepared.Grants, ref)
+	provider.Base = fresh.Catalog
+	provider.Prepared.Discovery = fresh.Catalog
 	provider.identitySource = sequence
-	provider.prepared.RecordEffect(table.DropEffect{IdentityRoots: []ids.ObjectAddress{ref.Address}, IdentityState: e.catalog.State})
-	return identityDropCapture{sequence: ref, original: e.catalog.State.Get(ref.Address)}, nil
+	provider.Prepared.RecordEffect(table.DropEffect{IdentityRoots: []ids.ObjectAddress{ref.Address}, IdentityState: e.Catalog.State})
+	return identityDropCapture{Sequence: ref, Original: e.Catalog.State.Get(ref.Address)}, nil
 }
 
-func applyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) {
+func ApplyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) {
 	// A TYPE before-command may have staged AS. The real tombstone wins over
 	// that private descriptor/scalar without modifying any live generator.
 	stage.ForgetDescriptor(address)
-	stage.sequence.DeleteGenerator(address)
+	stage.Sequence.DeleteGenerator(address)
 }
 
 func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{})
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{})
 	if old != nil {
 		ref.Address = old.Address()
 	}
@@ -112,33 +112,33 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	if err != nil {
 		return nil, err
 	}
-	if provider.owner != e {
+	if provider.Owner != e {
 		return nil, ids.ErrCatalogReplaced
 	}
 	next, err := table.DropIdentity(provider, old, action)
 	if err != nil {
 		return nil, err
 	}
-	capture := provider.identityDrop
+	capture := provider.IdentityDrop
 	drop, err := scope.finishDropDefinition(provider, next)
 	if err != nil {
 		return nil, err
 	}
-	return &preparedIdentityDrop{old: old, ref: ref, next: next, drop: drop, sequence: capture.sequence, original: capture.original}, nil
+	return &preparedIdentityDrop{old: old, ref: ref, next: next, drop: drop, sequence: capture.Sequence, original: capture.Original}, nil
 }
 
 func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, prepared *preparedIdentityDrop, old *catalog.Relation, ref ids.ObjectRef) (*catalog.Relation, error) {
-	if err := scope.active(); err != nil {
+	if err := scope.Active(); err != nil {
 		return nil, err
 	}
 	if prepared == nil || prepared.old != old || prepared.ref != ref || prepared.drop == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
-	e := scope.engine()
+	e := scope.Engine()
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
-		e.mu.Lock()
-		unchanged := e.catalog.State.Get(prepared.sequence.Address) == prepared.original
-		e.mu.Unlock()
+		e.Mu.Lock()
+		unchanged := e.Catalog.State.Get(prepared.sequence.Address) == prepared.original
+		e.Mu.Unlock()
 		if !unchanged {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -148,8 +148,8 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 		return nil, err
 	}
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
-		stage.sequenceState().CaptureIdentityOriginal(prepared.sequence.Address, prepared.original)
-		applyIdentityDropTombstone(stage, prepared.sequence.Address)
+		stage.SequenceState().CaptureIdentityOriginal(prepared.sequence.Address, prepared.original)
+		ApplyIdentityDropTombstone(stage, prepared.sequence.Address)
 	}
 	return next, nil
 }

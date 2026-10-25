@@ -49,37 +49,37 @@ func TestInfoRoleTableGrantsCaptureOwnershipAndCancellation(t *testing.T) {
 	}
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
-		func(in *pgcatalog.Input) { in.Ref = foreign.catalog.Owner.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
+		func(in *pgcatalog.Input) { in.Ref = foreign.Catalog.Owner.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { copy := *in.Source; copy.ObjectAddress.ObjectID++; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.RoleRecord = nil
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.RoleRecord = foreign.roles.Published
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.RoleRecord = foreign.RoleStore.Published
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.PairedCatalog = foreign.CatalogRead()
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.PairedCatalog = foreign.CatalogRead()
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.State.CurrentUser = f.f.e.roles.Domain.Principal(999999)
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.State.CurrentUser = f.f.e.RoleStore.Domain.Principal(999999)
 			in.Runtime = runtime
 		},
 	} {
@@ -120,7 +120,7 @@ func TestInfoRoleTableGrantsCaptureOwnershipAndCancellation(t *testing.T) {
 		state := catalog.CloneState(f.state)
 		broken := relation
 		entry := defaultUnitReaderEntry(f.f, authorization.SelectPrivilege, 0)
-		missing := f.f.e.roles.Domain.Principal(999999)
+		missing := f.f.e.RoleStore.Domain.Principal(999999)
 		switch fault {
 		case "owner":
 			broken.Owner = missing
@@ -153,7 +153,7 @@ func TestInfoRoleTableGrantsFrontier(t *testing.T) {
 	changed.ObjectName = "rtg_renamed"
 	changed.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.SelectPrivilege, authorization.SelectPrivilege)}}
 	next.SetDescriptor(changed.Address(), &changed)
-	roles := cloneRoleFixture(f.f.e.roles.Published)
+	roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 	reader := fixtureRole(roles, f.f.reader)
 	reader.Name = "renamed_reader"
 	putFixtureRole(roles, reader)
@@ -161,8 +161,8 @@ func TestInfoRoleTableGrantsFrontier(t *testing.T) {
 	owner.Name = "renamed_owner"
 	putFixtureRole(roles, owner)
 	setFixtureEdges(roles, append(fixtureEdges(roles), authorization.Membership{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}))
-	f.f.e.roles.PublishLocked(roles)
-	f.f.e.catalog.PublishLocked(next)
+	f.f.e.RoleStore.PublishLocked(roles)
+	f.f.e.Catalog.PublishLocked(next)
 	fresh := f.input(t, next, f.f.member)
 	var matched int
 	for _, row := range roleTableGrantsRows(t, fresh) {

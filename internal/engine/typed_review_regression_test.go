@@ -66,14 +66,14 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		query = "ALTER TABLE typed OF pair"
 	}
 	epoch := e.CatalogRead().Epoch()
-	original := e.catalog.Providers[ids.RelationClassID]
+	original := e.Catalog.Providers[ids.RelationClassID]
 	called := false
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		if called {
 			return
 		}
 		called = true
-		e.catalog.Providers[ids.RelationClassID] = original
+		e.Catalog.Providers[ids.RelationClassID] = original
 		if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(a integer);INSERT INTO sentinel VALUES(91)")); err != nil {
 			t.Fatal(err)
 		}
@@ -101,10 +101,10 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		}
 	}
 	lockEmpty(t, e)
-	if !e.replacementMu.TryLock() {
+	if !e.ReplacementMu.TryLock() {
 		t.Fatal("replacement read reservation leaked")
 	}
-	e.replacementMu.Unlock()
+	e.ReplacementMu.Unlock()
 }
 
 func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
@@ -121,19 +121,19 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 				t.Fatal(err)
 			}
 			lockEmpty(t, e)
-			original := e.catalog.Providers[ids.RelationClassID]
+			original := e.Catalog.Providers[ids.RelationClassID]
 			called, granted := false, false
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				called = true
-				ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
-				lockState := e.locks.Inspect()
+				ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
+				lockState := e.Locks.Inspect()
 				if entry := lockState.Resources[lock.Resource{ObjectRef: ref}]; entry != nil {
 					for _, holder := range entry.Holders {
 						granted = granted || holder.Mode == lock.AccessShare
 					}
 				}
 			}}
-			defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
+			defer func() { e.Catalog.Providers[ids.RelationClassID] = original }()
 			roleExecute(t, e, op, query)
 			if !called || !granted {
 				t.Fatal("actual CREATE validation lacks retained source AccessShare grant", called, granted)
@@ -150,10 +150,10 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			predecessor, before := root, e.CatalogRead()
-			stored := e.storage.Relations[root.Address()]
+			stored := e.Storage.Relations[root.Address()]
 			roleExecute(t, e, op, "CREATE TABLE child() INHERITS(typed)")
 			root = e.CatalogRead().MustRelation(predecessor.Address())
-			if root == predecessor || !root.History.HasSubclasses || predecessor.History.HasSubclasses || root.Address() != predecessor.Address() || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.storage.Relations[root.Address()] != stored {
+			if root == predecessor || !root.History.HasSubclasses || predecessor.History.HasSubclasses || root.Address() != predecessor.Address() || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.Storage.Relations[root.Address()] != stored {
 				t.Fatal("successful child publication did not preserve immutable typed identity/storage and transition subclass history")
 			}
 			roleExecute(t, e, op, "INSERT INTO typed VALUES(11,'root')")
@@ -161,16 +161,16 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 			view := e.CatalogRead()
 			childRef := roleTableRef(t, e, "child")
 			child := view.MustRelation(childRef.Address)
-			rootStorage, childStorage := e.storage.Relations[root.Address()], e.storage.Relations[child.Address()]
-			original := e.catalog.Providers[ids.RelationClassID]
+			rootStorage, childStorage := e.Storage.Relations[root.Address()], e.Storage.Relations[child.Address()]
+			original := e.Catalog.Providers[ids.RelationClassID]
 			called := false
 			var after *catalog.State
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 				if called {
 					return
 				}
 				called = true
-				e.catalog.Providers[ids.RelationClassID] = original
+				e.Catalog.Providers[ids.RelationClassID] = original
 				creator, finish := roleOperation(t, e, "postgres")
 				defer finish()
 				roleExecute(t, e, creator, "CREATE TABLE holder(v "+rowName+")")
@@ -182,7 +182,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				t.Fatal("late semantic own-row dependency admitted", called, err)
 			}
 			current := e.CatalogRead()
-			if current.State() != after || current.Get(source.Address()) != source || current.Get(root.Address()) != root || current.Get(child.Address()) != child || e.storage.Relations[root.Address()] != rootStorage || e.storage.Relations[child.Address()] != childStorage {
+			if current.State() != after || current.Get(source.Address()) != source || current.Get(root.Address()) != root || current.Get(child.Address()) != child || e.Storage.Relations[root.Address()] != rootStorage || e.Storage.Relations[child.Address()] != childStorage {
 				t.Fatal("rejected TYPE changed published graph or storage")
 			}
 			if root.OfType != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}) {
@@ -239,7 +239,7 @@ func typedReviewACLFixture(t *testing.T) (*Engine, *session.Operation, func(), i
 	roleExecute(t, e, admin, "CREATE USER typed_reader")
 	roleExecute(t, e, admin, "CREATE DOMAIN member AS integer")
 	roleExecute(t, e, admin, "CREATE TYPE foreign_pair AS (z integer)")
-	ns := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	ns := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -258,16 +258,16 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	originalMember := before.MustType(member)
 	pair := roleTableRef(t, e, "pair")
 	table := roleTableRef(t, e, "typed")
-	oldSource, oldTable, oldStorage := before.Get(pair.Address), before.Get(table.Address), e.storage.Relations[table.Address]
-	original := e.catalog.Providers[ids.RelationClassID]
+	oldSource, oldTable, oldStorage := before.Get(pair.Address), before.Get(table.Address), e.Storage.Relations[table.Address]
+	original := e.Catalog.Providers[ids.RelationClassID]
 	called := false
 	var after *catalog.State
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		if called {
 			return
 		}
 		called = true
-		e.catalog.Providers[ids.RelationClassID] = original
+		e.Catalog.Providers[ids.RelationClassID] = original
 		typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
 		after = e.CatalogRead().State()
 	}}
@@ -278,7 +278,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	}
 	current := e.CatalogRead()
 	changed := current.MustType(member)
-	if current.State() != after || current.Get(pair.Address) != oldSource || current.Get(table.Address) != oldTable || e.storage.Relations[table.Address] != oldStorage || changed.SQLType != originalMember.SQLType || reflect.DeepEqual(changed.ACL, originalMember.ACL) {
+	if current.State() != after || current.Get(pair.Address) != oldSource || current.Get(table.Address) != oldTable || e.Storage.Relations[table.Address] != oldStorage || changed.SQLType != originalMember.SQLType || reflect.DeepEqual(changed.ACL, originalMember.ACL) {
 		t.Fatal("ACL conflict was not type-descriptor-only and atomic")
 	}
 	lockEmpty(t, e)

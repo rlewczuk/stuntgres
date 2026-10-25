@@ -64,11 +64,11 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		t.Fatal("source owner retained")
 	}
 	stage, d := queryCreateStage(t, e, "copy", 1)
-	if err = e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
+	if err = e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	if calls != 2 || predicates != 3 || len(e.storage.Relations[d.Address()].Versions) != 2 {
+	if calls != 2 || predicates != 3 || len(e.Storage.Relations[d.Address()].Versions) != 2 {
 		t.Fatal("publication demanded query again")
 	}
 }
@@ -140,7 +140,7 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 			t.Fatal(result, count, err, closes)
 		}
 		queryCreateAssertAbsent(t, e, d)
-		if e.storage.RowFrontier() != 0 || e.storage.VersionFrontier() != 0 || e.visibility.CommitSeq() != 0 {
+		if e.Storage.RowFrontier() != 0 || e.Storage.VersionFrontier() != 0 || e.Visibility.CommitSeq() != 0 {
 			t.Fatal("cleanup failure reserved or published data")
 		}
 	}

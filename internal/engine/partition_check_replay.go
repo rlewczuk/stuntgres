@@ -17,23 +17,23 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}
-	operationReplay(op).partitionCheck = nil
+	OperationReplay(op).PartitionCheck = nil
 	if !partition.CheckReplayActions(raw) {
 		return nil
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.statementAuthorizationLocked(op, raw)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.StatementAuthorizationLocked(op, raw)
 	if err != nil {
 		return err
 	}
-	if !partitionConstraintReplayImport(e, op, auth) {
+	if !PartitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK authority")
 	}
 	if err := table.RestoreAlterConstraints(raw); err != nil {
 		return err
 	}
-	ref, err := e.resolveRelationReference(auth, raw.Name, true)
+	ref, err := e.ResolveRelationReference(auth, raw.Name, true)
 	if err != nil {
 		return err
 	}
@@ -42,17 +42,17 @@ func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.Al
 		return ids.ErrCatalogReplaced
 	}
 	if partition.CheckReplayTarget(auth.Catalog, d) {
-		operationReplay(op).partitionCheck = d
+		OperationReplay(op).PartitionCheck = d
 	}
 	return nil
 }
 
 // Callers hold Engine.mu, as do the existing hierarchy admission guards.
-func partitionConstraintReplayImport(e *Engine, op *session.Operation, auth AuthorizationView) bool {
-	if e == nil || op == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.Owner != &e.catalog.Owner || auth.session != op.Session || auth.RoleRecord != e.roles.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.State || auth.Catalog.Epoch() != e.catalog.State.Epoch() {
+func PartitionConstraintReplayImport(e *Engine, op *session.Operation, auth AuthorizationView) bool {
+	if e == nil || op == nil || op.Self != op || op.Session == nil || EngineOf(op.Session) != e || e.ImportTargets == nil || auth.Owner != &e.Catalog.Owner || auth.Session != op.Session || auth.RoleRecord != e.RoleStore.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.Catalog.Domain || auth.Catalog.State() != e.Catalog.State || auth.Catalog.Epoch() != e.Catalog.State.Epoch() {
 		return false
 	}
-	if err := e.validateOperation(op); err != nil {
+	if err := e.ValidateOperation(op); err != nil {
 		return false
 	}
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
@@ -60,5 +60,5 @@ func partitionConstraintReplayImport(e *Engine, op *session.Operation, auth Auth
 }
 
 func partitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
-	return op != nil && operationReplayOrZero(op).partitionCheck == d && partition.CheckReplayTarget(auth.Catalog, d) && partition.CheckReplayActions(raw) && partitionConstraintReplayImport(operationEngine(op), op, auth)
+	return op != nil && OperationReplayOrZero(op).PartitionCheck == d && partition.CheckReplayTarget(auth.Catalog, d) && partition.CheckReplayActions(raw) && PartitionConstraintReplayImport(operationEngine(op), op, auth)
 }

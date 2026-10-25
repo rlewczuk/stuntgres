@@ -31,14 +31,14 @@ func exprCollationStoredBinding(t *testing.T, e *Engine, owner *session.Session,
 	if _, err := scope.Describe(ast); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
-		scope.routineAuth, scope.routineDependencies = auth, bound.Dependencies
+		bound, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		scope.RoutineAuth, scope.RoutineDependencies = auth, bound.Dependencies
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			if len(bound.QuerySources) != 1 || !reflect.DeepEqual(bound.QuerySources[0].Uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.QuerySources, tc.uses)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.Query.Root.(*plan.ProjectNode).Frame}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.Query.Root.(*plan.ProjectNode).Frame}}
 			err := view.ValidateQueryJoinExecution(&evaluation, bound.Query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
@@ -130,9 +130,9 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 				t.Fatal("fixture lacks full frozen nested-read manifest", reads, inner.Attributes)
 			}
 			bound, scope := exprCollationStoredBinding(t, e, owner, tc.q)
-			e.mu.Lock()
-			source, err := e.captureQuerySourcesLocked(scope, bound.QuerySources, false)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			source, err := e.CaptureQuerySourcesLocked(scope, bound.QuerySources, false)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}

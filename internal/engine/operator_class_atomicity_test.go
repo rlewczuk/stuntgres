@@ -74,13 +74,13 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
-	root := e.storage.IndexRoots[idx.Address()]
+	root := e.Storage.IndexRoots[idx.Address()]
 	if root == nil || len(root.Entries) != 1 {
 		t.Fatal("custom root not atomically installed")
 	}
 	unchanged := func() {
 		t.Helper()
-		if e.catalog.State != current.State() || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store {
+		if e.Catalog.State != current.State() || e.Storage.IndexRoots[idx.Address()] != root || e.Storage.Relations[parent.Address()] != store {
 			t.Fatal("failed candidate changed catalog/data/root")
 		}
 		if got, ok := e.CatalogRead().OperatorClass(class.Address().ObjectID); !ok || got != class {
@@ -148,7 +148,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	// RESTRICT, while required member INTERNAL edges retire with class CASCADE.
 	restrict := e.BeginCatalogStage(current)
 	defer e.DiscardCatalogStage(restrict)
-	err = stageExpressionDependencies(ctx, restrict, []ids.ObjectAddress{class.Address()}, parser.DropRestrict, nil, nil, nil, class.Address())
+	err = StageExpressionDependencies(ctx, restrict, []ids.ObjectAddress{class.Address()}, parser.DropRestrict, nil, nil, nil, class.Address())
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "2BP01" {
 		t.Fatal("dependent class restrict", err)
@@ -156,7 +156,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	unchanged()
 	cascade := e.BeginCatalogStage(current)
 	defer e.DiscardCatalogStage(cascade)
-	if err := stageExpressionDependencies(ctx, cascade, []ids.ObjectAddress{class.Address()}, parser.DropCascade, nil, nil, nil, class.Address()); err != nil {
+	if err := StageExpressionDependencies(ctx, cascade, []ids.ObjectAddress{class.Address()}, parser.DropCascade, nil, nil, nil, class.Address()); err != nil {
 		t.Fatal("class cascade graph", err)
 	}
 	removed, err := e.ValidateCatalogStage(ctx, cascade)

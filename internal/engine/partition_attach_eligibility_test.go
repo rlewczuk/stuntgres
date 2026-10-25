@@ -21,7 +21,7 @@ func TestPartitionAttachEligibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32202}
-	view.State().SetDescriptor(ns, &catalog.Namespace{ObjectAddress: ns, Temporary: e.catalog.Domain.Session(99)})
+	view.State().SetDescriptor(ns, &catalog.Namespace{ObjectAddress: ns, Temporary: e.Catalog.Domain.Session(99)})
 	child.ObjectNamespace = ns
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: `cannot attach a temporary relation as partition of permanent relation "parent"`}
 	var got *sqlstate.Error
@@ -60,9 +60,9 @@ func TestPartitionAttachPersistenceInvariant(t *testing.T) {
 	check(true)
 	one := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32212}
 	two := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 32213}
-	token := e.catalog.Domain.Session(99)
+	token := e.Catalog.Domain.Session(99)
 	view.State().SetDescriptor(one, &catalog.Namespace{ObjectAddress: one, Temporary: token})
-	view.State().SetDescriptor(two, &catalog.Namespace{ObjectAddress: two, Temporary: e.catalog.Domain.Session(100)})
+	view.State().SetDescriptor(two, &catalog.Namespace{ObjectAddress: two, Temporary: e.Catalog.Domain.Session(100)})
 	child.ObjectNamespace = one
 	check(false) // Permanent parent, temporary child.
 	parent.ObjectNamespace, child.ObjectNamespace = one, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}

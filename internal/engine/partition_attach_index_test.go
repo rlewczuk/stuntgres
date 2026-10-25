@@ -27,10 +27,10 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			localDefinition := *local.SQLIndex
 			localDefinition.Unique = false
 			local.SQLIndex = &localDefinition
-			current := catalog.CloneState(f.e.catalog.State)
+			current := catalog.CloneState(f.e.Catalog.State)
 			current.SetDescriptor(local.Address(), &local)
-			f.e.catalog.PublishLocked(current)
-			mapped, err := index.MapPartitionIndex(context.Background(), f.e.catalog.Read(current), f.root, f.leaf, f.parent.SQLIndex)
+			f.e.Catalog.PublishLocked(current)
+			mapped, err := index.MapPartitionIndex(context.Background(), f.e.Catalog.Read(current), f.root, f.leaf, f.parent.SQLIndex)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,22 +67,22 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
 				{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
 			}}
-			f.e.mu.Lock()
-			f.e.storage.InstallRelationLocked(f.leaf.Address(), store)
-			f.e.mu.Unlock()
+			f.e.Mu.Lock()
+			f.e.Storage.InstallRelationLocked(f.leaf.Address(), store)
+			f.e.Mu.Unlock()
 			oldRoot, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.leaf, local.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.mu.Lock()
-			f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{local.Address(): oldRoot})
-			f.e.mu.Unlock()
+			f.e.Mu.Lock()
+			f.e.Storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{local.Address(): oldRoot})
+			f.e.Mu.Unlock()
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.Entries)
-			beforeCatalog, beforeRoots := f.e.catalog.State, maps.Clone(f.e.storage.IndexRoots)
-			captured := index.CaptureIndexStores(f.e.storage.Relations, next)
-			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, next, captured, f.e.storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
-			if f.e.catalog.State != beforeCatalog || !maps.Equal(f.e.storage.IndexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.Entries, beforeEntries) {
+			beforeCatalog, beforeRoots := f.e.Catalog.State, maps.Clone(f.e.Storage.IndexRoots)
+			captured := index.CaptureIndexStores(f.e.Storage.Relations, next)
+			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, next, captured, f.e.Storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+			if f.e.Catalog.State != beforeCatalog || !maps.Equal(f.e.Storage.IndexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.Entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}
 			if duplicate {
@@ -90,7 +90,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				if roots != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Message != `could not create unique index "attach_built_unique"` || diagnostic.Constraint != backing.Name() {
 					t.Fatal("duplicate build returned partial roots or wrong failure", roots, err)
 				}
-				if f.e.catalog.State.Get(backing.Address()) != nil {
+				if f.e.Catalog.State.Get(backing.Address()) != nil {
 					t.Fatal("failed backing escaped into live catalog")
 				}
 				return

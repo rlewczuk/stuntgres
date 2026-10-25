@@ -17,9 +17,9 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return fail(err)
 	}
@@ -31,14 +31,14 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		return fail(err)
 	}
 	if plan.Noop {
-		e.mu.Unlock()
-		scope.completed = true
-		return Result{}, scope.op.Context().Err()
+		e.Mu.Unlock()
+		scope.Completed = true
+		return Result{}, scope.Op.Context().Err()
 	}
 	reassign, sources, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Mode, plan.Roots, plan.PrimaryRoot
-	stage := e.ownershipStage(auth, scope.op)
-	stage.dependencyPath, _ = referencePath(auth)
-	e.mu.Unlock()
+	stage := e.ownershipStage(auth, scope.Op)
+	stage.DependencyPath, _ = ReferencePath(auth)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	// Pin roots/associations and actual policy-deletion survivors in one
 	// canonical order before producing private candidates.
@@ -47,17 +47,17 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		policySources = nil
 	}
 	for _, a := range access.OwnershipRelationLocks(stage.Base, roots, policySources) {
-		if err = scope.op.Context().Err(); err != nil {
+		if err = scope.Op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), a)
-		if err = scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), a)
+		if err = scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	err = role.StageOwned(ddlHost{e: e, op: scope.op, stage: stage}, auth, plan)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = role.StageOwned(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, plan)
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
@@ -65,35 +65,35 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		// PostgreSQL collects actual policy and grantor-membership deletions
 		// alongside ownership roots. Prepare cleanup once, still entirely private,
 		// before discovering consumers of the complete pending deletion union.
-		if err = role.StageOwnedCleanup(scope.op.Context(), stage, auth.Roles, auth.RoleRecord, sources); err != nil {
+		if err = role.StageOwnedCleanup(scope.Op.Context(), stage, auth.Roles, auth.RoleRecord, sources); err != nil {
 			return Result{}, err
 		}
 		if primaryRoot != (ids.ObjectAddress{}) && role.OwnedCleanupAddsDeletionRoot(stage, sources) {
 			primaryRoot = ids.ObjectAddress{}
 		}
-		if err = scope.stageExpressionDependents(stage, roots, mode, nil); err != nil {
+		if err = scope.StageExpressionDependents(stage, roots, mode, nil); err != nil {
 			primary := ""
 			if primaryRoot != (ids.ObjectAddress{}) {
-				primary = stored.DependencyObject(stage.Base, primaryRoot, stage.dependencyPath)
+				primary = stored.DependencyObject(stage.Base, primaryRoot, stage.DependencyPath)
 			}
 			return Result{}, role.OwnedDependentsError(err, primary)
 		}
-		if err = scope.stageOwnedSequences(stage, roots, mode, nil); err != nil {
+		if err = scope.StageOwnedSequences(stage, roots, mode, nil); err != nil {
 			return Result{}, err
 		}
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	result, err := e.publishOwnership(scope, stage)
-	if err == nil && !reassign && mode == parser.DropCascade && len(stage.dropCascadeNames) > 0 {
-		message, detail := stage.dropCascadeNames[0], ""
-		if len(stage.dropCascadeNames) > 1 {
-			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.dropCascadeNames))
-			detail = strings.Join(stage.dropCascadeNames, "\n")
+	if err == nil && !reassign && mode == parser.DropCascade && len(stage.DropCascadeNames) > 0 {
+		message, detail := stage.DropCascadeNames[0], ""
+		if len(stage.DropCascadeNames) > 1 {
+			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.DropCascadeNames))
+			detail = strings.Join(stage.DropCascadeNames, "\n")
 		}
-		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+		scope.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 	}
 	return result, err
 }

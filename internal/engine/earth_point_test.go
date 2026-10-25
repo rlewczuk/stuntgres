@@ -43,7 +43,7 @@ func TestEarthPointProvider(t *testing.T) {
 			t.Fatal("incumbent slot", i, symbol, err)
 		}
 	}
-	foreignOwner := New().catalog.Owner.Principals.Principal(proc.Owner.ID())
+	foreignOwner := New().Catalog.Owner.Principals.Principal(proc.Owner.ID())
 	for _, corrupt := range []func(*catalog.Procedure, *catalog.Operator){
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Signature = "701,701" },
 		func(p *catalog.Procedure, _ *catalog.Operator) { p.Result = 16 },
@@ -81,15 +81,15 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 	e, _, _ := cubeUnitInstalled(t)
 	installer, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	revision, err := e.catalog.RevisionLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	revision, err := e.Catalog.RevisionLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 	if err := stage.Create(conflicting); err != nil {
 		t.Fatal(err)
 	}
-	if err := (routine.OperatorProvider{}).Validate(e.stageRead(stage), conflicting); err != nil {
+	if err := (routine.OperatorProvider{}).Validate(e.StageRead(stage), conflicting); err != nil {
 		t.Fatal("genuine loose POINT operator", err)
 	}
 	extensionUnitPublish(t, e, installer, stage)
@@ -116,9 +116,9 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 		t.Fatal("genuine existing backing routine", backing)
 	}
 	originalValue := *original
-	e.mu.Lock()
-	failed, err := e.stageExtensionLocked(&StatementScope{op: installer}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	failed, err := e.stageExtensionLocked(&StatementScope{Op: installer}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
+	e.Mu.Unlock()
 	if failed != nil {
 		e.DiscardCatalogStage(failed)
 	}
@@ -151,7 +151,7 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 func TestEarthPointOwners(t *testing.T) {
 	e, ext, _ := earthUnitInstalled(t)
 	view := e.CatalogRead()
-	roles := e.roles.PublishedRead(&e.catalog.Owner, view)
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, view)
 	metadata, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)
@@ -260,7 +260,7 @@ func TestEarthPointExpression(t *testing.T) {
 		if next, ok := mapping[a]; ok {
 			a = next
 		}
-		return target.catalog.Domain.Ref(after.Epoch(), a)
+		return target.Catalog.Domain.Ref(after.Epoch(), a)
 	}
 	mapType := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
@@ -354,7 +354,7 @@ func TestEarthPointExpression(t *testing.T) {
 		op := before.MustOperator(ext.Members[extension.EarthPointOperatorSlot])
 		info := expr.InfoOf(call)
 		info.RoutineReference = nil
-		selected := plan.SelectedOperatorExpr{Info: info, Operator: op, Ref: source.catalog.Domain.Ref(before.Epoch(), op.Address()), Provider: call}
+		selected := plan.SelectedOperatorExpr{Info: info, Operator: op, Ref: source.Catalog.Domain.Ref(before.Epoch(), op.Address()), Provider: call}
 		query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "miles", Usage: call.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{selected}}
 		mapper := stored.ViewQueryRemapper{Catalog: after, Ref: mapRef, Type: mapType, Procedure: mapperProc}
 		remapped, err := mapper.Query(query)

@@ -37,7 +37,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -60,10 +60,10 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer scope.Finish(nil)
-				e.mu.Lock()
-				err = e.captureCheckCommentSnapshotLocked(scope, relation)
-				e.mu.Unlock()
-				if err != nil || scope.output.Regclass != scope || scope.inquiry.commentCatalog.State() == nil {
+				e.Mu.Lock()
+				err = e.CaptureCheckCommentSnapshotLocked(scope, relation)
+				e.Mu.Unlock()
+				if err != nil || scope.Output.Regclass != scope || scope.Inquiry.CommentCatalog.State() == nil {
 					t.Fatal("missing captured output demand", err)
 				}
 				target := roleTableRef(t, e, `rr_diag_scope."Moved.Target"`)
@@ -92,10 +92,10 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				}
 				bound := analyze.Binding{Ref: ref, Relation: relation, Targets: []int{1}}
 				for repeat := 0; repeat != 2; repeat++ {
-					err = dml.RowConstraintError(scope.writeHost(), bound, "public", "", "rr_diag_bound", row)
+					err = dml.RowConstraintError(scope.WriteHost(), bound, "public", "", "rr_diag_bound", row)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "rr_diag" violates check constraint "rr_diag_bound"`, Detail: detail, Schema: "public", Table: "rr_diag", Constraint: "rr_diag_bound"})
 				}
-				if len(e.storage.Relations[ref.Address].Versions) != 0 {
+				if len(e.Storage.Relations[ref.Address].Versions) != 0 {
 					t.Fatal("formatter changed stored rows")
 				}
 				if got := scope.Finish(err); got != err {
@@ -118,10 +118,10 @@ func TestRegclassPrimitiveDiagnosticAvoidsSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	e.mu.Lock()
-	err = e.captureCheckCommentSnapshotLocked(scope, descriptor.(*catalog.Relation))
-	e.mu.Unlock()
-	if err != nil || scope.inquiry.commentCatalog.State() != nil || scope.output.Regclass != nil {
+	e.Mu.Lock()
+	err = e.CaptureCheckCommentSnapshotLocked(scope, descriptor.(*catalog.Relation))
+	e.Mu.Unlock()
+	if err != nil || scope.Inquiry.CommentCatalog.State() != nil || scope.Output.Regclass != nil {
 		t.Fatal("primitive row allocated output snapshot", err)
 	}
 }

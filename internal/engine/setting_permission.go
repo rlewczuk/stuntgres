@@ -17,7 +17,7 @@ func settingAccess(d settings.Definition, op *session.Operation) error {
 // access contract in settingAccess. The operation supplies one coherent current
 // catalog/role root; no session ACL cache or second setting authority exists.
 func parameterSetAllowed(op *session.Operation, name string) (bool, error) {
-	view, err := operationAuthorization(op)
+	view, err := OperationAuthorization(op)
 	if err != nil {
 		return false, err
 	}

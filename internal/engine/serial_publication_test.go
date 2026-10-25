@@ -35,7 +35,7 @@ func TestSerialDefaultUnpublishedProviderHold(t *testing.T) {
 			unblock := func() { once.Do(func() { close(release) }) }
 			t.Cleanup(unblock)
 			var gated atomic.Bool
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() {
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{e.Catalog.Providers[ids.RelationClassID], func() {
 				if gated.CompareAndSwap(false, true) {
 					close(entered)
 					<-release
@@ -57,7 +57,7 @@ func TestSerialDefaultUnpublishedProviderHold(t *testing.T) {
 					t.Fatalf("DROP reached publication before unpublished default released its provider: %v", err)
 				default:
 				}
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive
 				held := false
@@ -110,7 +110,7 @@ func TestSerialDefaultProviderDropFirstAndCancellation(t *testing.T) {
 				defer cancel()
 				waiting := lockAsync(e, b, ctx, serialPublicationQuery(alter), false)
 				lockPending(t, e, 1)
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare
 				if !queued {

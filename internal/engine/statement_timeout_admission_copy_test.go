@@ -117,7 +117,7 @@ func TestStatementTimeoutAdmissionCopyReservation(t *testing.T) {
 				unchanged := owner.CopyLease == lease && owner.CopyDone == done && owner.Ref == ref && owner.Command == command && owner.Ticket == ticket && owner.State == session.TxActive
 				owner.Mu.Unlock()
 				owner.Admission.Unlock()
-				if !unchanged || e.locks.TransactionTicket(ref) != ticket {
+				if !unchanged || e.Locks.TransactionTicket(ref) != ticket {
 					t.Fatal("canceled waiter disrupted reserved COPY owner")
 				}
 				release.Do(func() { close(reader.release) })

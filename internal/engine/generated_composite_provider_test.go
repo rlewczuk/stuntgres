@@ -91,7 +91,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	wrongOwner.OwningRelation = holder.Address()
 	candidate := catalog.CloneState(view.State())
 	candidate.SetDescriptor(pair.Address(), &wrongOwner)
-	if err := table.ValidateGenerationProviders(e.catalog.Read(candidate), holder); err == nil {
+	if err := table.ValidateGenerationProviders(e.Catalog.Read(candidate), holder); err == nil {
 		t.Fatal("unrelated backing relation accepted as named rowtype authority")
 	}
 

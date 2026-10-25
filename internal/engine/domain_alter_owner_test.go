@@ -41,10 +41,10 @@ func domainAlterReplayOwnership(t *testing.T) {
 			for _, q := range []string{"CREATE ROLE captured_owner", "CREATE ROLE other_owner", "CREATE TABLE public.sentinel(v integer)", "INSERT INTO public.sentinel VALUES(42)"} {
 				run(t, e, q)
 			}
-			before, stores, roots := e.catalog.State, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots)
+			before, stores, roots := e.Catalog.State, maps.Clone(e.Storage.Relations), maps.Clone(e.Storage.IndexRoots)
 			err := e.Restore(context.Background(), strings.NewReader(tc.sql))
 			if !tc.valid {
-				if err == nil || e.catalog.State != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) {
+				if err == nil || e.Catalog.State != before || !maps.Equal(e.Storage.Relations, stores) || !maps.Equal(e.Storage.IndexRoots, roots) {
 					t.Fatal("ineligible owner replay changed destination", err)
 				}
 				message := typedef.RestoreTypeOwnerBoundary("domain")

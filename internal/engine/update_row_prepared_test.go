@@ -46,8 +46,8 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			}
 			ast, description := sequencePreparedDescription(t, e, s, query("1"))
 			assertBorrowed := func() {
-				if description.sequences != nil || description.regtypes != nil {
-					t.Fatal("stored recipe entered caller literal provenance", description.sequences, description.regtypes)
+				if description.Sequences != nil || description.regtypes != nil {
+					t.Fatal("stored recipe entered caller literal provenance", description.Sequences, description.regtypes)
 				}
 			}
 			assertBorrowed()
@@ -62,8 +62,8 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			ownedAST, owned := sequencePreparedDescription(t, e, s, query("nextval('own_draw')"))
 			ownedRef := catalogRef(t, e, e.CatalogRead(), "own_draw")
 			assertOwned := func() {
-				if owned.sequences == nil || len(owned.sequences.Constants) != 1 || owned.sequences.Constants[0].Ref != ownedRef || owned.regtypes != nil {
-					t.Fatal("raw caller/CTE capture group polluted or lost", owned.sequences, owned.regtypes)
+				if owned.Sequences == nil || len(owned.Sequences.Constants) != 1 || owned.Sequences.Constants[0].Ref != ownedRef || owned.regtypes != nil {
+					t.Fatal("raw caller/CTE capture group polluted or lost", owned.Sequences, owned.regtypes)
 				}
 			}
 			assertOwned()
@@ -90,7 +90,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			}
 			assertOwned()
 			previous := owned.analysis
-			captures := append([]sequence.Constant(nil), owned.sequences.Constants...)
+			captures := append([]sequence.Constant(nil), owned.Sequences.Constants...)
 			before = description.analysis
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
@@ -109,7 +109,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				result.Rows.Close()
 				t.Fatal("retired caller literal exposed rows")
 			}
-			if !errors.Is(err, ids.ErrCatalogReplaced) || owned.analysis != previous || !reflect.DeepEqual(captures, owned.sequences.Constants) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) || owned.analysis != previous || !reflect.DeepEqual(captures, owned.Sequences.Constants) {
 				t.Fatal("direct caller lifetime fence or atomic capture publication changed", err)
 			}
 		})

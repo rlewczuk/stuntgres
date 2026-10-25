@@ -18,7 +18,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
 		c, rc := advisoryUnitOwner(t, e)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 0x80000000, Low: 0xffffffff}
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 0x80000000, Low: 0xffffffff}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		waiter, err := advisoryUnitAcquire(t, b, rb, key, lock.AdvisoryExclusive, false)
 		if err != nil || waiter == nil {
@@ -47,7 +47,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 3}
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 3}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 		first, err := advisoryUnitAcquire(t, a, ra, key, lock.AdvisoryExclusive, false)
@@ -72,7 +72,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		if h := advisoryUnitHold(a, key); h.Shared != 1 || h.Exclusive != 1 {
 			t.Fatal(h)
 		}
-		lockState := e.locks.Inspect(a.Transactions.Ticket, b.Transactions.Ticket)
+		lockState := e.Locks.Inspect(a.Transactions.Ticket, b.Transactions.Ticket)
 		pendingJournal := len(lockState.Journals[a.Transactions.Ticket]) + len(lockState.Journals[b.Transactions.Ticket])
 		if pendingJournal != 0 {
 			t.Fatal("terminal provenance journal retained", pendingJournal)
@@ -86,12 +86,12 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ordinary := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 7, Low: 8}
-		live := e.locks.Inspect()
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 7, Low: 8}
+		live := e.Locks.Inspect()
 		if live.Participant(a.Transactions.Ticket) != live.Participant(a.Advisory.Ticket) || live.Participant(b.Transactions.Ticket) != live.Participant(b.Advisory.Ticket) {
 			t.Fatal("live tickets did not collapse")
 		}
-		if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, ordinary, lock.AccessExclusive); err != nil {
+		if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, ordinary, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryExclusive)
@@ -121,8 +121,8 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 						e := New()
 						a, ra := advisoryUnitOwner(t, e)
 						b, rb := advisoryUnitOwner(t, e)
-						key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 4}
-						prior := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 98}
+						key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 4}
+						prior := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 98}
 						advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 						advisoryUnitGrant(t, b, rb, prior, lock.AdvisoryExclusive)
 						blockerHold, priorHold := advisoryUnitHold(a, key), advisoryUnitHold(b, prior)
@@ -137,11 +137,11 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 						// with the original budgets and one controlled clock.
 						clock, cancel := context.WithDeadline(context.Background(), policy.StatementDeadline)
 						defer cancel()
-						r, err := e.locks.StartAcquire(clock, b.Advisory.Ticket, key, lock.AdvisoryExclusive, policy)
+						r, err := e.Locks.StartAcquire(clock, b.Advisory.Ticket, key, lock.AdvisoryExclusive, policy)
 						if err != nil || r == nil {
 							t.Fatal("blocked request absent", r, err)
 						}
-						state := e.locks.Inspect(b.Advisory.Ticket)
+						state := e.Locks.Inspect(b.Advisory.Ticket)
 						if queue := state.Resources[key].Pending; len(queue) != 1 || queue[0].Request != r || queue[0].Provenance != rb {
 							t.Fatal("exact timed request not queued", queue)
 						}
@@ -207,7 +207,7 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 						if !errors.As(err, &diagnostic) || *diagnostic != want {
 							t.Fatal("current timer provenance", err)
 						}
-						state = e.locks.Inspect(b.Advisory.Ticket)
+						state = e.Locks.Inspect(b.Advisory.Ticket)
 						_, journaled := state.Journals[b.Advisory.Ticket][key]
 						if advisoryUnitHold(b, key) != (lock.Hold{}) || len(state.Resources[key].Pending) != 0 || journaled || advisoryUnitHold(a, key) != blockerHold || advisoryUnitHold(b, prior) != priorHold {
 							t.Fatal("timeout leaked request or changed prior grants", state)
@@ -228,11 +228,11 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 5}
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 5}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		r, err := e.locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: rb, Source: ctx, Timeout: time.Second})
+		r, err := e.Locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: rb, Source: ctx, Timeout: time.Second})
 		if err != nil || r == nil {
 			t.Fatal(r, err)
 		}
@@ -259,21 +259,21 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		ra := transactionBegin(t, a)
 		old := a.Transactions.Ticket
 		ordinary := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 6}
-		if err := e.locks.Acquire(context.Background(), old, ordinary, lock.AccessExclusive); err != nil {
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 6}
+		if err := e.Locks.Acquire(context.Background(), old, ordinary, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		sessionSQL(t, a, "PREPARE TRANSACTION 'advisory_detached'")
 		current := transactionBegin(t, a)
-		lockState := e.locks.Inspect(old)
+		lockState := e.Locks.Inspect(old)
 		detached := lockState.Detached[old]
 		participant := lockState.Participant(old)
 		same := participant == lockState.Participant(a.Transactions.Ticket)
 		if !detached || participant.Prepared != ra || participant.Session != (ids.SessionToken{}) || same || advisoryUnitHold(a, key).Exclusive != 1 {
 			t.Fatal("prepared identity/counts", detached, participant, same)
 		}
-		if _, err := e.locks.StartAcquire(context.Background(), a.Transactions.Ticket, ordinary, lock.AccessExclusive, lock.Policy{NoWait: true}); !errors.Is(err, lock.ErrUnavailable) {
+		if _, err := e.Locks.StartAcquire(context.Background(), a.Transactions.Ticket, ordinary, lock.AccessExclusive, lock.Policy{NoWait: true}); !errors.Is(err, lock.ErrUnavailable) {
 			t.Fatal("prepared owner self-bypassed", err)
 		}
 		advisoryUnitGrant(t, a, current, key, lock.AdvisoryExclusive)
@@ -285,8 +285,8 @@ func TestAdvisorySessionQueueTimersDeadlock(t *testing.T) {
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal("prepared completion did not wake", err)
 		}
-		e.locks.DetachPrepared(old)
-		lockState = e.locks.Inspect(old)
+		e.Locks.DetachPrepared(old)
+		lockState = e.Locks.Inspect(old)
 		resurrected := lockState.Owners[ra] != nil
 		oldResources := len(lockState.Journals[old])
 		if resurrected || oldResources != 0 || advisoryUnitHold(a, key).Exclusive != 2 {

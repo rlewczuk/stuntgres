@@ -10,7 +10,7 @@ import (
 )
 
 func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.replay_required AS integer NOT NULL"))
@@ -25,16 +25,16 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	if err := scope.gate(source); err != nil {
+	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	ref, err := e.resolveRelationReference(auth, source.Name, false)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	ref, err := e.ResolveRelationReference(auth, source.Name, false)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	identity := []string{"public", "replay_required"}
 	valid := typedef.DomainReplayRecord{Schema: "public", Table: "replay_domain", Cells: []typedef.DomainReplayCell{{Column: "v", Value: &typedef.DomainReplayNode{Kind: "domain_null", Type: &identity}}}}
 	capture, err := e.captureDomainReplay(scope, source, valid, auth, relation)
-	if err != nil || capture == nil || len(capture.cells) != 1 || !capture.cells[0].Value.IsNull() || capture.cells[0].Value.Type() != relation.Columns[0].Usage.Type {
+	if err != nil || capture == nil || len(capture.Cells) != 1 || !capture.Cells[0].Value.IsNull() || capture.Cells[0].Value.Type() != relation.Columns[0].Usage.Type {
 		t.Fatal("exact domain NULL admission", capture, err)
 	}
 	for _, query := range []string{
@@ -77,17 +77,17 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	normal := New()
 	normalOp, normalDone := roleOperation(t, normal, "postgres")
 	defer normalDone()
-	normalAuth, err := operationAuthorization(normalOp)
+	normalAuth, err := OperationAuthorization(normalOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := normal.captureDomainReplay(&StatementScope{op: normalOp}, source, valid, normalAuth, nil); err == nil {
+	if _, err := normal.captureDomainReplay(&StatementScope{Op: normalOp}, source, valid, normalAuth, nil); err == nil {
 		t.Fatal("ordinary engine acquired native replay authority")
 	}
 }
 
 func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	// Restore adds captured CHECK recipes after rows, so the live declared
@@ -104,10 +104,10 @@ func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	if err := scope.gate(source); err != nil {
+	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,13 +117,13 @@ func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal("deferred CHECK declaration lost existing domain NULL provenance", err)
 	}
-	if value := capture.cells[0].Value; !value.IsNull() || value.Type() != table.Columns[0].Usage.Type {
+	if value := capture.Cells[0].Value; !value.IsNull() || value.Type() != table.Columns[0].Usage.Type {
 		t.Fatal("lost authentic declared domain identity", value)
 	}
 }
 
 func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	text := "pg_catalog.timezone('UTC'::text,'-infinity'::timestamptz)"
@@ -137,10 +137,10 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	if err := scope.gate(source); err != nil {
+	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,14 +148,14 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	if !ok {
 		t.Fatal("missing timestamp")
 	}
-	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	value, count, err := typedef.RestoreDomainReplayNode(e.domainReplayEnv(&c, op, auth), typ.Usage(), &typedef.DomainReplayNode{Kind: "scalar", Scalar: &text})
 	if err != nil || count != 0 {
 		t.Fatal("closed endpoint expression lost its original binding manifest", count, err)
 	}
-	output, err := typ.OutputWithEnvironment(op.Context(), value, scope.output)
+	output, err := typ.OutputWithEnvironment(op.Context(), value, scope.Output)
 	if err != nil || output != "-infinity" {
 		t.Fatal(output, err)
 	}

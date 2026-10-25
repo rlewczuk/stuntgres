@@ -25,42 +25,42 @@ var _ exec.Host = (*statementHost)(nil)
 var _ regobj.NoticeHost = (*statementHost)(nil)
 var _ fdw.WriteRuntime = (*statementHost)(nil)
 
-// hostOf returns an untyped nil for a nil scope, never a typed nil.
-func hostOf(scope *StatementScope) exec.Host {
+// HostOf returns an untyped nil for a nil scope, never a typed nil.
+func HostOf(scope *StatementScope) exec.Host {
 	if scope == nil {
 		return nil
 	}
 	return (*statementHost)(scope)
 }
 
-// scopeOf is the checked conversion back for engine code that reads the scope
+// ScopeOf is the checked conversion back for engine code that reads the scope
 // behind a runtime record's host.
-func scopeOf(host exec.Host) *StatementScope {
+func ScopeOf(host exec.Host) *StatementScope {
 	h, _ := host.(*statementHost)
 	return (*StatementScope)(h)
 }
 
 func (h *statementHost) scope() *StatementScope { return (*StatementScope)(h) }
 
-func (h *statementHost) Context() context.Context { return h.op.Context() }
+func (h *statementHost) Context() context.Context { return h.Op.Context() }
 func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
-	return h.input, h.output
+	return h.Input, h.Output
 }
 
 // RoutineAdmission is the statement's routine admission authority and its
 // original dependency manifest; it fails once the statement has finished.
 func (h *statementHost) RoutineAdmission() (exec.RoutineAccess, []catalog.ExpressionDependency, error) {
-	if h.finished {
+	if h.Finished {
 		return exec.RoutineAccess{}, nil, fmt.Errorf("stuntgres: ended routine admission authority")
 	}
-	return h.routineAuth.routineAccess(), h.routineDependencies, nil
+	return h.RoutineAuth.routineAccess(), h.RoutineDependencies, nil
 }
 
 func (h *statementHost) StatementStart() time.Time          { return h.statementStart }
 func (h *statementHost) CTEInvocation() *exec.CTEInvocation { return h.cteInvocation }
 
 // QueryLocks is the statement's row-lock context, read at recheck time.
-func (h *statementHost) QueryLocks() *exec.LockContext { return h.queryLocks }
+func (h *statementHost) QueryLocks() *exec.LockContext { return h.QueryLockContext }
 
 func (h *statementHost) ReleaseReplacementRead() { h.scope().foreignUnlocked() }
 func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.ForeignDataWrapper, request catalog.ForeignRequest, writing bool) (catalog.ForeignTransaction, error) {
@@ -70,7 +70,7 @@ func (h *statementHost) EnlistForeign(ctx context.Context, wrapper catalog.Forei
 // Detached/internal evaluation can borrow a host without command admission.
 // It has no admitted async work; never consult live settings as a fallback.
 func (h *statementHost) AsyncAppendEnabled() bool {
-	return h != nil && h.op != nil && h.op.CommandAdmission && h.op.AsyncAppend
+	return h != nil && h.Op != nil && h.Op.CommandAdmission && h.Op.AsyncAppend
 }
 
 // TrackForeignModification records m so statement end finishes it.
@@ -133,23 +133,23 @@ func (h *statementHost) FormatACLRole(authority *sqltype.ACLAuthority, id uint32
 // TypeNameNotice implements regobj.NoticeHost: a type-name notice goes to the
 // operation of the current execution, if there is one.
 func (h *statementHost) TypeNameNotice(level session.NoticeLevel, notice sqlstate.Error) {
-	if h == nil || h.op == nil {
+	if h == nil || h.Op == nil {
 		return
 	}
-	h.op.EmitNotice(level, notice)
+	h.Op.EmitNotice(level, notice)
 }
 
 // PgcryptoNotice delivers owned diagnostics through the live operation filter.
 func (h *statementHost) PgcryptoNotice(notice sqlstate.Error) {
-	if h == nil || h.op == nil {
+	if h == nil || h.Op == nil {
 		return
 	}
-	h.op.EmitNotice(session.LevelNotice, notice)
+	h.Op.EmitNotice(session.LevelNotice, notice)
 }
 
 func (h *statementHost) JSONPathNotice(notice sqlstate.Error) {
-	if h == nil || h.op == nil {
+	if h == nil || h.Op == nil {
 		return
 	}
-	h.op.EmitNotice(session.LevelWarning, notice)
+	h.Op.EmitNotice(session.LevelWarning, notice)
 }

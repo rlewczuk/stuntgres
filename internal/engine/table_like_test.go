@@ -20,9 +20,9 @@ import (
 func tableLikeBuild(t *testing.T, e *Engine, op *session.Operation, query string) (*CatalogStage, *catalog.Relation, error) {
 	t.Helper()
 	syntax := statement(t, query).(*parser.CreateTable)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -31,7 +31,7 @@ func tableLikeBuild(t *testing.T, e *Engine, op *session.Operation, query string
 	if syntax.Persistence == "temporary" {
 		namespace = op.Session.TemporaryNamespace
 	}
-	err = e.schemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = e.SchemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	var destination *catalog.Relation
 	if err == nil {
 		address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text})
@@ -60,7 +60,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	e := New()
 	source := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Attributes: []int32{1, 3}}
 	destination := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, Attributes: []int32{1, 2, 3, 4}}
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := mapped.(plan.ColumnExpr)
-	if got.Origin.Domain() != e.catalog.Domain || got.Origin.Epoch != current.Epoch || got.Origin.Address.ObjectID != destination.Address().ObjectID || got.Origin.Address.SubID != 3 || got.Slot != 2 || column.Origin != columnRef || column.Slot != 1 {
+	if got.Origin.Domain() != e.Catalog.Domain || got.Origin.Epoch != current.Epoch || got.Origin.Address.ObjectID != destination.Address().ObjectID || got.Origin.Address.SubID != 3 || got.Slot != 2 || column.Origin != columnRef || column.Slot != 1 {
 		t.Fatal(got, column)
 	}
 	owner := plan.TableOIDExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, Owner: ref}
@@ -84,7 +84,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(plan.TableOIDExpr).Owner.Domain() != e.catalog.Domain || mapped.(plan.TableOIDExpr).Owner.Epoch != current.Epoch || mapped.(plan.TableOIDExpr).Owner.Address != destination.Address() || owner.Owner != ref {
+	if mapped.(plan.TableOIDExpr).Owner.Domain() != e.Catalog.Domain || mapped.(plan.TableOIDExpr).Owner.Epoch != current.Epoch || mapped.(plan.TableOIDExpr).Owner.Address != destination.Address() || owner.Owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)
@@ -120,7 +120,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if e.catalog.State != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.ColumnMeta.Defaults[3].OID == source.ColumnMeta.Defaults[2].OID || destination.ColumnMeta.Generations[5].OID == source.ColumnMeta.Generations[4].OID || destination.Constraints.Check[0].OID == source.Constraints.Check[0].OID {
+	if e.Catalog.State != before.State() || destination.Address() == source.Address() || destination.RowType == source.RowType || destination.ColumnMeta.Defaults[3].OID == source.ColumnMeta.Defaults[2].OID || destination.ColumnMeta.Generations[5].OID == source.ColumnMeta.Generations[4].OID || destination.Constraints.Check[0].OID == source.Constraints.Check[0].OID {
 		t.Fatal("copied provider identities or published early")
 	}
 	if !destination.Constraints.Check[0].NoInherit || destination.Constraints.Check[0].Name != "positive" || destination.ColumnMeta.Comments[3] != "exact" || len(source.Columns) != 3 || len(destination.Columns) != 5 {
@@ -128,7 +128,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	}
 	identity := destination.ColumnMeta.Identities[4]
 	sequence := stage.Get(identity.Sequence).(*catalog.Relation)
-	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.sequence.Generator(identity.Sequence).Called {
+	if identity.Sequence == source.ColumnMeta.Identities[3].Sequence || sequence.Sequence.Owned != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: destination.Address().ObjectID, SubID: 4}) || sequence.Owner != destination.Owner || sequence.Sequence.Persistence != "logged" || stage.Sequence.Generator(identity.Sequence).Called {
 		t.Fatal("identity copy authority/state", sequence)
 	}
 	for _, ref := range destination.ColumnMeta.Generations[5].Dependencies {
@@ -151,7 +151,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.storage.Relations[destination.Address()].Versions) != 0 {
+	if len(e.Storage.Relations[destination.Address()].Versions) != 0 {
 		t.Fatal("source rows imported")
 	}
 }
@@ -162,14 +162,14 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	before := e.CatalogRead()
-	stores, generators := len(e.storage.Relations), len(e.storage.Sequences)
+	stores, generators := len(e.Storage.Relations), len(e.Storage.Sequences)
 	for _, query := range []string{"CREATE TABLE bad(LIKE src INCLUDING ALL,a TEXT)", "CREATE TABLE bad(LIKE src INCLUDING ALL,CONSTRAINT positive CHECK(a>0))"} {
 		stage, _, err := tableLikeBuild(t, e, op, query)
 		if err == nil {
 			t.Fatal("invalid candidate accepted")
 		}
 		e.DiscardCatalogStage(stage)
-		if e.catalog.State != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
+		if e.Catalog.State != before.State() || len(e.Storage.Relations) != stores || len(e.Storage.Sequences) != generators {
 			t.Fatal("failed candidate leaked publication")
 		}
 	}
@@ -184,7 +184,7 @@ func TestTableLikeStageAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.DiscardCatalogStage(stage)
-	if e.catalog.State != before.State() || len(e.storage.Relations) != stores || len(e.storage.Sequences) != generators {
+	if e.Catalog.State != before.State() || len(e.Storage.Relations) != stores || len(e.Storage.Sequences) != generators {
 		t.Fatal("canceled candidate leaked publication")
 	}
 }
@@ -205,9 +205,9 @@ func TestTableLikePublicationFence(t *testing.T) {
 	}
 	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "src").Address)
 	next := *source
-	e.mu.Lock()
-	next.ObjectRevision, err = e.catalog.RevisionLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	next.ObjectRevision, err = e.Catalog.RevisionLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +221,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("stale source silently retargeted", err)
 	}
-	if e.catalog.State != incumbent.State() {
+	if e.Catalog.State != incumbent.State() {
 		t.Fatal("stale candidate partially published")
 	}
 }
@@ -231,9 +231,9 @@ func TestTableLikeInlineSourceProvenance(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	syntax := statement(t, "CREATE SCHEMA copied CREATE TABLE src(id INT GENERATED BY DEFAULT AS IDENTITY,a INT DEFAULT 7 UNIQUE) CREATE TABLE clone(LIKE copied.src INCLUDING ALL)").(*parser.CreateSchema)
-	e.mu.Lock()
+	e.Mu.Lock()
 	stage, err := e.stageSchemaLocked(op, syntax, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

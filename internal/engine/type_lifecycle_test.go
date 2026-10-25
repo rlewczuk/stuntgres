@@ -66,10 +66,10 @@ func TestTypeLifecycleGenerationClosure(t *testing.T) {
 				t.Fatal(err)
 			}
 			original := &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, wrapped}}}}
-			e.mu.Lock()
-			e.storage.InstallRelationLocked(table.Address(), original)
-			e.visibility.SetCommitSeqLocked(1)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			e.Storage.InstallRelationLocked(table.Address(), original)
+			e.Visibility.SetCommitSeqLocked(1)
+			e.Mu.Unlock()
 			members := old.SQLType.EnumMembers()
 			var procedures []*catalog.Procedure
 			provider := old
@@ -140,14 +140,14 @@ func TestTypeLifecycleGenerationClosure(t *testing.T) {
 			}
 			invalid := catalog.CloneState(current.State())
 			invalid.SetDescriptor(forged.Address(), &forged)
-			if err := e.catalog.Owner.Provider(ids.TypeClassID).Validate(e.catalog.Read(invalid), &forged); err == nil {
+			if err := e.Catalog.Owner.Provider(ids.TypeClassID).Validate(e.Catalog.Read(invalid), &forged); err == nil {
 				t.Fatal("stale same-OID element generation passed provider validation")
 			}
 			newChild := current.MustType(child.Address())
 			if newChild.SQLType.DomainBase().Type != next.SQLType || current.MustType(carrier.Address()).SQLType.CompositeMember(0).Usage.Type != newChild.SQLType {
 				t.Fatal("dependent provider closure stale")
 			}
-			if current.MustRelation(table.Address()).Columns[0].Usage.Type != next.SQLType || e.storage.Relations[table.Address()].Versions[0].Values[0].Type() != next.SQLType {
+			if current.MustRelation(table.Address()).Columns[0].Usage.Type != next.SQLType || e.Storage.Relations[table.Address()].Versions[0].Values[0].Type() != next.SQLType {
 				t.Fatal("column/storage provider closure stale")
 			}
 			if current.MustType(peer.Address()) != peer || old.Name() != family.name || before.MustType(old.Address()) != old || original.Versions[0].Values[0].Type() != old.SQLType || original.Versions[0].Values[1].Type() != child.SQLType {
@@ -225,7 +225,7 @@ func TestTypeLifecycleDropClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	if err := scope.gate(statement(t, "DROP TYPE public.mood")); err != nil {
+	if err := scope.Gate(statement(t, "DROP TYPE public.mood")); err != nil {
 		t.Fatal(err)
 	}
 	if err := scope.stageDomainDependents(stage, parser.DropRestrict); err != nil {
@@ -271,7 +271,7 @@ func TestTypeLifecycleDropResources(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.gate(statement(t, "DROP TYPE public."+family.name)); err != nil {
+			if err := scope.Gate(statement(t, "DROP TYPE public."+family.name)); err != nil {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
@@ -279,22 +279,22 @@ func TestTypeLifecycleDropResources(t *testing.T) {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			state := e.locks.Inspect()
-			resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())}
-			if state.Resources[resource] == nil || state.Resources[resource].Holders[scope.ticket].Mode != lock.TypeExclusive {
+			state := e.Locks.Inspect()
+			resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address())}
+			if state.Resources[resource] == nil || state.Resources[resource].Holders[scope.LockTicket].Mode != lock.TypeExclusive {
 				t.Fatal("DROP did not lock the actual type resource")
 			}
 			for resource, entry := range state.Resources {
 				if resource.ObjectRef.Address.ClassID != ids.RelationClassID {
 					continue
 				}
-				if !old.SQLType.IsComposite() || resource.ObjectRef.Address != old.OwningRelation || entry.Holders[scope.ticket].Mode != lock.AccessExclusive {
+				if !old.SQLType.IsComposite() || resource.ObjectRef.Address != old.OwningRelation || entry.Holders[scope.LockTicket].Mode != lock.AccessExclusive {
 					t.Fatal("non-backing relation lock", resource)
 				}
 			}
 			if old.SQLType.IsComposite() {
-				backing := lock.Resource{ObjectRef: e.catalog.Domain.Ref(stage.Base.Epoch(), old.OwningRelation)}
-				if state.Resources[backing] == nil || state.Resources[backing].Holders[scope.ticket].Mode != lock.AccessExclusive {
+				backing := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(stage.Base.Epoch(), old.OwningRelation)}
+				if state.Resources[backing] == nil || state.Resources[backing].Holders[scope.LockTicket].Mode != lock.AccessExclusive {
 					t.Fatal("real composite backing lock missing")
 				}
 			}

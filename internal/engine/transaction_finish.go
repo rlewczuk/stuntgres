@@ -17,7 +17,7 @@ func (s *StatementScope) Finish(err error) error {
 	if s == nil || s.self != s {
 		return errors.New("stuntgres: foreign or missing statement scope")
 	}
-	if s.finished {
+	if s.Finished {
 		return s.result
 	}
 	copyState := s.CopyFrom
@@ -32,14 +32,14 @@ func (s *StatementScope) Finish(err error) error {
 			program.Close()
 		}
 		s.rlsPrograms, s.rlsActive = nil, nil
-		s.routineAuth = AuthorizationView{}
-		s.routineDependencies = nil
+		s.RoutineAuth = AuthorizationView{}
+		s.RoutineDependencies = nil
 		s.routinePrograms = nil
 		s.checkPrograms = nil
-		s.domains.endAdmission()
+		s.Domains.endAdmission()
 		s.partitionsSlot.DropPrograms()
 		for i := range s.mutations {
-			s.mutations[i].routineDependencies = nil
+			s.mutations[i].RoutineDependencies = nil
 		}
 		if s.authority != nil {
 			s.authority.Host = nil
@@ -48,45 +48,45 @@ func (s *StatementScope) Finish(err error) error {
 	// ERROR recovery stops the budget before rollback/root cleanup. Restoring
 	// a positive setting below is not an explicit assignment and cannot rearm it.
 	if err != nil {
-		s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
+		s.Op.Session.FinishScopeTimeout(&s.lease, s.Op, s.message, s.TxRef, true)
 	}
 	if s.controlOutcome == controlExecuted || (s.controlOutcome == controlDescribed && err == nil) {
 		// A control has no stage/view. In particular, do not advance or recheck
-		if s.replacementRead {
-			s.engine().replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			s.Engine().ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
-		if cleanupErr := drainCursorCleanup(s.owner, s.op.Context(), s); err == nil {
+		if cleanupErr := drainCursorCleanup(s.Owner, s.Op.Context(), s); err == nil {
 			err = cleanupErr
 		}
-		s.owner.Mu.Lock()
-		finishNotificationBoundary(s.owner)
-		s.owner.Mu.Unlock()
+		s.Owner.Mu.Lock()
+		finishNotificationBoundary(s.Owner)
+		s.Owner.Mu.Unlock()
 		// the new incarnation installed by CHAIN after its linearization.
-		s.finished = true
+		s.Finished = true
 		s.result = err
-		s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
+		s.Op.Session.FinishScopeTimeout(&s.lease, s.Op, s.message, s.TxRef, err != nil)
 		s.releaseCopyReservation()
 		if !s.message {
-			s.owner.Admission.Unlock()
+			s.Owner.Admission.Unlock()
 		}
 		return err
 	}
-	t := s.owner
-	e := s.engine()
+	t := s.Owner
+	e := s.Engine()
 	published := false
 	t.Mu.Lock()
 	// Parsing can fail before classification; admitted failures still abort
 	// explicit work. Completed row/catalog/session utilities have already passed
 	// their installation preflight; later cancellation cannot retract success.
-	if err == nil && s.worked && !s.completed {
-		err = e.validateOperation(s.op)
+	if err == nil && s.worked && !s.Completed {
+		err = e.ValidateOperation(s.Op)
 	}
-	if err == nil && s.worked && s.catalog != nil {
+	if err == nil && s.worked && s.Catalog != nil {
 		t.Mu.Unlock()
-		e.mu.Lock()
-		err = s.acquireJournalRoleDependenciesLocked(s.catalog)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err = s.AcquireJournalRoleDependenciesLocked(s.Catalog)
+		e.Mu.Unlock()
 		t.Mu.Lock()
 	}
 	// Implicit HOLD declaration installation is not its external completion:
@@ -114,13 +114,13 @@ func (s *StatementScope) Finish(err error) error {
 	t.Mu.Lock()
 	if err == nil && s.worked {
 		catalog := t.Catalog
-		if s.catalog != nil {
-			catalog = s.catalog
+		if s.Catalog != nil {
+			catalog = s.Catalog
 		}
 		if t.State == session.TxImplicit && !t.RetainsTransaction() {
-			if !s.completed {
+			if !s.Completed {
 				t.Mu.Unlock()
-				err = e.publishRows(s.op, t.Ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority, s)
+				err = e.publishRows(s.Op, t.Ref, s.Stage.Rows, s.Stage.Deletes, catalog, s.CatalogAuthority, s)
 				published = err == nil
 				t.Mu.Lock()
 			}
@@ -128,9 +128,9 @@ func (s *StatementScope) Finish(err error) error {
 			var deletes map[ids.ObjectAddress]*visibility.PrivateDeletes
 			var writes map[ids.ObjectAddress][]storage.RowVersion
 			if s.projectedRoots {
-				writes, deletes = s.stage.rows, s.stage.deletes
+				writes, deletes = s.Stage.Rows, s.Stage.Deletes
 			} else {
-				deletes = visibility.MergeDeletions(t.Deletes, s.stage.deletes)
+				deletes = visibility.MergeDeletions(t.Deletes, s.Stage.Deletes)
 			}
 			t.Mu.Unlock()
 			err = s.validatePrivateIndexExpressions(catalog, deletes)
@@ -140,29 +140,29 @@ func (s *StatementScope) Finish(err error) error {
 			t.Mu.Lock()
 			if err == nil {
 				if !s.projectedRoots {
-					writes = visibility.PrepareOwnWrites(t.Writes, s.stage.rows, s.stage.replacing)
+					writes = visibility.PrepareOwnWrites(t.Writes, s.Stage.Rows, s.Stage.replacing)
 				}
 				notificationActions, notificationEvents := t.MergeNotifications(s.notificationActions, s.notificationEvents)
-				session := s.op.Session
+				session := s.Op.Session
 			privateForeignFence:
-				e.mu.Lock()
+				e.Mu.Lock()
 				err = s.validateInheritanceRelationshipsLocked(e)
 				session.Mu.Lock()
 				if err == nil {
-					err = publicationOperationLocked(e, s.op)
+					err = PublicationOperationLocked(e, s.Op)
 				}
-				if err == nil && t.Ref.Epoch() != e.catalog.State.Epoch() {
+				if err == nil && t.Ref.Epoch() != e.Catalog.State.Epoch() {
 					err = ids.ErrCatalogReplaced
 				}
-				if err == nil && s.catalog != nil {
-					err = e.catalogPreflightLocked(catalog)
+				if err == nil && s.Catalog != nil {
+					err = e.CatalogPreflightLocked(catalog)
 				}
 				if err == nil {
-					err = e.catalogAuthorityPreflightLocked(s.catalogAuthority, catalog)
+					err = e.catalogAuthorityPreflightLocked(s.CatalogAuthority, catalog)
 				}
 				if err == nil && len(s.foreignTablesOrZero().statements) != 0 {
 					session.Mu.Unlock()
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					t.Mu.Unlock()
 					settleErr := s.finishForeignStatements(nil)
 					t.Mu.Lock()
@@ -170,12 +170,12 @@ func (s *StatementScope) Finish(err error) error {
 						goto privateForeignFence
 					}
 					err = settleErr
-					e.mu.Lock()
+					e.Mu.Lock()
 					session.Mu.Lock()
 				}
 				if err == nil {
-					for a, rows := range s.stage.rows {
-						if !s.stage.replacing && len(t.Writes[a]) != 0 {
+					for a, rows := range s.Stage.Rows {
+						if !s.Stage.replacing && len(t.Writes[a]) != 0 {
 							copy(writes[a][len(t.Writes[a]):], rows)
 						}
 					}
@@ -184,13 +184,13 @@ func (s *StatementScope) Finish(err error) error {
 					t.Catalog = catalog
 					t.NotificationActions = notificationActions
 					t.NotificationEvents = notificationEvents
-					if s.indexesOrZero().ExclusionStarted {
-						ownerExtensionOf(t).exclusionModes = s.indexesOrZero().ExclusionModes
+					if s.IndexesOrZero().ExclusionStarted {
+						ownerExtensionOf(t).exclusionModes = s.IndexesOrZero().ExclusionModes
 					}
 					e.reconcileSerializableWritesLocked(t)
 				}
 				session.Mu.Unlock()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
 		}
 		if err == nil {
@@ -200,7 +200,7 @@ func (s *StatementScope) Finish(err error) error {
 	if t.State == session.TxImplicit && err != nil && ownerHasForeign(t) {
 		t.Mu.Unlock()
 		s.foreignUnlocked()
-		_ = disposeSQLCursors(s.op.Context(), payloadOf(t.Session).cursors.endTransaction(t.Ref))
+		_ = disposeSQLCursors(s.Op.Context(), PayloadOf(t.Session).Cursors.endTransaction(t.Ref))
 		t.Mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().statements) != 0 {
@@ -218,7 +218,7 @@ func (s *StatementScope) Finish(err error) error {
 		}
 	}
 	if err != nil {
-		s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
+		s.Op.Session.FinishScopeTimeout(&s.lease, s.Op, s.message, s.TxRef, true)
 	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
@@ -231,49 +231,49 @@ func (s *StatementScope) Finish(err error) error {
 		clearTransaction(t)
 		t.Session.RetireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.State == session.TxActive || t.State == session.TxAborted) {
-		endedTicket = e.failExplicitTransactionLocked(s.op, t, err)
+		endedTicket = e.failExplicitTransactionLocked(s.Op, t, err)
 	}
-	e.endStatementVisibility(s.txRef, t.State != session.TxIdle && t.Isolation.Stable())
-	if s.view != nil {
-		s.view.Release()
-		s.view = nil
+	e.endStatementVisibility(s.TxRef, t.State != session.TxIdle && t.Isolation.Stable())
+	if s.View != nil {
+		s.View.Release()
+		s.View = nil
 	}
 	s.partitionsSlot.ReleaseValidationView()
-	s.stage.rows = nil
-	s.stage.deletes = nil
+	s.Stage.Rows = nil
+	s.Stage.Deletes = nil
 	s.notificationActions = nil
 	s.notificationEvents = nil
 	s.multiEvents = nil
-	s.ownDeletes = nil
-	s.ownWrites = nil
+	s.OwnDeletes = nil
+	s.OwnWrites = nil
 	s.indexesSlot.EndStatement()
-	s.inheritance.endStatement()
-	s.ticket = nil
+	s.Inheritance.endStatement()
+	s.LockTicket = nil
 	s.viewCreationSlot.EndStatement()
-	s.querySources = nil
-	s.queryLockAdmission = analyze.LockAdmission{}
-	s.queryLocks = nil
-	s.statementMutation = statementMutation{}
+	s.QuerySources = nil
+	s.QueryLockAdmission = analyze.LockAdmission{}
+	s.QueryLockContext = nil
+	s.StatementMutation = StatementMutation{}
 	s.mutations = nil
-	s.activeMutation = 0
+	s.ActiveMutation = 0
 	s.cteInvocation = nil
-	s.finished = true
-	s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
+	s.Finished = true
+	s.Op.Session.FinishScopeTimeout(&s.lease, s.Op, s.message, s.TxRef, err != nil)
 	s.result = err
 	finishNotificationBoundary(t)
 	t.Mu.Unlock()
-	if s.replacementRead {
-		e.replacementMu.RUnlock()
-		s.replacementRead = false
+	if s.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		s.ReplacementRead = false
 	}
-	if cleanupErr := drainCursorCleanup(t, s.op.Context(), s); err == nil {
+	if cleanupErr := drainCursorCleanup(t, s.Op.Context(), s); err == nil {
 		err = cleanupErr
 	}
 	s.result = err
 	if err == nil {
-		copyState.Success(s.op)
+		copyState.Success(s.Op)
 	}
-	e.endLockOwner(endedTicket)
+	e.EndLockOwner(endedTicket)
 	s.releaseCopyReservation()
 	if !s.message {
 		t.Admission.Unlock()
@@ -286,7 +286,7 @@ func (s *StatementScope) Finish(err error) error {
 // t.Mu exactly as ordinary Finish does. The failed block retains its incarnation.
 func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session.TransactionOwner, err error) *lock.Ticket {
 	if errors.Is(err, ids.ErrCatalogReplaced) {
-		ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.clear())
+		ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.clear())
 		t.TruncateSavepoints(0)
 	}
 	if len(t.Savepoints) != 0 {
@@ -299,7 +299,7 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 				ownerExtensionOf(t).retireForeign()
 			}
 			restoreSavepoint(t, mark, mark.Settings.Clone())
-			e.locks.Restore(t.Ticket, mark.Locks)
+			e.Locks.Restore(t.Ticket, mark.Locks)
 		}
 		t.State = session.TxAborted
 		return nil
@@ -309,6 +309,6 @@ func (e *Engine) failExplicitTransactionLocked(op *session.Operation, t *session
 	e.endSerializable(t.Ref, false)
 	endedTicket := t.Abort()
 	syncCharacteristics(t)
-	ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
+	ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.endTransaction(t.Ref))
 	return endedTicket
 }

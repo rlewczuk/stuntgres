@@ -6,13 +6,13 @@ import (
 )
 
 func (s *StatementScope) formatRegTS(id uint32, alias sqltype.ID) (string, error) {
-	if s == nil || s.inquiry.commentCatalog.State() == nil {
+	if s == nil || s.Inquiry.CommentCatalog.State() == nil {
 		if alias == sqltype.Regdictionary {
 			return exec.DetachedPresentation{}.FormatRegdictionary(id)
 		}
 		return exec.DetachedPresentation{}.FormatRegconfig(id)
 	}
-	return s.presentation().spellings.TextSearch(s.inquiry.commentCatalog, s.inquiry.deparsePath, id, alias), nil
+	return s.presentation().spellings.TextSearch(s.Inquiry.CommentCatalog, s.Inquiry.DeparsePath, id, alias), nil
 }
 func (s *StatementScope) FormatRegconfig(id uint32) (string, error) {
 	return s.formatRegTS(id, sqltype.Regconfig)

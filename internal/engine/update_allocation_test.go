@@ -47,20 +47,20 @@ func TestUpdateCoreSparseAllocation(t *testing.T) {
 		}
 		sessionSQL(t, s, q.String())
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		before := e.storage.Relations[ref.Address].Versions
+		before := e.Storage.Relations[ref.Address].Versions
 		zero = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE FALSE") })
 		absent := allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=-1") })
 		if absent > zero {
 			zero = absent
 		}
-		if &before[0] != &e.storage.Relations[ref.Address].Versions[0] {
+		if &before[0] != &e.Storage.Relations[ref.Address].Versions[0] {
 			t.Fatal("zero-match UPDATE replaced root")
 		}
 		sparse = allocated(func() { sessionSQL(t, s, "UPDATE t SET v=2 WHERE id=0") })
-		if len(e.storage.Relations[ref.Address].Versions) != n || testExport(before[0].Values[1]) != int64(1) {
+		if len(e.Storage.Relations[ref.Address].Versions) != n || testExport(before[0].Values[1]) != int64(1) {
 			t.Fatal("root retention/cardinality")
 		}
-		old := e.storage.Relations[ref.Address].Versions
+		old := e.Storage.Relations[ref.Address].Versions
 		stage := []storage.RowVersion{old[n-1]}
 		stage[0].Version++
 		private = allocated(func() {
@@ -188,7 +188,7 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 			retained.Release()
 			t.Fatal("multirow UPDATE", n, result, err, finishErr)
 		}
-		current := e.storage.Relations[bound.Ref.Address].Versions
+		current := e.Storage.Relations[bound.Ref.Address].Versions
 		if len(current) != n || len(old) != n {
 			retained.Release()
 			t.Fatal("replacement cardinality", n, len(current), len(old))
@@ -224,14 +224,14 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	var err error
 	payload[1], err = sqltype.Integer(payload[1].Type(), 11)
 	if err == nil {
-		err = dml.ReplaceRows(scope.writeHost(), bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}}, dml.ReplaceMerge)
+		err = dml.ReplaceRows(scope.WriteHost(), bound.Ref, committed[:1], index.WriteBatch{Values: [][]sqltype.Value{payload}}, dml.ReplaceMerge)
 	}
 	if err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal("existing action stage", err)
 	}
-	earlier := scope.stage.rows[bound.Ref.Address]
+	earlier := scope.Stage.Rows[bound.Ref.Address]
 	result, err := executeUpdate(op.Context(), scope, bound, source, nil, nil, "public")
 	finishErr := scope.Finish(err)
 	op.Done()
@@ -244,7 +244,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	if len(earlier) != 1 || testExport(earlier[0].Values[1]) != int64(11) || testExport(committed[0].Values[1]) != int64(1) {
 		t.Fatal("replacement mutated retained action/source prefix")
 	}
-	current := e.storage.Relations[bound.Ref.Address].Versions
+	current := e.Storage.Relations[bound.Ref.Address].Versions
 	if len(current) != 2 {
 		t.Fatal("overlap appended duplicate physical heads", len(current))
 	}

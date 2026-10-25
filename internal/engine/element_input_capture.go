@@ -8,7 +8,7 @@ import (
 
 // Capture recursive catalog input from one coherent authorization snapshot.
 // Frozen expressions and newly bound expressions share these same owners.
-func (e *Engine) captureElementInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment) error {
+func (e *Engine) CaptureElementInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment) error {
 	var err error
 	if input.Regclass == nil {
 		input.Regclass, err = captureRegclassInput(auth)
@@ -17,13 +17,13 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *session.Operati
 		}
 	}
 	if input.Regtype == nil {
-		input.Regtype, err = captureRegtypeInput(auth, op)
+		input.Regtype, err = CaptureRegtypeInput(auth, op)
 		if err != nil {
 			return err
 		}
 	}
 	if input.Regproc == nil {
-		input.Regproc, err = captureRoutineInput(auth, input.Regtype.(regobj.TypeInput))
+		input.Regproc, err = CaptureRoutineInput(auth, input.Regtype.(regobj.TypeInput))
 	}
 	if input.Regrole == nil {
 		input.Regrole = regobj.RoleInput{Roles: auth.Roles}
@@ -39,7 +39,7 @@ func (e *Engine) captureElementInput(auth AuthorizationView, op *session.Operati
 		}
 	}
 	if err == nil && input.RegTS == nil {
-		input.RegTS, err = captureRegTSInput(auth)
+		input.RegTS, err = CaptureRegTSInput(auth)
 	}
 	return err
 }

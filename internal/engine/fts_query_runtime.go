@@ -20,22 +20,22 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 		return value, err
 	}
 	defer s.leaveSQLRoutine()
-	accumulator, err := sqltype.NewFTSRewriteRules(s.op.Context(), query, result)
+	accumulator, err := sqltype.NewFTSRewriteRules(s.Op.Context(), query, result)
 	if err != nil {
 		return value, err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	changes := s.catalog
+	e := s.Engine()
+	e.Mu.Lock()
+	changes := s.Catalog
 	if changes == nil {
-		changes = s.owner.Catalog
+		changes = s.Owner.Catalog
 	}
-	read := e.privateCatalogLocked(changes)
-	e.mu.Unlock()
-	s.op.Session.Settings.Mu.Lock()
-	standard := s.op.Session.Settings.Value("standard_conforming_strings") == "on"
-	s.op.Session.Settings.Mu.Unlock()
-	statements, err := parser.ParseWithOptions(text, parser.Options{Context: s.op.Context(), StandardConformingStrings: standard, Notice: s.op.ParseNotice, ClosedRoutineFormals: true})
+	read := e.PrivateCatalogLocked(changes)
+	e.Mu.Unlock()
+	s.Op.Session.Settings.Mu.Lock()
+	standard := s.Op.Session.Settings.Value("standard_conforming_strings") == "on"
+	s.Op.Session.Settings.Mu.Unlock()
+	statements, err := parser.ParseWithOptions(text, parser.Options{Context: s.Op.Context(), StandardConformingStrings: standard, Notice: s.Op.ParseNotice, ClosedRoutineFormals: true})
 	if err != nil {
 		return value, exec.RewriteSQLDiagnostic(err, text)
 	}
@@ -46,15 +46,15 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 				return value, exec.RewriteSQLDiagnostic(err, text)
 			}
 		}
-		return value, sqlError("42P11", "cannot open multi-query plan as cursor")
+		return value, SQLError("42P11", "cannot open multi-query plan as cursor")
 	}
 	statement := statements[0]
-	view, refs := s.view, s.rlsDataRefs
+	view, refs := s.View, s.rlsDataRefs
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
-	s.view, s.rlsDataRefs = view, refs
+	s.View, s.rlsDataRefs = view, refs
 	s.sqlRoutine.scalar, s.sqlRoutine.rewrite = false, true
-	if err := s.acquireRelation(statement, true); err != nil {
+	if err := s.AcquireRelation(statement, true); err != nil {
 		return value, exec.RewriteSQLDiagnostic(err, text)
 	}
 	description, err := e.describeOperation(s, statement)
@@ -63,10 +63,10 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	}
 	s.Expected = &description
 	if !rewriteTupleStatement(statement) {
-		return value, sqlError("42P11", "cannot open "+routineCommandTag(statement)+" query as cursor")
+		return value, SQLError("42P11", "cannot open "+routineCommandTag(statement)+" query as cursor")
 	}
 	if tag := rewriteReadOnlyViolation(statement); tag != "" {
-		return value, exec.RewriteSQLDiagnostic(sqlError("0A000", tag+" is not allowed in a non-volatile function"), text)
+		return value, exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), text)
 	}
 	rowsResult, err := e.executeStatement(s, statement, 0, func(_ context.Context, info analyze.ParameterInfo, _ []sqltype.Value, _ sqltype.InputEnvironment) error {
 		if info.Count != 0 {
@@ -87,19 +87,19 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	if rowsResult.Rows == nil {
 		return value, fmt.Errorf("stuntgres: tuple-producing rewrite SQL returned no row cursor")
 	}
-	return exec.ConsumeRewriteRules(s.op.Context(), rowsResult.Rows, accumulator)
+	return exec.ConsumeRewriteRules(s.Op.Context(), rowsResult.Rows, accumulator)
 }
 
 func (s *StatementScope) prepareRewriteStatement(statement parser.Statement, read catalog.Read) (err error) {
-	view, refs := s.view, s.rlsDataRefs
+	view, refs := s.View, s.rlsDataRefs
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() { err = restore(err) }()
-	s.view, s.rlsDataRefs = view, refs
+	s.View, s.rlsDataRefs = view, refs
 	s.sqlRoutine.scalar = false
-	if err = s.acquireRelation(statement, true); err != nil {
+	if err = s.AcquireRelation(statement, true); err != nil {
 		return err
 	}
-	_, err = s.engine().describeOperation(s, statement)
+	_, err = s.Engine().describeOperation(s, statement)
 	return err
 }
 

@@ -7,8 +7,8 @@ import (
 )
 
 func (s *StatementScope) FormatRegtype(id uint32) (string, error) {
-	if s == nil || s.inquiry.commentCatalog.State() == nil {
+	if s == nil || s.Inquiry.CommentCatalog.State() == nil {
 		return exec.DetachedPresentation{}.FormatRegtype(id)
 	}
-	return regobj.TypeSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
+	return regobj.TypeSpelling(s.Inquiry.CommentCatalog, s.Inquiry.DeparsePath, ids.OID(id)), nil
 }

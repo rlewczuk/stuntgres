@@ -21,9 +21,9 @@ func TestCreateAggregatePublicationCancellation(t *testing.T) {
 	op, _ := conversionUnitAuth(t, e)
 	before := e.CatalogRead()
 	raw := statement(t, "CREATE AGGREGATE aggregate_unit_cancel(integer) (SFUNC=pg_catalog.int4pl,STYPE=int4,INITCOND='0')")
-	e.mu.Lock()
+	e.Mu.Lock()
 	stage, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,9 +76,9 @@ func TestCreateAggregateSupportActorPhases(t *testing.T) {
 	roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.int4pl(integer,integer) FROM PUBLIC")
 	reader, finish := roleOperation(t, e, "aggregate_unit_reader")
 	t.Cleanup(finish)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(reader)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(reader)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestCreateAggregateSupportActorPhases(t *testing.T) {
 	if !ok {
 		t.Fatal("missing support")
 	}
-	call := exec.RoutineCall{Routine: support, Reference: e.catalog.Domain.Ref(read.Epoch(), support.Address()), Actor: aggregate.Owner, SupportAggregate: aggregate}
+	call := exec.RoutineCall{Routine: support, Reference: e.Catalog.Domain.Ref(read.Epoch(), support.Address()), Actor: aggregate.Owner, SupportAggregate: aggregate}
 	original := exec.RoutineProgram{Calls: []exec.RoutineCall{call}}
 	authority := exec.RoutineAccess{View: auth.View, Env: auth}
 	var phase exec.RoutineProgram
@@ -270,13 +270,13 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 					body += ",$2 AS a"
 				}
 				raw := statement(t, body)
-				e.mu.Lock()
-				auth, bindErr := e.authorizationLocked(op)
+				e.Mu.Lock()
+				auth, bindErr := e.AuthorizationLocked(op)
 				var binding analyze.Binding
 				if bindErr == nil {
-					binding, bindErr = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, provider.Support.SQL, provider.Support.Name(), provider.InputCollation)
+					binding, bindErr = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, provider.Support.SQL, provider.Support.Name(), provider.InputCollation)
 				}
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if bindErr != nil {
 					t.Fatal(bindErr)
 				}
@@ -353,13 +353,13 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 			}
 			definition.Standard = mode == "frozen"
 			raw := statement(t, "SELECT $1 AS s,$2 AS a,$3 AS b")
-			e.mu.Lock()
-			auth, authErr := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, authErr := e.AuthorizationLocked(op)
 			var binding analyze.Binding
 			if authErr == nil {
-				binding, authErr = analyze.DescribeRoutine(op.Context(), e.analysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, &definition, definition.Name, input)
+				binding, authErr = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), raw, authorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, &definition, definition.Name, input)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if authErr != nil {
 				t.Fatal(authErr)
 			}

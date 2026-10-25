@@ -87,7 +87,7 @@ func TestListPartitionDescriptor(t *testing.T) {
 			state := catalog.CloneState(view.State())
 			state.SetDescriptor(root.Address(), &nextRoot)
 			state.SetDescriptor(leaf.Address(), &nextLeaf)
-			candidate := e.catalog.Read(state)
+			candidate := e.Catalog.Read(state)
 			if err := partition.ValidateDescriptor(candidate, &nextRoot); err == nil {
 				t.Fatal("malformed hierarchy accepted")
 			}
@@ -104,7 +104,7 @@ func TestListPartitionDescriptor(t *testing.T) {
 		definition.Children = append(slices.Clone(definition.Children), sibling.Address())
 		state.SetDescriptor(root.Address(), &nextRoot)
 		state.SetDescriptor(sibling.Address(), &sibling)
-		if err := partition.ValidateDescriptor(e.catalog.Read(state), &nextRoot); err == nil {
+		if err := partition.ValidateDescriptor(e.Catalog.Read(state), &nextRoot); err == nil {
 			t.Fatal("sibling collision accepted", value)
 		}
 	}

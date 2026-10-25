@@ -13,7 +13,7 @@ import (
 )
 
 func (e *Engine) databaseCreateOwnerLocked(scope *StatementScope, name string) (authorization.PrincipalRef, error) {
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return authorization.PrincipalRef{}, err
 	}
@@ -24,27 +24,27 @@ func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	ctx := scope.op.Context()
+	ctx := scope.Op.Context()
 	options, err := ddl.ParseCreateDatabaseOptions(statement.Options)
 	if err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	owner, err := e.databaseCreateOwnerLocked(scope, options.Owner)
 	if err == nil {
-		err = ddl.CheckCreateDatabase(statement.Name, options, func(name string) bool { return e.cluster.targets[name] != nil })
+		err = ddl.CheckCreateDatabase(statement.Name, options, func(name string) bool { return e.Cluster.Targets[name] != nil })
 	}
 	if err == nil {
 		err = ctx.Err()
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.acquireRolePrincipal(owner, lock.AccessShare, false); err != nil {
+	if err := scope.AcquireRolePrincipal(owner, lock.AccessShare, false); err != nil {
 		return Result{}, err
 	}
-	if err := scope.roleStillPresent(owner); err != nil {
+	if err := scope.RoleStillPresent(owner); err != nil {
 		return Result{}, err
 	}
 	return e.createDatabaseTarget(ctx, scope, statement.Name, options.Owner, owner)
@@ -53,26 +53,26 @@ func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.
 // createDatabaseTarget constructs storage privately. Only the final no-failure
 // installation below can expose a name, descriptor, target or allocator advance.
 func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope, name, ownerName string, owner authorization.PrincipalRef) (Result, error) {
-	e.cluster.seedOnce.Do(func() {
-		candidate, err := newEngine(nil, nil, "template1", e.visibility.TracksCommitTimestamps())
+	e.Cluster.SeedOnce.Do(func() {
+		candidate, err := newEngine(nil, nil, "template1", e.Visibility.TracksCommitTimestamps())
 		if err == nil {
-			err = candidate.InstallForeignDefinitions(e.foreign.Definitions())
+			err = candidate.InstallForeignDefinitions(e.Foreign.Definitions())
 		}
-		e.cluster.seed, e.cluster.seedError = candidate, err
+		e.Cluster.Seed, e.Cluster.SeedError = candidate, err
 	})
-	if e.cluster.seedError != nil {
-		return Result{}, e.cluster.seedError
+	if e.Cluster.SeedError != nil {
+		return Result{}, e.Cluster.SeedError
 	}
-	seed := e.cluster.seed
+	seed := e.Cluster.Seed
 	target := e.newDatabaseRuntime(seed, name, owner)
-	if err := e.locks.AdmitDomain(target.catalog.Domain); err != nil {
+	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		return Result{}, err
 	}
-	if _, err := target.replaceCatalog(ctx, seed, seed.CatalogRead(), nil); err != nil {
+	if _, err := target.ReplaceCatalogInOperation(ctx, seed, seed.CatalogRead(), nil); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	currentOwner, err := e.databaseCreateOwnerLocked(scope, ownerName)
 	if err != nil {
 		return Result{}, err
@@ -80,59 +80,59 @@ func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope
 	if currentOwner != owner {
 		return Result{}, catalog.Conflict{}
 	}
-	scope.op.Session.Mu.Lock()
-	defer scope.op.Session.Mu.Unlock()
-	if err := publicationOperationLocked(e, scope.op); err != nil {
+	scope.Op.Session.Mu.Lock()
+	defer scope.Op.Session.Mu.Unlock()
+	if err := PublicationOperationLocked(e, scope.Op); err != nil {
 		return Result{}, err
 	}
-	if scope.txRef != (ids.TxRef{}) && scope.txRef.Epoch() != e.catalog.State.Epoch() {
+	if scope.TxRef != (ids.TxRef{}) && scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	result, err := e.publishDatabaseTargetLocked(ctx, name, target, owner)
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return result, err
 }
 
 func (e *Engine) publishDatabaseTargetLocked(ctx context.Context, name string, target *Engine, owner authorization.PrincipalRef) (Result, error) {
-	if e.cluster.targets[name] != nil {
-		return Result{}, sqlError("42P04", fmt.Sprintf(`database "%s" already exists`, name))
+	if e.Cluster.Targets[name] != nil {
+		return Result{}, SQLError("42P04", fmt.Sprintf(`database "%s" already exists`, name))
 	}
-	if target == nil || target.mu != e.mu || target.roles != e.roles || target.cluster != nil || target.databaseName != name || target.catalog.Domain == e.catalog.Domain || target.catalog.Principals != &e.roles.Domain || target.catalog.ACLAuthority != &e.roles.ACLAuthority {
+	if target == nil || target.Mu != e.Mu || target.RoleStore != e.RoleStore || target.Cluster != nil || target.DatabaseName != name || target.Catalog.Domain == e.Catalog.Domain || target.Catalog.Principals != &e.RoleStore.Domain || target.Catalog.ACLAuthority != &e.RoleStore.ACLAuthority {
 		return Result{}, fmt.Errorf("stuntgres: foreign or already registered database target")
 	}
-	if _, err := e.roles.Published.Root.Read(authorization.PrincipalRef{}).Descriptor(owner); err != nil {
+	if _, err := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).Descriptor(owner); err != nil {
 		return Result{}, err
 	}
-	oid, err := catalog.DatabaseOIDLocked(e.cluster.nextOID, &target.catalog, e.cluster.catalogs)
+	oid, err := catalog.DatabaseOIDLocked(e.Cluster.NextOID, &target.Catalog, e.Cluster.Catalogs)
 	if err != nil {
 		return Result{}, err
 	}
 	address := ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: oid}
-	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.databaseFrozenXID}
-	targets := make(map[string]*Engine, len(e.cluster.targets)+1)
-	roots := make(catalog.DatabaseProjection, len(e.cluster.targets)+1)
-	for key, runtime := range e.cluster.targets {
+	database := &catalog.Database{ObjectAddress: address, ObjectRevision: 1, ObjectName: name, Owner: owner, FrozenXID: target.DatabaseFrozenXID}
+	targets := make(map[string]*Engine, len(e.Cluster.Targets)+1)
+	roots := make(catalog.DatabaseProjection, len(e.Cluster.Targets)+1)
+	for key, runtime := range e.Cluster.Targets {
 		targets[key] = runtime
 	}
 	targets[name] = target
 	for _, runtime := range targets {
-		next := catalog.CloneState(runtime.catalog.State)
+		next := catalog.CloneState(runtime.Catalog.State)
 		if runtime == target {
-			e.catalog.RetainDatabasesLocked(next)
+			e.Catalog.RetainDatabasesLocked(next)
 		}
 		next.SetDescriptor(address, database)
 		next.BindName(catalog.DescriptorNameKey(database), address)
-		roots[&runtime.catalog] = next
+		roots[&runtime.Catalog] = next
 	}
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	target.catalog.Database = address
-	target.cluster = e.cluster
+	target.Catalog.Database = address
+	target.Cluster = e.Cluster
 	roots.InstallLocked()
-	e.cluster.targets = targets
-	e.cluster.nextOID = oid + 1
+	e.Cluster.Targets = targets
+	e.Cluster.NextOID = oid + 1
 	return Result{CommandTag: "CREATE DATABASE"}, nil
 }

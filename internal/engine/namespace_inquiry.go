@@ -13,13 +13,13 @@ func (s *StatementScope) namespaceAuthorizationLocked(e *Engine) (AuthorizationV
 	if err != nil {
 		return auth, err
 	}
-	if s.catalog != nil {
-		auth.Recapture(e.privateCatalogLocked(s.catalog))
+	if s.Catalog != nil {
+		auth.Recapture(e.PrivateCatalogLocked(s.Catalog))
 	}
-	if s.catalog != nil && temporaryNamespace(auth) == (ids.ObjectAddress{}) {
-		for a, d := range s.catalog.Descriptors {
-			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.SessionToken {
-				auth.stagedTemporary = a
+	if s.Catalog != nil && temporaryNamespace(auth) == (ids.ObjectAddress{}) {
+		for a, d := range s.Catalog.Descriptors {
+			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.Session.SessionToken {
+				auth.StagedTemporary = a
 				break
 			}
 		}
@@ -35,23 +35,23 @@ func (s *StatementScope) schemaInquiryPathLocked(e *Engine) (AuthorizationView, 
 	if err != nil {
 		return auth, nil, err
 	}
-	path, pending, err := explicitPath(auth)
+	path, pending, err := ExplicitPath(auth)
 	if err != nil || !pending {
 		return auth, path, err
 	}
-	changes := s.catalog
+	changes := s.Catalog
 	if changes == nil {
-		changes = s.owner.Catalog.Clone()
+		changes = s.Owner.Catalog.Clone()
 	}
 	ref, err := e.temporaryNamespaceStagedLocked(auth, changes)
 	if err != nil {
 		return auth, nil, err
 	}
-	s.catalog = changes
-	auth.Recapture(e.privateCatalogLocked(changes))
-	auth.stagedTemporary = ref.Address
-	s.inquiry.currentSchemaResult = sqltype.Value{}
-	s.inquiry.searchPathResults = [2]sqltype.Value{}
-	path, _, err = explicitPath(auth)
+	s.Catalog = changes
+	auth.Recapture(e.PrivateCatalogLocked(changes))
+	auth.StagedTemporary = ref.Address
+	s.Inquiry.CurrentSchemaResult = sqltype.Value{}
+	s.Inquiry.searchPathResults = [2]sqltype.Value{}
+	path, _, err = ExplicitPath(auth)
 	return auth, path, err
 }

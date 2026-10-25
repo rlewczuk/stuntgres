@@ -19,8 +19,8 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 		roleExecute(t, e, op, "CREATE INDEX idx ON t(n)")
 	})
 	ref := roleTableRef(t, e, "t")
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("owner")
-	reader := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("owner")
+	reader := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -30,13 +30,13 @@ func TestBtreeIndexOwnerAndNamespaceAuthority(t *testing.T) {
 		roleError(t, e, op, "CREATE INDEX forbidden ON t(n)", "42501", "must be owner of table t", "")
 	})
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	ns := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
 	roleError(t, e, op, "CREATE INDEX forbidden ON t(n)", "42501", "permission denied for schema public", "")
-	if len(e.storage.IndexRoots) != 1 {
+	if len(e.Storage.IndexRoots) != 1 {
 		t.Fatal("denied index leaked roots")
 	}
 }
@@ -68,7 +68,7 @@ func TestBtreeIndexPrivateTypeSavepointAndDrop(t *testing.T) {
 	tx = transactionBegin(t, s)
 	sessionSQL(t, s, "ALTER TABLE t DROP s")
 	transactionEnd(t, s, tx, true)
-	if len(e.storage.IndexRoots) != 1 {
+	if len(e.Storage.IndexRoots) != 1 {
 		t.Fatal("private drop left orphan root")
 	}
 }

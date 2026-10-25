@@ -32,41 +32,41 @@ func domainAlterGenerationIndexes(t *testing.T) {
 			sequence := roleTableRef(t, e, "steps").Address
 			parent := roleTableRef(t, e, "subject").Address
 			idx := roleTableRef(t, e, "checked_idx").Address
-			store, root := e.storage.Relations[parent], e.storage.IndexRoots[idx]
+			store, root := e.Storage.Relations[parent], e.Storage.IndexRoots[idx]
 			beforeRows := slices.Clone(store.Versions)
-			beforeCount := e.storage.Sequences[sequence].Last
+			beforeCount := e.Storage.Sequences[sequence].Last
 			if beforeCount != 2 {
 				t.Fatal("setup did not produce exactly two CHECK events", beforeCount)
 			}
 			raw := statement(t, "CREATE DOMAIN public.unused AS integer CONSTRAINT never_replay CHECK(FALSE)").(*parser.CreateDomain)
 			raw.Constraints[0].Check.NotValid = true
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			stage := e.BeginCatalogStage(auth.Catalog)
 			next := *d
 			next.DomainChecks = slices.Clone(d.DomainChecks)
 			if err == nil {
-				err = e.bindDomainConstraintDefinitions(op.Context(), op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
+				err = e.BindDomainConstraintDefinitions(op.Context(), op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
 			}
 			if err == nil {
 				next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), true)
 			}
 			if err == nil {
-				next.ObjectRevision, err = e.catalog.RevisionLocked()
+				next.ObjectRevision, err = e.Catalog.RevisionLocked()
 			}
 			if err == nil {
 				err = stage.Replace(&next)
 			}
-			stage.domainAlterState().Ctx = context.Background()
-			e.mu.Unlock()
+			stage.DomainAlterState().Ctx = context.Background()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
 			domainUnitPublish(t, e, stage)
-			if e.storage.Sequences[sequence].Last != beforeCount {
+			if e.Storage.Sequences[sequence].Last != beforeCount {
 				t.Fatal("generation remap replayed SQL truth")
 			}
-			current := e.storage.Relations[parent]
+			current := e.Storage.Relations[parent]
 			if len(current.Versions) != len(beforeRows) || current.Ends != store.Ends || current.Generation != store.Generation {
 				t.Fatal("transport lost all-version storage lineage")
 			}
@@ -84,8 +84,8 @@ func domainAlterGenerationIndexes(t *testing.T) {
 					t.Fatal("physical version identity/order changed")
 				}
 			}
-			currentIndex := e.catalog.State.MustRelation(idx)
-			currentParent := e.catalog.State.MustRelation(parent)
+			currentIndex := e.Catalog.State.MustRelation(idx)
+			currentParent := e.Catalog.State.MustRelation(parent)
 			sameKey := func(old, current sqltype.Value, position int) {
 				t.Helper()
 				before, err := old.BaseValue()
@@ -101,7 +101,7 @@ func domainAlterGenerationIndexes(t *testing.T) {
 					t.Fatal("index key retained stale logical conversion authority", err)
 				}
 			}
-			newRoot := e.storage.IndexRoots[idx]
+			newRoot := e.Storage.IndexRoots[idx]
 			if root.Hash == nil {
 				if len(newRoot.Entries) != len(root.Entries) {
 					t.Fatal("B-tree membership changed")

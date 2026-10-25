@@ -58,7 +58,7 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if len(b.Prepared.Temporals) != 1 || b.Prepared.Temporals[0].Typmod != -1 || !b.Prepared.Temporals[0].Typed || b.Prepared.Temporals[0].TypedTypmod != 3 {
 				t.Fatal(b.Prepared.Temporals)
 			}
-			description := StatementDescription{temporals: b.Prepared.Temporals}
+			description := StatementDescription{Temporals: b.Prepared.Temporals}
 			raw.Text = "must not be reparsed"
 			again := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &description)
 			rebound, err := again.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})

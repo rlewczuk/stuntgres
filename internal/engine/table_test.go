@@ -104,7 +104,7 @@ func TestTableCoreSchemaOwnerAndACLBlockerCleanup(t *testing.T) {
 	ns := *replacement.MustNamespace(nsaddr)
 	ns.Owner = owner.Ref
 	replacement.SetDescriptor(nsaddr, &ns)
-	if _, err = e.ReplaceCatalog(context.Background(), e, e.catalog.Read(replacement)); err != nil {
+	if _, err = e.ReplaceCatalog(context.Background(), e, e.Catalog.Read(replacement)); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION schema_owner")
@@ -131,8 +131,8 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			var winner catalog.Read
 			var winnerRef ids.ObjectRef
 			var loser ids.ObjectAddress
-			e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-				Provider: e.catalog.Providers[ids.RelationClassID],
+			e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
+				Provider: e.Catalog.Providers[ids.RelationClassID],
 				publishWinner: func(d catalog.Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE "+tc.identifier+"(id INT NOT NULL)")
@@ -159,7 +159,7 @@ func TestTableCoreQuotedDuplicateRelationPublicationConflict(t *testing.T) {
 			if winner.State() == nil || after.State() != winner.State() || roleTableRef(t, e, tc.identifier) != winnerRef {
 				t.Fatal("winner identity changed")
 			}
-			if _, present := after.Descriptor(loser); present || e.storage.Relations[loser] != nil {
+			if _, present := after.Descriptor(loser); present || e.Storage.Relations[loser] != nil {
 				t.Fatal("loser published descriptor/storage")
 			}
 			beforeDescriptor, _ := winner.Descriptor(winnerRef.Address)

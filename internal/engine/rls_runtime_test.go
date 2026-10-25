@@ -210,9 +210,9 @@ func TestRLSRuntimeImport(t *testing.T) {
 	next := *d
 	next.Security.RLSEnabled, next.Security.RLSForced = true, true
 	next.Security.Policies = []catalog.PolicyDefinition{{Name: "all", Permissive: true, Command: catalog.PolicyAll, Roles: []catalog.PolicyRole{{Public: true}}, Using: view.PolicyPayloadOf(policy)}}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,9 +255,9 @@ func TestRLSPolicyLifetimeManifest(t *testing.T) {
 					t.Fatal("lost semantic dependency", address)
 				}
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}

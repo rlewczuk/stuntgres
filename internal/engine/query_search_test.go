@@ -17,7 +17,7 @@ import (
 
 func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*analyze.Binder, *plan.CTEDefinition) {
 	t.Helper()
-	b := &analyze.Binder{Host: New().analysisHost(nil), Ctx: context.Background()}
+	b := &analyze.Binder{Host: New().AnalysisHost(nil), Ctx: context.Background()}
 	d := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: usage}}, Search: &plan.SearchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
 	if err := b.BindSearchShape(d); err != nil {
 		t.Fatal(err)
@@ -245,7 +245,7 @@ func TestQuerySearchCancellation(t *testing.T) {
 	}
 }
 func TestQuerySearchSignature(t *testing.T) {
-	binder := &analyze.Binder{Host: New().analysisHost(nil), Ctx: context.Background()}
+	binder := &analyze.Binder{Host: New().AnalysisHost(nil), Ctx: context.Background()}
 	small := binder.Type(sqltype.Int4)
 	big := binder.Type(sqltype.Int8)
 	for _, breadth := range []bool{true, false} {
@@ -282,9 +282,9 @@ func TestQuerySearchSignature(t *testing.T) {
 	}
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, named.Usage(), false)
-		expected := StatementDescription{catalogOwner: &New().catalog.Owner, Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}}
+		expected := StatementDescription{catalogOwner: &New().Catalog.Owner, Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}}
 		actual := expected
-		actual.catalogOwner = &New().catalog.Owner
+		actual.catalogOwner = &New().Catalog.Owner
 		if err := checkStatementSignature(expected, actual); err == nil {
 			t.Fatal("catalog leaf owner fence relaxed")
 		}

@@ -46,7 +46,7 @@ func TestVerifyHeapamACLMetadata(t *testing.T) {
 			captured := *proc
 			captured.ACL = tc.acl
 			state.SetDescriptor(proc.Address(), &captured)
-			metadata, err := extension.OwnerMetadata(e.catalog.Read(state), e.Roles(), ext)
+			metadata, err := extension.OwnerMetadata(e.Catalog.Read(state), e.Roles(), ext)
 			if err != nil { t.Fatal(err) }
 			record := heapACLRecord(t, metadata)
 			if len(record.Members) != 1 || record.Members[0].ACL == nil || record.Members[0].ACL.Explicit != tc.acl.Explicit { t.Fatal("ACL distinction lost", record) }
@@ -54,7 +54,7 @@ func TestVerifyHeapamACLMetadata(t *testing.T) {
 				want := extension.MemberGrant{Grantor: "heap_acl_reader", Grantee: "heap_acl_third", Execute: true}
 				if entries := record.Members[0].ACL.Entries; len(entries) != 3 || entries[2] != want { t.Fatal("nonowner grantor was not encoded by role name", entries, want) }
 			}
-			destination := e.restoreStage()
+			destination := e.RestoreStage()
 			if tc.name == "nonowner-grantor" {
 				destination, _, _ = typedUnitCatalog(t, false)
 				rolesOp, rolesDone := roleOperation(t, destination, "postgres")
@@ -70,7 +70,7 @@ func TestVerifyHeapamACLMetadata(t *testing.T) {
 			before := destination.CatalogRead()
 			targetExt := before.MustExtension(before.NameAddress(catalog.DescriptorNameKey(ext)))
 			candidate := catalog.CloneState(before.State())
-			_, err = extension.ImportOwners(context.Background(), destination.catalog.Read(candidate), destination.Roles(), []extension.OwnerRecord{record})
+			_, err = extension.ImportOwners(context.Background(), destination.Catalog.Read(candidate), destination.Roles(), []extension.OwnerRecord{record})
 			if err != nil { t.Fatal(err) }
 			got := candidate.MustProcedure(targetExt.Members[0]).ACL
 			var want []authorization.ACLEntry
@@ -127,7 +127,7 @@ func TestVerifyHeapamACLMetadataRejects(t *testing.T) {
 		mutate(&record)
 		before := e.CatalogRead()
 		candidate := catalog.CloneState(before.State())
-		if _, err := extension.ImportOwners(context.Background(), e.catalog.Read(candidate), e.Roles(), []extension.OwnerRecord{record}); err == nil { t.Fatal("forged slot/role authority accepted", record) }
-		if e.catalog.State != before.State() { t.Fatal("failed detached ACL import published") }
+		if _, err := extension.ImportOwners(context.Background(), e.Catalog.Read(candidate), e.Roles(), []extension.OwnerRecord{record}); err == nil { t.Fatal("forged slot/role authority accepted", record) }
+		if e.Catalog.State != before.State() { t.Fatal("failed detached ACL import published") }
 	}
 }

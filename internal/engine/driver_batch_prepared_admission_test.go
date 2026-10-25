@@ -35,14 +35,14 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 					t.Fatal("fixture did not reach idle segment boundary")
 				}
 				// Test the actual canonical gate before execution/registry lookup.
-				if err := m.scope.gate(statement(t, control)); err != nil {
+				if err := m.scope.Gate(statement(t, control)); err != nil {
 					t.Fatal(err)
 				}
 				tx := s.Transactions
-				if tx.State != session.TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.txRef || tx.Ticket == nil || tx.Ticket != m.scope.ticket || tx.Ref.Epoch() != e.catalog.State.Epoch() || !m.scope.implicit {
+				if tx.State != session.TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.TxRef || tx.Ticket == nil || tx.Ticket != m.scope.LockTicket || tx.Ref.Epoch() != e.Catalog.State.Epoch() || !m.scope.implicit {
 					t.Fatal("reached prepared control bypassed ordinary segment authority")
 				}
-				if e.prepared.Len() != 0 || e.visibility.CommitSeq() != 0 {
+				if e.prepared.Len() != 0 || e.Visibility.CommitSeq() != 0 {
 					t.Fatal("admission touched prepared registry or committed data")
 				}
 			})

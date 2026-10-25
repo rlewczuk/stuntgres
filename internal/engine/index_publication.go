@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []index.ColumnTransformation) error {
+func (e *Engine) EvolveStageIndexesLocked(stage *CatalogStage, typeParent ids.ObjectAddress, transformations []index.ColumnTransformation) error {
 	// Preserve the incumbent map walk. In particular an unrelated staged
 	// relation must not allocate an adapter/iterator/yield closure: the
 	// selector reads the stage itself, and a provider exists only for an
@@ -25,9 +25,9 @@ func (e *Engine) evolveStageIndexesLocked(stage *CatalogStage, typeParent ids.Ob
 		if !affected {
 			continue
 		}
-		provider := &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: context.Background()}
+		provider := &DropProvider{Base: stage.Base, Owner: stage.Owner, SearchPath: stage.DependencyPath, Stage: stage, Ctx: context.Background()}
 		if err := index.ApplyIndexEvolution(provider, address, idx, parent, staged, typeParent, transformations); err != nil {
-			return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(stage.Base, stage.dependencyPath))
+			return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(stage.Base, stage.DependencyPath))
 		}
 	}
 	return nil
@@ -44,7 +44,7 @@ func (e *Engine) prepareIndexCatalog(evaluation *exec.Context, current, next *ca
 // index publication. A nil auth is trusted replacement: catalog identity but
 // no SQL principal.
 func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []index.RowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]index.RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
-	view := e.catalog.Read(next)
+	view := e.Catalog.Read(next)
 	disclosure := access.View{Catalog: view}
 	var env index.DisclosureEnv
 	var recaptured *AuthorizationView
@@ -53,7 +53,7 @@ func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *cata
 		recaptured = &copy
 		recaptured.Catalog = view
 		recaptured.Recapture(recaptured.Catalog)
-		disclosure, env = recaptured.View, disclosureEnv(recaptured)
+		disclosure, env = recaptured.View, DisclosureEnv(recaptured)
 	}
 	roots, err := index.PrepareIndexPublication(evaluation, current, next, view, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, disclosure, env, runtimeOwners, candidates)
 	if auth == nil || err == nil {
@@ -61,7 +61,7 @@ func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *cata
 	}
 	var ambiguity *catalog.DefaultClassAmbiguity
 	if errors.As(err, &ambiguity) {
-		name, nameErr := captureTypeDiagnosticName(*recaptured)
+		name, nameErr := CaptureTypeDiagnosticName(*recaptured)
 		if nameErr != nil {
 			return nil, nameErr
 		}
@@ -74,30 +74,30 @@ func (e *Engine) prepareIndexRoots(evaluation *exec.Context, current, next *cata
 // rows, not defer them to COMMIT. Admission owns these rows; the captured catalog
 // and execution trees are immutable. Finish retains its final publication veto.
 func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journal, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes) error {
-	if len(s.stage.rows) == 0 {
+	if len(s.Stage.Rows) == 0 {
 		return nil
 	}
-	e := s.engine()
-	e.mu.Lock()
-	if s.txRef.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(changes)
-	input := s.input
+	view := e.PrivateCatalogLocked(changes)
+	input := s.Input
 	var programmeAuth AuthorizationView
-	if len(s.domains.preparedChecks) != 0 || len(s.routinePrograms) != 0 || len(s.IndexBindings) != 0 {
+	if len(s.Domains.PreparedChecks) != 0 || len(s.routinePrograms) != 0 || len(s.IndexBindings) != 0 {
 		var err error
 		programmeAuth, err = s.writeAuthorizationLocked(e)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		programmeAuth.Recapture(view)
 	}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.HasRuntimeDomainConversion() || len(s.stage.rows[index.SQLIndex.Parent]) == 0 {
+		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live || !index.SQLIndex.HasRuntimeDomainConversion() || len(s.Stage.Rows[index.SQLIndex.Parent]) == 0 {
 			continue
 		}
 		auth := programmeAuth
@@ -108,20 +108,20 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *session.Journa
 		if err == nil {
 			auth.Catalog = view
 			auth.Recapture(view)
-			input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
+			input.TypeDiagnosticName, err = CaptureTypeDiagnosticName(auth)
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		break
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if programmeAuth.live() {
 		if err := s.readmitPreparedPrograms(programmeAuth); err != nil {
 			return err
 		}
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: input, Output: s.output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	return index.ValidatePrivateExpressions(&evaluation, view, s.stage.rows, deletes)
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Input: input, Output: s.Output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	return index.ValidatePrivateExpressions(&evaluation, view, s.Stage.Rows, deletes)
 }

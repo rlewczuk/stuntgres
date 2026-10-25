@@ -18,7 +18,7 @@ func TestStatementHostForeignActionAuthoritySwap(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TABLE t(v INT)")
 	scope := foreignActionUnitScope(t, e, s, "INSERT INTO t VALUES(1)")
-	h := scope.writeHost()
+	h := scope.WriteHost()
 	auth, err := h.ForeignKeyAuthority()
 	if err != nil {
 		t.Fatal(err)
@@ -26,13 +26,13 @@ func TestStatementHostForeignActionAuthoritySwap(t *testing.T) {
 	if previous := h.SwapForeignActionAuthority(auth); previous != nil {
 		t.Fatalf("empty slot returned %#v", previous)
 	}
-	if scope.foreignActionAuth != foreignAuthorizationOf(auth) {
+	if scope.ForeignActionAuth != foreignAuthorizationOf(auth) {
 		t.Fatal("swap did not install the authority")
 	}
 	if previous := h.SwapForeignActionAuthority(nil); previous != auth {
 		t.Fatal("swap did not return the installed authority", previous)
 	}
-	if scope.foreignActionAuth != nil {
+	if scope.ForeignActionAuth != nil {
 		t.Fatal("nil swap did not clear the slot")
 	}
 }
@@ -47,7 +47,7 @@ func TestStatementHostForeignAuthorityActingAs(t *testing.T) {
 	}
 	owner := e.CatalogRead().MustRelation(catalogRef(t, e, e.CatalogRead(), "t").Address).Owner
 	scope := foreignActionUnitScope(t, e, s, "INSERT INTO t VALUES(1)")
-	auth, err := scope.writeHost().ForeignKeyAuthority()
+	auth, err := scope.WriteHost().ForeignKeyAuthority()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,21 +77,21 @@ func TestStatementHostForeignKeyJobs(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "INSERT INTO unrelated VALUES(1)")
-	jobs, modes, auth, err := scope.writeHost().ForeignKeyJobs()
+	jobs, modes, auth, err := scope.WriteHost().ForeignKeyJobs()
 	if err != nil || len(jobs) != 0 || modes != nil || auth == nil {
 		t.Fatal("irrelevant stage captured jobs", jobs, modes, auth, err)
 	}
 	scope.Finish(context.Canceled)
 
 	scope = foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	jobs, modes, auth, err = scope.writeHost().ForeignKeyJobs()
+	jobs, modes, auth, err = scope.WriteHost().ForeignKeyJobs()
 	if err != nil {
 		t.Fatal(err)
 	}
 	job := foreignActionUnitJob(t, jobs, "c")
 	epoch := auth.Access().Catalog.Epoch()
-	child := e.catalog.Domain.Ref(epoch, job.Child.Address())
-	parent := e.catalog.Domain.Ref(epoch, job.Parent.Address())
+	child := e.Catalog.Domain.Ref(epoch, job.Child.Address())
+	parent := e.Catalog.Domain.Ref(epoch, job.Parent.Address())
 	if len(jobs) != 1 || len(modes) != 2 || modes[child] != lock.RowExclusive || modes[parent] != lock.RowShare {
 		t.Fatal("cascade modes", jobs, modes)
 	}
@@ -107,7 +107,7 @@ func TestStatementHostRetainedForeignKeyRows(t *testing.T) {
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "c")
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	h := scope.writeHost()
+	h := scope.WriteHost()
 	current, err := h.ForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
@@ -121,14 +121,14 @@ func TestStatementHostRetainedForeignKeyRows(t *testing.T) {
 	sessionSQL(t, s, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	sessionSQL(t, s, "SELECT * FROM c")
 	scope = foreignActionUnitScope(t, e, s, "UPDATE p SET id=3")
-	h = scope.writeHost()
+	h = scope.WriteHost()
 	current, err = h.ForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	retained, err = h.RetainedForeignKeyRows(ref, current)
-	root := scope.owner.Roots[ref.Address]
-	if err != nil || retained.Storage != current.Storage || len(retained.Committed) != len(root.Versions) || retained.Frontier != scope.owner.Frontier {
+	root := scope.Owner.Roots[ref.Address]
+	if err != nil || retained.Storage != current.Storage || len(retained.Committed) != len(root.Versions) || retained.Frontier != scope.Owner.Frontier {
 		t.Fatal("REPEATABLE READ image", retained, err)
 	}
 	var _ dml.FinishHost = h

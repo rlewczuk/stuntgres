@@ -10,16 +10,16 @@ import (
 // Only the actual completed constructor/cleanup can issue this short-lived
 // readiness receipt. It never creates a key or grants foreign-key privileges.
 func (e *Engine) capturePhysicalForeignKeyProvider(op *session.Operation, name parser.ObjectName, created map[ids.ObjectAddress]ids.ObjectRef) (*table.RestoredPhysicalForeignKeyProvider, error) {
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) {
-		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if !PartitionConstraintReplayImport(e, op, auth) {
+		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	ref, err := e.resolveRelationReference(auth, name, false)
+	ref, err := e.ResolveRelationReference(auth, name, false)
 	if err != nil {
 		return nil, err
 	}
@@ -33,15 +33,15 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *session.Operation, raw *parse
 	if handled, err := table.PhysicalSelfForeignKeyShape(op, raw, provider); !handled || err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
-	e.mu.Lock()
-	valid := partitionConstraintReplayImport(e, op, auth) && provider.Holds(auth.RoleRecord, auth.Catalog) && created[provider.Ref.Address] == provider.Ref && provider.Ref.Epoch == auth.Catalog.Epoch()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	valid := PartitionConstraintReplayImport(e, op, auth) && provider.Holds(auth.RoleRecord, auth.Catalog) && created[provider.Ref.Address] == provider.Ref && provider.Ref.Epoch == auth.Catalog.Epoch()
+	e.Mu.Unlock()
 	if !valid {
-		return table.RestoredForeignKeys{}, false, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+		return table.RestoredForeignKeys{}, false, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	if err := table.PhysicalSelfForeignKeyColumns(auth.Catalog, raw, provider); err != nil {
 		return table.RestoredForeignKeys{}, false, err

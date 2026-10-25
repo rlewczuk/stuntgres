@@ -29,7 +29,7 @@ func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationVie
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = scope.Finish(errors.New("unit candidate discarded")) })
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func alterAddUnitAction(t *testing.T, query string) parser.AlterTableAction {
 func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
 	action := alterAddUnitAction(t, "ALTER TABLE t ADD b INT DEFAULT 7 NOT NULL CHECK(b>a)")
-	next, added, err := e.addColumnCandidate(scope, scope.op, auth, old, action, nil)
+	next, added, err := e.addColumnCandidate(scope, scope.Op, auth, old, action, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 		t.Fatal("candidate shares index")
 	}
 	delete(next.Index, "sentinel")
-	fills, volatile, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), []table.AddedColumn{added})
+	fills, volatile, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), []table.AddedColumn{added})
 	if err != nil || volatile {
 		t.Fatal(fills, volatile, err)
 	}
@@ -75,13 +75,13 @@ func TestAlterAddColumnOwnedCandidateAndHighWater(t *testing.T) {
 	}
 	// A syntactically valid skipped declaration never resolves its unknown type.
 	skip := alterAddUnitAction(t, "ALTER TABLE t ADD IF NOT EXISTS a nonexistent_type DEFAULT 'oops'")
-	same, ignored, err := e.addColumnCandidate(scope, scope.op, auth, old, skip, nil)
+	same, ignored, err := e.addColumnCandidate(scope, scope.Op, auth, old, skip, nil)
 	if err != nil || same != old || ignored.Column != nil || old.ColumnMeta.HighWater != 3 {
 		t.Fatal(same, ignored, err)
 	}
 	limit := *old
 	limit.ColumnMeta.HighWater = 1600
-	_, _, err = e.addColumnCandidate(scope, scope.op, auth, &limit, action, nil)
+	_, _, err = e.addColumnCandidate(scope, scope.Op, auth, &limit, action, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "54011" || limit.ColumnMeta.HighWater != 1600 {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestAlterAddColumnNonvolatileDemandOnce(t *testing.T) {
 		calls := 0
 		expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: volatility}}, eval: func(*exec.Context) (sqltype.Value, error) { calls++; return value, nil }}
 		additions := []table.AddedColumn{{Attribute: 4, Expression: expression, Value: sqltype.Null(u.Type)}}
-		fills, volatile, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), additions)
+		fills, volatile, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
 		if err != nil || volatile || calls != 1 || fills[4] != value || additions[0].Value != value {
 			t.Fatal(fills, volatile, calls, err)
 		}
@@ -128,7 +128,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 	calls := 0
 	expression := queryProbeExpression{Info: expr.Info{Usage: u, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*exec.Context) (sqltype.Value, error) { calls++; return sqltype.Integer(u.Type, int64(calls)) }}
 	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "b"}, Expression: expression, Value: sqltype.Null(u.Type)}}
-	fills, volatile, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), additions)
+	fills, volatile, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
 	if err != nil || !volatile || calls != 0 || len(fills) != 0 {
 		t.Fatal(fills, volatile, calls, err)
 	}
@@ -138,8 +138,8 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		{Row: 3, Version: 3, Born: 1, Values: []sqltype.Value{one}},
 		{Row: 4, Version: 4, Born: 1, Values: []sqltype.Value{one}},
 	}, Ends: &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{2: {Version: 2, End: 2}}}}
-	scope.ownWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {{Row: 3, Version: 5, Base: 3, Values: []sqltype.Value{one}}, {Row: 5, Version: 6, Values: []sqltype.Value{one}}}}
-	scope.ownDeletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{old.Address(): {Rows: map[ids.RowID]visibility.DeleteCandidate{4: {Row: 4, Version: 4}}}}
+	scope.OwnWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {{Row: 3, Version: 5, Base: 3, Values: []sqltype.Value{one}}, {Row: 5, Version: 6, Values: []sqltype.Value{one}}}}
+	scope.OwnDeletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{old.Address(): {Rows: map[ids.RowID]visibility.DeleteCandidate{4: {Row: 4, Version: 4}}}}
 	transformCalls := 0
 	transformed, err := sqltype.Integer(u.Type, 31)
 	if err != nil {
@@ -153,8 +153,8 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 		return transformed, nil
 	}}
 	transforms := []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}
-	ownWrites, ownDeletes := scope.columnProjectionRoots(old.Address())
-	replacement, own, deleted, err := table.RewriteTypeRows(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), old, &next, store, 2, ownWrites, ownDeletes, transforms, additions, nil, table.NewAlterRowValidator(&next, ""))
+	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
+	replacement, own, deleted, err := table.RewriteTypeRows(alterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, &next, store, 2, ownWrites, ownDeletes, transforms, additions, nil, table.NewAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(own) != 2 || deleted != nil {
 		t.Fatal(replacement, own, calls, err)
 	}
@@ -178,7 +178,7 @@ func TestAlterAddColumnVolatileEffectiveLiveRewrite(t *testing.T) {
 			t.Fatal("committed predecessor mutated", row)
 		}
 	}
-	for _, row := range scope.ownWrites[old.Address()] {
+	for _, row := range scope.OwnWrites[old.Address()] {
 		if len(row.Values) != 1 || row.Values[0] != one {
 			t.Fatal("private predecessor mutated", row)
 		}

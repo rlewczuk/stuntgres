@@ -16,12 +16,12 @@ import (
 
 // Engine.mu is held. Analysis shares the ordinary Boolean binder and frozen
 // query presentation; no condition is evaluated and no row storage is opened.
-func (h ddlHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*stored.Policy, error) {
+func (h DDLHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*stored.Policy, error) {
 	if raw == nil {
 		return nil, nil
 	}
-	e, auth := h.e, ddlAuthorityOf(a)
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
+	e, auth := h.E, DDLAuthorityOf(a)
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]analyze.QueryColumn, len(d.Columns))
 	for i, c := range d.Columns {
 		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
@@ -31,7 +31,7 @@ func (h ddlHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw 
 		Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}},
 		Frame:      d.Columns,
 	}
-	b := newExpressionBinder(h.op.Context(), e, input, h.op, nil)
+	b := NewExpressionBinder(h.Op.Context(), e, input, h.Op, nil)
 	b.Consumer.PolicyConsumer, b.Params.NoParameters = true, true
 	// Query scopes carry this clause to the aggregate's semantic owner.
 	b.Clause.AggregateClause = "policy expressions"
@@ -63,7 +63,7 @@ func (h ddlHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw 
 	if err != nil {
 		return nil, err
 	}
-	refs, err := stored.ExpressionDependRefs(h.op.Context(), auth.Catalog, node)
+	refs, err := stored.ExpressionDependRefs(h.Op.Context(), auth.Catalog, node)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (h ddlHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw 
 			copy(dependencies, original)
 		}
 		dependencies = append(dependencies, catalog.ExpressionDependency{
-			Ref:      e.catalog.Domain.Ref(auth.Catalog.Epoch(), address),
+			Ref:      e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address),
 			Revision: auth.Catalog.Get(whole).Revision(),
 		})
 		seen[address] = true

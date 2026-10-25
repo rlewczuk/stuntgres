@@ -14,14 +14,14 @@ import (
 
 func predefinedUtilityError(t *testing.T, e *Engine, op *session.Operation, stmt parser.Statement, code, message, detail string) {
 	t.Helper()
-	before, next := e.roles.Published, e.roles.NextPrincipal()
+	before, next := e.RoleStore.Published, e.RoleStore.NextPrincipal()
 	result, err := e.Execute(op, stmt, 0, nil)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || result.Count != 0 || result.Rows != nil {
 		t.Fatalf("diagnostic: %#v / %v, want %#v; result %#v", diagnostic, err, want, result)
 	}
-	if e.roles.Published != before || e.roles.NextPrincipal() != next {
+	if e.RoleStore.Published != before || e.RoleStore.NextPrincipal() != next {
 		t.Fatal("failed utility published authority or allocator")
 	}
 }
@@ -32,7 +32,7 @@ func predefinedMembership(target, member string) *parser.RoleMembership {
 
 func TestPredefinedRoleInitialization(t *testing.T) {
 	e := New()
-	rPublication := e.roles.Published
+	rPublication := e.RoleStore.Published
 	r := e.Roles()
 	// Independent release expectations, deliberately not generated from the seed.
 	want := map[string]uint64{
@@ -43,12 +43,12 @@ func TestPredefinedRoleInitialization(t *testing.T) {
 		"pg_execute_server_program": 4571, "pg_signal_autovacuum_worker": 6392,
 		"pg_signal_backend": 4200, "pg_use_reserved_connections": 4550,
 	}
-	if r.RoleCount() != 17 || r.RoleCount() != 17 || rPublication.Revision != 1 || e.roles.NextPrincipal() != 6393 {
-		t.Fatal("initial authority", rPublication, e.roles.NextPrincipal())
+	if r.RoleCount() != 17 || r.RoleCount() != 17 || rPublication.Revision != 1 || e.RoleStore.NextPrincipal() != 6393 {
+		t.Fatal("initial authority", rPublication, e.RoleStore.NextPrincipal())
 	}
 	for name, id := range want {
 		d, ok := r.Lookup(name)
-		expected := authorization.RoleDescriptor{Ref: e.roles.Domain.Principal(id), Name: name, Inherit: true, ConnectionLimit: -1}
+		expected := authorization.RoleDescriptor{Ref: e.RoleStore.Domain.Principal(id), Name: name, Inherit: true, ConnectionLimit: -1}
 		if !ok || d.Ref != expected.Ref || !d.Predefined() || func() bool {
 			expectedDescriptor := d
 			expectedDescriptor.Ref = expected.Ref
@@ -62,9 +62,9 @@ func TestPredefinedRoleInitialization(t *testing.T) {
 		t.Fatal(bootstrap)
 	}
 	edges := []authorization.Membership{
-		{Role: e.roles.Domain.Principal(3374), Member: e.roles.Domain.Principal(3373), Grantor: e.roles.Domain.Principal(10), Inherit: true, Set: true},
-		{Role: e.roles.Domain.Principal(3375), Member: e.roles.Domain.Principal(3373), Grantor: e.roles.Domain.Principal(10), Inherit: true, Set: true},
-		{Role: e.roles.Domain.Principal(3377), Member: e.roles.Domain.Principal(3373), Grantor: e.roles.Domain.Principal(10), Inherit: true, Set: true},
+		{Role: e.RoleStore.Domain.Principal(3374), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
+		{Role: e.RoleStore.Domain.Principal(3375), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
+		{Role: e.RoleStore.Domain.Principal(3377), Member: e.RoleStore.Domain.Principal(3373), Grantor: e.RoleStore.Domain.Principal(10), Inherit: true, Set: true},
 	}
 	if !reflect.DeepEqual(r.Memberships(), edges) {
 		t.Fatal("seed provenance", r.Memberships())
@@ -86,8 +86,8 @@ func TestPredefinedRoleAllocation(t *testing.T) {
 			t.Fatal("ordinary identity collided", d)
 		}
 	}
-	if e.roles.NextPrincipal() != 7423 || e.roles.Published.Root.Read(authorization.PrincipalRef{}).RoleCount() != 1047 {
-		t.Fatal(e.roles.NextPrincipal(), e.roles.Published.Root.Read(authorization.PrincipalRef{}).RoleCount())
+	if e.RoleStore.NextPrincipal() != 7423 || e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).RoleCount() != 1047 {
+		t.Fatal(e.RoleStore.NextPrincipal(), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).RoleCount())
 	}
 	for _, name := range []string{"pg_monitor", "pg_maintain", "pg_signal_autovacuum_worker"} {
 		d, ok := e.Roles().Lookup(name)
@@ -96,30 +96,30 @@ func TestPredefinedRoleAllocation(t *testing.T) {
 		}
 	}
 	for _, next := range []uint64{0, ^uint64(0), 6393} {
-		e.roles.InstallPrincipalFrontierLocked(next)
+		e.RoleStore.InstallPrincipalFrontierLocked(next)
 		roleAttributeFailure(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: "exhausted"}}, "")
 	}
-	e.roles.InstallPrincipalFrontierLocked(7423)
-	exhausted := *e.roles.Published
+	e.RoleStore.InstallPrincipalFrontierLocked(7423)
+	exhausted := *e.RoleStore.Published
 	exhausted.Revision = ^uint64(0)
-	e.roles.PublishLocked(&exhausted)
+	e.RoleStore.PublishLocked(&exhausted)
 	roleAttributeFailure(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: "revision_exhausted"}}, "")
 	floor := New()
-	floor.roles.InstallPrincipalFrontierLocked(3373)
-	candidate, err := floor.roles.PrincipalCandidateLocked()
-	if err != nil || candidate != (floor.roles.Domain.Principal(6393)) || floor.roles.NextPrincipal() != 3373 {
+	floor.RoleStore.InstallPrincipalFrontierLocked(3373)
+	candidate, err := floor.RoleStore.PrincipalCandidateLocked()
+	if err != nil || candidate != (floor.RoleStore.Domain.Principal(6393)) || floor.RoleStore.NextPrincipal() != 3373 {
 		t.Fatal("private checked candidate", candidate, err)
 	}
 	canceled := New()
 	actor, closeActor := roleOperation(t, canceled, "postgres")
 	defer closeActor()
-	before, allocator := canceled.roles.Published, canceled.roles.NextPrincipal()
+	before, allocator := canceled.RoleStore.Published, canceled.RoleStore.NextPrincipal()
 	ctx, cancel := context.WithCancel(actor.Context())
 	defer cancel()
 	fence := &identityRolePublicationContext{Context: ctx, session: actor.Session, cancel: cancel}
 	actor.Ctx = fence
-	_, err = canceled.executeRoleAttributes(&StatementScope{op: actor}, &parser.CreateRole{Name: parser.Identifier{Text: "canceled"}}, 0)
-	if !fence.observed || !errors.Is(err, context.Canceled) || canceled.roles.Published != before || canceled.roles.NextPrincipal() != allocator {
+	_, err = canceled.executeRoleAttributes(&StatementScope{Op: actor}, &parser.CreateRole{Name: parser.Identifier{Text: "canceled"}}, 0)
+	if !fence.observed || !errors.Is(err, context.Canceled) || canceled.RoleStore.Published != before || canceled.RoleStore.NextPrincipal() != allocator {
 		t.Fatal("publication cancellation", err, fence.observed)
 	}
 }
@@ -129,13 +129,13 @@ func TestPredefinedImplicitDatabaseOwner(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	reader := roleAttributeCreate(t, e, op, "owner_path", false, parser.RoleOptions{})
-	n := cloneRoleFixture(e.roles.Published)
-	bootstrap, owner := e.roles.Domain.Principal(10), e.roles.Domain.Principal(6171)
+	n := cloneRoleFixture(e.RoleStore.Published)
+	bootstrap, owner := e.RoleStore.Domain.Principal(10), e.RoleStore.Domain.Principal(6171)
 	d := fixtureRole(n, bootstrap)
 	d.Superuser = false // Exercise the implicit rule, not the independent SU bypass.
 	putFixtureRole(n, d)
 	setFixtureEdges(n, nil)
-	r := e.roles.Read(&e.catalog.Owner, e.catalog.Current(), n)
+	r := e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), n)
 	for _, inherit := range []bool{false, true} {
 		got, err := r.RoleClosure(context.Background(), bootstrap, inherit)
 		if err != nil || !reflect.DeepEqual(got, []authorization.PrincipalRef{bootstrap, owner}) {
@@ -170,8 +170,8 @@ func TestPredefinedImplicitDatabaseOwner(t *testing.T) {
 			t.Fatal("path became ADMIN", ok, err)
 		}
 	}
-	foreign := New().roles.Domain.Principal(6171)
-	for _, bad := range []authorization.PrincipalRef{{}, foreign, e.roles.Domain.Principal(999999)} {
+	foreign := New().RoleStore.Domain.Principal(6171)
+	for _, bad := range []authorization.PrincipalRef{{}, foreign, e.RoleStore.Domain.Principal(999999)} {
 		if _, err := e.Roles().InheritsRole(bootstrap, bad); err == nil {
 			t.Fatal("SU accepted invalid target", bad)
 		}
@@ -222,19 +222,19 @@ func TestPredefinedRoleSnapshots(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	retainedPublication := e.roles.Published
+	retainedPublication := e.RoleStore.Published
 	retained := e.Roles()
 	revoke := predefinedMembership("pg_read_all_settings", "pg_monitor")
 	revoke.Revoke = true
 	roleAttributeApply(t, e, op, revoke)
-	if len(retained.Memberships()) != 3 || len(e.Roles().Memberships()) != 2 || e.roles.Published.Revision != retainedPublication.Revision+1 {
+	if len(retained.Memberships()) != 3 || len(e.Roles().Memberships()) != 2 || e.RoleStore.Published.Revision != retainedPublication.Revision+1 {
 		t.Fatal("snapshot publication")
 	}
 	before, err := retained.RoleClosure(context.Background(), retained.LookupRef("pg_monitor"), true)
 	if err != nil || len(before) != 4 {
 		t.Fatal(before, err)
 	}
-	after, err := e.Roles().RoleClosure(context.Background(), e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_monitor"), true)
+	after, err := e.Roles().RoleClosure(context.Background(), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_monitor"), true)
 	if err != nil || len(after) != 3 {
 		t.Fatal(after, err)
 	}
@@ -247,7 +247,7 @@ func TestPredefinedRoleSnapshots(t *testing.T) {
 	if _, err := e.Roles().Descriptor(reader.Ref); err == nil {
 		t.Fatal("retired principal remained valid")
 	}
-	if _, err := New().Roles().Descriptor(e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")); err == nil {
+	if _, err := New().Roles().Descriptor(e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")); err == nil {
 		t.Fatal("fixed OID bypassed engine identity")
 	}
 }

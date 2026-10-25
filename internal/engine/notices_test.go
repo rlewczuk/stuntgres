@@ -24,9 +24,9 @@ func TestNoticesCommands(t *testing.T) {
 	run(t, e, "CREATE TABLE notice_rows(id INT NOT NULL,note TEXT)")
 	run(t, e, "INSERT INTO notice_rows VALUES(7,'kept')")
 	before := e.CatalogRead()
-	e.mu.Lock()
-	ref, err := e.resolveReference(catalogAuthorization(e, before), statement(t, "SELECT * FROM notice_rows").(*parser.Select).From.(*parser.TableReference).Name)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	ref, err := e.ResolveReference(catalogAuthorization(e, before), statement(t, "SELECT * FROM notice_rows").(*parser.Select).From.(*parser.TableReference).Name)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestNoticesCommands(t *testing.T) {
 func TestNoticesPublicationConflict(t *testing.T) {
 	e := New()
 	var winner catalog.Read
-	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{Provider: e.catalog.Providers[ids.RelationClassID], publishWinner: func(d catalog.Descriptor) {
+	e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{Provider: e.Catalog.Providers[ids.RelationClassID], publishWinner: func(d catalog.Descriptor) {
 		run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
 		run(t, e, "INSERT INTO conflict_rows VALUES('winner')")
 		winner = e.CatalogRead()
@@ -98,8 +98,8 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 			defer cancel()
 			var loser ids.ObjectAddress
 			var winner catalog.Read
-			e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-				Provider: e.catalog.Providers[ids.RelationClassID],
+			e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
+				Provider: e.Catalog.Providers[ids.RelationClassID],
 				publishWinner: func(d catalog.Descriptor) {
 					loser = d.Address()
 					run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
@@ -131,7 +131,7 @@ func TestNoticesPublicationConflictCanceled(t *testing.T) {
 			if after.State() != winner.State() {
 				t.Fatal("losing CREATE replaced winner catalog")
 			}
-			if _, exists := after.Descriptor(loser); exists || e.storage.Relations[loser] != nil {
+			if _, exists := after.Descriptor(loser); exists || e.Storage.Relations[loser] != nil {
 				t.Fatal("losing CREATE published descriptor or storage")
 			}
 			got := run(t, e, "SELECT kept FROM conflict_rows")
@@ -174,8 +174,8 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	op.Ctx = wrapped
 	var loser ids.ObjectAddress
 	var winner catalog.Read
-	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-		Provider: e.catalog.Providers[ids.RelationClassID],
+	e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
+		Provider: e.Catalog.Providers[ids.RelationClassID],
 		publishWinner: func(d catalog.Descriptor) {
 			loser = d.Address()
 			run(t, e, "CREATE TABLE conflict_rows(kept TEXT NOT NULL)")
@@ -198,10 +198,10 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	}
 	// Hold the coherent-state lock while cancellation overtakes the captured
 	// healthy observation. The final skip decision must recheck under this lock.
-	e.mu.Lock()
+	e.Mu.Lock()
 	cancel()
 	close(release)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	select {
 	case err = <-returned:
 	case <-time.After(5 * time.Second):
@@ -221,7 +221,7 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	if after.State() != winner.State() {
 		t.Fatal("losing CREATE replaced winner catalog")
 	}
-	if _, exists := after.Descriptor(loser); exists || e.storage.Relations[loser] != nil {
+	if _, exists := after.Descriptor(loser); exists || e.Storage.Relations[loser] != nil {
 		t.Fatal("losing CREATE published descriptor or storage")
 	}
 	got := run(t, e, "SELECT kept FROM conflict_rows")
@@ -292,7 +292,7 @@ func TestNoticesCapturedDefaults(t *testing.T) {
 
 func TestNoticesPublicationReplacement(t *testing.T) {
 	e := New()
-	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{Provider: e.catalog.Providers[ids.RelationClassID], publishWinner: func(d catalog.Descriptor) {
+	e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{Provider: e.Catalog.Providers[ids.RelationClassID], publishWinner: func(d catalog.Descriptor) {
 		if err := e.Reset(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -349,8 +349,8 @@ func TestRoleNoticesCreateAuthorizationAndSettings(t *testing.T) {
 	if got := op.DetachNotices(); !reflect.DeepEqual(got, want) {
 		t.Fatal("switch reset notice filter", got)
 	}
-	namespace := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	namespace := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	before = e.CatalogRead()
@@ -396,16 +396,16 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 				t.Fatal(err)
 			}
 			var winner catalog.Read
-			e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-				Provider: e.catalog.Providers[ids.RelationClassID],
+			e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
+				Provider: e.Catalog.Providers[ids.RelationClassID],
 				publishWinner: func(catalog.Descriptor) {
 					roleExecute(t, e, admin, "CREATE TABLE contested_notice(id INT)")
 					roleExecute(t, e, admin, "INSERT INTO contested_notice VALUES(7)")
 					view := e.CatalogRead()
-					namespace := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+					namespace := e.Catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 					acl := authorization.ACLValue{Explicit: true}
 					if usage {
-						acl.Entries = []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}
+						acl.Entries = []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}
 					}
 					roleExecute(t, e, admin, `ALTER SCHEMA public OWNER TO "`+strings.ReplaceAll(prior.Name, `"`, `""`)+`"`)
 					if err := e.SetObjectACL(context.Background(), namespace, acl); err != nil {

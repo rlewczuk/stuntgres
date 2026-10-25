@@ -19,12 +19,12 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 	if fence := stage.domainAlter.ValidationFence(); fence != nil {
 		stores := make(map[ids.ObjectAddress]*storage.Relation, len(fence.Uses))
 		for _, use := range fence.Uses {
-			stores[use.Relation.Address()] = e.stageStorageLocked(stage, use.Relation.Address())
+			stores[use.Relation.Address()] = e.StageStorageLocked(stage, use.Relation.Address())
 		}
-		if !fence.Current(e.catalog.Read(current), stores) {
+		if !fence.Current(e.Catalog.Read(current), stores) {
 			return catalog.Conflict{}
 		}
-		committed, err := typedef.DomainUsesAt(e.catalog.Current(), fence.Target, fence.Path)
+		committed, err := typedef.DomainUsesAt(e.Catalog.Current(), fence.Target, fence.Path)
 		if committed == nil {
 			return err
 		}
@@ -33,7 +33,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 		committed.AllowContainers = true
 		for i := range committed.Uses {
 			use := &committed.Uses[i]
-			use.Storage = e.storage.Relations[use.Relation.Address()]
+			use.Storage = e.Storage.Relations[use.Relation.Address()]
 			if use.Storage == nil {
 				return catalog.Conflict{}
 			}
@@ -53,7 +53,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 			if e.domainStageIndexRootLocked(stage, address) != root {
 				return catalog.Conflict{}
 			}
-			journal.IndexRoots[address] = e.storage.IndexRoots[address]
+			journal.IndexRoots[address] = e.Storage.IndexRoots[address]
 		}
 	}
 	return nil
@@ -61,29 +61,29 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.
 
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
 	var changes *session.Journal
-	if stage.authSession != nil && (stage.authSession.Transactions.State == session.TxActive || stage.authSession.Transactions.RetainsTransaction()) {
-		changes = stage.authSession.Transactions.Catalog
+	if stage.AuthSession != nil && (stage.AuthSession.Transactions.State == session.TxActive || stage.AuthSession.Transactions.RetainsTransaction()) {
+		changes = stage.AuthSession.Transactions.Catalog
 	}
-	return index.EffectiveRoot(e.storage.IndexRoots, changes, address)
+	return index.EffectiveRoot(e.Storage.IndexRoots, changes, address)
 }
 
 func (scope *StatementScope) reownTypeOverlayRows(stage *CatalogStage, changes *session.Journal) error {
-	e := scope.engine()
-	e.mu.Lock()
-	next := e.privateCatalogLocked(changes).State()
-	e.mu.Unlock()
-	for address, rowShape := range stage.rowShapes {
-		writes, deletes := scope.columnProjectionRoots(address)
+	e := scope.Engine()
+	e.Mu.Lock()
+	next := e.PrivateCatalogLocked(changes).State()
+	e.Mu.Unlock()
+	for address, rowShape := range stage.RowShapes {
+		writes, deletes := scope.ColumnProjectionRoots(address)
 		mapped, err := stored.ReownVersions(next, writes)
 		if err != nil {
 			return err
 		}
 		original, target := storage.Relation{Versions: writes}, storage.Relation{Versions: mapped}
-		rebound, err := index.ReownDomainIndexOutputs(scope.op.Context(), stage.Base.State(), next, &original, &target)
+		rebound, err := index.ReownDomainIndexOutputs(scope.Op.Context(), stage.Base.State(), next, &original, &target)
 		if err != nil {
 			return err
 		}
-		scope.stageProjectedColumnRoots(address, rebound.Versions, session.ProjectDeletions(deletes, rowShape.Replacement))
+		scope.StageProjectedColumnRoots(address, rebound.Versions, session.ProjectDeletions(deletes, rowShape.Replacement))
 		shape := changes.Storage[address]
 		if len(shape.Fills) != 0 {
 			shape.Fills = maps.Clone(shape.Fills)
@@ -95,10 +95,10 @@ func (scope *StatementScope) reownTypeOverlayRows(stage *CatalogStage, changes *
 				}
 			}
 		}
-		if scope.owner.Isolation.Stable() && !shape.HasSnapshot && !shape.Rewritten {
-			scope.owner.Mu.Lock()
-			snapshot, exists := scope.owner.Roots[address]
-			scope.owner.Mu.Unlock()
+		if scope.Owner.Isolation.Stable() && !shape.HasSnapshot && !shape.Rewritten {
+			scope.Owner.Mu.Lock()
+			snapshot, exists := scope.Owner.Roots[address]
+			scope.Owner.Mu.Unlock()
 			if exists {
 				shape.Snapshot, shape.HasSnapshot = snapshot.Versions, true
 			}

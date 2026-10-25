@@ -17,7 +17,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			e, _, base, inner := ruleUnitCatalog(t)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,9 +53,9 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 					Invoker: shape == "invoker_over_definer",
 					Sources: []stored.ViewLeaf{{Ref: ruleUnitRef(e, inner), Reads: []int32{1}, Attributes: []int32{1, 2}}},
 				})
-				next := catalog.CloneState(e.catalog.State)
+				next := catalog.CloneState(e.Catalog.State)
 				next.SetDescriptor(outer.Address(), &outer)
-				e.catalog.PublishLocked(next)
+				e.Catalog.PublishLocked(next)
 				root = &outer
 			}
 			// A nested invoker retains the ORIGINAL source invoker even below
@@ -66,14 +66,14 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				reader, other = actor.Ref, owner.Ref
 			}
 			base.Security.ACL = grant(reader)
-			auth.Recapture(e.catalog.Current())
+			auth.Recapture(e.Catalog.Current())
 			auth.State.CurrentUser = owner.Ref
 			leaf := exec.Leaf{Ref: ruleUnitRef(e, root), Relation: root, Principal: actor.Ref}
 			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...exec.Leaf) ([]ids.ObjectRef, error) {
 				t.Helper()
-				e.mu.Lock()
-				defer e.mu.Unlock()
-				return e.queryTableRefsLocked(view, invoker, leaves, nil, ids.SessionToken{}, plan.RowMark{})
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
+				return e.QueryTableRefsLocked(view, invoker, leaves, nil, ids.SessionToken{}, plan.RowMark{})
 			}
 			assertCollected := func(invoker authorization.PrincipalRef, leaves ...exec.Leaf) {
 				t.Helper()
@@ -104,10 +104,10 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			// that snapshot, while an already paired snapshot remains unchanged.
 			revoked := *base
 			revoked.Security.ACL = grant(other)
-			next := catalog.CloneState(e.catalog.State)
+			next := catalog.CloneState(e.Catalog.State)
 			next.SetDescriptor(base.Address(), &revoked)
 			current := auth
-			current.Recapture(e.catalog.Read(next))
+			current.Recapture(e.Catalog.Read(next))
 			refs, err := collect(current, owner.Ref, leaf)
 			defaultUnitDiagnostic(t, err, "42501", "permission denied for table src")
 			if len(refs) != 0 {

@@ -19,9 +19,9 @@ import (
 // user-range OIDs without becoming relation descriptors.
 func catalogUnitOID(t *testing.T, e *Engine) ids.OID {
 	t.Helper()
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,11 +50,11 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	}
 	view = e.CatalogRead()
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}}
-	e.mu.Lock()
-	ref, err := e.resolveReference(catalogAuthorization(e, view), name)
+	e.Mu.Lock()
+	ref, err := e.ResolveReference(catalogAuthorization(e, view), name)
 	d, _ := view.Relation(ref.Address)
-	storage := e.storage.Relations[ref.Address]
-	e.mu.Unlock()
+	storage := e.Storage.Relations[ref.Address]
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	makeDesc := func(oid ids.OID, name string) *catalog.Relation {
-		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	}
 	first, second := e.BeginCatalogStage(base), e.BeginCatalogStage(base)
 	if err := first.Create(makeDesc(catalogUnitOID(t, e), "first")); err != nil {
@@ -179,7 +179,7 @@ func TestCatalogCanceledStageHasNoPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: "canceled", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 	d.ColumnMeta.HighWater = 1
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(d); err != nil {
@@ -227,14 +227,14 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	setEpoch := func(epoch ids.CatalogEpoch) {
-		e.mu.Lock()
-		next := catalog.CloneState(e.catalog.State)
+		e.Mu.Lock()
+		next := catalog.CloneState(e.Catalog.State)
 		next.SetEpoch(epoch)
-		err := stored.ReownExpressions(e.catalog.Read(next), next, nil, false, nil)
+		err := stored.ReownExpressions(e.Catalog.Read(next), next, nil, false, nil)
 		if err == nil {
-			e.catalog.PublishLocked(next)
+			e.Catalog.PublishLocked(next)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +260,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	prepare := func(name string) *PreparedCatalogPublication {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)
-		d := &catalog.Relation{ObjectAddress: address, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+		d := &catalog.Relation{ObjectAddress: address, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 		d.ColumnMeta.HighWater = 1
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
@@ -383,10 +383,10 @@ func TestCatalogReplacementStatementBoundary(t *testing.T) {
 			}
 			replacement := e.CatalogRead()
 			if explicit {
-				if !e.replacementMu.TryLock() {
+				if !e.ReplacementMu.TryLock() {
 					t.Fatal("explicit statement retained replacement admission")
 				}
-				e.replacementMu.Unlock()
+				e.ReplacementMu.Unlock()
 				if _, err = e.ReplaceCatalog(context.Background(), e, replacement); err != nil {
 					t.Fatal(err)
 				}
@@ -401,8 +401,8 @@ func TestCatalogReplacementStatementBoundary(t *testing.T) {
 				}
 				return
 			}
-			if e.replacementMu.TryLock() {
-				e.replacementMu.Unlock()
+			if e.ReplacementMu.TryLock() {
+				e.ReplacementMu.Unlock()
 				t.Fatal("implicit statement did not retain replacement admission")
 			}
 			done := make(chan error, 1)
@@ -527,9 +527,9 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 
 func catalogRef(t *testing.T, e *Engine, view catalog.Read, name string) ids.ObjectRef {
 	t.Helper()
-	e.mu.Lock()
-	ref, err := e.resolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: name}}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	ref, err := e.ResolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: name}}})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,21 +585,21 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	if err := e.ValidateObjectRef(base, ref); err == nil || err.Error() != "stuntgres: catalog object is missing" {
 		t.Fatalf("old same-epoch view adopted later object: %v", err)
 	}
-	e.mu.Lock()
-	_, err := e.resolveReference(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "committed"}}})
-	creation, creationErr := e.creationNamespace(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "new"}}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	_, err := e.ResolveReference(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "committed"}}})
+	creation, creationErr := e.CreationNamespace(catalogAuthorization(e, base), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "new"}}})
+	e.Mu.Unlock()
 	state(t, err, "42P01")
-	if creationErr != nil || creation.Domain() != e.catalog.Domain || creation.Epoch != base.Epoch() {
+	if creationErr != nil || creation.Domain() != e.Catalog.Domain || creation.Epoch != base.Epoch() {
 		t.Fatalf("retained creation view: %#v, %v", creation, creationErr)
 	}
 	stage := e.BeginCatalogStage(base)
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: creation.Address, ObjectName: "private", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: creation.Address, ObjectName: "private", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 	d.ColumnMeta.HighWater = 1
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
-	view := e.stageRead(stage)
+	view := e.StageRead(stage)
 	private := catalogRef(t, e, view, "private")
 	column := private
 	column.Address.SubID = 1
@@ -634,9 +634,9 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	run(t, target, "INSERT INTO public.t VALUES (11)")
 	sourceView, old := source.CatalogRead(), target.CatalogRead()
 	sourceRef, oldRef := catalogRef(t, source, sourceView, "t"), catalogRef(t, target, old, "t")
-	owner := target.catalog.Domain
+	owner := target.Catalog.Domain
 	changes, err := target.ReplaceCatalog(context.Background(), source, sourceView)
-	if err != nil || !changes.Replacement || target.catalog.Domain != owner || target.CatalogRead().Epoch() != old.Epoch()+1 {
+	if err != nil || !changes.Replacement || target.Catalog.Domain != owner || target.CatalogRead().Epoch() != old.Epoch()+1 {
 		t.Fatalf("replacement ownership: %#v, %v", changes, err)
 	}
 	newRef := catalogRef(t, target, target.CatalogRead(), "t")
@@ -662,7 +662,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if err := target.Restore(context.Background(), strings.NewReader("nonsense")); err == nil {
 		t.Fatal("bad restore accepted")
 	}
-	if target.catalog.Domain != owner || target.CatalogRead().State() != before.State() {
+	if target.Catalog.Domain != owner || target.CatalogRead().State() != before.State() {
 		t.Fatal("failed restore changed authority")
 	}
 	if err := target.ValidateObjectRef(before, newRef); err != nil {
@@ -675,7 +675,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if _, err := target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatalf("failed restore fenced eligible stage: %v", err)
 	}
-	if err := target.Reset(context.Background()); err != nil || target.catalog.Domain != owner {
+	if err := target.Reset(context.Background()); err != nil || target.Catalog.Domain != owner {
 		t.Fatalf("reset ownership: %v", err)
 	}
 	if err := source.Reset(context.Background()); err != nil {
@@ -703,7 +703,7 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "private", ObjectRevision: 1}
+	d := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectName: "private", ObjectRevision: 1}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
@@ -740,7 +740,7 @@ func TestCatalogRejectsMalformedColumnIndex(t *testing.T) {
 			for i := range attributes {
 				attributes[i] = int32(i + 1)
 			}
-			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", ObjectRevision: 1, Columns: tc.columns, Index: tc.index, Attributes: attributes}
+			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", ObjectRevision: 1, Columns: tc.columns, Index: tc.index, Attributes: attributes}
 			d.ColumnMeta.HighWater = int32(len(attributes))
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
@@ -780,8 +780,8 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	run(t, e, "INSERT INTO public.t VALUES (11)")
 	before := e.CatalogRead()
 	ref := catalogRef(t, e, before, "t")
-	owner := e.catalog.Domain
-	storage := e.storage.Relations[ref.Address]
+	owner := e.Catalog.Domain
+	storage := e.Storage.Relations[ref.Address]
 	stage := e.BeginCatalogStage(before)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -793,7 +793,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 		t.Fatalf("canceled self-replacement: changes=%#v error=%v", changes, err)
 	}
-	if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || e.storage.Relations[ref.Address] != storage {
+	if e.Catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || e.Storage.Relations[ref.Address] != storage {
 		t.Fatal("canceled self-replacement changed owner/state/epoch/storage")
 	}
 	if err := e.ValidateObjectRef(before, ref); err != nil {
@@ -820,7 +820,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			run(t, e, "INSERT INTO public.sentinel VALUES (11)")
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
-			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "p", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
+			d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "p", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
 			d.ColumnMeta.HighWater = 1
 			if err := stage.Create(d); err != nil {
 				t.Fatal(err)
@@ -838,13 +838,13 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			before := e.CatalogRead()
 			sentinel := catalogRef(t, e, before, "sentinel")
-			owner := e.catalog.Domain
-			sentinelStorage := e.storage.Relations[sentinel.Address]
-			publishedStorage := e.storage.Relations[d.Address()]
-			storageCount := len(e.storage.Relations)
+			owner := e.Catalog.Domain
+			sentinelStorage := e.Storage.Relations[sentinel.Address]
+			publishedStorage := e.Storage.Relations[d.Address()]
+			storageCount := len(e.Storage.Relations)
 			assertUnchanged := func() {
 				t.Helper()
-				if e.catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || len(e.storage.Relations) != storageCount || e.storage.Relations[sentinel.Address] != sentinelStorage || e.storage.Relations[d.Address()] != publishedStorage {
+				if e.Catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || len(e.Storage.Relations) != storageCount || e.Storage.Relations[sentinel.Address] != sentinelStorage || e.Storage.Relations[d.Address()] != publishedStorage {
 					t.Fatal("lifecycle operation changed committed authority/storage")
 				}
 				rows := tuples(run(t, e, "SELECT id FROM public.sentinel"))
@@ -881,8 +881,8 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			for range 2 {
 				e.DiscardCatalogStage(stage)
-				if published && stage.lifecycle != catalogPublished || !published && stage.lifecycle != catalogDiscarded {
-					t.Fatalf("discard lifecycle = %v", stage.lifecycle)
+				if published && stage.Lifecycle != catalogPublished || !published && stage.Lifecycle != catalogDiscarded {
+					t.Fatalf("discard lifecycle = %v", stage.Lifecycle)
 				}
 				assertUnchanged()
 			}

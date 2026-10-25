@@ -19,31 +19,31 @@ import (
 // DisplaceAssociatedArray (typedef_host.go) and BindPolicyExpression
 // (policy_expression.go) are shared with the other feature hosts.
 var (
-	_ view.Host      = ddlHost{}
-	_ view.StageHost = ddlHost{}
+	_ view.Host      = DDLHost{}
+	_ view.StageHost = DDLHost{}
 )
 
-func (h ddlHost) TemporaryOwner(a ddl.Authority) ids.SessionToken {
-	return catalogSourceTemporaryOwner(ddlAuthorityOf(a))
+func (h DDLHost) TemporaryOwner(a ddl.Authority) ids.SessionToken {
+	return catalogSourceTemporaryOwner(DDLAuthorityOf(a))
 }
 
-func (h ddlHost) DescribeRule(a ddl.Authority, stmt parser.Statement, target ids.ObjectRef, input sqltype.InputEnvironment, ns *analyze.RuleNamespace) (analyze.Binding, error) {
-	return describeWithRule(h.op.Context(), h.e.analysisHost(h.op), stmt, ddlAuthorityOf(a), target, input, nil, nil, ns)
+func (h DDLHost) DescribeRule(a ddl.Authority, stmt parser.Statement, target ids.ObjectRef, input sqltype.InputEnvironment, ns *analyze.RuleNamespace) (analyze.Binding, error) {
+	return describeWithRule(h.Op.Context(), h.E.AnalysisHost(h.Op), stmt, DDLAuthorityOf(a), target, input, nil, nil, ns)
 }
 
-func (h ddlHost) BindRuleCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {
+func (h DDLHost) BindRuleCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {
 	return h.bindPseudoRowCondition(a, ns, raw, input, "WHERE")
 }
 
 // BindTriggerWhen shares scalar capture/freeze inputs with rule conditions, but
 // owns an explicit trigger namespace and WHEN diagnostic context.
-func (h ddlHost) BindTriggerWhen(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {
+func (h DDLHost) BindTriggerWhen(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {
 	return h.bindPseudoRowCondition(a, ns, raw, input, "trigger WHEN condition")
 }
 
-func (h ddlHost) bindPseudoRowCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment, clause string) (expr.Expr, *parser.Select, analyze.Binding, error) {
-	auth := ddlAuthorityOf(a)
-	binder := newExpressionBinder(h.op.Context(), h.e, input, h.op, nil)
+func (h DDLHost) bindPseudoRowCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment, clause string) (expr.Expr, *parser.Select, analyze.Binding, error) {
+	auth := DDLAuthorityOf(a)
+	binder := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	binder.Target.RuleNamespace = ns
 	binder.Params.NoParameters = true
 	binder.Query.Auth = &auth
@@ -69,9 +69,9 @@ func (h ddlHost) bindPseudoRowCondition(a ddl.Authority, ns *analyze.RuleNamespa
 	return condition, query, b, nil
 }
 
-func (h ddlHost) ReownDisplacedTypes() error {
-	if h.stage.OldNameCount() == 0 {
+func (h DDLHost) ReownDisplacedTypes() error {
+	if h.CatalogStage.OldNameCount() == 0 {
 		return nil
 	}
-	return h.e.reownStagedTypeGenerationsLocked(h.stage)
+	return h.E.ReownStagedTypeGenerationsLocked(h.CatalogStage)
 }

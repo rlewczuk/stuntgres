@@ -71,20 +71,20 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				case "schema":
 					sessionSQL(t, b, "CREATE SCHEMA retirement_peer AUTHORIZATION retired")
 					address = schemaRef(t, e, "retirement_peer").Address
-					descriptor = e.catalog.State.Get(address)
+					descriptor = e.Catalog.State.Get(address)
 					if descriptor.(*catalog.Namespace).Owner != role.Ref {
 						t.Fatal("peer schema lost its canonical owner")
 					}
 				case "policy":
 					sessionSQL(t, b, "CREATE POLICY retirement_peer ON retirement_policy TO retired USING(i>0)")
 					address = catalogRef(t, e, e.CatalogRead(), "retirement_policy").Address
-					descriptor = e.catalog.State.Get(address)
+					descriptor = e.Catalog.State.Get(address)
 					policies := descriptor.(*catalog.Relation).Security.Policies
 					if len(policies) != 1 || policies[0].OID == 0 || len(policies[0].Roles) != 1 || policies[0].Roles[0].Ref != role.Ref {
 						t.Fatal("peer policy lost its actual identity or selector", policies)
 					}
 				}
-				base, roles, frontier := e.catalog.State, e.roles.Published, e.visibility.CommitSeq()
+				base, roles, frontier := e.Catalog.State, e.RoleStore.Published, e.Visibility.CommitSeq()
 				var err error
 				if carrier == "ordinary" || carrier == "clone" {
 					err = m.end(nil)
@@ -117,7 +117,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("invalid retirement candidate published", err)
 				}
-				if e.catalog.State != base || e.roles.Published != roles || e.visibility.CommitSeq() != frontier || e.catalog.State.Get(address) != descriptor {
+				if e.Catalog.State != base || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != frontier || e.Catalog.State.Get(address) != descriptor {
 					t.Fatal("rejected retirement changed committed peer roots or publication frontier")
 				}
 				if current, ok := e.Roles().Lookup("retired"); !ok || current.Ref != role.Ref {
@@ -171,7 +171,7 @@ func TestDriverBatchRoleRetirementCandidateRestoration(t *testing.T) {
 		t.Fatal("candidate restoration deleted its still-dependent principal")
 	}
 	address := schemaRef(t, e, "restoration_peer").Address
-	if e.catalog.State.MustNamespace(address).Owner != role.Ref {
+	if e.Catalog.State.MustNamespace(address).Owner != role.Ref {
 		t.Fatal("candidate restoration changed the unrelated peer root")
 	}
 }
@@ -192,13 +192,13 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if err := grantMembership(t, e, edge); err != nil {
 				t.Fatal(err)
 			}
-			base := e.roles.Published
+			base := e.RoleStore.Published
 			before := e.Roles().Memberships()
 			rejected := batchUnitStart(t, a, context.Background())
 			_, err := rejected.step(statement(t, "DROP ROLE grantor"))
 			state(t, err, "2BP01")
 			_ = rejected.end(err)
-			if e.roles.Published != base {
+			if e.RoleStore.Published != base {
 				t.Fatal("admission grantor rejection changed committed membership authority")
 			}
 			accepted := batchUnitStart(t, a, context.Background())
@@ -206,7 +206,7 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if _, err := accepted.step(statement(t, "DROP ROLE grantor,"+endpoint)); err != nil {
 				t.Fatal(err)
 			}
-			if e.roles.Published != base {
+			if e.RoleStore.Published != base {
 				t.Fatal("endpoint cleanup published before true end")
 			}
 			if err := accepted.end(nil); err != nil {
@@ -215,7 +215,7 @@ func TestDriverBatchRoleRetirementMembership(t *testing.T) {
 			if _, ok := e.Roles().Lookup("grantor"); ok {
 				t.Fatal("completed endpoint cleanup did not retire the principal")
 			}
-			for _, retained := range fixtureEdges(e.roles.Published) {
+			for _, retained := range fixtureEdges(e.RoleStore.Published) {
 				if retained == edge {
 					t.Fatal("retired endpoint retained its membership dependency")
 				}

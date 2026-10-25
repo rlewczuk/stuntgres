@@ -26,8 +26,8 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	desc := StatementDescription{temporals: b.Prepared.Temporals}
-	before := append([]analyze.TemporalConstant(nil), desc.temporals...)
+	desc := StatementDescription{Temporals: b.Prepared.Temporals}
+	before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 	if err := e.Reset(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil || out != "2003-07-07 04:05:06.4995" {
 		t.Fatal(out, err)
 	}
-	if !reflect.DeepEqual(before, desc.temporals) {
+	if !reflect.DeepEqual(before, desc.Temporals) {
 		t.Fatal("capture mutated")
 	}
 	// Contextual UNKNOWN inputs freeze; actual parameters never become captures.
@@ -75,7 +75,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contextDesc := StatementDescription{temporals: b.Prepared.Temporals}
+	contextDesc := StatementDescription{Temporals: b.Prepared.Temporals}
 	b = newTestExpressionBinder(t, ctx, e, later, &contextDesc)
 	node, err = b.Bind(contextual, policy)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestTimeDescriptionAndNoticeOnce(t *testing.T) {
 	if len(notices) != 1 || notices[0].Code != "22023" || notices[0].Position != "8" {
 		t.Fatal(notices)
 	}
-	if len(desc.temporals) != 1 || desc.temporals[0].TypeID != 1083 || desc.Parameters.Count != 1 || desc.Parameters.Types[0].Type.ID() != 1083 || desc.Parameters.Types[0].Typmod != -1 {
+	if len(desc.Temporals) != 1 || desc.Temporals[0].TypeID != 1083 || desc.Parameters.Count != 1 || desc.Parameters.Types[0].Type.ID() != 1083 || desc.Parameters.Types[0].Typmod != -1 {
 		t.Fatal(desc)
 	}
 	a, b := desc.Results[0], desc.Results[1]
@@ -152,7 +152,7 @@ func TestTimeDescriptionAndNoticeOnce(t *testing.T) {
 	}
 	captured, captureErr := values[0].Time()
 	midnight, midnightErr := values[1].Time()
-	if captureErr != nil || midnightErr != nil || captured != desc.temporals[0].Scalar || midnight != 0 {
+	if captureErr != nil || midnightErr != nil || captured != desc.Temporals[0].Scalar || midnight != 0 {
 		t.Fatal(captured, captureErr, midnight, midnightErr)
 	}
 	if present, nextErr := r.Rows.Next(context.Background(), values); present || nextErr != nil || len(op.DetachNotices()) != 0 {

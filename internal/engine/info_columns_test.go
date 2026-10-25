@@ -25,7 +25,7 @@ func newColumnsUnitFixture(t *testing.T) columnsUnitFixture {
 	t.Helper()
 	dc := newDCUnitFixture(t)
 	state := catalog.CloneState(dc.state)
-	view := dc.f.e.catalog.Read(state)
+	view := dc.f.e.Catalog.Read(state)
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	nested, _ := view.LookupType(22005)
@@ -38,11 +38,11 @@ func newColumnsUnitFixture(t *testing.T) columnsUnitFixture {
 }
 func (f columnsUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.dc.f.e.catalog.Read(state)
+	view := f.dc.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.dc.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
 }
 func columnsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -50,7 +50,7 @@ func columnsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing columns producer")
 	}
-	source, err := captureCatalogSourceRows(in, produce)
+	source, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestInfoColumnsCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoColumnsOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
@@ -199,13 +199,13 @@ func TestInfoColumnsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref = new(ids.Domain).Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.RoleRecord = nil
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.State.CurrentUser = authorization.PrincipalRef{}
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
 	} {
@@ -259,7 +259,7 @@ func TestInfoColumnsCapture(t *testing.T) {
 }
 
 type columnsCancelRuntime struct {
-	engineCatalogRuntime
+	EngineCatalogRuntime
 	cancel context.CancelFunc
 	calls  *int
 }
@@ -269,7 +269,7 @@ func (r columnsCancelRuntime) ColumnExpression(ctx context.Context, view catalog
 	if *r.calls == 2 {
 		r.cancel()
 	}
-	return r.engineCatalogRuntime.ColumnExpression(ctx, view, relation, expression)
+	return r.EngineCatalogRuntime.ColumnExpression(ctx, view, relation, expression)
 }
 func TestInfoColumnsCancellation(t *testing.T) {
 	f := newColumnsUnitFixture(t)
@@ -291,7 +291,7 @@ func TestInfoColumnsCancellation(t *testing.T) {
 	defer cancel()
 	in.Context = ctx
 	calls := 0
-	in.Runtime = columnsCancelRuntime{engineCatalogRuntime: in.Runtime.(engineCatalogRuntime), cancel: cancel, calls: &calls}
+	in.Runtime = columnsCancelRuntime{EngineCatalogRuntime: in.Runtime.(EngineCatalogRuntime), cancel: cancel, calls: &calls}
 	if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) || calls != 2 {
 		t.Fatal("deparse cancellation published a prefix", rows, err, calls)
 	}

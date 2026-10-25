@@ -113,7 +113,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
+					if dependency.Ref.Domain() != e.Catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -136,9 +136,9 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 				sourceBinder.Clause.AggregateClause = "FROM"
 				sourceBinder.Query.Namespace = &analyze.QueryNamespace{}
-				e.mu.Lock()
+				e.Mu.Lock()
 				source, sourceErr := sourceBinder.BindFunctionSource(raw)
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if sourceErr != nil {
 					t.Fatal("actual function source binding", sourceErr)
 				}
@@ -217,7 +217,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("foreign retag manufactured original destination manifest")
 				}
 			}
-			changed := *routineAuthorityView(&evaluation)
+			changed := *RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict

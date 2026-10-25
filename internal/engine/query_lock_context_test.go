@@ -34,26 +34,26 @@ func TestQueryLockContextsAndReferenceKinds(t *testing.T) {
 				}
 			})
 			raw := statement(t, tc.q).(*parser.Select)
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
-			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
+			binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 			binder.Query.Auth = &auth
 			var query *plan.Query
 			if err == nil {
 				query, err = binder.BindSelect(raw, false)
 			}
 			if err == nil {
-				err = e.initializeQueryLocksLocked(scope, query.Root, binder.Query.Sources)
+				err = e.InitializeQueryLocksLocked(scope, query.Root, binder.Query.Sources)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if tc.sequenceError {
 				waitsDiagnostic(t, err, "42809", `cannot lock rows in sequence "s"`)
 			} else {
-				if err != nil || (scope.queryLocks != nil) != tc.marked {
-					t.Fatal(err, scope.queryLocks, tc.marked)
+				if err != nil || (scope.QueryLockContext != nil) != tc.marked {
+					t.Fatal(err, scope.QueryLockContext, tc.marked)
 				}
 			}
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			grants := len(lockState.Resources)
 			if grants != 0 {
 				t.Fatal("kind/context preflight acquired physical resources", grants)

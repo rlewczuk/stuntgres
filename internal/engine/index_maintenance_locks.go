@@ -11,23 +11,23 @@ import (
 )
 
 func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
-	e := s.engine()
+	e := s.Engine()
 	names, ifExists, drop, err := index.MaintenanceNames(stmt)
 	if err != nil {
 		return err
 	}
 	g := &index.MaintenanceGrant{Descriptors: make(map[ids.ObjectAddress]*catalog.Relation)}
-	e.mu.Lock()
-	fail := func(err error) error { e.mu.Unlock(); return err }
-	if s.txRef.Epoch() != e.catalog.State.Epoch() {
+	e.Mu.Lock()
+	fail := func(err error) error { e.Mu.Unlock(); return err }
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	auth, err := e.statementAuthorizationLocked(s.op, stmt)
+	auth, err := e.StatementAuthorizationLocked(s.Op, stmt)
 	if err != nil {
 		return fail(err)
 	}
 	for _, name := range names {
-		ref, err := e.resolveRelationReference(auth, name, true)
+		ref, err := e.ResolveRelationReference(auth, name, true)
 		if err := g.AddTarget(auth.Catalog, name, ref, err, err != nil && table.RenameMissing(err), drop, ifExists); err != nil {
 			return fail(err)
 		}
@@ -36,40 +36,40 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 		return fail(err)
 	}
 	if v, ok := g.NeedsAttach(stmt); ok {
-		ref, err := e.resolveRelationReference(auth, v.Partition, true)
+		ref, err := e.ResolveRelationReference(auth, v.Partition, true)
 		if err != nil {
 			return fail(err)
 		}
-		if err := g.AddAttach(s.op.Context(), auth.Catalog, ref); err != nil {
-			return fail(index.DefaultClassDiagnostic(ddlHost{e: e, op: s.op}, auth, err))
+		if err := g.AddAttach(s.Op.Context(), auth.Catalog, ref); err != nil {
+			return fail(index.DefaultClassDiagnostic(DDLHost{E: e, Op: s.Op}, auth, err))
 		}
 	}
 	if err := g.FinishPlan(auth.View, stmt); err != nil {
 		return fail(err)
 	}
 	s.indexes().Maintenance = g
-	e.mu.Unlock()
-	if s.replacementRead {
-		e.replacementMu.RUnlock()
-		s.replacementRead = false
+	e.Mu.Unlock()
+	if s.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		s.ReplacementRead = false
 	}
 	g.SortLockOrder()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
 	acquire := func(ref ids.ObjectRef, mode lock.Mode) error {
-		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
+		request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
 		if request != nil {
 			err = request.Wait()
 		}
 		if err != nil {
 			return err
 		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.statementAuthorizationLocked(s.op, stmt)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.StatementAuthorizationLocked(s.Op, stmt)
 		if err != nil {
 			return err
 		}
-		if s.txRef.Epoch() != e.catalog.State.Epoch() {
+		if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		if err := g.Check(auth.View, auth, stmt, false); err != nil {
@@ -101,8 +101,8 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 				return err
 			}
 		}
-		s.lockedRef = ref
-		s.lockedDescriptor = g.Descriptors[ref.Address]
+		s.LockedRef = ref
+		s.LockedDescriptor = g.Descriptors[ref.Address]
 		s.lockedIdentityOnly = true
 	}
 	return nil

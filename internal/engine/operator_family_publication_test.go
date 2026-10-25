@@ -44,7 +44,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	base = e.CatalogRead()
-	root := e.storage.IndexRoots[idx.Address()]
+	root := e.Storage.IndexRoots[idx.Address()]
 	if root == nil || len(root.Entries) != 1 {
 		t.Fatal("setup did not publish the real index root")
 	}
@@ -71,12 +71,12 @@ func TestOperatorFamilyPublication(t *testing.T) {
 		cancel()
 		t.Fatal(err)
 	}
-	before := e.catalog.State
+	before := e.Catalog.State
 	cancel()
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("publication cancellation", err)
 	}
-	if e.catalog.State != before || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store {
+	if e.Catalog.State != before || e.Storage.IndexRoots[idx.Address()] != root || e.Storage.Relations[parent.Address()] != store {
 		t.Fatal("cancellation published metadata/root")
 	}
 	if got, ok := e.CatalogRead().FamilySupport(member.Family, 23, 23, 1); ok || got != nil {
@@ -104,7 +104,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if _, ok := base.FamilySupport(member.Family, 23, 23, 1); ok {
 		t.Fatal("retained source catalog changed")
 	}
-	if e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store || ordering.Comparisons[0].Support() != support {
+	if e.Storage.IndexRoots[idx.Address()] != root || e.Storage.Relations[parent.Address()] != store || ordering.Comparisons[0].Support() != support {
 		t.Fatal("loose custom family changed unrelated builtin root/provider")
 	}
 	invalid := e.BeginCatalogStage(current)
@@ -115,11 +115,11 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if err := invalid.Create(&bad); err != nil {
 		t.Fatal(err)
 	}
-	before = e.catalog.State
+	before = e.Catalog.State
 	if _, err := e.ValidateCatalogStage(context.Background(), invalid); err == nil {
 		t.Fatal("invalid support ceiling published")
 	}
-	if e.catalog.State != before || e.storage.IndexRoots[idx.Address()] != root {
+	if e.Catalog.State != before || e.Storage.IndexRoots[idx.Address()] != root {
 		t.Fatal("validation failure changed publication")
 	}
 	// Exercise the ordinary dependency/removal path, not a direct Candidate
@@ -128,7 +128,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 		t.Helper()
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)
-		if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+		if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{address}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 			t.Fatal("drop dependencies", err)
 		}
 		publication, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -197,7 +197,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if e.CatalogRead().Get(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 97}) == nil {
 		t.Fatal("family DROP removed underlying operator")
 	}
-	if e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store || ordering.Comparisons[0].Support() != support {
+	if e.Storage.IndexRoots[idx.Address()] != root || e.Storage.Relations[parent.Address()] != store || ordering.Comparisons[0].Support() != support {
 		t.Fatal("member/family removal changed unrelated builtin root/provider")
 	}
 }

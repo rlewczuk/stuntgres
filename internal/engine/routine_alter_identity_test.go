@@ -82,7 +82,7 @@ func TestRoutineAlterProviderOverrideIndex(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	reader := &sqlRoutineLookupReader{stageDefinitionReader: stageDefinitions(stage)}
+	reader := &sqlRoutineLookupReader{stageDefinitionReader: StageDefinitions(stage)}
 	renamed := *original
 	renamed.ObjectName = "routine_alter_abs"
 	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
@@ -123,8 +123,8 @@ func TestRoutineAlterRevisionAtomicity(t *testing.T) {
 	e := New()
 	original := routineAlterBuiltin(t, e)
 	before := e.CatalogRead()
-	e.catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
-	oid := e.catalog.NextOID()
+	e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
+	oid := e.Catalog.NextOID()
 	command := &parser.AlterRoutine{
 		Kind: "function", Action: "rename", Target: parser.Identifier{Text: "routine_overflow_abs"},
 		Routine: parser.GrantRoutineTarget{
@@ -137,10 +137,10 @@ func TestRoutineAlterRevisionAtomicity(t *testing.T) {
 	if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
 		t.Fatal("wrong revision overflow", err)
 	}
-	if e.catalog.State != before.State() || e.catalog.NextOID() != oid || e.catalog.State.Get(original.Address()) != original || e.catalog.State.HasProviderProcedureOverride("abs") || e.catalog.State.HasProviderProcedureOverride(command.Target.Text) {
+	if e.Catalog.State != before.State() || e.Catalog.NextOID() != oid || e.Catalog.State.Get(original.Address()) != original || e.Catalog.State.HasProviderProcedureOverride("abs") || e.Catalog.State.HasProviderProcedureOverride(command.Target.Text) {
 		t.Fatal("failed ALTER published descriptor/index or consumed OID")
 	}
-	if e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: original.Namespace(), Name: command.Target.Text, Signature: string(original.Signature)}) != (ids.ObjectAddress{}) {
+	if e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: original.Namespace(), Name: command.Target.Text, Signature: string(original.Signature)}) != (ids.ObjectAddress{}) {
 		t.Fatal("failed ALTER published destination name")
 	}
 }
@@ -159,9 +159,9 @@ func TestRoutineAlterHardCaptureAdmission(t *testing.T) {
 	index := catalog.ProcedureIndexEdit{Index: state.ProcedureNames()}
 	index.Replace(captured, &current)
 	state.SetProcedureNames(index.Index)
-	read := e.catalog.Read(state)
+	read := e.Catalog.Read(state)
 	auth := catalogAuthorization(e, read)
-	original := []catalog.ExpressionDependency{{Ref: e.catalog.Domain.Ref(base.Epoch(), captured.Address()), Revision: captured.Revision()}}
+	original := []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(base.Epoch(), captured.Address()), Revision: captured.Revision()}}
 	if err := exec.AdmitRoutineDescriptor(auth.AdmissionAccess(), original, captured, nil); err == nil {
 		t.Fatal("original-source revision fence bypassed")
 	}

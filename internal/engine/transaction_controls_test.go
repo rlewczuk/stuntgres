@@ -17,7 +17,7 @@ func controlsExecute(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	r, err := engineOf(s).Execute(op, statement(t, q), 0, nil)
+	r, err := EngineOf(s).Execute(op, statement(t, q), 0, nil)
 	if r.Rows != nil {
 		r.Rows.Close()
 	}
@@ -30,7 +30,7 @@ func controlsDescribe(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	d, err := engineOf(s).Describe(op, statement(t, q))
+	d, err := EngineOf(s).Describe(op, statement(t, q))
 	if err == nil && (d.Parameters.Count != 0 || len(d.Results) != 0) {
 		t.Fatal(d)
 	}
@@ -46,7 +46,7 @@ func controlsAbort(t *testing.T, s *session.Session) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	_, err := engineOf(s).Execute(op, statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
+	_, err := EngineOf(s).Execute(op, statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23502" {
 		t.Fatal(err)
@@ -75,10 +75,10 @@ func TestTransactionControlsChainIdentity(t *testing.T) {
 				controlsRequire(t, a, q)
 				next := a.Transactions.Ref
 				fresh := a.Transactions.Ticket
-				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.Ref() != next || a.TransactionState() != session.TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil || len(e.locks.Inspect(fresh).Journals[fresh]) != 0 {
+				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.Ref() != next || a.TransactionState() != session.TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil || len(e.Locks.Inspect(fresh).Journals[fresh]) != 0 {
 					t.Fatal("chain did not create independent empty authority", next, a.Transactions)
 				}
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				_, oldLive := lockState.Owners[old]
 				if oldLive {
 					t.Fatal("old ticket survived")
@@ -146,7 +146,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 		transactionRows(t, a, "SELECT v FROM t", 1)
 		waiter := lockAsync(e, b, context.Background(), "SELECT v FROM t", false)
 		lockPending(t, e, 1)
-		frontier := e.visibility.CommitSeq()
+		frontier := e.Visibility.CommitSeq()
 		// Unlike Begin/Rollback/statement entry, native Commit deliberately
 		// admits caller cancellation, then discards a valid incarnation and
 		// releases its holds with the original context error.
@@ -156,7 +156,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			t.Fatal("canceled native Commit outcome", result, err)
 		}
 		if a.TransactionState() != session.TxIdle || a.Transactions.Ref.ID() != 0 ||
-			a.Transactions.Ticket != nil || a.Transactions.Writes != nil || e.visibility.CommitSeq() != frontier {
+			a.Transactions.Ticket != nil || a.Transactions.Writes != nil || e.Visibility.CommitSeq() != frontier {
 			t.Fatal("canceled native Commit retained work/holds or published")
 		}
 		op.Done()
@@ -179,12 +179,12 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			old := a.Transactions.Ref
-			frontier := e.visibility.CommitSeq()
+			frontier := e.Visibility.CommitSeq()
 			switch counter {
 			case "tx":
 				a.Transactions.Next = ids.TxID(^uint64(0))
 			case "frontier":
-				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 			case "command":
 				a.Transactions.Command = ids.CommandID(^uint64(0))
 			}
@@ -201,7 +201,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 				if err == nil || err.Error() != want || errors.As(err, &diagnostic) || a.Transactions.Ref.ID() != 0 && a.Transactions.Ref != old {
 					t.Fatal(err, a.Transactions.Ref)
 				}
-				if counter == "tx" && e.visibility.CommitSeq() != frontier {
+				if counter == "tx" && e.Visibility.CommitSeq() != frontier {
 					t.Fatal("birth exhaustion published")
 				}
 				transactionRows(t, b, "SELECT v FROM t")
@@ -286,7 +286,7 @@ func TestTransactionControlsLockLifecycle(t *testing.T) {
 			}
 			r.Rows.Close()
 			if strings.Contains(q, "CHAIN") {
-				if len(e.locks.Inspect(a.Transactions.Ticket).Journals[a.Transactions.Ticket]) != 0 {
+				if len(e.Locks.Inspect(a.Transactions.Ticket).Journals[a.Transactions.Ticket]) != 0 {
 					t.Fatal("AX inherited")
 				}
 				sessionSQL(t, a, "INSERT INTO t VALUES(2)")

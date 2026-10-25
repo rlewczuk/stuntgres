@@ -20,24 +20,24 @@ import (
 
 func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Relation, *catalog.Relation, *parser.AlterTable) {
 	t.Helper()
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	root := partitionAttachUnitRoot(t, e, "unique_replay_root", 47200)
 	mid := partitionAttachUnitRoot(t, e, "unique_replay_mid", 47201)
 	leaf := inheritanceUnitRelation(e, "unique_replay_leaf", 47202, "k")
 	leaf.RelationKind = catalog.TableRelation
-	e.mu.Lock()
+	e.Mu.Lock()
 	for _, tbl := range [3]*catalog.Relation{root, mid, leaf} {
 		tbl.Columns[0].Nullable = false
 		tbl.Constraints.NotNull = []catalog.NotNullConstraint{{Name: tbl.Name() + "_nn", Attribute: 1}}
 		tbl.History.HasIndexes = true
 		// Stored NOT NULL facts need real catalog identities before validation,
 		// just as the canonical CREATE producer assigns them.
-		if err := table.AssignDefinitionOIDs(ddlHost{e: e}, tbl); err != nil {
-			e.mu.Unlock()
+		if err := table.AssignDefinitionOIDs(DDLHost{E: e}, tbl); err != nil {
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	root.Partition.Children = []ids.ObjectAddress{mid.Address()}
 	root.Partition.DefaultChild = mid.Address()
 	mid.Membership = &catalog.PartitionMembership{Parent: root.Address(), DefaultBound: true}
@@ -55,8 +55,8 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 	mi := index(mid, 47204, "unique_replay_mid_plain", ri.Address(), true)
 	li := index(leaf, 47205, "unique_replay_leaf_plain", mi.Address(), true)
 	partitionAttachUnitInstall(t, e, root, mid, leaf, ri, mi, li)
-	mid = e.catalog.State.MustRelation(mid.Address())
-	leaf = e.catalog.State.MustRelation(leaf.Address())
+	mid = e.Catalog.State.MustRelation(mid.Address())
+	leaf = e.Catalog.State.MustRelation(leaf.Address())
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: mid.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUnique, Unique: &parser.UniqueConstraint{Name: parser.Identifier{Text: "__stuntgres_partition_key_1"}, Columns: []parser.Identifier{{Text: "k"}}, Primary: primary}}}}
 	return e, mid, leaf, raw
 }
@@ -68,34 +68,34 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	if err := e.beginPartitionUniqueReplay(op, raw); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !partitionUniqueReplayAllowed(op, auth, raw, mid) {
+	if !PartitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("exact origin missing")
 	}
 	copied := *op
-	if partitionUniqueReplayAllowed(&copied, auth, raw, mid) {
+	if PartitionUniqueReplayAllowed(&copied, auth, raw, mid) {
 		t.Fatal("copied lease authorized")
 	}
 	lookalike := *mid
-	if partitionUniqueReplayAllowed(op, auth, raw, &lookalike) {
+	if PartitionUniqueReplayAllowed(op, auth, raw, &lookalike) {
 		t.Fatal("copied table authorized")
 	}
 	raw.Actions[0].Unique.Columns[0].Text = "other"
-	if partitionUniqueReplayAllowed(op, auth, raw, mid) {
+	if PartitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed definition authorized")
 	}
 	raw.Actions[0].Unique.Columns[0].Text = "k"
 	changed := *leaf
 	changed.ObjectRevision++
-	e.catalog.State.SetDescriptor(leaf.Address(), &changed)
-	if partitionUniqueReplayAllowed(op, auth, raw, mid) {
+	e.Catalog.State.SetDescriptor(leaf.Address(), &changed)
+	if PartitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed subtree authorized")
 	}
-	e.catalog.State.SetDescriptor(leaf.Address(), leaf)
-	operationReplay(op).partitionUnique = nil
+	e.Catalog.State.SetDescriptor(leaf.Address(), leaf)
+	OperationReplay(op).PartitionUnique = nil
 	if partition.ConsumerBoundary(raw, mid, partitionReplayAllowed(op, auth)) == nil {
 		t.Fatal("public hierarchy ADD widened")
 	}
@@ -110,21 +110,21 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err := e.beginPartitionUniqueReplay(op, raw); err != nil {
 					t.Fatal(err)
 				}
-				if err := scope.acquireRelation(raw, true); err != nil {
+				if err := scope.AcquireRelation(raw, true); err != nil {
 					t.Fatal(err)
 				}
-				before := e.catalog.State
-				e.mu.Lock()
-				auth, err := e.statementAuthorizationLocked(op, raw)
+				before := e.Catalog.State
+				e.Mu.Lock()
+				auth, err := e.StatementAuthorizationLocked(op, raw)
 				if err != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					t.Fatal(err)
 				}
 				_, err = e.alterTableLocked(scope, op, auth, raw, 0)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.catalog.State != before {
+				if e.Catalog.State != before {
 					t.Fatal("private staging published before Finish")
 				}
 				if cancel {
@@ -133,7 +133,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				err = scope.Finish(nil)
 				op.Done()
 				if cancel {
-					if err == nil || e.catalog.State != before {
+					if err == nil || e.Catalog.State != before {
 						t.Fatal("canceled origin published", err)
 					}
 					return
@@ -141,17 +141,17 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				current := e.catalog.State.MustRelation(mid.Address())
-				child := e.catalog.State.MustRelation(leaf.Address())
+				current := e.Catalog.State.MustRelation(mid.Address())
+				child := e.Catalog.State.MustRelation(leaf.Address())
 				if len(current.Constraints.Unique) != 1 || len(child.Constraints.Unique) != 1 || child.Constraints.Unique[0].Parent != current.Constraints.Unique[0].OID {
 					t.Fatal("missing real constraint ancestry")
 				}
-				rootIndex := e.catalog.State.MustRelation(current.Constraints.Unique[0].Index)
-				childIndex := e.catalog.State.MustRelation(child.Constraints.Unique[0].Index)
+				rootIndex := e.Catalog.State.MustRelation(current.Constraints.Unique[0].Index)
+				childIndex := e.Catalog.State.MustRelation(child.Constraints.Unique[0].Index)
 				if !rootIndex.SQLIndex.Valid || childIndex.SQLIndex.PartitionParent != rootIndex.Address() || childIndex.SQLIndex.Constraint.Index != child.Constraints.Unique[0].Index || childIndex.SQLIndex.Constraint.Primary != primary {
 					t.Fatal("wrong local backing tree")
 				}
-				if e.catalog.State.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) || e.catalog.State.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) {
+				if e.Catalog.State.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47204}) || e.Catalog.State.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) != before.Get(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 47205}) {
 					t.Fatal("attached plain tree consumed")
 				}
 				if len(child.Constraints.NotNull) != len(leaf.Constraints.NotNull) || len(current.Constraints.NotNull) != len(mid.Constraints.NotNull) {
@@ -168,13 +168,13 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	if err := e.beginPartitionUniqueReplay(op, raw); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.acquireRelation(raw, true); err != nil {
+	if err := scope.AcquireRelation(raw, true); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.statementAuthorizationLocked(op, raw)
+	e.Mu.Lock()
+	auth, err := e.StatementAuthorizationLocked(op, raw)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	if _, err = e.alterTableLocked(scope, op, auth, raw, 0); err != nil {

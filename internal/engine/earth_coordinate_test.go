@@ -51,14 +51,14 @@ func TestEarthCoordinateProvider(t *testing.T) {
 		}
 	}
 	// A staged same-signature conflict cannot publish even a valid prefix.
-	before := e.catalog.State
+	before := e.Catalog.State
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
 	original := view.MustProcedure(ext.Members[5])
 	duplicate := *original
 	duplicate.ObjectAddress.ObjectID = 900000
 	var conflict catalog.Conflict
-	if err := stage.Create(&duplicate); !errors.As(err, &conflict) || e.catalog.State != before {
+	if err := stage.Create(&duplicate); !errors.As(err, &conflict) || e.Catalog.State != before {
 		t.Fatal("staged conflict atomicity", err)
 	}
 	if earth.Array == 0 {
@@ -70,7 +70,7 @@ func TestEarthCoordinateOwners(t *testing.T) {
 	earthOwnerCodecUnits(t)
 	e, ext, _ := earthUnitInstalled(t)
 	view := e.CatalogRead()
-	roles := e.roles.PublishedRead(&e.catalog.Owner, view)
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, view)
 	text, err := extension.OwnerMetadata(view, roles, ext)
 	if err != nil {
 		t.Fatal(err)
@@ -156,7 +156,7 @@ func TestEarthCoordinateExpression(t *testing.T) {
 		if mapped, ok := mapping[a]; ok {
 			a = mapped
 		}
-		return target.catalog.Domain.Ref(after.Epoch(), a)
+		return target.Catalog.Domain.Ref(after.Epoch(), a)
 	}
 	mapType := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == earth.SQLType {
@@ -196,7 +196,7 @@ func TestEarthCoordinateExpression(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := plan.InstalledEarthExpr{EarthCoordinate: kernel, Procedure: proc, Ref: source.catalog.Domain.Ref(before.Epoch(), proc.Address())}
+		node := plan.InstalledEarthExpr{EarthCoordinate: kernel, Procedure: proc, Ref: source.Catalog.Domain.Ref(before.Epoch(), proc.Address())}
 		if err := stored.ValidateInstalledEarth(node, before); err != nil {
 			t.Fatal(err)
 		}

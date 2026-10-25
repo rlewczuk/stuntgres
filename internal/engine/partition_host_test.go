@@ -23,8 +23,8 @@ func partitionKeyExpression(t *testing.T, text string) parser.Expr {
 func TestPartitionHostBindKeyExpressionReturnsKeyAndUsedSlots(t *testing.T) {
 	h, auth, f := indexHostFixture(t)
 	var _ partition.Host = h
-	f.e.mu.Lock()
-	defer f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	defer f.e.Mu.Unlock()
 	key, uses, err := h.BindKeyExpression(auth, f.parent, partitionKeyExpression(t, "k + 1"), sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
@@ -44,8 +44,8 @@ func TestPartitionHostBindKeyExpressionReturnsKeyAndUsedSlots(t *testing.T) {
 // partition.BindKeys: the host binds a volatile key and returns it.
 func TestPartitionHostBindKeyExpressionLeavesVolatilityToCaller(t *testing.T) {
 	h, auth, f := indexHostFixture(t)
-	f.e.mu.Lock()
-	defer f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	defer f.e.Mu.Unlock()
 	key, uses, err := h.BindKeyExpression(auth, f.parent, partitionKeyExpression(t, "random()"), sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)

@@ -8,7 +8,7 @@ import (
 )
 
 func TestStatementHostNilScopeIsUntypedNil(t *testing.T) {
-	if host := hostOf(nil); host != nil {
+	if host := HostOf(nil); host != nil {
 		t.Fatalf("hostOf(nil) = %#v, want untyped nil", host)
 	}
 	if host := (&exec.Context{}).LiveHost(); host != nil {
@@ -17,18 +17,18 @@ func TestStatementHostNilScopeIsUntypedNil(t *testing.T) {
 	if host := (&exec.Source{}).LiveHost(); host != nil {
 		t.Fatalf("scope-less querySource host = %#v, want untyped nil", host)
 	}
-	if scope := scopeOf(nil); scope != nil {
+	if scope := ScopeOf(nil); scope != nil {
 		t.Fatalf("scopeOf(nil) = %p, want nil", scope)
 	}
 }
 
 func TestStatementHostRoundTrip(t *testing.T) {
 	scope := &StatementScope{}
-	host := hostOf(scope)
+	host := HostOf(scope)
 	if host == nil {
 		t.Fatal("hostOf(scope) = nil")
 	}
-	if got := scopeOf(host); got != scope {
+	if got := ScopeOf(host); got != scope {
 		t.Fatalf("scopeOf(hostOf(scope)) = %p, want %p", got, scope)
 	}
 }

@@ -17,12 +17,12 @@ type StatementDescription struct {
 	catalogEpoch ids.CatalogEpoch
 	// Public signatures stay immutable. Invalidation refreshes temporal-now and
 	// specialized groups atomically, preserving native logical literal identity.
-	temporals        []analyze.TemporalConstant
+	Temporals        []analyze.TemporalConstant
 	types            map[analyze.PreparedTypeKey]analyze.TypeOccurrence
-	sequences        *sequence.Analysis
+	Sequences        *sequence.Analysis
 	regtypes         *regobj.Analysis
 	analysis         *preparedAnalysis
-	quotes           []exec.QuoteConstant
+	Quotes           []exec.QuoteConstant
 	quoteGeneration  uint64 // Published separately after successful quote preflight.
 	planOwner        ids.SessionToken
 	planGeneration   uint64

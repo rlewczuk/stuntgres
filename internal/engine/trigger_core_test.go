@@ -24,7 +24,7 @@ import (
 func triggerUnitAdmit(t *testing.T, s *StatementScope, relation *catalog.Relation) {
 	t.Helper()
 	statement := &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: relation.Name()}}}}
-	if err := s.gate(statement); err != nil {
+	if err := s.Gate(statement); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.acquireRelationTarget(statement, statement, true, false); err != nil {
@@ -300,11 +300,11 @@ func TestTriggerCoreRuntime(t *testing.T) {
 	row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
 	ref := read.Owner().Domain.Ref(read.Epoch(), relation.Address())
 	request := dml.BeforeRow{Relation: ref, Event: dml.BeforeInsert, New: row}
-	if _, err := s.writeHost().BeforeRow(request); err == nil {
+	if _, err := s.WriteHost().BeforeRow(request); err == nil {
 		t.Fatal("unadmitted trigger entry accepted")
 	}
 	triggerUnitAdmit(t, s, relation)
-	result, err := s.writeHost().BeforeRow(request)
+	result, err := s.WriteHost().BeforeRow(request)
 	if err != nil || !result.Proceed {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestTriggerCoreRuntime(t *testing.T) {
 	if len(s.BeforeCaptures) != 1 {
 		t.Fatal("command capture not retained")
 	}
-	result, err = s.writeHost().BeforeRow(request)
+	result, err = s.WriteHost().BeforeRow(request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,10 +325,10 @@ func TestTriggerCoreRuntime(t *testing.T) {
 	}
 	// The PL expression above acquires Engine.mu through ordinary binding;
 	// successful completion proves the callback was not run under that mutex.
-	if !e.mu.TryLock() {
+	if !e.Mu.TryLock() {
 		t.Fatal("trigger retained engine mutex")
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	input := proc.NewFrame(nil)
 	defer input.Close()
 	if _, err := s.invokeSQLRoutine(d, input, d.SQL.Result, nil, sqltype.CollationRef{}, false); err == nil {
@@ -345,7 +345,7 @@ func TestTriggerCoreAtomicStage(t *testing.T) {
 			definition := triggerUnitDefinition(t, read, relation, d, "a", stored.TriggerInsert)
 			relation = triggerUnitInstall(t, e, relation, definition)
 			triggerUnitAdmit(t, s, relation)
-			h := s.writeHost()
+			h := s.WriteHost()
 			ref := read.Owner().Domain.Ref(read.Epoch(), relation.Address())
 			integer, _ := read.LookupType(sqltype.Int4)
 			row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
@@ -356,9 +356,9 @@ func TestTriggerCoreAtomicStage(t *testing.T) {
 			}
 			veto := errors.New("trigger statement Finish veto")
 			if phase == "close_veto" {
-				e.mu.Lock()
-				source, err := e.captureQuerySourcesLocked(s, nil, true)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				source, err := e.CaptureQuerySourcesLocked(s, nil, true)
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -393,11 +393,11 @@ func TestTriggerCoreAtomicStage(t *testing.T) {
 					t.Fatal("real stage admission", accepted, stale, err)
 				}
 			}
-			staged := s.stage.rows[relation.Address()]
+			staged := s.Stage.Rows[relation.Address()]
 			if len(staged) != 1 || staged[0].Row == 0 || staged[0].Version == 0 {
 				t.Fatal("stage did not allocate genuine row/version identities")
 			}
-			if target, _ := e.locks.ReplacementGrants(s.ticket, ref, nil); !target {
+			if target, _ := e.Locks.ReplacementGrants(s.LockTicket, ref, nil); !target {
 				t.Fatal("missing real target grant")
 			}
 			if phase == "cancel" {
@@ -410,7 +410,7 @@ func TestTriggerCoreAtomicStage(t *testing.T) {
 			if err := s.Finish(veto); !errors.Is(err, veto) {
 				t.Fatal(err)
 			}
-			if len(e.storage.Relations[relation.Address()].Versions) != 0 {
+			if len(e.Storage.Relations[relation.Address()].Versions) != 0 {
 				t.Fatal("veto published accepted trigger row")
 			}
 			if _, err := h.BeforeRow(dml.BeforeRow{Relation: ref, Event: dml.BeforeInsert, New: row}); err == nil {

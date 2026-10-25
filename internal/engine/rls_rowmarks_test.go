@@ -35,7 +35,7 @@ func TestRLSPolicyRowMarks(t *testing.T) {
 	// DECLARE's identity-only owner may already exist before a policy introduces
 	// semantic marks. The ordinary initializer must promote, not replace it.
 	locks := &exec.LockContext{IdentityOnly: true}
-	scope.queryLocks = locks
+	scope.QueryLockContext = locks
 	portal := &protocolPortal{}
 	scope.protocol().bind = portal
 	_, err = scope.Execute(statement(t, "SELECT id FROM t WHERE id=1 FOR UPDATE"), 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
@@ -49,7 +49,7 @@ func TestRLSPolicyRowMarks(t *testing.T) {
 		t.Fatal("missing retained marked query")
 	}
 	defer producer.dispose(context.Background())
-	if scope.queryLocks != locks || producer.locks != locks || locks.IdentityOnly {
+	if scope.QueryLockContext != locks || producer.locks != locks || locks.IdentityOnly {
 		t.Fatal("mark initialization replaced or failed to promote the shared owner")
 	}
 	if len(locks.Leaves) != 5 {
@@ -104,13 +104,13 @@ func TestRLSPolicyRowMarks(t *testing.T) {
 	}
 	// Repeated marked and unmarked initialization validates afresh without
 	// discarding previously assigned occurrence IDs or the shared leaves.
-	e.mu.Lock()
-	err = e.initializeQueryLocksLocked(scope, nil, scope.querySources)
+	e.Mu.Lock()
+	err = e.InitializeQueryLocksLocked(scope, nil, scope.QuerySources)
 	if err == nil {
-		err = e.initializeQueryLocksLocked(scope, nil, nil)
+		err = e.InitializeQueryLocksLocked(scope, nil, nil)
 	}
-	e.mu.Unlock()
-	if err != nil || scope.queryLocks != locks || len(locks.Leaves) != 5 || locks.IdentityOnly {
+	e.Mu.Unlock()
+	if err != nil || scope.QueryLockContext != locks || len(locks.Leaves) != 5 || locks.IdentityOnly {
 		t.Fatal("later initialization reset the admitted manifest", err)
 	}
 	err = scope.Finish(nil)
@@ -153,7 +153,7 @@ func TestRLSFirstPolicyMark(t *testing.T) {
 		t.Fatal("missing retained source bundle")
 	}
 	defer producer.dispose(context.Background())
-	locks := scope.queryLocks
+	locks := scope.QueryLockContext
 	if locks == nil || locks.IdentityOnly || len(locks.Leaves) != 3 {
 		t.Fatal("later policy source did not establish the shared physical manifest")
 	}
@@ -162,10 +162,10 @@ func TestRLSFirstPolicyMark(t *testing.T) {
 			t.Fatal("first policy mark left an earlier outer source without its physical identity", i)
 		}
 	}
-	if len(producer.source.Sources) != 2 {
+	if len(producer.Source.Sources) != 2 {
 		t.Fatal("unexpected outer local source manifest")
 	}
-	for i, source := range producer.source.Sources {
+	for i, source := range producer.Source.Sources {
 		if source.Occurrence != i+1 || source.Locks != locks {
 			t.Fatal("outer source confused private and shared occurrence slots", i)
 		}

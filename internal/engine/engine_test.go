@@ -200,7 +200,7 @@ func testExecuteFrame(e *Engine, op *session.Operation, stmt parser.Statement, a
 			case bool:
 				s = strconv.FormatBool(v)
 			default:
-				return sqlError("0A000", "unsupported parameter value")
+				return SQLError("0A000", "unsupported parameter value")
 			}
 			value, err := p.Types[i].Type.InputWithEnvironment(ctx, s, -1, input)
 			if err != nil {
@@ -486,10 +486,10 @@ func TestQualifiedRelationsUseOneCatalogIdentity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE public.t (id INTEGER)")
 	view := e.CatalogRead()
-	e.mu.Lock()
-	qualified, err := e.resolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}})
-	unqualified, err2 := e.resolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	qualified, err := e.ResolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "t"}}})
+	unqualified, err2 := e.ResolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "t"}}})
+	e.Mu.Unlock()
 	if err != nil || err2 != nil || qualified != unqualified || qualified.Address.ObjectID == 0 {
 		t.Fatalf("qualified=%#v unqualified=%#v errors=%v,%v", qualified, unqualified, err, err2)
 	}

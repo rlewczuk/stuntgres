@@ -17,9 +17,9 @@ import (
 // immutable role publication convention without changing any principal identity,
 // memberships, attributes, catalog owners, or collation properties.
 func collationRenameBootstrapFixture(e *Engine, op *session.Operation, name string) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func collationRenameBootstrapFixture(e *Engine, op *session.Operation, name stri
 	if !actor.Superuser {
 		return fmt.Errorf("bootstrap rename fixture requires actual superuser authority")
 	}
-	ref := e.roles.Domain.Principal(10)
+	ref := e.RoleStore.Domain.Principal(10)
 	d, err := auth.Roles.Descriptor(ref)
 	if err != nil {
 		return err
@@ -44,19 +44,19 @@ func collationRenameBootstrapFixture(e *Engine, op *session.Operation, name stri
 	if _, exists := auth.Roles.Lookup(name); exists {
 		return fmt.Errorf("fixture role name already exists")
 	}
-	if e.roles.Published.Revision == ^uint64(0) {
+	if e.RoleStore.Published.Revision == ^uint64(0) {
 		return fmt.Errorf("authorization revision exhausted")
 	}
-	n := cloneRoleFixture(e.roles.Published)
+	n := cloneRoleFixture(e.RoleStore.Published)
 	d.Name = name
 	putFixtureRole(n, d)
 
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	if err = publicationOperationLocked(e, op); err != nil {
+	if err = PublicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	e.roles.PublishLocked(n)
+	e.RoleStore.PublishLocked(n)
 	return nil
 }
 
@@ -64,8 +64,8 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	e := New()
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
-	bootstrap := e.roles.Domain.Principal(10)
-	beforeRolesPublication := e.roles.Published
+	bootstrap := e.RoleStore.Domain.Principal(10)
+	beforeRolesPublication := e.RoleStore.Published
 	beforeRoles := e.Roles()
 	beforeDescriptor, err := beforeRoles.Descriptor(bootstrap)
 	if err != nil {
@@ -82,7 +82,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	}
 	want := beforeDescriptor
 	want.Name = "original_bootstrap"
-	if actual != want || e.roles.Published.Revision != beforeRolesPublication.Revision+1 || !reflect.DeepEqual(fixtureEdges(e.roles.Published), fixtureEdges(beforeRolesPublication)) {
+	if actual != want || e.RoleStore.Published.Revision != beforeRolesPublication.Revision+1 || !reflect.DeepEqual(fixtureEdges(e.RoleStore.Published), fixtureEdges(beforeRolesPublication)) {
 		t.Fatal("rename changed genuine role identity", actual, want)
 	}
 	old, err := beforeRoles.Descriptor(bootstrap)

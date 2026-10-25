@@ -52,7 +52,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 			}
 			sessionSQL(t, s, "INSERT INTO public.stored VALUES(3)")
 			sequence := catalogRef(t, e, e.CatalogRead(), "calls")
-			if e.storage.Sequences[sequence.Address].Last != 3 {
+			if e.Storage.Sequences[sequence.Address].Last != 3 {
 				t.Fatal("recovery replayed historical CHECK truth")
 			}
 			if latePeer {
@@ -60,7 +60,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				domainUnitTable(t, e, op, "CREATE TABLE public.peer(v public.d)")
 				done()
 			}
-			before, stores, roots := e.catalog.State, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots)
+			before, stores, roots := e.Catalog.State, maps.Clone(e.Storage.Relations), maps.Clone(e.Storage.IndexRoots)
 			op, err := s.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -68,7 +68,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 			_, err = e.Execute(op, statement(t, "COMMIT"), 0, nil)
 			op.Done()
 			if latePeer {
-				if err == nil || e.catalog.State != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) {
+				if err == nil || e.Catalog.State != before || !maps.Equal(e.Storage.Relations, stores) || !maps.Equal(e.Storage.IndexRoots, roots) {
 					t.Fatal("promoted final fence lost", err)
 				}
 			} else {
@@ -76,11 +76,11 @@ func domainAlterMessagePromotion(t *testing.T) {
 					t.Fatal("promoted private validity not installed", err)
 				}
 				table := catalogRef(t, e, e.CatalogRead(), "stored")
-				if len(e.storage.Relations[table.Address].Versions) != 3 {
+				if len(e.Storage.Relations[table.Address].Versions) != 3 {
 					t.Fatal("promoted pending rows lost")
 				}
 			}
-			if e.storage.Sequences[sequence.Address].Last != 3 {
+			if e.Storage.Sequences[sequence.Address].Last != 3 {
 				t.Fatal("promoted final owner replayed CHECK truth")
 			}
 		})

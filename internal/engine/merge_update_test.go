@@ -30,7 +30,7 @@ func TestMergeUpdateRowLocks(t *testing.T) {
 			done := lockAsync(e, worker, ctx, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED AND t.v>=20 THEN UPDATE SET v=100 WHEN MATCHED THEN UPDATE SET v=200", false)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			rowWait := false
 			for resource, entry := range lockState.Resources {
 				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.Pending) == 1 {
@@ -77,7 +77,7 @@ func TestMergeUpdatePublication(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	before := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+	before := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestMergeUpdatePublication(t *testing.T) {
 		scope.Finish(errors.New("bad result"))
 		t.Fatal(result)
 	}
-	if !reflect.DeepEqual(before, e.storage.Relations[ref.Address].Versions) {
+	if !reflect.DeepEqual(before, e.Storage.Relations[ref.Address].Versions) {
 		scope.Finish(errors.New("early publish"))
 		t.Fatal("Execute escaped private stage")
 	}
@@ -104,7 +104,7 @@ func TestMergeUpdatePublication(t *testing.T) {
 	if err = scope.Finish(sentinel); !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(before, e.storage.Relations[ref.Address].Versions) {
+	if !reflect.DeepEqual(before, e.Storage.Relations[ref.Address].Versions) {
 		t.Fatal("failed Finish published mixed prefix")
 	}
 	transactionRows(t, peer, "SELECT v FROM t", 10)

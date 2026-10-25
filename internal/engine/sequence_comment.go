@@ -13,11 +13,11 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: COMMENT takes no arguments")
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
 	var ref ids.ObjectRef
 	if err == nil {
-		ref, err = e.resolveRelationReference(auth, s.Name, true)
+		ref, err = e.ResolveRelationReference(auth, s.Name, true)
 	}
 	if err == nil {
 		err = sequence.CheckKind(auth.Catalog.MustRelation(ref.Address))
@@ -25,16 +25,16 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if err == nil {
 		err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquireSequence(ref, lock.ShareUpdateExclusive, true); err != nil {
+	if err = scope.AcquireSequence(ref, lock.ShareUpdateExclusive, true); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err = e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err = e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return Result{}, err
 	}
@@ -46,7 +46,7 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	next := *old
-	next.ObjectRevision, err = e.catalog.RevisionLocked()
+	next.ObjectRevision, err = e.Catalog.RevisionLocked()
 	if err != nil {
 		return Result{}, err
 	}
@@ -54,9 +54,9 @@ func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment
 	if s.Null {
 		next.Comment = ""
 	}
-	changes := scope.owner.Catalog.Clone()
-	e.catalogChangeLocked(changes, ref.Address, &next)
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.State.Get(ref.Address))
-	scope.catalog = changes
+	changes := scope.Owner.Catalog.Clone()
+	e.CatalogChangeLocked(changes, ref.Address, &next)
+	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
+	scope.Catalog = changes
 	return Result{}, nil
 }

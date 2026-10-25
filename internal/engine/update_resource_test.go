@@ -16,13 +16,13 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1),(1)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	versions := e.storage.Relations[ref.Address].Versions
+	versions := e.Storage.Relations[ref.Address].Versions
 	ta := transactionBegin(t, a)
 	tb := transactionBegin(t, b)
 	resource := lock.Resource{ObjectRef: ref, Row: versions[0].Row}
 	other := lock.Resource{ObjectRef: ref, Row: versions[1].Row}
 	acquire := func(ticket *lock.Ticket, r lock.Resource) (*lock.Request, error) {
-		return e.locks.StartAcquire(context.Background(), ticket, r, lock.ForNoKeyUpdate, lock.Policy{})
+		return e.Locks.StartAcquire(context.Background(), ticket, r, lock.ForNoKeyUpdate, lock.Policy{})
 	}
 	if request, err := acquire(a.Transactions.Ticket, resource); request != nil || err != nil {
 		t.Fatal(request, err)
@@ -33,7 +33,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	if request, err := acquire(b.Transactions.Ticket, other); request != nil || err != nil {
 		t.Fatal("duplicate-valued row conflicted", request, err)
 	}
-	for _, invalid := range []lock.Resource{{ObjectRef: ref}, {ObjectRef: New().catalog.Domain.Ref(ref.Epoch, ref.Address), Row: versions[0].Row}} {
+	for _, invalid := range []lock.Resource{{ObjectRef: ref}, {ObjectRef: New().Catalog.Domain.Ref(ref.Epoch, ref.Address), Row: versions[0].Row}} {
 		if request, err := acquire(b.Transactions.Ticket, invalid); request != nil || err == nil {
 			t.Fatal("invalid resource admitted", request, err)
 		}
@@ -43,7 +43,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 		t.Fatal("copied ticket admitted", request, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
+	request, err := e.Locks.StartAcquire(ctx, b.Transactions.Ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("missing exact queued row request", request, err)
 	}
@@ -51,7 +51,7 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[resource]
 	held := entry.Holders[a.Transactions.Ticket].Mode
 	pending := len(entry.Pending)

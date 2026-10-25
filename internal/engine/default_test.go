@@ -37,24 +37,24 @@ func (e *defaultOrdinal) Eval(ctx expr.Context) (sqltype.Value, error) {
 			e.cancel()
 			return sqltype.Value{}, c.Context.Err()
 		}
-		return sqltype.Value{}, sqlError("22003", "integer out of range")
+		return sqltype.Value{}, SQLError("22003", "integer out of range")
 	}
 	return sqltype.Integer(e.Usage.Type, e.ordinal)
 }
 func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
 	t.Helper()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	for address, descriptor := range e.catalog.State.Descriptors() {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	for address, descriptor := range e.Catalog.State.Descriptors() {
 		if old, ok := descriptor.(*catalog.Relation); ok && old.Name() == "d" {
 			next := *old
 			probe.Info = expr.Info{Usage: old.Columns[1].Usage}
 			next.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{old.Attributes[1]: {Expression: probe}}
 			// Private descriptor fixture only; published SQL defaults still require the
 			// provider's closed-node ownership/serialization validation.
-			state := catalog.CloneState(e.catalog.State)
+			state := catalog.CloneState(e.Catalog.State)
 			state.SetDescriptor(address, &next)
-			e.catalog.PublishLocked(state)
+			e.Catalog.PublishLocked(state)
 			return
 		}
 	}
@@ -122,18 +122,18 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 	}
 	defer done()
 	a := time.Date(2020, 2, 3, 4, 5, 6, 0, time.UTC)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(op.Ctx, e.analysisHost(op), statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, nil, nil)
+	b, err := Describe(op.Ctx, e.AnalysisHost(op), statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, nil, nil)
 	var defaults map[int32]catalog.ColumnDefault
 	if err == nil {
-		defaults, err = bindCreateDefaults(newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
+		defaults, err = bindCreateDefaults(NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("CREATE evaluated deferred narrowing", err)
 	}

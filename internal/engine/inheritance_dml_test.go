@@ -28,15 +28,15 @@ func inheritanceDMLScope(t *testing.T, e *Engine, p *catalog.Relation, ctx conte
 		done()
 		t.Fatal(err)
 	}
-	if err = s.gate(&parser.Update{}); err != nil {
+	if err = s.Gate(&parser.Update{}); err != nil {
 		s.Finish(err)
 		done()
 		t.Fatal(err)
 	}
-	s.lockedRef = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	s.lockedDescriptor = p
-	s.lockedStorage = e.storage.Relations[p.Address()]
-	if err = e.locks.Acquire(ctx, s.ticket, lock.Resource{ObjectRef: s.lockedRef}, lock.RowExclusive); err != nil {
+	s.LockedRef = e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
+	s.LockedDescriptor = p
+	s.LockedStorage = e.Storage.Relations[p.Address()]
+	if err = e.Locks.Acquire(ctx, s.LockTicket, lock.Resource{ObjectRef: s.LockedRef}, lock.RowExclusive); err != nil {
 		s.Finish(err)
 		done()
 		t.Fatal(err)
@@ -59,19 +59,19 @@ func TestInheritanceDMLAdmission(t *testing.T) {
 	if err := s.acquireInheritedMutationTargets(&parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
-	refs := s.Command.TargetRefs(s.lockedRef)
+	refs := s.Command.TargetRefs(s.LockedRef)
 	if len(refs) != 4 {
 		t.Fatal("diamond was not deduplicated", refs)
 	}
 	seen := map[ids.ObjectRef]bool{}
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	for _, ref := range refs {
 		if seen[ref] {
 			t.Fatal("duplicate physical identity", ref)
 		}
 		seen[ref] = true
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-		if entry == nil || entry.Holders[s.ticket].Mode&lock.RowExclusive == 0 {
+		if entry == nil || entry.Holders[s.LockTicket].Mode&lock.RowExclusive == 0 {
 			t.Fatal("missing physical RX grant", ref)
 		}
 	}
@@ -89,7 +89,7 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := func(d *catalog.Relation) ids.ObjectRef {
-		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
+		return e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	old := storage.RowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
 	physical := exec.QueryPhysicalRow{Leaf: exec.Leaf{Ref: ref(c), Relation: c, Storage: &storage.Relation{}}, Version: old, Hint: 6, Segment: &exec.InheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}}
@@ -129,7 +129,7 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := s.InheritedTargets[0]
-	if s.mutationStorage(child.Ref) != e.storage.Relations[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage.Relations[p.Address()] {
+	if s.mutationStorage(child.Ref) != e.Storage.Relations[c.Address()] || s.mutationStorage(s.LockedRef) != e.Storage.Relations[p.Address()] {
 		t.Fatal("manifest lost stores")
 	}
 	foreign := child.Ref
@@ -146,8 +146,8 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 	next := *c
 	next.ObjectRevision++
 	next.ObjectName = "renamed"
-	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-	e.catalog.State.SetDescriptor(c.Address(), &next)
+	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+	e.Catalog.State.SetDescriptor(c.Address(), &next)
 	if err := s.acquireInheritedMutationTargets(&parser.Update{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed descendant silently rebound", err)
 	}

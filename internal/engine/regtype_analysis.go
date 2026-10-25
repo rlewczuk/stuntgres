@@ -7,14 +7,14 @@ import (
 	"stuntgres/internal/engine/sequence"
 )
 
-// regtypeObservationLocked is what prepared reg* literals are analyzed and
+// RegtypeObservationLocked is what prepared reg* literals are analyzed and
 // validated against, with auth's type and collation lookup paths. Caller
 // holds Engine.mu; the path callbacks run under it.
-func (e *Engine) regtypeObservationLocked(auth AuthorizationView) (regobj.Observation, regobj.LookupPaths) {
-	return regobj.Observation{Domain: e.catalog.Domain, Database: auth.session.DatabaseName, View: auth.View, Environment: auth},
+func (e *Engine) RegtypeObservationLocked(auth AuthorizationView) (regobj.Observation, regobj.LookupPaths) {
+	return regobj.Observation{Domain: e.Catalog.Domain, Database: auth.Session.DatabaseName, View: auth.View, Environment: auth},
 		regobj.LookupPaths{
 			Type:      func() (sequence.Environment, error) { return e.sequenceEnvironmentLocked(auth) },
-			Collation: func() ([]ids.ObjectAddress, error) { return lookupPath(auth, analyze.CollationLookup) },
+			Collation: func() ([]ids.ObjectAddress, error) { return LookupPath(auth, analyze.CollationLookup) },
 		}
 }
 
@@ -24,7 +24,7 @@ func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []analy
 	if len(constants) == 0 {
 		return nil, nil
 	}
-	o, paths := e.regtypeObservationLocked(auth)
+	o, paths := e.RegtypeObservationLocked(auth)
 	return regobj.NewAnalysis(o, paths, constants)
 }
 
@@ -34,6 +34,6 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regobj
 	if cell == nil {
 		return true, nil
 	}
-	o, paths := e.regtypeObservationLocked(auth)
+	o, paths := e.RegtypeObservationLocked(auth)
 	return cell.Valid(o, paths)
 }

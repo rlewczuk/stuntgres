@@ -20,7 +20,7 @@ func pgrowlocksUnitInstalled(t *testing.T, e *Engine) *catalog.Extension {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "pgrowlocks", ""))
-	return e.CatalogRead().MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"}))
+	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"}))
 }
 func pgrowlocksUnitExpression(t *testing.T, e *Engine) plan.InstalledPgrowlocksExpr {
 	t.Helper()
@@ -67,7 +67,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 		bad := *p
 		mutate(&bad)
 		state.SetDescriptor(p.Address(), &bad)
-		if err := extension.StockPgrowlocks.ValidateExtension(e.catalog.Read(state), ext); err == nil {
+		if err := extension.StockPgrowlocks.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
 			t.Fatal("forged declaration accepted", bad)
 		}
 	}
@@ -78,7 +78,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 	ownedProcedure := *p
 	ownedProcedure.Owner = memberOwner.Ref
 	ownedState.SetDescriptor(p.Address(), &ownedProcedure)
-	metadata, err := extension.OwnerMetadata(e.catalog.Read(ownedState), e.Roles(), ext)
+	metadata, err := extension.OwnerMetadata(e.Catalog.Read(ownedState), e.Roles(), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,13 +102,13 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 	if record.Name != "pgrowlocks" || record.Schema != "public" || record.Version != "1.2" || record.Owner != "postgres" || len(record.Members) != 1 || record.Members[0] != expectedMember {
 		t.Fatal("dump owner metadata", record)
 	}
-	replay := e.restoreStage()
+	replay := e.RestoreStage()
 	replayOp, replayDone := roleOperation(t, replay, "postgres")
 	defer replayDone()
 	if err := extensionUnitExecute(t, replay, replayOp, &parser.CreateExtension{Name: parser.Identifier{Text: "pgrowlocks"}}); err != nil {
 		t.Fatal("replay installation", err)
 	}
-	replayedExtension := replay.CatalogRead().MustExtension(replay.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"}))
+	replayedExtension := replay.CatalogRead().MustExtension(replay.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"}))
 	if replay.CatalogRead().MustProcedure(replayedExtension.Members[0]).Owner != replayedExtension.Owner {
 		t.Fatal("fresh installation did not use installation owner")
 	}
@@ -135,7 +135,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 		state.BindName(catalog.DescriptorNameKey(d), destination)
 	}
 	state.SetEpoch(state.Epoch() + 1)
-	destination := e.catalog.Read(state)
+	destination := e.Catalog.Read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef {
 		ref.Epoch = state.Epoch()
 		if a, ok := mapping[ref.Address]; ok {

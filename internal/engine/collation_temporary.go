@@ -25,10 +25,10 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 		}
 	}
 	if len(changes.Descriptors) != 0 {
-		auth.Catalog = e.stageRead(stage)
+		auth.Catalog = e.StageRead(stage)
 		auth.Recapture(auth.Catalog)
-		if ns, ok := auth.Catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.SessionToken {
-			auth.stagedTemporary = ns.Address()
+		if ns, ok := auth.Catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.Session != nil && ns.Temporary == auth.Session.SessionToken {
+			auth.StagedTemporary = ns.Address()
 		}
 	}
 	ns := auth.Catalog.MustNamespace(ref.Address)
@@ -38,7 +38,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 			return ids.ObjectRef{}, err
 		}
 		if !actor.Superuser {
-			return ids.ObjectRef{}, sqlError("42501", "permission denied for schema "+ns.Name())
+			return ids.ObjectRef{}, SQLError("42501", "permission denied for schema "+ns.Name())
 		}
 	}
 	return ref, nil
@@ -54,8 +54,8 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 	}
 	var maintenance *session.Session
 	for {
-		e.mu.Lock()
-		base := e.catalog.Current()
+		e.Mu.Lock()
+		base := e.Catalog.Current()
 		var namespaces []*catalog.Namespace
 		for _, d := range base.Descriptors() {
 			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == source.SessionToken {
@@ -63,9 +63,9 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 			}
 		}
 		if len(namespaces) == 0 {
-			payloadOf(source).sequences.ForgetLocked()
+			PayloadOf(source).Sequences.ForgetLocked()
 			source.TemporaryNamespace = ids.ObjectAddress{}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil
 		}
 		owned := make(map[ids.ObjectAddress]bool, len(namespaces))
@@ -73,12 +73,12 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 			owned[ns.Address()] = true
 		}
 		children, captureErr := catalog.NamespaceChildren(base, owned)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if captureErr != nil {
 			return captureErr
 		}
 		if maintenance == nil {
-			maintenance, err = e.startSession(context.Background(), session.SessionStart{Authenticated: e.roles.Domain.Principal(10)}, true)
+			maintenance, err = e.startSession(context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
 			if err != nil {
 				return err
 			}
@@ -94,10 +94,10 @@ func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 		if attemptErr != nil {
 			return attemptErr
 		}
-		e.mu.Lock()
-		payloadOf(source).sequences.ForgetLocked()
+		e.Mu.Lock()
+		PayloadOf(source).Sequences.ForgetLocked()
 		source.TemporaryNamespace = ids.ObjectAddress{}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil
 	}
 }
@@ -107,7 +107,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 	// Registered first, so classification runs after Finish, stage discard and
 	// Operation.Done have fully unwound the failed attempt.
 	defer func() {
-		if err != nil && stage != nil && stage.lifecycle != catalogPublished &&
+		if err != nil && stage != nil && stage.Lifecycle != catalogPublished &&
 			!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
 			stale = e.temporaryCleanupStale(stage, nil)
 		}
@@ -122,7 +122,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 		return false, err
 	}
 	defer func() { err = scope.Finish(err) }()
-	if err = scope.gate(&parser.DropCollation{Mode: parser.DropCascade}); err != nil {
+	if err = scope.Gate(&parser.DropCollation{Mode: parser.DropCascade}); err != nil {
 		return false, err
 	}
 	stage = e.BeginCatalogStage(base)
@@ -132,7 +132,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 		if ns.Temporary != token {
 			return false, fmt.Errorf("stuntgres: foreign temporary namespace cleanup")
 		}
-		stage.domainBases = append(stage.domainBases, ns)
+		stage.DomainBases = append(stage.DomainBases, ns)
 		for key := range base.State().DefaultACLs() {
 			if key.Schema == ns.Address() {
 				stage.SetDefaultACL(key, nil)
@@ -141,20 +141,20 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 	}
 	// Exclude owned targets before projecting their surviving dependents: a TEMP
 	// table being removed must not also receive a replacement row shape.
-	e.mu.Lock()
+	e.Mu.Lock()
 	for _, a := range children {
-		if err = stage.removeObjectLocked(e.catalog.Domain.Ref(base.Epoch(), a), false); err != nil {
+		if err = stage.RemoveObjectLocked(e.Catalog.Domain.Ref(base.Epoch(), a), false); err != nil {
 			break
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return false, err
 	}
-	if err = scope.stageExpressionDependents(stage, children, parser.DropCascade, nil); err != nil {
+	if err = scope.StageExpressionDependents(stage, children, parser.DropCascade, nil); err != nil {
 		return false, err
 	}
-	if err = scope.stageOwnedSequences(stage, children, parser.DropCascade, nil); err != nil {
+	if err = scope.StageOwnedSequences(stage, children, parser.DropCascade, nil); err != nil {
 		return false, err
 	}
 	var relations []ids.ObjectAddress
@@ -173,7 +173,7 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 		if i != 0 && a == relations[i-1] {
 			continue
 		}
-		if err = scope.acquireSequence(e.catalog.Domain.Ref(base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+		if err = scope.AcquireSequence(e.Catalog.Domain.Ref(base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 			return false, err
 		}
 	}
@@ -181,9 +181,9 @@ func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, bas
 	if err != nil {
 		return false, err
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return false, err
 }

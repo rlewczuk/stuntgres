@@ -14,7 +14,7 @@ func cloneRoleFixture(r *access.RoleRecord) *access.RoleRecord {
 	return &access.RoleRecord{Root: r.Root, Revision: r.Revision + 1}
 }
 func emptyRoleFixture(e *Engine) *access.RoleRecord {
-	root := authorization.Seed(&e.roles.Domain)
+	root := authorization.Seed(&e.RoleStore.Domain)
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)
 	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
 		targets[ref] = d
@@ -135,14 +135,14 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 // SetObjectACL publishes acl on ref directly, outside GRANT and REVOKE,
 // with the validation, revision and publication steps of a grant.
 func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() {
 		return fmt.Errorf("stuntgres: foreign or stale ACL object")
 	}
 	addr := ref.Address
 	addr.SubID = 0
-	d, ok := e.catalog.State.Find(addr)
+	d, ok := e.Catalog.State.Find(addr)
 	if !ok {
 		return fmt.Errorf("stuntgres: missing ACL object")
 	}
@@ -154,25 +154,25 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 	if err != nil {
 		return err
 	}
-	if err := access.ValidateACL(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), next); err != nil {
+	if err := access.ValidateACL(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()), next); err != nil {
 		return err
 	}
-	if e.roles.Published.Revision == ^uint64(0) {
+	if e.RoleStore.Published.Revision == ^uint64(0) {
 		return fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	state := catalog.CloneState(e.catalog.State)
+	state := catalog.CloneState(e.Catalog.State)
 	if parameter, ok := next.(*catalog.Parameter); ok {
 		catalog.InstallParameterGrant(state, parameter)
 	} else {
 		state.SetDescriptor(addr, next)
 	}
-	roles := e.roles.Published.Advance()
-	databaseRoots := e.catalog.ProjectDatabasesLocked(state, e.cluster.catalogs)
+	roles := e.RoleStore.Published.Advance()
+	databaseRoots := e.Catalog.ProjectDatabasesLocked(state, e.Cluster.Catalogs)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if n, ok := next.(*catalog.Relation); ok && n.RelationKind == catalog.SequenceRelation && ref.Address.SubID == 0 {
-		stamp, err := e.catalog.RevisionLocked()
+		stamp, err := e.Catalog.RevisionLocked()
 		if err != nil {
 			return err
 		}
@@ -183,8 +183,8 @@ func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl author
 			return err
 		}
 	}
-	e.catalog.PublishLocked(state)
+	e.Catalog.PublishLocked(state)
 	databaseRoots.InstallLocked()
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	return nil
 }

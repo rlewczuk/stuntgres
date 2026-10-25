@@ -98,7 +98,7 @@ func TestTimestamptzSeriesHooks(t *testing.T) {
 			replacement := *later.State().MustType(address)
 			replacement.SQLType = next.Args[i].ResultUsage().Type
 			later.State().SetDescriptor(address, &replacement)
-			authority := *routineAuthorityView(&evaluation)
+			authority := *RoutineAuthorityView(&evaluation)
 			authority.View.Recapture(later)
 			probe := evaluation
 			probe.Catalog, probe.RoutineAuthority = later, &authority

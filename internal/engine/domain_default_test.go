@@ -181,10 +181,10 @@ func TestDomainDefaultRemapInternal(t *testing.T) {
 	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
 		t.Fatal(err)
 	}
-	if err := stored.ReownExpressions(source.catalog.Read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(source.Catalog.Read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	remapped := source.catalog.Read(next)
+	remapped := source.Catalog.Read(next)
 	for _, name := range []string{"remap_base", "remap_child", "remap_cast"} {
 		d := domainUnitType(t, remapped, name)
 		if err := stored.ValidateDomainDefault(remapped, d); err != nil {
@@ -219,7 +219,7 @@ func TestDomainDefaultDependencyReasonInternal(t *testing.T) {
 	child := domainUnitType(t, view, "recipe_child")
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.recipe_provider CASCADE")
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(context.Background(), stage, stage.domainTargets)
+	edges, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}

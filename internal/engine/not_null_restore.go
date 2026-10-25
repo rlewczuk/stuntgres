@@ -11,13 +11,13 @@ import (
 
 func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
 	if !table.RestoredNotNullShape(raw) {
-		return table.RestoredNotNull{}, sqlError("0A000", table.RestoreNoInheritBoundary)
+		return table.RestoredNotNull{}, SQLError("0A000", table.RestoreNoInheritBoundary)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredNotNull{}, err
 	}
-	ref, err := e.resolveRelationReference(auth, raw.Name, false)
+	ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return table.RestoredNotNull{}, err
 	}
@@ -34,7 +34,7 @@ func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Upda
 	if err = op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -43,21 +43,21 @@ func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Upda
 		return err
 	}
 	if !actor.Superuser {
-		return sqlError("42501", "permission denied for table pg_constraint")
+		return SQLError("42501", "permission denied for table pg_constraint")
 	}
-	e.mu.Lock()
-	if !partitionConstraintReplayImport(e, op, auth) {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if !PartitionConstraintReplayImport(e, op, auth) {
+		e.Mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore no-inherit authority")
 	}
-	ref, err := e.resolveRelationReference(auth, name, false)
+	ref, err := e.ResolveRelationReference(auth, name, false)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	next, err := table.NoInheritNotNullCandidate(auth.Catalog, ref, origin, column, label)
 	if err != nil || next == nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	return e.publishRestoreRepairLocked(op, auth, next, ref.Epoch)

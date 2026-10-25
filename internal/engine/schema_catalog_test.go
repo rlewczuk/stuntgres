@@ -74,11 +74,11 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	// Real catalog fixture, never permission to expose system table creation SQL.
-	e.mu.Lock()
-	auth := catalogAuthorization(e, e.catalog.Current())
+	e.Mu.Lock()
+	auth := catalogAuthorization(e, e.Catalog.Current())
 	stage := e.BeginCatalogStage(auth.Catalog)
-	err := e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
-	e.mu.Unlock()
+	err := e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,9 +130,9 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 		op, done := roleOperation(t, e, "postgres")
 		before := e.CatalogRead()
 		if revision {
-			e.catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
+			e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
 		} else {
-			e.catalog.InstallOIDFrontierLocked(0)
+			e.Catalog.InstallOIDFrontierLocked(0)
 		}
 		_, err := e.Execute(op, statement(t, "CREATE SCHEMA exhausted CREATE TABLE t(id INT)"), 0, nil)
 		if err == nil || e.CatalogRead().State() != before.State() {
@@ -146,9 +146,9 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 	admin, adminDone := roleOperation(t, e, "postgres")
 	defer adminDone()
 	before := e.CatalogRead()
-	e.mu.Lock()
+	e.Mu.Lock()
 	stage, err := e.stageSchemaLocked(op, statement(t, "CREATE SCHEMA fenced CREATE TABLE t(id INT)"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, admin, "CREATE ROLE changed_authority")
-	if _, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
+	if _, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
 		t.Fatal("role revision fence published fragment", err)
 	}
 }

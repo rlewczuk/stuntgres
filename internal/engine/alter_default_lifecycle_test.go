@@ -29,7 +29,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 				lockPending(t, e, 1)
 				switch kind {
 				case "revision":
-					old := e.catalog.State.MustRelation(ref.Address)
+					old := e.Catalog.State.MustRelation(ref.Address)
 					next := *old
 					next.ObjectRevision++
 					next.Comment = "retained"
@@ -68,7 +68,7 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 					transactionEnd(t, a, tx, kind == "recreate")
 					if kind == "revision" {
 						lockAwait(t, done, nil)
-						d := e.catalog.State.MustRelation(ref.Address)
+						d := e.Catalog.State.MustRelation(ref.Address)
 						if d.Comment != "retained" {
 							t.Fatal("lost grant-time revision")
 						}
@@ -101,18 +101,18 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT DEFAULT 11)")
 			run(t, e, "INSERT INTO t DEFAULT VALUES")
 			ref := roleTableRef(t, e, "t")
-			old := e.catalog.State.MustRelation(ref.Address)
-			storage := e.storage.Relations[ref.Address]
+			old := e.Catalog.State.MustRelation(ref.Address)
+			storage := e.Storage.Relations[ref.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.Providers[ids.RelationClassID]
+			provider := e.Catalog.Providers[ids.RelationClassID]
 			op, cleanup, err := testOperation(e, ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.Providers[ids.RelationClassID] = provider
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.Catalog.Providers[ids.RelationClassID] = provider
 				switch kind {
 				case "cancel":
 					cancel()
@@ -133,20 +133,20 @@ func TestAlterDefaultProviderDropFences(t *testing.T) {
 						t.Fatal(err)
 					}
 				case "insert":
-					e.mu.Lock()
+					e.Mu.Lock()
 					row := storage.Versions[0]
 					row.Row = 99
 					row.Version = 99
 					storage.Versions = append(storage.Versions, row)
-					e.mu.Unlock()
+					e.Mu.Unlock()
 				}
 			}}
 			_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a DROP DEFAULT"), 0, nil)
 			if err == nil {
 				t.Fatal("stale DROP published")
 			}
-			current := e.catalog.State.MustRelation(ref.Address)
-			if current.ColumnMeta.Defaults[current.Attributes[0]].Expression != old.ColumnMeta.Defaults[old.Attributes[0]].Expression || e.storage.Relations[ref.Address] != storage {
+			current := e.Catalog.State.MustRelation(ref.Address)
+			if current.ColumnMeta.Defaults[current.Attributes[0]].Expression != old.ColumnMeta.Defaults[old.Attributes[0]].Expression || e.Storage.Relations[ref.Address] != storage {
 				t.Fatal("failed DROP removed definition")
 			}
 			lockEmpty(t, e)

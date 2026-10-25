@@ -27,13 +27,13 @@ func TestIdentityAlterSequenceGrantFreshness(t *testing.T) {
 			transactionEnd(t, a, tx, true)
 			lockAwait(t, done, nil)
 			if action == `ALTER TABLE i ALTER id DROP IDENTITY` {
-				table := e.catalog.State.MustRelation(catalogRef(t, e, e.CatalogRead(), "i").Address)
-				if len(table.ColumnMeta.Identities) != 0 || e.catalog.State.Get(ref.Address) != nil {
+				table := e.Catalog.State.MustRelation(catalogRef(t, e, e.CatalogRead(), "i").Address)
+				if len(table.ColumnMeta.Identities) != 0 || e.Catalog.State.Get(ref.Address) != nil {
 					t.Fatal("drop lost exact linked identity")
 				}
 				sessionSQL(t, b, `INSERT INTO i VALUES(55)`)
 			} else {
-				d := e.catalog.State.MustRelation(ref.Address)
+				d := e.Catalog.State.MustRelation(ref.Address)
 				if d.Sequence.Increment != 3 {
 					t.Fatal("stale option overwrite", d.Sequence.Increment)
 				}
@@ -62,8 +62,8 @@ func TestIdentityAlterCanceledPublication(t *testing.T) {
 			sessionSQL(t, a, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 			tableRef := catalogRef(t, e, e.CatalogRead(), "i")
 			sequenceRef := catalogRef(t, e, e.CatalogRead(), "i_id_seq")
-			state, storage := e.catalog.State, e.storage.Relations[tableRef.Address]
-			generator := *e.storage.Sequences[sequenceRef.Address]
+			state, storage := e.Catalog.State, e.Storage.Relations[tableRef.Address]
+			generator := *e.Storage.Sequences[sequenceRef.Address]
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, `ALTER SEQUENCE i_id_seq RESTART WITH 10`)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -76,7 +76,7 @@ func TestIdentityAlterCanceledPublication(t *testing.T) {
 			ownedLockQueued(t, e, sequenceRef, mode, done)
 			cancel()
 			lockAwait(t, done, context.Canceled)
-			if e.catalog.State != state || e.storage.Relations[tableRef.Address] != storage || *e.storage.Sequences[sequenceRef.Address] != generator {
+			if e.Catalog.State != state || e.Storage.Relations[tableRef.Address] != storage || *e.Storage.Sequences[sequenceRef.Address] != generator {
 				t.Fatal("canceled exact linked wait published its private prefix")
 			}
 			transactionEnd(t, a, tx, false)

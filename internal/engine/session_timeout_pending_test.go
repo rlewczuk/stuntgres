@@ -49,7 +49,7 @@ func timeoutPendingOperation(t *testing.T, s *session.Session) *session.Operatio
 
 func timeoutPendingScope(t *testing.T, op *session.Operation) *StatementScope {
 	t.Helper()
-	scope, err := engineOf(op.Session).StartStatement(op)
+	scope, err := EngineOf(op.Session).StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget
 		t.Fatal(err)
 	}
 	parent := "parent"
-	if _, err := e.applySetting(begin, s.Settings, e.settings.Definitions()["application_name"], &parent, false); err != nil {
+	if _, err := e.applySetting(begin, s.Settings, e.Settings.Definitions()["application_name"], &parent, false); err != nil {
 		t.Fatal(err)
 	}
 	begin.Done()
@@ -119,7 +119,7 @@ func timeoutPendingRequest(t *testing.T, e *Engine, op *session.Operation) *lock
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		var found *lock.Request
 		for _, entry := range lockState.Resources {
 			for _, request := range entry.Pending {
@@ -143,7 +143,7 @@ func timeoutPendingPublish(t *testing.T, e *Engine, request *lock.Request, now t
 	// The real cancellation callback may already own terminal publication
 	// after a failing lifecycle assertion. Only the manager's first terminal
 	// transition owns notification; never overwrite or renotify its result.
-	if err := e.locks.ExpireWait(request, now); err == nil && !request.Terminal() {
+	if err := e.Locks.ExpireWait(request, now); err == nil && !request.Terminal() {
 		t.Fatal("explicit due instant did not produce queued ERROR")
 	}
 }
@@ -193,7 +193,7 @@ func timeoutPendingRecovery(t *testing.T, s *session.Session, ref ids.TxRef, chi
 		s.Mu.Unlock()
 	}
 	op := timeoutPendingOperation(t, s)
-	if _, err := engineOf(s).Rollback(op, ref); err != nil {
+	if _, err := EngineOf(s).Rollback(op, ref); err != nil {
 		t.Error("explicit recovery", err)
 	}
 	op.Done()
@@ -235,7 +235,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 				scope := timeoutPendingScope(t, op)
 				if child {
 					value := "child"
-					if _, err := engineOf(s).applySetting(op, s.Settings, engineOf(s).settings.Definitions()["application_name"], &value, false); err != nil {
+					if _, err := EngineOf(s).applySetting(op, s.Settings, EngineOf(s).Settings.Definitions()["application_name"], &value, false); err != nil {
 						scope.Finish(err)
 						t.Fatal(err)
 					}
@@ -256,7 +256,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 				}
 				if phase == "statement-due" {
 					timeoutPendingStatement(op, statementDeadline)
-					if err := scope.gate(lockStatement); err != nil {
+					if err := scope.Gate(lockStatement); err != nil {
 						scope.Finish(err)
 						t.Fatal(err)
 					}
@@ -300,12 +300,12 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 							t.Error("pending worker failed bounded join")
 						}
 					})
-					request := timeoutPendingRequest(t, engineOf(s), op)
+					request := timeoutPendingRequest(t, EngineOf(s), op)
 					if op.LockWait.Request() != request {
 						t.Error("queue did not publish exact operation request")
 					}
 					if phase == "lock-error-produced" {
-						timeoutPendingPublish(t, engineOf(s), request, observed)
+						timeoutPendingPublish(t, EngineOf(s), request, observed)
 						result = timeoutPendingReceive(t, returned)
 						if op.LockWait.Request() != nil || !op.LockWait.Failed() {
 							t.Error("terminal SQL ERROR lost sticky projection before Finish")
@@ -324,12 +324,12 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					if phase != "lock-error-produced" {
 						if phase == "lock-due-before-grant" {
 							peer := timeoutPendingOperation(t, holder)
-							if _, err := engineOf(holder).Rollback(peer, holder.Transactions.Ref); err != nil {
+							if _, err := EngineOf(holder).Rollback(peer, holder.Transactions.Ref); err != nil {
 								t.Fatal(err)
 							}
 							peer.Done()
 						} else {
-							timeoutPendingPublish(t, engineOf(s), request, observed)
+							timeoutPendingPublish(t, EngineOf(s), request, observed)
 						}
 						result = timeoutPendingReceive(t, returned)
 					}
@@ -370,16 +370,16 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 						t.Error("granted worker failed bounded join")
 						return
 					}
-					if !scope.finished {
+					if !scope.Finished {
 						scope.Finish(context.Canceled)
 					}
 				})
-				timeoutPendingRequest(t, engineOf(s), op)
+				timeoutPendingRequest(t, EngineOf(s), op)
 				if phase == "canceled-before-finish" {
 					op.Cancel(nil)
 				} else {
 					peer := timeoutPendingOperation(t, holder)
-					if _, err := engineOf(holder).Rollback(peer, holder.Transactions.Ref); err != nil {
+					if _, err := EngineOf(holder).Rollback(peer, holder.Transactions.Ref); err != nil {
 						t.Fatal(err)
 					}
 					peer.Done()
@@ -400,7 +400,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 				statementDeadline := s.Timeouts.Transaction.Deadline.Add(-time.Hour)
 				s.Mu.Unlock()
 				timeoutPendingStatement(op, statementDeadline)
-				if err := scope.gate(lockStatement); err != nil {
+				if err := scope.Gate(lockStatement); err != nil {
 					scope.Finish(err)
 					t.Fatal(err)
 				}
@@ -409,10 +409,10 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 				}
 				if phase == "previous-incarnation" {
 					control := timeoutPendingOperation(t, s)
-					if _, err := engineOf(s).Rollback(control, ref); err != nil {
+					if _, err := EngineOf(s).Rollback(control, ref); err != nil {
 						t.Fatal(err)
 					}
-					next, err := engineOf(s).Begin(control, session.TxOptions{})
+					next, err := EngineOf(s).Begin(control, session.TxOptions{})
 					if err != nil || next == ref {
 						t.Fatal("fresh incarnation", next, err)
 					}
@@ -440,7 +440,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, holder, ref, _ := timeoutPendingFixtureWithBudget(t, false, 500*time.Millisecond)
-		e := engineOf(s)
+		e := EngineOf(s)
 		start := time.Now()
 		time.Sleep(300 * time.Millisecond)
 		s.Settings.Mu.Lock()
@@ -496,7 +496,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 			t.Fatal("timed mutation did not publish its exact queued request")
 		}
 		resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "pending_timeout_data")}
-		state := e.locks.Inspect().Resources[resource]
+		state := e.Locks.Inspect().Resources[resource]
 		if state == nil || len(state.Pending) != 1 {
 			t.Fatalf("active mutation did not queue behind peer: %#v", state)
 		}
@@ -506,7 +506,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 			op.LockWait.Request() != request {
 			t.Fatalf("active mutation lost exact queue/owner/mode: %#v", state)
 		}
-		if scope.lease.TimeoutRef != ref || scope.txRef != ref {
+		if scope.lease.TimeoutRef != ref || scope.TxRef != ref {
 			t.Fatal("queued mutation lost original transaction incarnation")
 		}
 		time.Sleep(199 * time.Millisecond)
@@ -571,7 +571,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		s, holder, _, lockStatement := timeoutPendingFixtureWithBudget(t, false, 500*time.Millisecond)
-		e := engineOf(s)
+		e := EngineOf(s)
 		start := time.Now()
 		release := timeoutPendingOperation(t, holder)
 		if _, err := e.Rollback(release, holder.Transactions.Ref); err != nil {
@@ -587,7 +587,7 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 		assignment := timeoutPendingOperation(t, s)
 		idle := "375ms"
-		_, err := e.applySetting(assignment, s.Settings, e.settings.Definitions()["idle_in_transaction_session_timeout"], &idle, false)
+		_, err := e.applySetting(assignment, s.Settings, e.Settings.Definitions()["idle_in_transaction_session_timeout"], &idle, false)
 		assignment.Done() // The actual ready boundary arms the idle timer.
 		if err != nil {
 			t.Fatal("assigning residual idle budget", err)
@@ -638,7 +638,7 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 		default:
 		}
 		resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "pending_timeout_data")}
-		state := e.locks.Inspect().Resources[resource]
+		state := e.Locks.Inspect().Resources[resource]
 		if state == nil || len(state.Pending) != 1 {
 			t.Fatalf("peer did not queue behind private owner mutation: %#v", state)
 		}
@@ -658,7 +658,7 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 			t.Fatalf("peer ended before transaction deadline: %v", err)
 		default:
 		}
-		state = e.locks.Inspect().Resources[resource]
+		state = e.Locks.Inspect().Resources[resource]
 		if !s.IsLive() || request.Terminal() || state == nil || len(state.Pending) != 1 ||
 			state.Pending[0].Request != request || state.Pending[0].Ticket != peerTicket ||
 			state.Pending[0].Mode != lock.AccessExclusive || state.Pending[0].Terminal ||

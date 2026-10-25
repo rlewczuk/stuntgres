@@ -39,7 +39,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.State.Get(n.Ref.Address) || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
+			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.Catalog.State.Get(n.Ref.Address) || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -92,20 +92,20 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				},
 				func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
 			} {
-				state := catalog.CloneState(e.catalog.State)
+				state := catalog.CloneState(e.Catalog.State)
 				bad := *n.Procedure
 				mutate(&bad)
 				state.SetDescriptor(n.Ref.Address, &bad)
 				forged := n
 				forged.Procedure = &bad
-				if err := stored.ValidateInstalledSoundex(forged, e.catalog.Read(state)); err == nil {
+				if err := stored.ValidateInstalledSoundex(forged, e.Catalog.Read(state)); err == nil {
 					t.Fatal("forged identity", bad)
 				}
 			}
 			for _, foreign := range []bool{false, true} {
 				stale := n
 				if foreign {
-					stale.Ref = New().catalog.Domain.Ref(stale.Ref.Epoch, stale.Ref.Address)
+					stale.Ref = New().Catalog.Domain.Ref(stale.Ref.Epoch, stale.Ref.Address)
 				} else {
 					stale.Ref.Epoch++
 				}
@@ -155,10 +155,10 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref}}}}}
 			next.SetDescriptor(address, consumer)
 			next.SetEpoch(next.Epoch() + 1)
-			if err := stored.ReownExpressions(e.catalog.Read(next), next, mapping, false, stored.NewRoutineRemap(e.catalog.Read(next), mapping, nil, extension.ProcedureRemapper(mapping, nil, nil), false)); err != nil {
+			if err := stored.ReownExpressions(e.Catalog.Read(next), next, mapping, false, stored.NewRoutineRemap(e.Catalog.Read(next), mapping, nil, extension.ProcedureRemapper(mapping, nil, nil), false)); err != nil {
 				t.Fatal(err)
 			}
-			view := e.catalog.Read(next)
+			view := e.Catalog.Read(next)
 			relocated := next.MustRelation(address)
 			for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
 				n := node.(plan.InstalledSoundexExpr)

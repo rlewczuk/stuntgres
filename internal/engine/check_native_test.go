@@ -17,8 +17,8 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			sessionSQL(t, session, "CREATE TEMP SEQUENCE kept START 30")
 			sequenceScalar(t, session, "SELECT nextval('kept')", 30)
 			_, description := sequencePreparedDescription(t, target, session, "SELECT nextval('kept')")
-			tempRef := description.sequences.Constants[0].Ref
-			temp := target.catalog.State.Get(tempRef.Address)
+			tempRef := description.Sequences.Constants[0].Ref
+			temp := target.Catalog.State.Get(tempRef.Address)
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(1 AS BIGINT),b BOOL DEFAULT TRUE,CONSTRAINT c CHECK(n=CAST(1 AS BIGINT) AND b))"
 			if mode == "Restore" {
 				if err := target.Restore(context.Background(), strings.NewReader(script)); err != nil {
@@ -29,11 +29,11 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 				peer := sessionStart(t, source, nil)
 				sessionSQL(t, peer, script)
 				ref := catalogRef(t, source, source.CatalogRead(), "imported")
-				old := source.catalog.State.Get(ref.Address)
+				old := source.Catalog.State.Get(ref.Address)
 				if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 					t.Fatal(err)
 				}
-				if source.catalog.State.Get(ref.Address) != old {
+				if source.Catalog.State.Get(ref.Address) != old {
 					t.Fatal("replacement mutated source")
 				}
 			}
@@ -43,7 +43,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			if err := table.ValidateChecks(view, descriptor, map[string]bool{}); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.State.Get(tempRef.Address) != temp {
+			if target.Catalog.State.Get(tempRef.Address) != temp {
 				t.Fatal("replacement changed pinned TEMP descriptor")
 			}
 			sessionSQL(t, session, "INSERT INTO imported DEFAULT VALUES")
@@ -59,14 +59,14 @@ func TestCheckFailedRestorePreservesEpochAndStage(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO sentinel VALUES(7)")
 	before := e.CatalogRead()
 	ref := catalogRef(t, e, before, "sentinel")
-	storage := e.storage.Relations[ref.Address]
+	storage := e.Storage.Relations[ref.Address]
 	stage := e.BeginCatalogStage(before)
 	for _, script := range []string{"CREATE TABLE replacement(a INT CHECK(a))", "CREATE TABLE replacement(a INT CHECK(a=1));INSERT INTO replacement VALUES(2)"} {
 		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
 			t.Fatal("bad Restore succeeded")
 		}
 		after := e.CatalogRead()
-		if after.State() != before.State() || after.Epoch() != before.Epoch() || e.storage.Relations[ref.Address] != storage {
+		if after.State() != before.State() || after.Epoch() != before.Epoch() || e.Storage.Relations[ref.Address] != storage {
 			t.Fatal("failed Restore replaced destination")
 		}
 		if err := e.ValidateObjectRef(after, ref); err != nil {

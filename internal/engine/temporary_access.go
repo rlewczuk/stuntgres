@@ -19,27 +19,27 @@ const (
 // only their own TEMP access; admitted runtime targets can record an attempted
 // foreign TEMP access before storage admission rejects it.
 func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.ObjectRef, mode temporaryAccessMode) {
-	catalog := e.privateCatalogLocked(scope.owner.Catalog)
-	if scope.catalog != nil {
-		catalog = e.privateCatalogLocked(scope.catalog)
+	catalog := e.PrivateCatalogLocked(scope.Owner.Catalog)
+	if scope.Catalog != nil {
+		catalog = e.PrivateCatalogLocked(scope.Catalog)
 	}
 	d, ok := catalog.Relation(ref.Address)
 	if !ok {
 		return
 	}
-	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && (mode == temporaryTargetAttempt || ns.Temporary == scope.op.Session.SessionToken) {
-		scope.owner.AccessedTemporary = true
+	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && (mode == temporaryTargetAttempt || ns.Temporary == scope.Op.Session.SessionToken) {
+		scope.Owner.AccessedTemporary = true
 	}
 }
 
-func temporaryDataTarget(auth AuthorizationView, b *analyze.Binding, stmt parser.Statement) bool {
+func TemporaryDataTarget(auth AuthorizationView, b *analyze.Binding, stmt parser.Statement) bool {
 	switch stmt.(type) {
 	case *parser.Select:
 		if !parser.HasModifyingCTE(stmt) {
 			return false
 		}
 		for _, definition := range b.CTEs {
-			if mutation, ok := analyze.MutationBinding(definition); ok && !temporaryDataTarget(auth, mutation, definition.Statement) {
+			if mutation, ok := analyze.MutationBinding(definition); ok && !TemporaryDataTarget(auth, mutation, definition.Statement) {
 				return false
 			}
 		}

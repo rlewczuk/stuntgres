@@ -55,7 +55,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 							}
 							lockEmpty(t, e)
 						}()
-						scope = &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.Ticket}
+						scope = &StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
 					}
 					stage := e.BeginCatalogStage(base)
 					defer e.DiscardCatalogStage(stage)
@@ -67,7 +67,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						}
 						return nil
 					}
-					if err := stageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project, ids.ObjectAddress{}); err != nil {
+					if err := StageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
 					wantProjected := 0
@@ -92,13 +92,13 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					if scope == nil {
 						lockEmpty(t, e)
 					} else {
-						lockState := e.locks.Inspect(scope.ticket)
-						resources := len(lockState.Journals[scope.ticket])
+						lockState := e.Locks.Inspect(scope.LockTicket)
+						resources := len(lockState.Journals[scope.LockTicket])
 						valid := true
 						for _, old := range owners {
-							ref := e.catalog.Domain.Ref(base.Epoch(), old.Address())
+							ref := e.Catalog.Domain.Ref(base.Epoch(), old.Address())
 							entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-							valid = valid && entry != nil && entry.Holders[scope.ticket].Mode == lock.AccessExclusive && len(entry.Pending) == 0
+							valid = valid && entry != nil && entry.Holders[scope.LockTicket].Mode == lock.AccessExclusive && len(entry.Pending) == 0
 						}
 						if !valid || resources != len(owners) {
 							t.Fatal("missing/doubled captured owner grants", valid, resources)

@@ -9,69 +9,69 @@ import (
 
 func (h *statementHost) TransactionAge(xid uint32) (int32, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
+	e := scope.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
-	return e.transactionAgeLocked(scope.txRef, xid)
+	return e.transactionAgeLocked(scope.TxRef, xid)
 }
 
 func (h *statementHost) MultiTransactionAge(xid uint32) (int32, error) {
 	scope := h.scope()
-	return scope.engine().locks.MultiAge(scope.ticket, xid)
+	return scope.Engine().Locks.MultiAge(scope.LockTicket, xid)
 }
 
 func (h *statementHost) CurrentTransactionID(assign bool) (uint64, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
+	e := scope.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return 0, ids.ErrCatalogReplaced
 	}
 	if assign {
-		if err := e.assignTransactionXIDLocked(scope.txRef); err != nil {
+		if err := e.AssignTransactionXIDLocked(scope.TxRef); err != nil {
 			return 0, err
 		}
 	}
-	return e.visibility.FullXIDLocked(scope.txRef), nil
+	return e.Visibility.FullXIDLocked(scope.TxRef), nil
 }
 
 func (h *statementHost) CurrentSnapshot() (*sqltype.Snapshot, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	scope.op.Session.Mu.Lock()
-	defer scope.op.Session.Mu.Unlock()
-	if err := publicationOperationLocked(e, scope.op); err != nil {
+	e := scope.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	scope.Op.Session.Mu.Lock()
+	defer scope.Op.Session.Mu.Unlock()
+	if err := PublicationOperationLocked(e, scope.Op); err != nil {
 		return nil, err
 	}
-	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
+	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if scope.currentSnapshot == nil {
-		return nil, sqlError("55000", "no active snapshot")
+		return nil, SQLError("55000", "no active snapshot")
 	}
 	return scope.currentSnapshot, nil
 }
 
 func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
+	e := scope.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return "", false, ids.ErrCatalogReplaced
 	}
-	return e.visibility.TransactionStatusLocked(full)
+	return e.Visibility.TransactionStatusLocked(full)
 }
 
 func (h *statementHost) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	scope := h.scope()
-	members, err := scope.engine().locks.MultiXactMembers(scope.engine().catalog.Domain, scope.ticket, xid)
+	members, err := scope.Engine().Locks.MultiXactMembers(scope.Engine().Catalog.Domain, scope.LockTicket, xid)
 	if err != nil {
 		return nil, err
 	}
@@ -97,26 +97,26 @@ func commitTimestampDisabled() error {
 
 func (h *statementHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	if !e.visibility.TracksCommitTimestamps() {
-		e.mu.Unlock()
+	e := scope.Engine()
+	e.Mu.Lock()
+	if !e.Visibility.TracksCommitTimestamps() {
+		e.Mu.Unlock()
 		return time.Time{}, 0, false, commitTimestampDisabled()
 	}
-	entry := e.visibility.LookupCommitTimestampLocked(xid)
-	e.mu.Unlock()
+	entry := e.Visibility.LookupCommitTimestampLocked(xid)
+	e.Mu.Unlock()
 	return entry.Stamp, entry.Origin, entry.Present, nil
 }
 
 func (h *statementHost) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
 	scope := h.scope()
-	e := scope.engine()
-	e.mu.Lock()
-	if !e.visibility.TracksCommitTimestamps() {
-		e.mu.Unlock()
+	e := scope.Engine()
+	e.Mu.Lock()
+	if !e.Visibility.TracksCommitTimestamps() {
+		e.Mu.Unlock()
 		return 0, time.Time{}, 0, false, commitTimestampDisabled()
 	}
-	xid, entry := e.visibility.LastCommittedXID(), e.visibility.LastCommitTimestamp()
-	e.mu.Unlock()
+	xid, entry := e.Visibility.LastCommittedXID(), e.Visibility.LastCommitTimestamp()
+	e.Mu.Unlock()
 	return xid, entry.Stamp, entry.Origin, entry.Present, nil
 }

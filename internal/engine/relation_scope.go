@@ -24,7 +24,7 @@ import (
 )
 
 // Resolve original authority before waiting; never resolve a replacement by name.
-func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (err error) {
+func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (err error) {
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		if foreign.Kind == "table" && foreign.Action == "alter" {
 			stmt = fdw.AlterAdmission(foreign)
@@ -74,17 +74,17 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 	}
 	defer func() {
 		if err == nil {
-			_, err = s.acquireViewSources(false)
+			_, err = s.AcquireViewSources(false)
 		}
 		if err == nil && s.admissionWaited {
-			e := s.engine()
-			e.mu.Lock()
+			e := s.Engine()
+			e.Mu.Lock()
 			auth, authErr := s.statementAuthorizationLocked(stmt)
 			err = authErr
 			if err == nil {
-				err = s.validateAdmissionNamesLocked(e, auth)
+				err = s.ValidateAdmissionNamesLocked(e, auth)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
 	}()
 	if creation, ok := stmt.(*parser.CreateTable); ok && execute {
@@ -116,7 +116,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if !execute {
 			return nil
 		}
-		if err := s.acquireQueryRelations(view.Query, stmt, execute); err != nil {
+		if err := s.AcquireQueryRelations(view.Query, stmt, execute); err != nil {
 			return err
 		}
 		if err := s.prepareViewCreation(view); err != nil {
@@ -128,16 +128,16 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		return nil
 	}
 	if creation, ok := stmt.(*parser.CreateQueryTable); ok {
-		return s.acquireQueryRelations(creation.Query, stmt, execute)
+		return s.AcquireQueryRelations(creation.Query, stmt, execute)
 	}
 	if declaration, ok := stmt.(*parser.DeclareCursor); ok {
-		return s.acquireQueryRelations(declaration.Query, declaration.Query, execute)
+		return s.AcquireQueryRelations(declaration.Query, declaration.Query, execute)
 	}
 	if sel, ok := stmt.(*parser.Select); ok {
-		return s.acquireQueryRelations(sel, stmt, execute)
+		return s.AcquireQueryRelations(sel, stmt, execute)
 	}
 	if copy, ok := stmt.(*parser.Copy); ok && copy.Query != nil {
-		return s.acquireQueryRelations(copy.Query, copy.Query, execute)
+		return s.AcquireQueryRelations(copy.Query, copy.Query, execute)
 	}
 	if insert, ok := stmt.(*parser.Insert); ok {
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
@@ -145,10 +145,10 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		}
 		// PostgreSQL validates explicit target identifiers before opening the
 		// source, so a blocked/missing source cannot mask a bad target list.
-		if err := analyze.BindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
+		if err := analyze.BindInsertTargets(s.LockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
 			return err
 		}
-		return s.acquireQueryRelations(stmt, stmt, execute)
+		return s.AcquireQueryRelations(stmt, stmt, execute)
 	}
 	if _, ok := stmt.(*parser.CreateRule); ok {
 		if !execute {
@@ -166,7 +166,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
 		}
-		return s.acquireQueryRelations(stmt, stmt, execute)
+		return s.AcquireQueryRelations(stmt, stmt, execute)
 	case *parser.Update, *parser.Delete, *parser.Merge:
 		if err := s.acquireRelationTarget(stmt, stmt, execute, false); err != nil {
 			return err
@@ -174,7 +174,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 		if err := s.acquireInheritedMutationTargets(stmt); err != nil {
 			return err
 		}
-		return s.acquireQueryRelations(stmt, stmt, execute)
+		return s.AcquireQueryRelations(stmt, stmt, execute)
 	}
 	return s.acquireRelationTarget(stmt, stmt, execute, false)
 }
@@ -191,23 +191,23 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	name, mode, ownerOnly := target.Name, target.Mode, target.OwnerOnly
 	rename, ifExists, tableRename := target.Rename, target.IfExists, target.TableRename
 	viewReplacement := target.ViewReplacement
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-	e := s.engine()
-	e.mu.Lock()
-	if s.txRef.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
+	e := s.Engine()
+	e.Mu.Lock()
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
 	auth, err := s.statementAuthorizationLocked(authorityStmt)
 	parentAuth := auth
 	if err == nil {
-		err = view.PolicyPreflight(s.op, auth.View, stmt, true)
+		err = view.PolicyPreflight(s.Op, auth.View, stmt, true)
 	}
 	if _, attaching := stmt.(*parser.AlterTableAttachPartition); attaching && err == nil {
-		parentAuth, err = e.partitionAttachAuthorization(s.op, auth)
+		parentAuth, err = e.PartitionAttachAuthorization(s.Op, auth)
 	}
 	if creation, ok := stmt.(*parser.CreateTable); ok && err == nil {
-		parentAuth, err = e.partitionParentAuthorization(s.op, auth, creation)
+		parentAuth, err = e.PartitionParentAuthorization(s.Op, auth, creation)
 		if err == nil {
 			err = s.checkPartitionCreationNamespaceLocked(auth, creation)
 		}
@@ -217,7 +217,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	if err == nil {
 		if selection, ok := stmt.(*parser.Select); source && ok {
 			if table, ok := selection.From.(*parser.TableReference); ok {
-				ref = s.queryLockAdmission.TableQueries[table].Ref
+				ref = s.QueryLockAdmission.TableQueries[table].Ref
 			}
 		} else if s.prepared.reuse != nil {
 			switch stmt.(type) {
@@ -236,9 +236,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			// CREATE targets only its creation namespace, not a same-named
 			// relation later in the lookup path. Qualified creation needs
 			// CREATE, not USAGE; body lookup retains its independent authority.
-			ns := s.viewCreationOrZero().Namespace
-			if s.viewCreationOrZero().Changes != nil {
-				auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().Changes)
+			ns := s.ViewCreationOrZero().Namespace
+			if s.ViewCreationOrZero().Changes != nil {
+				auth.Catalog = e.PrivateCatalogLocked(s.ViewCreationOrZero().Changes)
 				auth.Recapture(auth.Catalog)
 			}
 			err = auth.CheckCreate(ns)
@@ -246,19 +246,19 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				s.viewCreation().Namespace = ns
 				address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text})
 				if address != (ids.ObjectAddress{}) {
-					ref = e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
+					ref = e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 				}
 			}
 		} else if !rename && (mode == lock.AccessShare || mode == lock.RowShare || mode == lock.RowExclusive) {
 			if _, copyTarget := stmt.(*parser.Copy); copyTarget {
-				ref, err = e.resolveRelationReference(auth, name, true)
+				ref, err = e.ResolveRelationReference(auth, name, true)
 			} else {
-				ref, err = e.resolveReference(auth, name)
+				ref, err = e.ResolveReference(auth, name)
 			}
 		} else {
 			_, indexBuild := stmt.(*parser.CreateIndex)
 			_, partitionCreate := stmt.(*parser.CreateTable)
-			ref, err = e.resolveRelationReference(parentAuth, name, mode == lock.ShareUpdateExclusive || rename || indexBuild || partitionCreate)
+			ref, err = e.ResolveRelationReference(parentAuth, name, mode == lock.ShareUpdateExclusive || rename || indexBuild || partitionCreate)
 		}
 	}
 	if rename && ifExists && table.RenameMissing(err) {
@@ -272,7 +272,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				if err == nil {
 					d := auth.Catalog.MustRelation(ref.Address)
 					if d.RelationKind != catalog.ViewRelation {
-						err = sqlError("42809", fmt.Sprintf(`"%s" is not a view`, d.Name()))
+						err = SQLError("42809", fmt.Sprintf(`"%s" is not a view`, d.Name()))
 					}
 				}
 			}
@@ -289,17 +289,17 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 				}
 			}
 			if tableRename && ref.Domain() != nil && err == nil {
-				err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, auth.Catalog.Get(ref.Address).Namespace()))
+				err = auth.CheckCreate(e.Catalog.Domain.Ref(ref.Epoch, auth.Catalog.Get(ref.Address).Namespace()))
 			}
 		}
 		if err == nil && ref.Domain() != nil {
-			err = partition.ConsumerBoundary(stmt, auth.Catalog.MustRelation(ref.Address), partitionReplayAllowed(s.op, auth))
+			err = partition.ConsumerBoundary(stmt, auth.Catalog.MustRelation(ref.Address), partitionReplayAllowed(s.Op, auth))
 		}
 	}
 	var definitionStamp ids.DefinitionRevision
 	var materializedAlterAuthority *catalog.Relation
 	if err == nil && ref.Domain() != nil {
-		definitionStamp = preparedDefinitionStamp(auth.Catalog.Get(ref.Address), s.op.Session)
+		definitionStamp = PreparedDefinitionStamp(auth.Catalog.Get(ref.Address), s.Op.Session)
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
 			materializedAlterAuthority = auth.Catalog.MustRelation(ref.Address)
 		}
@@ -309,35 +309,35 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		if source || session.PreparableBody(stmt) || attaching || detaching || altering && table.HasRelationshipActions(alter.Actions) {
 			lexical := ref
 			if retained {
-				lexical, err = e.admissionNameReference(auth, name)
+				lexical, err = e.AdmissionNameReference(auth, name)
 			}
 			if source {
 				table := stmt.(*parser.Select).From.(*parser.TableReference)
-				entry := s.queryLockAdmission.TableQueries[table]
+				entry := s.QueryLockAdmission.TableQueries[table]
 				entry.Lexical = lexical
-				s.queryLockAdmission.TableQueries[table] = entry
+				s.QueryLockAdmission.TableQueries[table] = entry
 			} else {
-				s.admittedTargetName, s.admittedTargetLexical = name, lexical
+				s.AdmittedTargetName, s.AdmittedTargetLexical = name, lexical
 			}
 		}
 	}
 	var typedSourceRef ids.ObjectRef
 	if attachment, ok := stmt.(*parser.AlterTableOf); ok && attachment.Type != nil && err == nil {
 		var source *catalog.Relation
-		_, source, err = table.ResolveTypedSource(ddlHost{e: e, op: s.op}, auth, *attachment.Type)
+		_, source, err = table.ResolveTypedSource(DDLHost{E: e, Op: s.Op}, auth, *attachment.Type)
 		if err == nil {
-			typedSourceRef = e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
+			typedSourceRef = e.Catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
 		}
 	}
 	if raw, ok := stmt.(*parser.AlterTable); ok && err == nil {
 		err = s.captureInheritanceRelationshipsLocked(e, auth, raw, ref)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	// Catalog provider validation may call Reset; ALTER must not retain a
 	// replacement read admission across validation or publication.
-	if ownerOnly && s.replacementRead {
-		e.replacementMu.RUnlock()
-		s.replacementRead = false
+	if ownerOnly && s.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		s.ReplacementRead = false
 	}
 	if err != nil {
 		return err
@@ -346,7 +346,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return nil
 	}
 	if typedSourceRef.Domain() != nil {
-		if err := s.acquireSequence(typedSourceRef, lock.AccessShare, false); err != nil {
+		if err := s.AcquireSequence(typedSourceRef, lock.AccessShare, false); err != nil {
 			return err
 		}
 	}
@@ -355,19 +355,19 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 	}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if errors.Is(err, lock.ErrUnavailable) {
 		relationName := name.Parts[0].Text
 		if len(name.Parts) == 2 {
 			relationName += "." + name.Parts[1].Text
 		}
-		return sqlError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", relationName))
+		return SQLError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", relationName))
 	}
 	if request != nil {
 		s.admissionWaited = true
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
@@ -390,15 +390,15 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return err
 	}
 	partitionDrop := false
-	e.mu.Lock()
+	e.Mu.Lock()
 	if ref.Domain() != nil {
-		err = s.observePartitionRelationLocked(e, ref)
+		err = s.ObservePartitionRelationLocked(e, ref)
 		if action, ok := stmt.(*parser.AlterTable); ok && err == nil {
-			d, exists := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
+			d, exists := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
 			partitionDrop = exists && catalog.HierarchyRelation(d) && index.PartitionConstraintDropActions(d, action.Actions)
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -411,47 +411,47 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 	case *parser.AlterTable:
 		if partitionDrop {
-			if err = s.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
+			if err = s.AcquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 				return err
 			}
 		}
 	case *parser.CreateIndex:
-		if err = s.acquirePartitionDescendants(ref, lock.Share); err != nil {
+		if err = s.AcquirePartitionDescendants(ref, lock.Share); err != nil {
 			return err
 		}
 	case *parser.CreateTrigger:
-		if err = s.acquirePartitionDescendants(ref, lock.ShareRowExclusive); err != nil {
+		if err = s.AcquirePartitionDescendants(ref, lock.ShareRowExclusive); err != nil {
 			return err
 		}
 	case *parser.Select, *parser.Insert:
-		if err = s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
+		if err = s.AcquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 			return err
 		}
 	case *parser.Update:
 		if !creation.Only {
-			if err = s.acquirePartitionDescendants(ref, lock.RowExclusive); err != nil {
+			if err = s.AcquirePartitionDescendants(ref, lock.RowExclusive); err != nil {
 				return err
 			}
 		}
 	case *parser.Copy:
 		if creation.From {
-			if err = s.acquirePartitionDescendants(ref, lock.AccessShare); err != nil {
+			if err = s.AcquirePartitionDescendants(ref, lock.AccessShare); err != nil {
 				return err
 			}
 		}
 	}
-	s.owner.Mu.Lock()
-	implicit := s.owner.State == session.TxImplicit
-	txref := s.owner.Ref
-	s.owner.Mu.Unlock()
-	if implicit && !ownerOnly && !s.replacementRead {
-		e.replacementMu.RLock()
-		s.replacementRead = true
+	s.Owner.Mu.Lock()
+	implicit := s.Owner.State == session.TxImplicit
+	txref := s.Owner.Ref
+	s.Owner.Mu.Unlock()
+	if implicit && !ownerOnly && !s.ReplacementRead {
+		e.ReplacementMu.RLock()
+		s.ReplacementRead = true
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	descriptor, live := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || txref.Epoch() != e.catalog.State.Epoch() || !live {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	descriptor, live := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || txref.Epoch() != e.Catalog.State.Epoch() || !live {
 		return ids.ErrCatalogReplaced
 	}
 	if materializedAlterAuthority != nil &&
@@ -469,14 +469,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		return ids.ErrCatalogReplaced
 	}
-	if preparedDefinitionStamp(descriptor, s.op.Session) != definitionStamp {
+	if PreparedDefinitionStamp(descriptor, s.Op.Session) != definitionStamp {
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {
-		s.querySources = append(s.querySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: table.SourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
+		s.QuerySources = append(s.QuerySources, exec.Leaf{Ref: ref, Relation: descriptor, Only: table.SourceOnly(stmt), Storage: e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)})
 	} else {
-		s.lockedRef = ref
-		s.lockedDescriptor = descriptor
+		s.LockedRef = ref
+		s.LockedDescriptor = descriptor
 		storageTarget := false
 		switch statement := stmt.(type) {
 		case *parser.Copy:
@@ -487,8 +487,8 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			storageTarget = descriptor.RelationKind == catalog.TableRelation && (len(s.mutations) != 0 || statement.Conflict != nil && statement.Conflict.Update)
 		}
 		if storageTarget {
-			s.lockedStorage = e.privateStorageLocked(s.owner.Catalog, ref.Address)
-			if s.lockedStorage == nil {
+			s.LockedStorage = e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
+			if s.LockedStorage == nil {
 				return errors.New("stuntgres: relation storage is missing")
 			}
 		}
@@ -501,9 +501,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return err
 	}
 	if viewReplacement {
-		ns := s.viewCreationOrZero().Namespace
-		if s.viewCreationOrZero().Changes != nil {
-			auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().Changes)
+		ns := s.ViewCreationOrZero().Namespace
+		if s.ViewCreationOrZero().Changes != nil {
+			auth.Catalog = e.PrivateCatalogLocked(s.ViewCreationOrZero().Changes)
 			auth.Recapture(auth.Catalog)
 		}
 		if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}) != ref.Address {
@@ -516,14 +516,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			return err
 		}
 		if descriptor.RelationKind != catalog.ViewRelation {
-			return sqlError("42809", fmt.Sprintf(`"%s" is not a view`, descriptor.Name()))
+			return SQLError("42809", fmt.Sprintf(`"%s" is not a view`, descriptor.Name()))
 		}
 		return nil
 	}
 	if ownerOnly {
 		parentAuth = auth
 		if creation, ok := stmt.(*parser.CreateTable); ok {
-			parentAuth, err = e.partitionParentAuthorization(s.op, auth, creation)
+			parentAuth, err = e.PartitionParentAuthorization(s.Op, auth, creation)
 			if err != nil {
 				return err
 			}
@@ -532,7 +532,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 		if _, attaching := stmt.(*parser.AlterTableAttachPartition); attaching {
-			parentAuth, err = e.partitionAttachAuthorization(s.op, auth)
+			parentAuth, err = e.PartitionAttachAuthorization(s.Op, auth)
 			if err != nil {
 				return err
 			}
@@ -546,20 +546,20 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 		if tableRename {
-			return auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, descriptor.Namespace()))
+			return auth.CheckCreate(e.Catalog.Domain.Ref(ref.Epoch, descriptor.Namespace()))
 		}
 		return nil
 	}
 	return nil
 }
 
-func (s *StatementScope) validateLockedRelation(e *Engine) error {
+func (s *StatementScope) ValidateLockedRelation(e *Engine) error {
 	return s.validateRelationGrantsLocked(e, false)
 }
 
 // Final analysis refreshes compatible source metadata in the same critical
 // section as authorization/binding. Later validation never rewrites layouts.
-func (s *StatementScope) refreshRelationGrantsLocked(e *Engine) error {
+func (s *StatementScope) RefreshRelationGrantsLocked(e *Engine) error {
 	return s.validateRelationGrantsLocked(e, true)
 }
 
@@ -568,7 +568,7 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		return err
 	}
 	if len(s.mutations) != 0 {
-		active := s.activeMutation
+		active := s.ActiveMutation
 		defer s.activateMutation(active)
 		for i := range s.mutations {
 			s.activateMutation(i)
@@ -578,24 +578,24 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 		}
 		s.activateMutation(active)
 	}
-	if len(s.querySources) == 0 && s.lockedRef.Domain() == nil && len(s.PartitionRelations) == 0 {
+	if len(s.QuerySources) == 0 && s.LockedRef.Domain() == nil && len(s.PartitionRelations) == 0 {
 		return nil
 	}
-	view := e.privateCatalogLocked(s.owner.Catalog)
-	for _, source := range s.inheritance.relations {
-		if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, source); err != nil {
+	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	for _, source := range s.Inheritance.relations {
+		if _, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, source); err != nil {
 			return err
 		}
 	}
-	for i, source := range s.querySources {
-		current, err := currentQuerySourceLocked(e, view, s.owner.Catalog, source)
+	for i, source := range s.QuerySources {
+		current, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, source)
 		if err != nil {
 			return err
 		}
-		if refreshSources && (current.RelationKind != catalog.MaterializedViewRelation || s.view == nil) {
-			s.querySources[i].Relation = current
+		if refreshSources && (current.RelationKind != catalog.MaterializedViewRelation || s.View == nil) {
+			s.QuerySources[i].Relation = current
 			if current.RelationKind == catalog.MaterializedViewRelation {
-				s.querySources[i].Storage = e.privateStorageLocked(s.owner.Catalog, source.Ref.Address)
+				s.QuerySources[i].Storage = e.PrivateStorageLocked(s.Owner.Catalog, source.Ref.Address)
 			}
 		}
 	}
@@ -606,29 +606,29 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 }
 
 func (s *StatementScope) validateActiveMutationLocked(e *Engine) error {
-	if s.lockedRef.Domain() == nil {
+	if s.LockedRef.Domain() == nil {
 		return nil
 	}
-	view := e.privateCatalogLocked(s.owner.Catalog)
-	if s.lockedRef.Domain() != e.catalog.Domain || s.lockedRef.Epoch != e.catalog.State.Epoch() {
+	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	if s.LockedRef.Domain() != e.Catalog.Domain || s.LockedRef.Epoch != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	current := view.Get(s.lockedRef.Address)
+	current := view.Get(s.LockedRef.Address)
 	if s.lockedIdentityOnly {
 		if _, ok := current.(*catalog.Relation); !ok {
 			return ids.ErrCatalogReplaced
 		}
-	} else if s.lockedStorage != nil {
+	} else if s.LockedStorage != nil {
 		relation, ok := current.(*catalog.Relation)
-		captured, capturedOK := s.lockedDescriptor.(*catalog.Relation)
-		if !ok || !capturedOK || s.lockedRef.Address.SubID != 0 || e.privateStorageLocked(s.owner.Catalog, s.lockedRef.Address) != s.lockedStorage || !index.SameRelationRowShape(captured, relation) {
+		captured, capturedOK := s.LockedDescriptor.(*catalog.Relation)
+		if !ok || !capturedOK || s.LockedRef.Address.SubID != 0 || e.PrivateStorageLocked(s.Owner.Catalog, s.LockedRef.Address) != s.LockedStorage || !index.SameRelationRowShape(captured, relation) {
 			return ids.ErrCatalogReplaced
 		}
-	} else if current != s.lockedDescriptor {
+	} else if current != s.LockedDescriptor {
 		return ids.ErrCatalogReplaced
 	}
 	for _, target := range s.InheritedTargets {
-		if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, target); err != nil {
+		if _, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, target); err != nil {
 			return err
 		}
 	}
@@ -656,8 +656,8 @@ func (s *StatementScope) checkPartitionCreationNamespaceLocked(auth Authorizatio
 	if creation.Persistence == "temporary" {
 		return nil
 	}
-	ns, deferredTemp, err := s.engine().creationNamespaceDestination(auth, creation.Name, false)
-	if err == nil && !deferredTemp && !operationReplayOrZero(s.op).tableDestination {
+	ns, deferredTemp, err := s.Engine().creationNamespaceDestination(auth, creation.Name, false)
+	if err == nil && !deferredTemp && !OperationReplayOrZero(s.Op).TableDestination {
 		err = auth.CheckCreate(ns)
 	}
 	if err != nil {

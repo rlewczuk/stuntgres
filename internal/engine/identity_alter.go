@@ -16,14 +16,14 @@ import (
 func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, error) {
 	switch action.Action {
 	case parser.DropIdentity:
-		return table.DropIdentity(stageDropProvider(scope.op.Context(), stage, scope, nil, nil), old, action)
+		return table.DropIdentity(StageDropProvider(scope.Op.Context(), stage, scope, nil, nil), old, action)
 	case parser.AddIdentity:
-		h := ddlHost{e: e, stage: stage}
+		h := DDLHost{E: e, CatalogStage: stage}
 		if scope != nil {
-			h.op = scope.op
+			h.Op = scope.Op
 		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
 		return table.AddIdentityCandidate(h, auth, old, action)
 	}
 	attribute, identity, err := table.PrepareIdentitySet(old, action)
@@ -31,13 +31,13 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 		return old, err
 	}
 	if options := action.Identity.Options; len(options) != 0 {
-		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), identity.Sequence)
-		if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
+		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), identity.Sequence)
+		if err := scope.AcquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 			return old, err
 		}
-		e.mu.Lock()
-		err := (alterHost{ddlHost{e: e, op: scope.op, stage: stage}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err := (alterHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
+		e.Mu.Unlock()
 		if err != nil {
 			return old, err
 		}
@@ -48,7 +48,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 // Both identity SET and TYPE AS use the sequence owner's migration/state rules.
 // Caller holds Engine.mu after the exact linked sequence's operation lock grant.
 func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, raw []parser.SequenceOption) error {
-	if err := e.refreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
+	if err := e.RefreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
 		return err
 	}
 	if _, removed := stage.Removal(address); removed {
@@ -62,9 +62,9 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	generator := stage.sequence.Generator(address)
+	generator := stage.Sequence.Generator(address)
 	if generator == nil {
-		generator = e.sequenceGeneratorLocked(scope, address)
+		generator = e.SequenceGeneratorLocked(scope, address)
 	}
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
@@ -73,7 +73,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if err != nil {
 		return err
 	}
-	revision, err := e.catalog.RevisionLocked()
+	revision, err := e.Catalog.RevisionLocked()
 	if err != nil {
 		return err
 	}
@@ -86,17 +86,17 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
 	}
-	stage.sequenceState().SetGenerator(address, sequence.ReplacementGenerator(*generator, revision, restart))
+	stage.SequenceState().SetGenerator(address, sequence.ReplacementGenerator(*generator, revision, restart))
 	return nil
 }
 
 func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
-	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), address)
-	if err := scope.acquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
+	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
+	if err := scope.AcquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 		return err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	as, err := sequence.IdentityTypeOption(usage.Type.ID())
 	if err != nil {
 		return err
@@ -106,15 +106,15 @@ func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *Catalog
 	}
 	// AS discards this backend's tail even if a later table pass rolls back.
 	// currval/lastval and unseen peer caches are physical-session authorities.
-	if memory := payloadOf(scope.op.Session).sequences.Memory(address); memory != nil {
+	if memory := PayloadOf(scope.Op.Session).Sequences.Memory(address); memory != nil {
 		memory.DiscardTailLocked()
 	}
 	return nil
 }
 
 // Caller holds Engine.mu after the exact linked sequence's operation lock grant.
-func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress) error {
-	fresh, err := e.authorizationLocked(scope.op)
+func (e *Engine) RefreshIdentitySequenceLocked(scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress) error {
+	fresh, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if _, err := sequence.IdentityDefinition(descriptor, table, attribute); err != nil {
 		return err
 	}
-	stage.sequenceState().CaptureIdentityOriginal(address, e.catalog.State.Get(address))
+	stage.SequenceState().CaptureIdentityOriginal(address, e.Catalog.State.Get(address))
 	stage.Base = fresh.Catalog
 	return nil
 }

@@ -106,7 +106,7 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	var retained *preparedAnalysis
-	for _, entry := range payloadOf(op.Session).sqlRoutines {
+	for _, entry := range PayloadOf(op.Session).sqlRoutines {
 		if len(entry.descriptions) != 1 {
 			t.Fatal("single-command retention shape", len(entry.descriptions))
 		}
@@ -120,13 +120,13 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	if err := result.Rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	for _, entry := range payloadOf(op.Session).sqlRoutines {
+	for _, entry := range PayloadOf(op.Session).sqlRoutines {
 		if len(entry.descriptions) != 1 || entry.descriptions[0].analysis != retained {
 			t.Fatal("unchanged body identity reanalyzed")
 		}
 	}
 	execute("DISCARD PLANS")
-	if len(payloadOf(op.Session).sqlRoutines) != 0 {
+	if len(PayloadOf(op.Session).sqlRoutines) != 0 {
 		t.Fatal("DISCARD retained routine body analyses")
 	}
 	result = execute("SELECT routine_unit_read()")

@@ -26,15 +26,15 @@ func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	if a == (ids.ObjectAddress{}) {
 		t.Fatal("missing namespace", name)
 	}
-	return e.catalog.Domain.Ref(v.Epoch(), a)
+	return e.Catalog.Domain.Ref(v.Epoch(), a)
 }
 func schemaFail(t *testing.T, e *Engine, op *session.Operation, q, code string) {
 	t.Helper()
 	before := e.CatalogRead()
-	storage := e.storage.Relations
+	storage := e.Storage.Relations
 	_, err := e.Execute(op, statement(t, q), 0, nil)
 	state(t, err, code)
-	if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.storage.Relations, storage) {
+	if e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.Storage.Relations, storage) {
 		t.Fatal("failure published catalog/storage", q)
 	}
 }
@@ -47,14 +47,14 @@ func TestSchemaLifecycleIdentityAndAtomicBatch(t *testing.T) {
 	}
 	ns := schemaRef(t, e, "s1")
 	table := roleTableRef(t, e, "s1.t")
-	store := e.storage.Relations[table.Address]
+	store := e.Storage.Relations[table.Address]
 	old := e.CatalogRead()
 	roleExecute(t, e, op, "SET search_path TO s1,s2")
 	roleExecute(t, e, op, "ALTER SCHEMA s1 RENAME TO renamed")
 	if got := schemaRef(t, e, "renamed"); got != ns {
 		t.Fatal("rename changed identity", got, ns)
 	}
-	if got := roleTableRef(t, e, "renamed.t"); got != table || e.storage.Relations[got.Address] != store {
+	if got := roleTableRef(t, e, "renamed.t"); got != table || e.Storage.Relations[got.Address] != store {
 		t.Fatal("rename changed table/storage")
 	}
 	if old.Get(ns.Address).Name() != "s1" {
@@ -67,7 +67,7 @@ func TestSchemaLifecycleIdentityAndAtomicBatch(t *testing.T) {
 	schemaFail(t, e, op, "DROP SCHEMA renamed,absent CASCADE", "3F000")
 	retained := roleExecute(t, e, op, "SELECT id FROM renamed.t")
 	roleExecute(t, e, op, "DROP SCHEMA renamed,renamed CASCADE")
-	if _, ok := e.storage.Relations[table.Address]; ok {
+	if _, ok := e.Storage.Relations[table.Address]; ok {
 		t.Fatal("orphan storage")
 	}
 	if got := tuples(retained); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
@@ -103,11 +103,11 @@ func TestSchemaNamesNestedAtomicity(t *testing.T) {
 	}
 	ns := schemaRef(t, e, "dot.schema")
 	owner, _ := e.Roles().Lookup("owner")
-	if e.catalog.State.MustNamespace(ns.Address).Owner != owner.Ref {
+	if e.Catalog.State.MustNamespace(ns.Address).Owner != owner.Ref {
 		t.Fatal("wrong schema owner")
 	}
 	for _, q := range []string{`"dot.schema"."t,quote"`, `"dot.schema".u`} {
-		if e.catalog.State.MustRelation(roleTableRef(t, e, q).Address).Owner != owner.Ref {
+		if e.Catalog.State.MustRelation(roleTableRef(t, e, q).Address).Owner != owner.Ref {
 			t.Fatal("wrong nested owner")
 		}
 	}
@@ -142,7 +142,7 @@ func TestSchemaIdentifierNormalization(t *testing.T) {
 	normalized := strings.Repeat("é", 31)
 	roleExecute(t, e, op, `CREATE SCHEMA "`+long+`" CREATE TABLE t(id INT)`)
 	ref := schemaRef(t, e, normalized)
-	if len(e.catalog.State.Get(ref.Address).Name()) != 62 {
+	if len(e.Catalog.State.Get(ref.Address).Name()) != 62 {
 		t.Fatal("split UTF8 or wrong identifier bound")
 	}
 	roleExecute(t, e, op, `INSERT INTO "`+normalized+`".t VALUES(17)`)
@@ -184,20 +184,20 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 		if got := tc.session.Settings.TypedValue("search_path").Path; !reflect.DeepEqual(got, tc.want) {
 			t.Fatal("initial typed setting", got, tc.want)
 		}
-		override, err := e.settings.Definitions()["search_path"].Parse("public")
+		override, err := e.Settings.Definitions()["search_path"].Parse("public")
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		tc.session.Settings.Mu.Lock()
 		tc.session.Mu.Lock()
 		tc.session.Settings.Values["search_path"] = "public"
 		tc.session.Settings.Typed["search_path"] = override
-		tc.session.Settings.ResetAllLocked(e.settings)
+		tc.session.Settings.ResetAllLocked(e.Settings)
 		got := tc.session.Settings.TypedValue("search_path").Path
 		tc.session.Mu.Unlock()
 		tc.session.Settings.Mu.Unlock()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if !reflect.DeepEqual(got, tc.want) {
 			t.Fatal("reset lost captured provider default", got, tc.want)
 		}
@@ -220,7 +220,7 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	roleError(t, e, admin, "ALTER SCHEMA owned RENAME TO renamed", "42501", "permission denied for database stuntgres", "")
 	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO owner")
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
-	bootstrap := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	bootstrap := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	for _, tc := range []struct {
 		name   string
 		rights authorization.Privileges
@@ -248,7 +248,7 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	roleExecute(t, e, admin, "RESET SESSION AUTHORIZATION")
 	table := roleTableRef(t, e, "owned.t")
 	roleExecute(t, e, admin, "ALTER SCHEMA owned OWNER TO reader")
-	if e.catalog.State.MustRelation(table.Address).Owner != owner.Ref {
+	if e.Catalog.State.MustRelation(table.Address).Owner != owner.Ref {
 		t.Fatal("schema transfer changed table owner")
 	}
 	schemaFail(t, e, admin, "ALTER SCHEMA owned OWNER TO absent", "42704")
@@ -275,20 +275,20 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	owner, _ := e.Roles().Lookup("schema_owner")
 	tableOwner, _ := e.Roles().Lookup("table_owner")
 	laterOwner, _ := e.Roles().Lookup("later_owner")
-	rolesBefore := e.roles.Published
+	rolesBefore := e.RoleStore.Published
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET search_path TO mixed")
-	if d := e.catalog.State.MustNamespace(ns.Address); d.Owner != owner.Ref || d.ACL.Explicit {
+	if d := e.Catalog.State.MustNamespace(ns.Address); d.Owner != owner.Ref || d.ACL.Explicit {
 		t.Fatal("schema authority/ACL", d)
 	}
-	if d := e.catalog.State.MustRelation(table.Address); d.Owner != tableOwner.Ref || d.Security.ACL.Explicit {
+	if d := e.Catalog.State.MustRelation(table.Address); d.Owner != tableOwner.Ref || d.Security.ACL.Explicit {
 		t.Fatal("table authority/ACL", d)
 	}
 	for _, tc := range []struct {
 		name  string
 		owner authorization.PrincipalRef
 	}{{"mixed.u", tableOwner.Ref}, {"mixed.v", laterOwner.Ref}, {"mixed.owned", owner.Ref}, {"mixed.more", tableOwner.Ref}} {
-		d := e.catalog.State.MustRelation(roleTableRef(t, e, tc.name).Address)
+		d := e.Catalog.State.MustRelation(roleTableRef(t, e, tc.name).Address)
 		if d.Owner != tc.owner || d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 0 || len(d.Security.ColumnACL) != 0 {
 			t.Fatal("owner grouping leaked insertion authority/ACL", d)
 		}
@@ -298,12 +298,12 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		ns := schemaRef(t, e, "mixed")
 		empty := schemaRef(t, e, "empty")
 		for _, a := range []ids.ObjectAddress{ns.Address, empty.Address} {
-			d := e.catalog.State.MustNamespace(a)
+			d := e.Catalog.State.MustNamespace(a)
 			if d.Owner != owner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 				t.Fatal("namespace owner/ACL", d)
 			}
 		}
-		d := e.catalog.State.MustRelation(roleTableRef(t, e, "mixed.t").Address)
+		d := e.Catalog.State.MustRelation(roleTableRef(t, e, "mixed.t").Address)
 		if d.Owner != tableOwner.Ref || d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 0 || len(d.Security.ColumnACL) != 0 {
 			t.Fatal("table owner/ACL", d)
 		}
@@ -347,7 +347,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	if fresh.Epoch == table.Epoch {
 		t.Fatal("replacement reused epoch")
 	}
-	if d := e.catalog.State.MustNamespace(schemaRef(t, e, "mixed").Address); d.Owner != owner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 {
+	if d := e.Catalog.State.MustNamespace(schemaRef(t, e, "mixed").Address); d.Owner != owner.Ref || d.ACL.Explicit || len(d.ACL.Entries) != 0 {
 		t.Fatal("roundtrip schema owner/ACL", d)
 	}
 	for _, tc := range []struct {
@@ -355,7 +355,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		owner authorization.PrincipalRef
 		value int64
 	}{{"mixed.u", tableOwner.Ref, 8}, {"mixed.v", laterOwner.Ref, 9}, {"mixed.owned", owner.Ref, 9}, {"mixed.more", tableOwner.Ref, 11}} {
-		d := e.catalog.State.MustRelation(roleTableRef(t, e, tc.name).Address)
+		d := e.Catalog.State.MustRelation(roleTableRef(t, e, tc.name).Address)
 		if d.Owner != tc.owner || d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 0 || len(d.Security.ColumnACL) != 0 {
 			t.Fatal("roundtrip owner/ACL", d)
 		}
@@ -364,7 +364,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 		}
 	}
 	assertMixed()
-	if e.roles.Published != rolesBefore {
+	if e.RoleStore.Published != rolesBefore {
 		t.Fatal("controls changed captured roles")
 	}
 	if got := tuples(sessionSQL(t, s, "SHOW search_path")); !reflect.DeepEqual(got, [][]driver.Value{{"mixed"}}) {

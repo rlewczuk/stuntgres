@@ -42,7 +42,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 		if seq.Sequence.Identity || seq.Sequence.Owned != owner || seq.Sequence.SQLType != d.Columns[slot].Usage.Type.ID() {
 			t.Fatal("serial ownership/width", seq.Sequence)
 		}
-		if e.storage.Sequences[seq.Address()].Called || e.storage.Sequences[seq.Address()].Last != 1 {
+		if e.Storage.Sequences[seq.Address()].Called || e.Storage.Sequences[seq.Address()].Last != 1 {
 			t.Fatal("CREATE evaluated nextval")
 		}
 		if err := (relationProvider).Validate(view, d); err != nil {
@@ -101,13 +101,13 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 1`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
-			temp := description.sequences.Constants[0].Ref.Address
-			original := source.catalog.State.MustRelation(roleTableRef(t, source, "portable.t").Address)
+			temp := description.Sequences.Constants[0].Ref.Address
+			original := source.Catalog.State.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			leaf := serialLeaf(original.ColumnMeta.Defaults[1].Expression)
 			if leaf.Ref.Address != temp {
 				t.Fatal("fixture lacks actual persistent sequence collision", leaf.Ref.Address, temp)
 			}
-			definition, generator, memory := dest.catalog.State.Get(temp), dest.storage.Sequences[temp], payloadOf(b).sequences.Memory(temp)
+			definition, generator, memory := dest.Catalog.State.Get(temp), dest.Storage.Sequences[temp], PayloadOf(b).Sequences.Memory(temp)
 			if mode == "Restore" {
 				var dump bytes.Buffer
 				if err := source.Dump(context.Background(), &dump); err != nil {
@@ -119,12 +119,12 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			if dest.catalog.State.Get(temp) != definition || dest.storage.Sequences[temp] != generator || payloadOf(b).sequences.Memory(temp) != memory {
+			if dest.Catalog.State.Get(temp) != definition || dest.Storage.Sequences[temp] != generator || PayloadOf(b).Sequences.Memory(temp) != memory {
 				t.Fatal("retained TEMP changed")
 			}
-			d := dest.catalog.State.MustRelation(roleTableRef(t, dest, "portable.t").Address)
+			d := dest.Catalog.State.MustRelation(roleTableRef(t, dest, "portable.t").Address)
 			next := serialLeaf(d.ColumnMeta.Defaults[1].Expression)
-			if next.Ref.Address == temp || next.Ref.Domain() != dest.catalog.Domain || next.Ref.Epoch != dest.catalog.State.Epoch() || !analyze.ClosedSequenceDefault(d.ColumnMeta.Defaults[1].Expression) {
+			if next.Ref.Address == temp || next.Ref.Domain() != dest.Catalog.Domain || next.Ref.Epoch != dest.Catalog.State.Epoch() || !analyze.ClosedSequenceDefault(d.ColumnMeta.Defaults[1].Expression) {
 				t.Fatal("default not remapped", next.Ref)
 			}
 			if err := (relationProvider).Validate(dest.CatalogRead(), d); err != nil {
@@ -134,7 +134,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			sequenceScalar(t, b, `SELECT id FROM portable.t`, 8)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 31)
 			sessionSQL(t, b, `DROP TABLE portable.t RESTRICT`)
-			if dest.catalog.State.Get(next.Ref.Address) != nil {
+			if dest.Catalog.State.Get(next.Ref.Address) != nil {
 				t.Fatal("remapped AUTO dependency remained")
 			}
 			if serialLeaf(original.ColumnMeta.Defaults[1].Expression).Ref != leaf.Ref {

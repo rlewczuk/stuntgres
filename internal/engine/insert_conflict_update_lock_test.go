@@ -66,7 +66,7 @@ func (w *conflictUpdateWorker) await(t *testing.T) conflictUpdateWorkerResult {
 func conflictUpdatePendingRow(t *testing.T, e *Engine, ref ids.ObjectRef, id ids.RowID) (*lock.Ticket, lock.Mode) {
 	t.Helper()
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: id}]
 	if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Resource.Key() != nil {
 		t.Fatal("not the exact selected logical-row pending barrier", ref, id)
@@ -94,11 +94,11 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		source := catalogRef(t, e, e.CatalogRead(), "src")
 		holderTx := transactionBegin(t, holder)
 		sessionSQL(t, holder, "INSERT INTO t VALUES(1,10)")
-		frontier := e.visibility.CommitSeq()
+		frontier := e.Visibility.CommitSeq()
 		running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t SELECT src.k,src.v FROM src LEFT JOIN t ON t.k=src.k WHERE t.k IS NULL ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
 		lockPending(t, e, 1)
 		request := func() lock.Waiter {
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			for _, entry := range lockState.Resources {
 				if len(entry.Pending) == 0 {
 					continue
@@ -125,16 +125,16 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		var scope *StatementScope
 		for operation := range worker.Operations {
 			if &operation.LockWait == request.Policy.TimeoutSlot {
-				scope = scopeOfLease(operation.Lease)
+				scope = ScopeOfLease(operation.Lease)
 			}
 		}
 		worker.Mu.Unlock()
-		if scope == nil || scope.lockedRef != ref || scope.view == nil ||
+		if scope == nil || scope.LockedRef != ref || scope.View == nil ||
 			scope.InsertConflict == nil || len(scope.InsertConflict.Selected) != 1 ||
 			request.Resource.Address != scope.InsertConflict.Selected[0] || request.Resource.Epoch != ref.Epoch {
 			t.Fatal("wrong admitted source/conflict capture", scope, request.Resource)
 		}
-		captured := scope.view.Load()
+		captured := scope.View.Load()
 		if captured == nil {
 			t.Fatal("missing source visibility view")
 		}
@@ -167,7 +167,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 					sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 					ref := catalogRef(t, e, e.CatalogRead(), "t")
-					original := e.storage.Relations[ref.Address].Versions[0]
+					original := e.Storage.Relations[ref.Address].Versions[0]
 					workerTx := transactionBegin(t, worker)
 					sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 					transactionRows(t, worker, "SELECT v FROM t", 10)
@@ -219,7 +219,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 					sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 					ref := catalogRef(t, e, e.CatalogRead(), "t")
-					original := e.storage.Relations[ref.Address].Versions[0]
+					original := e.Storage.Relations[ref.Address].Versions[0]
 					workerTx := transactionBegin(t, worker)
 					sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 					transactionRows(t, worker, "SELECT v FROM t", 10)
@@ -230,7 +230,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 					if mode != lock.ForNoKeyUpdate {
 						t.Fatal("payload SET initially requests NKU", mode)
 					}
-					mark := e.locks.CheckpointUnique(ticket, nil)
+					mark := e.Locks.CheckpointUnique(ticket, nil)
 					if len(mark) != 1 {
 						t.Fatal("new candidate claim not released/prior staged claim lost", mark)
 					}
@@ -315,10 +315,10 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			id := e.storage.Relations[ref.Address].Versions[0].Row
+			id := e.Storage.Relations[ref.Address].Versions[0].Row
 			workerTx := transactionBegin(t, worker)
 			sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
-			baseline := e.locks.CheckpointUnique(worker.Transactions.Ticket, nil)
+			baseline := e.Locks.CheckpointUnique(worker.Transactions.Ticket, nil)
 			holderTx := transactionBegin(t, holder)
 			transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 			running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,1) ON CONFLICT(k) DO UPDATE SET "+set+" WHERE FALSE")
@@ -330,7 +330,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			if mode != wantMode {
 				t.Fatal("SET-slot initial row class", mode, wantMode)
 			}
-			before := e.locks.CheckpointUnique(ticket, nil)
+			before := e.Locks.CheckpointUnique(ticket, nil)
 			if len(before) != 2 {
 				t.Fatal("row waiter must retain old key4 and earlier command-prefix key2 only", before)
 			}
@@ -344,7 +344,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			if outcome.err != nil || outcome.result.Count != 1 {
 				t.Fatal(outcome)
 			}
-			after := e.locks.CheckpointUnique(ticket, nil)
+			after := e.Locks.CheckpointUnique(ticket, nil)
 			if len(after) != len(before) {
 				t.Fatal("FALSE branch retained speculative key", before, after)
 			}
@@ -353,7 +353,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 					t.Fatal("FALSE branch changed retained claim", resource)
 				}
 			}
-			if e.locks.Checkpoint(ticket)[lock.Resource{ObjectRef: ref, Row: id}].Mode&wantMode == 0 {
+			if e.Locks.Checkpoint(ticket)[lock.Resource{ObjectRef: ref, Row: id}].Mode&wantMode == 0 {
 				t.Fatal("FALSE branch lost row grant")
 			}
 			// Omitting the same key is independent of the retained row lock.
@@ -387,7 +387,7 @@ func TestInsertConflictUpdateAuthorizationAfterWait(t *testing.T) {
 			sessionSQL(t, admin, "GRANT INSERT,UPDATE,SELECT ON t TO upsert_waiter")
 			sessionSQL(t, worker, "SET ROLE upsert_waiter")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			id := e.storage.Relations[ref.Address].Versions[1].Row
+			id := e.Storage.Relations[ref.Address].Versions[1].Row
 			holderTx := transactionBegin(t, holder)
 			transactionRows(t, holder, "SELECT v FROM t WHERE k=3 FOR UPDATE", 30)
 			running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,11),(3,31) ON CONFLICT(k) DO UPDATE SET v=excluded.v")

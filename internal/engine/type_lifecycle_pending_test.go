@@ -106,7 +106,7 @@ func TestTypeLifecyclePendingDropClosure(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer scope.Finish(nil)
-					if err := scope.gate(statement(t, q)); err != nil {
+					if err := scope.Gate(statement(t, q)); err != nil {
 						_ = scope.Finish(err)
 						t.Fatal(err)
 					}

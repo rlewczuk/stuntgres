@@ -48,7 +48,7 @@ func TestTransactionalDefinitionLockResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	drop := statement(t, "DROP FUNCTION retirement_score(retirement_src)")
-	if err := scope.gate(drop); err != nil {
+	if err := scope.Gate(drop); err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
@@ -57,13 +57,13 @@ func TestTransactionalDefinitionLockResources(t *testing.T) {
 	retirement := domainUnitStage(t, e, op, "DROP FUNCTION retirement_score(retirement_src)")
 	retirement, err = scope.admitDefinitionMutation(retirement, drop, sqltype.InputEnvironment{}, len(op.Notices))
 	if err == nil {
-		err = stageExpressionDependencies(op.Context(), retirement, retirement.domainTargets, parser.DropRestrict, scope, nil, nil, ids.ObjectAddress{})
+		err = StageExpressionDependencies(op.Context(), retirement, retirement.DomainTargets, parser.DropRestrict, scope, nil, nil, ids.ObjectAddress{})
 	}
 	if err == nil {
 		_, err = e.ValidateCatalogStage(op.Context(), retirement)
 	}
 	if err == nil {
-		err = e.stageCatalogOverlay(scope, retirement, scope.owner.Catalog.Clone())
+		err = e.StageCatalogOverlay(scope, retirement, scope.Owner.Catalog.Clone())
 	}
 	err = scope.Finish(err)
 	op.Done()
@@ -71,9 +71,9 @@ func TestTransactionalDefinitionLockResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(retirement)
-	e.mu.Lock()
-	private := e.privateCatalogLocked(holder.Transactions.Catalog)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	private := e.PrivateCatalogLocked(holder.Transactions.Catalog)
+	e.Mu.Unlock()
 	if private.Get(procedure.Address()) != nil || e.CatalogRead().Get(procedure.Address()) != procedure {
 		t.Fatal("private provider retirement leaked or retained provider")
 	}
@@ -108,8 +108,8 @@ func TestTransactionalDefinitionLockResources(t *testing.T) {
 		}
 	}()
 	lockPending(t, e, 1)
-	state := e.locks.Inspect(holder.Transactions.Ticket)
-	ref := e.catalog.Domain.Ref(base.Epoch(), procedure.Address())
+	state := e.Locks.Inspect(holder.Transactions.Ticket)
+	ref := e.Catalog.Domain.Ref(base.Epoch(), procedure.Address())
 	resource := lock.Resource{ObjectRef: ref}
 	entry := state.Resources[resource]
 	if entry == nil || len(entry.Pending) != 1 {
@@ -129,9 +129,9 @@ func TestTransactionalDefinitionLockResources(t *testing.T) {
 	if e.CatalogRead().Get(procedure.Address()) != procedure {
 		t.Fatal("provider rollback changed exact identity")
 	}
-	e.mu.Lock()
-	private = e.privateCatalogLocked(creator.Transactions.Catalog)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	private = e.PrivateCatalogLocked(creator.Transactions.Catalog)
+	e.Mu.Unlock()
 	cast, ok := private.Cast(source.SQLType.ID(), sqltype.Int4)
 	if !ok || cast.Function != procedure.Address() {
 		t.Fatal("resumed declaration lost provider identity", cast)

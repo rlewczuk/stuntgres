@@ -5,9 +5,9 @@ import "stuntgres/internal/engine/exec"
 // AdmissionAccess is the routine admission view of the borrowed authority.
 func (v *AuthorizationView) AdmissionAccess() exec.RoutineAccess { return v.routineAccess() }
 
-// routineAccessOf is routineAccess over a copy of auth, for callers that hold
+// RoutineAccessOf is routineAccess over a copy of auth, for callers that hold
 // the view by value; call it only when there is something to admit.
-func routineAccessOf(auth AuthorizationView) exec.RoutineAccess { return auth.routineAccess() }
+func RoutineAccessOf(auth AuthorizationView) exec.RoutineAccess { return auth.routineAccess() }
 
 // routineAccess is v as routine admission reads it. Env borrows v and stays
 // nil unless the engine built v, which is what RoutineAccess.Live reports.
@@ -19,8 +19,8 @@ func (v *AuthorizationView) routineAccess() exec.RoutineAccess {
 	return access
 }
 
-// routineAuthorityView is the borrowed local DDL admission authority, or nil.
-func routineAuthorityView(c *exec.Context) *AuthorizationView {
+// RoutineAuthorityView is the borrowed local DDL admission authority, or nil.
+func RoutineAuthorityView(c *exec.Context) *AuthorizationView {
 	auth, _ := c.RoutineAuthority.(*AuthorizationView)
 	return auth
 }

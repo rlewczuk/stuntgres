@@ -20,7 +20,7 @@ func TestRowLockViewAuthorization(t *testing.T) {
 	}
 	owner, _ := e.Roles().Lookup("view_owner")
 	reader, _ := e.Roles().Lookup("view_reader")
-	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(ref ids.ObjectRef, entries ...authorization.ACLEntry) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: entries}); err != nil {
@@ -38,7 +38,7 @@ func TestRowLockViewAuthorization(t *testing.T) {
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	grant(table, entry(owner.Ref, authorization.SelectPrivilege))
-	namespace := e.catalog.Domain.Ref(e.catalog.State.Epoch(), e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"}))
+	namespace := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"}))
 	grant(namespace, entry(owner.Ref, authorization.UsagePrivilege|authorization.CreatePrivilege), entry(reader.Ref, authorization.UsagePrivilege))
 	for _, name := range []string{"s.owned", "s.invoker", "s.nested", "s.stored"} {
 		grant(roleTableRef(t, e, name), entry(owner.Ref, authorization.SelectPrivilege|authorization.UpdatePrivilege), entry(reader.Ref, authorization.SelectPrivilege|authorization.UpdatePrivilege))

@@ -11,42 +11,42 @@ import (
 )
 
 var (
-	_ table.DropDependencyReader = (*dropProvider)(nil)
-	_ view.DropReader            = (*dropProvider)(nil)
+	_ table.DropDependencyReader = (*DropProvider)(nil)
+	_ view.DropReader            = (*DropProvider)(nil)
 )
 
-func (p *dropProvider) Context() context.Context { return p.ctx }
-func (p *dropProvider) BaseRead() catalog.Read   { return p.base }
-func (p *dropProvider) BaseRef(address ids.ObjectAddress) ids.ObjectRef {
-	return p.owner.catalog.Domain.Ref(p.base.Epoch(), address)
+func (p *DropProvider) Context() context.Context { return p.Ctx }
+func (p *DropProvider) BaseRead() catalog.Read   { return p.Base }
+func (p *DropProvider) BaseRef(address ids.ObjectAddress) ids.ObjectRef {
+	return p.Owner.Catalog.Domain.Ref(p.Base.Epoch(), address)
 }
 
 // DependencyClosure returns the dependents of targets in the drop.
-func (p *dropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]table.DomainDependency, error) {
+func (p *DropProvider) DependencyClosure(targets []ids.ObjectAddress) ([]table.DomainDependency, error) {
 	return view.DropClosure(p, targets)
 }
 
 // Path is the SQL lookup path of the drop's diagnostics.
-func (p *dropProvider) Path() []ids.ObjectAddress { return p.path }
+func (p *DropProvider) Path() []ids.ObjectAddress { return p.SearchPath }
 
 // DefinitionInput is the preparation of a prepared drop, the stage of a staged
 // one, or nil for a bare provider.
-func (p *dropProvider) DefinitionInput() catalog.DefinitionReader {
-	if p.prepared != nil {
-		return p.prepared
+func (p *DropProvider) DefinitionInput() catalog.DefinitionReader {
+	if p.Prepared != nil {
+		return p.Prepared
 	}
-	if p.stage != nil {
-		return stageDefinitions(p.stage)
+	if p.Stage != nil {
+		return StageDefinitions(p.Stage)
 	}
 	return nil
 }
-func (p *dropProvider) StatementBound() bool { return p.scope != nil }
+func (p *DropProvider) StatementBound() bool { return p.Scope != nil }
 
 // TypedFieldCheckOwner reports whether the stage's admitted typed closure owns
 // relation's inherited CHECKs; a prepared or bare drop owns none.
-func (p *dropProvider) TypedFieldCheckOwner(relation *catalog.Relation) bool {
-	return p.stage != nil && typedef.TypedFieldCheckOwner(p.stage.typed, p.stage.Base, relation)
+func (p *DropProvider) TypedFieldCheckOwner(relation *catalog.Relation) bool {
+	return p.Stage != nil && typedef.TypedFieldCheckOwner(p.Stage.Typed, p.Stage.Base, relation)
 }
-func (p *dropProvider) RecursingInheritance() bool {
-	return p.scope != nil && p.scope.inheritance.alter != nil
+func (p *DropProvider) RecursingInheritance() bool {
+	return p.Scope != nil && p.Scope.Inheritance.Alter != nil
 }

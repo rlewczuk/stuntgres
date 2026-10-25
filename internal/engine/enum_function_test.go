@@ -32,7 +32,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		return e.stageRead(stage)
+		return e.StageRead(stage)
 	}
 	sourceView := fixtureView(source, mood, array)
 	targetView := fixtureView(New(), targetMood, targetArray)

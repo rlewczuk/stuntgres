@@ -22,13 +22,13 @@ func vacuumLeaseCheckpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := statement(t, "VACUUM lease_target").(*parser.Vacuum)
-	if err := scope.gate(raw); err != nil {
+	if err := scope.Gate(raw); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	ticket := scope.ticket
-	ref := scope.txRef
-	if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: prior}, lock.AccessShare); err != nil {
+	ticket := scope.LockTicket
+	ref := scope.TxRef
+	if err := e.Locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: prior}, lock.AccessShare); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func vacuumLeaseCheckpoint(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	state := e.locks.Inspect(ticket)
+	state := e.Locks.Inspect(ticket)
 	if state.Resources[lock.Resource{ObjectRef: target}] != nil {
 		scope.Finish(nil)
 		t.Fatal("per-relation checkpoint retained new target grant")
@@ -50,10 +50,10 @@ func vacuumLeaseCheckpoint(t *testing.T) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	_, registered := e.visibility.Entries[ref]
-	progress := len(e.vacuumProgress)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	_, registered := e.Visibility.Entries[ref]
+	progress := len(e.VacuumProgress)
+	e.Mu.Unlock()
 	if registered || progress != 0 || !ticket.OwnershipEnded() {
 		t.Fatal("final scope failed canonical owner cleanup")
 	}
@@ -68,7 +68,7 @@ func vacuumGrantTimeRecheck(t *testing.T) {
 	sessionSQL(t, worker, "SET ROLE vacuum_recheck_actor")
 	ref, store := vacuumStore(t, e, "recheck")
 	transactionBegin(t, holder)
-	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
+	if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
 		t.Fatal(err)
 	}
 	// Genuine NoWait unavailability skips without enqueuing a request or progress.
@@ -83,7 +83,7 @@ func vacuumGrantTimeRecheck(t *testing.T) {
 	if len(notices) != 1 || notices[0] != want {
 		t.Fatalf("NoWait warnings %#v want %#v", notices, want)
 	}
-	if entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: ref}]; entry == nil || len(entry.Pending) != 0 {
+	if entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: ref}]; entry == nil || len(entry.Pending) != 0 {
 		t.Fatal("NoWait queued a request", entry)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

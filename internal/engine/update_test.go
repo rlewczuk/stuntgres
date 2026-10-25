@@ -20,7 +20,7 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	sessionSQL(t, b, "CREATE TABLE t(v INT)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(1),(1)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+	original := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
 	saved := transactionRows(t, b, "SELECT v FROM t", 1, 1)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "UPDATE t SET v=2")
@@ -39,7 +39,7 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 3, 3, 6)
 	transactionEnd(t, a, tx, true)
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 3, 3, 6)
-	current := e.storage.Relations[ref.Address].Versions
+	current := e.Storage.Relations[ref.Address].Versions
 	if len(current) != 3 || current[0].Row != original[0].Row || current[1].Row != original[1].Row || current[0].Version == original[0].Version || current[0].Born <= original[0].Born || current[0].Base != 0 {
 		t.Fatal("current committed heads", current)
 	}
@@ -81,7 +81,7 @@ func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			if r.Count != map[bool]int64{false: 2, true: 3}[explicit] || len(scope.stage.rows) == 0 {
+			if r.Count != map[bool]int64{false: 2, true: 3}[explicit] || len(scope.Stage.Rows) == 0 {
 				scope.Finish(errors.New("bad stage"))
 				t.Fatal("missing completed private stage")
 			}
@@ -104,14 +104,14 @@ func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 	a := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	before := e.storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions[0]
-	e.storage.SetFrontierLocked(e.storage.RowFrontier(), ^uint64(0))
+	before := e.Storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions[0]
+	e.Storage.SetFrontierLocked(e.Storage.RowFrontier(), ^uint64(0))
 	op := transactionOperation(t, a)
 	_, err := e.Execute(op, statement(t, "UPDATE t SET v=2"), 0, nil)
 	if err == nil || err.Error() != "stuntgres: version identity exhausted" {
 		t.Fatal(err)
 	}
-	after := e.storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions[0]
+	after := e.Storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions[0]
 	if !reflect.DeepEqual(before, after) {
 		t.Fatal("exhaustion mutated row")
 	}
@@ -129,29 +129,29 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	ast := statement(t, "UPDATE t SET v=v")
-	if err = scope.gate(ast); err != nil {
+	if err = scope.Gate(ast); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	if err = scope.acquireRelation(ast, true); err != nil {
+	if err = scope.AcquireRelation(ast, true); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+	bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	view, err := scope.acquireDataViewLocked(e, bound.Ref)
-	e.mu.Unlock()
+	view, err := scope.AcquireDataViewLocked(e, bound.Ref)
+	e.Mu.Unlock()
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)

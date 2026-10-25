@@ -53,7 +53,7 @@ func sessionSQL(t *testing.T, s *session.Session, q string) Result {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	r, err := engineOf(s).Execute(op, statement(t, q), 0, nil)
+	r, err := EngineOf(s).Execute(op, statement(t, q), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func sessionSQL(t *testing.T, s *session.Session, q string) Result {
 func sessionValue(t *testing.T, s *session.Session, want string) {
 	t.Helper()
 	r := sessionSQL(t, s, "SHOW application_name")
-	if r.Count != 0 || !reflect.DeepEqual(r.Rows.Schema(), []catalog.Column{{Name: "application_name", Usage: testUsage(engineOf(s), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
+	if r.Count != 0 || !reflect.DeepEqual(r.Rows.Schema(), []catalog.Column{{Name: "application_name", Usage: testUsage(EngineOf(s), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
 		t.Fatalf("SHOW count=%d %+v %v want count=0 value=%q", r.Count, r.Rows.Schema(), tuples(r), want)
 	}
 }
@@ -221,7 +221,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if _, err = e.Execute(op, statement(t, "DECLARE terminal NO SCROLL CURSOR FOR SELECT 1"), 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	cursor := payloadOf(s).cursors.entries["terminal"]
+	cursor := PayloadOf(s).Cursors.Entries["terminal"]
 	var order []session.ResourceKind
 	var mu sync.Mutex
 	for _, kind := range []session.ResourceKind{session.Temporary, session.PreparedSQL} {
@@ -230,7 +230,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 			if s.TransactionState() != session.TxIdle {
 				t.Error("transaction cleanup did not precede resources")
 			}
-			if len(payloadOf(s).cursors.entries) != 0 || cursor.source != nil || cursor.authority.Host != nil {
+			if len(PayloadOf(s).Cursors.Entries) != 0 || cursor.Source != nil || cursor.authority.Host != nil {
 				t.Error("named execution cleanup did not precede resources")
 			}
 			mu.Lock()
@@ -280,7 +280,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if !reflect.DeepEqual(order, []session.ResourceKind{session.PreparedSQL, session.Temporary}) {
 		t.Fatal(order)
 	}
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	advisoryLive := lockState.Valid(s.Advisory.Ticket)
 	if advisoryLive {
 		t.Fatal("built-in advisory delegate survived session cleanup")
@@ -319,7 +319,7 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 		t.Fatal(err, count)
 	}
 	foreign := h
-	foreign.Session = withSessionDomain(foreign.Session, New().catalog.Domain)
+	foreign.Session = withSessionDomain(foreign.Session, New().Catalog.Domain)
 	if err = s.Detach(foreign, session.CleanClose); err == nil {
 		t.Fatal("foreign detach")
 	}
@@ -401,7 +401,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 
 func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	e := New()
-	s := &session.Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(1), State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}
+	s := &session.Session{Host: (*sessionHost)(e), SessionToken: e.Catalog.Domain.Session(1), State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(context.Background(), true)
 	calls := 0

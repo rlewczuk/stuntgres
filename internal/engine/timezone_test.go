@@ -68,7 +68,7 @@ func TestTimezonePreparedTemporalPayloads(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		expected := &StatementDescription{temporals: first.Prepared.Temporals}
+		expected := &StatementDescription{Temporals: first.Prepared.Temporals}
 		second := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}, expected)
 		replayed, err := second.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {

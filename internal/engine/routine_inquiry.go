@@ -23,7 +23,7 @@ type commandRoutineProgram struct {
 }
 
 func admitInquiryBody(c *exec.Context, node expr.Info) error {
-	scope := scopeOf(c.LiveHost())
+	scope := ScopeOf(c.LiveHost())
 	if scope == nil {
 		return nil
 	} // Legitimate standalone internal provider fixtures.
@@ -45,7 +45,7 @@ func admitInquiryBody(c *exec.Context, node expr.Info) error {
 	if err != nil || !auth.Live() {
 		return err
 	}
-	ri := scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
+	ri := scope.ForeignActionAuth != nil && scope.ForeignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	for _, programme := range scope.routinePrograms {
 		if programme.outer == outer && programme.consumer == local.RoutineConsumer &&
 			programme.ri == ri && len(programme.admission.Calls) != 0 &&

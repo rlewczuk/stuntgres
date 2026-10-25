@@ -20,7 +20,7 @@ func TestTransactionalPoliciesPayload(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "payload_t")
-	base := e.catalog.State.MustRelation(ref.Address)
+	base := e.Catalog.State.MustRelation(ref.Address)
 	a, ok := e.Roles().Lookup("payload_a")
 	if !ok {
 		t.Fatal("role a absent")
@@ -72,7 +72,7 @@ func TestTransactionalPoliciesPayload(t *testing.T) {
 	candidate := private()
 	sessionSQL(t, s, "RELEASE payload_mark")
 	sessionSQL(t, s, "COMMIT")
-	published := e.catalog.State.MustRelation(ref.Address)
+	published := e.Catalog.State.MustRelation(ref.Address)
 	if published != candidate || len(base.Security.Policies) != 0 || !reflect.DeepEqual(published.Security.Policies[0].Roles, []catalog.PolicyRole{{Ref: a.Ref}}) || published.Security.Policies[0].Check != nil || published.Security.Policies[0].Using != p.Using {
 		t.Fatal("publication changed actual candidate representation")
 	}

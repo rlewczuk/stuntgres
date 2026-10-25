@@ -36,7 +36,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 			sessionSQL(t, s, "CREATE TABLE t(id INT NOT NULL UNIQUE,v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage.Relations[ref.Address].Versions[0].Row
+			row := e.Storage.Relations[ref.Address].Versions[0].Row
 			resource := lock.Resource{ObjectRef: ref, Row: row}
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "SAVEPOINT before_merge")
@@ -45,7 +45,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 				q = "MERGE INTO t USING (VALUES(2)) s(id) ON t.id=s.id " + strings.ReplaceAll(tc.arms, "WHEN MATCHED", "WHEN NOT MATCHED BY SOURCE")
 			}
 			sessionSQL(t, s, q)
-			lockState := e.locks.Inspect(s.Transactions.Ticket)
+			lockState := e.Locks.Inspect(s.Transactions.Ticket)
 			entry := lockState.Resources[resource]
 			var mode lock.Mode
 			if entry != nil {
@@ -57,7 +57,7 @@ func mergeUpdateRowModes(t *testing.T, targetOnly bool) {
 				t.Fatal("wrong held row mode union or missing row journal", mode, journaled, tc.mode)
 			}
 			sessionSQL(t, s, "ROLLBACK TO before_merge")
-			lockState = e.locks.Inspect(s.Transactions.Ticket)
+			lockState = e.Locks.Inspect(s.Transactions.Ticket)
 			entry = lockState.Resources[resource]
 			held := entry != nil && entry.Holders[s.Transactions.Ticket].Mode != 0
 			_, journaled = lockState.Journals[s.Transactions.Ticket][resource]

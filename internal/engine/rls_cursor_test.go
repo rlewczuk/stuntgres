@@ -107,14 +107,14 @@ func TestRLSCursorPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	target := roleTableRef(t, e, "t")
-	scope.authority = &exec.Authority{Host: hostOf(scope)}
-	e.mu.Lock()
-	descriptor := e.privateCatalogLocked(scope.owner.Catalog).MustRelation(target.Address)
+	scope.authority = &exec.Authority{Host: HostOf(scope)}
+	e.Mu.Lock()
+	descriptor := e.PrivateCatalogLocked(scope.Owner.Catalog).MustRelation(target.Address)
 	program, err := e.captureRowSecurityLocked(scope, descriptor, authorization.PrincipalRef{}, catalog.PolicySelect, false, false)
 	if err == nil {
 		err = e.materializePolicySourcesLocked(scope)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestRLSCursorSourceAuthority(t *testing.T) {
 			_ = scope.Finish(context.Canceled)
 		}
 	}()
-	opening := hostOf(scope)
+	opening := HostOf(scope)
 	borrowed := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: opening}}
 	input := sqltype.InputEnvironment{DomainChecks: borrowed}
 	output := sqltype.OutputEnvironment{Regclass: scope}
@@ -249,9 +249,9 @@ func TestRLSCursorSourceAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fetch.Finish(nil)
-	producer.authority.Host = hostOf(fetch)
+	producer.authority.Host = HostOf(fetch)
 	for _, source := range sources {
-		if source.LiveHost() != hostOf(fetch) {
+		if source.LiveHost() != HostOf(fetch) {
 			t.Fatal("runtime provider did not resolve current shared FETCH authority")
 		}
 	}

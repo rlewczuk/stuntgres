@@ -9,24 +9,24 @@ import "stuntgres/internal/engine/session"
 // check the context.
 func (e *Engine) skipMissingRelationLocked(scope *StatementScope, op *session.Operation, name string, partition bool) (Result, error) {
 	op.Session.Mu.Lock()
-	err := publicationOperationLocked(e, op)
+	err := PublicationOperationLocked(e, op)
 	op.Session.Mu.Unlock()
 	if partition {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
-		scope.completed = true
+		scope.Completed = true
 	} else {
 		if err == nil {
 			err = op.Context().Err()
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		scope.completed = true
-		e.mu.Unlock()
+		scope.Completed = true
+		e.Mu.Unlock()
 	}
 	op.EmitNotice(session.LevelNotice, session.MissingRelation(name))
 	return Result{}, nil

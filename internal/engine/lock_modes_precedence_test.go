@@ -69,7 +69,7 @@ func TestLockModesViewOrder(t *testing.T) {
 	lockPending(t, e, 1)
 	first := roleTableRef(t, e, "first")
 	later := roleTableRef(t, e, "later")
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	pending := len(lockState.Resources[lock.Resource{ObjectRef: first}].Pending)
 	laterEntry := lockState.Resources[lock.Resource{ObjectRef: later}]
 	if pending != 1 || laterEntry != nil {

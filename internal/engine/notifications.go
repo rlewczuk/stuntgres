@@ -20,9 +20,9 @@ func (r *notificationSessionEnd) EndSession(token ids.SessionToken, _ session.En
 	if token != n.Session.SessionToken {
 		return errors.New("stuntgres: foreign notification session")
 	}
-	e := engineOf(n.Session)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e := EngineOf(n.Session)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	e.notifications.EndLocked(n)
 	return nil
 }
@@ -31,7 +31,7 @@ func (r *notificationSessionEnd) EndSession(token ids.SessionToken, _ session.En
 // session, waiting until one arrives or op's context ends. The listener is root
 // state guarded by Engine.mu, so polling lives on the engine.
 func (e *Engine) WaitForNotification(op *session.Operation) (session.Notification, error) {
-	if op == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e {
+	if op == nil || op.Self != op || op.Session == nil || EngineOf(op.Session) != e {
 		return session.Notification{}, errors.New("stuntgres: foreign notification operation")
 	}
 	for {
@@ -50,23 +50,23 @@ func (e *Engine) WaitForNotification(op *session.Operation) (session.Notificatio
 // It owns no operation/activity lease: idle timeout and retirement stay live.
 // The serialized wire dispatcher supplies its separate TxIdle delivery gate.
 func (e *Engine) PollProtocolNotification(s *session.Session) (session.Notification, bool, <-chan struct{}, error) {
-	if s == nil || engineOf(s) != e {
+	if s == nil || EngineOf(s) != e {
 		return session.Notification{}, false, nil, errors.New("stuntgres: foreign notification session")
 	}
 	return e.pollNotification(s, func() error { return s.Check(context.Background()) })
 }
 
 func (e *Engine) pollNotification(s *session.Session, check func() error) (session.Notification, bool, <-chan struct{}, error) {
-	n := &payloadOf(s).notifications
+	n := &PayloadOf(s).notifications
 	for {
 		if check != nil {
 			if err := check(); err != nil {
 				return session.Notification{}, false, nil, err
 			}
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		if n.Ended {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if check != nil {
 				if err := check(); err != nil {
 					return session.Notification{}, false, nil, err
@@ -80,7 +80,7 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 			queue = original.Ready
 		}
 		if queue.Front != nil || queue.Back != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			queue = queue.Normalize()
 			event := queue.Front.Batch[queue.Offset]
 			queue.Offset++
@@ -90,28 +90,28 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 			}
 			next := *original
 			next.Ready = queue
-			e.mu.Lock()
+			e.Mu.Lock()
 			if n.State != original || n.Ended {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				continue
 			}
 			if check != nil {
 				if err := check(); err != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					return session.Notification{}, false, nil, err
 				}
 			}
 			n.State = &next
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return event, true, nil, nil
 		}
 		wake := n.Wake
 		if wake == nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			candidate := make(chan struct{})
-			e.mu.Lock()
+			e.Mu.Lock()
 			if n.State != original || n.Ended {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				continue
 			}
 			if n.Wake == nil {
@@ -119,7 +119,7 @@ func (e *Engine) pollNotification(s *session.Session, check func() error) (sessi
 			}
 			wake = n.Wake
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return session.Notification{}, false, wake, nil
 	}
 }
@@ -131,18 +131,18 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 	switch raw := stmt.(type) {
 	case *parser.Notify:
 		if len(raw.Payload) >= 8000 {
-			return Result{}, sqlError("22023", "payload string too long")
+			return Result{}, SQLError("22023", "payload string too long")
 		}
-		s.notificationEvents = append(s.notificationEvents, session.Notification{PID: uint64(s.op.Session.SessionToken.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
+		s.notificationEvents = append(s.notificationEvents, session.Notification{PID: uint64(s.Op.Session.SessionToken.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
 	case *parser.Listen:
 		s.notificationActions = append(s.notificationActions, session.NotificationAction{Channel: raw.Channel.Text, Listen: true})
 	case *parser.Unlisten:
-		e := s.engine()
-		e.mu.Lock()
-		state := payloadOf(s.op.Session).notifications.State
+		e := s.Engine()
+		e.Mu.Lock()
+		state := PayloadOf(s.Op.Session).notifications.State
 		history := state != nil && state.History
-		e.mu.Unlock()
-		if history || len(s.owner.NotificationActions) != 0 || len(s.notificationActions) != 0 {
+		e.Mu.Unlock()
+		if history || len(s.Owner.NotificationActions) != 0 || len(s.notificationActions) != 0 {
 			s.notificationActions = append(s.notificationActions, session.NotificationAction{Channel: raw.Channel.Text, All: raw.All})
 		}
 	}
@@ -156,33 +156,33 @@ func finishNotificationBoundary(t *session.TransactionOwner) {
 	if t.State != session.TxIdle || t.RetainsTransaction() {
 		return
 	}
-	e, n := engineOf(t.Session), &payloadOf(t.Session).notifications
+	e, n := EngineOf(t.Session), &PayloadOf(t.Session).notifications
 	if !n.Used.Load() {
 		return
 	}
 	for {
-		e.mu.Lock()
+		e.Mu.Lock()
 		original := n.State
 		if n.Ended || original == nil || original.Pending == nil && !original.Unread {
 			n.Busy = false
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		next := *original
 		next.Ready = session.ScanNotificationPending(next.Ready, next.Pending, next.Channels)
 		next.Pending = nil
 		next.Unread = false
 		next.Position = session.NotificationQueuePosition{}
-		e.mu.Lock()
+		e.Mu.Lock()
 		if n.State != original || n.Ended {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			continue
 		}
 		n.State = &next
 		n.Busy = false
 		n.SignalLocked()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return
 	}
 }

@@ -33,7 +33,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					t.Fatal("first stable snapshot did not retain the empty child root", exists, root)
 				}
 				sessionSQL(t, writer, "INSERT INTO c VALUES(1,'committed')")
-				committed := e.storage.Relations[child.Address].Versions[0]
+				committed := e.Storage.Relations[child.Address].Versions[0]
 				if committed.Born <= reader.Transactions.Frontier {
 					t.Fatal("writer did not create a genuinely post-snapshot child")
 				}
@@ -44,7 +44,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					sql = `UPDATE ONLY "public"."c" SET "pid" = $1 WHERE $2 OPERATOR(pg_catalog.=) "pid"`
 				}
 				scope := foreignActionUnitScope(t, e, reader, q)
-				err = dml.SettleForeignActions(scope.writeHost())
+				err = dml.SettleForeignActions(scope.WriteHost())
 				var d *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent update", Context: `SQL statement "` + sql + `"`}
 				if !errors.As(err, &d) || *d != want {
@@ -54,7 +54,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					t.Fatal("Finish changed the action conflict")
 				}
 				parent := catalogRef(t, e, e.CatalogRead(), "p")
-				if e.storage.Relations[parent.Address].Ends != nil || e.storage.Relations[child.Address].Ends != nil || e.storage.Relations[child.Address].Versions[0].Version != committed.Version {
+				if e.Storage.Relations[parent.Address].Ends != nil || e.Storage.Relations[child.Address].Ends != nil || e.Storage.Relations[child.Address].Versions[0].Version != committed.Version {
 					t.Fatal("failed action altered committed parent/writer child")
 				}
 				transactionRows(t, writer, "SELECT pid FROM c", 1)

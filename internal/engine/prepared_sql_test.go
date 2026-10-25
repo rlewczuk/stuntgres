@@ -21,9 +21,9 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	defer done()
 	integer, text := testUsage(e, sqltype.Int4), testUsage(e, sqltype.Text)
 	wide := testUsage(e, sqltype.Int8)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 	seed := []sqltype.Usage{integer, text}
 	b.SeedParameters(seed)
 	node, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 17}}, analyze.ExpressionPolicy{Context: analyze.FunctionArgumentContext, Expected: wide, Mode: sqltype.Assignment})
@@ -42,7 +42,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 		t.Fatal("mutated formal contract")
 	}
 	for _, number := range []int{2, 2147483647} {
-		b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
+		b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 		if _, err := b.Bind(parser.ParameterExpr{Number: number}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: integer}); err != nil {
 			t.Fatal(err)
 		}
@@ -55,7 +55,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 			t.Fatal("sparse index allocated intermediate slots")
 		}
 	}
-	b = newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
+	b = NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 	b.SeedParameters([]sqltype.Usage{{}})
 	if _, err := b.Finish(); err == nil {
 		t.Fatal("unused unknown declaration resolved")
@@ -65,7 +65,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 func TestPreparedSQLSessionOwner(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	r := payloadOf(a).preparedSQL
+	r := PayloadOf(a).preparedSQL
 	if r == nil || a.Resources[session.PreparedSQL] == nil || a.Resources[session.PreparedSQL].Owner != r || r.token != a.SessionToken {
 		t.Fatal("missing attached session owner")
 	}
@@ -85,7 +85,7 @@ func TestPreparedSQLSessionOwner(t *testing.T) {
 	if err := a.WaitEnd(context.Background()); err != nil || len(r.entries) != 0 {
 		t.Fatal("physical cleanup retained definition", err)
 	}
-	if payloadOf(b).preparedSQL == r {
+	if PayloadOf(b).preparedSQL == r {
 		t.Fatal("peer session shared owner")
 	}
 }
@@ -104,14 +104,14 @@ func TestPreparedSQLCanceledPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := &parser.DeallocateSQL{All: true}
-	if err := scope.gate(raw); err != nil {
+	if err := scope.Gate(raw); err != nil {
 		t.Fatal(err)
 	}
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
-	payloadOf(session).preparedSQL.entries["p"] = entry
+	PayloadOf(session).preparedSQL.entries["p"] = entry
 	cancel()
 	_, err = scope.executeDeallocateSQL(raw, 0)
-	if !errors.Is(err, context.Canceled) || payloadOf(session).preparedSQL.entries["p"] != entry || scope.completed {
+	if !errors.Is(err, context.Canceled) || PayloadOf(session).preparedSQL.entries["p"] != entry || scope.Completed {
 		t.Fatal("canceled publication mutated owner", err)
 	}
 	if finish := scope.Finish(err); !errors.Is(finish, context.Canceled) {

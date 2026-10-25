@@ -14,7 +14,7 @@ import (
 )
 
 func (s *StatementScope) executePLCursor(d *catalog.Procedure, run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) (value sqltype.Value, flow proc.PLFlow, err error) {
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	raw := in.Syntax.Cursor
 	var failure proc.PLDiagnosticQuery
 	action := "OPEN"
@@ -44,7 +44,7 @@ func (s *StatementScope) executePLCursor(d *catalog.Procedure, run *proc.PLRun, 
 	if err != nil {
 		err = s.plRuntimeQueryError(err, read, d, in.Syntax.Pos, "at "+action, failure)
 	}
-	if noticeStart != len(s.op.Notices) {
+	if noticeStart != len(s.Op.Notices) {
 		s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, in.Syntax.Pos, "at "+action))
 	}
 	return value, flow, err
@@ -58,8 +58,8 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 		if err != nil {
 			return nil, "", err
 		}
-		if name == "" || payloadOf(s.op.Session).cursors.entries[name] != nil || protocolPortalExists(s.op.Session, name) {
-			return nil, name, sqlError("42P03", fmt.Sprintf("cursor %q already in use", name))
+		if name == "" || PayloadOf(s.Op.Session).Cursors.Entries[name] != nil || protocolPortalExists(s.Op.Session, name) {
+			return nil, name, SQLError("42P03", fmt.Sprintf("cursor %q already in use", name))
 		}
 	}
 	query, scroll := raw.Query, raw.Scroll
@@ -97,9 +97,9 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 			return nil, name, e
 		}
 		if commandValue.IsNull() {
-			return nil, name, sqlError("22004", "query string argument of EXECUTE is null")
+			return nil, name, SQLError("22004", "query string argument of EXECUTE is null")
 		}
-		command, e = commandValue.Type().OutputWithEnvironment(s.op.Context(), commandValue, s.output)
+		command, e = commandValue.Type().OutputWithEnvironment(s.Op.Context(), commandValue, s.Output)
 		if e != nil {
 			return nil, name, e
 		}
@@ -114,13 +114,13 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 			parameters[i] = value
 			inputs[i] = usage
 		}
-		statements, e := parser.ParseWithOptions(command, parser.Options{StandardConformingStrings: !s.op.NonstandardStrings, Context: s.op.Context(), Notice: s.op.ParseNotice})
+		statements, e := parser.ParseWithOptions(command, parser.Options{StandardConformingStrings: !s.Op.NonstandardStrings, Context: s.Op.Context(), Notice: s.Op.ParseNotice})
 		if e != nil {
 			*failure = proc.PLDiagnosticQuery{Text: command, Callback: proc.PLSQLCallback}
 			return nil, name, e
 		}
 		if len(statements) != 1 {
-			return nil, name, sqlError("42P11", "cannot open multi-query plan as cursor")
+			return nil, name, SQLError("42P11", "cannot open multi-query plan as cursor")
 		}
 		var ok bool
 		query, ok = statements[0].(*parser.Select)
@@ -136,7 +136,7 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 			case *parser.Merge:
 				kind = "MERGE"
 			}
-			return nil, name, sqlError("42P11", "cannot open "+kind+" query as cursor")
+			return nil, name, SQLError("42P11", "cannot open "+kind+" query as cursor")
 		}
 	} else {
 		parameters = f.Values[:f.Program.FormalCount]
@@ -156,14 +156,14 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 	if !generated {
 		s.sqlRoutine.cursorName = &s.sqlRoutine.cursor.Name.Text
 	}
-	if err = s.acquireRelation(query, true); err != nil {
+	if err = s.AcquireRelation(query, true); err != nil {
 		*failure = proc.PLDiagnosticQuery{Text: command, Callback: proc.PLSQLCallback}
 		if !dynamic {
 			failure.Offset = queryStart.Character - 1
 		}
 		return nil, name, err
 	}
-	_, err = s.engine().executeStatement(s, query, len(parameters), func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+	_, err = s.Engine().executeStatement(s, query, len(parameters), func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, parameters)
 		return nil
 	})
@@ -181,7 +181,7 @@ func (s *StatementScope) openPLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 	if generated {
 		variable := &f.Program.Variables[in.Slot]
 		if variable.Constant {
-			return nil, name, sqlError("22005", fmt.Sprintf("variable %q is declared CONSTANT", variable.Name))
+			return nil, name, SQLError("22005", fmt.Sprintf("variable %q is declared CONSTANT", variable.Name))
 		}
 		f.Values[in.Slot] = sqltype.String(variable.Usage.Type, name)
 	}
@@ -205,7 +205,7 @@ func (s *StatementScope) movePLCursor(run *proc.PLRun, f *proc.PLFrame, in *proc
 			return e
 		}
 		if value.IsNull() {
-			return sqlError("22004", "relative or absolute cursor position is null")
+			return SQLError("22004", "relative or absolute cursor position is null")
 		}
 		integer, ok := read.LookupType(sqltype.Int4)
 		if !ok {
@@ -301,7 +301,7 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 	wasNull := original.Type() == nil || original.IsNull()
 	var failure proc.PLDiagnosticQuery
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, "at FOR over cursor")
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	cursor, name, err := s.openPLCursor(run, f, in.Cursor, in.Syntax.Cursor, read, &failure)
 	s.appendPLNoticeContext(noticeStart, origin)
 	if err != nil {
@@ -309,13 +309,13 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 	}
 	cursor.pinned = true
 	defer func() {
-		noticeStart := len(s.op.Notices)
+		noticeStart := len(s.Op.Notices)
 		defer func() { s.appendPLNoticeContext(noticeStart, origin) }()
 		cursor.pinned = false
-		r := payloadOf(s.op.Session).cursors
-		if r.entries[name] == cursor {
-			delete(r.entries, name)
-			cleanupErr := cursor.dispose(context.WithoutCancel(s.op.Context()))
+		r := PayloadOf(s.Op.Session).Cursors
+		if r.Entries[name] == cursor {
+			delete(r.Entries, name)
+			cleanupErr := cursor.dispose(context.WithoutCancel(s.Op.Context()))
 			if err == nil {
 				err = cleanupErr
 			}
@@ -330,11 +330,11 @@ func (s *StatementScope) forPLCursor(d *catalog.Procedure, run *proc.PLRun, f *p
 	targets := []proc.PLTarget{{Slot: in.Cursor.LoopSlot}}
 	owner := in.Cursor.Loop.Statements[0].Block.Control
 	for {
-		if err = s.op.Context().Err(); err != nil {
+		if err = s.Op.Context().Err(); err != nil {
 			return value, proc.PLFlow{}, err
 		}
 		previousFound := f.Values[f.Program.FoundSlot]
-		noticeStart := len(s.op.Notices)
+		noticeStart := len(s.Op.Notices)
 		err = s.movePLCursorPortal(run, f, targets, cursor, fetch, read)
 		s.appendPLNoticeContext(noticeStart, origin)
 		found, _ := f.Values[f.Program.FoundSlot].Boolean()
@@ -413,7 +413,7 @@ func (s *StatementScope) evaluatePLArgumentRow(f *proc.PLFrame, query *parser.Se
 	for _, rows := range result.RowSets {
 		defer rows.Close()
 	}
-	if err := s.op.Context().Err(); err != nil {
+	if err := s.Op.Context().Err(); err != nil {
 		return nil, false, err
 	}
 	// The shared first-row producer already owns a detached flat typed row.

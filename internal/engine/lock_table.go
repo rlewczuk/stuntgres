@@ -15,27 +15,27 @@ import (
 )
 
 func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
-	s.owner.Mu.Lock()
-	active := s.owner.InBlock()
-	s.owner.Mu.Unlock()
+	s.Owner.Mu.Lock()
+	active := s.Owner.InBlock()
+	s.Owner.Mu.Unlock()
 	if !active {
-		return sqlError("25P01", "LOCK TABLE can only be used in transaction blocks")
+		return SQLError("25P01", "LOCK TABLE can only be used in transaction blocks")
 	}
-	e := s.engine()
+	e := s.Engine()
 	mode := table.ExplicitLockMode(stmt.Mode)
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, NoWait: stmt.Nowait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, NoWait: stmt.Nowait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
 	for _, target := range stmt.Targets {
-		e.mu.Lock()
-		auth, err := e.statementAuthorizationLocked(s.op, stmt)
+		e.Mu.Lock()
+		auth, err := e.StatementAuthorizationLocked(s.Op, stmt)
 		var ref ids.ObjectRef
-		if err == nil && s.txRef.Epoch() != e.catalog.State.Epoch() {
+		if err == nil && s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
-			ref, err = e.resolveRelationReference(auth, target.Name, true)
+			ref, err = e.ResolveRelationReference(auth, target.Name, true)
 		}
 		invoker := auth.State.CurrentUser
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
@@ -54,12 +54,12 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 			return nil
 		}
 	}
-	e := s.engine()
+	e := s.Engine()
 	inspect := func() (*catalog.Relation, error) {
-		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || s.txRef.Epoch() != e.catalog.State.Epoch() {
+		if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 			return nil, ids.ErrCatalogReplaced
 		}
-		auth, err := e.statementAuthorizationLocked(s.op, stmt)
+		auth, err := e.StatementAuthorizationLocked(s.Op, stmt)
 		if err != nil {
 			return nil, err
 		}
@@ -75,29 +75,29 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 		}
 		return d, table.CheckExplicitLock(auth.View, auth, ref, d, mode)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	_, err := inspect()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if errors.Is(err, lock.ErrUnavailable) {
-		return sqlError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", name))
+		return SQLError("55P03", fmt.Sprintf("could not obtain lock on relation \"%s\"", name))
 	}
 	if request != nil {
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
 	if err != nil {
 		return err
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	d, err := inspect()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -110,12 +110,12 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 	}
 	ancestors = append(ancestors, ref)
 	for _, source := range stored.ViewOf(d).Sources() {
-		e.mu.Lock()
-		view := e.privateCatalogLocked(s.owner.Catalog)
+		e.Mu.Lock()
+		view := e.PrivateCatalogLocked(s.Owner.Catalog)
 		child, ok := view.Relation(source.Ref.Address)
 		use, useErr := stored.ViewUseReference(view, d, source.Ref)
 		valid := ok && useErr == nil
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if !valid {
 			return ids.ErrCatalogReplaced
 		}

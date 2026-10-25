@@ -22,10 +22,10 @@ func pgrowlocksVisibilityUnits(t *testing.T) {
 		_, owner := blockingUnitOwner(t, e)
 		_, observer := blockingUnitOwner(t, e)
 		pgLocksUnitAssign(t, e, owner)
-		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
-		e.mu.Lock()
-		allocated, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{nil, nil, nil}, e.catalog.State)
-		e.mu.Unlock()
+		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
+		e.Mu.Lock()
+		allocated, err := e.Storage.AllocateRowVersionsLocked([][]sqltype.Value{nil, nil, nil}, e.Catalog.State)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +42,7 @@ func pgrowlocksVisibilityUnits(t *testing.T) {
 		current.Version = successor.Version
 		// A real successor event has no original locker to copy; subsequently a
 		// new actual SELECT lock on that version must not substitute its predecessor.
-		if err := e.locks.PhysicalEvents(owner, []lock.MultiEvent{{Tuple: tuple, Mode: lock.MultiNoKeyAction, Successor: successor.Version}}); err != nil {
+		if err := e.Locks.PhysicalEvents(owner, []lock.MultiEvent{{Tuple: tuple, Mode: lock.MultiNoKeyAction, Successor: successor.Version}}); err != nil {
 			t.Fatal(err)
 		}
 		identityMultiEmit(t, e, owner, current, lock.MultiKeyShare)
@@ -67,7 +67,7 @@ func pgrowlocksVisibilityUnits(t *testing.T) {
 			return &visibility.Data{Tx: observer.Ref(), Frontier: 1, Catalog: e.CatalogRead(), Committed: map[ids.ObjectAddress][]storage.RowVersion{ref.Address: {original}}}
 		}
 		prefix := capture(data(), original.Version)
-		rows, err := e.locks.Pgrowlocks(context.Background(), observer, prefix)
+		rows, err := e.Locks.Pgrowlocks(context.Background(), observer, prefix)
 		if err != nil || len(rows) != 1 || rows[0].Tuple.Version != original.Version {
 			t.Fatal("observer exact predecessor", rows, err)
 		}
@@ -103,12 +103,12 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 			e, _, outer := typedUnitCatalog(t, false)
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
-			e.mu.Lock()
-			target, err := table.NewRelation(ddlHost{e: e}, outer.Namespace(), "pgrow_dynamic", outer.Owner, nil, nil)
+			e.Mu.Lock()
+			target, err := table.NewRelation(DDLHost{E: e}, outer.Namespace(), "pgrow_dynamic", outer.Owner, nil, nil)
 			if err == nil {
-				err = e.stageRowTypeLocked(stage, target)
+				err = e.StageRowTypeLocked(stage, target)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -120,53 +120,53 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 			call := pgrowlocksUnitExpression(t, e)
 			reader, _ := blockingUnitOwner(t, e)
 			scope := pgrowlocksUnitScope(t, e, reader)
-			scope.routineDependencies = []catalog.ExpressionDependency{{Ref: call.Ref, Revision: call.Procedure.Revision()}}
+			scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: call.Ref, Revision: call.Procedure.Revision()}}
 			if stable {
-				scope.owner.Isolation = session.RepeatableRead
+				scope.Owner.Isolation = session.RepeatableRead
 			}
-			targetRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), target.Address())
-			outerRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), outer.Address())
-			e.mu.Lock()
-			versions, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{nil}, e.catalog.State)
+			targetRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), target.Address())
+			outerRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), outer.Address())
+			e.Mu.Lock()
+			versions, err := e.Storage.AllocateRowVersionsLocked([][]sqltype.Value{nil}, e.Catalog.State)
 			if err == nil {
-				e.visibility.AdvanceCommitSeqLocked()
-				versions[0].Born = e.visibility.CommitSeq()
-				e.storage.Relations[target.Address()].Versions = versions
+				e.Visibility.AdvanceCommitSeqLocked()
+				versions[0].Born = e.Visibility.CommitSeq()
+				e.Storage.Relations[target.Address()].Versions = versions
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err := scope.snapshotDataPhase(); err != nil {
 				t.Fatal(err)
 			}
-			scope.owner.Mu.Lock()
-			e.mu.Lock()
-			first, err := scope.acquireDataViewLocked(e, outerRef)
-			e.mu.Unlock()
-			scope.owner.Mu.Unlock()
+			scope.Owner.Mu.Lock()
+			e.Mu.Lock()
+			first, err := scope.AcquireDataViewLocked(e, outerRef)
+			e.Mu.Unlock()
+			scope.Owner.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
 			frontier := first.Load().Frontier
-			e.mu.Lock()
+			e.Mu.Lock()
 			replacement := versions[0]
-			replacement.Version = e.storage.AllocateVersionLocked()
-			e.visibility.AdvanceCommitSeqLocked()
-			replacement.Born = e.visibility.CommitSeq()
-			e.storage.Relations[target.Address()].Versions = []storage.RowVersion{replacement}
-			e.mu.Unlock()
-			scope.owner.Mu.Lock()
-			e.mu.Lock()
-			local, err := scope.captureDataViewsAtLocked(e, []ids.ObjectRef{targetRef}, false, first.Load())
-			e.mu.Unlock()
-			scope.owner.Mu.Unlock()
+			replacement.Version = e.Storage.AllocateVersionLocked()
+			e.Visibility.AdvanceCommitSeqLocked()
+			replacement.Born = e.Visibility.CommitSeq()
+			e.Storage.Relations[target.Address()].Versions = []storage.RowVersion{replacement}
+			e.Mu.Unlock()
+			scope.Owner.Mu.Lock()
+			e.Mu.Lock()
+			local, err := scope.CaptureDataViewsAtLocked(e, []ids.ObjectRef{targetRef}, false, first.Load())
+			e.Mu.Unlock()
+			scope.Owner.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer local.Release()
 			prefix, err := exec.PgrowlocksPrefix(context.Background(), local, targetRef)
-			if err != nil || len(prefix) != 1 || prefix[0].Tuple.Version != versions[0].Version || local.Load().Frontier != frontier || scope.view != first {
+			if err != nil || len(prefix) != 1 || prefix[0].Tuple.Version != versions[0].Version || local.Load().Frontier != frontier || scope.View != first {
 				t.Fatal("dynamic target resampled frontier/root or replaced outer view", prefix, err)
 			}
 			if _, ok := first.Load().Committed[target.Address()]; ok {

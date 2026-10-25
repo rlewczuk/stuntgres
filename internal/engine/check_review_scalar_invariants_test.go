@@ -97,12 +97,12 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TEMP SEQUENCE kept START 30")
 				sequenceScalar(t, peer, "SELECT nextval('kept')", 30)
 				_, description := sequencePreparedDescription(t, target, peer, "SELECT nextval('kept')")
-				tempRef := description.sequences.Constants[0].Ref
-				temp := target.catalog.State.Get(tempRef.Address)
+				tempRef := description.Sequences.Constants[0].Ref
+				temp := target.Catalog.State.Get(tempRef.Address)
 				if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 					t.Fatal(err)
 				}
-				if target.catalog.State.Get(tempRef.Address) != temp {
+				if target.Catalog.State.Get(tempRef.Address) != temp {
 					t.Fatal("replacement changed retained TEMP descriptor")
 				}
 				sessionSQL(t, peer, "UPDATE t SET a=0")
@@ -142,29 +142,29 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	scope.routineAuth = auth
-	e.captureCheckCommentSnapshotLocked(scope, relation)
-	catalog, roles := scope.inquiry.commentCatalog, scope.inquiry.commentRoles
-	e.mu.Unlock()
+	scope.RoutineAuth = auth
+	e.CaptureCheckCommentSnapshotLocked(scope, relation)
+	catalog, roles := scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles
+	e.Mu.Unlock()
 	sessionSQL(t, peer, "COMMENT ON TABLE anchor IS 'new'")
-	e.mu.Lock()
+	e.Mu.Lock()
 	// A later query-source opening shares, rather than replaces, this pair.
-	source, captureErr := e.captureQuerySourcesLocked(scope, nil, true)
-	e.mu.Unlock()
+	source, captureErr := e.CaptureQuerySourcesLocked(scope, nil, true)
+	e.Mu.Unlock()
 	if captureErr != nil {
 		t.Fatal(captureErr)
 	}
 	defer source.Close()
-	if scope.inquiry.commentCatalog != catalog || scope.inquiry.commentRoles != roles {
+	if scope.Inquiry.CommentCatalog != catalog || scope.Inquiry.commentRoles != roles {
 		t.Fatal("query opening replaced the statement comment snapshot")
 	}
-	query := exec.State{Source: source, Input: scope.input, Output: scope.output}
+	query := exec.State{Source: source, Input: scope.Input, Output: scope.Output}
 	evaluation := query.Evaluation(ctx)
 	evaluation.RoutineRecipe = true
 	evaluation.RoutineChecks = relation.Constraints.Check[0].Dependencies
@@ -190,10 +190,10 @@ func TestCheckReviewScalarNoInquirySnapshotDemand(t *testing.T) {
 	ref := catalogRef(t, e, view, "t")
 	relation := view.MustRelation(ref.Address)
 	scope := &StatementScope{}
-	e.mu.Lock()
-	e.captureCheckCommentSnapshotLocked(scope, relation)
-	e.mu.Unlock()
-	if scope.inquiry.commentCatalog.State() != nil || scope.inquiry.deparseAuth.RoleRecord != nil {
+	e.Mu.Lock()
+	e.CaptureCheckCommentSnapshotLocked(scope, relation)
+	e.Mu.Unlock()
+	if scope.Inquiry.CommentCatalog.State() != nil || scope.Inquiry.deparseAuth.RoleRecord != nil {
 		t.Fatal("unrelated CHECK captured comment metadata")
 	}
 }

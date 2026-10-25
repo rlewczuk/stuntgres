@@ -19,99 +19,99 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// dropProvider is the ordinary dependency algorithm's input/effect boundary.
+// DropProvider is the ordinary dependency algorithm's input/effect boundary.
 // A preparation records real ordered effects; it is not a catalog or stage.
 // Only the execution adapter can publish metadata or project physical rows.
-type dropProvider struct {
-	base           catalog.Read
-	owner          *Engine
-	path           []ids.ObjectAddress
-	stage          *CatalogStage
-	prepared       *table.DropPreparation
-	ctx            context.Context
-	scope          *StatementScope
-	changes        *session.Journal
+type DropProvider struct {
+	Base           catalog.Read
+	Owner          *Engine
+	SearchPath     []ids.ObjectAddress
+	Stage          *CatalogStage
+	Prepared       *table.DropPreparation
+	Ctx            context.Context
+	Scope          *StatementScope
+	Changes        *session.Journal
 	project        func(*catalog.Relation, *catalog.Relation) error
 	identitySource *catalog.Relation   // Actual grant-time identity provider only.
-	identityDrop   identityDropCapture // The sequence DROP IDENTITY captured at its grant.
+	IdentityDrop   identityDropCapture // The sequence DROP IDENTITY captured at its grant.
 }
 
-func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) *dropProvider {
+func StageDropProvider(ctx context.Context, stage *CatalogStage, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) *DropProvider {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if stage == nil {
 		// Missing-column IF EXISTS is an incumbent read-only fast path and
 		// deliberately has no catalog stage to allocate or discard.
-		return &dropProvider{ctx: ctx, scope: scope, changes: changes, project: project}
+		return &DropProvider{Ctx: ctx, Scope: scope, Changes: changes, project: project}
 	}
-	return &dropProvider{base: stage.Base, owner: stage.owner, path: stage.dependencyPath, stage: stage, ctx: ctx, scope: scope, changes: changes, project: project}
+	return &DropProvider{Base: stage.Base, Owner: stage.Owner, SearchPath: stage.DependencyPath, Stage: stage, Ctx: ctx, Scope: scope, Changes: changes, project: project}
 }
 
-func (p *dropProvider) Replacement(address ids.ObjectAddress) catalog.Descriptor {
-	if p.stage != nil {
-		return p.stage.Replacement(address)
+func (p *DropProvider) Replacement(address ids.ObjectAddress) catalog.Descriptor {
+	if p.Stage != nil {
+		return p.Stage.Replacement(address)
 	}
 	return p.preparedView().Replacement(address)
 }
 
 // preparedView reads through the prepared drop; a bare provider has none.
-func (p *dropProvider) preparedView() table.DropPreparationView {
-	return table.DropPreparationView{Base: p.base, Preparation: p.prepared, IdentitySource: p.identitySource}
+func (p *DropProvider) preparedView() table.DropPreparationView {
+	return table.DropPreparationView{Base: p.Base, Preparation: p.Prepared, IdentitySource: p.identitySource}
 }
 
-func (p *dropProvider) Descriptor(address ids.ObjectAddress) catalog.Descriptor {
-	p.observe(address)
+func (p *DropProvider) Descriptor(address ids.ObjectAddress) catalog.Descriptor {
+	p.Observe(address)
 	return p.projectedDescriptor(address)
 }
 
-func (p *dropProvider) Removed(address ids.ObjectAddress) bool {
-	if p.stage != nil {
-		return p.stage.Removed(address)
+func (p *DropProvider) Removed(address ids.ObjectAddress) bool {
+	if p.Stage != nil {
+		return p.Stage.Removed(address)
 	}
 	return p.preparedView().Removed(address)
 }
 
-func (p *dropProvider) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
-	if p.stage == nil {
+func (p *DropProvider) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	if p.Stage == nil {
 		// An inheritance admission may replace p.base during the iteration.
-		return p.preparedView().DescriptorsOver(func() catalog.Read { return p.base })
+		return p.preparedView().DescriptorsOver(func() catalog.Read { return p.Base })
 	}
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		for address, descriptor := range p.base.Descriptors() {
+		for address, descriptor := range p.Base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
 			}
 		}
-		for address, descriptor := range p.stage.Descriptors() {
-			if p.base.Get(address) == nil && !yield(address, descriptor) {
+		for address, descriptor := range p.Stage.Descriptors() {
+			if p.Base.Get(address) == nil && !yield(address, descriptor) {
 				return
 			}
 		}
 	}
 }
 
-func (p *dropProvider) Replace(d catalog.Descriptor) error {
-	p.observe(d.Address())
-	if err := p.ctx.Err(); err != nil {
+func (p *DropProvider) Replace(d catalog.Descriptor) error {
+	p.Observe(d.Address())
+	if err := p.Ctx.Err(); err != nil {
 		return err
 	}
-	if p.stage != nil {
-		return p.stage.Replace(d)
+	if p.Stage != nil {
+		return p.Stage.Replace(d)
 	}
-	if p.prepared == nil {
+	if p.Prepared == nil {
 		return fmt.Errorf("stuntgres: invalid catalog stage")
 	}
-	p.prepared.RecordEffect(table.DropEffect{Descriptor: d})
+	p.Prepared.RecordEffect(table.DropEffect{Descriptor: d})
 	if relation, ok := d.(*catalog.Relation); ok {
 		return p.synchronizeRowType(relation)
 	}
 	return nil
 }
 
-func (p *dropProvider) Revision(revision ids.DefinitionRevision) (ids.DefinitionRevision, error) {
-	if p.stage != nil {
-		return p.stage.cascadeMetadataRevision(revision)
+func (p *DropProvider) Revision(revision ids.DefinitionRevision) (ids.DefinitionRevision, error) {
+	if p.Stage != nil {
+		return p.Stage.cascadeMetadataRevision(revision)
 	}
 	if revision == ids.DefinitionRevision(^uint64(0)) {
 		return 0, fmt.Errorf("stuntgres: definition revision exhausted")
@@ -119,36 +119,36 @@ func (p *dropProvider) Revision(revision ids.DefinitionRevision) (ids.Definition
 	return revision + 1, nil
 }
 
-func (p *dropProvider) observe(address ids.ObjectAddress) {
-	if p.prepared != nil {
-		p.prepared.Observe(address, p.base)
+func (p *DropProvider) Observe(address ids.ObjectAddress) {
+	if p.Prepared != nil {
+		p.Prepared.Observe(address, p.Base)
 	}
 }
 
-func (p *dropProvider) DescriptorCount() int {
-	if p.stage == nil {
+func (p *DropProvider) DescriptorCount() int {
+	if p.Stage == nil {
 		return p.preparedView().DescriptorCount()
 	}
-	count := p.base.DescriptorCount()
-	for address := range p.stage.Descriptors() {
-		if p.base.Get(address) == nil {
+	count := p.Base.DescriptorCount()
+	for address := range p.Stage.Descriptors() {
+		if p.Base.Get(address) == nil {
 			count++
 		}
 	}
 	return count
 }
 
-func (p *dropProvider) RemovalDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (p *DropProvider) RemovalDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		if p.stage != nil {
-			for address, removal := range p.stage.Removals() {
+		if p.Stage != nil {
+			for address, removal := range p.Stage.Removals() {
 				if !yield(address, removal.Descriptor) {
 					return
 				}
 			}
 			return
 		}
-		for address, descriptor := range p.base.Descriptors() {
+		for address, descriptor := range p.Base.Descriptors() {
 			if p.Removed(address) && !yield(address, descriptor) {
 				return
 			}
@@ -156,101 +156,101 @@ func (p *dropProvider) RemovalDescriptors() iter.Seq2[ids.ObjectAddress, catalog
 	}
 }
 
-func (p *dropProvider) InheritanceAlterGuard(relation *catalog.Relation) error {
+func (p *DropProvider) InheritanceAlterGuard(relation *catalog.Relation) error {
 	return table.InheritanceDependencyAlterGuard(p.Descriptors(), p.Replacement, p.Removed, relation)
 }
 
-func (p *dropProvider) ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
-	p.owner.mu.Lock()
-	defer p.owner.mu.Unlock()
+func (p *DropProvider) ApplyViewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
+	p.Owner.Mu.Lock()
+	defer p.Owner.Mu.Unlock()
 	return p.viewDependents(targets, mode, foreign...)
 }
 
-func (p *dropProvider) applyForeignKeyDependents(edges []table.DomainDependency) error {
-	if p.stage != nil {
-		p.owner.mu.Lock()
-		defer p.owner.mu.Unlock()
+func (p *DropProvider) applyForeignKeyDependents(edges []table.DomainDependency) error {
+	if p.Stage != nil {
+		p.Owner.Mu.Lock()
+		defer p.Owner.Mu.Unlock()
 	}
 	return table.ForeignKeyDependents(p, edges)
 }
 
-func (p *dropProvider) Notice(notice sqlstate.Error) {
-	if p.prepared != nil {
-		p.prepared.RecordEffect(table.DropEffect{Missing: &notice})
-	} else if p.scope != nil {
-		p.scope.op.EmitNotice(session.LevelNotice, notice)
+func (p *DropProvider) Notice(notice sqlstate.Error) {
+	if p.Prepared != nil {
+		p.Prepared.RecordEffect(table.DropEffect{Missing: &notice})
+	} else if p.Scope != nil {
+		p.Scope.Op.EmitNotice(session.LevelNotice, notice)
 	}
 }
 
-func (p *dropProvider) cascadeNotice(notice string) {
-	if p.stage != nil {
-		p.stage.dropCascadeNames = append(p.stage.dropCascadeNames, notice)
+func (p *DropProvider) cascadeNotice(notice string) {
+	if p.Stage != nil {
+		p.Stage.DropCascadeNames = append(p.Stage.DropCascadeNames, notice)
 		return
 	}
-	p.prepared.RecordEffect(table.DropEffect{Notice: notice})
+	p.Prepared.RecordEffect(table.DropEffect{Notice: notice})
 }
 
-func (p *dropProvider) noticePosition() int {
-	if p.stage != nil {
-		return len(p.stage.dropCascadeNames)
+func (p *DropProvider) noticePosition() int {
+	if p.Stage != nil {
+		return len(p.Stage.DropCascadeNames)
 	}
-	return p.prepared.NoticePosition()
+	return p.Prepared.NoticePosition()
 }
 
-func (p *dropProvider) rewindNotices(position int) {
-	if p.stage != nil {
-		p.stage.dropCascadeNames = p.stage.dropCascadeNames[:position]
+func (p *DropProvider) rewindNotices(position int) {
+	if p.Stage != nil {
+		p.Stage.DropCascadeNames = p.Stage.DropCascadeNames[:position]
 		return
 	}
-	p.prepared.RewindNotices(position)
+	p.Prepared.RewindNotices(position)
 }
 
-func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
+func (p *DropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 	targets := view.IdentityObservationTargets(p, roots)
 	for _, address := range roots {
-		if address.SubID == 0 && (address.ClassID == ids.TypeClassID || definitionObjectClass(address.ClassID)) && !slices.Contains(targets, address) {
+		if address.SubID == 0 && (address.ClassID == ids.TypeClassID || DefinitionObjectClass(address.ClassID)) && !slices.Contains(targets, address) {
 			targets = append(targets, address)
 		}
 	}
-	if p.stage != nil {
-		p.stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{p.stage.Base.State(), targets})
+	if p.Stage != nil {
+		p.Stage.SequenceState().ObserveIdentityDependencies(session.DependencyObservation{p.Stage.Base.State(), targets})
 		return
 	}
-	p.prepared.RecordEffect(table.DropEffect{IdentityRoots: targets})
+	p.Prepared.RecordEffect(table.DropEffect{IdentityRoots: targets})
 }
 
-func (p *dropProvider) removedRowType(address ids.ObjectAddress) {
-	if p.stage != nil {
-		p.stage.domainTargets = append(p.stage.domainTargets, address)
+func (p *DropProvider) removedRowType(address ids.ObjectAddress) {
+	if p.Stage != nil {
+		p.Stage.DomainTargets = append(p.Stage.DomainTargets, address)
 		return
 	}
-	p.prepared.RecordEffect(table.DropEffect{RowType: address})
+	p.Prepared.RecordEffect(table.DropEffect{RowType: address})
 }
 
-func (p *dropProvider) Remove(ref ids.ObjectRef) error {
-	if p.stage != nil {
-		return p.stage.Remove(ref)
+func (p *DropProvider) Remove(ref ids.ObjectRef) error {
+	if p.Stage != nil {
+		return p.Stage.Remove(ref)
 	}
-	if err := p.ctx.Err(); err != nil {
+	if err := p.Ctx.Err(); err != nil {
 		return err
 	}
-	p.owner.mu.Lock()
-	defer p.owner.mu.Unlock()
+	p.Owner.Mu.Lock()
+	defer p.Owner.Mu.Unlock()
 	return p.removeObjectLocked(ref, false)
 }
 
-func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
-	d := p.base.Get(ref.Address)
+func (p *DropProvider) RecordRemoval(ref ids.ObjectRef, namespace bool) error {
+	d := p.Base.Get(ref.Address)
 	key := catalog.DescriptorNameKey(d)
-	if p.base.NameAddress(key) != ref.Address {
+	if p.Base.NameAddress(key) != ref.Address {
 		return catalog.Conflict{}
 	}
-	p.observe(ref.Address)
-	if p.stage == nil {
-		p.prepared.RecordEffect(table.DropEffect{Remove: ref})
+	p.Observe(ref.Address)
+	if p.Stage == nil {
+		p.Prepared.RecordEffect(table.DropEffect{Remove: ref})
 		return nil
 	}
-	stage := p.stage
+	stage := p.Stage
 	stage.RecordRemoval(ref, d)
 	if namespace {
 		stage.RemoveSchemaDefaults(ref.Address)
@@ -258,28 +258,28 @@ func (p *dropProvider) recordRemoval(ref ids.ObjectRef, namespace bool) error {
 	return nil
 }
 
-func (p *dropProvider) ReplacePartitionDescriptor(d *catalog.Relation) error {
-	if p.stage != nil {
-		return index.StagePartitionDescriptor(p.stage, d)
+func (p *DropProvider) ReplacePartitionDescriptor(d *catalog.Relation) error {
+	if p.Stage != nil {
+		return index.StagePartitionDescriptor(p.Stage, d)
 	}
 	return p.Replace(d)
 }
 
-func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
-	if p.stage == nil {
-		p.observe(old.Address())
+func (p *DropProvider) ProjectColumn(old, next *catalog.Relation) error {
+	if p.Stage == nil {
+		p.Observe(old.Address())
 		if old.RelationKind != catalog.CompositeRelation && old.RelationKind != catalog.ForeignRelation {
-			p.owner.mu.Lock()
+			p.Owner.Mu.Lock()
 			err := index.EvolveIndexes(p, old.Address(), nil)
-			p.owner.mu.Unlock()
+			p.Owner.Mu.Unlock()
 			if err != nil {
-				return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(p.base, p.path))
+				return catalog.RenderDefaultClassAmbiguity(err, catalog.TypeDiagnosticNamer(p.Base, p.SearchPath))
 			}
 		}
-		p.prepared.RecordEffect(table.DropEffect{Before: old, After: next})
+		p.Prepared.RecordEffect(table.DropEffect{Before: old, After: next})
 		return nil
 	}
-	stage, e, ctx := p.stage, p.owner, p.ctx
+	stage, e, ctx := p.Stage, p.Owner, p.Ctx
 	if old.RelationKind == catalog.CompositeRelation || old.RelationKind == catalog.ForeignRelation {
 		return stage.Replace(next)
 	}
@@ -289,18 +289,18 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		}
 		return stage.Replace(next)
 	}
-	if p.changes != nil {
-		return p.scope.stagePrivateColumnShape(stage, p.changes, old, next)
+	if p.Changes != nil {
+		return p.Scope.stagePrivateColumnShape(stage, p.Changes, old, next)
 	}
-	e.mu.Lock()
-	stored := e.stageStorageLocked(stage, old.Address())
+	e.Mu.Lock()
+	stored := e.StageStorageLocked(stage, old.Address())
 	storageOwner := stage.Base.MustRelation(old.Address())
-	if e.stageCatalogBaseLocked(stage).Get(old.Address()) != storageOwner || stored == nil {
-		e.mu.Unlock()
+	if e.StageCatalogBaseLocked(stage).Get(old.Address()) != storageOwner || stored == nil {
+		e.Mu.Unlock()
 		return catalog.Conflict{}
 	}
 	rows, ends, generation := stored.Versions, stored.Ends, stored.Generation
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	nextGeneration := generation + 1
 	if generation == ^uint64(0) {
 		if !stage.terminalCleanup {
@@ -313,41 +313,41 @@ func (p *dropProvider) projectColumn(old, next *catalog.Relation) error {
 		return err
 	}
 	replacement := &storage.Relation{Versions: projected, Ends: ends, Generation: nextGeneration}
-	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
-	return stage.alterRelation(ctx, ref, next, stored, replacement, len(rows), generation, ends)
+	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
+	return stage.AlterRelation(ctx, ref, next, stored, replacement, len(rows), generation, ends)
 }
 
-func (p *dropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {
-	catalog, err := admitInheritanceDropClosure(p.scope, p.base, roots, p.RemovalDescriptors())
+func (p *DropProvider) lockInheritanceClosure(roots []ids.ObjectAddress) error {
+	catalog, err := admitInheritanceDropClosure(p.Scope, p.Base, roots, p.RemovalDescriptors())
 	if err != nil {
 		return err
 	}
-	if p.stage != nil {
-		p.stage.Base = catalog
+	if p.Stage != nil {
+		p.Stage.Base = catalog
 	}
-	p.base = catalog
-	if p.prepared != nil {
-		p.prepared.Discovery = catalog
+	p.Base = catalog
+	if p.Prepared != nil {
+		p.Prepared.Discovery = catalog
 	}
 	return nil
 }
 
-func (p *dropProvider) Acquire(ref ids.ObjectRef, reserveReplacement bool) error {
-	if err := p.scope.acquireSequence(ref, lock.AccessExclusive, reserveReplacement); err != nil {
+func (p *DropProvider) Acquire(ref ids.ObjectRef, reserveReplacement bool) error {
+	if err := p.Scope.AcquireSequence(ref, lock.AccessExclusive, reserveReplacement); err != nil {
 		return err
 	}
-	if p.prepared != nil && !slices.Contains(p.prepared.Grants, ref) {
-		p.prepared.Grants = append(p.prepared.Grants, ref)
+	if p.Prepared != nil && !slices.Contains(p.Prepared.Grants, ref) {
+		p.Prepared.Grants = append(p.Prepared.Grants, ref)
 	}
-	p.observe(ref.Address)
+	p.Observe(ref.Address)
 	return nil
 }
 
 func (scope *StatementScope) holdsColumnDropGrant(ref ids.ObjectRef) bool {
-	if scope.ticket == nil || scope.ticket.Ref() != scope.txRef {
+	if scope.LockTicket == nil || scope.LockTicket.Ref() != scope.TxRef {
 		return false
 	}
-	return scope.engine().locks.Holds(scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
+	return scope.Engine().Locks.Holds(scope.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
 }
 
 // prepareColumnDrop records the actual ordinary provider effects without owning
@@ -370,42 +370,42 @@ func (scope *StatementScope) prepareColumnDropAfter(auth AuthorizationView, old 
 	return scope.finishDropDefinition(provider, next)
 }
 
-func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, prior *table.DropPreparation) (*dropProvider, error) {
-	if err := scope.active(); err != nil {
+func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, prior *table.DropPreparation) (*DropProvider, error) {
+	if err := scope.Active(); err != nil {
 		return nil, err
 	}
-	e := scope.engine()
-	if err := scope.op.Context().Err(); err != nil {
+	e := scope.Engine()
+	if err := scope.Op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.Owner != &e.catalog.Owner || auth.session != scope.op.Session || auth.Catalog.Owner() != &e.catalog.Owner || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.Finished || auth.Owner != &e.Catalog.Owner || auth.Session != scope.Op.Session || auth.Catalog.Owner() != &e.Catalog.Owner || ref.Domain() != e.Catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || ref.Epoch != scope.TxRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, present := auth.Catalog.Relation(ref.Address); !present {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if prior != nil && (prior.Statement != any(scope) || prior.TxRef != scope.txRef || prior.Ref != ref || prior.Next() == nil) {
+	if prior != nil && (prior.Statement != any(scope) || prior.TxRef != scope.TxRef || prior.Ref != ref || prior.Next() == nil) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	e.mu.Lock()
-	path, err := referencePath(auth)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	path, err := ReferencePath(auth)
+	e.Mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	prepared := &table.DropPreparation{Old: old, Ref: ref, Prior: prior, Statement: scope, TxRef: scope.txRef, Base: auth.Catalog, Discovery: auth.Catalog, Input: dropDiscoveryInput(auth.definition)}
-	provider := &dropProvider{base: auth.Catalog, owner: e, path: path, prepared: prepared, ctx: scope.op.Context(), scope: scope}
-	provider.observe(ref.Address)
+	prepared := &table.DropPreparation{Old: old, Ref: ref, Prior: prior, Statement: scope, TxRef: scope.TxRef, Base: auth.Catalog, Discovery: auth.Catalog, Input: dropDiscoveryInput(auth.Definition)}
+	provider := &DropProvider{Base: auth.Catalog, Owner: e, SearchPath: path, Prepared: prepared, Ctx: scope.Op.Context(), Scope: scope}
+	provider.Observe(ref.Address)
 	return provider, nil
 }
 
-func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *catalog.Relation) (*table.DropPreparation, error) {
-	prepared := provider.prepared
+func (scope *StatementScope) finishDropDefinition(provider *DropProvider, next *catalog.Relation) (*table.DropPreparation, error) {
+	prepared := provider.Prepared
 	prepared.Finish(next)
-	e := provider.owner
-	e.mu.Lock()
-	err := scope.validateColumnDropObservationsLocked(prepared, e.privateCatalogLocked(scope.owner.Catalog))
-	e.mu.Unlock()
+	e := provider.Owner
+	e.Mu.Lock()
+	err := scope.validateColumnDropObservationsLocked(prepared, e.PrivateCatalogLocked(scope.Owner.Catalog))
+	e.Mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -415,29 +415,29 @@ func (scope *StatementScope) finishDropDefinition(provider *dropProvider, next *
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
 func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *table.DropPreparation, catalog catalog.Read) error {
-	if prepared == nil || scope.finished {
+	if prepared == nil || scope.Finished {
 		return ids.ErrCatalogReplaced
 	}
-	return prepared.ValidateObservations(scope, scope.txRef, catalog)
+	return prepared.ValidateObservations(scope, scope.TxRef, catalog)
 }
 
 // consumePreparedDrop applies the exact immutable provider effects to the sole
 // command stage. Neither dependency analysis nor metadata cooking runs again.
 func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *table.DropPreparation, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, error) {
-	if err := scope.active(); err != nil {
+	if err := scope.Active(); err != nil {
 		return nil, err
 	}
-	if err := scope.op.Context().Err(); err != nil {
+	if err := scope.Op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if prepared == nil || prepared.Old != old || prepared.Ref != ref || prepared.Next() == nil || stage == nil || stage.owner != scope.engine() || stage.lifecycle != catalogOpen || stage.invalid != nil || !scope.holdsColumnDropGrant(ref) {
+	if prepared == nil || prepared.Old != old || prepared.Ref != ref || prepared.Next() == nil || stage == nil || stage.Owner != scope.Engine() || stage.Lifecycle != CatalogOpen || stage.Invalid != nil || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if _, consumed := scope.dropsOrZero().consumedColumns[prepared]; consumed {
+	if _, consumed := scope.dropsOrZero().ConsumedColumns[prepared]; consumed {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.Prior != nil {
-		if _, consumed := scope.dropsOrZero().consumedColumns[prepared.Prior]; !consumed {
+		if _, consumed := scope.dropsOrZero().ConsumedColumns[prepared.Prior]; !consumed {
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
@@ -446,34 +446,34 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
-	e := stage.owner
-	e.mu.Lock()
+	e := stage.Owner
+	e.Mu.Lock()
 	err := scope.validateColumnDropObservationsLocked(prepared, stage.Base)
 	if err == nil {
-		err = scope.validateColumnDropObservationsLocked(prepared, e.privateCatalogLocked(scope.owner.Catalog))
+		err = scope.validateColumnDropObservationsLocked(prepared, e.PrivateCatalogLocked(scope.Owner.Catalog))
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	if scope.dropsOrZero().consumedColumns == nil {
-		scope.drops().consumedColumns = make(map[*table.DropPreparation]struct{})
+	if scope.dropsOrZero().ConsumedColumns == nil {
+		scope.drops().ConsumedColumns = make(map[*table.DropPreparation]struct{})
 	}
-	scope.drops().consumedColumns[prepared] = struct{}{}
-	provider := stageDropProvider(scope.op.Context(), stage, scope, changes, nil)
+	scope.drops().ConsumedColumns[prepared] = struct{}{}
+	provider := StageDropProvider(scope.Op.Context(), stage, scope, changes, nil)
 	for _, effect := range prepared.Effects() {
-		if err := scope.op.Context().Err(); err != nil {
+		if err := scope.Op.Context().Err(); err != nil {
 			return nil, err
 		}
 		switch {
 		case effect.Descriptor != nil:
-			if err := stage.replaceDescriptor(effect.Descriptor, false, false); err != nil {
+			if err := stage.ReplaceDescriptor(effect.Descriptor, false, false); err != nil {
 				return nil, err
 			}
 		case effect.Remove.Address != (ids.ObjectAddress{}):
-			e.mu.Lock()
-			err = provider.recordRemoval(effect.Remove, false)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err = provider.RecordRemoval(effect.Remove, false)
+			e.Mu.Unlock()
 			if err != nil {
 				return nil, err
 			}
@@ -482,17 +482,17 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 				return nil, err
 			}
 		case effect.Notice != "":
-			stage.dropCascadeNames = append(stage.dropCascadeNames, effect.Notice)
+			stage.DropCascadeNames = append(stage.DropCascadeNames, effect.Notice)
 		case effect.Missing != nil:
-			scope.op.EmitNotice(session.LevelNotice, *effect.Missing)
+			scope.Op.EmitNotice(session.LevelNotice, *effect.Missing)
 		case effect.RowType != (ids.ObjectAddress{}):
-			stage.domainTargets = append(stage.domainTargets, effect.RowType)
+			stage.DomainTargets = append(stage.DomainTargets, effect.RowType)
 		case len(effect.IdentityRoots) != 0:
 			state := effect.IdentityState
 			if state == nil {
 				state = prepared.Base.State()
 			}
-			stage.sequenceState().ObserveIdentityDependencies(session.DependencyObservation{state, effect.IdentityRoots})
+			stage.SequenceState().ObserveIdentityDependencies(session.DependencyObservation{state, effect.IdentityRoots})
 		case effect.Layout != nil:
 			provider.RecordIndexLayout(effect.Index, *effect.Layout)
 		}
@@ -500,18 +500,18 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 	return prepared.Next(), nil
 }
 
-func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name string) string {
-	if p.stage != nil {
-		return associatedArrayName(p.stage, namespace, name)
+func (p *DropProvider) associatedArrayName(namespace ids.ObjectAddress, name string) string {
+	if p.Stage != nil {
+		return AssociatedArrayName(p.Stage, namespace, name)
 	}
 	return typedef.ChooseAssociatedArrayName(name, func(candidate string) bool {
-		return p.prepared.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
+		return p.Prepared.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 	})
 }
 
 // Some dependency passes retain retired providers for AUTO-edge discovery;
 // partition validity instead reads only the actual surviving projection.
-func (p *dropProvider) LiveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+func (p *DropProvider) LiveDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if p.Removed(address) {
 		return nil
 	}
@@ -519,75 +519,75 @@ func (p *dropProvider) LiveDescriptor(address ids.ObjectAddress) catalog.Descrip
 }
 
 // EvolutionBase is the catalog the pass started from.
-func (p *dropProvider) EvolutionBase() catalog.Read { return p.base }
+func (p *DropProvider) EvolutionBase() catalog.Read { return p.Base }
 
 // RemoveIndex removes the index at address from the pass.
-func (p *dropProvider) RemoveIndex(address ids.ObjectAddress) error {
-	return p.removeObjectLocked(p.owner.catalog.Domain.Ref(p.base.Epoch(), address), false)
+func (p *DropProvider) RemoveIndex(address ids.ObjectAddress) error {
+	return p.removeObjectLocked(p.Owner.Catalog.Domain.Ref(p.Base.Epoch(), address), false)
 }
 
-func (p *dropProvider) TerminalCleanup() bool {
-	return p.stage != nil && p.stage.terminalCleanup
+func (p *DropProvider) TerminalCleanup() bool {
+	return p.Stage != nil && p.Stage.terminalCleanup
 }
 
-func (p *dropProvider) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
-	if p.stage != nil {
-		lineage, present := p.stage.indexesOrZero().Layouts[address]
+func (p *DropProvider) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
+	if p.Stage != nil {
+		lineage, present := p.Stage.IndexesOrZero().Layouts[address]
 		return lineage, present
 	}
 	return p.preparedView().IndexLayout(address)
 }
 
-func (p *dropProvider) RecordIndexLayout(address ids.ObjectAddress, lineage index.LayoutLineage) {
-	if p.stage != nil {
-		if p.stage.indexesOrZero().Layouts == nil {
-			p.stage.indexes().Layouts = make(map[ids.ObjectAddress]index.LayoutLineage)
+func (p *DropProvider) RecordIndexLayout(address ids.ObjectAddress, lineage index.LayoutLineage) {
+	if p.Stage != nil {
+		if p.Stage.IndexesOrZero().Layouts == nil {
+			p.Stage.Indexes().Layouts = make(map[ids.ObjectAddress]index.LayoutLineage)
 		}
-		p.stage.indexes().Layouts[address] = lineage
+		p.Stage.Indexes().Layouts[address] = lineage
 		return
 	}
-	p.observe(address)
-	p.prepared.RecordEffect(table.DropEffect{Index: address, Layout: &lineage})
+	p.Observe(address)
+	p.Prepared.RecordEffect(table.DropEffect{Index: address, Layout: &lineage})
 }
 
-func (p *dropProvider) projectPreparedColumn(old, next *catalog.Relation) error {
+func (p *DropProvider) projectPreparedColumn(old, next *catalog.Relation) error {
 	if old.RelationKind == catalog.CompositeRelation || old.RelationKind == catalog.ForeignRelation {
-		return p.stage.replaceDescriptor(next, false, false)
+		return p.Stage.ReplaceDescriptor(next, false, false)
 	}
-	if p.changes != nil {
-		return p.scope.stagePreparedColumnShape(p.stage, p.changes, old, next)
+	if p.Changes != nil {
+		return p.Scope.stagePreparedColumnShape(p.Stage, p.Changes, old, next)
 	}
 	// Non-SQL physical retirement already separates metadata from the storage
 	// projector. This path retains its actual storage/lifetime checks.
-	return p.projectColumn(old, next)
+	return p.ProjectColumn(old, next)
 }
 
 // inputDescriptor reads the actual metadata entering this preparation. It never
 // substitutes that candidate for the captured predecessor used by observe.
-func (p *dropProvider) inputDescriptor(address ids.ObjectAddress) catalog.Descriptor {
-	p.observe(address)
+func (p *DropProvider) inputDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+	p.Observe(address)
 	return p.readInputDescriptor(address)
 }
 
-func (p *dropProvider) readInputDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+func (p *DropProvider) readInputDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	return p.preparedView().InputDescriptor(address)
 }
 
 // Retirement discovery retains the original identity of an already removed
 // provider so its AUTO closure remains traversable, just like the stage path.
-func (p *dropProvider) RetirementDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+func (p *DropProvider) RetirementDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if descriptor := p.inputDescriptor(address); descriptor != nil {
 		return descriptor
 	}
-	return p.base.Get(address)
+	return p.Base.Get(address)
 }
 
-func (p *dropProvider) InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
-	if p.prepared != nil {
+func (p *DropProvider) InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+	if p.Prepared != nil {
 		return p.Descriptors()
 	}
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
-		for address, descriptor := range p.base.Descriptors() {
+		for address, descriptor := range p.Base.Descriptors() {
 			if !yield(address, descriptor) {
 				return
 			}
@@ -595,7 +595,7 @@ func (p *dropProvider) InputDescriptors() iter.Seq2[ids.ObjectAddress, catalog.D
 	}
 }
 
-func (p *dropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
+func (p *DropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	return func(yield func(ids.ObjectAddress, catalog.Descriptor) bool) {
 		for address := range p.Descriptors() {
 			if descriptor := p.LiveDescriptor(address); descriptor != nil && !yield(address, descriptor) {
@@ -605,49 +605,49 @@ func (p *dropProvider) liveDescriptors() iter.Seq2[ids.ObjectAddress, catalog.De
 	}
 }
 
-func (p *dropProvider) policyDependentLabels(targets []ids.ObjectAddress) []view.Dependent {
-	if p.prepared == nil {
-		return view.PolicyDependentLabels(p.base, targets, p.path)
+func (p *DropProvider) policyDependentLabels(targets []ids.ObjectAddress) []view.Dependent {
+	if p.Prepared == nil {
+		return view.PolicyDependentLabels(p.Base, targets, p.SearchPath)
 	}
-	return view.PolicyDependentLabelsFrom(p.base, targets, p.path, p.liveDescriptors())
+	return view.PolicyDependentLabelsFrom(p.Base, targets, p.SearchPath, p.liveDescriptors())
 }
 
-func (p *dropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []view.Dependent {
-	if p.prepared == nil {
-		return view.RuleDependentLabels(p.base, targets, p.path)
+func (p *DropProvider) ruleDependentLabels(targets []ids.ObjectAddress) []view.Dependent {
+	if p.Prepared == nil {
+		return view.RuleDependentLabels(p.Base, targets, p.SearchPath)
 	}
-	return view.RuleDependentLabelsFrom(p.base, targets, p.path, p.liveDescriptors(), p.observe)
+	return view.RuleDependentLabelsFrom(p.Base, targets, p.SearchPath, p.liveDescriptors(), p.Observe)
 }
 
 // Catalog enumeration is discovery, not an observation of every unrelated
 // descriptor. Selected providers are captured by descriptor/effect/grant paths.
-func (p *dropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.Descriptor {
+func (p *DropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.Descriptor {
 	if descriptor := p.Replacement(address); descriptor != nil {
 		return descriptor
 	}
 	return p.readInputDescriptor(address)
 }
 
-// dropScope is the statement's DROP slot: prepared column drops already
+// DropScope is the statement's DROP slot: prepared column drops already
 // consumed by this statement.
-type dropScope struct {
-	consumedColumns map[*table.DropPreparation]struct{}
+type DropScope struct {
+	ConsumedColumns map[*table.DropPreparation]struct{}
 }
 
 // drops returns the statement's drops slot, allocating it on first use.
-func (s *StatementScope) drops() *dropScope {
-	if s.dropsSlot == nil {
-		s.dropsSlot = new(dropScope)
+func (s *StatementScope) drops() *DropScope {
+	if s.DropsSlot == nil {
+		s.DropsSlot = new(DropScope)
 	}
-	return s.dropsSlot
+	return s.DropsSlot
 }
 
 // dropsOrZero reads the drops slot; a nil slot reads as zero.
-func (s *StatementScope) dropsOrZero() dropScope {
-	if s.dropsSlot == nil {
-		return dropScope{}
+func (s *StatementScope) dropsOrZero() DropScope {
+	if s.DropsSlot == nil {
+		return DropScope{}
 	}
-	return *s.dropsSlot
+	return *s.DropsSlot
 }
 
 // dropDiscoveryInput is the definition a prepared drop discovers dependents

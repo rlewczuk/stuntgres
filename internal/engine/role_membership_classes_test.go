@@ -39,14 +39,14 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if len(addresses) != 1 {
 			t.Fatal(tc, addresses)
 		}
-		ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), addresses[0])
+		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), addresses[0])
 		refs = append(refs, ref)
 	}
 	// Namespace/relation ACLs use their existing internal publication seam.
 	// Type ACLs use the same validated immutable descriptor staging as domain
 	// fixtures; this does not expand the production SetObjectACL capability.
 	setACL := func(ref ids.ObjectRef, acl authorization.ACLValue) error {
-		view, err := operationAuthorization(op)
+		view, err := OperationAuthorization(op)
 		if err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, ref := range refs {
-		view, err := operationAuthorization(op)
+		view, err := OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err := setACL(ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal(err)
 		}
-		view, err = operationAuthorization(op)
+		view, err = OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	roleExecute(t, e, op, "REVOKE INHERIT OPTION FOR owner FROM reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, ref := range refs {
-		view, err := operationAuthorization(op)
+		view, err := OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}

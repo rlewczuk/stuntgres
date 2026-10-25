@@ -19,10 +19,10 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 	view, r, _ := rangeTypeUnitFamily(t, sqltype.Regclass, false)
 	next := catalog.CloneState(view.State())
 	target := New()
-	original := target.catalog.State
-	target.mu.Lock()
+	original := target.Catalog.State
+	target.Mu.Lock()
 	allocate := func() ids.OID {
-		id, err := target.catalog.AllocateOIDLocked()
+		id, err := target.Catalog.AllocateOIDLocked()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -30,7 +30,7 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 	}
 	first, second := allocate(), allocate()
 	lo, numeric := allocate(), allocate()
-	target.mu.Unlock()
+	target.Mu.Unlock()
 	if numeric != lo+1 {
 		t.Fatal("real retained TEMP prefix must expose the adjacent nonrelation identity", lo, numeric)
 	}
@@ -56,9 +56,9 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		target.mu.Lock()
-		mapping, err := control.TemporaryCollisionMapping(context.Background(), next, retained, constraints, target.catalog.AllocateOIDAtLeastLocked)
-		target.mu.Unlock()
+		target.Mu.Lock()
+		mapping, err := control.TemporaryCollisionMapping(context.Background(), next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+		target.Mu.Unlock()
 		if upper == numeric {
 			var diagnostic interface{ SQLState() string }
 			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22000" || !strings.Contains(err.Error(), fmt.Sprint(numeric)) {
@@ -95,7 +95,7 @@ func TestRangeTypeAliasNumericAnchorAtomicity(t *testing.T) {
 			t.Fatal("comparison repair lost cancellation", err)
 		}
 	}
-	if target.catalog.State != original {
+	if target.Catalog.State != original {
 		t.Fatal("failed detached mapping/validation published a catalog root")
 	}
 	if next.Get(relation.Address()) != relation || retained[temp.Address()] != &temp {

@@ -12,16 +12,16 @@ func (s *StatementScope) discardForeignHoldPromotions(primary error) error {
 		return primary
 	}
 	s.foreignUnlocked()
-	registry := payloadOf(s.op.Session).cursors
+	registry := PayloadOf(s.Op.Session).Cursors
 	for _, promoted := range promotions {
-		for name, current := range registry.entries {
+		for name, current := range registry.Entries {
 			if current != promoted {
 				continue
 			}
-			delete(registry.entries, name)
+			delete(registry.Entries, name)
 			// releaseProducer already ended the source before promotion. Dispose
 			// drops owned materialized values and cannot replay that source End.
-			if err := promoted.dispose(context.WithoutCancel(s.op.Context())); primary == nil {
+			if err := promoted.dispose(context.WithoutCancel(s.Op.Context())); primary == nil {
 				primary = err
 			}
 			break

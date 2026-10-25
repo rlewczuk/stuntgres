@@ -139,14 +139,14 @@ func TestForeignActionsAdmission(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	named, stored, descriptor := scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor
-	jobs, auth, err := dml.PrepareForeignActions(scope.writeHost())
+	named, stored, descriptor := scope.LockedRef, scope.LockedStorage, scope.LockedDescriptor
+	jobs, auth, err := dml.PrepareForeignActions(scope.WriteHost())
 	if err != nil {
 		t.Fatal(err)
 	}
 	job := foreignActionUnitJob(t, jobs, "c")
-	ref := e.catalog.Domain.Ref(auth.Access().Catalog.Epoch(), job.Child.Address())
-	children, err := scope.captureForeignKeyRows(ref, ids.ObjectAddress{})
+	ref := e.Catalog.Domain.Ref(auth.Access().Catalog.Epoch(), job.Child.Address())
+	children, err := scope.CaptureForeignKeyRows(ref, ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
 	before := len(scope.foreignActionsOrZero().Transitions)
-	if err = dml.ReplaceRows(scope.writeHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
+	if err = dml.ReplaceRows(scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
 	}
 	if len(scope.foreignActionsOrZero().Transitions) != before {
@@ -164,23 +164,23 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if err = scope.admitForeignAction(ref, job, false); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.foreignKeyGrant(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
+	if err = scope.ForeignKeyGrant(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.stage.deleteForeignAction(ref, old); err == nil {
+	if err = scope.Stage.deleteForeignAction(ref, old); err == nil {
 		t.Fatal("read-only action authority admitted deletion")
 	}
 	if err = scope.admitForeignAction(ref, job, true); err != nil {
 		t.Fatal(err)
 	}
-	scope.writeHost().SwapForeignActionAuthority(auth.ActingAs(job.Child.Owner))
+	scope.WriteHost().SwapForeignActionAuthority(auth.ActingAs(job.Child.Owner))
 	scope.foreignActions().Settling = true
-	if err = dml.ReplaceRows(scope.writeHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
+	if err = dml.ReplaceRows(scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
-	scope.foreignActionAuth = nil
+	scope.ForeignActionAuth = nil
 	scope.foreignActions().Settling = false
-	next := scope.stage.rows[ref.Address][0]
+	next := scope.Stage.Rows[ref.Address][0]
 	var childEvents []dml.ForeignActionTransition
 	for _, event := range scope.foreignActionsOrZero().Transitions {
 		if event.Relation == ref.Address {
@@ -190,35 +190,35 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(childEvents) != 1 || childEvents[0].Old.Version != old.Version || childEvents[0].Next.Version != next.Version || childEvents[0].Owner != job.Child.Owner {
 		t.Fatal("physical child lineage was not recorded", old, next, childEvents)
 	}
-	if scope.lockedRef != named || scope.lockedStorage != stored || scope.lockedDescriptor != descriptor {
+	if scope.LockedRef != named || scope.LockedStorage != stored || scope.LockedDescriptor != descriptor {
 		t.Fatal("child action spoofed initiating admission")
 	}
 	admission := scope.foreignActionsOrZero().Admissions[ref.Address]
-	if !admission.Mutated || admission.Tx != scope.txRef || admission.Storage != children.Storage {
+	if !admission.Mutated || admission.Tx != scope.TxRef || admission.Storage != children.Storage {
 		t.Fatal("missing captured physical child authority", admission)
 	}
 	foreign := ref
 	foreign.Address = catalogRef(t, e, e.CatalogRead(), "unrelated").Address
-	e.mu.Lock()
+	e.Mu.Lock()
 	err = scope.validateForeignActionLocked(e, foreign)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("unrelated child was authorized")
 	}
 	originalJob := admission.Jobs[0]
 	admission.Jobs[0].Definition.DeleteAction = parser.ForeignKeyRestrict
-	e.mu.Lock()
+	e.Mu.Lock()
 	err = scope.validateForeignActionLocked(e, ref)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	admission.Jobs[0] = originalJob
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed action definition authority survived", err)
 	}
 	originalStorage := admission.Storage
 	admission.Storage = &storage.Relation{}
-	e.mu.Lock()
+	e.Mu.Lock()
 	err = scope.validateForeignActionLocked(e, ref)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	admission.Storage = originalStorage
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("foreign child storage survived", err)
@@ -232,11 +232,11 @@ func TestForeignActionsClosure(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	scope := foreignActionUnitScope(t, e, s, "UPDATE p SET id=2")
-	if err := dml.SettleForeignActions(scope.writeHost()); err != nil {
+	if err := dml.SettleForeignActions(scope.WriteHost()); err != nil {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "g")
-	rows := scope.stage.rows[ref.Address]
+	rows := scope.Stage.Rows[ref.Address]
 	if len(rows) != 1 {
 		t.Fatal(rows)
 	}
@@ -253,7 +253,7 @@ func TestForeignActionsClosure(t *testing.T) {
 	if !sqltype.SameDatum(rows[0].Values[1], expected) || !sqltype.SameDatum(rows[0].Values[2], expected) {
 		t.Fatal("second path overwrote first staged payload", rows[0])
 	}
-	if scope.lockedRef.Address == ref.Address {
+	if scope.LockedRef.Address == ref.Address {
 		t.Fatal("closure retargeted named admission")
 	}
 }
@@ -272,10 +272,10 @@ func TestForeignActionsDefaults(t *testing.T) {
 			}
 			defaultProbe(t, e, probe)
 			ref := catalogRef(t, e, e.CatalogRead(), "d")
-			before := e.storage.Relations[ref.Address]
+			before := e.Storage.Relations[ref.Address]
 			versions := slices.Clone(before.Versions)
 			scope := foreignActionUnitScope(t, e, s, "DELETE FROM p WHERE id=10")
-			err := dml.SettleForeignActions(scope.writeHost())
+			err := dml.SettleForeignActions(scope.WriteHost())
 			if probe.ordinal != 2 {
 				t.Fatal("default demand was not per physical row", probe.ordinal)
 			}
@@ -288,7 +288,7 @@ func TestForeignActionsDefaults(t *testing.T) {
 					t.Fatal("late action failure succeeded")
 				}
 			} else {
-				rows := scope.stage.rows[ref.Address]
+				rows := scope.Stage.Rows[ref.Address]
 				if len(rows) != 2 {
 					t.Fatal(rows)
 				}
@@ -299,7 +299,7 @@ func TestForeignActionsDefaults(t *testing.T) {
 					}
 				}
 			}
-			if e.storage.Relations[ref.Address] != before || !reflect.DeepEqual(before.Versions, versions) {
+			if e.Storage.Relations[ref.Address] != before || !reflect.DeepEqual(before.Versions, versions) {
 				t.Fatal("private action changed committed storage")
 			}
 		})

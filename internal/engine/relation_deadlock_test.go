@@ -17,7 +17,7 @@ func deadlockRequest(t *testing.T, e *Engine, ticket *lock.Ticket, resource lock
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
-	r, err := e.locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
+	r, err := e.Locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 				transactionBegin(t, sessions[i])
 				tickets[i] = sessions[i].Transactions.Ticket
 				resources[i] = lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), fmt.Sprintf("t%d", i))}
-				t.Cleanup(func() { e.endLockOwner(tickets[i]) })
+				t.Cleanup(func() { e.EndLockOwner(tickets[i]) })
 			}
 			modes := make([]lock.Mode, n)
 			for i := range n {
@@ -146,7 +146,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 				}
 			}
 			victim := -1
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			for i, r := range pending {
 				if r.Terminal() {
 					if victim != -1 {
@@ -166,14 +166,14 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 				t.Fatal("hard cycle was not detected")
 			}
 			deadlockDiagnostic(t, deadlockResult(t, pending[victim]), tickets, resources)
-			e.endLockOwner(tickets[victim])
+			e.EndLockOwner(tickets[victim])
 			// End each newly unblocked owner to let the remaining chain drain.
 			for step := 1; step < n; step++ {
 				i := (victim - step + n) % n
 				if err := deadlockResult(t, pending[i]); err != nil {
 					t.Fatal("survivor", err)
 				}
-				e.endLockOwner(tickets[i])
+				e.EndLockOwner(tickets[i])
 			}
 			lockEmpty(t, e)
 		})
@@ -190,7 +190,7 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	for _, s := range []*session.Session{a, b, c} {
 		transactionBegin(t, s)
 		ticket := s.Transactions.Ticket
-		t.Cleanup(func() { e.endLockOwner(ticket) })
+		t.Cleanup(func() { e.EndLockOwner(ticket) })
 	}
 	x := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t1")}
 	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t2")}
@@ -198,7 +198,7 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	deadlockRequest(t, e, c.Transactions.Ticket, y, lock.AccessExclusive)
 	rb := deadlockRequest(t, e, b.Transactions.Ticket, x, lock.AccessExclusive)
 	rc := deadlockRequest(t, e, c.Transactions.Ticket, x, lock.AccessShare)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	queue := lockState.Resources[x].Pending
 	ordered := len(queue) == 2 && queue[0].Request == rb && queue[1].Request == rc
 	if !ordered {
@@ -208,21 +208,21 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	if err := deadlockResult(t, rc); err != nil {
 		t.Fatal("resolvable soft cycle must not abort", err)
 	}
-	lockState = e.locks.Inspect()
+	lockState = e.Locks.Inspect()
 	ah := lockState.Resources[x].Holders[a.Transactions.Ticket].Mode
 	bt := rb.Terminal()
 	if ah != lock.AccessShare || bt {
 		t.Fatal("reorder revoked holder or granted incompatible follower")
 	}
-	e.endLockOwner(c.Transactions.Ticket)
+	e.EndLockOwner(c.Transactions.Ticket)
 	if err := deadlockResult(t, ra); err != nil {
 		t.Fatal(err)
 	}
-	e.endLockOwner(a.Transactions.Ticket)
+	e.EndLockOwner(a.Transactions.Ticket)
 	if err := deadlockResult(t, rb); err != nil {
 		t.Fatal(err)
 	}
-	e.endLockOwner(b.Transactions.Ticket)
+	e.EndLockOwner(b.Transactions.Ticket)
 	lockEmpty(t, e)
 }
 
@@ -232,13 +232,13 @@ func TestRelationDeadlockUncontended(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(v INT)")
 	transactionBegin(t, a)
 	ticket := a.Transactions.Ticket
-	defer e.endLockOwner(ticket)
+	defer e.EndLockOwner(ticket)
 	resource := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
-	if err := e.locks.Acquire(context.Background(), ticket, resource, lock.AccessShare); err != nil {
+	if err := e.Locks.Acquire(context.Background(), ticket, resource, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	allocations := testing.AllocsPerRun(100, func() {
-		if err := e.locks.Acquire(context.Background(), ticket, resource, lock.AccessShare); err != nil {
+		if err := e.Locks.Acquire(context.Background(), ticket, resource, lock.AccessShare); err != nil {
 			panic(err)
 		}
 	})

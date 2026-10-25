@@ -13,21 +13,21 @@ import (
 // reconstructing the overlay validates CREATE/REINDEX at this statement, with
 // build diagnostics, rather than incorrectly delaying errors until COMMIT.
 func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *CatalogStage, c *session.Journal) error {
-	e.mu.Lock()
-	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(c)
-	auth, err := e.authorizationLocked(scope.op)
+	view := e.PrivateCatalogLocked(c)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	captures, err := index.SelectOverlayCapturesLocked(&e.storage, view, &stage.Candidate, stage.indexesOrZero(), scope.owner.Catalog, c)
-	e.mu.Unlock()
+	captures, err := index.SelectOverlayCapturesLocked(&e.Storage, view, &stage.Candidate, stage.IndexesOrZero(), scope.Owner.Catalog, c)
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -36,27 +36,27 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		idx, parent := capture.Index, capture.Parent
 		building := true
 		indexAuth := auth
-		if r := stage.materializedOrZero().Replacement; r != nil && r.Concurrent && r.Original.Address() == parent.Address() {
+		if r := stage.MaterializedOrZero().Replacement; r != nil && r.Concurrent && r.Original.Address() == parent.Address() {
 			building = false
 			indexAuth.State.CurrentUser = parent.Owner
 			if _, err := indexAuth.Roles.Descriptor(parent.Owner); err != nil {
 				return err
 			}
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
 		if idx.SQLIndex.HasRuntimeDomainConversion() {
 			var err error
-			evaluation.Input.TypeDiagnosticName, err = captureTypeDiagnosticName(indexAuth)
+			evaluation.Input.TypeDiagnosticName, err = CaptureTypeDiagnosticName(indexAuth)
 			if err != nil {
 				return err
 			}
 		}
-		writes, deletes := scope.columnProjectionRoots(parent.Address())
+		writes, deletes := scope.ColumnProjectionRoots(parent.Address())
 		if stage.initialTables[parent.Address()] != nil {
-			writes = scope.stage.rows[parent.Address()]
+			writes = scope.Stage.Rows[parent.Address()]
 		}
-		visible, err := index.BuildVisibleStore(scope.op.Context(), &capture.Store, writes, deletes)
+		visible, err := index.BuildVisibleStore(scope.Op.Context(), &capture.Store, writes, deletes)
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return err
 		}
 		schema := view.Get(parent.Namespace()).Name()
-		if err := index.ValidateUniqueRoot(scope.op.Context(), parent, idx, full, schema, scope.output, &indexAuth.View, disclosureEnv(&indexAuth), building); err != nil {
+		if err := index.ValidateUniqueRoot(scope.Op.Context(), parent, idx, full, schema, scope.Output, &indexAuth.View, DisclosureEnv(&indexAuth), building); err != nil {
 			return err
 		}
 		build := &index.AlterIndexBuild{Index: idx, Root: full, Store: visible}
@@ -81,17 +81,17 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		}
 		var positions map[index.RowIdentity]int
 		if visible != &capture.Store {
-			positions, err = index.BuildPositions(scope.op.Context(), &capture.Store)
+			positions, err = index.BuildPositions(scope.Op.Context(), &capture.Store)
 			if err != nil {
 				return err
 			}
 		}
-		baseline, err := build.BaselineRoot(scope.op.Context(), idx, &capture.Store, positions)
+		baseline, err := build.BaselineRoot(scope.Op.Context(), idx, &capture.Store, positions)
 		if err != nil {
 			return err
 		}
 		index.RetainIndexBuild(c, idx, &capture.Store, baseline)
-		updated, changed, err := index.AttachIndexBuildOutputs(scope.op.Context(), writes, map[string]*index.AlterIndexBuild{idx.Name(): build})
+		updated, changed, err := index.AttachIndexBuildOutputs(scope.Op.Context(), writes, map[string]*index.AlterIndexBuild{idx.Name(): build})
 		if err != nil {
 			return err
 		}
@@ -99,11 +99,11 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			if stage.initialTables[parent.Address()] != nil {
 				// These rows were produced by this CREATE statement, not an
 				// earlier transaction prefix owned by the projection helper.
-				scope.stage.rows[parent.Address()] = updated
+				scope.Stage.Rows[parent.Address()] = updated
 			} else {
-				scope.stageProjectedColumnRoots(parent.Address(), updated, deletes)
+				scope.StageProjectedColumnRoots(parent.Address(), updated, deletes)
 			}
 		}
 	}
-	return scope.op.Context().Err()
+	return scope.Op.Context().Err()
 }

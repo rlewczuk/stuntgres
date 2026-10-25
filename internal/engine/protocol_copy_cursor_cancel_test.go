@@ -104,7 +104,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 				Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
 				Targets:  []int{0},
 			}
-			cursor = dml.NewCopyCursor(scope.writeHost(), binding, copyfmt.NewLineReader(
+			cursor = dml.NewCopyCursor(scope.WriteHost(), binding, copyfmt.NewLineReader(
 				copyfmt.Options{Delimiter: '\t', Null: "\\N"},
 				bufio.NewReader(strings.NewReader(tc.input)),
 				[]copyfmt.Target{{Name: "v"}},
@@ -117,7 +117,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 				if err := in.ReadHeader(); err != nil {
 					t.Fatal("binary header setup", err)
 				}
-				cursor = dml.NewCopyBinaryCursor(scope.writeHost(), binding, in)
+				cursor = dml.NewCopyBinaryCursor(scope.WriteHost(), binding, in)
 			}
 			op.CopyInput.Active.Store(true)
 			op.CopyInput.Decoding.Store(true)
@@ -205,7 +205,7 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 				return nil
 			}})
 			err = scope.copyCommandError(err)
-			if count != 0 || called == tc.before || len(scope.stage.rows) != 0 {
+			if count != 0 || called == tc.before || len(scope.Stage.Rows) != 0 {
 				t.Fatal("COPY Start cancellation lost admission or staged rows", count, called, err)
 			}
 			if tc.startFailure {

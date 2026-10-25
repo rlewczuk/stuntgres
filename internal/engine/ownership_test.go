@@ -17,21 +17,21 @@ import (
 
 func ownershipUnitRoles() (e *Engine, owner, source, target, reader authorization.PrincipalRef) {
 	e = New()
-	owner = e.roles.Domain.Principal(10)
+	owner = e.RoleStore.Domain.Principal(10)
 	refs := []*authorization.PrincipalRef{&source, &target, &reader}
 	names := []string{"ownership_source", "ownership_target", "ownership_reader"}
-	publication := cloneRoleFixture(e.roles.Published)
+	publication := cloneRoleFixture(e.RoleStore.Published)
 	for i, destination := range refs {
-		e.roles.InstallPrincipalFrontierLocked(uint64(100001 + i))
-		ref, err := e.roles.PrincipalCandidateLocked()
+		e.RoleStore.InstallPrincipalFrontierLocked(uint64(100001 + i))
+		ref, err := e.RoleStore.PrincipalCandidateLocked()
 		if err != nil {
 			panic(err)
 		}
 		*destination = ref
-		e.roles.InstallPrincipalFrontierLocked(ref.ID() + 1)
+		e.RoleStore.InstallPrincipalFrontierLocked(ref.ID() + 1)
 		putFixtureRole(publication, authorization.RoleDescriptor{Ref: ref, Name: names[i], Inherit: true})
 	}
-	e.roles.PublishLocked(publication)
+	e.RoleStore.PublishLocked(publication)
 	return
 }
 func ownershipUnitExec(t *testing.T, e *Engine, q string) {
@@ -80,10 +80,10 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	ownershipUnitPublish(t, e, setup)
 	base = e.CatalogRead()
 	oldTable := base.MustRelation(table.Address())
-	store := e.storage.Relations[table.Address()]
+	store := e.Storage.Relations[table.Address()]
 	rows := store.Versions
 	generators := make(map[ids.ObjectAddress]*storage.SequenceGenerator)
-	for a, g := range e.storage.Sequences {
+	for a, g := range e.Storage.Sequences {
 		generators[a] = g
 	}
 	stage := e.BeginCatalogStage(base)
@@ -132,11 +132,11 @@ func TestRoleOwnershipReciprocityAndStorage(t *testing.T) {
 	if moved.Owner != target || moved.Attributes[1] != oldTable.Attributes[1] || moved.Security.ACL.Entries[0].Grantor != target || moved.Security.ColumnACL[moved.Attributes[1]].Entries[0].Grantor != target {
 		t.Fatal("table/column ACL or stable attribute", moved)
 	}
-	if e.storage.Relations[table.Address()] != store || len(store.Versions) != len(rows) || &store.Versions[0] != &rows[0] || oldTable.Owner != owner || oldTable.Security.ACL.Entries[0].Grantor != owner {
+	if e.Storage.Relations[table.Address()] != store || len(store.Versions) != len(rows) || &store.Versions[0] != &rows[0] || oldTable.Owner != owner || oldTable.Security.ACL.Entries[0].Grantor != owner {
 		t.Fatal("retained data/descriptor changed")
 	}
 	for a, g := range generators {
-		if e.storage.Sequences[a] != g {
+		if e.Storage.Sequences[a] != g {
 			t.Fatal("ownership replaced sequence generator", a)
 		}
 	}
@@ -161,7 +161,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 			}
 		}
 	}
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_overflow", ObjectRevision: ids.DefinitionRevision(^uint64(0)), Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_overflow", ObjectRevision: ids.DefinitionRevision(^uint64(0)), Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestRoleOwnershipBuiltinRootsAndRevisionHeadroom(t *testing.T) {
 	if err := role.StageOwnership(stage, ns, target); err == nil {
 		t.Fatal("metadata overflow accepted")
 	}
-	if stage.DescriptorCount() != 0 || e.catalog.State.Get(ns.Address()) != ns {
+	if stage.DescriptorCount() != 0 || e.Catalog.State.Get(ns.Address()) != ns {
 		t.Fatal("overflow changed private/live descriptor")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -189,9 +189,9 @@ func TestRoleOwnershipEffectFreeDescription(t *testing.T) {
 	}
 	defer done()
 	for _, stmt := range []parser.Statement{&parser.AlterOwner{Kind: "table", Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent"}}}, Target: parser.RoleSpec{Name: "absent"}}, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "absent"}}, Target: parser.RoleSpec{Name: "absent"}}, &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "absent"}}}} {
-		before, roles := e.catalog.State, e.roles.Published
+		before, roles := e.Catalog.State, e.RoleStore.Published
 		description, err := e.Describe(op, stmt)
-		if err != nil || description.Parameters.Count != 0 || len(description.Parameters.Types) != 0 || len(description.Results) != 0 || e.catalog.State != before || e.roles.Published != roles {
+		if err != nil || description.Parameters.Count != 0 || len(description.Parameters.Types) != 0 || len(description.Results) != 0 || e.Catalog.State != before || e.RoleStore.Published != roles {
 			t.Fatal("description resolves or mutates ownership", description, err)
 		}
 	}
@@ -203,30 +203,30 @@ func TestRoleOwnershipDirectProviderProtection(t *testing.T) {
 		ownershipUnitExec(t, e, q)
 	}
 	for _, name := range []string{"pg_catalog.pg_class", "ownership_guard_idx", "ownership_guard_c"} {
-		before, roles := e.catalog.State, e.roles.Published
+		before, roles := e.Catalog.State, e.RoleStore.Published
 		if _, err := testExecute(e, context.Background(), statement(t, "ALTER TABLE "+name+" OWNER TO ownership_target"), nil); err == nil {
 			t.Fatal("direct provider/backing ownership accepted", name)
 		}
-		if e.catalog.State != before || e.roles.Published != roles {
+		if e.Catalog.State != before || e.RoleStore.Published != roles {
 			t.Fatal("direct provider/backing mutation", name)
 		}
 	}
 }
 func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 	e := New()
-	graph := cloneRoleFixture(e.roles.Published)
-	initial := e.roles.Domain.Principal(authorization.BootstrapPrincipalID)
+	graph := cloneRoleFixture(e.RoleStore.Published)
+	initial := e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
 	renamed := fixtureRole(graph, initial)
 	renamed.Name = "renamed_initial"
 	putFixtureRole(graph, renamed)
 
-	ordinary := e.roles.Domain.Principal(e.roles.NextPrincipal())
+	ordinary := e.RoleStore.Domain.Principal(e.RoleStore.NextPrincipal())
 	putFixtureRole(graph, authorization.RoleDescriptor{Ref: ordinary, Name: "postgres", Superuser: true, Inherit: true})
 
 	auth := catalogAuthorization(e, e.CatalogRead())
-	auth.Roles = e.roles.Read(&e.catalog.Owner, auth.Catalog, graph)
+	auth.Roles = e.RoleStore.Read(&e.Catalog.Owner, auth.Catalog, graph)
 	auth.RoleRecord = graph
-	retained := e.roles.Published
+	retained := e.RoleStore.Published
 	for _, reassign := range []bool{false, true} {
 		refs, protected, err := role.OwnedSources(auth.View, []parser.RoleSpec{{Name: "postgres"}, {Name: "renamed_initial"}, {Name: "renamed_initial"}}, reassign)
 		if err != nil || len(refs) != 2 || !refs[ordinary] || !refs[initial] || protected != initial {
@@ -240,7 +240,7 @@ func TestRoleOwnershipInitialSourceCanonicalIdentity(t *testing.T) {
 			t.Fatal("initial protection masked late operand resolution")
 		}
 	}
-	if fixtureRole(graph, initial).Predefined() || e.roles.Published != retained || fixtureRole(e.roles.Published, initial).Name != "postgres" {
+	if fixtureRole(graph, initial).Predefined() || e.RoleStore.Published != retained || fixtureRole(e.RoleStore.Published, initial).Name != "postgres" {
 		t.Fatal("protection changed unrelated predefined flag or live initial identity")
 	}
 }

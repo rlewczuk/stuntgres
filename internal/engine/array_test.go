@@ -48,7 +48,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	if !ok || array.Name() != "_collision_1" || array.DatabaseName() != "_COLLISION_1" || array.Element() != domain.SQLType || array.ID() == domain.SQLType.ID() {
 		t.Fatal("collision association", array)
 	}
-	associated := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
+	associated := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())})
 	if associated.Owner != domain.Owner || associated.Namespace() != domain.Namespace() || associated.Revision() != domain.Revision() {
 		t.Fatal("association ownership", associated, domain)
 	}
@@ -72,12 +72,12 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	}
 	// Existing staged names participate in generated-name collision resolution.
 	staged := domainUnitStage(t, e, op, "CREATE DOMAIN public._staged AS INT")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		err = typedef.StageCreateDomainLocked(ddlHost{e: e, op: op, stage: staged}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		err = typedef.StageCreateDomainLocked(DDLHost{E: e, Op: op, CatalogStage: staged}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	copied := *domain
 	copied.Array = sqltype.NameArray
 	broken.SetDescriptor(domain.Address(), &copied)
-	if err := (stored.TypeProvider{}).Validate(e.catalog.Read(broken), associated); err == nil {
+	if err := (stored.TypeProvider{}).Validate(e.Catalog.Read(broken), associated); err == nil {
 		t.Fatal("broken reverse association accepted")
 	}
 	foreignBase, _ := New().CatalogRead().LookupType(sqltype.Int4)
@@ -106,9 +106,9 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	}
 	forged := *associated
 	forged.SQLType = foreignArray
-	broken = catalog.CloneState(e.catalog.State)
+	broken = catalog.CloneState(e.Catalog.State)
 	broken.SetDescriptor(associated.Address(), &forged)
-	if err := (stored.TypeProvider{}).Validate(e.catalog.Read(broken), &forged); err == nil {
+	if err := (stored.TypeProvider{}).Validate(e.Catalog.Read(broken), &forged); err == nil {
 		t.Fatal("foreign array element accepted")
 	}
 }
@@ -124,11 +124,11 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.whole AS public.di[]"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.nested AS public.whole[]"))
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.di RESTRICT")
-	edges, err := domainDependencyClosure(context.Background(), stage, stage.domainTargets)
+	edges, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}
-	diagnostic := domainRestrictError(stage, stage.domainTargets, edges, len(stage.domainTargets), ids.ObjectAddress{}).(*sqlstate.Error)
+	diagnostic := domainRestrictError(stage, stage.DomainTargets, edges, len(stage.DomainTargets), ids.ObjectAddress{}).(*sqlstate.Error)
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop type di because other objects depend on it", Detail: "column a of table array_depend depends on type di[]\ntype whole depends on type di[]\ntype nested depends on type whole[]", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	if !reflect.DeepEqual(*diagnostic, want) {
 		t.Fatalf("dependency=%#v want %#v", *diagnostic, want)
@@ -139,12 +139,12 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := statement(t, "DROP DOMAIN public.di CASCADE")
-	if err = scope.gate(raw); err != nil {
+	if err = scope.Gate(raw); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	stage, err = e.stageSchemaLocked(op, raw, scope.input, scope.output)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	stage, err = e.stageSchemaLocked(op, raw, scope.Input, scope.Output)
+	e.Mu.Unlock()
 	if err == nil {
 		err = scope.stageDomainDependents(stage, parser.DropCascade)
 	}
@@ -220,13 +220,13 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	}
 	original := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
 	relations := map[ids.ObjectAddress]*storage.Relation{table.Address(): original}
-	next := catalog.CloneState(e.catalog.State)
+	next := catalog.CloneState(e.Catalog.State)
 	fresh := New()
 	regclassAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}
 	// Replace only the builtin scalar generation, retaining this catalog's
 	// principal authority; a foreign descriptor would invalidate its array owner.
 	reboundRegclass := *next.MustType(regclassAddress)
-	reboundRegclass.SQLType = fresh.catalog.State.MustType(regclassAddress).SQLType
+	reboundRegclass.SQLType = fresh.Catalog.State.MustType(regclassAddress).SQLType
 	next.SetDescriptor(regclassAddress, &reboundRegclass)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{referent.Address(): {ClassID: ids.RelationClassID, ObjectID: 60021}}
 	for i, typ := range []*sqltype.Descriptor{rc.SQLType, rcArray, whole.SQLType, wholeArray, nested.SQLType, nestedArray} {
@@ -281,7 +281,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 	for key, address := range names {
 		next.BindName(key, address)
 	}
-	view := e.catalog.Read(next)
+	view := e.Catalog.Read(next)
 	for _, descriptor := range next.Descriptors() {
 		if typ, ok := descriptor.(*catalog.Type); ok {
 			if err := (stored.TypeProvider{}).Validate(view, typ); err != nil {
@@ -312,19 +312,19 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 // These are valid catalog-provider component fixtures, not public TEMP-table SQL.
 func arrayComponentTemporary(t *testing.T, e *Engine, op *session.Operation, prototype *catalog.Relation) *catalog.Relation {
 	t.Helper()
-	e.mu.Lock()
-	nsOID, err := e.catalog.AllocateOIDLocked()
+	e.Mu.Lock()
+	nsOID, err := e.Catalog.AllocateOIDLocked()
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	tableOID, err := e.catalog.AllocateOIDLocked()
+	tableOID, err := e.Catalog.AllocateOIDLocked()
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	revision, err := e.catalog.RevisionLocked()
-	e.mu.Unlock()
+	revision, err := e.Catalog.RevisionLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,9 +343,9 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *session.Operation, pro
 	if err := stage.Create(ns); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	err = e.stageRowTypeLocked(stage, &table)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.StageRowTypeLocked(stage, &table)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,11 +353,11 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *session.Operation, pro
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
-	e.mu.Lock()
+	e.Mu.Lock()
 	op.Session.Mu.Lock()
 	op.Session.TemporaryNamespace = ns.Address()
 	op.Session.Mu.Unlock()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return &table
 }
 
@@ -378,10 +378,10 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{i, v}}}}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), store)
-	e.visibility.SetCommitSeqLocked(1)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), store)
+	e.Visibility.SetCommitSeqLocked(1)
+	e.Mu.Unlock()
 	held := exec.NewFinalRows(table.Columns, 1)
 	held.Values = store.Versions[0].Values
 	defer held.Close()
@@ -402,10 +402,10 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	sourceStore := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 4, Version: 7, Born: 1, Values: []sqltype.Value{sourceInt, sourceText}}}}
-	replacement.mu.Lock()
-	replacement.storage.InstallRelationLocked(importedSource.Address(), sourceStore)
-	replacement.visibility.SetCommitSeqLocked(1)
-	replacement.mu.Unlock()
+	replacement.Mu.Lock()
+	replacement.Storage.InstallRelationLocked(importedSource.Address(), sourceStore)
+	replacement.Visibility.SetCommitSeqLocked(1)
+	replacement.Mu.Unlock()
 	importedTypes := make(map[ids.ObjectAddress]*catalog.Type)
 	for address, descriptor := range replacement.CatalogRead().Descriptors() {
 		if typ, ok := descriptor.(*catalog.Type); ok && typ.SQLType.NamespaceName() != "" && typ.OwningRelation == (ids.ObjectAddress{}) {
@@ -416,7 +416,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
-	if current.Get(table.Address()) != table || e.storage.Relations[table.Address()] != store || held.Schema()[0].Usage.Type != integer {
+	if current.Get(table.Address()) != table || e.Storage.Relations[table.Address()] != store || held.Schema()[0].Usage.Type != integer {
 		t.Fatal("retained TEMP identity changed")
 	}
 	if row := store.Versions[0]; row.Row != 42 || row.Version != 99 || row.Born != 1 || store.Generation != 3 {
@@ -431,7 +431,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		}
 	}
 	for _, descriptor := range current.Descriptors() {
-		if err := e.catalog.Providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
+		if err := e.Catalog.Providers[descriptor.Address().ClassID].Validate(current, descriptor); err != nil {
 			t.Fatal("invalid retained provider", descriptor.Address(), descriptor.Name(), err)
 		}
 	}
@@ -463,7 +463,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 		t.Fatal("missing imported persistent table", importedAddresses)
 	}
 	imported := current.MustRelation(importedAddresses[0])
-	importedStore := e.storage.Relations[imported.Address()]
+	importedStore := e.Storage.Relations[imported.Address()]
 	if importedStore == nil || len(importedStore.Versions) != 1 {
 		t.Fatal("missing imported persistent storage", importedStore)
 	}
@@ -471,7 +471,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	if imported.Columns[0].Usage.Type != integer || imported.Columns[1].Usage.Type != text || len(live) != 2 || !sqltype.SameDatum(live[0], i) || !sqltype.SameDatum(live[1], v) {
 		t.Fatal("persistent rows not reowned against retained builtin closure", imported, live)
 	}
-	if sourceStore.Versions[0].Values[0].Type() != foreign || importedSource.Columns[0].Usage.Type != foreign || replacement.storage.Relations[importedSource.Address()] != sourceStore {
+	if sourceStore.Versions[0].Values[0].Type() != foreign || importedSource.Columns[0].Usage.Type != foreign || replacement.Storage.Relations[importedSource.Address()] != sourceStore {
 		t.Fatal("source persistent provider/payload mutated")
 	}
 	frame := make([]sqltype.Value, 2)
@@ -495,10 +495,10 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), store)
-	e.visibility.SetCommitSeqLocked(1)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), store)
+	e.Visibility.SetCommitSeqLocked(1)
+	e.Mu.Unlock()
 	held := exec.NewFinalRows(table.Columns, 1)
 	held.Values = store.Versions[0].Values
 	defer held.Close()
@@ -506,9 +506,9 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		t.Fatal("compatible exact self replacement", err)
 	}
 	before := e.CatalogRead()
-	oldStore := e.storage.Relations[table.Address()]
-	frontier := e.catalog.NextOID()
-	revision := e.catalog.NextRevision()
+	oldStore := e.Storage.Relations[table.Address()]
+	frontier := e.Catalog.NextOID()
+	revision := e.Catalog.NextRevision()
 	unrelated := New()
 	actor, finish := roleOperation(t, unrelated, "postgres")
 	domainUnitPublish(t, unrelated, domainUnitStage(t, unrelated, actor, "CREATE DOMAIN public.array_temp_di AS INT"))
@@ -525,7 +525,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 		if err == nil || errors.As(err, &diagnostic) || err.Error() != "stuntgres: catalog replacement with incompatible live temporary user-domain array dependencies is unsupported" {
 			t.Fatal("ordinary boundary", err)
 		}
-		if e.CatalogRead().State() != before.State() || e.storage.Relations[table.Address()] != oldStore || e.catalog.NextOID() != frontier || e.catalog.NextRevision() != revision || before.Get(table.Address()) != table || held.Schema()[0].Usage.Type != typ {
+		if e.CatalogRead().State() != before.State() || e.Storage.Relations[table.Address()] != oldStore || e.Catalog.NextOID() != frontier || e.Catalog.NextRevision() != revision || before.Get(table.Address()) != table || held.Schema()[0].Usage.Type != typ {
 			t.Fatal("rejected replacement changed target state")
 		}
 		domain, _ := before.LookupType(typ.Element().ID())

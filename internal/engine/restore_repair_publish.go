@@ -13,8 +13,8 @@ import (
 // validation and publication, and discards the stage on every exit.
 func (e *Engine) publishRestoreRepairLocked(op *session.Operation, auth AuthorizationView, next *catalog.Relation, epoch ids.CatalogEpoch) error {
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	e.mu.Unlock()
+	stage.AuthorizeLocked(auth, op.Session)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Replace(next); err != nil {
 		return err
@@ -23,6 +23,6 @@ func (e *Engine) publishRestoreRepairLocked(op *session.Operation, auth Authoriz
 	if err != nil {
 		return err
 	}
-	_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: epoch})
+	_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: epoch})
 	return err
 }

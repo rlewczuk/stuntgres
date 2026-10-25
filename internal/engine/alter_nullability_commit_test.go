@@ -51,7 +51,7 @@ func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
 			}
 			before.assertUnchanged(t, e, s)
 		} else {
-			if !result.Committed || len(e.catalog.State.MustRelation(ref.Address).Columns) != 1 {
+			if !result.Committed || len(e.Catalog.State.MustRelation(ref.Address).Columns) != 1 {
 				t.Fatal("partial combined commit", at, result)
 			}
 			transactionRows(t, s, "SELECT a FROM t ORDER BY a", 8, 9)

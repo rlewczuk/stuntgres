@@ -10,37 +10,37 @@ import (
 )
 
 func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *session.Journal) bool {
-	d, ok := e.privateCatalogLocked(changes).Relation(ref.Address)
+	d, ok := e.PrivateCatalogLocked(changes).Relation(ref.Address)
 	if !ok || d.RelationKind != catalog.TableRelation {
 		return false
 	}
-	ns, ok := e.privateCatalogLocked(changes).Namespace(d.Namespace())
-	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.storage.Relations[ref.Address] != nil
+	ns, ok := e.PrivateCatalogLocked(changes).Namespace(d.Namespace())
+	return ok && ns.Temporary == (ids.SessionToken{}) && d.Namespace().ObjectID != ids.PGCatalogNamespaceOID && e.Storage.Relations[ref.Address] != nil
 }
 
-func (e *Engine) serializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {
-	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 {
+func (e *Engine) SerializableReadLocked(s *StatementScope, ref ids.ObjectRef) error {
+	if ref.Domain() != e.Catalog.Domain || ref.Address.SubID != 0 {
 		return errors.New("stuntgres: foreign SSI relation")
 	}
-	if ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if s.txRef.Domain() != e.catalog.Domain || session.TxOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
+	if s.TxRef.Domain() != e.Catalog.Domain || session.TxOwnerOf(s.TxRef) != s.Owner || s.TxRef != s.Owner.Ref {
 		return errors.New("stuntgres: invalid SSI read authority")
 	}
 	// Relevance is the cheap test; most readers are not serializable.
-	node := e.visibility.RelevantSerializableLocked(s.txRef)
-	if node == nil || !e.serializableEligibleLocked(ref, s.owner.Catalog) {
+	node := e.Visibility.RelevantSerializableLocked(s.TxRef)
+	if node == nil || !e.serializableEligibleLocked(ref, s.Owner.Catalog) {
 		return nil
 	}
-	return e.visibility.SerializableReadLocked(node, ref.Address)
+	return e.Visibility.SerializableReadLocked(node, ref.Address)
 }
 
-func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []visibility.SerializableWrite) error {
-	if ref.Domain() != e.catalog.Domain || ref.Address.SubID != 0 || s.txRef.Domain() != e.catalog.Domain || session.TxOwnerOf(s.txRef) != s.owner || s.txRef != s.owner.Ref {
+func (e *Engine) SerializableWriteLocked(s *StatementScope, ref ids.ObjectRef, events []visibility.SerializableWrite) error {
+	if ref.Domain() != e.Catalog.Domain || ref.Address.SubID != 0 || s.TxRef.Domain() != e.Catalog.Domain || session.TxOwnerOf(s.TxRef) != s.Owner || s.TxRef != s.Owner.Ref {
 		return errors.New("stuntgres: invalid SSI write authority")
 	}
-	if ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	for _, event := range events {
@@ -48,18 +48,18 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 			return errors.New("stuntgres: invalid SSI write identity")
 		}
 	}
-	if !e.serializableEligibleLocked(ref, s.owner.Catalog) {
+	if !e.serializableEligibleLocked(ref, s.Owner.Catalog) {
 		return nil
 	}
-	node := e.visibility.RelevantSerializableLocked(s.txRef)
+	node := e.Visibility.RelevantSerializableLocked(s.TxRef)
 	if node == nil {
 		return nil
 	}
-	return e.visibility.SerializableWriteLocked(node, s.txRef, ref.Address, events)
+	return e.Visibility.SerializableWriteLocked(node, s.TxRef, ref.Address, events)
 }
 
 // Rollback restores surviving identity evidence only, never graph edges,
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
 func (e *Engine) reconcileSerializableWritesLocked(t *session.TransactionOwner) {
-	e.visibility.ReconcileSerializableWritesLocked(t.Ref, t.SerializableWriteSurvives)
+	e.Visibility.ReconcileSerializableWritesLocked(t.Ref, t.SerializableWriteSurvives)
 }

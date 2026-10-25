@@ -101,7 +101,7 @@ func regexpSetUnitLower(engine *Engine, root plan.Node, expressions []expr.Expr,
 		return root, expressions, nil
 	}
 	outputs := append([]expr.Expr(nil), expressions...)
-	b := &analyze.Binder{Host: engine.analysisHost(nil), Ctx: context.Background(), Query: analyze.QueryScopeState{Frame: frame}}
+	b := &analyze.Binder{Host: engine.AnalysisHost(nil), Ctx: context.Background(), Query: analyze.QueryScopeState{Frame: frame}}
 	root, err := b.LowerQuerySets(root, outputs, nil, false)
 	return root, outputs, err
 }
@@ -478,7 +478,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 			Calls:       regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " "), regexpSetUnitCall(t, text, column(9, 1), " ")),
 			Frame:       7, Correlated: true, Captures: capture(7, 2),
 		}
-		rebased, err := analyze.RebaseFunctionCorrelation((&Engine{}).analysisHost(nil), view, n, 7, 2)
+		rebased, err := analyze.RebaseFunctionCorrelation((&Engine{}).AnalysisHost(nil), view, n, 7, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -495,7 +495,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		left := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " ")), Frame: 7, Correlated: true, Captures: capture(7, 2)}
 		right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 0), "")), Frame: 7, Correlated: true, Captures: capture(7, 0)}
 		n := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7, CorrelatedRight: true, Captures: capture(7, 2)}
-		rebased, err := analyze.RebaseFunctionCorrelation((&Engine{}).analysisHost(nil), view, n, 7, 2)
+		rebased, err := analyze.RebaseFunctionCorrelation((&Engine{}).AnalysisHost(nil), view, n, 7, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -511,7 +511,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		virtual := column(1, 3)
 		virtual.Virtual, virtual.RowStart, virtual.RowWidth = column(1, 0), 2, 2
 		n := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, virtual, " ")), Frame: 1, Correlated: true, Captures: capture(1, 3)}
-		rebased, err := analyze.RebaseFunctionCorrelation((&Engine{}).analysisHost(nil), view, n, 1, 2)
+		rebased, err := analyze.RebaseFunctionCorrelation((&Engine{}).AnalysisHost(nil), view, n, 1, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -527,7 +527,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 
 func TestFunctionSourceMixedRows(t *testing.T) {
 	engine, view, text := regexpSetUnitEngineTypes(t)
-	b := &analyze.Binder{Host: engine.analysisHost(nil), Ctx: context.Background(), Query: analyze.QueryScopeState{Frame: 1}}
+	b := &analyze.Binder{Host: engine.AnalysisHost(nil), Ctx: context.Background(), Query: analyze.QueryScopeState{Frame: 1}}
 	integer, _ := view.LookupType(sqltype.Int4)
 	bigint, _ := view.LookupType(sqltype.Int8)
 	for _, tc := range []struct {
@@ -590,7 +590,7 @@ func TestQuerySetMixedAttemptOwnership(t *testing.T) {
 	engine, _, text := regexpSetUnitEngineTypes(t)
 	for _, upper := range []bool{false, true} {
 		t.Run(map[bool]string{false: "bare-terminal-attempt", true: "upper-wrapper-emitted-only"}[upper], func(t *testing.T) {
-			b := &analyze.Binder{Host: engine.analysisHost(nil), Ctx: context.Background(), Query: analyze.QueryScopeState{Frame: 1}}
+			b := &analyze.Binder{Host: engine.AnalysisHost(nil), Ctx: context.Background(), Query: analyze.QueryScopeState{Frame: 1}}
 			stringCall := stringSplitMarker(t, b, 40, regexpSetUnitLiteral(text, "a,b"), regexpSetUnitLiteral(text, ","))
 			regexpCall := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x_y_z"), "_")}
 			draws := 0

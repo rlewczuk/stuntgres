@@ -30,15 +30,15 @@ func fdwChainReadmission(t *testing.T) {
 	sessionSQL(t, sess, "SET application_name='committed-old'")
 	sessionSQL(t, sess, "INSERT INTO chain_local VALUES(7)")
 	sessionSQL(t, sess, "DECLARE chain_hold NO SCROLL CURSOR WITH HOLD FOR SELECT v FROM chain_local")
-	promoted := payloadOf(sess).cursors.entries["chain_hold"]
+	promoted := PayloadOf(sess).Cursors.Entries["chain_hold"]
 	owner := sess.Transactions
 	ref := owner.Ref
-	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "chain_local"})
+	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "chain_local"})
 	entered := make(chan struct{})
 	held := false
 	remote := &fdwChainTransaction{}
 	remote.commit = func() error {
-		held = e.replacementMu.TryLock()
+		held = e.ReplacementMu.TryLock()
 		close(entered)
 		if !held {
 			return errors.New("provider Commit ran under replacement reservation")
@@ -64,7 +64,7 @@ func fdwChainReadmission(t *testing.T) {
 	consumed := false
 	defer func() {
 		if held {
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 			held = false
 		}
 		if !consumed {
@@ -89,14 +89,14 @@ func fdwChainReadmission(t *testing.T) {
 	observation := time.NewTicker(time.Millisecond)
 	defer observation.Stop()
 	for {
-		e.mu.Lock()
-		published := len(e.storage.Relations[address].Versions) == 1
+		e.Mu.Lock()
+		published := len(e.Storage.Relations[address].Versions) == 1
 		if published {
-			next := catalog.CloneState(e.catalog.State)
-			next.SetEpoch(e.catalog.State.Epoch() + 1)
-			e.catalog.PublishLocked(next)
+			next := catalog.CloneState(e.Catalog.State)
+			next.SetEpoch(e.Catalog.State.Epoch() + 1)
+			e.Catalog.PublishLocked(next)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if published {
 			break
 		}
@@ -109,7 +109,7 @@ func fdwChainReadmission(t *testing.T) {
 		case <-observation.C:
 		}
 	}
-	e.replacementMu.Unlock()
+	e.ReplacementMu.Unlock()
 	held = false
 	got := <-done
 	consumed = true
@@ -119,7 +119,7 @@ func fdwChainReadmission(t *testing.T) {
 	if len(remote.calls) != 1 || remote.calls[0] != "commit" {
 		t.Fatal("remote commit retried/compensated", remote.calls)
 	}
-	if payloadOf(sess).cursors.entries["chain_hold"] != promoted || promoted == nil || !promoted.promoted || promoted.count != 1 {
+	if PayloadOf(sess).Cursors.Entries["chain_hold"] != promoted || promoted == nil || !promoted.promoted || promoted.count != 1 {
 		t.Fatal("CHAIN readmission failure discarded a committed HOLD promotion")
 	}
 	sess.Settings.Mu.Lock()

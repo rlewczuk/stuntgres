@@ -26,9 +26,9 @@ import (
 
 func extensionUnitStage(t *testing.T, e *Engine, op *session.Operation) *CatalogStage {
 	t.Helper()
-	e.mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func extensionUnitPublish(t *testing.T, e *Engine, op *session.Operation, stage 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.publishCatalogOperation(op, nil, p, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := e.PublishCatalogOperation(op, nil, p, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -51,8 +51,8 @@ func extensionUnitInstalled(t *testing.T) (*Engine, *session.Operation, *catalog
 	t.Cleanup(done)
 	stage := extensionUnitStage(t, e, op)
 	extensionUnitPublish(t, e, op, stage)
-	a := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
-	return e, op, e.catalog.State.MustExtension(a)
+	a := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+	return e, op, e.Catalog.State.MustExtension(a)
 }
 func TestExtensionProviderIdentity(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
@@ -76,7 +76,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		// Every member holds the registered provider's one implementation
 		// instance; typed views of another extension's kind stay nil.
-		if proc.Implementation != e.catalog.Extensions["unaccent"] || extension.UnaccentProviderOf(proc) != extension.StockUnaccent || extension.PgcryptoProviderOf(proc) != nil || extension.IntaggProviderOf(proc) != nil {
+		if proc.Implementation != e.Catalog.Extensions["unaccent"] || extension.UnaccentProviderOf(proc) != extension.StockUnaccent || extension.PgcryptoProviderOf(proc) != nil || extension.IntaggProviderOf(proc) != nil {
 			t.Fatal("member implementation identity", i)
 		}
 	}
@@ -95,7 +95,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		}
 		seen[a] = true
 		d := view.Get(a)
-		if err := e.catalog.Providers[a.ClassID].Validate(view, d); err != nil {
+		if err := e.Catalog.Providers[a.ClassID].Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 		if d.Namespace() != ext.TargetNamespace || catalog.ExtensionMembership(d) != ext.Address() {
@@ -119,7 +119,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	if text == (ids.ObjectAddress{}) || dictionary == (ids.ObjectAddress{}) || text == dictionary {
 		t.Fatal("overloads collapsed")
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,10 +237,10 @@ func TestExtensionProviderConflicts(t *testing.T) {
 				}
 			}
 			extensionUnitPublish(t, e, op, loose)
-			before := e.catalog.State
-			e.mu.Lock()
-			_, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
-			e.mu.Unlock()
+			before := e.Catalog.State
+			e.Mu.Lock()
+			_, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
+			e.Mu.Unlock()
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) {
 				t.Fatal("collision accepted", err)
@@ -262,7 +262,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 					t.Fatal("helper diagnostics", diagnostic)
 				}
 			}
-			if e.catalog.State != before || e.catalog.State.Get(conflict.Address()) != conflict || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
+			if e.Catalog.State != before || e.Catalog.State.Get(conflict.Address()) != conflict || e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
 				t.Fatal("partial failed installation")
 			}
 		})
@@ -284,7 +284,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 				scope.Finish(err)
 				t.Fatal(err)
 			}
-			if e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
+			if e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
 				t.Fatal("private installation leaked")
 			}
 			if reason == "competing" {
@@ -297,27 +297,27 @@ func TestExtensionProviderPublication(t *testing.T) {
 				op.Ctx = ctx
 				cancel()
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			switch reason {
 			case "epoch":
-				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-				e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
+				e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+				e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
 			case "roles":
-				e.roles.PublishLocked(e.roles.Published.Advance())
+				e.RoleStore.PublishLocked(e.RoleStore.Published.Advance())
 			case "database":
-				next := *e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
+				next := *e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 				next.ObjectRevision++
-				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-				e.catalog.State.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
+				e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+				e.Catalog.State.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
 			case "namespace":
 				a := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-				next := *e.catalog.State.MustNamespace(a)
+				next := *e.Catalog.State.MustNamespace(a)
 				next.ObjectRevision++
-				e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-				e.catalog.State.SetDescriptor(a, &next)
+				e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+				e.Catalog.State.SetDescriptor(a, &next)
 			}
-			e.mu.Unlock()
-			committed := e.catalog.State
+			e.Mu.Unlock()
+			committed := e.Catalog.State
 			failure := scope.Finish(nil)
 			if failure == nil {
 				t.Fatal("stale installation published")
@@ -325,7 +325,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 			if reason == "competing" {
 				extensionUnitError(t, failure, "23505")
 			}
-			if e.catalog.State != committed {
+			if e.Catalog.State != committed {
 				t.Fatal("failed installation changed the committed catalog")
 			}
 		})
@@ -376,12 +376,12 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 		name  string
 		stock catalog.ExtensionImplementation
 	}{{"amcheck", extension.StockAmcheck}, {"citext", extension.StockCitext}, {"cube", extension.StockCube}, {"earthdistance", extension.StockEarthdistance}, {"lo", extension.StockLo}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgcrypto", extension.StockPgcrypto}, {"pgrowlocks", extension.StockPgrowlocks}, {"uuid-ossp", extension.StockUUIDOssp}} {
-		if registered, ok := e.catalog.Extensions[tc.name].(extension.Installer); !ok || registered != tc.stock {
+		if registered, ok := e.Catalog.Extensions[tc.name].(extension.Installer); !ok || registered != tc.stock {
 			t.Fatal("registered implementation is not the stock installer", tc.name)
 		}
-		e.mu.Lock()
-		stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: tc.name}})
-		e.mu.Unlock()
+		e.Mu.Lock()
+		stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: tc.name}})
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
@@ -447,7 +447,7 @@ func TestExtensionProviderRelabelIdentity(t *testing.T) {
 			state.UnbindName(catalog.DescriptorNameKey(original))
 			state.SetDescriptor(renamed.Address(), &renamed)
 			state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
-			current := e.catalog.Read(state)
+			current := e.Catalog.Read(state)
 			if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != want {
 				t.Fatal(symbol, err)
 			}

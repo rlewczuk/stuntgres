@@ -16,23 +16,23 @@ func TestTableHostBindColumnDefaultsMatchesCreateTable(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	s := statement(t, "CREATE TABLE host_defaults(a int DEFAULT 1 + 2, b text DEFAULT 'x' || 'y', c int)").(*parser.CreateTable)
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 
 	created := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(created)
-	if err := e.schemaTableLocked(op, auth, created, s, public, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil); err != nil {
+	if err := e.SchemaTableLocked(op, auth, created, s, public, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	address, ok := created.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: public, Name: "host_defaults"})
 	if !ok {
 		t.Fatal("CREATE TABLE staged no relation")
 	}
-	want := e.stageRead(created).MustRelation(address).ColumnMeta.Defaults
+	want := e.StageRead(created).MustRelation(address).ColumnMeta.Defaults
 
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = ddlHost{e: e, op: op, stage: stage}
+	var h table.Host = DDLHost{E: e, Op: op, CatalogStage: stage}
 	b, err := h.DescribeCreateTable(auth, s, sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
@@ -55,11 +55,11 @@ func TestTableHostBindColumnDefaultsMatchesCreateTable(t *testing.T) {
 func TestTableHostStageChangedReportsStagedDescriptor(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = ddlHost{e: e, op: op, stage: stage}
+	var h table.Host = DDLHost{E: e, Op: op, CatalogStage: stage}
 	if h.StageChanged() {
 		t.Fatal("a new stage reports a change")
 	}

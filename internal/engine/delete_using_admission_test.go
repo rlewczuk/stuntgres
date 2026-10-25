@@ -75,7 +75,7 @@ func deleteUsingAsync(t *testing.T, s *session.Session, ctx context.Context, que
 		var result Result
 		if err == nil {
 			defer op.Done()
-			result, err = engineOf(s).Execute(op, ast, 0, nil)
+			result, err = EngineOf(s).Execute(op, ast, 0, nil)
 		}
 		done <- deleteOutcome{result: result, err: err}
 	}()
@@ -132,7 +132,7 @@ func TestDeleteUsingSourceAdmissionRefresh(t *testing.T) {
 			target := roleTableRef(t, e, "t")
 			source := roleTableRef(t, e, "s")
 			blocked := roleTableRef(t, e, "r")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			var targetRX, sourceAS, sourceWait bool
 			for resource, entry := range lockState.Resources {
 				if resource.ObjectRef == target && resource.Row == 0 {

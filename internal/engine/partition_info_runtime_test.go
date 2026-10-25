@@ -78,8 +78,8 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 	view, shape := partitionInfoUnitCatalog(t, e)
 	regclass, _ := view.LookupType(sqltype.Regclass)
 	scope := tablespaceInfoUnitScope(t, e)
-	scope.inquiry.commentCatalog = view
-	host := hostOf(scope)
+	scope.Inquiry.CommentCatalog = view
+	host := HostOf(scope)
 	old, err := host.PartitionTree(41011, shape)
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +90,7 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 	detached := *mid
 	detached.Membership = nil
 	state.SetDescriptor(mid.Address(), &detached)
-	scope.inquiry.commentCatalog = view.WithState(state)
+	scope.Inquiry.CommentCatalog = view.WithState(state)
 	root, err := host.PartitionRoot(41012, regclass)
 	if err != nil {
 		t.Fatal(err)
@@ -115,7 +115,7 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 		t.Fatal("retained catalog changed", got)
 	}
 	for _, bad := range []catalog.Read{{}, New().CatalogRead()} {
-		scope.inquiry.commentCatalog = bad
+		scope.Inquiry.CommentCatalog = bad
 		if _, err := host.PartitionRoot(41012, regclass); err == nil {
 			t.Fatal("invalid captured authority")
 		}

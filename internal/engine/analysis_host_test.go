@@ -16,8 +16,8 @@ import (
 // replay and no notices.
 func TestAnalysisHostWithoutOperation(t *testing.T) {
 	e := New()
-	host := e.analysisHost(nil)
-	if host != e.analysisHost(nil) || host.engine != e || host.op != nil {
+	host := e.AnalysisHost(nil)
+	if host != e.AnalysisHost(nil) || host.Engine != e || host.Op != nil {
 		t.Fatal("binding without an operation does not reuse the engine's host")
 	}
 	if d := host.BindingDefinition(nil); d != nil {
@@ -30,9 +30,9 @@ func TestAnalysisHostWithoutOperation(t *testing.T) {
 		t.Fatal("ReplayInsertAuthority() = true without an operation")
 	}
 	host.EmitWarning(sqlstate.Error{Code: "01000", Message: "dropped"})
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	got, ok := b.Host.(*bindingHost)
-	if !ok || got.engine != e || got.op != nil {
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	got, ok := b.Host.(*BindingHost)
+	if !ok || got.Engine != e || got.Op != nil {
 		t.Fatalf("binder host = %#v, want the engine and no operation", b.Host)
 	}
 }
@@ -44,12 +44,12 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	host := e.analysisHost(op)
-	if host != e.analysisHost(op) || host.op != op || host.engine != e {
+	host := e.AnalysisHost(op)
+	if host != e.AnalysisHost(op) || host.Op != op || host.Engine != e {
 		t.Fatal("a session operation does not reuse its own binding host")
 	}
 	copied := &session.Operation{Session: op.Session, Analysis: op.Analysis}
-	if fresh := e.analysisHost(copied); fresh == host || fresh.op != copied {
+	if fresh := e.AnalysisHost(copied); fresh == host || fresh.Op != copied {
 		t.Fatal("a copied operation binds through the original operation's host")
 	}
 	owner, generation, ok := host.PlanOwner()
@@ -61,13 +61,13 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 	if notices := op.DetachNotices(); len(notices) != 1 || notices[0].Message != "kept" {
 		t.Fatalf("notices = %#v, want the warning", notices)
 	}
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	if got, ok := b.Host.(*bindingHost); !ok || got.engine != e || got.op != op {
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	if got, ok := b.Host.(*BindingHost); !ok || got.Engine != e || got.Op != op {
 		t.Fatalf("binder host = %#v, want the engine and the operation", b.Host)
 	}
 }
 
 // binderOperation and binderEngine read a binder's host state in tests.
-func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*bindingHost).op }
+func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*BindingHost).Op }
 
-func binderEngine(b *analyze.Binder) *Engine { return b.Host.(*bindingHost).engine }
+func binderEngine(b *analyze.Binder) *Engine { return b.Host.(*BindingHost).Engine }

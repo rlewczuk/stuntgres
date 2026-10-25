@@ -57,15 +57,15 @@ func TestMergeNothingPreflight(t *testing.T) {
 			if !b.Merge.HasNothing || len(b.Merge.Arms[0].Input.Expressions) != 0 || len(b.Merge.Arms[0].Input.Insert.Defaults) != 0 {
 				t.Fatal("no-op mutation schedule", b.Merge)
 			}
-			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Catalog: scope.inquiry.commentCatalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			if err := dml.PreflightMerge(&c, b.Merge, scope.inquiry.commentCatalog); err != nil {
+			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Catalog: scope.Inquiry.CommentCatalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+			if err := dml.PreflightMerge(&c, b.Merge, scope.Inquiry.CommentCatalog); err != nil {
 				t.Fatal("no-op preflight indexed mutation input", err)
 			}
 			if condition != "TRUE" {
 				if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 					t.Fatal(err)
 				}
-				query := &exec.State{Source: source, Input: scope.input, Output: scope.output}
+				query := &exec.State{Source: source, Input: scope.Input, Output: scope.Output}
 				c.Query = query
 				_, err := dml.SelectMergeArm(b.Merge, &c, parser.MergeMatched)
 				query.ReleaseMemberships()
@@ -92,13 +92,13 @@ func TestMergeNothingPublication(t *testing.T) {
 			if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 				t.Fatal(err)
 			}
-			query := &exec.State{Source: source, Input: scope.input, Output: scope.output}
+			query := &exec.State{Source: source, Input: scope.Input, Output: scope.Output}
 			defer query.ReleaseMemberships()
 			cursor, err := exec.OpenNode(op.Context(), query, b.Merge.Source)
 			if err != nil {
 				t.Fatal(err)
 			}
-			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, query, false)
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, query, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,11 +106,11 @@ func TestMergeNothingPublication(t *testing.T) {
 				t.Fatal("omission assembled mutation/output", rows)
 			}
 			defer rows.Returning.Close()
-			if err = dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+			if err = dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
 				t.Fatal(err)
 			}
-			if len(scope.stage.rows) != 0 {
-				t.Fatal("no-op mutation stage", scope.stage.rows)
+			if len(scope.Stage.Rows) != 0 {
+				t.Fatal("no-op mutation stage", scope.Stage.Rows)
 			}
 			if len(b.Returning.Schema) != 2 || b.Returning.Schema[0].Name != "merge_action" || b.Returning.Schema[1].Name != "v" {
 				t.Fatal("empty output schema", b.Returning.Schema)
@@ -122,7 +122,7 @@ func TestMergeNothingPublication(t *testing.T) {
 			if err = scope.Finish(finish); !errors.Is(err, finish) {
 				t.Fatal(err, finish)
 			}
-			if scope.view != nil || scope.ticket != nil || !scope.finished {
+			if scope.View != nil || scope.LockTicket != nil || !scope.Finished {
 				t.Fatal("Finish retained ownership")
 			}
 			transactionRows(t, peer, "SELECT v FROM t", 10)
@@ -144,7 +144,7 @@ func TestMergeNothingPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer func() {
-			if !scope.finished {
+			if !scope.Finished {
 				scope.Finish(errors.New("abandoned publication unit"))
 			}
 		}()
@@ -152,7 +152,7 @@ func TestMergeNothingPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result.Count != 0 || result.Rows == nil || len(scope.stage.rows) != 0 {
+		if result.Count != 0 || result.Rows == nil || len(scope.Stage.Rows) != 0 {
 			t.Fatal("Execute published mutation", result)
 		}
 		defer result.Rows.Close()
@@ -162,7 +162,7 @@ func TestMergeNothingPublication(t *testing.T) {
 		if len(tuples(result)) != 0 {
 			t.Fatal("Execute projected omission")
 		}
-		if scope.view != nil || scope.ticket != nil || !scope.finished {
+		if scope.View != nil || scope.LockTicket != nil || !scope.Finished {
 			t.Fatal("Execute retained ownership")
 		}
 	})

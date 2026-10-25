@@ -63,7 +63,7 @@ func TestOperatorClassDependencyClosure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stage := e.BeginCatalogStage(current)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{tc.root})
+			edges, err := DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{tc.root})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -90,13 +90,13 @@ func TestOperatorClassDependencyClosure(t *testing.T) {
 	}
 	for _, owned := range []ids.ObjectAddress{member.Address(), sibling.Address()} {
 		stage := e.BeginCatalogStage(current)
-		_, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{owned})
+		_, err := DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{owned})
 		diagnostic, ok := err.(*sqlstate.Error)
 		if !ok || diagnostic.Code != "2BP01" || diagnostic.Hint != "You can drop operator class class_closure for access method btree instead." {
 			t.Fatalf("member owner restriction: %#v", err)
 		}
 		// Explicitly retiring both owner and member remains legal.
-		if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{class.Address(), owned}); err != nil {
+		if _, err := DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{class.Address(), owned}); err != nil {
 			t.Fatal("owner/member roots", err)
 		}
 		e.DiscardCatalogStage(stage)

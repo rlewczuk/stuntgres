@@ -23,19 +23,19 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 		results []sqltype.ID
 	}{{"SELECT i+$1,b+$1 FROM t", sqltype.Int4, []sqltype.ID{sqltype.Int4, sqltype.Int8}}, {"SELECT b+$1,i+$1 FROM t", sqltype.Int8, []sqltype.ID{sqltype.Int8, sqltype.Int8}}, {"SELECT s+$1,i+$1 FROM t", sqltype.Int2, []sqltype.ID{sqltype.Int2, sqltype.Int4}}, {"SELECT s%$1,b%$1 FROM t", sqltype.Int2, []sqltype.ID{sqltype.Int2, sqltype.Int8}}, {"SELECT i+$1,s+$1 FROM t", sqltype.Int4, []sqltype.ID{sqltype.Int4, sqltype.Int4}}, {"SELECT b+$1,s+$1 FROM t", sqltype.Int8, []sqltype.ID{sqltype.Int8, sqltype.Int8}}, {"SELECT $1+7,$1+2147483648 FROM t", sqltype.Int4, []sqltype.ID{sqltype.Int4, sqltype.Int8}}} {
 		ast := statement(t, tc.q)
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+		ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-		e.mu.Unlock()
+		bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}

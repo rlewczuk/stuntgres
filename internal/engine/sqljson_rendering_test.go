@@ -59,9 +59,9 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	}
 	// Publish a genuine catalog domain; both interpreters must retain its identity
 	// and use their catalog-owned type spelling, not the raw RETURNING name.
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &catalog.Type{SQLType: domain, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &catalog.Type{SQLType: domain, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err := stage.Create(descriptor); err != nil {
 		t.Fatal(err)

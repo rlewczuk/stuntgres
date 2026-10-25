@@ -20,16 +20,16 @@ type cteCommandExecution struct {
 	mutation   int
 	statement  parser.Statement
 	ruleOwner  bool
-	scratch    ruleCommandScratch
+	scratch    RuleCommandScratch
 }
 
-type preparedCTEProgram struct {
+type PreparedCTEProgram struct {
 	binding        analyze.Binding
 	auth           AuthorizationView
 	commands       []cteCommandExecution
 	main           preparedCommandExecution
-	mainScratch    ruleCommandScratch
-	mainMutation   int
+	MainScratch    RuleCommandScratch
+	MainMutation   int
 	normalizedRefs []ids.ObjectRef
 }
 
@@ -40,34 +40,34 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 	if len(b.CTEs) == 0 {
 		return e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, nil)
 	}
-	var prepared preparedCTEProgram
-	if _, err := e.prepareCTECommandsLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared); err != nil {
+	var prepared PreparedCTEProgram
+	if _, err := e.PrepareCTECommandsLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	return e.executePreparedCTECommandsLocked(scope, statement, &prepared, parameters, creationStage, creationDescriptor)
+	e.Mu.Lock()
+	return e.ExecutePreparedCTECommandsLocked(scope, statement, &prepared, parameters, creationStage, creationDescriptor)
 }
 
 // Prepare the complete auxiliary/primary tree without executing any command.
 // Enter held; all outcomes release Engine.mu.
-func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCTEProgram) (Result, error) {
-	if scope.ruleAction.auth == nil {
-		scope.routineAuth = auth
+func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *PreparedCTEProgram) (Result, error) {
+	if scope.ruleAction.Auth == nil {
+		scope.RoutineAuth = auth
 	}
 	if len(b.CTEs) == 0 {
 		if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared.main); err != nil {
 			return Result{}, err
 		}
 		prepared.binding, prepared.auth = b, auth
-		prepared.mainScratch, prepared.mainMutation = scope.ruleScratch(), scope.activeMutation
+		prepared.MainScratch, prepared.MainMutation = scope.RuleScratch(), scope.ActiveMutation
 		return Result{}, nil
 	}
-	if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, statement, &b); err != nil {
-		e.mu.Unlock()
+	if err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, auth, statement, &b); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if err := view.CheckRowSecurityBinding(scope.rowSecurity, auth.View, b); err != nil {
-		e.mu.Unlock()
+	if err := view.CheckRowSecurityBinding(scope.RowSecurity, auth.View, b); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	// Normalized rule auxiliaries select one preparation policy for the entire
@@ -82,7 +82,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	}
 	originalRuleAction := scope.ruleAction
 	defer func() { scope.ruleAction = originalRuleAction }()
-	main := scope.activeMutation
+	main := scope.ActiveMutation
 	defer scope.activateMutation(main)
 	count, primaryTag := 0, ""
 	for _, definition := range b.CTEs {
@@ -91,7 +91,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			continue
 		}
 		count++
-		if scope.owner.ReadOnly && !temporaryDataTarget(auth, mutation, definition.Statement) {
+		if scope.Owner.ReadOnly && !TemporaryDataTarget(auth, mutation, definition.Statement) {
 			primaryTag = session.ModifyingTag(statement)
 			if primaryTag == "" {
 				primaryTag = "SELECT"
@@ -112,9 +112,9 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			if _, selectOnly := rewrite.Command.Syntax.(*parser.Select); selectOnly {
 				continue
 			}
-			ruleAuth := ruleAuthorizationOf(rewrite.Command.Auth)
+			ruleAuth := RuleAuthorizationOf(rewrite.Command.Auth)
 			syntax, commandBinding, commandAuth = rewrite.Command.Syntax, rewrite.Command.Binding, ruleAuth
-			scope.ruleAction = ruleActionScope{auth: &ruleAuth}
+			scope.ruleAction = RuleActionScope{Auth: &ruleAuth}
 		} else {
 			scope.ruleAction = originalRuleAction
 		}
@@ -123,7 +123,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 			index = rewrite.Mutation
 		}
 		if index < 0 {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: missing admitted CTE target")
 		}
 		scope.activateMutation(index)
@@ -132,9 +132,9 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		if _, err := e.executeBoundCommandLocked(scope, syntax, commandBinding, commandAuth, parameters, evaluation, nil, nil, &command.execution); err != nil {
 			return Result{}, err
 		}
-		command.scratch = scope.ruleScratch()
+		command.scratch = scope.RuleScratch()
 		commands = append(commands, command)
-		e.mu.Lock()
+		e.Mu.Lock()
 	}
 	scope.activateMutation(main)
 	scope.ruleAction = originalRuleAction
@@ -144,32 +144,32 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		return Result{}, err
 	}
 	prepared.binding, prepared.auth, prepared.commands = b, auth, commands
-	prepared.main, prepared.mainScratch, prepared.mainMutation = preparedMain, scope.ruleScratch(), main
+	prepared.main, prepared.MainScratch, prepared.MainMutation = preparedMain, scope.RuleScratch(), main
 	prepared.normalizedRefs = normalizedRefs
 	return Result{}, nil
 }
 
 // Enter held; execute only already prepared commands with the original stage.
-func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, statement parser.Statement, prepared *preparedCTEProgram, parameters []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+func (e *Engine) ExecutePreparedCTECommandsLocked(scope *StatementScope, statement parser.Statement, prepared *PreparedCTEProgram, parameters []sqltype.Value, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
 	b, auth, commands := prepared.binding, prepared.auth, prepared.commands
-	scope.activeMutation = prepared.mainMutation
-	scope.installRuleScratch(prepared.mainScratch)
+	scope.ActiveMutation = prepared.MainMutation
+	scope.InstallRuleScratch(prepared.MainScratch)
 	if len(b.CTEs) == 0 {
 		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	}
 	originalRuleAction := scope.ruleAction
-	main := prepared.mainMutation
+	main := prepared.MainMutation
 	normalizedRefs := prepared.normalizedRefs
 	defer func() {
 		scope.activateMutation(main)
 		scope.ruleAction = originalRuleAction
 	}()
-	if err := scope.refreshRelationGrantsLocked(e); err != nil {
-		e.mu.Unlock()
+	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if err := scope.op.Context().Err(); err != nil {
-		e.mu.Unlock()
+	if err := scope.Op.Context().Err(); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	// Include every target, even INSERT without FROM, before the first effect.
@@ -177,14 +177,14 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	leaves := b.QuerySources
 	for i := range scope.mutations {
 		mutation := scope.mutations[i]
-		if i == scope.activeMutation {
-			mutation = scope.statementMutation
+		if i == scope.ActiveMutation {
+			mutation = scope.StatementMutation
 		}
-		if mutation.lockedRef.Domain() != nil {
+		if mutation.LockedRef.Domain() != nil {
 			if len(leaves) == len(b.QuerySources) {
 				leaves = append([]exec.Leaf(nil), leaves...)
 			}
-			leaves = append(leaves, exec.Leaf{Ref: mutation.lockedRef, Relation: mutation.lockedDescriptor.(*catalog.Relation), Only: true})
+			leaves = append(leaves, exec.Leaf{Ref: mutation.LockedRef, Relation: mutation.LockedDescriptor.(*catalog.Relation), Only: true})
 			leaves = append(leaves, mutation.InheritedTargets...)
 		}
 	}
@@ -193,29 +193,29 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}
 	collectAuth := auth
 	collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-	refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, leaves, normalizedRefs, scope.op.Session.SessionToken, plan.RowMark{})
+	refs, err := e.QueryTableRefsLocked(collectAuth, auth.State.CurrentUser, leaves, normalizedRefs, scope.Op.Session.SessionToken, plan.RowMark{})
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	if _, err := scope.acquireDataViewsLocked(e, refs); err != nil {
-		e.mu.Unlock()
+	if _, err := scope.AcquireDataViewsLocked(e, refs); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	var source *exec.Source
 	if b.CTESelectBodies {
-		source, err = e.captureQuerySourcesLocked(scope, b.QuerySources, true)
+		source, err = e.CaptureQuerySourcesLocked(scope, b.QuerySources, true)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	} else {
 		// Completed modifiers need only a lifetime/authority header, not a
 		// second physical capture of every command's own input sources.
 		if scope.authority == nil {
-			scope.authority = &exec.Authority{Host: hostOf(scope)}
+			scope.authority = &exec.Authority{Host: HostOf(scope)}
 		}
-		source = &exec.Source{Materialized: true, FlatCount: 1, Authority: scope.authority, Locks: scope.queryLocks}
+		source = &exec.Source{Materialized: true, FlatCount: 1, Authority: scope.authority, Locks: scope.QueryLockContext}
 	}
 	previousOwner := scope.cteInvocation
 	owner := previousOwner
@@ -232,7 +232,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			if findOwner(definition.Owner) != nil {
 				continue
 			}
-			current := &exec.CTEInvocation{Frame: definition.Owner, Parent: owner, State: exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: source.Locks != nil}}
+			current := &exec.CTEInvocation{Frame: definition.Owner, Parent: owner, State: exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: parameters, Input: scope.Input, Output: scope.Output, Locking: source.Locks != nil}}
 			current.State.Ctes = current
 			owner = current
 		}
@@ -268,11 +268,11 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}()
 	for i := range commands {
 		command := &commands[i]
-		scope.activeMutation = command.mutation
-		scope.installRuleScratch(command.scratch)
+		scope.ActiveMutation = command.mutation
+		scope.InstallRuleScratch(command.scratch)
 		scope.ruleAction = originalRuleAction
 		if command.ruleOwner {
-			scope.ruleAction = ruleActionScope{auth: &command.execution.auth}
+			scope.ruleAction = RuleActionScope{Auth: &command.execution.auth}
 		}
 		output, err := e.executePreparedCommandLocked(scope, command.statement, &command.execution, parameters, nil, nil)
 		if err != nil {
@@ -285,18 +285,18 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		if err := dml.CompleteCTEMutation(commandOwner, command.definition, output.Count, output.Rows); err != nil {
 			return Result{}, err
 		}
-		e.mu.Lock()
-		if err := scope.refreshRelationGrantsLocked(e); err != nil {
-			e.mu.Unlock()
+		e.Mu.Lock()
+		if err := scope.RefreshRelationGrantsLocked(e); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		if err := scope.op.Context().Err(); err != nil {
-			e.mu.Unlock()
+		if err := scope.Op.Context().Err(); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
 	scope.activateMutation(main)
-	scope.installRuleScratch(prepared.mainScratch)
+	scope.InstallRuleScratch(prepared.MainScratch)
 	scope.ruleAction = originalRuleAction
 	result, failure = e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	if failure == nil && result.Rows != nil && (scope.sqlRoutine.plCapture || scope.sqlRoutine.rows && !parser.HasModifyingCTE(statement)) {

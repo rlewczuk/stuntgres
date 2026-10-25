@@ -78,7 +78,7 @@ func TestViewCheckDeclaration(t *testing.T) {
 func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScope, op *session.Operation) analyze.Binding {
 	t.Helper()
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
-	if err := view.BindViewWrite(&f.e.catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
+	if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	return view.PhysicalBinding(b)
@@ -106,9 +106,9 @@ func TestViewCheckStack(t *testing.T) {
 			expressions[i] = plan.ColumnExpr{Info: expr.Info{Usage: column.Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: i}
 		}
 		view.View = stored.NewView(stored.ViewParts{Syntax: syntax, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Syntax: syntax, Frame: 1, Expressions: expressions, Child: &plan.FilterNode{QuerySchema: plan.QuerySchema(source.Columns), Child: sourceNode, Predicate: guard}}}, Sources: []stored.ViewLeaf{{Ref: ref, Attributes: source.Attributes}}})
-		f.e.catalog.State.SetDescriptor(view.Address(), &view)
+		f.e.Catalog.State.SetDescriptor(view.Address(), &view)
 		layers = append(layers, &view)
-		refs = append(refs, f.e.catalog.Domain.Ref(f.e.catalog.State.Epoch(), view.Address()))
+		refs = append(refs, f.e.Catalog.Domain.Ref(f.e.Catalog.State.Epoch(), view.Address()))
 	}
 	scope, op := f.scope(t)
 	sets := [27]int{0, 1, 1, 2, 3, 3, 3, 3, 3, 4, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7}
@@ -119,7 +119,7 @@ func TestViewCheckStack(t *testing.T) {
 					layers[i].View = stored.ViewOf(layers[i]).With(func(p *stored.ViewParts) { p.CheckOption = stored.CheckMode(mode) })
 				}
 				b := analyze.Binding{Relation: layers[2], Ref: refs[2]}
-				if err := view.BindViewWrite(&f.e.catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
+				if err := view.BindViewWrite(&f.e.Catalog.Owner, f.authorization(t, op).Catalog, &b, &parser.Insert{}); err != nil {
 					t.Fatal(err)
 				}
 				var want, got []string
@@ -157,8 +157,8 @@ func TestViewCheckMapping(t *testing.T) {
 	if !ok || mapped.Slot != 0 || !stored.SameViewRelation(mapped.Origin, f.baseRef) {
 		t.Fatal(mapped, ok)
 	}
-	old := f.e.storage.Relations[f.base.Address()].Versions[0].Values
-	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{old[1], old[0], old[2]}}}
+	old := f.e.Storage.Relations[f.base.Address()].Versions[0].Values
+	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{old[1], old[0], old[2]}}}
 	got, err := mapped.Eval(&ctx)
 	if err != nil || got != old[1] {
 		t.Fatal(got, err)
@@ -168,7 +168,7 @@ func TestViewCheckMapping(t *testing.T) {
 func TestViewCheckPredicate(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, _ := f.scope(t)
-	row := f.e.storage.Relations[f.base.Address()].Versions[0].Values
+	row := f.e.Storage.Relations[f.base.Address()].Versions[0].Values
 	old := []sqltype.Value{sqltype.Null(f.integer)}
 	calls := 0
 	pass := queryProbe(f.boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
@@ -180,16 +180,16 @@ func TestViewCheckPredicate(t *testing.T) {
 	})
 	for _, value := range []sqltype.Value{sqltype.Boolean(f.boolean, false), sqltype.Null(f.boolean)} {
 		b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: &catalog.Relation{ObjectName: "outer"}, Predicates: []expr.Expr{pass}}, {Relation: f.view, Predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: value}}}}})}
-		eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
-		err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval)
+		eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
+		err := dml.CheckViewRow(scope.WriteHost(), &b, row, &eval)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "44000" || d.Message != `new row violates check option for view "logical"` || d.Detail != "Failing row contains (1, 10, 42)." || calls != 0 || len(eval.Row) != 1 {
 			t.Fatal(err, calls, eval.Row)
 		}
 	}
 	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{pass}}}})}
-	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
-	if err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval); err != nil || calls != 1 || len(eval.Row) != 1 {
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: old}}
+	if err := dml.CheckViewRow(scope.WriteHost(), &b, row, &eval); err != nil || calls != 1 || len(eval.Row) != 1 {
 		t.Fatal("produced NEW check skipped or OLD frame replaced", err, calls, eval.Row)
 	}
 }
@@ -205,12 +205,12 @@ func TestViewCheckAdmission(t *testing.T) {
 			return sqltype.Boolean(f.boolean, closeFailure || calls == 1), nil
 		})
 		b := analyze.Binding{Relation: f.base, Ref: f.baseRef, Targets: []int{0, 1, 2}, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{guard}}}})}
-		originals := f.e.storage.Relations[f.base.Address()].Versions
+		originals := f.e.Storage.Relations[f.base.Address()].Versions
 		cursor := &insertConflictInputCursor{schema: f.base.Columns, rows: [][]sqltype.Value{originals[0].Values, originals[1].Values}}
 		if closeFailure {
 			cursor.closeError = failure
 		}
-		rows, err := dml.AssembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), false, nil, nil)
+		rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), false, nil, nil)
 		if closeFailure {
 			if !errors.Is(err, failure) {
 				t.Fatal(err)
@@ -221,7 +221,7 @@ func TestViewCheckAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if rows.Values != nil || cursor.closes != 1 || calls != 2 || len(scope.stage.rows) != 0 || f.e.visibility.CommitSeq() != 1 {
+		if rows.Values != nil || cursor.closes != 1 || calls != 2 || len(scope.Stage.Rows) != 0 || f.e.Visibility.CommitSeq() != 1 {
 			t.Fatal("prefix/close leak", rows, cursor.closes, calls)
 		}
 		if err := scope.Finish(err); err == nil {
@@ -234,25 +234,25 @@ func TestViewCheckAdmission(t *testing.T) {
 func TestViewCheckCancellation(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, _ := f.scope(t)
-	originals := f.e.storage.Relations[f.base.Address()].Versions
+	originals := f.e.Storage.Relations[f.base.Address()].Versions
 	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
-	if err := dml.ReplaceRows(scope.writeHost(), f.baseRef, []storage.RowVersion{originals[0]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(scope.WriteHost(), f.baseRef, []storage.RowVersion{originals[0]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(scope.op.Context())
+	ctx, cancel := context.WithCancel(scope.Op.Context())
 	defer cancel()
 	guard := queryProbe(f.boolean.Usage(), func(*exec.Context) (sqltype.Value, error) { cancel(); return sqltype.Boolean(f.boolean, true), nil })
 	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(&view.Write{Checks: []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{guard}}}})}
-	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Output: scope.output}}
-	err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval)
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Output: scope.Output}}
+	err := dml.CheckViewRow(scope.WriteHost(), &b, row, &eval)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if err := scope.Finish(err); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.ViewWrite != nil || f.e.visibility.CommitSeq() != 1 {
+	if !reflect.DeepEqual(originals, f.e.Storage.Relations[f.base.Address()].Versions) || len(scope.Stage.Rows) != 0 || scope.ViewWrite != nil || f.e.Visibility.CommitSeq() != 1 {
 		t.Fatal("cancelled check installed stage")
 	}
 	lockEmpty(t, f.e)
@@ -272,36 +272,36 @@ func TestViewCheckFinish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.gate(&parser.Update{}); err != nil {
+	if err := scope.Gate(&parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	w := &view.Write{BaseRelation: f.base, Ref: f.baseRef, Layers: []view.WriteLayer{{Relation: f.view, Ref: f.viewRef, Source: f.base, SourceRef: f.baseRef}}}
-	scope.lockedRef, scope.lockedDescriptor = f.viewRef, f.view
+	scope.LockedRef, scope.LockedDescriptor = f.viewRef, f.view
 	if err := scope.acquireViewWriteTarget(w); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(errors.New("test cleanup"))
 		}
 	})
-	originals := f.e.storage.Relations[f.base.Address()].Versions
+	originals := f.e.Storage.Relations[f.base.Address()].Versions
 	row := append([]sqltype.Value(nil), originals[0].Values...)
 	row[1], _ = sqltype.Integer(f.integer, 99)
 	w.Checks = []view.CheckGroup{{Relation: f.view, Predicates: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}}}}
 	b := analyze.Binding{Relation: f.base, Ref: f.baseRef, ViewWrite: view.ViewWriteSlotOf(w)}
-	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Output: scope.output}}
-	if err := dml.CheckViewRow(scope.writeHost(), &b, row, &eval); err != nil {
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Output: scope.Output}}
+	if err := dml.CheckViewRow(scope.WriteHost(), &b, row, &eval); err != nil {
 		t.Fatal(err)
 	}
-	if err := dml.ReplaceRows(scope.writeHost(), f.baseRef, []storage.RowVersion{originals[0]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
+	if err := dml.ReplaceRows(scope.WriteHost(), f.baseRef, []storage.RowVersion{originals[0]}, index.WriteBatch{Values: [][]sqltype.Value{row}}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	cancel()
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(originals, f.e.storage.Relations[f.base.Address()].Versions) || len(scope.stage.rows) != 0 || scope.ViewWrite != nil || f.e.visibility.CommitSeq() != 1 {
+	if !reflect.DeepEqual(originals, f.e.Storage.Relations[f.base.Address()].Versions) || len(scope.Stage.Rows) != 0 || scope.ViewWrite != nil || f.e.Visibility.CommitSeq() != 1 {
 		t.Fatal("Finish veto installed checked row")
 	}
 	lockEmpty(t, f.e)

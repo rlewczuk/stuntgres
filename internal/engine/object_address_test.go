@@ -20,7 +20,7 @@ import (
 func TestObjectAddressAuthority(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
+	roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 	for address, descriptor := range view.Descriptors() {
 		identity, err := regobj.IdentifyAddress(view, roles, nil, address)
 		if err != nil || !identity.Found || identity.Identity == "" || identity.Kind == "" {
@@ -76,7 +76,7 @@ func objectAddressUnitRelation(t *testing.T) (*Engine, catalog.Read, *catalog.Re
 }
 func TestObjectAddressIdentity(t *testing.T) {
 	e, view, d := objectAddressUnitRelation(t)
-	roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
+	roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 	for _, tc := range []struct {
 		sub  int32
 		name string
@@ -191,7 +191,7 @@ func TestObjectAddressStoredRecipes(t *testing.T) {
 }
 func TestObjectAddressSnapshot(t *testing.T) {
 	e, old, d := objectAddressUnitRelation(t)
-	roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
+	roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 	fresh := old
 	fresh = fresh.WithState(catalog.CloneState(old.State()))
 	renamed := *d

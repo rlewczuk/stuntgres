@@ -23,10 +23,10 @@ func TestCastDefinitionDropPublicationTransition(t *testing.T) {
 	key := catalog.DescriptorNameKey(original)
 	drop := domainUnitStage(t, e, op, "DROP CAST (xid AS real) RESTRICT")
 	defer e.DiscardCatalogStage(drop)
-	if len(drop.domainTargets) != 1 || drop.domainTargets[0] != original.Address() {
-		t.Fatal("DROP did not select directed edge", drop.domainTargets)
+	if len(drop.DomainTargets) != 1 || drop.DomainTargets[0] != original.Address() {
+		t.Fatal("DROP did not select directed edge", drop.DomainTargets)
 	}
-	if err := stageExpressionDependencies(context.Background(), drop, drop.domainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := StageExpressionDependencies(context.Background(), drop, drop.DomainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	if removal, ok := drop.Removal(original.Address()); !ok || removal.Descriptor != original {
@@ -35,7 +35,7 @@ func TestCastDefinitionDropPublicationTransition(t *testing.T) {
 	if _, ok := drop.Cast(original.Source, original.Target); ok || drop.LookupName(key) != (ids.ObjectAddress{}) {
 		t.Fatal("candidate retained directed pair name")
 	}
-	candidate := e.stageRead(drop)
+	candidate := e.StageRead(drop)
 	if _, ok := candidate.Cast(original.Source, original.Target); ok || candidate.Get(original.Address()) != nil || candidate.NameAddress(key) != (ids.ObjectAddress{}) {
 		t.Fatal("candidate retained descriptor, pair index or name")
 	}
@@ -113,20 +113,20 @@ func TestCastDefinitionDropDependencyTransitions(t *testing.T) {
 			}
 			restrict := domainUnitStage(t, e, op, query+" RESTRICT")
 			defer e.DiscardCatalogStage(restrict)
-			err := stageExpressionDependencies(context.Background(), restrict, restrict.domainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{})
+			err := StageExpressionDependencies(context.Background(), restrict, restrict.DomainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{})
 			state(t, err, "2BP01")
 			if _, removed := restrict.Removal(cast.Address()); removed || e.CatalogRead().State() != base.State() {
 				t.Fatal("RESTRICT retired cast or published")
 			}
 			cascade := domainUnitStage(t, e, op, query+" CASCADE")
 			defer e.DiscardCatalogStage(cascade)
-			if err := stageExpressionDependencies(context.Background(), cascade, cascade.domainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := StageExpressionDependencies(context.Background(), cascade, cascade.DomainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			if _, removed := cascade.Removal(cast.Address()); !removed {
 				t.Fatal("CASCADE discovered but did not retire dependent cast")
 			}
-			if _, ok := e.stageRead(cascade).Cast(source, target); ok {
+			if _, ok := e.StageRead(cascade).Cast(source, target); ok {
 				t.Fatal("CASCADE candidate retained pair")
 			}
 			domainUnitPublish(t, e, cascade)
@@ -151,9 +151,9 @@ func TestCastDefinitionDropBuiltinProtection(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	base := e.CatalogRead()
-	e.mu.Lock()
+	e.Mu.Lock()
 	stage, err := e.stageSchemaLocked(op, statement(t, "DROP CAST (integer AS bigint) CASCADE"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if stage != nil {
 		defer e.DiscardCatalogStage(stage)
 	}

@@ -15,15 +15,15 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	op := scope.op
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	op := scope.Op
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return Result{}, err
 	}
-	changes := scope.owner.Catalog.Clone()
-	plan, warnings, err := fdw.PlanGrant(op.Context(), auth.View, s, changes.Descriptors, e.catalog.RevisionLocked)
+	changes := scope.Owner.Catalog.Clone()
+	plan, warnings, err := fdw.PlanGrant(op.Context(), auth.View, s, changes.Descriptors, e.Catalog.RevisionLocked)
 	for _, warning := range warnings {
 		op.EmitNotice(session.LevelWarning, warning)
 	}
@@ -31,9 +31,9 @@ func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGran
 		return Result{}, err
 	}
 	for _, change := range plan {
-		e.catalogChangeLocked(changes, change.Address, change.Object)
+		e.CatalogChangeLocked(changes, change.Address, change.Object)
 	}
-	scope.catalog = changes
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
+	scope.Catalog = changes
+	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return Result{}, nil
 }

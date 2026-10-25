@@ -17,13 +17,13 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", ""))
-	return e, e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
+	return e, e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
 }
 
 func TestIntaggProviderManifest(t *testing.T) {
 	e, ext := intaggUnitInstalled(t)
 	view := e.CatalogRead()
-	registration := e.catalog.Extensions["intagg"].Control()
+	registration := e.Catalog.Extensions["intagg"].Control()
 	if registration.Version != "1.1" || registration.Trusted || !registration.Superuser || !registration.Relocatable || registration.Comment == nil || *registration.Comment != "integer aggregator and enumerator (obsolete)" {
 		t.Fatal("released security metadata", registration)
 	}
@@ -57,11 +57,11 @@ func TestIntaggProviderManifest(t *testing.T) {
 				p.Implementation = new(*extension.StockIntagg)
 			},
 		} {
-			state := catalog.CloneState(e.catalog.State)
+			state := catalog.CloneState(e.Catalog.State)
 			bad := *proc
 			mutate(&bad)
 			state.SetDescriptor(address, &bad)
-			if err := extension.StockIntagg.ValidateExtension(e.catalog.Read(state), ext); err == nil {
+			if err := extension.StockIntagg.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
 				t.Fatal("corrupt member accepted", bad)
 			}
 		}
@@ -73,7 +73,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	if count != 2 {
 		t.Fatal("membership edges", count)
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.PublishedRead(&e.catalog.Owner, view), ext)
+	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
 	if err != nil || metadata == "" {
 		t.Fatal("owner manifest", metadata, err)
 	}
@@ -99,10 +99,10 @@ func TestIntaggProviderManifest(t *testing.T) {
 			op, done := roleOperation(t, other, "postgres")
 			defer done()
 			extensionUnitPublish(t, other, op, intarrayUnitStage(t, other, op, name, ""))
-			installed := other.catalog.State.MustExtension(other.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
+			installed := other.Catalog.State.MustExtension(other.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: name}))
 			var member *catalog.Procedure
 			for _, address := range installed.Members {
-				if proc, ok := other.catalog.State.Procedure(address); ok {
+				if proc, ok := other.Catalog.State.Procedure(address); ok {
 					member = proc
 					break
 				}
@@ -110,11 +110,11 @@ func TestIntaggProviderManifest(t *testing.T) {
 			if member == nil {
 				t.Fatal("missing procedure fixture")
 			}
-			state := catalog.CloneState(other.catalog.State)
+			state := catalog.CloneState(other.Catalog.State)
 			bad := *member
 			bad.Implementation = extension.StockIntagg
 			state.SetDescriptor(member.Address(), &bad)
-			if err := other.catalog.Extensions[name].ValidateExtension(other.catalog.Read(state), installed); err == nil {
+			if err := other.Catalog.Extensions[name].ValidateExtension(other.Catalog.Read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)
 			}
 		})

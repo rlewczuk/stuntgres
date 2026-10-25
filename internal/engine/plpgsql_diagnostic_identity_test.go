@@ -16,11 +16,11 @@ import (
 func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	e := New()
 	creator := sessionStart(t,e,nil)
-	setting, err := e.settings.Lookup("search_path")
+	setting, err := e.Settings.Lookup("search_path")
 	if err != nil { t.Fatal(err) }
 	setPath := func(scope *StatementScope, path string) {
 		t.Helper()
-		if _, err := e.applySetting(scope.op,scope.op.Session.Settings,setting,&path,false); err != nil { t.Fatal(err) }
+		if _, err := e.applySetting(scope.Op,scope.Op.Session.Settings,setting,&path,false); err != nil { t.Fatal(err) }
 	}
 	var d *catalog.Procedure
 	// Publish real validated descriptors before admitting the operation that
@@ -51,18 +51,18 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 		shadow.ObjectAddress = ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:910003}
 		shadow.ObjectNamespace = public.Address()
 		if err := stage.Create(&shadow); err != nil { t.Fatal(err) }
-		op.Definition = stageDefinitions(stage)
+		op.Definition = StageDefinitions(stage)
 		defer func() { op.Definition = nil }()
 		// The target namespace is searchable, but its exact signature is masked.
 		setPath(setup,"public,pl_cache_schema")
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err == nil {
-			auth.Recapture(e.stageRead(stage))
-			auth.definition = op.Definition
-			err = e.compilePLRoutineLocked(op,auth,d)
+			auth.Recapture(e.StageRead(stage))
+			auth.Definition = op.Definition
+			err = e.CompilePLRoutineLocked(op,auth,d)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil { t.Fatal(err) }
 		collationUnitPublish(t,e,stage)
 	}()
@@ -72,7 +72,7 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	s, err := e.StartStatement(op)
 	if err != nil { t.Fatal(err) }
 	t.Cleanup(func() { s.Finish(nil) })
-	if err := s.gate(&parser.Select{}); err != nil { t.Fatal(err) }
+	if err := s.Gate(&parser.Select{}); err != nil { t.Fatal(err) }
 	s.worked = true
 	read := e.CatalogRead()
 	program := d.SQL.PL
@@ -99,7 +99,7 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	fresh, err := e.StartStatement(freshOp)
 	if err != nil { t.Fatal(err) }
 	t.Cleanup(func() { fresh.Finish(nil) })
-	if err := fresh.gate(&parser.Select{}); err != nil { t.Fatal(err) }
+	if err := fresh.Gate(&parser.Select{}); err != nil { t.Fatal(err) }
 	fresh.worked = true
 	setPath(fresh,"pl_cache_schema,public")
 	invoke(fresh,d,"cache_fn()")
@@ -109,9 +109,9 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	// unchanged source/typed layout alone cannot authorize stale presentation.
 	replacement := *d
 	invoke(s,&replacement,"cache_fn()")
-	e.mu.Lock()
-	retained := payloadOf(s.op.Session).sqlRoutines[d.Address()]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	retained := PayloadOf(s.Op.Session).sqlRoutines[d.Address()]
+	e.Mu.Unlock()
 	if retained.plProcedure != &replacement || retained.plDiagnostic != "cache_fn()" { t.Fatal("replacement carrier did not own recaptured signature") }
 	restore := s.activateSQLRoutine(nil,read)
 	if s.sqlRoutine.plDiagnostic != "" { t.Fatal("nested SQL activation inherited PL identity") }

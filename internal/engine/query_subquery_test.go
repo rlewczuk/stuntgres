@@ -293,20 +293,20 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	if _, err = scope.Describe(ast); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		bound, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(bound.QuerySources) != 3 {
 		t.Fatal("missing admitted occurrence", len(bound.QuerySources))
 	}
-	if err = scope.validateQuerySources(bound.QuerySources); err != nil {
+	if err = scope.ValidateQuerySources(bound.QuerySources); err != nil {
 		t.Fatal(err)
 	}
 	for i, name := range []string{"a", "b", "c"} {
@@ -319,15 +319,15 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	}
 	changed := append([]exec.Leaf(nil), bound.QuerySources...)
 	changed[0], changed[1] = changed[1], changed[0]
-	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
+	if err = scope.ValidateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("reordered admission accepted", err)
 	}
 	changed = append([]exec.Leaf(nil), bound.QuerySources...)
 	changed[2].Mark = plan.RowMark{}
-	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
+	if err = scope.ValidateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("weakened row mark admitted", err)
 	}
-	if err = scope.validateQuerySources(bound.QuerySources[:2]); err != ids.ErrCatalogReplaced {
+	if err = scope.ValidateQuerySources(bound.QuerySources[:2]); err != ids.ErrCatalogReplaced {
 		t.Fatal("omitted occurrence admitted", err)
 	}
 }
@@ -367,13 +367,13 @@ func TestQuerySubqueryAggregateOwnership(t *testing.T) {
 		run(t, e, "CREATE TABLE a(k INT)")
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		sql := "SELECT count((SELECT count(a.k))) FROM a"
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(binderOperation(binder))
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(binderOperation(binder))
 		binder.Query.Auth = &auth
 		if err == nil {
 			_, err = binder.BindSelect(statement(t, sql).(*parser.Select), false)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42803" || diagnostic.Message != "aggregate function calls cannot be nested" {
 			t.Fatal(err)
@@ -463,9 +463,9 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			b.Target.Ref = roleTableRef(t, e, "target")
 			b.Target.Relation = e.CatalogRead().MustRelation(b.Target.Ref.Address)
 			b.Target.Name = "target"
-			e.mu.Lock()
-			auth, authErr := e.authorizationLocked(binderOperation(b))
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth, authErr := e.AuthorizationLocked(binderOperation(b))
+			e.Mu.Unlock()
 			if authErr != nil {
 				t.Fatal(authErr)
 			}
@@ -587,7 +587,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 		roleExecute(t, e, op, sql)
 	}
 	reader, _ := e.Roles().Lookup("subquery_reader")
-	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	outer, child := roleTableRef(t, e, "o"), roleTableRef(t, e, "c")
 	grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
@@ -603,24 +603,24 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 	grant(key, authorization.SelectPrivilege)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION subquery_reader")
 	ast := statement(t, "SELECT EXISTS(SELECT c.v FROM c WHERE c.k=o.id) FROM o WHERE FALSE")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
+		bound, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	check := func(denied bool) {
 		t.Helper()
-		e.mu.Lock()
-		current, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		current, err := e.AuthorizationLocked(op)
 		if err == nil {
 			err = analyze.CheckBinding(current, bound, ast)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if denied {
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table c"}

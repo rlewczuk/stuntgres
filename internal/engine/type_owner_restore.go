@@ -13,7 +13,7 @@ import (
 // on every subsequent statement; it is not general ALTER OWNER eligibility.
 func (e *Engine) captureRestoredTypeOwner(op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef, kind string) (typedef.RestoredTypeOwner, error) {
 	reject := func() (typedef.RestoredTypeOwner, error) {
-		return typedef.RestoredTypeOwner{}, sqlError("0A000", typedef.RestoreTypeOwnerBoundary(kind))
+		return typedef.RestoredTypeOwner{}, SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind))
 	}
 	if op == nil {
 		return reject()
@@ -21,16 +21,16 @@ func (e *Engine) captureRestoredTypeOwner(op *session.Operation, created ids.Obj
 	if err := op.Context().Err(); err != nil {
 		return typedef.RestoredTypeOwner{}, err
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return typedef.RestoredTypeOwner{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || created.Domain() != e.catalog.Domain || created.Epoch != auth.Catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if !PartitionConstraintReplayImport(e, op, auth) || created.Domain() != e.Catalog.Domain || created.Epoch != auth.Catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
 		return reject()
 	}
-	if _, captured := e.importTargets[owner]; !captured {
+	if _, captured := e.ImportTargets[owner]; !captured {
 		return reject()
 	}
 	typ, ok := auth.Catalog.Type(created.Address)
@@ -70,7 +70,7 @@ func (e *Engine) restoreTypeOwner(op *session.Operation, raw *parser.AlterOwner,
 	if raw != nil {
 		kind = raw.Kind
 	}
-	reject := func() error { return sqlError("0A000", typedef.RestoreTypeOwnerBoundary(kind)) }
+	reject := func() error { return SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind)) }
 	if raw == nil || raw.Kind != pair.Kind || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.Ref == (ids.ObjectRef{}) {
 		return reject()
 	}
@@ -81,7 +81,7 @@ func (e *Engine) restoreTypeOwner(op *session.Operation, raw *parser.AlterOwner,
 	if current != pair || raw.Name.Parts[0].Text != pair.Namespace.Name() || raw.Name.Parts[1].Text != pair.Type.Name() {
 		return reject()
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return err
 	}

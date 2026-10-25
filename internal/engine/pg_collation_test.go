@@ -21,7 +21,7 @@ func pgCollationUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*cata
 	if !ok {
 		t.Fatal("missing pg_collation")
 	}
-	return d, e.catalog.Domain.Ref(catalog.Epoch(), address)
+	return d, e.Catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
 func TestPGCollationShapeAndOwnership(t *testing.T) {
@@ -65,12 +65,12 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *exec.Source {
 	t.Helper()
 	d, ref := pgCollationUnitSource(t, e, view)
-	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
+	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	capturedDescriptors, capturedNames := maps.Collect(view.State().Descriptors()), maps.Collect(view.State().Names())
-	e.mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, d)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, d)
+	e.Mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal("capture", rows, err)
 	}
@@ -131,14 +131,14 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *exec.So
 		}
 	}
 	unchanged := func() {
-		if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) || !maps.Equal(capturedDescriptors, maps.Collect(view.State().Descriptors())) || !maps.Equal(capturedNames, maps.Collect(view.State().Names())) {
+		if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || !maps.Equal(descriptors, maps.Collect(state.Descriptors())) || !maps.Equal(names, maps.Collect(state.Names())) || !maps.Equal(capturedDescriptors, maps.Collect(view.State().Descriptors())) || !maps.Equal(capturedNames, maps.Collect(view.State().Names())) {
 			t.Fatal("capture mutated catalog/frontier")
 		}
 	}
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGCollation); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCollation); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published partial source", got, err)
 	}
 	unchanged()
@@ -192,7 +192,7 @@ func TestPGCollationCapture(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	private := pgCollationUnitCapture(t, e, e.stageRead(stage))
+	private := pgCollationUnitCapture(t, e, e.StageRead(stage))
 	check(private, "pgc_capture_renamed")
 	check(pgCollationUnitCapture(t, e, before), "pgc_capture")
 	collationUnitPublish(t, e, stage)

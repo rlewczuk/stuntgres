@@ -32,12 +32,12 @@ func (e *Engine) bindCreateGenerations(op *session.Operation, auth Authorization
 	if len(d.ColumnMeta.Generations) == 0 {
 		return nil
 	}
-	ns := e.generationNamespace(auth, d)
+	ns := e.GenerationNamespace(auth, d)
 	for slot, declaration := range declarations {
 		if declaration.Generation == nil {
 			continue
 		}
-		definition, err := e.bindGeneration(op, auth, d, slot, declaration.Generation.Expression, input, &ns)
+		definition, err := e.BindGeneration(op, auth, d, slot, declaration.Generation.Expression, input, &ns)
 		if err != nil {
 			return err
 		}
@@ -46,18 +46,18 @@ func (e *Engine) bindCreateGenerations(op *session.Operation, auth Authorization
 	return nil
 }
 
-func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
-	return analyze.RelationNamespace(auth.Catalog, d, e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), 0)
+func (e *Engine) GenerationNamespace(auth AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
+	return analyze.RelationNamespace(auth.Catalog, d, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), 0)
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.
-func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
-	b := newExpressionBinder(op.Context(), e, input, op, nil)
+func (e *Engine) BindGeneration(op *session.Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
+	b := NewExpressionBinder(op.Context(), e, input, op, nil)
 	b.Target.GeneratedOwner = d
 	b.Params.NoParameters = true
 	b.Query.Auth = &auth
 	b.Query.Namespace = ns
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
@@ -82,7 +82,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 		return catalog.ColumnGeneration{}, err
 	}
 	if !plan.GenerationImmutable(node) {
-		return catalog.ColumnGeneration{}, sqlError("42P17", "generation expression is not immutable")
+		return catalog.ColumnGeneration{}, SQLError("42P17", "generation expression is not immutable")
 	}
 	if node.ResultUsage() != column.Usage {
 		input, annotations := analyze.DomainCoercionInput(node, column.Usage)
@@ -92,7 +92,7 @@ func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d
 		}
 		coercionPlan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if failure != nil {
-			diagnostic := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
+			diagnostic := SQLError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
 			diagnostic.Hint = "You will need to rewrite or cast the expression."
 			return catalog.ColumnGeneration{}, diagnostic
 		}

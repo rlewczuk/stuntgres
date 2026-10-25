@@ -257,7 +257,7 @@ func TestConditionalConservativeAuthorizationAndOrigins(t *testing.T) {
 	column := roleTableRef(t, e, "secret")
 	column.Address.SubID = 1
 	reader, _ := e.Roles().Lookup("reader")
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, owner, "SET SESSION AUTHORIZATION reader")
@@ -569,16 +569,16 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() {
-				if !scope.finished {
+				if !scope.Finished {
 					_ = scope.Finish(context.Canceled)
 				}
 			}()
 			var restore func()
 			ctx.visit = func() {
-				if scope.view != nil {
+				if scope.View != nil {
 					t.Error("INSERT captured data before planning/revalidation")
 				}
-				if scope.lockedRef.Domain() != e.catalog.Domain || scope.lockedDescriptor == nil {
+				if scope.LockedRef.Domain() != e.Catalog.Domain || scope.LockedDescriptor == nil {
 					t.Error("INSERT lost locked relation identity")
 				}
 				switch mode {
@@ -589,9 +589,9 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				case "teardown":
 					op.Session.RequestEnd(session.CleanClose)
 				case "descriptor", "shape":
-					address := scope.lockedRef.Address
-					original := e.catalog.State.Get(address)
-					replacement := *scope.lockedDescriptor.(*catalog.Relation)
+					address := scope.LockedRef.Address
+					original := e.Catalog.State.Get(address)
+					replacement := *scope.LockedDescriptor.(*catalog.Relation)
 					replacement.ObjectRevision++
 					if mode == "shape" {
 						replacement.Attributes = append([]int32(nil), replacement.Attributes...)
@@ -599,12 +599,12 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					} else {
 						replacement.Comment = "compatible metadata revision"
 					}
-					e.catalog.State.SetDescriptor(address, &replacement)
-					restore = func() { e.catalog.State.SetDescriptor(address, original) }
+					e.Catalog.State.SetDescriptor(address, &replacement)
+					restore = func() { e.Catalog.State.SetDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.State.Epoch()
-					e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
-					restore = func() { e.catalog.State.SetEpoch(original) }
+					original := e.Catalog.State.Epoch()
+					e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
+					restore = func() { e.Catalog.State.SetEpoch(original) }
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "INSERT INTO t VALUES(CASE WHEN TRUE THEN 1+2 ELSE CAST(CAST($1 AS TEXT) AS INTEGER) END)"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
@@ -618,11 +618,11 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 			})
 			ctx.armed = false
 			if restore != nil {
-				e.mu.Lock()
+				e.Mu.Lock()
 				restore()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
-			capturedView := scope.view != nil
+			capturedView := scope.View != nil
 			finishErr := scope.Finish(executeErr)
 			done()
 			if finishErr != executeErr {

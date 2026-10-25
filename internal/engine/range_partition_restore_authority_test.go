@@ -17,24 +17,24 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	sourceOp, sourceDone := roleOperation(t, source, "postgres")
 	defer sourceDone()
 	roleExecute(t, source, sourceOp, "CREATE ROLE child_owner LOGIN")
-	stage := source.restoreStage()
+	stage := source.RestoreStage()
 	op, done := roleOperation(t, stage, "postgres")
 	defer done()
 	roleExecute(t, stage, op, "SET SESSION AUTHORIZATION child_owner")
-	operationReplay(op).tableDestination = true
-	operationReplay(op).defaultReplay = true
+	OperationReplay(op).TableDestination = true
+	OperationReplay(op).DefaultReplay = true
 	create := statement(t, "CREATE TABLE child PARTITION OF parent DEFAULT").(*parser.CreateTable)
 	alter := statement(t, "ALTER TABLE parent ALTER COLUMN k SET DEFAULT 1").(*parser.AlterTableDefault)
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	original := auth.State.CurrentUser
-	parentAuth, err := stage.partitionParentAuthorization(op, auth, create)
-	if err != nil || parentAuth.State.CurrentUser != auth.State.Authenticated || auth.State.CurrentUser != original || parentAuth.session != auth.session || parentAuth.Catalog != auth.Catalog || parentAuth.Roles != auth.Roles {
+	parentAuth, err := stage.PartitionParentAuthorization(op, auth, create)
+	if err != nil || parentAuth.State.CurrentUser != auth.State.Authenticated || auth.State.CurrentUser != original || parentAuth.Session != auth.Session || parentAuth.Catalog != auth.Catalog || parentAuth.Roles != auth.Roles {
 		t.Fatal("parent-only private authority did not preserve named child frontier", parentAuth, err)
 	}
-	if !partitionDefaultReplayAllowed(stage, op, auth, alter) {
+	if !PartitionDefaultReplayAllowed(stage, op, auth, alter) {
 		t.Fatal("genuine private SET DEFAULT provenance rejected")
 	}
 	for _, test := range []struct {
@@ -61,85 +61,85 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 				current = &cloned
 			}
 			e := test.mutate(&a, current)
-			if _, err := e.partitionParentAuthorization(current, a, create); err == nil {
+			if _, err := e.PartitionParentAuthorization(current, a, create); err == nil {
 				t.Fatal("forged parent authority accepted")
 			}
-			if partitionDefaultReplayAllowed(e, current, a, alter) {
+			if PartitionDefaultReplayAllowed(e, current, a, alter) {
 				t.Fatal("forged default authority accepted")
 			}
 		})
 	}
-	operationReplay(op).tableDestination = false
-	ordinary, err := stage.partitionParentAuthorization(op, auth, create)
+	OperationReplay(op).TableDestination = false
+	ordinary, err := stage.PartitionParentAuthorization(op, auth, create)
 	if err != nil || ordinary.State.CurrentUser != original {
 		t.Fatal("ordinary authority was elevated", err)
 	}
-	operationReplay(op).tableDestination = true
+	OperationReplay(op).TableDestination = true
 	dropped := *alter
 	dropped.Action = parser.DropDefault
 	dropped.Expression = nil
-	if partitionDefaultReplayAllowed(stage, op, auth, &dropped) {
+	if PartitionDefaultReplayAllowed(stage, op, auth, &dropped) {
 		t.Fatal("DROP DEFAULT passed SET DEFAULT whitelist")
 	}
 	actorOp, actorDone := roleOperation(t, stage, "child_owner")
 	defer actorDone()
-	actorAuth, err := operationAuthorization(actorOp)
+	actorAuth, err := OperationAuthorization(actorOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operationReplay(actorOp).tableDestination = true
-	operationReplay(actorOp).defaultReplay = true
-	if _, err := operationAuthorization(actorOp); err == nil {
+	OperationReplay(actorOp).TableDestination = true
+	OperationReplay(actorOp).DefaultReplay = true
+	if _, err := OperationAuthorization(actorOp); err == nil {
 		t.Fatal("nonbootstrap importer marker granted live lookup authority")
 	}
-	if _, err := stage.partitionParentAuthorization(actorOp, actorAuth, create); err == nil || partitionDefaultReplayAllowed(stage, actorOp, actorAuth, alter) {
+	if _, err := stage.PartitionParentAuthorization(actorOp, actorAuth, create); err == nil || PartitionDefaultReplayAllowed(stage, actorOp, actorAuth, alter) {
 		t.Fatal("genuine nonbootstrap importer operation elevated", err)
 	}
-	if _, err := stage.partitionParentAuthorization(op, actorAuth, create); err == nil || partitionDefaultReplayAllowed(stage, op, actorAuth, alter) {
+	if _, err := stage.PartitionParentAuthorization(op, actorAuth, create); err == nil || PartitionDefaultReplayAllowed(stage, op, actorAuth, alter) {
 		t.Fatal("different leased session authorization elevated", err)
 	}
 	actorDone()
-	if _, err := stage.partitionParentAuthorization(actorOp, actorAuth, create); err == nil || partitionDefaultReplayAllowed(stage, actorOp, actorAuth, alter) {
+	if _, err := stage.PartitionParentAuthorization(actorOp, actorAuth, create); err == nil || PartitionDefaultReplayAllowed(stage, actorOp, actorAuth, alter) {
 		t.Fatal("ended private operation retained authority", err)
 	}
-	grantFrontier, err := operationAuthorization(op)
+	grantFrontier, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	public := stage.catalog.Domain.Ref(stage.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	public := stage.Catalog.Domain.Ref(stage.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := stage.SetObjectACL(context.Background(), public, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := stage.partitionParentAuthorization(op, grantFrontier, create); err == nil || partitionDefaultReplayAllowed(stage, op, grantFrontier, alter) {
+	if _, err := stage.PartitionParentAuthorization(op, grantFrontier, create); err == nil || PartitionDefaultReplayAllowed(stage, op, grantFrontier, alter) {
 		t.Fatal("stale grant frontier retained private parent/default authority", err)
 	}
 	if err := stage.SetObjectACL(context.Background(), public, authorization.ACLValue{}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, stage, op, "CREATE TABLE public.changed(k INT)")
-	if _, err := stage.partitionParentAuthorization(op, auth, create); err == nil || partitionDefaultReplayAllowed(stage, op, auth, alter) {
+	if _, err := stage.PartitionParentAuthorization(op, auth, create); err == nil || PartitionDefaultReplayAllowed(stage, op, auth, alter) {
 		t.Fatal("stale catalog authority accepted", err)
 	}
-	current, err := operationAuthorization(op)
+	current, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, stage, op, "SET SESSION AUTHORIZATION postgres")
 	roleExecute(t, stage, op, "CREATE ROLE newer_role")
-	if _, err := stage.partitionParentAuthorization(op, current, create); err == nil || partitionDefaultReplayAllowed(stage, op, current, alter) {
+	if _, err := stage.PartitionParentAuthorization(op, current, create); err == nil || PartitionDefaultReplayAllowed(stage, op, current, alter) {
 		t.Fatal("stale role authority accepted", err)
 	}
-	liveAuth, err := operationAuthorization(sourceOp)
+	liveAuth, err := OperationAuthorization(sourceOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	operationReplay(sourceOp).tableDestination = true
-	operationReplay(sourceOp).defaultReplay = true
-	if _, err := source.partitionParentAuthorization(sourceOp, liveAuth, create); err == nil || partitionDefaultReplayAllowed(source, sourceOp, liveAuth, alter) {
+	OperationReplay(sourceOp).TableDestination = true
+	OperationReplay(sourceOp).DefaultReplay = true
+	if _, err := source.PartitionParentAuthorization(sourceOp, liveAuth, create); err == nil || PartitionDefaultReplayAllowed(source, sourceOp, liveAuth, alter) {
 		t.Fatal("live bootstrap forged importer flag accepted", err)
 	}
-	operationReplay(sourceOp).tableDestination = false
-	operationReplay(sourceOp).defaultReplay = false
+	OperationReplay(sourceOp).TableDestination = false
+	OperationReplay(sourceOp).DefaultReplay = false
 }
 
 func TestRangePartitionPublicationMixedOwnerRestore(t *testing.T) {

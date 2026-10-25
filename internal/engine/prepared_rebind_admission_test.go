@@ -37,8 +37,8 @@ func preparedRebindWorker(t *testing.T, e *Engine, s *session.Session, ast parse
 				if result.Rows != nil {
 					result.Rows.Close()
 				}
-				out.target = scope.lockedRef
-				for _, leaf := range scope.querySources {
+				out.target = scope.LockedRef
+				for _, leaf := range scope.QuerySources {
 					out.sources = append(out.sources, leaf.Ref)
 				}
 				err = scope.Finish(err)
@@ -87,13 +87,13 @@ func TestPreparedRebindAdmission(t *testing.T) {
 				earlyHeld := false
 				createHeldEarly := func() {
 					sessionSQL(t, ddl, "CREATE TABLE a.t(v INT)")
-					e.mu.Lock()
-					ns := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "a"})
-					address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "t"})
-					early = e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					ns := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "a"})
+					address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "t"})
+					early = e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
+					e.Mu.Unlock()
 					earlyHolder = transactionBegin(t, ddl)
-					if err := e.locks.Acquire(context.Background(), ddl.Transactions.Ticket, lock.Resource{ObjectRef: early}, lock.AccessExclusive); err != nil {
+					if err := e.Locks.Acquire(context.Background(), ddl.Transactions.Ticket, lock.Resource{ObjectRef: early}, lock.AccessExclusive); err != nil {
 						t.Fatal(err)
 					}
 					earlyHeld = true
@@ -111,7 +111,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					sessionSQL(t, ddl, "ALTER TABLE b.t ADD unused INT")
 				}
 				holderRef := transactionBegin(t, holder)
-				if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: late}, lock.AccessExclusive); err != nil {
+				if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: late}, lock.AccessExclusive); err != nil {
 					t.Fatal(err)
 				}
 				if action == "grant_definition" {

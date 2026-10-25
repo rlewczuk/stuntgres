@@ -16,7 +16,7 @@ import (
 
 func collationPrivateSession(t *testing.T, e *Engine) *session.Session {
 	t.Helper()
-	s, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.roles.Domain.Principal(10)}, true)
+	s, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,12 +62,12 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	before := e.CatalogRead()
 	tx := transactionBegin(t, peer)
 	ref := catalogRef(t, e, before, "coll_cleanup_t")
-	if err := e.locks.Acquire(context.Background(), peer.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+	if err := e.Locks.Acquire(context.Background(), peer.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	owner.RequestEnd(session.CleanClose)
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	valid := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive && session.PrivateSessionOf(entry.Pending[0].Ticket.Ref().Session()) != nil
 	if !valid || e.CatalogRead().State() != before.State() {
@@ -82,7 +82,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	for address, descriptor := range before.Descriptors() {
 		if descriptor.Namespace() == namespace {
-			if _, ok := e.CatalogRead().Descriptor(address); ok || e.storage.Relations[address] != nil || e.storage.Sequences[address] != nil || e.storage.IndexRoots[address] != nil {
+			if _, ok := e.CatalogRead().Descriptor(address); ok || e.Storage.Relations[address] != nil || e.Storage.Sequences[address] != nil || e.Storage.IndexRoots[address] != nil {
 				t.Fatal("owned TEMP child or physical projection survived", address)
 			}
 		}
@@ -132,11 +132,11 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_exhausted FROM pg_catalog."C"`)
 	sessionSQL(t, owner, `CREATE TABLE coll_cleanup_exhausted_t(id INT,v TEXT COLLATE pg_temp.coll_cleanup_exhausted)`)
 	sessionSQL(t, owner, `INSERT INTO coll_cleanup_exhausted_t VALUES(7,'é')`)
-	e.mu.Lock()
-	state := catalog.CloneState(e.catalog.State)
+	e.Mu.Lock()
+	state := catalog.CloneState(e.Catalog.State)
 	state.SetNamespaceGeneration(^uint64(0))
-	e.catalog.PublishLocked(state)
-	e.mu.Unlock()
+	e.Catalog.PublishLocked(state)
+	e.Mu.Unlock()
 	before := e.CatalogRead()
 	namespace := owner.TemporaryNamespace
 	owner.RequestEnd(session.CleanClose)
@@ -152,7 +152,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	}
 	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	for address, descriptor := range before.Descriptors() {
-		if descriptor.Namespace() == namespace && (after.Get(address) != nil || e.storage.Relations[address] != nil || e.storage.Sequences[address] != nil || e.storage.IndexRoots[address] != nil) {
+		if descriptor.Namespace() == namespace && (after.Get(address) != nil || e.Storage.Relations[address] != nil || e.Storage.Sequences[address] != nil || e.Storage.IndexRoots[address] != nil) {
 			t.Fatal("exhausted cleanup retained TEMP child", address)
 		}
 	}

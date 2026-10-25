@@ -8,20 +8,20 @@ import (
 )
 
 func (a AuthorizationView) definitionDescriptor(address ids.ObjectAddress) (catalog.Descriptor, bool) {
-	if a.definition != nil {
-		return a.definition.Descriptor(address)
+	if a.Definition != nil {
+		return a.Definition.Descriptor(address)
 	}
 	return a.Catalog.Descriptor(address)
 }
-func (a AuthorizationView) definitionLookup(key ids.NameKey) ids.ObjectAddress {
-	if a.definition != nil {
-		return a.definition.Lookup(key)
+func (a AuthorizationView) DefinitionLookup(key ids.NameKey) ids.ObjectAddress {
+	if a.Definition != nil {
+		return a.Definition.Lookup(key)
 	}
 	return a.Catalog.NameAddress(key)
 }
 
 func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return catalog.DefinitionTypeAt(a.Catalog, a.definition, id)
+	return catalog.DefinitionTypeAt(a.Catalog, a.Definition, id)
 }
 
 // stageDefinitionReader is the definition reader of a catalog stage: its
@@ -31,9 +31,9 @@ type stageDefinitionReader struct {
 	stage *CatalogStage
 }
 
-// stageDefinitions returns stage's definition reader. Construction never
+// StageDefinitions returns stage's definition reader. Construction never
 // dereferences stage; reading through the reader of a nil stage panics.
-func stageDefinitions(stage *CatalogStage) stageDefinitionReader {
+func StageDefinitions(stage *CatalogStage) stageDefinitionReader {
 	if stage == nil {
 		return stageDefinitionReader{}
 	}
@@ -58,14 +58,14 @@ func (r stageDefinitionReader) HasProviderProcedureOverride(name string) bool {
 }
 
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
-	return catalog.DefinitionNamespaceAt(a.Catalog, a.definition, address)
+	return catalog.DefinitionNamespaceAt(a.Catalog, a.Definition, address)
 }
 
 func (r stageDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
-	lineage, ok := r.stage.indexesOrZero().Layouts[address]
+	lineage, ok := r.stage.IndexesOrZero().Layouts[address]
 	return lineage, ok
 }
 
 func (a AuthorizationView) definitionArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
-	return catalog.DefinitionArrayAt(a.Catalog, a.definition, element)
+	return catalog.DefinitionArrayAt(a.Catalog, a.Definition, element)
 }

@@ -15,14 +15,14 @@ import (
 // Previously admitted identities must survive; a same-name replacement is never
 // a substitute. No manager wait is performed under Engine.mu.
 func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock.Mode, imported ...[]exec.Leaf) error {
-	e := s.engine()
-	roots := s.querySources
-	if s.materializedOrZero().Refresh {
-		e.mu.Lock()
-		catalog := e.privateCatalogLocked(s.owner.Catalog)
-		d, ok := catalog.Relation(s.lockedRef.Address)
+	e := s.Engine()
+	roots := s.QuerySources
+	if s.MaterializedOrZero().Refresh {
+		e.Mu.Lock()
+		catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
+		d, ok := catalog.Relation(s.LockedRef.Address)
 		if !ok || d.View == nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
 		roots = append([]exec.Leaf(nil), roots...)
@@ -32,34 +32,34 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			}
 			ref, err := stored.ViewUseReference(catalog, d, leaf.Ref)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return err
 			}
 			roots = append(roots, exec.Leaf{Ref: ref, Only: leaf.Only})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 	}
 	if len(imported) != 0 {
 		roots = append(append([]exec.Leaf(nil), roots...), imported[0]...)
 	}
 	for {
-		e.mu.Lock()
-		view := e.privateCatalogLocked(s.owner.Catalog)
-		for _, leaf := range s.inheritance.relations {
-			if _, err := currentQuerySourceLocked(e, view, s.owner.Catalog, leaf); err != nil {
-				e.mu.Unlock()
+		e.Mu.Lock()
+		view := e.PrivateCatalogLocked(s.Owner.Catalog)
+		for _, leaf := range s.Inheritance.relations {
+			if _, err := CurrentQuerySourceLocked(e, view, s.Owner.Catalog, leaf); err != nil {
+				e.Mu.Unlock()
 				return err
 			}
 		}
-		pending, next, err := table.InheritancePendingGrants(view, roots, s.op.Session.SessionToken, grants)
+		pending, next, err := table.InheritancePendingGrants(view, roots, s.Op.Session.SessionToken, grants)
 		grants = next
 		for i := range pending {
-			pending[i].Storage = e.privateStorageLocked(s.owner.Catalog, pending[i].Ref.Address)
+			pending[i].Storage = e.PrivateStorageLocked(s.Owner.Catalog, pending[i].Ref.Address)
 		}
 		if err == nil && len(pending) == 0 {
-			s.inheritance.catalog = view
+			s.Inheritance.catalog = view
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
@@ -71,36 +71,36 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			if grants[leaf.Ref] != 0 {
 				mode = lock.RowShare
 			}
-			policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.Ref}, mode, policy)
+			policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
+			request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: leaf.Ref}, mode, policy)
 			if request != nil {
 				s.admissionWaited = true
 				if len(s.rlsActive) != 0 {
 					s.rlsImportWaits++
 				}
-				if s.replacementRead {
-					e.replacementMu.RUnlock()
-					s.replacementRead = false
+				if s.ReplacementRead {
+					e.ReplacementMu.RUnlock()
+					s.ReplacementRead = false
 				}
 				err = request.Wait()
 			}
 			if err != nil {
 				return err
 			}
-			s.owner.Mu.Lock()
-			implicit := s.owner.State == session.TxImplicit
-			s.owner.Mu.Unlock()
-			if implicit && !s.replacementRead {
-				e.replacementMu.RLock()
-				s.replacementRead = true
+			s.Owner.Mu.Lock()
+			implicit := s.Owner.State == session.TxImplicit
+			s.Owner.Mu.Unlock()
+			if implicit && !s.ReplacementRead {
+				e.ReplacementMu.RLock()
+				s.ReplacementRead = true
 			}
-			e.mu.Lock()
-			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, leaf)
+			e.Mu.Lock()
+			_, err = CurrentQuerySourceLocked(e, e.PrivateCatalogLocked(s.Owner.Catalog), s.Owner.Catalog, leaf)
 			if err == nil {
 				e.markTemporaryAccessLocked(s, leaf.Ref, temporaryOwnAccess)
-				s.inheritance.relations = append(s.inheritance.relations, leaf)
+				s.Inheritance.relations = append(s.Inheritance.relations, leaf)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				return err
 			}
@@ -109,8 +109,8 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 }
 
 func (s *StatementScope) inheritanceRead(current catalog.Read) catalog.Read {
-	if s.inheritance.catalog.State() != nil {
-		return s.inheritance.catalog
+	if s.Inheritance.catalog.State() != nil {
+		return s.Inheritance.catalog
 	}
 	return current
 }
@@ -122,21 +122,21 @@ func (s *StatementScope) inheritanceRead(current catalog.Read) catalog.Read {
 type inheritanceScope struct {
 	relations     []exec.Leaf  // Exact physical SELECT grants, separate from SQL occurrences.
 	catalog       catalog.Read // Immutable topology after the last grant/wait reconciliation.
-	alter         *inheritanceAlterState
-	relationships []inheritanceRelationshipAdmission
+	Alter         *InheritanceAlterState
+	Relationships []InheritanceRelationshipAdmission
 }
 
 // endStatement drops the statement's physical grants and frozen topology.
 // The ALTER state is released by its own handler.
 func (i *inheritanceScope) endStatement() {
 	i.relations, i.catalog = nil, catalog.Read{}
-	i.relationships = nil
+	i.Relationships = nil
 }
 
 // inheritancePlan is the recursing ALTER's plan record, nil when the statement
 // is not recursing through an inheritance tree. Its methods are nil-safe.
 func (scope *StatementScope) inheritancePlan() *table.InheritanceAlterPlan {
-	if state := scope.inheritance.alter; state != nil {
+	if state := scope.Inheritance.Alter; state != nil {
 		return &state.InheritanceAlterPlan
 	}
 	return nil

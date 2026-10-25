@@ -37,20 +37,20 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 		{"SELECT $1<$2 FROM t", sqltype.Text, false, true, nil},
 		{"SELECT NULL=NULL FROM t", 0, false, false, nil},
 	} {
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
 		ast := statement(t, tc.q)
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+		ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-		e.mu.Unlock()
+		bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(tc.q, err)
 		}
@@ -133,7 +133,7 @@ func TestCompareOpsRightOnlyAuthorization(t *testing.T) {
 	reader, _ := e.Roles().Lookup("reader")
 	column := ref
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
@@ -153,43 +153,43 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2003, 7, 7, 4, 5, 6, 0, time.UTC)}
 	later := sqltype.InputEnvironment{TransactionStart: time.Date(2004, 8, 8, 12, 13, 14, 0, time.UTC)}
 	for _, q := range []string{"SELECT 'now'=TIME(0) 'now' FROM t", "SELECT 'now'=TIMESTAMP(0) 'now' FROM t"} {
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
 		ast := statement(t, q)
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+		ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, first, nil, nil)
+		bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, first, nil, nil)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		desc := StatementDescription{temporals: bound.Prepared.Temporals}
-		before := append([]analyze.TemporalConstant(nil), desc.temporals...)
+		desc := StatementDescription{Temporals: bound.Prepared.Temporals}
+		before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 		for range 2 {
-			rebound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, later, &desc, nil)
+			rebound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, later, &desc, nil)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			c := rebound.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
 			if c.Left.ResultUsage().Typmod != -1 || c.Right.ResultUsage().Typmod != 0 {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(c)
 			}
 			value, err := c.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 			truth, truthErr := value.Boolean()
-			if err != nil || truthErr != nil || !truth || !reflect.DeepEqual(before, desc.temporals) {
-				e.mu.Unlock()
-				t.Fatal(value, err, truthErr, desc.temporals)
+			if err != nil || truthErr != nil || !truth || !reflect.DeepEqual(before, desc.Temporals) {
+				e.Mu.Unlock()
+				t.Fatal(value, err, truthErr, desc.Temporals)
 			}
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 	}
 }

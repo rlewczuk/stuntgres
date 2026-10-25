@@ -10,7 +10,7 @@ import (
 // stagePartitionIndexValidity runs the validity pass over the stage. It
 // needs no lock.
 func (e *Engine) stagePartitionIndexValidity(stage *CatalogStage, promote ids.ObjectAddress) error {
-	return index.PartitionIndexValidity(stageDropProvider(context.Background(), stage, nil, nil, nil), promote)
+	return index.PartitionIndexValidity(StageDropProvider(context.Background(), stage, nil, nil, nil), promote)
 }
 
 func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
@@ -21,10 +21,10 @@ func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 	if !ok || drop.Concurrent.Character != 0 {
 		return false
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.statementAuthorizationLocked(s.op, stmt)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.StatementAuthorizationLocked(s.Op, stmt)
 	if err != nil {
 		return false
 	}
@@ -32,7 +32,7 @@ func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 		return false
 	}
 	for _, name := range drop.Names {
-		ref, err := e.resolveRelationReference(auth, name, true)
+		ref, err := e.ResolveRelationReference(auth, name, true)
 		if err != nil {
 			return false
 		}

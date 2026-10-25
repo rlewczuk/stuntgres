@@ -66,9 +66,9 @@ func TestSRFFromBinding(t *testing.T) {
 	}
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(binderOperation(b))
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(binderOperation(b))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,9 +235,9 @@ func TestSRFFromOwnership(t *testing.T) {
 	// analysis, including child FROM calls that complete before failure.
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(binderOperation(b))
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(binderOperation(b))
 	if err != nil {
 		t.Fatal(err)
 	}

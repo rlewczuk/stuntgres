@@ -16,11 +16,11 @@ func indexMaintenanceStage(t *testing.T, e *Engine, table string, indexes ...str
 	stage := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	parent := roleTableRef(t, e, table)
-	stage.indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address: base.MustRelation(parent.Address)}
-	stage.indexes().Rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(indexes))
+	stage.Indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address: base.MustRelation(parent.Address)}
+	stage.Indexes().Rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(indexes))
 	for _, name := range indexes {
 		ref := roleTableRef(t, e, name)
-		stage.indexes().Rebuilds[ref.Address] = base.MustRelation(ref.Address)
+		stage.Indexes().Rebuilds[ref.Address] = base.MustRelation(ref.Address)
 	}
 	return stage
 }
@@ -32,21 +32,21 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	}
 	a, old := btreeRoot(t, e, "a")
 	b, sibling := btreeRoot(t, e, "b")
-	parent := e.catalog.State.Get(a.SQLIndex.Parent)
-	store := e.storage.Relations[a.SQLIndex.Parent]
+	parent := e.Catalog.State.Get(a.SQLIndex.Parent)
+	store := e.Storage.Relations[a.SQLIndex.Parent]
 	stage := indexMaintenanceStage(t, e, "t", "a")
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.storage.IndexRoots[a.Address()] != old {
+	if e.Storage.IndexRoots[a.Address()] != old {
 		t.Fatal("validation installed a root")
 	}
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if err != nil || len(changes.Definitions) != 0 {
 		t.Fatal("descriptor-unchanged rebuild forged a definition change", changes, err)
 	}
-	if e.catalog.State.Get(a.Address()) != a || e.catalog.State.Get(a.SQLIndex.Parent) != parent || e.storage.Relations[a.SQLIndex.Parent] != store || e.storage.IndexRoots[a.Address()] == old || e.storage.IndexRoots[b.Address()] != sibling || !reflect.DeepEqual(e.storage.IndexRoots[a.Address()].Entries, old.Entries) {
+	if e.Catalog.State.Get(a.Address()) != a || e.Catalog.State.Get(a.SQLIndex.Parent) != parent || e.Storage.Relations[a.SQLIndex.Parent] != store || e.Storage.IndexRoots[a.Address()] == old || e.Storage.IndexRoots[b.Address()] != sibling || !reflect.DeepEqual(e.Storage.IndexRoots[a.Address()].Entries, old.Entries) {
 		t.Fatal("selected intent did not publish exactly one real root")
 	}
 }
@@ -59,8 +59,8 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 				run(t, e, q)
 			}
 			stage := indexMaintenanceStage(t, e, "t", "a")
-			for parent := range stage.indexesOrZero().Parents {
-				stage.indexes().Sets = map[ids.ObjectAddress]int{parent: 1}
+			for parent := range stage.IndexesOrZero().Parents {
+				stage.Indexes().Sets = map[ids.ObjectAddress]int{parent: 1}
 			}
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {
@@ -160,14 +160,14 @@ func TestIndexMaintenancePreservesNewestUnchangedSibling(t *testing.T) {
 		t.Fatal(err)
 	}
 	run(t, e, "INSERT INTO t VALUES(2)")
-	newestB := e.storage.IndexRoots[b.Address()]
+	newestB := e.Storage.IndexRoots[b.Address()]
 	if newestB == oldB {
 		t.Fatal("fixture did not publish a newer sibling")
 	}
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if e.storage.IndexRoots[a.Address()] == oldA || e.storage.IndexRoots[b.Address()] != newestB {
+	if e.Storage.IndexRoots[a.Address()] == oldA || e.Storage.IndexRoots[b.Address()] != newestB {
 		t.Fatal("selected publication overwrote a newest unchanged sibling")
 	}
 	btreeWantKeys(t, e, "a", "1", "2")
@@ -185,11 +185,11 @@ func TestIndexMaintenanceFinalAuthorizationFence(t *testing.T) {
 			defer done()
 			stage := indexMaintenanceStage(t, e, "t", "a")
 			op.Session.Mu.Lock()
-			stage.authSession, stage.authRevision = op.Session, op.Session.Authorization.Revision
+			stage.AuthSession, stage.AuthRevision = op.Session, op.Session.Authorization.Revision
 			op.Session.Mu.Unlock()
-			e.mu.Lock()
-			stage.roleRevision = e.roles.Published.Revision
-			e.mu.Unlock()
+			e.Mu.Lock()
+			stage.RoleRevision = e.RoleStore.Published.Revision
+			e.Mu.Unlock()
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {
 				t.Fatal(err)

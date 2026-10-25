@@ -25,7 +25,7 @@ func foreignActionLockFixture(t *testing.T, definition string) (*Engine, *sessio
 		sessionSQL(t, c, q)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "c")
-	return e, a, b, c, ref, e.storage.Relations[ref.Address].Versions[0].Row
+	return e, a, b, c, ref, e.Storage.Relations[ref.Address].Versions[0].Row
 }
 
 func TestForeignActionsLocks(t *testing.T) {
@@ -64,13 +64,13 @@ func TestForeignActionsLocks(t *testing.T) {
 			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
 			// A real canonical queued request must not retain either metadata mutex.
 			deadline := time.Now().Add(time.Second)
-			for !e.mu.TryLock() {
+			for !e.Mu.TryLock() {
 				if time.Now().After(deadline) {
 					t.Fatal("action wait retained engine metadata")
 				}
 				runtime.Gosched()
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			for !b.Transactions.Mu.TryLock() {
 				if time.Now().After(deadline) {
 					t.Fatal("action wait retained owner metadata")
@@ -80,14 +80,14 @@ func TestForeignActionsLocks(t *testing.T) {
 			b.Transactions.Mu.Unlock()
 			transactionEnd(t, a, holder, true)
 			holderEnded = true
-			latest := e.storage.Relations[ref.Address].Versions[0]
+			latest := e.Storage.Relations[ref.Address].Versions[0]
 			lockAwait(t, done, nil)
 			joined = true
 			foreignKeyHeldMode(t, e, ref, row, ticket, tc.held)
 			b.Transactions.Mu.Lock()
 			if tc.name == "delete" {
 				root := b.Transactions.Deletes[ref.Address]
-				if root == nil || root.Rows[row].Version != latest.Version || root.Rows[row].Storage != e.storage.Relations[ref.Address] {
+				if root == nil || root.Rows[row].Version != latest.Version || root.Rows[row].Storage != e.Storage.Relations[ref.Address] {
 					b.Transactions.Mu.Unlock()
 					t.Fatal("delete failed latest physical predecessor")
 				}
@@ -152,7 +152,7 @@ func TestForeignActionsCancellation(t *testing.T) {
 				}
 			} else {
 				parent := catalogRef(t, e, e.CatalogRead(), "p")
-				if len(e.storage.Relations[parent.Address].Versions) != 1 || len(e.storage.Relations[ref.Address].Versions) != 1 || e.storage.Relations[ref.Address].Ends != nil {
+				if len(e.Storage.Relations[parent.Address].Versions) != 1 || len(e.Storage.Relations[ref.Address].Versions) != 1 || e.Storage.Relations[ref.Address].Ends != nil {
 					t.Fatal("cancel published a partial action")
 				}
 			}
@@ -176,15 +176,15 @@ func TestForeignActionsDiagnostics(t *testing.T) {
 	if _, err = scope.Execute(statement(t, "DELETE FROM p"), 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	named := scope.lockedRef
-	err = dml.SettleForeignActions(scope.writeHost())
+	named := scope.LockedRef
+	err = dml.SettleForeignActions(scope.WriteHost())
 	var d *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "pid" of relation "c" violates not-null constraint`, Detail: "Failing row contains (null, old).", Schema: "public", Table: "c", Column: "pid", Context: `SQL statement "UPDATE ONLY "public"."c" SET "pid" = NULL WHERE $1 OPERATOR(pg_catalog.=) "pid""`}
 	if !errors.As(err, &d) || *d != want {
 		t.Fatal(d, err, want)
 	}
 	admission := scope.foreignActionsOrZero().Admissions[ref.Address]
-	if admission == nil || admission.Ref != ref || admission.Tx != scope.txRef || scope.lockedRef != named || len(scope.stage.rows[ref.Address]) != 0 || e.storage.Relations[ref.Address].Versions[0].Row != row {
+	if admission == nil || admission.Ref != ref || admission.Tx != scope.TxRef || scope.LockedRef != named || len(scope.Stage.Rows[ref.Address]) != 0 || e.Storage.Relations[ref.Address].Versions[0].Row != row {
 		t.Fatal("local report bypassed captured child authority")
 	}
 }
@@ -202,7 +202,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 		t.Fatal("Prepare demanded an action/default", probe.ordinal, description.analysis)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "d")
-	originals := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+	originals := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
 	// Replace the current evaluator at the established private default seam. The
 	// retained initiating analysis must never own an executable child plan/value.
 	current := &defaultOrdinal{ordinal: 5}
@@ -214,7 +214,7 @@ func TestForeignActionsPrepared(t *testing.T) {
 	if probe.ordinal != 0 || current.ordinal != 7 {
 		t.Fatal("Execute used a captured default", probe.ordinal, current.ordinal)
 	}
-	rows := e.storage.Relations[ref.Address].Versions
+	rows := e.Storage.Relations[ref.Address].Versions
 	if len(rows) != 2 || rows[0].Row != originals[0].Row || rows[1].Row != originals[1].Row || rows[0].Version == originals[0].Version || rows[1].Version == originals[1].Version {
 		t.Fatal("prepared action lost child lineage", rows, originals)
 	}
@@ -266,7 +266,7 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			if e.prepared.Len() != 0 {
 				t.Fatal("completed action prepared owner retained")
 			}
-			storage := e.storage.Relations[ref.Address]
+			storage := e.Storage.Relations[ref.Address]
 			if commit {
 				if storage.Ends == nil {
 					t.Fatal("prepared commit lost child deletion")
@@ -296,7 +296,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			// public ALTER TABLE OWNER syntax or an authorization bypass callback.
 			view := e.CatalogRead()
 			next := *view.MustRelation(childRef.Address)
-			next.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("fa_owner")
+			next.Owner = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("fa_owner")
 			next.ObjectRevision++
 			stage := e.BeginCatalogStage(view)
 			if err := stage.Replace(&next); err != nil {
@@ -314,17 +314,17 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			}
 			sessionSQL(t, a, "SET ROLE fa_actor")
 			scope := foreignActionUnitScope(t, e, a, "DELETE FROM p")
-			original := scope.identity.Current
-			err = dml.SettleForeignActions(scope.writeHost())
+			original := scope.Identity.Current
+			err = dml.SettleForeignActions(scope.WriteHost())
 			var d *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "pid" of relation "c" violates not-null constraint`, Detail: "Failing row contains (null, old).", Schema: "public", Table: "c", Column: "pid", Context: `SQL statement "UPDATE ONLY "public"."c" SET "pid" = NULL WHERE $1 OPERATOR(pg_catalog.=) "pid""`}
 			if !errors.As(err, &d) || *d != want {
 				t.Fatal(d, err, want)
 			}
-			if scope.foreignActionAuth != nil || !sqltype.SameDatum(scope.identity.Current, original) {
+			if scope.ForeignActionAuth != nil || !sqltype.SameDatum(scope.Identity.Current, original) {
 				t.Fatal("child-owner reporting changed invoking identity")
 			}
-			current, err := scope.identity.Current.Text()
+			current, err := scope.Identity.Current.Text()
 			if err != nil || current != "fa_actor" {
 				t.Fatal("lost initiating actor identity", current, err)
 			}
@@ -332,9 +332,9 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 				// The public Nested witness owns SQL diagnostics. These checks
 				// distinguish the private admitted RI context from an arbitrary
 				// acting-authority marker without changing initiating identity.
-				e.mu.Lock()
+				e.Mu.Lock()
 				auth, authErr := scope.writeAuthorizationLocked(e)
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if authErr != nil {
 					t.Fatal(authErr)
 				}
@@ -359,12 +359,12 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 						if tc.owner {
 							acting = foreignAuthorizationOf(auth.ActingAs(admission.Relation.Owner))
 						}
-						previous := scope.writeHost().SwapForeignActionAuthority(acting)
+						previous := scope.WriteHost().SwapForeignActionAuthority(acting)
 						wasWritable := admission.Writable
 						admission.Writable = tc.writable
 						scope.foreignActions().Settling = tc.settling
 						defer func() {
-							scope.writeHost().SwapForeignActionAuthority(previous)
+							scope.WriteHost().SwapForeignActionAuthority(previous)
 							scope.foreignActions().Settling = false
 							admission.Writable = wasWritable
 						}()
@@ -372,7 +372,7 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 						if err != nil || (detail != "") != tc.detail {
 							t.Fatal("RI reporting authority", detail, err)
 						}
-						if !sqltype.SameDatum(scope.identity.Current, original) {
+						if !sqltype.SameDatum(scope.Identity.Current, original) {
 							t.Fatal("reporting changed initiating identity")
 						}
 					})
@@ -424,7 +424,7 @@ func TestForeignActionsLocksSnapshot(t *testing.T) {
 			transactionEnd(t, waiter, ref, false)
 			ended = true
 			parent := catalogRef(t, e, e.CatalogRead(), "p")
-			if e.storage.Relations[parent.Address].Ends != nil || e.storage.Relations[child.Address].Ends != nil {
+			if e.Storage.Relations[parent.Address].Ends != nil || e.Storage.Relations[child.Address].Ends != nil {
 				t.Fatal("failed stable action published a deletion")
 			}
 			transactionRows(t, creator, "SELECT pid FROM c", 2)

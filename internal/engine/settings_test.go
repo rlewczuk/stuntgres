@@ -39,7 +39,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	if err := scope.Finish(execErr); err != nil {
 		t.Fatal(err)
 	}
-	if !scope.completed || sess.Transactions.State != session.TxIdle {
+	if !scope.Completed || sess.Transactions.State != session.TxIdle {
 		t.Fatal("utility retained implicit transaction ownership")
 	}
 	actual, ok := result.Rows.(*exec.FinalRows)
@@ -98,16 +98,16 @@ func TestSettingAdmissionTimerAtomicity(t *testing.T) {
 		t.Fatal("wrong mode")
 	}
 	ast := statement(t, "INSERT INTO sentinel VALUES(8),(9)")
-	e.mu.Lock()
+	e.Mu.Lock()
 	finished := make(chan error, 1)
 	go func() { _, err := e.Execute(op, ast, 0, nil); finished <- err }()
 	select {
 	case <-op.Context().Done():
 	case <-time.After(time.Second):
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal("timer did not fire")
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	err = op.CommandError(<-finished)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "57014" || d.Message != "canceling statement due to statement timeout" {
@@ -139,7 +139,7 @@ func TestSettingCapturedDefaults(t *testing.T) {
 	e := New()
 	p := &defaultProvider{value: "éééééééééééééééééééé"}
 	s := sessionStart(t, e, p)
-	d, err := e.settings.Lookup("application_name")
+	d, err := e.Settings.Lookup("application_name")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 	e := NewWithSettings(defs, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.mode": "FAST"}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
-	for _, name := range e.settings.Order() {
+	for _, name := range e.Settings.Order() {
 		if p.calls[name] != 1 {
 			t.Fatal(name, p.calls)
 		}

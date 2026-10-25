@@ -25,7 +25,7 @@ type plTargetDatum struct {
 }
 
 func (s *StatementScope) assignPLTarget(f *proc.PLFrame, checked proc.PLTarget, raw parser.Expr, query *parser.Select, read catalog.Read, origin plNoticeOrigin) (value sqltype.Value, err error) {
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	restore := s.activateSQLRoutine(nil, read)
 	defer func() {
 		err = restore(err)
@@ -72,7 +72,7 @@ func (s *StatementScope) preparePLTargetValue(run *proc.PLRun, f *proc.PLFrame, 
 func (s *StatementScope) preparePLTargetDatum(f *proc.PLFrame, checked proc.PLTarget, current sqltype.Value, raw parser.Expr, rhs *sqltype.Value) (*plTargetDatum, error) {
 	variable := f.Program.Variables[checked.Slot]
 	if current.Type() == nil {
-		d := sqlError("55000", fmt.Sprintf("record %q is not assigned yet", variable.Name)).(*sqlstate.Error)
+		d := SQLError("55000", fmt.Sprintf("record %q is not assigned yet", variable.Name)).(*sqlstate.Error)
 		d.Detail = "The tuple structure of a not-yet-assigned record is indeterminate."
 		return nil, &plan.PLAssignmentPlanningError{Err: d}
 	}
@@ -84,17 +84,17 @@ func (s *StatementScope) preparePLTargetDatum(f *proc.PLFrame, checked proc.PLTa
 	if raw != nil {
 		pos = raw.SourcePosition()
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, err
 	}
-	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+	binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 	binder.PL, binder.Query.Auth = f, &auth
 	if err := binder.CaptureTypeDiagnosticInput(usage.Type); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, err
 	}
 	prepared := &plTargetDatum{current: current, assignment: analyze.PLAssignment{Usage: usage, Current: current, Steps: checked.Steps, Name: variable.Name, Pos: pos, Raw: raw}}
@@ -120,12 +120,12 @@ func (s *StatementScope) preparePLTargetDatum(f *proc.PLFrame, checked proc.PLTa
 		child := plan.PLLocalExpr{Info: binder.Info(rhs.Type().Usage(), pos, expr.Properties{ParameterDependent: true}), Value: *rhs}
 		prepared.expression, err = binder.PLAssignmentTargetExpression(child, &prepared.assignment)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return nil, &plan.PLAssignmentPlanningError{Err: err}
 	}
-	s.routineAuth = auth
-	prepared.evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	s.RoutineAuth = auth
+	prepared.evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: binder.Input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	prepared.evaluation.Input.DomainChecks = &prepared.evaluation
 	return prepared, nil
 }
@@ -140,7 +140,7 @@ func finishPLTarget(f *proc.PLFrame, slot int, prepared *plTargetDatum, value sq
 	}
 	variable := f.Program.Variables[slot]
 	if variable.NotNull && value.IsNull() {
-		return sqltype.Value{}, sqlError("22004", fmt.Sprintf("null value cannot be assigned to variable %q declared NOT NULL", variable.Name))
+		return sqltype.Value{}, SQLError("22004", fmt.Sprintf("null value cannot be assigned to variable %q declared NOT NULL", variable.Name))
 	}
 	return value, nil
 }

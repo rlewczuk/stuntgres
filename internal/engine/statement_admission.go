@@ -30,7 +30,7 @@ func (e *Engine) finishStatementAdmissionError(op *session.Operation, err error,
 		t.Admission.Lock()
 	}
 	defer t.Admission.Unlock()
-	if authorityErr := session.TransactionAuthority(domainOf(e), op); authorityErr != nil {
+	if authorityErr := session.TransactionAuthority(DomainOf(e), op); authorityErr != nil {
 		return authorityErr
 	}
 	// A canceled waiter never owns the live COPY operation's disposal.
@@ -53,6 +53,6 @@ func (e *Engine) finishStatementAdmissionError(op *session.Operation, err error,
 	t.Mu.Unlock()
 	// The timeout is already primary, just as in ordinary Finish.
 	_ = drainCursorCleanup(t, op.Context(), nil)
-	e.endLockOwner(endedTicket)
+	e.EndLockOwner(endedTicket)
 	return err
 }

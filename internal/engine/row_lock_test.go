@@ -29,7 +29,7 @@ func rowLockQueued(t *testing.T, e *Engine, holder *lock.Ticket, mode lock.Mode)
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		found := false
 		for resource, entry := range lockState.Resources {
 			if resource.Row == 0 || entry.Holders[holder].Mode == 0 {
@@ -109,7 +109,7 @@ func TestRowLockManagerMatrix(t *testing.T) {
 		for _, clause := range rowLockTestClauses {
 			transactionRows(t, a, "SELECT v FROM t WHERE id=1 "+clause, 10)
 		}
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		var held lock.Mode
 		for resource, entry := range lockState.Resources {
 			if resource.Row != 0 {

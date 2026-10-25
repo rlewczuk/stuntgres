@@ -16,20 +16,20 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *session.Operation, raw *pars
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition index operation")
 	}
-	operationReplay(op).partitionUsingIndex = nil
+	OperationReplay(op).PartitionUsingIndex = nil
 	if raw == nil || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUsingIndex || raw.Actions[0].UsingIndex == nil {
 		return nil
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.statementAuthorizationLocked(op, raw)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.StatementAuthorizationLocked(op, raw)
 	if err != nil {
 		return err
 	}
-	if !partitionConstraintReplayImport(e, op, auth) {
+	if !PartitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition index authority")
 	}
-	ref, err := e.resolveRelationReference(auth, raw.Name, true)
+	ref, err := e.ResolveRelationReference(auth, raw.Name, true)
 	if err != nil {
 		return err
 	}
@@ -37,13 +37,13 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *session.Operation, raw *pars
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	operationReplay(op).partitionUsingIndex = partition.CaptureUsingIndexReplay(auth.Catalog, raw, table)
+	OperationReplay(op).PartitionUsingIndex = partition.CaptureUsingIndexReplay(auth.Catalog, raw, table)
 	return nil
 }
 
 func partitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
-	if op == nil || raw == nil || operationReplayOrZero(op).partitionUsingIndex == nil {
+	if op == nil || raw == nil || OperationReplayOrZero(op).PartitionUsingIndex == nil {
 		return false
 	}
-	return operationReplayOrZero(op).partitionUsingIndex.Matches(auth.Catalog, raw, table) && partitionConstraintReplayImport(operationEngine(op), op, auth)
+	return OperationReplayOrZero(op).PartitionUsingIndex.Matches(auth.Catalog, raw, table) && PartitionConstraintReplayImport(operationEngine(op), op, auth)
 }

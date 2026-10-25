@@ -35,7 +35,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 	baseAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_base"})
 	viewAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_w"})
 	original := before.MustRelation(viewAddress)
-	oldBase := e.catalog.Domain.Ref(before.Epoch(), baseAddress)
+	oldBase := e.Catalog.Domain.Ref(before.Epoch(), baseAddress)
 	providers := make(map[ids.ObjectAddress]*catalog.Relation)
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
 		address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: name})
@@ -68,13 +68,13 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 					}
 				}
 			}
-			use := e.catalog.Domain.Ref(current.Epoch(), viewAddress)
+			use := e.Catalog.Domain.Ref(current.Epoch(), viewAddress)
 			auth := namespaceCapturedAuthorization(t, owner)
 			auth.Recapture(current)
-			e.mu.Lock()
-			refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{{Ref: use, Relation: original}}, nil, owner.SessionToken, plan.RowMark{})
-			_, staleErr := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{{Ref: oldBase, Relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, plan.RowMark{})
-			e.mu.Unlock()
+			e.Mu.Lock()
+			refs, err := e.QueryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{{Ref: use, Relation: original}}, nil, owner.SessionToken, plan.RowMark{})
+			_, staleErr := e.QueryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{{Ref: oldBase, Relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, plan.RowMark{})
+			e.Mu.Unlock()
 			if err != nil || len(refs) != 1 || refs[0].Address != baseAddress || refs[0].Epoch != current.Epoch() {
 				t.Fatal("retained frontier", refs, err)
 			}
@@ -85,12 +85,12 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			// System view edges survive, but pinned system tables do not gain
 			// usage rows or pg_depend SELECT-rule edges.
 			usageSource := current.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
-			runtime := engineCatalogRuntime{auth: auth, database: "retained_database"}
+			runtime := EngineCatalogRuntime{Auth: auth, Database: "retained_database"}
 			produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoViewTableUsageOID)
 			if !ok {
 				t.Fatal("missing usage producer")
 			}
-			usage, err := captureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
+			usage, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
 			if err != nil {
 				t.Fatal("retained usage capture", err)
 			}

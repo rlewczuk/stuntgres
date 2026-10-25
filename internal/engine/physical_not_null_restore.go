@@ -13,18 +13,18 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 		return nil, nil
 	}
 	if !table.PhysicalNotNullConstructorShape(raw, repairs) {
-		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) {
-		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if !PartitionConstraintReplayImport(e, op, auth) {
+		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	ref, err := e.resolveRelationReference(auth, raw.Name, false)
+	ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return nil, err
 	}
@@ -33,14 +33,14 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *p
 
 // Capture actual normal constructor results, not a generated-name prediction.
 func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*table.RestoredPhysicalNotNull, error) {
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
-		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if !PartitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
+		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return table.CapturePhysicalNotNullConstructor(op, auth.RoleRecord, auth.Catalog, constructor, indexes)
 }
@@ -49,14 +49,14 @@ func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constr
 // the sole private stage. The surviving physical flag is not a synthetic NN row.
 func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delete, pair *table.RestoredPhysicalNotNull) error {
 	repair, valid := table.RestorePhysicalNotNullSyntax(raw)
-	reject := func() error { return sqlError("0A000", table.RestorePhysicalNotNullBoundary) }
+	reject := func() error { return SQLError("0A000", table.RestorePhysicalNotNullBoundary) }
 	if !valid || !pair.Pairs(op, repair) {
 		return reject()
 	}
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -65,21 +65,21 @@ func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delet
 		return err
 	}
 	if !actor.Superuser {
-		return sqlError("42501", "permission denied for table pg_constraint")
+		return SQLError("42501", "permission denied for table pg_constraint")
 	}
-	e.mu.Lock()
-	if !partitionConstraintReplayImport(e, op, auth) || auth.Catalog.Epoch() != pair.Ref.Epoch || !pair.Holds(auth.RoleRecord, auth.Catalog) {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if !PartitionConstraintReplayImport(e, op, auth) || auth.Catalog.Epoch() != pair.Ref.Epoch || !pair.Holds(auth.RoleRecord, auth.Catalog) {
+		e.Mu.Unlock()
 		return reject()
 	}
-	ref, err := e.resolveRelationReference(auth, repair.Relation, false)
+	ref, err := e.ResolveRelationReference(auth, repair.Relation, false)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	next, err := table.PhysicalNotNullCleanup(auth.Catalog, pair, ref, repair)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	if err := e.publishRestoreRepairLocked(op, auth, next, ref.Epoch); err != nil {

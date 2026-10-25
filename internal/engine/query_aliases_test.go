@@ -106,7 +106,7 @@ func TestQueryAliasesPhysicalACL(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO acl_t VALUES(1,9),(2,8)")
 		}
 		reader, _ := e.Roles().Lookup("alias_reader")
-		grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 			t.Helper()
 			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {

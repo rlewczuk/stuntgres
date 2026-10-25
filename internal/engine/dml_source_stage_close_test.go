@@ -42,7 +42,7 @@ func TestDMLSourceStageClose(t *testing.T) {
 					t.Fatal("fixture lacks real captured view producer")
 				}
 				borrower := exec.State{Source: inputs, SourceMode: exec.SourceBorrowed}
-				borrower.Input, borrower.Output = scope.writeHost().Environments()
+				borrower.Input, borrower.Output = scope.WriteHost().Environments()
 				reader, err := exec.OpenSourceStage(op.Context(), &borrower, helper, helper.NestedRoot.Schema())
 				if err != nil {
 					t.Fatal(err)
@@ -77,9 +77,9 @@ func TestDMLSourceStageClose(t *testing.T) {
 				})}
 				var outcome dml.Outcome
 				if command == "update_from" {
-					outcome, err = dml.ExecuteUpdate(scope.writeHost(), dml.UpdateInput{Context: op.Context(), Binding: b, Source: target, From: inputs, Schema: "public"})
+					outcome, err = dml.ExecuteUpdate(scope.WriteHost(), dml.UpdateInput{Context: op.Context(), Binding: b, Source: target, From: inputs, Schema: "public"})
 				} else {
-					outcome, err = dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+					outcome, err = dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 				}
 				// Always reject the fixture's staged mutation, even while this regression
 				// correctly detects that an ignored first Close returned false success.

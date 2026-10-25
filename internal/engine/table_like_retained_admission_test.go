@@ -28,8 +28,8 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			run(t, e, "CREATE TABLE barrier(v INT)")
-			current := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), provider.Address())
-			old := e.catalog.Domain.Ref(manifest[0].Epoch, provider.Address())
+			current := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), provider.Address())
+			old := e.Catalog.Domain.Ref(manifest[0].Epoch, provider.Address())
 			for _, ref := range manifest {
 				if ref.Address == provider.Address() {
 					old = ref
@@ -53,12 +53,12 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					_ = holder.Finish(nil)
 				}
 			}()
-			if err := holder.gate(statement(t, "SELECT * FROM barrier")); err != nil {
+			if err := holder.Gate(statement(t, "SELECT * FROM barrier")); err != nil {
 				t.Fatal(err)
 			}
 			// This trusted internal holder operates on the actual manager resource; it
 			// does not grant another SQL session access to the owner's TEMP namespace.
-			if err := holder.acquireSequence(current, lock.AccessExclusive, true); err != nil {
+			if err := holder.AcquireSequence(current, lock.AccessExclusive, true); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -79,7 +79,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				}
 			}()
 			sql := "CREATE TEMP TABLE clone(LIKE pg_temp.src INCLUDING DEFAULTS)"
-			if err := scope.gate(statement(t, sql)); err != nil {
+			if err := scope.Gate(statement(t, sql)); err != nil {
 				t.Fatal(err)
 			}
 			stage, destination, err := tableLikeBuild(t, e, op, sql)
@@ -107,11 +107,11 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					}
 				}
 			}()
-			go func() { result <- scope.acquireDefinitionProviders(stage) }()
+			go func() { result <- scope.AcquireDefinitionProviders(stage) }()
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: current}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.ticket].Mode&lock.AccessExclusive != 0
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[holder.LockTicket].Mode&lock.AccessExclusive != 0
 			obsolete := lockState.Resources[lock.Resource{ObjectRef: old}]
 			if !queued || obsolete != nil {
 				t.Fatal("old manifest was not normalized only for current-epoch acquisition", queued, obsolete)
@@ -134,7 +134,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			}
 			if outcome == "delete" || outcome == "recreate" {
 				change := e.BeginCatalogStage(e.CatalogRead())
-				if err := change.Remove(e.catalog.Domain.Ref(current.Epoch, source.Address())); err != nil {
+				if err := change.Remove(e.Catalog.Domain.Ref(current.Epoch, source.Address())); err != nil {
 					t.Fatal(err)
 				}
 				if err := change.Remove(current); err != nil {
@@ -143,9 +143,9 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				queryCreatePublish(t, e, change)
 				if outcome == "recreate" {
 					replacement := *provider
-					e.mu.Lock()
-					oid, allocationErr := e.catalog.AllocateOIDLocked()
-					e.mu.Unlock()
+					e.Mu.Lock()
+					oid, allocationErr := e.Catalog.AllocateOIDLocked()
+					e.Mu.Unlock()
 					if allocationErr != nil {
 						t.Fatal(allocationErr)
 					}
@@ -155,8 +155,8 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.sequenceState().ResetGenerators(1)
-					change.sequenceState().SetGenerator(replacement.Address(), &storage.SequenceGenerator{Last: replacement.Sequence.Start, Generation: replacement.Revision()})
+					change.SequenceState().ResetGenerators(1)
+					change.SequenceState().SetGenerator(replacement.Address(), &storage.SequenceGenerator{Last: replacement.Sequence.Start, Generation: replacement.Revision()})
 					queryCreatePublish(t, e, change)
 					if replacement.Address() == provider.Address() {
 						t.Fatal("recreated provider reused old identity")
@@ -180,9 +180,9 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				}
 				assertHold := func() {
 					t.Helper()
-					lockState := e.locks.Inspect()
+					lockState := e.Locks.Inspect()
 					entry := lockState.Resources[lock.Resource{ObjectRef: current}]
-					held := entry != nil && entry.Holders[scope.ticket].Mode&lock.AccessShare != 0
+					held := entry != nil && entry.Holders[scope.LockTicket].Mode&lock.AccessShare != 0
 					if !held {
 						t.Fatal("retained provider hold lost before statement completion")
 					}
@@ -202,7 +202,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					assertHold()
 				} else {
 					err = context.Canceled
-					if e.CatalogRead().Get(destination.Address()) != nil || e.storage.Relations[destination.Address()] != nil {
+					if e.CatalogRead().Get(destination.Address()) != nil || e.Storage.Relations[destination.Address()] != nil {
 						t.Fatal("rolled back candidate published")
 					}
 				}
@@ -216,7 +216,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 				if outcome == "pointer" && err.Error() != "stuntgres: definition provider disappeared before publication" {
 					t.Fatal("retained pointer fence not exercised", err)
 				}
-				if e.CatalogRead().Get(destination.Address()) != nil || e.storage.Relations[destination.Address()] != nil || e.storage.IndexRoots[destination.Address()] != nil {
+				if e.CatalogRead().Get(destination.Address()) != nil || e.Storage.Relations[destination.Address()] != nil || e.Storage.IndexRoots[destination.Address()] != nil {
 					t.Fatal("failed admission published candidate fragments")
 				}
 			}

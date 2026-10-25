@@ -33,9 +33,9 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	snapshot := e.stageRead(stage)
+	snapshot := e.StageRead(stage)
 	closureStage := e.BeginCatalogStage(snapshot)
-	edges, err := domainDependencyClosure(context.Background(), closureStage, []ids.ObjectAddress{d.Address()})
+	edges, err := DomainDependencyClosure(context.Background(), closureStage, []ids.ObjectAddress{d.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err = domainDependencyClosure(ctx, closureStage, []ids.ObjectAddress{d.Address()}); !errors.Is(err, context.Canceled) {
+	if _, err = DomainDependencyClosure(ctx, closureStage, []ids.ObjectAddress{d.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("closure ignored cancellation", err)
 	}
 }

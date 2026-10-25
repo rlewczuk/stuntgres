@@ -32,19 +32,19 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			}
 			s := statements[0].(*parser.CreateQueryTable)
 			input, _ := op.Session.Settings.Presentation()
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := describe(context.Background(), e.analysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
+			b, err := Describe(context.Background(), e.AnalysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			stage, d, skipped, err := e.prepareQueryTableLocked(op, auth, s, b)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil || skipped {
 				t.Fatalf("freeze stage: %v skipped=%v", err, skipped)
 			}
@@ -54,7 +54,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			if len(b.QuerySources) != 0 && (len(stored.ViewOf(d).Columns()) == 0 || len(stored.ViewOf(d).Namespaces()) == 0) {
 				t.Fatal("missing source column/frame analysis")
 			}
-			if err := (relationProvider).Validate(e.stageRead(stage), d); err != nil {
+			if err := (relationProvider).Validate(e.StageRead(stage), d); err != nil {
 				t.Fatal("captured definition is invalid:", err)
 			}
 		})
@@ -67,14 +67,14 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	input, _ := op.Session.Settings.Presentation()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	_, err = describe(context.Background(), e.analysisHost(op), statements[0], auth, ids.ObjectRef{}, input, nil, nil)
-	e.mu.Unlock()
+	_, err = Describe(context.Background(), e.AnalysisHost(op), statements[0], auth, ids.ObjectRef{}, input, nil, nil)
+	e.Mu.Unlock()
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "materialized views may not be defined using bound parameters" {
 		t.Fatalf("capture changed parameter policy: %v", err)

@@ -74,9 +74,9 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 			var ext *catalog.Extension
 			var base catalog.Read
 			err := func() error {
-				e.mu.Lock()
-				defer e.mu.Unlock()
-				auth, err := e.authorizationLocked(op)
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
+				auth, err := e.AuthorizationLocked(op)
 				if err != nil {
 					return err
 				}
@@ -102,7 +102,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 				}
 				ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				seed = e.BeginCatalogStage(before)
-				seed.authorizeLocked(auth, op.Session)
+				seed.AuthorizeLocked(auth, op.Session)
 				// As in the existing citext collision units, a preceding real
 				// catalog descriptor owns the signature. No bootstrap textin
 				// executable or new pseudo-type SQL DDL is assumed by this unit.
@@ -140,9 +140,9 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 						return err
 					}
 				}
-				base = e.stageRead(seed)
+				base = e.StageRead(seed)
 				stage = e.BeginCatalogStage(base)
-				stage.authorizeLocked(auth, op.Session)
+				stage.AuthorizeLocked(auth, op.Session)
 				ext = &catalog.Extension{
 					ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: extOID},
 					ObjectName: "isn", ObjectRevision: revision, Version: "1.3",
@@ -236,16 +236,16 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 				}
 			}()
 			err = func() error {
-				e.mu.Lock()
-				defer e.mu.Unlock()
-				if err := seed.replaceDescriptor(&array, true, true); err != nil {
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
+				if err := seed.ReplaceDescriptor(&array, true, true); err != nil {
 					return err
 				}
-				auth, err := e.authorizationLocked(op)
+				auth, err := e.AuthorizationLocked(op)
 				if err != nil {
 					return err
 				}
-				auth.Recapture(e.stageRead(seed))
+				auth.Recapture(e.StageRead(seed))
 				host := &extensionHost{engine: e, op: op, auth: auth}
 				staged, err := extension.StageCreate(host, auth, auth.View, &parser.CreateExtension{Name: parser.Identifier{Text: "isn"}})
 				// BeginStage may have allocated a private stage even on failure.
@@ -259,7 +259,7 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			view := e.stageRead(stage)
+			view := e.StageRead(stage)
 			ext := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
 			slot := 3
 			if occupied == "isbn13" || occupied == "_isbn13" { slot = 6 }

@@ -16,36 +16,36 @@ import (
 // Engine.mu is held on entry and consumed on every return. The parent SUE grant
 // is already admitted. All bound/provider work and manager waits run unlocked.
 func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableAttachPartition, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	if scope.lockedRef.Domain() == nil {
+	if scope.LockedRef.Domain() == nil {
 		return e.skipMissingRelationLocked(scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
 	}
-	parent := scope.lockedDescriptor.(*catalog.Relation)
-	if err := partition.CheckAttachTarget(parent, operationReplayOrZero(op).partitionAttach); err != nil {
+	parent := scope.LockedDescriptor.(*catalog.Relation)
+	if err := partition.CheckAttachTarget(parent, OperationReplayOrZero(op).PartitionAttach); err != nil {
 		return fail(err)
 	}
-	lookupAuth, err := e.partitionAttachAuthorization(op, auth)
+	lookupAuth, err := e.PartitionAttachAuthorization(op, auth)
 	if err != nil {
 		return fail(err)
 	}
-	if err = e.partitionAttachName(lookupAuth, raw.Name, scope.lockedRef); err != nil {
+	if err = e.partitionAttachName(lookupAuth, raw.Name, scope.LockedRef); err != nil {
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	bound, err := partition.PrepareBounds(parent, raw.Bound)
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return fail(err)
 	}
 	pending := &pendingPartitionDefinition{Definition: partition.Definition{Parent: parent, Bound: bound, Raw: raw.Bound}, stage: stage, auth: auth}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer func() { e.DiscardCatalogStage(pending.stage) }()
 	if !bound.DefaultBound {
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output}}
 		if err = partition.EvaluateBounds(op.Context(), &pending.Definition, partitionBoundBinder{scope: scope, pending: pending}, &evaluation); err != nil {
 			return Result{}, err
 		}
@@ -54,39 +54,39 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	// can elide descendant admission; candidate descendants always receive AX.
 	var defaultScans []partition.AttachScan
 	if !bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Partition.DefaultChild)
-		if err = scope.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
+		ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Partition.DefaultChild)
+		if err = scope.AcquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
 		catalog, root, err := e.partitionAttachRelation(scope, ref)
 		if err != nil {
 			return Result{}, err
 		}
-		defaultScans, err = partition.AttachFrontier(scope.op.Context(), scope.input, catalog, parent, root, bound, true, scope.lockPartitionAttachChild)
+		defaultScans, err = partition.AttachFrontier(scope.Op.Context(), scope.Input, catalog, parent, root, bound, true, scope.lockPartitionAttachChild)
 		if err != nil {
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	auth, err = e.statementAuthorizationLocked(op, raw)
+	e.Mu.Lock()
+	auth, err = e.StatementAuthorizationLocked(op, raw)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	lookupAuth, err = e.partitionAttachAuthorization(op, auth)
+	lookupAuth, err = e.PartitionAttachAuthorization(op, auth)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	candidate, err := e.resolveRelationReference(lookupAuth, raw.Partition, true)
+	candidate, err := e.ResolveRelationReference(lookupAuth, raw.Partition, true)
 	if err == nil {
 		err = lookupAuth.Check(access.Requirement{Object: candidate, OwnerOnly: true, OwnerNoun: "table"})
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquirePartitionLock(candidate, lock.AccessExclusive); err != nil {
+	if err = scope.AcquirePartitionLock(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 	catalog, child, err := e.partitionAttachRelation(scope, candidate)
@@ -96,71 +96,71 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err = partition.AttachEligibility(catalog, parent, child); err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
+	if err = scope.AcquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
 
 	// Capture the actual grant-time catalog, not the pre-wait index/provider set.
 	// Evaluated datums survive this refresh and are never transformed twice.
-	e.mu.Lock()
-	auth, err = e.statementAuthorizationLocked(op, raw)
+	e.Mu.Lock()
+	auth, err = e.StatementAuthorizationLocked(op, raw)
 	if err == nil {
-		lookupAuth, err = e.partitionAttachAuthorization(op, auth)
+		lookupAuth, err = e.PartitionAttachAuthorization(op, auth)
 	}
 	if err == nil {
-		err = e.partitionAttachName(lookupAuth, raw.Name, scope.lockedRef)
+		err = e.partitionAttachName(lookupAuth, raw.Name, scope.LockedRef)
 	}
 	if err == nil {
 		err = e.partitionAttachName(lookupAuth, raw.Partition, candidate)
 	}
 	if err == nil {
-		err = lookupAuth.Check(access.Requirement{Object: scope.lockedRef, OwnerOnly: true, OwnerNoun: "table"})
+		err = lookupAuth.Check(access.Requirement{Object: scope.LockedRef, OwnerOnly: true, OwnerNoun: "table"})
 	}
 	if err == nil {
 		err = lookupAuth.Check(access.Requirement{Object: candidate, OwnerOnly: true, OwnerNoun: "table"})
 	}
 	if err == nil {
-		err = scope.validateLockedRelation(e)
+		err = scope.ValidateLockedRelation(e)
 	}
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if auth.Catalog.Get(parent.Address()) != parent {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	child = auth.Catalog.MustRelation(candidate.Address)
 	e.DiscardCatalogStage(pending.stage)
 	stage = e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	stage.indexes().Output = scope.output
+	stage.AuthorizeLocked(auth, op.Session)
+	stage.Indexes().Output = scope.Output
 	pending.stage, pending.auth, pending.Child = stage, auth, child
 	for address := range scope.PartitionRelations {
-		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(address))
+		stage.DomainBases = append(stage.DomainBases, auth.Catalog.Get(address))
 	}
-	stage.domainBases = append(stage.domainBases, parent, child)
-	e.mu.Unlock()
+	stage.DomainBases = append(stage.DomainBases, parent, child)
+	e.Mu.Unlock()
 	if err = partition.AttachEligibility(auth.Catalog, parent, child); err != nil {
 		return Result{}, err
 	}
-	next, err := partition.AttachSchema(scope.op.Context(), auth.Catalog, parent, child)
+	next, err := partition.AttachSchema(scope.Op.Context(), auth.Catalog, parent, child)
 	if err != nil {
 		return Result{}, err
 	}
 	pending.Child = next
-	if err = partition.ValidateBounds(scope.op.Context(), scope.input, &pending.Definition); err != nil {
+	if err = partition.ValidateBounds(scope.Op.Context(), scope.Input, &pending.Definition); err != nil {
 		return Result{}, err
 	}
 	if err = partition.CheckDefaultConflict(auth.Catalog, parent, bound, child.Name(), raw.Bound.Pos); err != nil {
 		return Result{}, err
 	}
 	if !bound.DefaultBound {
-		if err = partition.CheckOverlap(scope.op.Context(), scope.input, pending.stage.Base, &pending.Definition); err != nil {
+		if err = partition.CheckOverlap(scope.Op.Context(), scope.Input, pending.stage.Base, &pending.Definition); err != nil {
 			return Result{}, err
 		}
 	}
-	candidateScans, err := partition.AttachFrontier(scope.op.Context(), scope.input, auth.Catalog, parent, child, bound, false, nil)
+	candidateScans, err := partition.AttachFrontier(scope.Op.Context(), scope.Input, auth.Catalog, parent, child, bound, false, nil)
 	if err != nil {
 		return Result{}, err
 	}
@@ -168,8 +168,8 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err = e.partitionAttachCapture(scope, stage, auth.Catalog, child, jobs); err != nil {
 		return Result{}, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}}
-	if err = partition.ValidateAttachRows(scope.op.Context(), &evaluation, scope.partitionsOrZero().ValidationView, auth.Catalog, parent, bound, jobs); err != nil {
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output}}
+	if err = partition.ValidateAttachRows(scope.Op.Context(), &evaluation, scope.PartitionsOrZero().ValidationView, auth.Catalog, parent, bound, jobs); err != nil {
 		return Result{}, err
 	}
 	changed, next, err := partition.AttachDescriptors(parent, next, bound)
@@ -182,9 +182,9 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err = stage.Replace(next); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	err = partition.StageIndexChildren(ddlHost{e: e, op: op, stage: stage}, parent, child.Address(), true)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = partition.StageIndexChildren(DDLHost{E: e, Op: op, CatalogStage: stage}, parent, child.Address(), true)
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
@@ -193,12 +193,12 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	}
 	// The canonical overlay builds real populated key roots before returning;
 	// implicit Finish and explicit COMMIT/savepoints own their publication.
-	err = e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
+	err = e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
 	return Result{}, err
 }
 
 func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectName, held ids.ObjectRef) error {
-	current, err := e.resolveRelationReference(auth, name, true)
+	current, err := e.ResolveRelationReference(auth, name, true)
 	if err != nil || current != held {
 		return ids.ErrCatalogReplaced
 	}
@@ -206,11 +206,11 @@ func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectN
 }
 
 func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (catalog.Read, *catalog.Relation, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	view := e.privateCatalogLocked(scope.owner.Catalog)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	view := e.PrivateCatalogLocked(scope.Owner.Catalog)
 	d, ok := view.Relation(ref.Address)
-	if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Epoch != scope.txRef.Epoch() {
+	if !ok || ref.Domain() != e.Catalog.Domain || ref.Epoch != view.Epoch() || ref.Epoch != scope.TxRef.Epoch() {
 		return catalog.Read{}, nil, ids.ErrCatalogReplaced
 	}
 	return view, d, nil
@@ -218,14 +218,14 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 
 // Private import executes the same utility against captured definitions. Only
 // its authenticated bootstrap may check the independently owned attachments.
-func (e *Engine) partitionAttachAuthorization(op *session.Operation, auth AuthorizationView) (AuthorizationView, error) {
-	if !operationReplayOrZero(op).partitionAttach {
+func (e *Engine) PartitionAttachAuthorization(op *session.Operation, auth AuthorizationView) (AuthorizationView, error) {
+	if !OperationReplayOrZero(op).PartitionAttach {
 		return auth, nil
 	}
-	if op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.Owner != &e.catalog.Owner || auth.session != op.Session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.State {
+	if op.Self != op || op.Session == nil || EngineOf(op.Session) != e || e.ImportTargets == nil || auth.Owner != &e.Catalog.Owner || auth.Session != op.Session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.Catalog.Domain || auth.Catalog.State() != e.Catalog.State {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition attachment authority")
 	}
-	if err := e.validateOperation(op); err != nil {
+	if err := e.ValidateOperation(op); err != nil {
 		return AuthorizationView{}, err
 	}
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)

@@ -12,7 +12,7 @@ import (
 func TestCitextComparisonProviderOwnerShape(t *testing.T) {
 	e, ext, _ := citextUnitInstalled(t)
 	view := e.CatalogRead()
-	metadata, err := extension.OwnerMetadata(view, e.roles.PublishedRead(&e.catalog.Owner, view), ext)
+	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
 	if err != nil {
 		t.Fatal(err)
 	}

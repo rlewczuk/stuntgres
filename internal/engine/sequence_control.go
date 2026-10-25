@@ -5,9 +5,9 @@ import "stuntgres/internal/engine/sequence"
 func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	e.sessionMu.Lock()
 	defer e.sessionMu.Unlock()
-	read := e.catalog.Current()
+	read := e.Catalog.Current()
 	for _, s := range e.sessions {
-		payloadOf(s).sqlRoutines = nil
-		payloadOf(s).sequences.RetainLocked(sequence.OwnTemporary(read, s.SessionToken))
+		PayloadOf(s).sqlRoutines = nil
+		PayloadOf(s).Sequences.RetainLocked(sequence.OwnTemporary(read, s.SessionToken))
 	}
 }

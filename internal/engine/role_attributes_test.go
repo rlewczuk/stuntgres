@@ -36,15 +36,15 @@ func roleAttributeAlter(name string, o parser.RoleOptions) *parser.AlterRole {
 }
 func roleAttributeFailure(t *testing.T, e *Engine, op *session.Operation, s parser.Statement, code string) {
 	t.Helper()
-	beforePublication := e.roles.Published
-	next := e.roles.NextPrincipal()
-	revision := e.roles.NextRevision()
+	beforePublication := e.RoleStore.Published
+	next := e.RoleStore.NextPrincipal()
+	revision := e.RoleStore.NextRevision()
 	r, err := e.Execute(op, s, 0, nil)
 	var d *sqlstate.Error
 	if err == nil || code != "" && (!errors.As(err, &d) || d.Code != code) || r.Rows != nil {
 		t.Fatalf("want %s: %#v %v", code, r, err)
 	}
-	if e.roles.Published != beforePublication || e.roles.NextPrincipal() != next || e.roles.NextRevision() != revision {
+	if e.RoleStore.Published != beforePublication || e.RoleStore.NextPrincipal() != next || e.RoleStore.NextRevision() != revision {
 		t.Fatal("failed mutation published role root or allocator")
 	}
 }
@@ -64,7 +64,7 @@ func TestRoleAttributesDefaultsAndRetention(t *testing.T) {
 		if login {
 			name = "defaults_user"
 		}
-		version := e.roles.NextRevision()
+		version := e.RoleStore.NextRevision()
 		d := roleAttributeCreate(t, e, op, name, login, parser.RoleOptions{})
 		want := authorization.RoleDescriptor{Ref: d.Ref, Name: name, AuthIDVersion: version, Login: login, Inherit: true, ConnectionLimit: -1}
 		if d != want {
@@ -76,7 +76,7 @@ func TestRoleAttributesDefaultsAndRetention(t *testing.T) {
 		t.Fatal(d)
 	}
 	old := e.Roles()
-	version := e.roles.NextRevision()
+	version := e.RoleStore.NextRevision()
 	roleAttributeApply(t, e, op, roleAttributeAlter("attrs", parser.RoleOptions{}))
 	retained, _ := e.Roles().Lookup("attrs")
 	wantRetained := d
@@ -85,7 +85,7 @@ func TestRoleAttributesDefaultsAndRetention(t *testing.T) {
 		t.Fatal("empty ALTER changed attributes or failed to replace the authid tuple")
 	}
 	o := parser.RoleOptions{Present: parser.RoleLogin | parser.RoleInherit, Inherit: true}
-	version = e.roles.NextRevision()
+	version = e.RoleStore.NextRevision()
 	roleAttributeApply(t, e, op, roleAttributeAlter("attrs", o))
 	changed, _ := e.Roles().Lookup("attrs")
 	want := d
@@ -106,7 +106,7 @@ func TestRoleAttributesDefaultsAndRetention(t *testing.T) {
 		t.Fatal("COMMENT discarded attributes", commented)
 	}
 	off := parser.RoleOptions{Present: parser.RoleSuperuser | parser.RoleCreateDB | parser.RoleCreateRole | parser.RoleLogin | parser.RoleInherit | parser.RoleReplication | parser.RoleBypassRLS, Inherit: true}
-	version = e.roles.NextRevision()
+	version = e.RoleStore.NextRevision()
 	roleAttributeApply(t, e, op, roleAttributeAlter("attrs", off))
 	got, _ := e.Roles().Lookup("attrs")
 	want.Superuser = false
@@ -131,7 +131,7 @@ func TestRoleAttributesAuthority(t *testing.T) {
 	before := e.Roles()
 	target := roleAttributeCreate(t, e, op, "owned", false, parser.RoleOptions{})
 	edges := e.Roles().Memberships()
-	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
+	wantEdge := authorization.Membership{Role: target.Ref, Member: actor.Ref, Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Admin: true}
 	if len(edges) != 4 || edges[3] != wantEdge || len(before.Memberships()) != 3 {
 		t.Fatal("creator ADMIN not atomic", edges)
 	}
@@ -255,20 +255,20 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 			t.Fatal("mutable edge snapshot")
 		}
 	}
-	savedNext := e.roles.NextPrincipal()
-	e.roles.InstallPrincipalFrontierLocked(^uint64(0))
+	savedNext := e.RoleStore.NextPrincipal()
+	e.RoleStore.InstallPrincipalFrontierLocked(^uint64(0))
 	roleAttributeFailure(t, e, admin, &parser.CreateRole{Name: parser.Identifier{Text: "exhausted"}}, "")
-	e.roles.InstallPrincipalFrontierLocked(savedNext)
-	savedRoot := e.roles.Published
+	e.RoleStore.InstallPrincipalFrontierLocked(savedNext)
+	savedRoot := e.RoleStore.Published
 	exhaustedRoot := *savedRoot
 	exhaustedRoot.Revision = ^uint64(0)
-	e.roles.PublishLocked(&exhaustedRoot)
+	e.RoleStore.PublishLocked(&exhaustedRoot)
 	roleAttributeFailure(t, e, admin, roleAttributeAlter("snapshot", parser.RoleOptions{Present: parser.RoleLogin}), "")
-	e.roles.PublishLocked(savedRoot)
-	savedRevision := e.roles.NextRevision()
-	e.roles.InstallRevisionFrontierLocked(^uint64(0))
+	e.RoleStore.PublishLocked(savedRoot)
+	savedRevision := e.RoleStore.NextRevision()
+	e.RoleStore.InstallRevisionFrontierLocked(^uint64(0))
 	roleAttributeFailure(t, e, admin, roleAttributeAlter("snapshot", parser.RoleOptions{}), "")
-	e.roles.InstallRevisionFrontierLocked(savedRevision)
+	e.RoleStore.InstallRevisionFrontierLocked(savedRevision)
 	for _, create := range []bool{false, true} {
 		t.Run(fmt.Sprintf("canceled final publication/create%v", create), func(t *testing.T) {
 			fixture := New()
@@ -282,9 +282,9 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 				Targets: []parser.RoleSpec{{Name: "cancel_target"}}, Members: []parser.RoleSpec{{Name: "creator_cancel"}},
 				Options: []parser.MembershipOption{{Name: "admin", Value: true}, {Name: "inherit"}, {Name: "set"}},
 			})
-			beforePublication := fixture.roles.Published
-			next := fixture.roles.NextPrincipal()
-			revision := fixture.roles.NextRevision()
+			beforePublication := fixture.RoleStore.Published
+			next := fixture.RoleStore.NextPrincipal()
+			revision := fixture.RoleStore.NextRevision()
 			ctx, cancel := context.WithCancel(actor.Context())
 			defer cancel()
 			fence := &identityRolePublicationContext{Context: ctx, session: actor.Session, cancel: cancel}
@@ -293,8 +293,8 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 			if create {
 				stmt = &parser.CreateRole{Name: parser.Identifier{Text: "cancel_created"}}
 			}
-			_, err := fixture.executeRoleAttributes(&StatementScope{op: actor}, stmt, 0)
-			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.roles.Published != beforePublication || fixture.roles.NextPrincipal() != next || fixture.roles.NextRevision() != revision {
+			_, err := fixture.executeRoleAttributes(&StatementScope{Op: actor}, stmt, 0)
+			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.RoleStore.Published != beforePublication || fixture.RoleStore.NextPrincipal() != next || fixture.RoleStore.NextRevision() != revision {
 				t.Fatal("final cancellation leaked catalog, edge, allocator", fence.observed, err)
 			}
 		})
@@ -325,11 +325,11 @@ func TestRoleAttributesControlsRetention(t *testing.T) {
 	if got != d {
 		t.Fatal("controls changed descriptor", got)
 	}
-	before := e.roles.Published
+	before := e.RoleStore.Published
 	if err := e.Restore(context.Background(), strings.NewReader("CREATE ROLE forbidden")); err == nil {
 		t.Fatal("Restore role whitelist widened")
 	}
-	if e.roles.Published != before {
+	if e.RoleStore.Published != before {
 		t.Fatal("failed Restore changed roles")
 	}
 	// Real admission/authority continue to consume the retained root.

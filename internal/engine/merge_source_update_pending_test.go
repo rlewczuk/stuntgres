@@ -41,7 +41,7 @@ func TestMergeSourceUpdatePending(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE source(id INT,x INT)")
 				sessionSQL(t, peer, "INSERT INTO source VALUES(1,7)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				row := e.storage.Relations[ref.Address].Versions[0].Row
+				row := e.Storage.Relations[ref.Address].Versions[0].Row
 				tx := transactionBegin(t, holder)
 				sessionSQL(t, holder, hold)
 				q := "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=999 WHEN NOT MATCHED BY SOURCE AND t.v>=20 THEN UPDATE SET v=100 WHEN NOT MATCHED BY SOURCE THEN UPDATE SET v=200"

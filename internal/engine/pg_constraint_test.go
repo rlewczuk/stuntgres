@@ -18,18 +18,18 @@ import (
 func pgConstraintUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
-	source, ok := e.catalog.State.Relation(address)
+	source, ok := e.Catalog.State.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_constraint")
 	}
-	return source, e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
+	return source, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 }
 func pgConstraintUnitCapture(t *testing.T, e *Engine, view catalog.Read) map[string][]sqltype.Value {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.MustRelation(address)
-	ref := e.catalog.Domain.Ref(view.Epoch(), address)
-	got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint)
+	ref := e.Catalog.Domain.Ref(view.Epoch(), address)
+	got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGConstraint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,15 +90,15 @@ func pgConstraintUnitBootstrap(t *testing.T, view catalog.Read, row []sqltype.Va
 func pgConstraintUnitTableStage(t *testing.T, e *Engine, op *session.Operation, q string) *CatalogStage {
 	t.Helper()
 	syntax := statement(t, q).(*parser.CreateTable)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
-	e.mu.Unlock()
+	err = e.SchemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,12 +142,12 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	pgConstraintUnitCapture(t, e, view)
 	invalid := *source
 	invalid.Columns = slices.Clone(source.Columns[:9])
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("old shape admitted", got, err)
 	}
 	foreign := New()
 	foreignSource, _ := pgConstraintUnitSource(t, foreign)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: foreignSource, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: foreignSource, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("foreign generation admitted", got, err)
 	}
 }
@@ -267,7 +267,7 @@ func TestPGConstraintCapture(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, ctx := range []context.Context{canceled, &pgEnumCancelDuringCapture{Context: context.Background(), after: view.DescriptorCount() + 2}} {
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGConstraint); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("cancellation published partial capture", got, err)
 		}
 	}
@@ -303,7 +303,7 @@ func TestPGConstraintPublication(t *testing.T) {
 	base := e.CatalogRead()
 	baseline := pgConstraintUnitCapture(t, e, base)
 	stage := pgConstraintUnitTableStage(t, e, op, "CREATE TABLE pc_private(a INT CONSTRAINT pc_private_u UNIQUE)")
-	private := e.stageRead(stage)
+	private := e.StageRead(stage)
 	if got := pgConstraintUnitCapture(t, e, base); !reflect.DeepEqual(got, baseline) {
 		t.Fatal("private creation leaked", got)
 	}
@@ -321,7 +321,7 @@ func TestPGConstraintPublication(t *testing.T) {
 		t.Fatal("discard leaked creation", got)
 	}
 	stage = pgConstraintUnitTableStage(t, e, op, "CREATE TABLE pc_private(a INT CONSTRAINT pc_private_u UNIQUE)")
-	candidate = pgConstraintUnitCapture(t, e, e.stageRead(stage))
+	candidate = pgConstraintUnitCapture(t, e, e.StageRead(stage))
 	domainUnitPublish(t, e, stage)
 	if got := pgConstraintUnitCapture(t, e, e.CatalogRead()); !reflect.DeepEqual(got, candidate) {
 		t.Fatal("publication changed candidate metadata", got, candidate)

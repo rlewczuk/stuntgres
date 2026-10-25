@@ -28,7 +28,7 @@ func (c *castPreflightContext) Err() error {
 	if !c.armed {
 		return c.Context.Err()
 	}
-	if !c.e.mu.TryLock() {
+	if !c.e.Mu.TryLock() {
 		if !c.entered {
 			c.t.Error("SELECT preflight entered with Engine.mu held")
 			return context.Canceled
@@ -38,7 +38,7 @@ func (c *castPreflightContext) Err() error {
 		}
 		return c.Context.Err()
 	}
-	defer c.e.mu.Unlock()
+	defer c.e.Mu.Unlock()
 	if !c.entered {
 		c.entered = true
 		c.visit()
@@ -75,16 +75,16 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 			// session teardown waits for this statement's admission to release.
 			defer func() {
 				ctx.armed = false
-				if !scope.finished {
+				if !scope.Finished {
 					_ = scope.Finish(context.Canceled)
 				}
 			}()
 			var restore func()
 			ctx.visit = func() {
-				if scope.view != nil {
+				if scope.View != nil {
 					t.Error("source view captured before preflight/ACL")
 				}
-				if len(scope.querySources) != 1 || scope.querySources[0].Ref.Domain() != e.catalog.Domain || scope.querySources[0].Relation == nil {
+				if len(scope.QuerySources) != 1 || scope.QuerySources[0].Ref.Domain() != e.Catalog.Domain || scope.QuerySources[0].Relation == nil {
 					t.Error("preflight lost locked source occurrence identity")
 					return // Keep the assertion non-panicking inside execution.
 				}
@@ -96,20 +96,20 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 				case "teardown":
 					op.Session.RequestEnd(session.CleanClose)
 				case "descriptor":
-					leaf := scope.querySources[0]
+					leaf := scope.QuerySources[0]
 					address := leaf.Ref.Address
-					original := e.catalog.State.Get(address)
+					original := e.Catalog.State.Get(address)
 					replacement := *leaf.Relation
 					// Compatible descriptor copies are admissible; invalidate the
 					// captured physical attribute identity instead.
 					replacement.Attributes = append([]int32(nil), replacement.Attributes...)
 					replacement.Attributes[0]++
-					e.catalog.State.SetDescriptor(address, &replacement)
-					restore = func() { e.catalog.State.SetDescriptor(address, original) }
+					e.Catalog.State.SetDescriptor(address, &replacement)
+					restore = func() { e.Catalog.State.SetDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.State.Epoch()
-					e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
-					restore = func() { e.catalog.State.SetEpoch(original) }
+					original := e.Catalog.State.Epoch()
+					e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
+					restore = func() { e.Catalog.State.SetEpoch(original) }
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "SELECT int4($1::text) FROM t"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
@@ -123,9 +123,9 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 			})
 			ctx.armed = false
 			if restore != nil {
-				e.mu.Lock()
+				e.Mu.Lock()
 				restore()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
 			if !ctx.entered {
 				t.Error("preflight checkpoint never entered")
@@ -146,7 +146,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 					t.Error(result, executeErr)
 				}
 			}
-			if mode != "success" && (result.Rows != nil || scope.view != nil) {
+			if mode != "success" && (result.Rows != nil || scope.View != nil) {
 				t.Error("failed preflight/authority acquired a source or cursor")
 			}
 			if result.Rows != nil {
@@ -155,7 +155,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 			if err := scope.Finish(executeErr); err != executeErr {
 				t.Error("scope teardown changed failure", err, executeErr)
 			}
-			if scope.view != nil || len(scope.querySources) != 0 || scope.lockedDescriptor != nil || scope.ticket != nil || !scope.finished {
+			if scope.View != nil || len(scope.QuerySources) != 0 || scope.LockedDescriptor != nil || scope.LockTicket != nil || !scope.Finished {
 				t.Error("statement resources survived teardown")
 			}
 		})

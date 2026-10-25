@@ -12,16 +12,16 @@ import (
 
 func TestAlterGeneratedExpressionAuthorizationAfterWait(t *testing.T) {
 	e, admin, actor, ref := generatedAuthorizationFixture(t)
-	old, store := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
+	old, store := e.Catalog.State.Get(ref.Address), e.Storage.Relations[ref.Address]
 	blocker, err := e.StartStatement(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer blocker.Finish(errors.New("release admission blocker"))
-	if err := blocker.gate(&parser.Select{}); err != nil {
+	if err := blocker.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.locks.Acquire(context.Background(), blocker.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+	if err := e.Locks.Acquire(context.Background(), blocker.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -67,7 +67,7 @@ func TestAlterGeneratedExpressionAuthorizationAfterWait(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("admission worker remained parked")
 	}
-	if e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store {
+	if e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != store {
 		t.Fatal("denied waiter published generation")
 	}
 	lockEmpty(t, e)

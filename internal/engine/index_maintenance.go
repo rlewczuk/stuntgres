@@ -14,55 +14,55 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	if scope.txRef.Epoch() != e.catalog.State.Epoch() {
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
-	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
+	auth, err := e.StatementAuthorizationLocked(scope.Op, stmt)
 	if err != nil {
 		return fail(err)
 	}
-	g := scope.indexesOrZero().Maintenance
+	g := scope.IndexesOrZero().Maintenance
 	if g == nil {
 		return fail(fmt.Errorf("stuntgres: index utility has no relation admission"))
 	}
 	if err := g.Check(auth.View, auth, stmt, true); err != nil {
 		return fail(err)
 	}
-	if err := scope.captureIdentityLocked(auth); err != nil {
+	if err := scope.CaptureIdentityLocked(auth); err != nil {
 		return fail(err)
 	}
 	_, reindex := stmt.(*parser.Reindex)
 	if len(g.Targets) == 0 || reindex && len(g.Indexes) == 0 {
-		scope.op.Session.Mu.Lock()
-		err := publicationOperationLocked(e, scope.op)
-		scope.op.Session.Mu.Unlock()
-		e.mu.Unlock()
+		scope.Op.Session.Mu.Lock()
+		err := PublicationOperationLocked(e, scope.Op)
+		scope.Op.Session.Mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
-		scope.completed = true
+		scope.Completed = true
 		if reindex {
-			scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.Descriptors[g.Targets[0].Address].Name())})
+			scope.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.Descriptors[g.Targets[0].Address].Name())})
 		}
 		for _, notice := range g.Notices {
-			scope.op.EmitNotice(session.LevelNotice, notice)
+			scope.Op.EmitNotice(session.LevelNotice, notice)
 		}
 		return Result{}, nil
 	}
 	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "rename" {
-		return e.renameRelationLocked(scope, scope.op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
+		return e.renameRelationLocked(scope, scope.Op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.Session)
-	stage.indexes().Output = scope.output
-	if err := index.StageMaintenance(ddlHost{e: e, op: scope.op, stage: stage}, g, stmt); err != nil {
-		e.mu.Unlock()
+	stage.AuthorizeLocked(auth, scope.Op.Session)
+	stage.Indexes().Output = scope.Output
+	if err := index.StageMaintenance(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, g, stmt); err != nil {
+		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
-		return Result{}, index.DefaultClassDiagnostic(ddlHost{e: e, op: scope.op, stage: stage}, auth, err)
+		return Result{}, index.DefaultClassDiagnostic(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, err)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, ref := range g.Indexes {
@@ -74,8 +74,8 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		for i, ref := range g.Indexes {
 			roots[i] = ref.Address
 		}
-		stage.dependencyPath, _ = referencePath(auth)
-		if err := scope.stageExpressionDependents(stage, roots, drop.Mode, nil); err != nil {
+		stage.DependencyPath, _ = ReferencePath(auth)
+		if err := scope.StageExpressionDependents(stage, roots, drop.Mode, nil); err != nil {
 			return Result{}, err
 		}
 	}
@@ -84,17 +84,17 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 			return Result{}, err
 		}
 	}
-	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
+	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	if err != nil {
 		return Result{}, err
 	}
-	scope.completed = true
+	scope.Completed = true
 	for _, notice := range g.Notices {
-		scope.op.EmitNotice(session.LevelNotice, notice)
+		scope.Op.EmitNotice(session.LevelNotice, notice)
 	}
 	return Result{}, nil
 }
@@ -103,10 +103,10 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 // original of a replaced materialized view to index.ValidateMaintenance.
 func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 	var replacedParent ids.ObjectAddress
-	if replacement := s.materializedOrZero().Replacement; replacement != nil {
+	if replacement := s.MaterializedOrZero().Replacement; replacement != nil {
 		replacedParent = replacement.Original.Address()
 	}
-	return index.ValidateMaintenance(s.indexesOrZero(), s.Base, current, replacedParent)
+	return index.ValidateMaintenance(s.IndexesOrZero(), s.Base, current, replacedParent)
 }
 
 // indexes returns the statement's indexes slot, allocating it on first use.
@@ -117,8 +117,8 @@ func (s *StatementScope) indexes() *index.Scope {
 	return s.indexesSlot
 }
 
-// indexesOrZero reads the indexes slot; a nil slot reads as zero.
-func (s *StatementScope) indexesOrZero() index.Scope {
+// IndexesOrZero reads the indexes slot; a nil slot reads as zero.
+func (s *StatementScope) IndexesOrZero() index.Scope {
 	if s.indexesSlot == nil {
 		return index.Scope{}
 	}

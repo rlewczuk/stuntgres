@@ -37,9 +37,9 @@ func TestUpdateReturningPreparedMetadata(t *testing.T) {
 	}
 	transactionRows(t, s, "SELECT id FROM t", 2)
 	seq := catalogRef(t, e, e.CatalogRead(), "seq")
-	e.mu.Lock()
-	called := e.storage.Sequences[seq.Address].Called
-	e.mu.Unlock()
+	e.Mu.Lock()
+	called := e.Storage.Sequences[seq.Address].Called
+	e.Mu.Unlock()
 	if called {
 		t.Fatal("Prepare drew")
 	}

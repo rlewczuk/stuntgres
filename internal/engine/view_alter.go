@@ -16,55 +16,55 @@ import (
 // Utility admission pins the target identity before waiting. Shared rename and
 // namespace operations retain their ordinary descriptor publication path.
 func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, count int) (Result, error) {
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	if err := scope.validateLockedRelation(e); err != nil {
+	if err := scope.ValidateLockedRelation(e); err != nil {
 		return fail(err)
 	}
-	auth, err := e.statementAuthorizationLocked(scope.op, s)
+	auth, err := e.StatementAuthorizationLocked(scope.Op, s)
 	if err != nil {
 		return fail(err)
 	}
-	ref, err := e.resolveRelationReference(auth, s.Name, true)
+	ref, err := e.ResolveRelationReference(auth, s.Name, true)
 	if s.IfExists && table.RenameMissing(err) {
-		return e.skipMissingRelationLocked(scope, scope.op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
+		return e.skipMissingRelationLocked(scope, scope.Op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)
 	}
-	if ref != scope.lockedRef {
+	if ref != scope.LockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
 	if err = view.AlterViewAuthority(auth.View, auth, ref, s); err != nil {
 		return fail(err)
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	switch s.Action {
 	case "rename", "column":
-		return e.renameRelationLocked(scope, scope.op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", s.Materialized && s.Action == "column", false, count)
+		return e.renameRelationLocked(scope, scope.Op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", s.Materialized && s.Action == "column", false, count)
 	case "schema":
-		return e.alterSchemaLocked(scope, scope.op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
+		return e.alterSchemaLocked(scope, scope.Op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
 	}
-	next, extension, err := view.AlterChange(ddlHost{e: e, op: scope.op}, auth.Catalog, old, s)
+	next, extension, err := view.AlterChange(DDLHost{E: e, Op: scope.Op}, auth.Catalog, old, s)
 	if err != nil {
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.Session)
+	stage.AuthorizeLocked(auth, scope.Op.Session)
 	if extension != nil {
-		stage.querySources = []catalog.Descriptor{extension}
+		stage.QuerySources = []catalog.Descriptor{extension}
 	}
-	e.mu.Unlock()
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	e.Mu.Unlock()
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	defer e.DiscardCatalogStage(stage)
 	if next != nil {
@@ -72,13 +72,13 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	}
 	if err == nil {
 		var prepared *PreparedCatalogPublication
-		prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
+		prepared, err = e.ValidateCatalogStage(scope.Op.Context(), stage)
 		if err == nil {
-			_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+			_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 		}
 	}
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return Result{}, err
 }
@@ -89,15 +89,15 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	auth, err := e.statementAuthorizationLocked(scope.op, s)
+	e.Mu.Lock()
+	auth, err := e.StatementAuthorizationLocked(scope.Op, s)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	refs, notices, err := view.DropTargets(ddlHost{e: e, op: scope.op}, auth, s)
+	refs, notices, err := view.DropTargets(DDLHost{E: e, Op: scope.Op}, auth, s)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	seen := make(map[ids.ObjectAddress]bool, len(refs))
@@ -105,15 +105,15 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		seen[ref.Address] = true
 	}
 	epoch := auth.Catalog.Epoch()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := lock.Policy{TimeoutSlot: &scope.op.LockWait, Timeout: scope.op.LockTimeout, StatementDeadline: scope.op.StatementDeadline, Source: scope.op.SourceContext}
+	policy := lock.Policy{TimeoutSlot: &scope.Op.LockWait, Timeout: scope.Op.LockTimeout, StatementDeadline: scope.Op.StatementDeadline, Source: scope.Op.SourceContext}
 	for _, ref := range refs {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
+		request, err := e.Locks.StartAcquire(scope.Op.Context(), scope.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if request != nil {
-			if scope.replacementRead {
-				e.replacementMu.RUnlock()
-				scope.replacementRead = false
+			if scope.ReplacementRead {
+				e.ReplacementMu.RUnlock()
+				scope.ReplacementRead = false
 			}
 			err = request.Wait()
 		}
@@ -121,33 +121,33 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			return Result{}, err
 		}
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
-	e.mu.Lock()
-	auth, err = e.statementAuthorizationLocked(scope.op, s)
+	e.Mu.Lock()
+	auth, err = e.StatementAuthorizationLocked(scope.Op, s)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if epoch != auth.Catalog.Epoch() {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	if err := view.RecheckDropTargets(auth.View, auth, refs); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.Session)
-	stage.dependencyPath, err = referencePath(auth)
+	stage.AuthorizeLocked(auth, scope.Op.Session)
+	stage.DependencyPath, err = ReferencePath(auth)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	targets := make([]ids.ObjectAddress, len(refs))
 	for i, ref := range refs {
@@ -156,7 +156,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			return Result{}, err
 		}
 	}
-	if err := scope.stageExpressionDependents(stage, targets, s.Mode, nil); err != nil {
+	if err := scope.StageExpressionDependents(stage, targets, s.Mode, nil); err != nil {
 		return Result{}, err
 	}
 	// Cascaded view identities receive the same AX admission as explicit targets.
@@ -171,7 +171,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	}
 	sort.Slice(cascade, func(i, j int) bool { return cascade[i].Address.ObjectID < cascade[j].Address.ObjectID })
 	for _, ref := range cascade {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
+		request, err := e.Locks.StartAcquire(scope.Op.Context(), scope.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if request != nil {
 			err = request.Wait()
 		}
@@ -179,17 +179,17 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 			return Result{}, err
 		}
 	}
-	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
+	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: epoch})
+		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: epoch})
 	}
 	if err != nil {
 		return Result{}, err
 	}
-	scope.completed = true
-	view.EmitCascade(scope.op, append(stage.schemaCascadeNames, stage.dropCascadeNames...))
+	scope.Completed = true
+	view.EmitCascade(scope.Op, append(stage.SchemaCascadeNames, stage.DropCascadeNames...))
 	for _, notice := range notices {
-		scope.op.EmitNotice(session.LevelNotice, notice)
+		scope.Op.EmitNotice(session.LevelNotice, notice)
 	}
 	return Result{}, nil
 }

@@ -19,32 +19,32 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 // Called unlocked after logical analysis, before private preflight/capture. The
 // same lock ticket/journal owns the real RX grant and all lifecycle source locks.
 func (s *StatementScope) acquireViewWriteTarget(w *view.Write) error {
-	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: w.Ref}, lock.RowExclusive, policy)
+	e := s.Engine()
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: w.Ref}, lock.RowExclusive, policy)
 	if request != nil {
 		s.admissionWaited = true
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
 	if err != nil {
 		return err
 	}
-	s.owner.Mu.Lock()
-	implicit := s.owner.State == session.TxImplicit
-	s.owner.Mu.Unlock()
-	if implicit && !s.replacementRead {
-		e.replacementMu.RLock()
-		s.replacementRead = true
+	s.Owner.Mu.Lock()
+	implicit := s.Owner.State == session.TxImplicit
+	s.Owner.Mu.Unlock()
+	if implicit && !s.ReplacementRead {
+		e.ReplacementMu.RLock()
+		s.ReplacementRead = true
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	read := e.privateCatalogLocked(s.owner.Catalog)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	read := e.PrivateCatalogLocked(s.Owner.Catalog)
 	current, ok := read.Relation(w.Ref.Address)
-	if !ok || w.Ref.Domain() != e.catalog.Domain || w.Ref.Epoch != e.catalog.State.Epoch() || !index.SameRelationRowShape(current, w.BaseRelation) {
+	if !ok || w.Ref.Domain() != e.Catalog.Domain || w.Ref.Epoch != e.Catalog.State.Epoch() || !index.SameRelationRowShape(current, w.BaseRelation) {
 		return ids.ErrCatalogReplaced
 	}
 	for _, layer := range w.Layers {
@@ -53,11 +53,11 @@ func (s *StatementScope) acquireViewWriteTarget(w *view.Write) error {
 			return ids.ErrCatalogReplaced
 		}
 	}
-	storage := e.privateStorageLocked(s.owner.Catalog, w.Ref.Address)
+	storage := e.PrivateStorageLocked(s.Owner.Catalog, w.Ref.Address)
 	if storage == nil && current.RelationKind != catalog.ForeignRelation {
 		return ids.ErrCatalogReplaced
 	}
 	s.ViewWrite = w
-	s.lockedRef, s.lockedDescriptor, s.lockedStorage = w.Ref, current, storage
+	s.LockedRef, s.LockedDescriptor, s.LockedStorage = w.Ref, current, storage
 	return nil
 }

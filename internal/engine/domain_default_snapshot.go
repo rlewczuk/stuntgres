@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type domainDefaultReplayCapture struct {
+type DomainDefaultReplayCapture struct {
 	Statement *parser.CreateDomain
 	Record    typedef.DomainDefaultSnapshot
 }
@@ -19,22 +19,22 @@ type domainDefaultReplayCapture struct {
 // bindRestoredDomainDefault is reached only from the paired CREATE's existing
 // stage host, with Engine.mu held. The capture is operation-local and expires
 // when that statement returns; a SQL comment alone grants no engine authority.
-func (h ddlHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
-	if h.op == nil {
+func (h DDLHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
+	if h.Op == nil {
 		return false, nil
 	}
-	capture := operationReplayOrZero(h.op).domainDefault
+	capture := OperationReplayOrZero(h.Op).DomainDefault
 	if capture == nil {
 		return false, nil
 	}
 	fail := func() (bool, error) {
 		return true, fmt.Errorf("stuntgres: invalid trusted domain default snapshot authority")
 	}
-	auth := ddlAuthorityOf(a)
-	if !partitionConstraintReplayImport(h.e, h.op, auth) || capture.Statement == nil {
+	auth := DDLAuthorityOf(a)
+	if !PartitionConstraintReplayImport(h.E, h.Op, auth) || capture.Statement == nil {
 		return fail()
 	}
-	if _, ok := h.e.importTargets[auth.State.CurrentUser]; !ok {
+	if _, ok := h.E.ImportTargets[auth.State.CurrentUser]; !ok {
 		return fail()
 	}
 	r := capture.Record
@@ -63,7 +63,7 @@ func (h ddlHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, raw
 	if _, err := sqltype.PlanCoercion(usage, d.SQLType.DomainBase(), sqltype.Assignment); err != nil {
 		return true, err
 	}
-	if err := h.e.bindDomainDefaultUsage(h.op.Context(), h.op, auth, h.stage, d, raw, usage, input, output); err != nil {
+	if err := h.E.bindDomainDefaultUsage(h.Op.Context(), h.Op, auth, h.CatalogStage, d, raw, usage, input, output); err != nil {
 		return true, err
 	}
 	if d.DomainDefault == nil || d.DomainDefault.Expression.ResultUsage() != usage {

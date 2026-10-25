@@ -14,12 +14,12 @@ import (
 // Engine.mu is held on entry and released on every return. Dependency waits
 // and provider callbacks run without it; one stage publishes the entire closure.
 func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableSetSchema, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	ref, err := e.resolveRelationReference(auth, s.Name, true)
-	if err == nil && ref != scope.lockedRef {
+	ref, err := e.ResolveRelationReference(auth, s.Name, true)
+	if err == nil && ref != scope.LockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if s.IfExists && table.RenameMissing(err) {
@@ -31,11 +31,11 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	old := scope.lockedDescriptor.(*catalog.Relation)
+	old := scope.LockedDescriptor.(*catalog.Relation)
 	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.ViewRelation && old.RelationKind != catalog.MaterializedViewRelation && old.RelationKind != catalog.ForeignRelation {
-		return fail(sqlError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
+		return fail(SQLError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
 	}
-	destination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.Name()}}})
+	destination, err := e.CreationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.Name()}}})
 	if err != nil {
 		return fail(err)
 	}
@@ -46,11 +46,11 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		return fail(err)
 	}
 	if auth.Catalog.MustNamespace(old.Namespace()).Temporary != (ids.SessionToken{}) {
-		return fail(sqlError("0A000", "cannot move objects into or out of temporary schemas"))
+		return fail(SQLError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.Namespace() {
 		op.Session.Mu.Lock()
-		err = publicationOperationLocked(e, op)
+		err = PublicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
@@ -58,32 +58,32 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		if err != nil {
 			return fail(err)
 		}
-		scope.completed = true
-		e.mu.Unlock()
+		scope.Completed = true
+		e.Mu.Unlock()
 		return Result{}, nil
 	}
 	owned := table.SetSchemaOwned(auth.Catalog, old)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	for _, r := range owned {
 		if r.SQLIndex != nil {
 			continue
 		}
-		if err = scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, r.Address()), lock.AccessExclusive, false); err != nil {
+		if err = scope.AcquireSequence(e.Catalog.Domain.Ref(ref.Epoch, r.Address()), lock.AccessExclusive, false); err != nil {
 			return Result{}, err
 		}
 	}
 	// Dependency admission does not reserve replacement; release any existing
 	// admission before validation, whose provider may replace the catalog.
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
-	e.mu.Lock()
-	auth, err = e.statementAuthorizationLocked(op, s)
+	e.Mu.Lock()
+	auth, err = e.StatementAuthorizationLocked(op, s)
 	if err != nil {
 		return fail(err)
 	}
-	current, err := e.resolveRelationReference(auth, s.Name, true)
+	current, err := e.ResolveRelationReference(auth, s.Name, true)
 	if err != nil {
 		return fail(err)
 	}
@@ -93,7 +93,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	liveDestination, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.Name()}}})
+	liveDestination, err := e.CreationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.Name()}}})
 	if err != nil {
 		return fail(err)
 	}
@@ -112,8 +112,8 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	e.mu.Unlock()
+	stage.AuthorizeLocked(auth, op.Session)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for i := range next {
 		if err = stage.Replace(&next[i]); err != nil {
@@ -122,21 +122,21 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 	}
 	if _, conflict := err.(catalog.Conflict); conflict {
-		e.mu.Lock()
-		current := e.stageCatalogBaseLocked(stage)
+		e.Mu.Lock()
+		current := e.StageCatalogBaseLocked(stage)
 		if current.Epoch() == ref.Epoch {
-			if collision := table.SetSchemaConflict(e.catalog.Read(current), group, destination.Address, s.Schema.Text); collision != nil {
+			if collision := table.SetSchemaConflict(e.Catalog.Read(current), group, destination.Address, s.Schema.Text); collision != nil {
 				err = collision
 			}
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 	}
 	if err != nil {
 		return Result{}, err
 	}
-	scope.completed = true
+	scope.Completed = true
 	return Result{}, nil
 }

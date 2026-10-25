@@ -23,7 +23,7 @@ func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batc
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := engineOf(s).StartStatement(op)
+	scope, err := EngineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batc
 	return &batchUnitMessage{scope: scope, op: op}
 }
 func (m *batchUnitMessage) step(stmt parser.Statement) (Result, error) {
-	if m.scope.finished {
+	if m.scope.Finished {
 		next, err := m.scope.NextStatement()
 		if err != nil {
 			return Result{}, err
@@ -81,11 +81,11 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 	if _, err := copy.NextStatement(); err == nil {
 		t.Fatal("copied scope authority")
 	}
-	originalOperation := m.scope.op
+	originalOperation := m.scope.Op
 	copiedOperation := *originalOperation
-	m.scope.op = &copiedOperation
+	m.scope.Op = &copiedOperation
 	_, foreignErr := m.scope.NextStatement()
-	m.scope.op = originalOperation
+	m.scope.Op = originalOperation
 	if foreignErr == nil {
 		t.Fatal("copied operation acquired message admission")
 	}
@@ -151,9 +151,9 @@ func TestDriverBatchQueuedPrefixCancellation(t *testing.T) {
 				t.Fatal(err)
 			}
 			address := catalogRef(t, e, e.CatalogRead(), "prefix").Address
-			e.mu.Lock()
-			published := len(e.storage.Relations[address].Versions)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			published := len(e.Storage.Relations[address].Versions)
+			e.Mu.Unlock()
 			if published != 0 || len(a.Transactions.Writes[address]) != 1 {
 				t.Fatal("prefix was not staged before wait")
 			}

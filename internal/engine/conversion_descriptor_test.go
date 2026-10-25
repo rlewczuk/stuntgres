@@ -15,7 +15,7 @@ import (
 )
 
 func conversionUnitDefinition(e *Engine, oid ids.OID, name string, def bool) *catalog.Conversion {
-	return &catalog.Conversion{OID: oid, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.Domain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
+	return &catalog.Conversion{OID: oid, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10), Source: 6, Destination: 8, Handler: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375}, DefaultConversion: def}
 }
 
 func conversionUnitName(parts ...string) parser.ObjectName {
@@ -30,9 +30,9 @@ func conversionUnitAuth(t *testing.T, e *Engine) (*session.Operation, Authorizat
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestConversionDescriptorAuthority(t *testing.T) {
 		}
 	}
 	bad := *d
-	bad.Owner = New().roles.Domain.Principal(10)
+	bad.Owner = New().RoleStore.Domain.Principal(10)
 	bad.ObjectRevision++
 	stage = e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
@@ -99,9 +99,9 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	create := &parser.CreateConversion{Name: conversionUnitName("public", "first"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1"), Default: true}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err := typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,9 +110,9 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	before := e.CatalogRead()
 	create.Name = conversionUnitName("public", "second")
 	stage = e.BeginCatalogStage(before)
-	e.mu.Lock()
-	err = typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != "default conversion for UTF8 to LATIN1 already exists" {
 		t.Fatal("CREATE default conflict", err)
@@ -147,9 +147,9 @@ func TestConversionDescriptorCancellationAndBatchAtomicity(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	before := e.CatalogRead()
 	stage = e.BeginCatalogStage(before)
-	e.mu.Lock()
-	err := typedef.StageDropConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, &parser.DropConversion{Names: []parser.ObjectName{conversionUnitName("public", "keep"), conversionUnitName("public", "missing")}, Mode: parser.DropRestrict})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := typedef.StageDropConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.DropConversion{Names: []parser.ObjectName{conversionUnitName("public", "keep"), conversionUnitName("public", "missing")}, Mode: parser.DropRestrict})
+	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("late missing batch target succeeded")
 	}
@@ -189,19 +189,19 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 		{Name: conversionUnitName("public", "unchanged"), Action: "owner", Target: parser.Identifier{Text: "postgres"}},
 	} {
 		stage = e.BeginCatalogStage(before)
-		e.mu.Lock()
-		err := typedef.StageAlterConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, alteration)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err := typedef.StageAlterConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, alteration)
+		e.Mu.Unlock()
 		if err != nil || stage.DescriptorCount() != 0 {
 			t.Fatal("generic no-op permission boundary", alteration, err)
 		}
 		e.DiscardCatalogStage(stage)
 	}
-	auth.State.CurrentUser = e.roles.Domain.Principal(10)
+	auth.State.CurrentUser = e.RoleStore.Domain.Principal(10)
 	stage = e.BeginCatalogStage(before)
-	e.mu.Lock()
-	err := typedef.StageAlterConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterConversion{Name: conversionUnitName("public", "unchanged"), Action: "rename", Target: parser.Identifier{Text: "unchanged"}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := typedef.StageAlterConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.AlterConversion{Name: conversionUnitName("public", "unchanged"), Action: "rename", Target: parser.Identifier{Text: "unchanged"}})
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != `conversion "unchanged" already exists in schema "public"` {
 		t.Fatal("rename-to-self unique-name contract", err)
@@ -216,7 +216,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	}
 	for _, address := range []ids.ObjectAddress{{ClassID: ids.ConversionClassID, ObjectID: 4519}, {ClassID: ids.ProcedureClassID, ObjectID: 4375}} {
 		stage = e.BeginCatalogStage(before)
-		if err = stage.Remove(e.catalog.Domain.Ref(before.Epoch(), address)); !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
+		if err = stage.Remove(e.Catalog.Domain.Ref(before.Epoch(), address)); !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
 			t.Fatal("real provider pin removed", address, err)
 		}
 		e.DiscardCatalogStage(stage)

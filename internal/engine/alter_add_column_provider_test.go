@@ -16,21 +16,21 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	sessionSQL(t, worker, "INSERT INTO t VALUES(1),(2),(2)")
 	ref := roleTableRef(t, e, "t")
 	seq := roleTableRef(t, e, "s")
-	old := e.catalog.State.MustRelation(ref.Address)
-	storage := e.storage.Relations[ref.Address]
-	generator := e.storage.Sequences[seq.Address]
+	old := e.Catalog.State.MustRelation(ref.Address)
+	storage := e.Storage.Relations[ref.Address]
+	generator := e.Storage.Sequences[seq.Address]
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	original := e.catalog.Providers[ids.RelationClassID]
+	original := e.Catalog.Providers[ids.RelationClassID]
 	calls := 0
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
 		calls++
-		if !e.mu.TryLock() {
+		if !e.Mu.TryLock() {
 			t.Error("ADD called real provider under Engine.mu")
 		} else {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
-		if generator.Last != 6 || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
+		if generator.Last != 6 || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
 			t.Error("provider did not see fully demanded unpublished ADD", generator.Last)
 		}
 		cancel()
@@ -41,15 +41,15 @@ func TestAlterAddColumnFinalProviderVeto(t *testing.T) {
 	}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ADD b BIGINT DEFAULT nextval('s') CHECK(nextval('s')>0)"), 0, nil)
 	op.Done()
-	e.catalog.Providers[ids.RelationClassID] = original
-	if !errors.Is(err, context.Canceled) || calls != 1 || generator.Last != 6 || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
+	e.Catalog.Providers[ids.RelationClassID] = original
+	if !errors.Is(err, context.Canceled) || calls != 1 || generator.Last != 6 || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage || old.ColumnMeta.HighWater != 1 {
 		t.Fatal("final provider veto published candidate or rewound effects", err, calls, generator.Last)
 	}
 	lockEmpty(t, e)
-	if !e.replacementMu.TryLock() {
+	if !e.ReplacementMu.TryLock() {
 		t.Fatal("final provider veto leaked replacement reservation")
 	}
-	e.replacementMu.Unlock()
+	e.ReplacementMu.Unlock()
 	transactionRows(t, worker, "SELECT nextval('s')", 7)
 	sessionSQL(t, worker, "ALTER TABLE t ADD b INT DEFAULT 7 CHECK(b>0)")
 	checkReviewDependencyValid(t, e)

@@ -19,9 +19,9 @@ import (
 )
 
 func (e *Engine) Roles() authorization.Read {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current())
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current())
 }
 
 // ProtocolAuthorizationStatus reads the restored identity and its owner-private
@@ -30,13 +30,13 @@ func (e *Engine) Roles() authorization.Read {
 // from a foreign/invalid identity. Its last reported transport values remain
 // cached; a same-name replacement must never be adopted for that old principal.
 func (e *Engine) ProtocolAuthorizationStatus(s *session.Session) (name string, superuser, retired bool, err error) {
-	if s == nil || engineOf(s) != e || s.Transactions == nil {
+	if s == nil || EngineOf(s) != e || s.Transactions == nil {
 		return "", false, false, fmt.Errorf("stuntgres: foreign authorization status session")
 	}
 	s.Transactions.Mu.Lock()
 	defer s.Transactions.Mu.Unlock()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 	if s.Authorization == nil {
@@ -79,8 +79,8 @@ var _ analyze.Privileges = AuthorizationView{}
 // itself as the access.Environment.
 type AuthorizationView struct {
 	access.View
-	inputs     *authorityInputs         // Nil unless the engine built the view.
-	definition catalog.DefinitionReader // Cooking-only sparse effects; never SQL execution authority.
+	inputs     *AuthorityInputs         // Nil unless the engine built the view.
+	Definition catalog.DefinitionReader // Cooking-only sparse effects; never SQL execution authority.
 	settings   *session.SettingsStore
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ids.ObjectAddress
@@ -90,8 +90,8 @@ type AuthorizationView struct {
 	// named destination owner, session identity, ACLs or creation authority.
 	restoreDefinitionLookup bool
 	// An owned TEMP table builder may see its namespace before session publication.
-	stagedTemporary        ids.ObjectAddress
-	session                *session.Session
+	StagedTemporary        ids.ObjectAddress
+	Session                *session.Session
 	materializedPopulation bool
 }
 
@@ -135,7 +135,7 @@ func (v AuthorizationView) TemporaryNamespace() ids.ObjectAddress { return tempo
 // ReferencePath implements access.Environment: the live search path, read
 // under the session settings mutex.
 func (v AuthorizationView) ReferencePath() ([]ids.ObjectAddress, error) {
-	return referencePath(v)
+	return ReferencePath(v)
 }
 
 // trustedRestoreForm names the statement form a trusted Restore runs as the
@@ -162,18 +162,18 @@ func trustedRestoreForm(stmt parser.Statement) (name string, insert bool) {
 
 // Statement-local Restore authority must cover both lock resolution and effects.
 // INSERT/COMMENT stamp no owner; named directives and session identity stay intact.
-func (e *Engine) statementAuthorizationLocked(op *session.Operation, stmt parser.Statement) (AuthorizationView, error) {
-	auth, err := e.authorizationLocked(op)
+func (e *Engine) StatementAuthorizationLocked(op *session.Operation, stmt parser.Statement) (AuthorizationView, error) {
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return AuthorizationView{}, err
 	}
-	replay := operationReplayOrZero(op)
-	if name, insert := trustedRestoreForm(stmt); name != "" && (insert && replay.insertAuthority || !insert && replay.tableDestination) {
+	replay := OperationReplayOrZero(op)
+	if name, insert := trustedRestoreForm(stmt); name != "" && (insert && replay.InsertAuthority || !insert && replay.TableDestination) {
 		if err := e.trustRestoreBootstrap(&auth, name); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
-	if replay.commentAuthority {
+	if replay.CommentAuthority {
 		comment, ok := stmt.(*parser.Comment)
 		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentForeignTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema) {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
@@ -191,7 +191,7 @@ func (e *Engine) statementAuthorizationLocked(op *session.Operation, stmt parser
 // rejection names.
 func (e *Engine) trustRestoreBootstrap(auth *AuthorizationView, name string) error {
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
-	if err != nil || !bootstrap.Superuser || e.importTargets == nil {
+	if err != nil || !bootstrap.Superuser || e.ImportTargets == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore %s authority", name)
 	}
 	auth.namespaceUser = auth.State.CurrentUser
@@ -199,44 +199,44 @@ func (e *Engine) trustRestoreBootstrap(auth *AuthorizationView, name string) err
 	return nil
 }
 
-// operationAuthorization returns op's current authorization view. It takes
+// OperationAuthorization returns op's current authorization view. It takes
 // Engine.mu, then Session.mu inside authorizationLocked.
-func operationAuthorization(op *session.Operation) (AuthorizationView, error) {
+func OperationAuthorization(op *session.Operation) (AuthorizationView, error) {
 	if op == nil || op.Self != op || op.Session == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: foreign or missing operation")
 	}
-	e := engineOf(op.Session)
-	if err := e.validateOperation(op); err != nil {
+	e := EngineOf(op.Session)
+	if err := e.ValidateOperation(op); err != nil {
 		return AuthorizationView{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return e.AuthorizationLocked(op)
 }
 
-// authorityInputs are the engine values an engine-built AuthorizationView
+// AuthorityInputs are the engine values an engine-built AuthorizationView
 // reads: the engine's domain, which mints path references and matches the
 // session's TEMP token, the settings registry, for the boot search_path of a
 // view without session settings, and the published storage, which
 // StorageLocked reads under Engine.mu. The engine holds one by value; views
 // share it by pointer, so building a view allocates nothing.
-type authorityInputs struct {
-	domain   *ids.Domain
-	settings *settings.Registry
-	storage  *storage.Store
+type AuthorityInputs struct {
+	Domain   *ids.Domain
+	Settings *settings.Registry
+	Storage  *storage.Store
 }
 
 // ref mints a reference to a in the engine's domain at the view's catalog
 // epoch. Unlike View.Ref it does not read the view's owner, so a view with a
 // missing or foreign owner still reaches the check that rejects it.
 func (v AuthorizationView) ref(a ids.ObjectAddress) ids.ObjectRef {
-	return v.inputs.domain.Ref(v.Catalog.Epoch(), a)
+	return v.inputs.Domain.Ref(v.Catalog.Epoch(), a)
 }
 
-// authorityView is v as an engine-built view. It is the one constructor of
+// AuthorityView is v as an engine-built view. It is the one constructor of
 // the engine inputs, so a view and its copies and recaptures cannot drift.
-func (e *Engine) authorityView(v access.View) AuthorizationView {
-	return AuthorizationView{View: v, inputs: &e.authority}
+func (e *Engine) AuthorityView(v access.View) AuthorizationView {
+	return AuthorizationView{View: v, inputs: &e.Authority}
 }
 
 // operationAuthority is v with op's environment: the definition reader,
@@ -245,14 +245,14 @@ func (e *Engine) authorityView(v access.View) AuthorizationView {
 // captured access.View.
 func (e *Engine) operationAuthority(op *session.Operation, v access.View) AuthorizationView {
 	s := op.Session
-	auth := e.authorityView(v)
-	auth.definition, auth.settings, auth.session = op.Definition, s.Settings, s
-	auth.materializedPopulation = operationReplayOrZero(op).materializedPopulation
+	auth := e.AuthorityView(v)
+	auth.Definition, auth.settings, auth.Session = op.Definition, s.Settings, s
+	auth.materializedPopulation = OperationReplayOrZero(op).MaterializedPopulation
 	return auth
 }
 
 // Lock order is Engine.mu then Session.mu. Views retain only immutable values.
-func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, error) {
+func (e *Engine) AuthorizationLocked(op *session.Operation) (AuthorizationView, error) {
 	s := op.Session
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
@@ -263,11 +263,11 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 	if err := e.refreshOperationRolesLocked(op); err != nil {
 		return AuthorizationView{}, err
 	}
-	view := e.catalog.Current()
+	view := e.Catalog.Current()
 	if s.Transactions != nil {
-		view = e.privateCatalogLocked(s.Transactions.Catalog)
+		view = e.PrivateCatalogLocked(s.Transactions.Catalog)
 	}
-	r := e.roles.Read(&e.catalog.Owner, view, e.operationRolesLocked(op))
+	r := e.RoleStore.Read(&e.Catalog.Owner, view, e.OperationRolesLocked(op))
 	bootstrap, err := r.Descriptor(a.State.Authenticated)
 	if err != nil {
 		return AuthorizationView{}, err
@@ -280,15 +280,15 @@ func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, 
 		}
 	}
 	identity := a.State
-	if operationReplayOrZero(op).materializedOwner != (authorization.PrincipalRef{}) {
-		if _, err := r.Descriptor(operationReplayOrZero(op).materializedOwner); err != nil {
+	if OperationReplayOrZero(op).MaterializedOwner != (authorization.PrincipalRef{}) {
+		if _, err := r.Descriptor(OperationReplayOrZero(op).MaterializedOwner); err != nil {
 			return AuthorizationView{}, err
 		}
-		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
+		identity.CurrentUser = OperationReplayOrZero(op).MaterializedOwner
 	}
-	authorization := e.operationAuthority(op, access.View{Owner: &e.catalog.Owner, PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.State.Get(e.catalog.Owner.DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
-	if operationReplayOrZero(op).tableDestination {
-		if !bootstrap.Superuser || e.importTargets == nil {
+	authorization := e.operationAuthority(op, access.View{Owner: &e.Catalog.Owner, PairedCatalog: view, RoleRecord: e.OperationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.Catalog.State.Get(e.Catalog.Owner.DatabaseAddress()), State: identity, SessionRoleState: a.State, Revision: a.Revision})
+	if OperationReplayOrZero(op).TableDestination {
+		if !bootstrap.Superuser || e.ImportTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore definition lookup authority")
 		}
 		authorization.restoreDefinitionLookup = true

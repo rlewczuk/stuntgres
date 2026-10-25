@@ -34,7 +34,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					e, _, src, sink := ruleUnitCatalog(t)
 					op, done := roleOperation(t, e, "postgres")
 					defer done()
-					auth, err := operationAuthorization(op)
+					auth, err := OperationAuthorization(op)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -47,12 +47,12 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					input := *src
 					input.ObjectAddress.ObjectID += 2
 					input.ObjectName, input.Rules = "input", nil
-					next := catalog.CloneState(e.catalog.State)
+					next := catalog.CloneState(e.Catalog.State)
 					next.SetDescriptor(input.Address(), &input)
-					e.catalog.PublishLocked(next)
-					auth.Catalog = e.catalog.Read(next)
+					e.Catalog.PublishLocked(next)
+					auth.Catalog = e.Catalog.Read(next)
 					auth.PairedCatalog = auth.Catalog
-					auth.Roles = e.roles.Read(&e.catalog.Owner, auth.Catalog, auth.RoleRecord)
+					auth.Roles = e.RoleStore.Read(&e.Catalog.Owner, auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).Binding()
 					original.QuerySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
@@ -83,9 +83,9 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					})
 					src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "r", Event: event, Actions: []stored.RuleAction{action}})})
 					program := view.RuleProgram{Count: -1, Returning: -1}
-					e.mu.Lock()
-					_, err = view.RuleRewriter{Owner: &e.catalog.Owner}.ExpandLocked(auth, syntax, original, nil, &program)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					_, err = view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, syntax, original, nil, &program)
+					e.Mu.Unlock()
 					if err != nil {
 						t.Fatal(err)
 					}

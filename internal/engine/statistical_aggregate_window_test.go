@@ -36,8 +36,8 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 				e := New()
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 				b.Clause.AggregateClause = "SELECT"
-				e.mu.Lock()
-				defer e.mu.Unlock()
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
 				seed := statement(t, "SELECT count(*)").(*parser.Select).Targets[0]
 				if _, err := b.Bind(seed, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 					t.Fatal(err)

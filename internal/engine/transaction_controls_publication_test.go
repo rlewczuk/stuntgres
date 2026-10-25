@@ -80,7 +80,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				sessionSQL(t, b, q)
 			}
 			addresses := [2]ids.ObjectAddress{catalogRef(t, e, e.CatalogRead(), "t").Address, catalogRef(t, e, e.CatalogRead(), "u").Address}
-			stores := [2]*storage.Relation{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
+			stores := [2]*storage.Relation{e.Storage.Relations[addresses[0]], e.Storage.Relations[addresses[1]]}
 			roots := [2][]storage.RowVersion{stores[0].Versions, stores[1].Versions}
 			if len(roots[0]) != 3 || cap(roots[0]) != 4 || len(roots[1]) != 1 || cap(roots[1]) != 1 {
 				t.Fatal("mixed spare/growth witness not selected")
@@ -92,11 +92,11 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				}
 			}
 			retained := [2]*exec.FinalRows{transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7, 8, 10), transactionRows(t, b, "SELECT v FROM u ORDER BY v", 70)}
-			retainedCatalog := e.catalog.State
-			retainedEpoch := e.catalog.State.Epoch()
-			retainedFrontier := e.visibility.CommitSeq()
+			retainedCatalog := e.Catalog.State
+			retainedEpoch := e.Catalog.State.Epoch()
+			retainedFrontier := e.Visibility.CommitSeq()
 			spare := append([]storage.RowVersion(nil), roots[0][3:4]...)
-			frontier := e.visibility.CommitSeq()
+			frontier := e.Visibility.CommitSeq()
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
@@ -130,9 +130,9 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				<-barrier.entered
 				observed := make(chan [2]int, 1)
 				go func() {
-					e.mu.Lock()
+					e.Mu.Lock()
 					n := [2]int{len(stores[0].Versions), len(stores[1].Versions)}
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					observed <- n
 				}()
 				if boundary == "cancel_before" {
@@ -151,17 +151,17 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				a.RequestEnd(session.Terminated)
 				err = e.publishWrites(op, old, a.Transactions.Writes, a.Transactions.Deletes, nil)
 			case "epoch_before":
-				e.mu.Lock()
-				next := *e.catalog.State
+				e.Mu.Lock()
+				next := *e.Catalog.State
 				next.SetEpoch(next.Epoch() + 1)
-				e.catalog.PublishLocked(&next)
-				e.mu.Unlock()
+				e.Catalog.PublishLocked(&next)
+				e.Mu.Unlock()
 				_, err = scope.Execute(query, 0, nil)
 			case "counter_before":
-				e.mu.Lock()
-				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
-				frontier = e.visibility.CommitSeq()
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				frontier = e.Visibility.CommitSeq()
+				e.Mu.Unlock()
 				_, err = scope.Execute(query, 0, nil)
 			case "ref_before":
 				bad := old
@@ -182,7 +182,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				ticket := a.Transactions.Ticket
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
 				transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
-				if e.visibility.CommitSeq() != frontier+1 {
+				if e.Visibility.CommitSeq() != frontier+1 {
 					t.Fatal("not one frontier")
 				}
 				if next.ID() <= old.ID() || a.TransactionState() != session.TxActive || a.Transactions.Command != 0 || ticket == oldTicket || a.Transactions.Writes != nil {
@@ -201,7 +201,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if boundary == "cancel_after" {
 					transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7, 8, 10)
 					transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9, 70)
-					if e.visibility.CommitSeq() != frontier+1 {
+					if e.Visibility.CommitSeq() != frontier+1 {
 						t.Fatal("not one frontier")
 					}
 				}
@@ -225,7 +225,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if a.TransactionState() == session.TxActive && a.Transactions.Ref != old {
 					t.Fatal("rejection installed chain")
 				}
-				if e.visibility.CommitSeq() != frontier || len(stores[0].Versions) != 3 || len(stores[1].Versions) != 1 || &stores[0].Versions[0] != &roots[0][0] || &stores[1].Versions[0] != &roots[1][0] {
+				if e.Visibility.CommitSeq() != frontier || len(stores[0].Versions) != 3 || len(stores[1].Versions) != 1 || &stores[0].Versions[0] != &roots[0][0] || &stores[1].Versions[0] != &roots[1][0] {
 					t.Fatal("rejection changed storage frontier/root")
 				}
 				if !reflect.DeepEqual(roots[0][3:4], spare) {
@@ -279,7 +279,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			old, oldTicket := a.Transactions.Ref, a.Transactions.Ticket
-			frontier := e.visibility.CommitSeq()
+			frontier := e.Visibility.CommitSeq()
 			op := transactionOperation(t, a)
 			defer op.Done()
 			scope, err := e.StartStatement(op)
@@ -291,9 +291,9 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			next, ticket := a.Transactions.Ref, a.Transactions.Ticket
-			if scope.finished || next.ID() <= old.ID() || ticket == nil || ticket == oldTicket ||
+			if scope.Finished || next.ID() <= old.ID() || ticket == nil || ticket == oldTicket ||
 				a.TransactionState() != session.TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil ||
-				e.visibility.CommitSeq() != frontier+1 {
+				e.Visibility.CommitSeq() != frontier+1 {
 				t.Fatal("execution did not publish once and leave an unfinished fresh chain")
 			}
 			// A real peer SELECT completes before control Finish: the old AX
@@ -305,10 +305,10 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			for i := range versions {
 				versions[i].Values = append([]sqltype.Value(nil), versions[i].Values...)
 			}
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			oldLive := lockState.Owners[old] != nil
 			freshLive := lockState.Owners[next] == ticket
-			if oldLive || !freshLive || len(e.locks.Inspect(ticket).Journals[ticket]) != 0 {
+			if oldLive || !freshLive || len(e.Locks.Inspect(ticket).Journals[ticket]) != 0 {
 				t.Fatal("execution did not release old ticket/install empty fresh authority")
 			}
 			if boundary == "terminal_after_execute" {
@@ -323,14 +323,14 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				if e.CatalogRead().Epoch() == epoch || e.visibility.CommitSeq() != frontier+2 {
+				if e.CatalogRead().Epoch() == epoch || e.Visibility.CommitSeq() != frontier+2 {
 					t.Fatal("actual replacement did not install its distinct epoch/frontier")
 				}
 			}
-			completedFrontier := e.visibility.CommitSeq()
+			completedFrontier := e.Visibility.CommitSeq()
 			// These are the FIRST and repeated Finish, both after the real
 			// lifecycle boundary, not the generic already-finished early return.
-			if scope.finished {
+			if scope.Finished {
 				t.Fatal("control finished before lifecycle boundary")
 			}
 			if err := scope.Finish(nil); err != nil {
@@ -341,7 +341,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			if a.Transactions.Ref != next || a.Transactions.Ticket != ticket ||
 				a.TransactionState() != session.TxActive || a.Transactions.Command != 0 ||
-				a.Transactions.Writes != nil || e.visibility.CommitSeq() != completedFrontier {
+				a.Transactions.Writes != nil || e.Visibility.CommitSeq() != completedFrontier {
 				t.Fatal("Finish ended or mutated the fresh chained incarnation")
 			}
 			assertRetained := func() {
@@ -362,7 +362,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			assertRetained()
 			if boundary == "terminal_after_execute" {
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				freshLive = lockState.Owners[next] == ticket
 				if !freshLive {
 					t.Fatal("Finish prematurely cleaned leased fresh ticket")
@@ -377,14 +377,14 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				lockEmpty(t, e)
 				op.Done()
 				a.RequestEnd(session.Terminated)
-				if err := a.WaitEnd(context.Background()); err != nil || e.visibility.CommitSeq() != completedFrontier {
+				if err := a.WaitEnd(context.Background()); err != nil || e.Visibility.CommitSeq() != completedFrontier {
 					t.Fatal("repeated drain changed accepted publication", err)
 				}
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 7)
 			} else {
 				// Replacement fences lock authority independently of the
 				// transaction owner and retained snapshot lifetimes.
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				freshLive = lockState.Owners[next] != nil
 				if freshLive {
 					t.Fatal("Finish recreated ticket fenced by replacement")

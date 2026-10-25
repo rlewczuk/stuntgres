@@ -57,7 +57,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if definition.RoutineRefs()[path] != n.Ref || len(definition.CastUsages()) != 1 {
 				t.Fatal("lost selected identity or implicit argument conversion")
 			}
-			badReferences := []ids.ObjectRef{{}, New().catalog.Domain.Ref(n.Ref.Epoch, n.Ref.Address), n.Ref.Domain().Ref(n.Ref.Epoch+1, n.Ref.Address)}
+			badReferences := []ids.ObjectRef{{}, New().Catalog.Domain.Ref(n.Ref.Epoch, n.Ref.Address), n.Ref.Domain().Ref(n.Ref.Epoch+1, n.Ref.Address)}
 			subID := n.Ref
 			subID.Address.SubID = 1
 			badReferences = append(badReferences, subID)
@@ -65,7 +65,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if len(builtins) == 0 {
 				t.Fatal("missing native builtin control")
 			}
-			badReferences = append(badReferences, e.catalog.Domain.Ref(read.Epoch(), builtins[0]))
+			badReferences = append(badReferences, e.Catalog.Domain.Ref(read.Epoch(), builtins[0]))
 			for _, ref := range badReferences {
 				bad := definition.With(func(p *stored.ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref} })
 				if err := bad.ValidateLiterals(read); err == nil {

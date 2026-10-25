@@ -37,14 +37,14 @@ func TestFDWStageTable(t *testing.T) {
 	sessionSQL(t, s, "CREATE SERVER host_server FOREIGN DATA WRAPPER host_fdw")
 	sessionSQL(t, s, "CREATE FOREIGN TABLE host_old(id integer) SERVER host_server")
 	op, auth := conversionUnitAuth(t, e)
-	before := e.catalog.State
+	before := e.Catalog.State
 	stageTable := func(sql string) (*CatalogStage, []fdw.Validation, []ids.ObjectAddress, error) {
 		stage := e.BeginCatalogStage(auth.Catalog)
 		t.Cleanup(func() { e.DiscardCatalogStage(stage) })
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		stage.authorizeLocked(auth, op.Session)
-		jobs, roots, err := fdw.StageTable(ddlHost{e: e, op: op, stage: stage}, auth, statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		stage.AuthorizeLocked(auth, op.Session)
+		jobs, roots, err := fdw.StageTable(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
 		return stage, jobs, roots, err
 	}
 
@@ -71,7 +71,7 @@ func TestFDWStageTable(t *testing.T) {
 	if err != nil || len(jobs) != 0 || !slices.Equal(roots, []ids.ObjectAddress{old}) || stage.Get(old) != nil {
 		t.Fatal("drop staged", len(jobs), roots, err)
 	}
-	if e.catalog.State != before {
+	if e.Catalog.State != before {
 		t.Fatal("staging published")
 	}
 }

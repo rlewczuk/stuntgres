@@ -13,11 +13,11 @@ func TestSessionHostRecoversEngine(t *testing.T) {
 	public := sessionStart(t, e, nil)
 	private := collationPrivateSession(t, e)
 	for name, s := range map[string]*session.Session{"public": public, "private": private} {
-		if got := engineOf(s); got != e {
+		if got := EngineOf(s); got != e {
 			t.Fatalf("%s session: engineOf = %p, want %p", name, got, e)
 		}
 	}
-	if got := engineOf(&session.Session{}); got != nil {
+	if got := EngineOf(&session.Session{}); got != nil {
 		t.Fatalf("host-less session: engineOf = %p, want nil", got)
 	}
 }

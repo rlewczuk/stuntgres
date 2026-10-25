@@ -20,22 +20,22 @@ import (
 )
 
 // Caller holds Engine.mu and the session's statement admission.
-func (e *Engine) privateCatalogLocked(c *session.Journal) catalog.Read {
-	return c.PrivateRead(&e.catalog.Owner, e.catalog.State)
+func (e *Engine) PrivateCatalogLocked(c *session.Journal) catalog.Read {
+	return c.PrivateRead(&e.Catalog.Owner, e.Catalog.State)
 }
-func (e *Engine) catalogChangeLocked(c *session.Journal, a ids.ObjectAddress, d catalog.Descriptor) {
-	c.RecordDescriptor(e.catalog.State, a, d)
+func (e *Engine) CatalogChangeLocked(c *session.Journal, a ids.ObjectAddress, d catalog.Descriptor) {
+	c.RecordDescriptor(e.Catalog.State, a, d)
 }
-func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *storage.SequenceGenerator {
-	if s.catalog != nil {
-		if descriptor, exists := s.catalog.Descriptors[a]; exists && descriptor == nil {
+func (e *Engine) SequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress) *storage.SequenceGenerator {
+	if s.Catalog != nil {
+		if descriptor, exists := s.Catalog.Descriptors[a]; exists && descriptor == nil {
 			return nil
 		}
-		if g := s.catalog.Generators[a]; g != nil {
+		if g := s.Catalog.Generators[a]; g != nil {
 			return g
 		}
 	}
-	if c := s.owner.Catalog; c != nil {
+	if c := s.Owner.Catalog; c != nil {
 		if descriptor, exists := c.Descriptors[a]; exists && descriptor == nil {
 			return nil
 		}
@@ -43,22 +43,22 @@ func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress)
 			return g
 		}
 	}
-	return e.storage.Sequences[a]
+	return e.Storage.Sequences[a]
 }
 func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, epoch ids.CatalogEpoch) (*catalog.State, error) {
-	e.mu.Lock()
+	e.Mu.Lock()
 	// Bind the overlay only to its owning incarnation. Replacement types must
 	// never validate old descriptors before the publication epoch fence.
-	if e.catalog.State.Epoch() != epoch {
-		e.mu.Unlock()
+	if e.Catalog.State.Epoch() != epoch {
+		e.Mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(c)
-	if err := catalogDependencyPreflight(e.catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
-		e.mu.Unlock()
+	view := e.PrivateCatalogLocked(c)
+	if err := catalogDependencyPreflight(e.Catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
+		e.Mu.Unlock()
 		return nil, err
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	descriptors := maps.All(c.Descriptors)
 	if c.DomainChanged {
 		descriptors = view.Descriptors()
@@ -67,7 +67,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 		if d == nil {
 			continue
 		}
-		p := e.catalog.Provider(a.ClassID)
+		p := e.Catalog.Provider(a.ClassID)
 		if p == nil {
 			return nil, fmt.Errorf("stuntgres: unregistered catalog class")
 		}
@@ -77,7 +77,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, 
 	}
 	return view.State(), ctx.Err()
 }
-func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
+func (e *Engine) CatalogPreflightLocked(c *session.Journal) error {
 	if c.Roles != nil && c.RolesBase != nil && c.Roles.SameAuthority(c.RolesBase) {
 		if _, err := e.journalRolePublicationLocked(c, false); err != nil {
 			return err
@@ -86,14 +86,14 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 	if err := e.catalogFencesCurrentLocked(c, fenceCatalogRoleRead); err != nil {
 		return err
 	}
-	roles := e.roles.Published
+	roles := e.RoleStore.Published
 	if c.Roles != nil {
 		if c.Roles.SameAuthority(c.RolesBase) {
 			// A completed ACL-only journal contributes no actual role delta.
 			// Validate its catalog/default principal refs in current authority,
 			// not in the completed statement's stale private snapshot.
-			roles = e.roles.Published
-		} else if c.RolesBase != e.roles.Published {
+			roles = e.RoleStore.Published
+		} else if c.RolesBase != e.RoleStore.Published {
 			var err error
 			roles, err = e.mergedJournalRolesLocked(context.Background(), c)
 			if err != nil {
@@ -103,28 +103,28 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 			roles = c.Roles
 		}
 	}
-	if !catalog.DefaultRecordsUnchanged(e.catalog.State, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.catalog.State, c.DefaultReads) {
+	if !catalog.DefaultRecordsUnchanged(e.Catalog.State, c.DefaultOriginals) || !catalog.DefaultRecordsUnchanged(e.Catalog.State, c.DefaultReads) {
 		return catalog.Conflict{}
 	}
-	view := e.privateCatalogLocked(c)
-	read := e.roles.Read(&e.catalog.Owner, view, roles)
+	view := e.PrivateCatalogLocked(c)
+	read := e.RoleStore.Read(&e.Catalog.Owner, view, roles)
 	if err := catalog.ValidateDefaultACLs(read, view); err != nil {
 		return err
 	}
 	if err := e.catalogReadPreflightLocked(c); err != nil {
 		return err
 	}
-	if err := e.catalogFencesCurrentLocked(c, fenceExtensionAuthority); err != nil {
+	if err := e.catalogFencesCurrentLocked(c, FenceExtensionAuthority); err != nil {
 		return err
 	}
-	if err := catalogDependencyPreflight(e.catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
+	if err := catalogDependencyPreflight(e.Catalog.State, view.State(), c.Dependencies, c.Originals); err != nil {
 		return err
 	}
 	if err := e.catalogFencesCurrentLocked(c, fenceTruncateGraph); err != nil {
 		return err
 	}
 	for a, shape := range c.Storage {
-		store := e.storage.Relations[a]
+		store := e.Storage.Relations[a]
 		if store != shape.Original || store != nil && (store.Generation != shape.Generation || len(store.Versions) != len(shape.Root) || store.Ends != shape.Ends || !storage.SameVersionRoot(store.Versions, shape.Root)) {
 			return catalog.Conflict{}
 		}
@@ -133,12 +133,12 @@ func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 		return err
 	}
 	for a, original := range c.Originals {
-		if e.catalog.State.Get(a) != original {
+		if e.Catalog.State.Get(a) != original {
 			return catalog.Conflict{}
 		}
 	}
 	for k, a := range c.Names {
-		if e.catalog.State.NameAddress(k) != a {
+		if e.Catalog.State.NameAddress(k) != a {
 			return catalog.Conflict{}
 		}
 	}

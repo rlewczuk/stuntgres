@@ -61,7 +61,7 @@ func TestEarthCoordinateDiagnosticPresentation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := plan.InstalledEarthExpr{EarthCoordinate: kernel, Procedure: captured, Ref: e.catalog.Domain.Ref(before.Epoch(), captured.Address())}
+			node := plan.InstalledEarthExpr{EarthCoordinate: kernel, Procedure: captured, Ref: e.Catalog.Domain.Ref(before.Epoch(), captured.Address())}
 			assertBody := func(view catalog.Read, name string) {
 				t.Helper()
 				_, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: view}})

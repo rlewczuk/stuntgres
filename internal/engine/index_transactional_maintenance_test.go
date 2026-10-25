@@ -47,22 +47,22 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 				old, root = btreeRoot(t, e, "ix")
 			}
 			definition := old.SQLIndex
-			parent := e.catalog.State.Get(definition.Parent)
-			store := e.storage.Relations[definition.Parent]
+			parent := e.Catalog.State.Get(definition.Parent)
+			store := e.Storage.Relations[definition.Parent]
 			sibling, siblingRoot := btreeRoot(t, e, "sibling")
 			entries := transactionalIndexSnapshot(root)
 			tx := transactionBegin(t, s)
 			for _, q := range []string{"ALTER INDEX ix RENAME TO fresh", "ALTER INDEX fresh SET(fillfactor=80.0,deduplicate_items=off)", "ALTER INDEX fresh RESET(fillfactor)", "ALTER INDEX fresh RESET(deduplicate_items)"} {
-				previous := e.privateCatalogLocked(s.Transactions.Catalog).MustRelation(old.Address())
+				previous := e.PrivateCatalogLocked(s.Transactions.Catalog).MustRelation(old.Address())
 				previousName := previous.Name()
 				previousOptions := slices.Clone(previous.StorageOptions.Base)
 				sessionSQL(t, s, q)
-				view := e.privateCatalogLocked(s.Transactions.Catalog)
+				view := e.PrivateCatalogLocked(s.Transactions.Catalog)
 				next := view.MustRelation(old.Address())
 				if previous.Name() != previousName || !reflect.DeepEqual(previous.StorageOptions.Base, previousOptions) {
 					t.Fatal("metadata operation mutated retained predecessor descriptor/option slice")
 				}
-				if next.Address() != old.Address() || next.SQLIndex != definition || view.Get(definition.Parent) != parent || e.storage.Relations[definition.Parent] != store || e.storage.IndexRoots[old.Address()] != root || e.storage.IndexRoots[sibling.Address()] != siblingRoot {
+				if next.Address() != old.Address() || next.SQLIndex != definition || view.Get(definition.Parent) != parent || e.Storage.Relations[definition.Parent] != store || e.Storage.IndexRoots[old.Address()] != root || e.Storage.IndexRoots[sibling.Address()] != siblingRoot {
 					t.Fatal("metadata-only operation changed identity/providers/root/store")
 				}
 				j := index.JournalIndexesOrZero(s.Transactions.Catalog)
@@ -81,7 +81,7 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 						t.Fatal("metadata operation retained pending producer role authority")
 					}
 				}
-				if !reflect.DeepEqual(root.Entries, entries) || len(old.StorageOptions.Base) != 0 || e.catalog.State.Get(old.Address()) != old {
+				if !reflect.DeepEqual(root.Entries, entries) || len(old.StorageOptions.Base) != 0 || e.Catalog.State.Get(old.Address()) != old {
 					t.Fatal("metadata operation mutated committed capture")
 				}
 				if q == "ALTER INDEX fresh SET(fillfactor=80.0,deduplicate_items=off)" {
@@ -93,14 +93,14 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 			}
 			transactionEnd(t, s, tx, true)
 			next, same := btreeRoot(t, e, "fresh")
-			if same != root || next.Address() != old.Address() || next.SQLIndex != definition || next.SQLIndex.Valid == invalid || e.storage.Relations[definition.Parent] != store {
+			if same != root || next.Address() != old.Address() || next.SQLIndex != definition || next.SQLIndex.Valid == invalid || e.Storage.Relations[definition.Parent] != store {
 				t.Fatal("commit rebuilt or normalized index")
 			}
 			if invalid {
 				sessionSQL(t, s, "BEGIN")
 				sessionSQL(t, s, "DROP INDEX fresh")
 				sessionSQL(t, s, "ROLLBACK")
-				if e.catalog.State.Get(old.Address()) != next || e.storage.IndexRoots[old.Address()] != root {
+				if e.Catalog.State.Get(old.Address()) != next || e.Storage.IndexRoots[old.Address()] != root {
 					t.Fatal("invalid drop rollback lost exact index")
 				}
 			}
@@ -117,7 +117,7 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 	}
 	old, root := btreeRoot(t, e, "ix")
 	derived, derivedRoot := btreeRoot(t, e, "expression")
-	stored := e.storage.Relations[old.SQLIndex.Parent]
+	stored := e.Storage.Relations[old.SQLIndex.Parent]
 	committed := indexMaintenanceCapture(e)
 	retained := transactionalIndexSnapshot(root)
 	tx := transactionBegin(t, s)
@@ -128,7 +128,7 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 	copy := prefix.Clone()
 	writes := s.Transactions.Writes[old.SQLIndex.Parent]
 	deletes := s.Transactions.Deletes[old.SQLIndex.Parent]
-	view := e.privateCatalogLocked(prefix)
+	view := e.PrivateCatalogLocked(prefix)
 	prefixDescriptor := view.Get(old.Address())
 	prefixDefinition := view.MustRelation(old.Address()).SQLIndex
 	prefixOptions := slices.Clone(prefixDescriptor.(*catalog.Relation).StorageOptions.Base)
@@ -136,7 +136,7 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 		for _, q := range []string{"ALTER INDEX fresh RESET(fillfactor)", "ALTER INDEX fresh RENAME TO later", "DROP INDEX later,expression", "INSERT INTO t VALUES(1,'after')"} {
 			sessionSQL(t, s, q)
 		}
-		removed := e.privateCatalogLocked(s.Transactions.Catalog)
+		removed := e.PrivateCatalogLocked(s.Transactions.Catalog)
 		if removed.Get(old.Address()) != nil || removed.Get(derived.Address()) != nil {
 			t.Fatal("drop did not remove exact private identities")
 		}
@@ -147,11 +147,11 @@ func TestTransactionalIndexMaintenanceJournalSavepoints(t *testing.T) {
 			t.Fatal("postmark operation mutated retained prefix options/name")
 		}
 		sessionSQL(t, s, "ROLLBACK TO keep")
-		restored := e.privateCatalogLocked(s.Transactions.Catalog)
+		restored := e.PrivateCatalogLocked(s.Transactions.Catalog)
 		if s.Transactions.Catalog != prefix || restored.Get(old.Address()) != prefixDescriptor || restored.MustRelation(old.Address()).SQLIndex != prefixDefinition || restored.Get(derived.Address()) != derived || !storage.SameVersionRoot(s.Transactions.Writes[old.SQLIndex.Parent], writes) || s.Transactions.Deletes[old.SQLIndex.Parent] != deletes {
 			t.Fatal("savepoint did not restore exact descriptor/provider/write/deletion authority")
 		}
-		if !reflect.DeepEqual(prefix.Clone(), copy) || e.storage.IndexRoots[old.Address()] != root || e.storage.IndexRoots[derived.Address()] != derivedRoot || e.storage.Relations[old.SQLIndex.Parent] != stored {
+		if !reflect.DeepEqual(prefix.Clone(), copy) || e.Storage.IndexRoots[old.Address()] != root || e.Storage.IndexRoots[derived.Address()] != derivedRoot || e.Storage.Relations[old.SQLIndex.Parent] != stored {
 			t.Fatal("savepoint lost dependency observations/root/storage")
 		}
 	}
@@ -190,7 +190,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if scope.catalog == nil || scope.catalog.Descriptors[old.Address()] == nil || s.Transactions.Catalog != nil || e.catalog.State.Get(old.Address()) != old || e.storage.IndexRoots[old.Address()] != root {
+			if scope.Catalog == nil || scope.Catalog.Descriptors[old.Address()] == nil || s.Transactions.Catalog != nil || e.Catalog.State.Get(old.Address()) != old || e.Storage.IndexRoots[old.Address()] != root {
 				t.Fatal("Execute did not retain private, unmerged complete candidate")
 			}
 			var primary error
@@ -253,7 +253,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 			// statement-auth or table-root commit conflicts for metadata-only edits.
 			sessionSQL(t, peer, "INSERT INTO t VALUES(2)")
 			sessionSQL(t, peer, "CREATE ROLE unrelated")
-			newSibling := e.storage.IndexRoots[sibling.Address()]
+			newSibling := e.Storage.IndexRoots[sibling.Address()]
 			if newSibling == oldSibling {
 				t.Fatal("peer did not install real newest sibling")
 			}
@@ -283,9 +283,9 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 		tx := transactionBegin(t, owner)
 		sessionSQL(t, owner, "ALTER INDEX ix SET(fillfactor=80)")
 		sessionSQL(t, peer, "INSERT INTO t VALUES(2)")
-		newSelected, newSibling := e.storage.IndexRoots[selected.Address()], e.storage.IndexRoots[sibling.Address()]
+		newSelected, newSibling := e.Storage.IndexRoots[selected.Address()], e.Storage.IndexRoots[sibling.Address()]
 		transactionEnd(t, owner, tx, true)
-		if e.storage.IndexRoots[selected.Address()] != newSelected || e.storage.IndexRoots[sibling.Address()] != newSibling || !reflect.DeepEqual(old.Entries, retained) {
+		if e.Storage.IndexRoots[selected.Address()] != newSelected || e.Storage.IndexRoots[sibling.Address()] != newSibling || !reflect.DeepEqual(old.Entries, retained) {
 			t.Fatal("metadata commit overwrote newest selected/sibling root or mutated retained capture")
 		}
 		btreeWantKeys(t, e, "ix", "1", "2")
@@ -303,7 +303,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 		for _, q := range []string{"ALTER INDEX ix RENAME TO fresh", "ALTER INDEX fresh SET(fillfactor=80)", "DROP INDEX fresh", "INSERT INTO t VALUES(1)"} {
 			sessionSQL(t, s, q)
 		}
-		if e.privateCatalogLocked(s.Transactions.Catalog).Get(roleTableRef(t, e, "ix").Address) != nil {
+		if e.PrivateCatalogLocked(s.Transactions.Catalog).Get(roleTableRef(t, e, "ix").Address) != nil {
 			t.Fatal("fixture did not assemble private removal")
 		}
 		ctx, cancel := context.WithCancel(context.Background())
@@ -356,7 +356,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 					resource = roleTableRef(t, e, "t")
 					held = lock.AccessShare
 				}
-				if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: resource}, held); err != nil {
+				if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: resource}, held); err != nil {
 					t.Fatal(err)
 				}
 				cancel, await := indexMaintenanceAsync(t, e, owner, q)
@@ -414,7 +414,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 			}
 			sessionSQL(t, actor, "SET ROLE actor")
 			// ALTER RENAME needs schema CREATE in addition to exact index owner.
-			ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+			ns := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 			user, _ := e.Roles().Lookup("actor")
 			root, _ := e.Roles().Lookup("postgres")
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: root.Ref, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
@@ -436,7 +436,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 				resource = roleTableRef(t, e, "t")
 				held = lock.AccessShare
 			}
-			if err := e.locks.Acquire(context.Background(), admin.Transactions.Ticket, lock.Resource{ObjectRef: resource}, held); err != nil {
+			if err := e.Locks.Acquire(context.Background(), admin.Transactions.Ticket, lock.Resource{ObjectRef: resource}, held); err != nil {
 				t.Fatal(err)
 			}
 			_, await := indexMaintenanceAsync(t, e, actor, q)

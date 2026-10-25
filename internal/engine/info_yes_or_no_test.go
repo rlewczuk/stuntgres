@@ -46,7 +46,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view catalog.Read) *catalog
 	}
 	for _, dependency := range check.Dependencies {
 		provider, ok := view.Descriptor(dependency.Ref.Address)
-		if !ok || dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != view.Epoch() || dependency.Revision != provider.Revision() {
+		if !ok || dependency.Ref.Domain() != e.Catalog.Domain || dependency.Ref.Epoch != view.Epoch() || dependency.Revision != provider.Revision() {
 			t.Fatal("captured recipe dependency", dependency)
 		}
 	}
@@ -62,7 +62,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view catalog.Read) *catalog
 	if valueLeaves == 0 {
 		t.Fatal("recipe does not consume real VALUE")
 	}
-	if err := e.catalog.Providers[ids.TypeClassID].Validate(view, d); err != nil {
+	if err := e.Catalog.Providers[ids.TypeClassID].Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
@@ -141,10 +141,10 @@ func TestInfoYesOrNoBuiltinBaseRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}
-	if err := stored.ReownExpressions(source.catalog.Read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(source.Catalog.Read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	view := source.catalog.Read(next)
+	view := source.Catalog.Read(next)
 	mapped := infoYesOrNoUnitCatalog(t, source, view)
 	if mapped == original || mapped.SQLType == original.SQLType || mapped.SQLType.DomainBase().Type != base.SQLType || mapped.SQLType.DomainBase().Type == original.SQLType.DomainBase().Type {
 		t.Fatal("changed base did not rebuild logical domain authority")
@@ -179,10 +179,10 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	check("SELECT v FROM public.yes_or_no_description WHERE FALSE")
 	// Install a private storage fixture, not a public SQL/API witness. Result
 	// analysis must retain the domain even when the only physical datum is NULL.
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}})
-	e.visibility.SetCommitSeqLocked(1)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}})
+	e.Visibility.SetCommitSeqLocked(1)
+	e.Mu.Unlock()
 	check("SELECT v FROM public.yes_or_no_description")
 	check("SELECT NULL::information_schema.yes_or_no AS v")
 }

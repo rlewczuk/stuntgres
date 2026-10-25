@@ -35,14 +35,14 @@ func (e *Engine) installBuiltinDomainChecks() error {
 		return err
 	}
 	for _, seed := range checks {
-		d := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
-		if err := e.bindDomainConstraintDefinitions(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Constraints, sqltype.InputEnvironment{}); err != nil {
+		d := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
+		if err := e.BindDomainConstraintDefinitions(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Constraints, sqltype.InputEnvironment{}); err != nil {
 			return err
 		}
 	}
 	for _, seed := range typedef.BuiltinDomainDefaultSeeds() {
-		d := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
-		if err := e.bindDomainDefault(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Expression, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
+		d := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: seed.ID})
+		if err := e.BindDomainDefault(context.Background(), nil, e.bootstrapAuthorization(d.Owner), nil, d, seed.Expression, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err != nil {
 			return err
 		}
 	}
@@ -52,10 +52,10 @@ func (e *Engine) installBuiltinDomainChecks() error {
 // bootstrapAuthorization is the published-catalog authority of user under
 // which builtin seeds are bound.
 func (e *Engine) bootstrapAuthorization(user authorization.PrincipalRef) AuthorizationView {
-	view := e.catalog.Current()
-	return e.authorityView(access.View{
-		Owner: &e.catalog.Owner, PairedCatalog: view, RoleRecord: e.roles.Published, Catalog: view,
-		Roles: e.roles.PublishedRead(&e.catalog.Owner, view), State: authorization.RoleState{CurrentUser: user},
+	view := e.Catalog.Current()
+	return e.AuthorityView(access.View{
+		Owner: &e.Catalog.Owner, PairedCatalog: view, RoleRecord: e.RoleStore.Published, Catalog: view,
+		Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, view), State: authorization.RoleState{CurrentUser: user},
 	})
 }
 

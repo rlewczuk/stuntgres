@@ -24,7 +24,7 @@ import (
 func TestObjectACLAddressLookup(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	whole := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, owner, authorization.SelectPrivilege, 0)}}
 	column := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: 1259, ObjectID: 48001}, Attributes: []int32{1, 3}, Security: catalog.RelationSecurity{ACL: whole, ColumnACL: map[int32]authorization.ACLValue{1: column, 2: whole}}}
@@ -74,17 +74,17 @@ func TestObjectACLAddressLookup(t *testing.T) {
 	for _, subid := range []int32{2, 3, 4, -1, 65536, -65536} {
 		check(ids.ObjectAddress{ClassID: 1259, ObjectID: 48001, SubID: subid}, authorization.ACLValue{})
 	}
-	roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
+	roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 	array, _ := view.LookupType(sqltype.ACLItemArray)
 	for _, acl := range []authorization.ACLValue{{}, {Explicit: true}, column} {
-		value, err := pgcatalog.ClassACL(&e.catalog.Owner, roles, array, acl)
+		value, err := pgcatalog.ClassACL(&e.Catalog.Owner, roles, array, acl)
 		if err != nil || value.Type() != array || value.IsNull() == acl.Explicit || value.ArrayLen() != len(acl.Entries) {
 			t.Fatal("typed raw ACL conversion", value, err)
 		}
 	}
 	var foreign authorization.Domain
 	bad := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(foreign.Principal(10), owner, authorization.SelectPrivilege, 0)}}
-	if _, err := pgcatalog.ClassACL(&e.catalog.Owner, roles, array, bad); err == nil {
+	if _, err := pgcatalog.ClassACL(&e.Catalog.Owner, roles, array, bad); err == nil {
 		t.Fatal("foreign principal escaped checked ACLITEM constructor")
 	}
 	t.Run("explicit_sequence_acl", func(t *testing.T) {
@@ -92,16 +92,16 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		// no sequence GRANT SQL or new producer is introduced by this inquiry.
 		engine := New()
 		catalogView := engine.CatalogRead()
-		principal := engine.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		principal := engine.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		stage := engine.BeginCatalogStage(catalogView)
 		options, _, err := sequence.BindOptions(nil, storage.SequenceGenerator{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		engine.mu.Lock()
-		columns := sequence.Columns(engine.catalog.Current())
-		sequence, err := table.NewRelation(ddlHost{e: engine}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, columns, nil)
-		engine.mu.Unlock()
+		engine.Mu.Lock()
+		columns := sequence.Columns(engine.Catalog.Current())
+		sequence, err := table.NewRelation(DDLHost{E: engine}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, columns, nil)
+		engine.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,7 +111,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 			t.Fatal(err)
 		}
 		domainUnitPublish(t, engine, stage)
-		ref := engine.catalog.Domain.Ref(engine.CatalogRead().Epoch(), sequence.Address())
+		ref := engine.Catalog.Domain.Ref(engine.CatalogRead().Epoch(), sequence.Address())
 		want := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 			objectACLUnitEntry(principal, principal, authorization.SelectPrivilege|authorization.UpdatePrivilege|authorization.UsagePrivilege, 0),
 			{Grantor: principal, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},

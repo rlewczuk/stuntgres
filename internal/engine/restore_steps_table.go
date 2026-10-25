@@ -18,7 +18,7 @@ import (
 // physical NOT NULL repair sequence.
 func beforeRestorePhysicalBoundary(r *restoreRun, _ *session.Operation, stmt parser.Statement) (bool, error) {
 	if r.pairedPhysical != nil && !r.pairedPhysical.Admits(stmt) {
-		return false, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+		return false, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return false, nil
 }
@@ -151,7 +151,7 @@ func afterRestorePhysicalImportIndex(r *restoreRun, _ *session.Operation, stmt p
 	if !ok {
 		return nil
 	}
-	if index := table.CapturePhysicalImportIndex(r.cur.physicalIndexBase, r.stage.CatalogRead(), r.stage.catalog.Domain, creation, r.historicalRefs); index != nil {
+	if index := table.CapturePhysicalImportIndex(r.cur.physicalIndexBase, r.stage.CatalogRead(), r.stage.Catalog.Domain, creation, r.historicalRefs); index != nil {
 		r.physicalIndexes[index.Address()] = index
 	}
 	return nil
@@ -199,7 +199,7 @@ func afterRestoreDefault(r *restoreRun, op *session.Operation, stmt parser.State
 // physical NOT NULL repair sequence.
 func finishRestorePhysicalBoundary(r *restoreRun, _ context.Context, _ *session.Operation) error {
 	if r.pairedPhysical != nil {
-		return sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+		return SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return nil
 }

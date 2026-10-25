@@ -31,8 +31,8 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			run(t, e, "CREATE VIEW template AS SELECT c FROM t")
 			table := roleTableRef(t, e, "t")
 			view := roleTableRef(t, e, "template")
-			old, store := e.catalog.State.Get(table.Address), e.storage.Relations[table.Address]
-			originalView := e.catalog.State.MustRelation(view.Address)
+			old, store := e.Catalog.State.Get(table.Address), e.Storage.Relations[table.Address]
+			originalView := e.Catalog.State.MustRelation(view.Address)
 			removeView := func(ref ids.ObjectRef) {
 				t.Helper()
 				stage := e.BeginCatalogStage(e.CatalogRead())
@@ -49,23 +49,23 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 			}
 			removeView(view)
-			provider := e.catalog.Providers[ids.RelationClassID]
+			provider := e.Catalog.Providers[ids.RelationClassID]
 			var added ids.ObjectAddress
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-				e.catalog.Providers[ids.RelationClassID] = provider
-				e.mu.Lock()
-				oid, allocationErr := e.catalog.AllocateOIDLocked()
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.Catalog.Providers[ids.RelationClassID] = provider
+				e.Mu.Lock()
+				oid, allocationErr := e.Catalog.AllocateOIDLocked()
 				if allocationErr != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					t.Fatal(allocationErr)
 				}
-				rule, allocationErr := e.catalog.AllocateOIDLocked()
+				rule, allocationErr := e.Catalog.AllocateOIDLocked()
 				if allocationErr != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					t.Fatal(allocationErr)
 				}
-				revision, allocationErr := e.catalog.RevisionLocked()
-				e.mu.Unlock()
+				revision, allocationErr := e.Catalog.RevisionLocked()
+				e.Mu.Unlock()
 				if allocationErr != nil {
 					t.Fatal(allocationErr)
 				}
@@ -79,9 +79,9 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				}
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				defer e.DiscardCatalogStage(stage)
-				e.mu.Lock()
-				allocationErr = e.stageRowTypeLocked(stage, &next)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				allocationErr = e.StageRowTypeLocked(stage, &next)
+				e.Mu.Unlock()
 				if allocationErr != nil {
 					t.Fatal(allocationErr)
 				}
@@ -102,7 +102,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 			if !errors.As(err, &conflict) {
 				t.Fatal("expected dependency publication conflict", err)
 			}
-			if added == (ids.ObjectAddress{}) || e.catalog.State.Get(added) == nil || e.catalog.State.Get(table.Address) != old || e.storage.Relations[table.Address] != store {
+			if added == (ids.ObjectAddress{}) || e.Catalog.State.Get(added) == nil || e.Catalog.State.Get(table.Address) != old || e.Storage.Relations[table.Address] != store {
 				t.Fatal("failed TYPE published a prefix", err)
 			}
 			if got := tuples(run(t, e, "SELECT * FROM late_view")); !reflect.DeepEqual(got, [][]driver.Value{{tc.value}}) {

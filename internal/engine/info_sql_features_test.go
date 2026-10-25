@@ -19,7 +19,7 @@ func sqlFeaturesUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Read)
 	t.Helper()
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSQLFeaturesOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 
 func sqlFeaturesUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -28,7 +28,7 @@ func sqlFeaturesUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing sql_features producer")
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,25 +166,25 @@ func TestInfoSQLFeaturesCapture(t *testing.T) {
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoSQLFeaturesOID)
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Catalog = catalog.Read{} },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { copied := *in.Source; in.Source = &copied },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.RoleRecord = nil
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.State.CurrentUser = authorization.PrincipalRef{}
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = r
 		},
 	} {
@@ -220,7 +220,7 @@ func TestInfoSQLFeaturesCapture(t *testing.T) {
 			bad.SetDescriptor(address, &descriptor)
 		}
 		bad.SetDescriptor(copy.Address(), &copy)
-		if rows, err := produce(sqlFeaturesUnitInput(t, f, f.e.catalog.Read(bad))); rows != nil || err == nil {
+		if rows, err := produce(sqlFeaturesUnitInput(t, f, f.e.Catalog.Read(bad))); rows != nil || err == nil {
 			t.Fatal("malformed metadata accepted", malformed, rows, err)
 		}
 	}
@@ -251,14 +251,14 @@ func TestInfoSQLFeaturesCatalogACLRecheck(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	e := f.e
 	d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSQLFeaturesOID})
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	role := roleAttributeCreate(t, e, admin, "sql_features_reader", true, parser.RoleOptions{})
 	reader, readerDone := roleOperation(t, e, role.Name)
 	defer readerDone()
 	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
-	retained, err := operationAuthorization(reader)
+	retained, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestInfoSQLFeaturesCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(t.Context(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := operationAuthorization(reader)
+	denied, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestInfoSQLFeaturesCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(t.Context(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := operationAuthorization(reader)
+	restored, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,14 +296,14 @@ func TestInfoSQLFeaturesCatalogACLRecheck(t *testing.T) {
 	}
 	// Schema admission is separate from this globally readable matrix.
 	namespace := e.CatalogRead().MustNamespace(d.Namespace())
-	nsRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), namespace.Address())
+	nsRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), namespace.Address())
 	if err := restored.CanUse(nsRef); err != nil {
 		t.Fatal("PUBLIC schema USAGE", err)
 	}
 	if err := e.SetObjectACL(t.Context(), nsRef, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	noUsage, err := operationAuthorization(reader)
+	noUsage, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestInfoSQLFeaturesCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(t.Context(), nsRef, namespace.ACL); err != nil {
 		t.Fatal(err)
 	}
-	withUsage, err := operationAuthorization(reader)
+	withUsage, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}

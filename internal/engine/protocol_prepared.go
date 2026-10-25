@@ -24,34 +24,34 @@ type ProtocolPortalDescription struct {
 }
 
 func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (ProtocolStatement, error) {
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	r := payloadOf(s.op.Session).preparedSQL
+	r := PayloadOf(s.Op.Session).preparedSQL
 	if name == "" {
 		delete(r.entries, "")
 	}
-	s.op.Session.Settings.Mu.Lock()
-	standard := s.op.Session.Settings.Value("standard_conforming_strings") == "on"
-	s.op.Session.Settings.Mu.Unlock()
-	statements, err := parser.ParseWithOptions(source, parser.Options{Context: s.op.Context(), StandardConformingStrings: standard, Notice: s.op.ParseNotice})
+	s.Op.Session.Settings.Mu.Lock()
+	standard := s.Op.Session.Settings.Value("standard_conforming_strings") == "on"
+	s.Op.Session.Settings.Mu.Unlock()
+	statements, err := parser.ParseWithOptions(source, parser.Options{Context: s.Op.Context(), StandardConformingStrings: standard, Notice: s.Op.ParseNotice})
 	if err != nil {
 		return ProtocolStatement{}, err
 	}
 	if len(statements) > 1 {
-		return ProtocolStatement{}, sqlError("42601", "cannot insert multiple commands into a prepared statement")
+		return ProtocolStatement{}, SQLError("42601", "cannot insert multiple commands into a prepared statement")
 	}
 	var body parser.Statement
 	if len(statements) != 0 {
 		body = statements[0]
 	}
-	if err = s.gate(body); err != nil {
+	if err = s.Gate(body); err != nil {
 		return ProtocolStatement{}, err
 	}
 	if body == nil {
-		s.owner.Mu.Lock()
-		err = s.admitTransactionLocked(s.engine())
-		s.owner.Mu.Unlock()
+		s.Owner.Mu.Lock()
+		err = s.admitTransactionLocked(s.Engine())
+		s.Owner.Mu.Unlock()
 		if err != nil {
 			return ProtocolStatement{}, err
 		}
@@ -60,13 +60,13 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 		if err = s.publishProtocolStatement(name, &sqlPreparedStatement{source: source, description: description, parameterOIDs: slices.Clone(hints)}); err != nil {
 			return ProtocolStatement{}, err
 		}
-		s.completed, s.sessionCompleted = true, true
+		s.Completed, s.sessionCompleted = true, true
 		return ProtocolStatement{Description: description, ParameterOIDs: slices.Clone(hints), Context: session.ProtocolContext{Source: source}, Empty: true}, nil
 	}
 	types := make([]sqltype.Usage, len(hints))
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {
 		for i, oid := range hints {
 			if oid == 0 || oid == uint32(sqltype.Unknown) {
@@ -74,7 +74,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 			}
 			typ, ok := auth.Catalog.LookupType(sqltype.ID(oid))
 			if !ok {
-				err = sqlError("42704", fmt.Sprintf("type with OID %d does not exist", oid))
+				err = SQLError("42704", fmt.Sprintf("type with OID %d does not exist", oid))
 				break
 			}
 			if typ.ID() == 2249 {
@@ -83,13 +83,13 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 				typ = sqltype.DeferredRecord()
 			}
 			if !typ.Concrete() {
-				err = sqlError("0A000", fmt.Sprintf("type %s is not supported", typ.DiagnosticName()))
+				err = SQLError("0A000", fmt.Sprintf("type %s is not supported", typ.DiagnosticName()))
 				break
 			}
 			types[i] = typ.Usage()
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return ProtocolStatement{}, err
 	}
@@ -106,7 +106,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if err = s.publishProtocolStatement(name, &sqlPreparedStatement{body: body, source: source, description: description}); err != nil {
 		return ProtocolStatement{}, err
 	}
-	s.completed, s.sessionCompleted = true, true
+	s.Completed, s.sessionCompleted = true, true
 	return ProtocolStatement{Description: description, ParameterOIDs: session.ProtocolParameterOIDs(description.Parameters.Count, description.Parameters.Types), Context: session.ProtocolContext{Source: source}, Empty: body == nil, HasRows: session.ProtocolHasRows(body, description.Results)}, nil
 }
 
@@ -114,23 +114,23 @@ func (s *StatementScope) publishProtocolStatement(name string, entry *sqlPrepare
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
-	r := payloadOf(s.op.Session).preparedSQL
+	r := PayloadOf(s.Op.Session).preparedSQL
 	if name != "" && r.entries[name] != nil {
-		return sqlError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", name))
+		return SQLError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", name))
 	}
 	r.entries[name] = entry
 	return nil
 }
 func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStatement, error) {
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	entry := payloadOf(s.op.Session).preparedSQL.entries[name]
+	entry := PayloadOf(s.Op.Session).preparedSQL.entries[name]
 	if entry == nil {
 		return ProtocolStatement{}, missingSQLPrepared(name)
 	}
 	description := entry.description
-	if s.op.Session.TransactionState() == session.TxAborted {
+	if s.Op.Session.TransactionState() == session.TxAborted {
 		if session.ProtocolHasRows(entry.body, description.Results) {
 			return ProtocolStatement{}, session.AbortedError()
 		}
@@ -169,7 +169,7 @@ func (s *StatementScope) describeProtocolBody(body parser.Statement) (StatementD
 	if !copyBody && !executeBody {
 		return s.Describe(body)
 	}
-	description := StatementDescription{catalogOwner: &s.engine().catalog.Owner, catalogEpoch: s.txRef.Epoch()}
+	description := StatementDescription{catalogOwner: &s.Engine().Catalog.Owner, catalogEpoch: s.TxRef.Epoch()}
 	if executeBody {
 		var err error
 		description, err = s.Describe(body)
@@ -179,40 +179,40 @@ func (s *StatementScope) describeProtocolBody(body parser.Statement) (StatementD
 	}
 	for i, usage := range s.initialParameters {
 		if usage.Type == nil {
-			return StatementDescription{}, sqlError("42P18", fmt.Sprintf("could not determine data type of parameter $%d", i+1))
+			return StatementDescription{}, SQLError("42P18", fmt.Sprintf("could not determine data type of parameter $%d", i+1))
 		}
 	}
 	description.Parameters = analyze.ParameterInfo{Count: len(s.initialParameters), Types: slices.Clone(s.initialParameters)}
 	return description, nil
 }
 func (s *StatementScope) CloseProtocolStatement(name string) error {
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return err
 	}
-	delete(payloadOf(s.op.Session).preparedSQL.entries, name)
+	delete(PayloadOf(s.Op.Session).preparedSQL.entries, name)
 	return nil
 }
 func (s *StatementScope) InvalidateUnnamedProtocolStatement() error {
 	return s.CloseProtocolStatement("")
 }
 func (s *StatementScope) ProtocolStatementContext(name string) session.ProtocolContext {
-	if e := payloadOf(s.op.Session).preparedSQL.entries[name]; e != nil {
+	if e := PayloadOf(s.Op.Session).preparedSQL.entries[name]; e != nil {
 		return session.ProtocolContext{Source: e.source}
 	}
 	return session.ProtocolContext{}
 }
 func (s *StatementScope) ProtocolPortalContext(name string) session.ProtocolContext {
-	if p := payloadOf(s.op.Session).preparedSQL.portals[name]; p != nil {
+	if p := PayloadOf(s.Op.Session).preparedSQL.portals[name]; p != nil {
 		return p.context
 	}
 	return session.ProtocolContext{}
 }
 
 func protocolPortalExists(session *session.Session, name string) bool {
-	p := payloadOf(session).preparedSQL.portals[name]
+	p := PayloadOf(session).preparedSQL.portals[name]
 	return p != nil && !p.retired
 }
 
 func missingProtocolPortal(name string) error {
-	return sqlError("34000", fmt.Sprintf("portal \"%s\" does not exist", name))
+	return SQLError("34000", fmt.Sprintf("portal \"%s\" does not exist", name))
 }

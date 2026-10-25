@@ -32,8 +32,8 @@ func TestMergeInsertBinding(t *testing.T) {
 		t.Fatal("target/source did not share frontier")
 	}
 	r, err := executeMerge(op.Ctx, scope, b, target, inputs, nil, "public")
-	if err != nil || r.Count != 2 || r.Rows != nil || len(scope.stage.rows[b.Ref.Address]) != 2 {
-		t.Fatal("completed producer", r, err, scope.stage.rows)
+	if err != nil || r.Count != 2 || r.Rows != nil || len(scope.Stage.Rows[b.Ref.Address]) != 2 {
+		t.Fatal("completed producer", r, err, scope.Stage.Rows)
 	}
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
@@ -90,16 +90,16 @@ func TestMergeInsertPublication(t *testing.T) {
 			if phase == "close" || phase == "primary_wins_close" {
 				cursor.closeError = cleanup
 			}
-			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), cursor, state, false)
-			if cursor.closed != 1 || len(scope.stage.rows) != 0 {
-				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.stage.rows)
+			state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), cursor, state, false)
+			if cursor.closed != 1 || len(scope.Stage.Rows) != 0 {
+				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.Stage.Rows)
 			}
 			if phase == "complete" {
 				if err != nil || len(rows.Values) != 2 {
 					t.Fatal("bag occurrences", rows, err)
 				}
-				if err := dml.StageMergeRows(scope.writeHost(), rows, b.Ref); err != nil {
+				if err := dml.StageMergeRows(scope.WriteHost(), rows, b.Ref); err != nil {
 					t.Fatal(err)
 				}
 				if err := scope.Finish(nil); err != nil {
@@ -169,8 +169,8 @@ func TestMergeInsertCancellation(t *testing.T) {
 				} else {
 					cursor.beforeClose = cancel
 				}
-				state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-				_, err = dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
+				state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
+				_, err = dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
 				if cursor.closed != 1 {
 					t.Fatal("canceled source not closed")
 				}
@@ -179,8 +179,8 @@ func TestMergeInsertCancellation(t *testing.T) {
 			} else {
 				result, err = executeMerge(ctx, scope, b, target, inputs, nil, "public")
 			}
-			if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || len(scope.stage.rows) != 0 {
-				t.Fatal("cancellation leaked publication", result, err, scope.stage.rows)
+			if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || len(scope.Stage.Rows) != 0 {
+				t.Fatal("cancellation leaked publication", result, err, scope.Stage.Rows)
 			}
 			scope.Finish(err)
 			op.Done()

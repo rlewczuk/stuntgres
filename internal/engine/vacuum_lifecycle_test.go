@@ -52,7 +52,7 @@ func vacuumReplacementWait(t *testing.T) {
 			ref, old := vacuumStore(t, e, "waiting")
 			root, ends, stats := old.Versions, old.Ends, old.Maintenance
 			transactionBegin(t, holder)
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
+			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -92,9 +92,9 @@ func vacuumReplacementWait(t *testing.T) {
 			if fresh.Maintenance.VacuumCount != 1 {
 				t.Fatal("replacement recovery unhealthy")
 			}
-			e.mu.Lock()
-			active := len(e.vacuumProgress)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			active := len(e.VacuumProgress)
+			e.Mu.Unlock()
 			if active != 0 {
 				t.Fatal("replacement leaked progress")
 			}

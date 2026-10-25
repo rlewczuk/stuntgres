@@ -19,7 +19,7 @@ func lockPending(t *testing.T, e *Engine, n int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		got := 0
 		for _, entry := range lockState.Resources {
 			got += len(entry.Pending)
@@ -35,7 +35,7 @@ func lockPending(t *testing.T, e *Engine, n int) {
 }
 func lockEmpty(t *testing.T, e *Engine) {
 	t.Helper()
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	if len(lockState.Owners) != 0 || len(lockState.Resources) != 0 {
 		t.Fatalf("residual lock state: owners=%d entries=%d", len(lockState.Owners), len(lockState.Resources))
 	}
@@ -90,12 +90,12 @@ func TestRelationLockCompatibility(t *testing.T) {
 				ra := transactionBegin(t, a)
 				rb := transactionBegin(t, b)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, held); err != nil {
+				if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, held); err != nil {
 					t.Fatal(err)
 				}
 				done := make(chan error, 1)
 				go func() {
-					done <- e.locks.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, request)
+					done <- e.Locks.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, request)
 				}()
 				// PostgreSQL Table 13.2: SRX permits readers but excludes RX,
 				// SUE and other SRX holders; SUE otherwise permits RX.
@@ -127,25 +127,25 @@ func TestRelationLockCompatibility(t *testing.T) {
 		rb := transactionBegin(t, b)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
 		ticket := a.Transactions.Ticket
-		if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+		if err := e.Locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		done := make(chan error, 1)
 		go func() {
-			done <- e.locks.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
+			done <- e.Locks.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
 		}()
 		lockPending(t, e, 1)
 		for _, mode := range modes {
-			if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
+			if err := e.Locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, mode); err != nil {
 				t.Fatal(err)
 			}
 		}
 		copy := *ticket
-		if err := e.locks.Acquire(context.Background(), &copy, lock.Resource{ObjectRef: ref}, lock.AccessShare); err == nil {
+		if err := e.Locks.Acquire(context.Background(), &copy, lock.Resource{ObjectRef: ref}, lock.AccessShare); err == nil {
 			t.Fatal("copied ticket accepted")
 		}
 		for _, mode := range []lock.Mode{0, lock.ForUpdate, lock.AccessShare | lock.RowExclusive, lock.ShareRowExclusive | lock.AccessShare} {
-			if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, mode); err == nil {
+			if err := e.Locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, mode); err == nil {
 				t.Fatal("invalid mode accepted")
 			}
 		}
@@ -165,18 +165,18 @@ func TestRelationLockCancellation(t *testing.T) {
 	rb := transactionBegin(t, b)
 	rc := transactionBegin(t, c)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+	if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	ax := make(chan error, 1)
 	go func() {
-		ax <- e.locks.Acquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
+		ax <- e.Locks.Acquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
 	}()
 	lockPending(t, e, 1)
 	rx := make(chan error, 1)
 	go func() {
-		rx <- e.locks.Acquire(context.Background(), c.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive)
+		rx <- e.Locks.Acquire(context.Background(), c.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive)
 	}()
 	lockPending(t, e, 2)
 	cancel()
@@ -340,7 +340,7 @@ func TestRelationLockLifecycle(t *testing.T) {
 			t.Fatal("stale ref accepted")
 		}
 		op.Done()
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		valid := lockState.Valid(a.Transactions.Ticket)
 		if !valid {
 			t.Fatal("invalid end released owner")

@@ -136,7 +136,7 @@ func TestBuiltinViewRoutineIdentity(t *testing.T) {
 				state.RemoveDescriptor(public)
 			}
 			read := base.WithState(state)
-			runtime := engineCatalogRuntime{presentation: stored.Presentation{Path: []ids.ObjectAddress{pg}}}
+			runtime := EngineCatalogRuntime{presentation: stored.Presentation{Path: []ids.ObjectAddress{pg}}}
 			if tc.visible {
 				runtime.presentation.Path = []ids.ObjectAddress{pg, public}
 			}

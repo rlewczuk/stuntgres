@@ -16,13 +16,13 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		b, rb := advisoryUnitOwner(t, e)
 		c, rc := advisoryUnitOwner(t, e)
 		d, rd := advisoryUnitOwner(t, e)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 12, Low: 13}
-		prior := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 14}
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 12, Low: 13}
+		prior := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 14}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, prior, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		writer, err := e.locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb})
+		writer, err := e.Locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb})
 		if err != nil || writer == nil {
 			t.Fatal(writer, err)
 		}
@@ -34,7 +34,7 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		if err != nil || second == nil {
 			t.Fatal("queued second shared", second, err)
 		}
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		queued := len(lockState.Resources[key].Pending)
 		if queued != 3 {
 			t.Fatal("exact queue absent", queued)
@@ -57,18 +57,18 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		e := New()
 		a, ra := advisoryUnitOwner(t, e)
 		b, rb := advisoryUnitOwner(t, e)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 15}
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 15}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		request, err := e.locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb, Timeout: time.Second})
+		request, err := e.Locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb, Timeout: time.Second})
 		if err != nil || request == nil {
 			t.Fatal(request, err)
 		}
 		advisoryUnitUnlock(t, a, key, lock.AdvisoryExclusive, true)
 		terminal := request.Terminal()
 		requestError := request.Err()
-		count := e.locks.Inspect().Resources[key].Holders[b.Advisory.Ticket].Exclusive
+		count := e.Locks.Inspect().Resources[key].Holders[b.Advisory.Ticket].Exclusive
 		if !terminal || requestError != nil || count != 1 {
 			t.Fatal("grant publication boundary", terminal, requestError, count)
 		}

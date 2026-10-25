@@ -31,21 +31,21 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			e := New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-			d = e.catalog.State.MustRelation(d.Address())
+			d = e.Catalog.State.MustRelation(d.Address())
 			stage, source := queryCreateStage(t, e, "concurrent_unit_source", 1)
 			queryCreatePublish(t, e, stage)
-			sourceRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), source.Address())
+			sourceRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), source.Address())
 			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
 				p.Sources = []stored.ViewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
-			targetRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+			targetRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			heldRef := sourceRef
 			if tc.target {
 				heldRef = targetRef
 			}
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: heldRef}, tc.held); err != nil {
+			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: heldRef}, tc.held); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -55,7 +55,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			joined := false
 			defer func() {
 				cancel()
-				e.endLockOwner(holder.Transactions.Ticket)
+				e.EndLockOwner(holder.Transactions.Ticket)
 				if !joined {
 					cleanup, stop := context.WithTimeout(context.Background(), 5*time.Second)
 					defer stop()
@@ -70,14 +70,14 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			if tc.blocked {
 				lockPending(t, e, 1)
 				if !tc.target {
-					lockState := e.locks.Inspect()
+					lockState := e.Locks.Inspect()
 					entry := lockState.Resources[lock.Resource{ObjectRef: targetRef}]
-					granted := entry != nil && entry.Holders[scope.ticket].Mode&lock.Exclusive != 0
+					granted := entry != nil && entry.Holders[scope.LockTicket].Mode&lock.Exclusive != 0
 					if !granted {
 						t.Fatal("source waiter did not retain target EXCLUSIVE")
 					}
 					reader := refreshUnitScope(t, e, ctx)
-					request, err := e.locks.StartAcquire(ctx, reader.ticket, lock.Resource{ObjectRef: targetRef}, lock.AccessShare, lock.Policy{})
+					request, err := e.Locks.StartAcquire(ctx, reader.LockTicket, lock.Resource{ObjectRef: targetRef}, lock.AccessShare, lock.Policy{})
 					if request != nil || err != nil {
 						t.Fatal("real SELECT grant blocked behind concurrent source waiter", err)
 					}
@@ -109,16 +109,16 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				}
 			} else if tc.noData {
 				materializedConcurrentUnitError(t, err, "42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
-				if len(scope.materializedOrZero().Sources) != 0 {
+				if len(scope.MaterializedOrZero().Sources) != 0 {
 					t.Fatal("option conflict acquired sources")
 				}
 			} else {
 				if err != nil {
 					t.Fatal(err)
 				}
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: targetRef}]
-				granted := entry != nil && entry.Holders[scope.ticket].Mode&lock.Exclusive != 0
+				granted := entry != nil && entry.Holders[scope.LockTicket].Mode&lock.Exclusive != 0
 				if !granted {
 					t.Fatal("concurrent refresh used wrong target mode")
 				}
@@ -134,9 +134,9 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	e := New()
 	d := refreshUnitRelation(t, e)
 	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
-	d = e.catalog.State.MustRelation(d.Address())
-	old := e.storage.Relations[d.Address()]
-	frontier := e.visibility.CommitSeq()
+	d = e.Catalog.State.MustRelation(d.Address())
+	old := e.Storage.Relations[d.Address()]
+	frontier := e.Visibility.CommitSeq()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
@@ -147,11 +147,11 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
 	// Cancel inside the actual index candidate builder, before any install owner.
-	entries, err := index.BuildIndexEntries(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage.materializedOrZero().Replacement.Descriptor, idx.SQLIndex, stage.materializedOrZero().Replacement.Storage, nil)
+	entries, err := index.BuildIndexEntries(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage.MaterializedOrZero().Replacement.Descriptor, idx.SQLIndex, stage.MaterializedOrZero().Replacement.Storage, nil)
 	if entries != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("index preparation ignored cancellation", err)
 	}
-	if e.storage.Relations[d.Address()] != old || e.visibility.CommitSeq() != frontier || old.MaterializedLineage != nil || stage.materializedOrZero().Replacement.Storage.MaterializedLineage != nil {
+	if e.Storage.Relations[d.Address()] != old || e.Visibility.CommitSeq() != frontier || old.MaterializedLineage != nil || stage.MaterializedOrZero().Replacement.Storage.MaterializedLineage != nil {
 		t.Fatal("canceled index preparation published or stamped")
 	}
 }

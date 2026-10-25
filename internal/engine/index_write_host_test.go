@@ -23,17 +23,17 @@ func TestIndexWriteHostPublishExclusionAdvancesGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(errors.New("unit rollback"))
 		}
 	})
-	if err := scope.gate(&parser.Insert{}); err != nil {
+	if err := scope.Gate(&parser.Insert{}); err != nil {
 		t.Fatal(err)
 	}
-	h := scope.writeHost()
+	h := scope.WriteHost()
 	var _ index.WriteHost = h
 	ref := roleTableRef(t, e, "public.t")
-	binding, err := dml.BindUniqueWrite(scope.writeHost(), ref)
+	binding, err := dml.BindUniqueWrite(scope.WriteHost(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}

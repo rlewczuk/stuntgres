@@ -29,22 +29,22 @@ func (p *databaseAdmissionDefaults) SessionDefault(_ context.Context, d settings
 
 func databaseAdmissionFixture() (*Engine, authorization.PrincipalRef) {
 	e, _, _, _, reader := ownershipUnitRoles()
-	roles := cloneRoleFixture(e.roles.Published)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 	login := fixtureRole(roles, reader)
 	login.Login = true
 	login.ConnectionLimit = 1
 	putFixtureRole(roles, login)
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	return e, reader
 }
 
 func databaseAdmissionPolicyLocked(e *Engine, acl authorization.ACLValue) {
-	candidate := catalog.CloneState(e.catalog.State)
+	candidate := catalog.CloneState(e.Catalog.State)
 	db := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	db.ObjectRevision++
 	db.ACL = acl
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &db)
-	e.catalog.PublishLocked(candidate)
+	e.Catalog.PublishLocked(candidate)
 }
 
 func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
@@ -56,9 +56,9 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 			provider := &databaseAdmissionDefaults{apply: func() {
 				// Host initialization callbacks must run outside the catalog lock.
 				// Change the actual root after startup captured login eligibility.
-				e.mu.Lock()
+				e.Mu.Lock()
 				databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true})
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if phase == "cancel" {
 					cancel()
 				}
@@ -75,7 +75,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 					t.Fatal("cancellation lost", err)
 				}
 			} else {
-				want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: `permission denied for database "` + e.databaseName + `"`, Detail: "User does not have CONNECT privilege."}
+				want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: `permission denied for database "` + e.DatabaseName + `"`, Detail: "User does not have CONNECT privilege."}
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 					t.Fatal("fresh captured CONNECT denial", err, want)
@@ -84,9 +84,9 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 			if len(e.sessions) != 0 || e.roleSessionCountLocked(login) != 0 {
 				t.Fatal("failed initialization consumed registry/count resources")
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			databaseAdmissionPolicyLocked(e, authorization.ACLValue{})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			// Reusing the exact failed identity exercises advisory-ticket cleanup,
 			// not merely absence from the public session registry.
 			live, err := e.StartSession(context.Background(), session.SessionStart{ID: id, Authenticated: login})
@@ -116,9 +116,9 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	e.mu.Lock()
+	e.Mu.Lock()
 	databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	op, err := live.Acquire(context.Background())
 	if err != nil {
 		t.Fatal("CONNECT revoke terminated admitted session", err)
@@ -145,13 +145,13 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 	for _, allowLogin := range []bool{false, true} {
 		e, owner, reset, _, login := ownershipUnitRoles()
-		roles := cloneRoleFixture(e.roles.Published)
+		roles := cloneRoleFixture(e.RoleStore.Published)
 		actor := fixtureRole(roles, login)
 		actor.Login = true
 		actor.ConnectionLimit = -1
 		putFixtureRole(roles, actor)
 		setFixtureEdges(roles, []authorization.Membership{{Role: reset, Member: login, Grantor: owner, Set: true}})
-		e.roles.PublishLocked(roles)
+		e.RoleStore.PublishLocked(roles)
 		grantee := reset
 		if allowLogin {
 			grantee = login

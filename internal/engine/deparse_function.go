@@ -17,7 +17,7 @@ import (
 
 func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
-	if scope.inquiry.commentCatalog.State() == nil {
+	if scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
 	return table.Deparse(c, scope.deparseInputs(), signature, values, result)
@@ -25,11 +25,11 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 
 // deparseInputs reads the statement's inquiry snapshot for table.Deparse.
 func (s *StatementScope) deparseInputs() table.DeparseInputs {
-	auth := s.inquiry.deparseAuth
+	auth := s.Inquiry.deparseAuth
 	in := table.DeparseInputs{
-		Catalog:   s.inquiry.commentCatalog,
-		Path:      s.inquiry.deparsePath,
-		Output:    s.output,
+		Catalog:   s.Inquiry.CommentCatalog,
+		Path:      s.Inquiry.DeparsePath,
+		Output:    s.Output,
 		Temporary: func() ids.ObjectAddress { return temporaryNamespace(auth) },
 		ResolveRelation: func(name parser.ObjectName) (ids.ObjectRef, error) {
 			return resolveRelationSnapshot(auth, name, true)
@@ -37,13 +37,13 @@ func (s *StatementScope) deparseInputs() table.DeparseInputs {
 	}
 	// pg_get_serial_sequence never reads the string setting; a scope without
 	// an operation still answers it.
-	if s.op != nil {
-		in.NonstandardStrings = s.op.NonstandardStrings
+	if s.Op != nil {
+		in.NonstandardStrings = s.Op.NonstandardStrings
 	}
-	if auth.session != nil {
-		in.Database = auth.session.DatabaseName
+	if auth.Session != nil {
+		in.Database = auth.Session.DatabaseName
 	}
-	runtime := engineCatalogRuntime{auth: auth, presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings}}
+	runtime := EngineCatalogRuntime{Auth: auth, presentation: stored.Presentation{Deparse: true, Path: in.Path, Output: in.Output, NonstandardStrings: in.NonstandardStrings}}
 	in.BuiltinViewDefinition = func(ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
 		if relation.RelationKind != catalog.CatalogRelation || pgcatalog.SummaryViewDefinition(relation.Address().ObjectID) == "" {
 			return "", nil

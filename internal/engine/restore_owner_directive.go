@@ -32,7 +32,7 @@ func afterRestoreOwnerDirective(r *restoreRun, op *session.Operation, stmt parse
 	if !ok || !directive.OwnerDirective || directive.Default {
 		return nil
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return err
 	}

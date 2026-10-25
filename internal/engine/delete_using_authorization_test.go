@@ -16,7 +16,7 @@ func executeUsingDescription(e *Engine, op *session.Operation, ast parser.Statem
 		return Result{}, err
 	}
 	defer func() {
-		if !scope.finished {
+		if !scope.Finished {
 			scope.Finish(errors.New("abandoned described DELETE USING fixture"))
 		}
 	}()

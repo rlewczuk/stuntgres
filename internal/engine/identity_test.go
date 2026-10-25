@@ -73,7 +73,7 @@ func TestIdentityInsertOnlyAuthority(t *testing.T) {
 	roleExecute(t, e, op, `CREATE TABLE i(id INT GENERATED ALWAYS AS IDENTITY)`)
 	table := roleTableRef(t, e, "i")
 	writer, _ := e.Roles().Lookup("identity_writer")
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: writer.Ref}, Privileges: authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -95,9 +95,9 @@ func TestIdentityCreateAtomicFailure(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	before := e.catalog.State
+	before := e.Catalog.State
 	roleError(t, e, op, `CREATE TABLE bad(a INT GENERATED ALWAYS AS IDENTITY,b INT GENERATED ALWAYS AS IDENTITY(CACHE 0))`, "22023", "CACHE (0) must be greater than zero", "")
-	if e.catalog.State != before || len(e.storage.Sequences) != 0 {
+	if e.Catalog.State != before || len(e.Storage.Sequences) != 0 {
 		t.Fatal("failed CREATE published identities")
 	}
 	roleExecute(t, e, op, `CREATE TABLE bad(id INT GENERATED ALWAYS AS IDENTITY)`)
@@ -131,7 +131,7 @@ func TestIdentityEarlyRowFailureConstrainsCompleteProjection(t *testing.T) {
 				t.Fatalf("diagnostic %#v (%v), want %#v", diagnostic, err, want)
 			}
 			ref := roleTableRef(t, e, "i")
-			if len(e.storage.Relations[ref.Address].Versions) != 0 {
+			if len(e.Storage.Relations[ref.Address].Versions) != 0 {
 				t.Fatal("failed batch published rows")
 			}
 			assertValue := func(query string, want any) {
@@ -183,13 +183,13 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			roleExecute(t, e, op, `CREATE TABLE inputs(p INT)`)
 			roleExecute(t, e, op, `CREATE SEQUENCE side START 50 CACHE 1`)
 			ref := roleTableRef(t, e, "i")
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = describe(op.Ctx, e.analysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
+				bound, err = Describe(op.Ctx, e.AnalysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -212,7 +212,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 				t.Fatal("unused or volatile runtime conversion preflighted", err)
 			}
 			sequence := roleTableRef(t, e, "i_id_seq")
-			if generator := e.storage.Sequences[sequence.Address]; generator.Last != 1 || generator.Called {
+			if generator := e.Storage.Sequences[sequence.Address]; generator.Last != 1 || generator.Called {
 				t.Fatal("binding/preflight generated identity", generator)
 			}
 		})

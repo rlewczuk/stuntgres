@@ -24,7 +24,7 @@ const (
 // Native Commit deliberately admits cancellation to dispose its valid old
 // incarnation, preserving the established failed-commit contract.
 func (e *Engine) transactionAdmission(op *session.Operation) error {
-	if err := session.TransactionAuthority(domainOf(e), op); err != nil {
+	if err := session.TransactionAuthority(DomainOf(e), op); err != nil {
 		return err
 	}
 	return op.Context().Err()
@@ -59,11 +59,11 @@ func (e *Engine) beginAdmitted(op *session.Operation, t *session.TransactionOwne
 // The owner lock precedes Engine.mu -> Session.mu. Rollback deliberately does
 // not validate the old epoch, so native replacement always permits recovery.
 func (e *Engine) endPreflight(op *session.Operation) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	return publicationOperationLocked(e, op)
+	return PublicationOperationLocked(e, op)
 }
 
 func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner, ref ids.TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
@@ -71,12 +71,12 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	// ticket's epoch current through installation, without a lifetime fence.
 	chainFence := false
 	if chain {
-		e.replacementMu.RLock()
+		e.ReplacementMu.RLock()
 		chainFence = true
 	}
 	defer func() {
 		if chainFence {
-			e.replacementMu.RUnlock()
+			e.ReplacementMu.RUnlock()
 		}
 	}()
 	t.Mu.Lock()
@@ -89,10 +89,10 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		}
 		finishNotificationBoundary(t)
 		t.Mu.Unlock()
-		e.endLockOwner(candidate)
-		e.endLockOwner(old)
+		e.EndLockOwner(candidate)
+		e.EndLockOwner(old)
 	}()
-	if err := session.TransactionAuthority(domainOf(e), op); err != nil {
+	if err := session.TransactionAuthority(DomainOf(e), op); err != nil {
 		return EndResult{}, err
 	}
 	if err := t.Validate(ref); err != nil {
@@ -120,20 +120,20 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		if t.Next == ids.TxID(^uint64(0)) {
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		op.Session.Mu.Lock()
-		err := publicationOperationLocked(e, op)
+		err := PublicationOperationLocked(e, op)
 		var diagnostic uint32
 		if err == nil {
-			diagnostic, err = e.visibility.NextDiagnosticTxLocked()
+			diagnostic, err = e.Visibility.NextDiagnosticTxLocked()
 		}
 		if err == nil {
 			t.Next++
-			next = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.State.Epoch(), t, diagnostic)
+			next = e.Catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.Catalog.State.Epoch(), t, diagnostic)
 			e.enrollSerializableLocked(next, modes.Isolation)
 		}
 		op.Session.Mu.Unlock()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return EndResult{}, err
 		}
@@ -150,7 +150,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	var err error
 	committed := false
 	if commit && t.State != session.TxAborted {
-		if len(ownerExtensionOrZero(t).exclusionModes.Events) != 0 || payloadOf(op.Session).cursors.hasCurrentHold(ref) {
+		if len(ownerExtensionOrZero(t).exclusionModes.Events) != 0 || PayloadOf(op.Session).Cursors.hasCurrentHold(ref) {
 			if scope == nil {
 				scope = newStatementScope(op, t, op.StatementStart())
 			}
@@ -158,7 +158,7 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		}
 		t.Mu.Unlock()
 		if chainFence {
-			e.replacementMu.RUnlock()
+			e.ReplacementMu.RUnlock()
 			chainFence = false
 		}
 		err = e.holdPrecommit(op, t, nextStart, scope)
@@ -170,20 +170,20 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		if scope != nil && ownerHasForeign(t) {
 			scope.foreignUnlocked()
 		}
-		if cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.Session).cursors.endTransaction(ref)); err == nil {
+		if cleanupErr := disposeSQLCursors(op.Context(), PayloadOf(t.Session).Cursors.endTransaction(ref)); err == nil {
 			err = cleanupErr
 		}
 		hasForeign := ownerHasForeign(t)
 		if chain {
-			e.replacementMu.RLock()
+			e.ReplacementMu.RLock()
 			chainFence = true
-			e.mu.Lock()
-			if err == nil && next.Epoch() != e.catalog.State.Epoch() {
+			e.Mu.Lock()
+			if err == nil && next.Epoch() != e.Catalog.State.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if hasForeign {
-				e.replacementMu.RUnlock()
+				e.ReplacementMu.RUnlock()
 				chainFence = false
 			}
 		}
@@ -207,24 +207,24 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 		}
 		// Old publication truth is independent of prospective CHAIN readmission.
 		if chain && hasForeign {
-			e.replacementMu.RLock()
+			e.ReplacementMu.RLock()
 			chainFence = true
-			e.mu.Lock()
-			if err == nil && next.Epoch() != e.catalog.State.Epoch() {
+			e.Mu.Lock()
+			if err == nil && next.Epoch() != e.Catalog.State.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
 		t.Mu.Lock()
 	} else {
 		err = e.endPreflight(op)
 		// Replacement also fences SQL recovery commits of aborted blocks.
 		if err == nil && commit {
-			e.mu.Lock()
-			if ref.Epoch() != e.catalog.State.Epoch() {
+			e.Mu.Lock()
+			if ref.Epoch() != e.Catalog.State.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
 	}
 	if err != nil && !commit {
@@ -232,19 +232,19 @@ func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner,
 	}
 	if !commit || t.State == session.TxAborted {
 		if chainFence {
-			e.replacementMu.RUnlock()
+			e.ReplacementMu.RUnlock()
 			chainFence = false
 		}
 		t.Mu.Unlock()
-		cleanupErr := disposeSQLCursors(op.Context(), payloadOf(t.Session).cursors.endTransaction(ref))
+		cleanupErr := disposeSQLCursors(op.Context(), PayloadOf(t.Session).Cursors.endTransaction(ref))
 		if chain {
-			e.replacementMu.RLock()
+			e.ReplacementMu.RLock()
 			chainFence = true
-			e.mu.Lock()
-			if cleanupErr == nil && next.Epoch() != e.catalog.State.Epoch() {
+			e.Mu.Lock()
+			if cleanupErr == nil && next.Epoch() != e.Catalog.State.Epoch() {
 				cleanupErr = ids.ErrCatalogReplaced
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
 		t.Mu.Lock()
 		if err == nil {
@@ -283,11 +283,11 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			return Result{}, err
 		}
 	}
-	e := s.engine()
-	if !s.op.CommandAdmission {
-		s.op.SnapshotNoticeThreshold()
+	e := s.Engine()
+	if !s.Op.CommandAdmission {
+		s.Op.SnapshotNoticeThreshold()
 	}
-	t := s.owner
+	t := s.Owner
 	t.Mu.Lock()
 	state, ref := t.State, t.Ref
 	t.Mu.Unlock()
@@ -302,14 +302,14 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 	}
 	switch step.Action {
 	case session.ControlBegin:
-		_, err = e.beginAdmitted(s.op, t, s.transactionStart)
+		_, err = e.beginAdmitted(s.Op, t, s.transactionStart)
 		if err == nil {
 			t.Mu.Lock()
 			err = assignModes(t, control.Modes)
 			t.Mu.Unlock()
 		}
 	case session.ControlPromote:
-		err = e.endPreflight(s.op)
+		err = e.endPreflight(s.Op)
 		if err == nil {
 			t.Mu.Lock()
 			t.State = session.TxActive
@@ -320,24 +320,24 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			t.Session.Mu.Unlock()
 		}
 	case session.ControlPreflight:
-		err = e.endPreflight(s.op)
+		err = e.endPreflight(s.Op)
 		if err == nil {
 			err = step.Err
 		}
 		if err == nil {
-			s.op.EmitNotice(session.LevelWarning, *step.Warning)
+			s.Op.EmitNotice(session.LevelWarning, *step.Warning)
 		}
 	case session.ControlRefuse:
 		return Result{}, step.Err
 	default:
 		if step.Warning != nil {
-			s.op.EmitNotice(session.LevelWarning, *step.Warning)
+			s.Op.EmitNotice(session.LevelWarning, *step.Warning)
 		}
 		nextStart := s.statementStart
 		if s.message {
 			nextStart = time.Now().UTC().Truncate(time.Microsecond)
 		}
-		_, err = e.endAdmitted(s.op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, nextStart, s)
+		_, err = e.endAdmitted(s.Op, t, ref, control.Kind == parser.KindCommit, control.Chain, true, nextStart, s)
 	}
 	if err == nil {
 		s.controlOutcome = controlExecuted

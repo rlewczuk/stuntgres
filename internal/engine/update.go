@@ -14,29 +14,29 @@ import (
 
 // SQL waits never retain replacement admission or state/manager mutexes.
 func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode lock.Mode) error {
-	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
+	e := s.Engine()
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
 	if request != nil {
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
 	if err != nil {
 		return err
 	}
-	if s.implicit && !s.replacementRead {
-		e.replacementMu.RLock()
-		s.replacementRead = true
+	if s.implicit && !s.ReplacementRead {
+		e.ReplacementMu.RLock()
+		s.ReplacementRead = true
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := s.ValidateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() {
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -44,7 +44,7 @@ func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, 
 
 // executeUpdate runs the dml UPDATE executor over the scope's host.
 func executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
-	outcome, err := dml.ExecuteUpdate(s.writeHost(), dml.UpdateInput{Context: ctx, Binding: b, Source: source, From: from, Parameters: parameters, Schema: schema})
+	outcome, err := dml.ExecuteUpdate(s.WriteHost(), dml.UpdateInput{Context: ctx, Binding: b, Source: source, From: from, Parameters: parameters, Schema: schema})
 	if err != nil {
 		return Result{}, err
 	}
@@ -61,21 +61,21 @@ func (e *Engine) rowConstraintDetail(s *StatementScope, b *analyze.Binding, row 
 }
 
 func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *analyze.Binding, row []sqltype.Value, suppressEmpty bool) (string, error) {
-	e.mu.Lock()
-	err := s.validateLockedRelation(e)
-	if err == nil && s.foreignActionAuth != nil {
+	e.Mu.Lock()
+	err := s.ValidateLockedRelation(e)
+	if err == nil && s.ForeignActionAuth != nil {
 		err = s.validateForeignActionLocked(e, b.Ref)
 	}
 	var auth AuthorizationView
 	riOwner := false
 	if err == nil {
 		auth, err = s.writeAuthorizationLocked(e)
-		if err == nil && !suppressEmpty && s.foreignActionAuth != nil {
+		if err == nil && !suppressEmpty && s.ForeignActionAuth != nil {
 			admission := s.foreignActionsOrZero().Admissions[b.Ref.Address]
 			riOwner = s.foreignActionsOrZero().Settling && admission != nil && admission.Writable && auth.State.CurrentUser == admission.Relation.Owner && b.Relation.Owner == admission.Relation.Owner
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return "", err
 	}
@@ -89,5 +89,5 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *analyze.Binding, row 
 			return "", err
 		}
 	}
-	return dml.RowDiagnosticDetail(auth.View, auth, b, row, s.output, suppressEmpty)
+	return dml.RowDiagnosticDetail(auth.View, auth, b, row, s.Output, suppressEmpty)
 }

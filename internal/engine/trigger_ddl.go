@@ -17,17 +17,17 @@ func (e *Engine) executeTrigger(scope *StatementScope, stmt parser.Statement, co
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	if s, ok := stmt.(*parser.AlterTrigger); ok && s.Action == "rename" {
-		if err := scope.acquirePartitionDescendants(scope.lockedRef, lock.AccessExclusive); err != nil {
+		if err := scope.AcquirePartitionDescendants(scope.LockedRef, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	auth, err := e.StatementAuthorizationLocked(scope.Op, stmt)
 	if err != nil {
 		return fail(err)
 	}
-	change, err := view.PlanTrigger(ddlHost{e: e, op: scope.op}, auth, stmt, scope.lockedRef, scope.input)
+	change, err := view.PlanTrigger(DDLHost{E: e, Op: scope.Op}, auth, stmt, scope.LockedRef, scope.Input)
 	if err != nil {
 		return fail(err)
 	}

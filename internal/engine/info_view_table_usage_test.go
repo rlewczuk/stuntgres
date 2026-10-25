@@ -24,7 +24,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	a := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "table_a", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	a.RelationKind = catalog.TableRelation
 	b := *a
@@ -34,7 +34,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 		state.SetDescriptor(d.Address(), d)
 	}
 	ref := func(address ids.ObjectAddress) ids.ObjectRef {
-		return f.e.catalog.Domain.Ref(state.Epoch(), address)
+		return f.e.Catalog.Domain.Ref(state.Epoch(), address)
 	}
 	integer, _ := f.e.CatalogRead().LookupType(sqltype.Int4)
 	definition := func(refs ...ids.ObjectRef) *stored.View {
@@ -61,15 +61,15 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	w.ObjectName = "view_w"
 	w.View = definition(ref(v.Address()))
 	state.SetDescriptor(w.Address(), &w)
-	view := f.e.catalog.Read(state)
+	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
 	input := func(read catalog.Read, authority AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: authority.Roles, Owner: read.Owner(), Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Source: read.MustRelation(source.Address()), Runtime: engineCatalogRuntime{auth: authority, database: "captured_database"}}
+		return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: authority.Roles, Owner: read.Owner(), Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Source: read.MustRelation(source.Address()), Runtime: EngineCatalogRuntime{Auth: authority, Database: "captured_database"}}
 	}
 	check := func(in pgcatalog.Input, want map[[2]string]int) [][]sqltype.Value {
 		t.Helper()
-		captured, err := captureCatalogSourceRows(in, produce)
+		captured, err := CaptureCatalogSourceRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -117,7 +117,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	allowed := *a
 	allowed.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.SelectPrivilege, 0)}}
 	granted.SetDescriptor(allowed.Address(), &allowed)
-	grantedView := f.e.catalog.Read(granted)
+	grantedView := f.e.Catalog.Read(granted)
 	grantedAuth := auth
 	grantedAuth.Recapture(grantedView)
 	check(input(grantedView, grantedAuth), map[[2]string]int{})
@@ -127,7 +127,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	renamed := *a
 	renamed.ObjectName, renamed.Owner = "renamed_a", f.reader
 	changed.SetDescriptor(renamed.Address(), &renamed)
-	changedView := f.e.catalog.Read(changed)
+	changedView := f.e.Catalog.Read(changed)
 	changedAuth := auth
 	changedAuth.Recapture(changedView)
 	check(input(changedView, changedAuth), map[[2]string]int{{"view_v", "table_b"}: 1, {"view_w", "view_v"}: 1})
@@ -156,7 +156,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 			target.SQLIndex = &catalog.IndexDefinition{}
 		}
 		next.SetDescriptor(target.Address(), &target)
-		nextView := f.e.catalog.Read(next)
+		nextView := f.e.Catalog.Read(next)
 		nextAuth := auth
 		nextAuth.Recapture(nextView)
 		want := map[[2]string]int{{"view_v", "table_b"}: 1, {"view_w", "view_v"}: 1}
@@ -176,7 +176,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	// dependency walk independently of descriptor enumeration order.
 	for _, remaining := range []int{1, 3, 10, 15} {
 		ctx := &dtpCancelContext{Context: context.Background(), remaining: remaining}
-		if refs, err := (engineCatalogRuntime{auth: auth}).ViewReferences(ctx, view, &v); refs != nil || !errors.Is(err, context.Canceled) {
+		if refs, err := (EngineCatalogRuntime{Auth: auth}).ViewReferences(ctx, view, &v); refs != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("view-reference cancellation exposed prefix", remaining, refs, err)
 		}
 	}
@@ -191,18 +191,18 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	nextAuth.Recapture(view)
 	check(input(view, nextAuth), all)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = nextAuth.Roles },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Epoch = 0 },
 		func(in *pgcatalog.Input) { in.Ref = new(ids.Domain).Ref(view.Epoch(), source.Address()) },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
-		func(in *pgcatalog.Input) { a := auth; a.RoleRecord = nil; in.Runtime = engineCatalogRuntime{auth: a} },
+		func(in *pgcatalog.Input) { a := auth; a.RoleRecord = nil; in.Runtime = EngineCatalogRuntime{Auth: a} },
 		func(in *pgcatalog.Input) {
 			a := auth
-			a.State.CurrentUser = f.e.roles.Domain.Principal(99999)
-			in.Runtime = engineCatalogRuntime{auth: a}
+			a.State.CurrentUser = f.e.RoleStore.Domain.Principal(99999)
+			in.Runtime = EngineCatalogRuntime{Auth: a}
 		},
 	} {
 		in := input(view, auth)
@@ -266,7 +266,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 				}
 				bad.SetDescriptor(copy.Address(), &copy)
 			}
-			badView := f.e.catalog.Read(bad)
+			badView := f.e.Catalog.Read(bad)
 			badAuth := auth
 			badAuth.Recapture(badView)
 			rows, err := produce(input(badView, badAuth))
@@ -281,7 +281,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 			}
 		})
 	}
-	emptyView := f.e.catalog.Read(catalog.CloneState(f.e.catalog.State))
+	emptyView := f.e.Catalog.Read(catalog.CloneState(f.e.Catalog.State))
 	emptyAuth := auth
 	emptyAuth.Recapture(emptyView)
 	check(input(emptyView, emptyAuth), map[[2]string]int{})
@@ -289,17 +289,17 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 
 func infoViewTableUsageCapture(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	target := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "captured_table", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	target.RelationKind = catalog.TableRelation
 	state.SetDescriptor(target.Address(), target)
 	v := *target
 	v.ObjectAddress.ObjectID++
 	v.ObjectName, v.RelationKind = "captured_view", catalog.ViewRelation
-	ref := f.e.catalog.Domain.Ref(state.Epoch(), target.Address())
+	ref := f.e.Catalog.Domain.Ref(state.Epoch(), target.Address())
 	v.View = stored.NewView(stored.ViewParts{Query: &plan.Query{Root: &plan.SourceNode{Ref: ref}}, Sources: []stored.ViewLeaf{{Ref: ref}}})
 	state.SetDescriptor(v.Address(), &v)
-	f.e.catalog.PublishLocked(state)
+	f.e.Catalog.PublishLocked(state)
 	f.op.Session.DatabaseName = "physical_capture_database"
 	f.actor(f.owner)
 	scope, err := f.e.StartStatement(f.op)
@@ -311,13 +311,13 @@ func infoViewTableUsageCapture(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	f.e.mu.Lock()
-	err = f.e.captureCommentSnapshotLocked(scope)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	err = f.e.CaptureCommentSnapshotLocked(scope)
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	view := scope.inquiry.commentCatalog
+	view := scope.Inquiry.CommentCatalog
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
 	// Change the published root after capture. The metadata source must use
 	// the paired statement frontier, not acquire a fresh catalog halfway in.
@@ -325,8 +325,8 @@ func infoViewTableUsageCapture(t *testing.T) {
 	renamed := *target
 	renamed.ObjectName = "later_name"
 	next.SetDescriptor(renamed.Address(), &renamed)
-	f.e.catalog.PublishLocked(next)
-	f.e.mu.Lock()
+	f.e.Catalog.PublishLocked(next)
+	f.e.Mu.Lock()
 	captured, err := f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("coherent captured usage source", err)
@@ -356,14 +356,14 @@ func infoViewTableUsageCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.mu.Lock()
-	err = f.e.captureCommentSnapshotLocked(scope)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	err = f.e.CaptureCommentSnapshotLocked(scope)
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	freshView := scope.inquiry.commentCatalog
-	f.e.mu.Lock()
+	freshView := scope.Inquiry.CommentCatalog
+	f.e.Mu.Lock()
 	fresh, err := f.e.openRelationSourceLocked(scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || fresh == nil {
 		t.Fatal("fresh captured usage source", err)
@@ -402,7 +402,7 @@ func TestPGDependCatalogRelationPinning(t *testing.T) {
 	state := catalog.CloneState(view.State())
 	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, RelationKind: catalog.TableRelation}
 	state.SetDescriptor(ordinary.Address(), ordinary)
-	if stored.DependPinned(e.catalog.Read(state), nil, ordinary.Address()) {
+	if stored.DependPinned(e.Catalog.Read(state), nil, ordinary.Address()) {
 		t.Fatal("user table pinned")
 	}
 }

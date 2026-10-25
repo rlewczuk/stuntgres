@@ -45,7 +45,7 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				canonical := commentDump(t, e)
 				identity := op.RoleState()
 				settings := op.Session.Settings
-				rolesPublication := e.roles.Published
+				rolesPublication := e.RoleStore.Published
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
 				}
@@ -55,7 +55,7 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				if got := commentDump(t, e); got != canonical {
 					t.Fatal("mixed-owner canonical stream changed", got, canonical)
 				}
-				if op.RoleState() != identity || op.Session.Settings != settings || e.roles.Published != rolesPublication {
+				if op.RoleState() != identity || op.Session.Settings != settings || e.RoleStore.Published != rolesPublication {
 					t.Fatal("Restore changed live identity/settings/shared authority")
 				}
 				tableRole, _ := e.Roles().Lookup("table_owner")
@@ -115,15 +115,15 @@ func TestCommentQualifiedDiagnostics(t *testing.T) {
 				}
 			}
 			before := e.CatalogRead()
-			rolesPublication := e.roles.Published
-			storage := e.storage.Relations[roleTableRef(t, e, "private.t").Address]
+			rolesPublication := e.RoleStore.Published
+			storage := e.Storage.Relations[roleTableRef(t, e, "private.t").Address]
 			_, err := e.Execute(denied, stmt, 0, nil)
 			var got *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message}
 			if !errors.As(err, &got) || *got != want {
 				t.Errorf("prepared=%v %s: full diagnostic %#v want %#v", prepared, tc.q, got, want)
 			}
-			if before.State() != e.CatalogRead().State() || rolesPublication != e.roles.Published || storage != e.storage.Relations[roleTableRef(t, e, "private.t").Address] {
+			if before.State() != e.CatalogRead().State() || rolesPublication != e.RoleStore.Published || storage != e.Storage.Relations[roleTableRef(t, e, "private.t").Address] {
 				t.Fatal("failed comment changed catalog, roles or data")
 			}
 		}
@@ -182,23 +182,23 @@ func TestCommentRestoreAuthorityIsolation(t *testing.T) {
 		actor, query string
 	}{
 		{"public operation", source, "postgres", "COMMENT ON SCHEMA public IS 'forbidden'"},
-		{"non-superuser private authenticator", source.restoreStage(), "ordinary", "COMMENT ON SCHEMA public IS 'forbidden'"},
-		{"shared role excluded", source.restoreStage(), "postgres", "COMMENT ON ROLE ordinary IS 'forbidden'"},
+		{"non-superuser private authenticator", source.RestoreStage(), "ordinary", "COMMENT ON SCHEMA public IS 'forbidden'"},
+		{"shared role excluded", source.RestoreStage(), "postgres", "COMMENT ON ROLE ordinary IS 'forbidden'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			op, done := roleOperation(t, tc.engine, tc.actor)
 			defer done()
 			before := tc.engine.CatalogRead()
-			rolesPublication := tc.engine.roles.Published
+			rolesPublication := tc.engine.RoleStore.Published
 			identity := op.RoleState()
-			operationReplay(op).commentAuthority = true
+			OperationReplay(op).CommentAuthority = true
 			_, err := tc.engine.Execute(op, statement(t, tc.query), 0, nil)
-			operationReplay(op).commentAuthority = false
+			OperationReplay(op).CommentAuthority = false
 			var diagnostic *sqlstate.Error
 			if err == nil || errors.As(err, &diagnostic) {
 				t.Fatal("invalid private marker accepted or fabricated SQL diagnostic", err)
 			}
-			if tc.engine.CatalogRead().State() != before.State() || tc.engine.roles.Published != rolesPublication || op.RoleState() != identity {
+			if tc.engine.CatalogRead().State() != before.State() || tc.engine.RoleStore.Published != rolesPublication || op.RoleState() != identity {
 				t.Fatal("invalid private marker changed authority/metadata")
 			}
 		})

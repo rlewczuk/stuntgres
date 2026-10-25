@@ -22,14 +22,14 @@ func commentWant(t *testing.T, e *Engine, read catalog.Read, ref ids.ObjectRef, 
 func commentFailure(t *testing.T, e *Engine, op *session.Operation, q, code, message, detail string) {
 	t.Helper()
 	before := e.CatalogRead()
-	rolesPublication := e.roles.Published
+	rolesPublication := e.RoleStore.Published
 	_, err := e.Execute(op, statement(t, q), 0, nil)
 	var d *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 	if !errors.As(err, &d) || *d != want {
 		t.Fatalf("%s: full diagnostic %#v want %#v", q, d, want)
 	}
-	if before.State() != e.CatalogRead().State() || rolesPublication != e.roles.Published {
+	if before.State() != e.CatalogRead().State() || rolesPublication != e.RoleStore.Published {
 		t.Fatal("failed COMMENT published metadata")
 	}
 }
@@ -74,7 +74,7 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 	commentWant(t, e, e.CatalogRead(), b, "")
 	roleExecute(t, e, op, "COMMENT ON COLUMN s.t.b IS ' '")
 	commentWant(t, e, e.CatalogRead(), b, " ")
-	for _, bad := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(table.Epoch, table.Address), e.catalog.Domain.Ref(table.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address.ObjectID, SubID: 99}), e.catalog.Domain.Ref(ns.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.Address.ObjectID, SubID: 1})} {
+	for _, bad := range []ids.ObjectRef{{}, New().Catalog.Domain.Ref(table.Epoch, table.Address), e.Catalog.Domain.Ref(table.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: table.Address.ObjectID, SubID: 99}), e.Catalog.Domain.Ref(ns.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ns.Address.ObjectID, SubID: 1})} {
 		if _, _, err := e.Comment(e.CatalogRead(), bad); err == nil {
 			t.Fatal("accepted invalid comment reference", bad)
 		}
@@ -98,9 +98,9 @@ func (e *Engine) Comment(r catalog.Read, ref ids.ObjectRef) (string, bool, error
 	if r.Owner() == nil {
 		return "", false, fmt.Errorf("stuntgres: foreign catalog view")
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := e.catalog.ValidateObjectRefLocked(r, ref); err != nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := e.Catalog.ValidateObjectRefLocked(r, ref); err != nil {
 		return "", false, err
 	}
 	a := ref.Address

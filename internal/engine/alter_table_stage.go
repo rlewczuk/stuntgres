@@ -11,7 +11,7 @@ import (
 func (e *Engine) authorizedStage(stage *CatalogStage, auth AuthorizationView, s *session.Session) *CatalogStage {
 	if stage == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		stage.authorizeLocked(auth, s)
+		stage.AuthorizeLocked(auth, s)
 	}
 	return stage
 }
@@ -30,10 +30,10 @@ func (e *Engine) mergeStageJournalLocked(stage *CatalogStage, changes *session.J
 	}
 	unchanged := func(address ids.ObjectAddress) bool {
 		original := base.Get(address)
-		if captured, identity := stage.sequence.IdentityOriginal(address); identity {
+		if captured, identity := stage.Sequence.IdentityOriginal(address); identity {
 			original = captured
 		}
-		return e.catalog.State.Get(address) == original
+		return e.Catalog.State.Get(address) == original
 	}
 	for address, descriptor := range stage.Descriptors() {
 		if !selected(descriptor) {
@@ -42,9 +42,9 @@ func (e *Engine) mergeStageJournalLocked(stage *CatalogStage, changes *session.J
 		if !unchanged(address) {
 			return catalog.Conflict{}
 		}
-		e.catalogChangeLocked(changes, address, descriptor)
+		e.CatalogChangeLocked(changes, address, descriptor)
 		if sequencesOnly {
-			changes.Generators[address] = stage.sequence.Generator(address)
+			changes.Generators[address] = stage.Sequence.Generator(address)
 		}
 	}
 	for address, removal := range stage.Removals() {
@@ -54,11 +54,11 @@ func (e *Engine) mergeStageJournalLocked(stage *CatalogStage, changes *session.J
 		if !unchanged(address) {
 			return catalog.Conflict{}
 		}
-		e.catalogChangeLocked(changes, address, nil)
+		e.CatalogChangeLocked(changes, address, nil)
 		delete(changes.Generators, address)
 	}
 	if !sequencesOnly {
-		for address, generator := range stage.sequence.StagedGenerators() {
+		for address, generator := range stage.Sequence.StagedGenerators() {
 			if _, removed := stage.Removal(address); !removed {
 				changes.Generators[address] = generator
 			}
@@ -70,10 +70,10 @@ func (e *Engine) mergeStageJournalLocked(stage *CatalogStage, changes *session.J
 // captureCheckSnapshots captures the comment and visibility snapshots that
 // relation's CHECKs demand, under Engine.mu, which it takes.
 func (e *Engine) captureCheckSnapshots(scope *StatementScope, relation *catalog.Relation) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := e.captureCheckCommentSnapshotLocked(scope, relation); err != nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := e.CaptureCheckCommentSnapshotLocked(scope, relation); err != nil {
 		return err
 	}
-	return e.captureCheckVisibilitySnapshotLocked(scope, relation)
+	return e.CaptureCheckVisibilitySnapshotLocked(scope, relation)
 }

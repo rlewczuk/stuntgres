@@ -26,10 +26,10 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			capture := func() *StatementScope {
 				t.Helper()
-				s := &StatementScope{op: op, owner: op.Session.Transactions}
-				e.mu.Lock()
-				err := e.captureCommentSnapshotLocked(s)
-				e.mu.Unlock()
+				s := &StatementScope{Op: op, Owner: op.Session.Transactions}
+				e.Mu.Lock()
+				err := e.CaptureCommentSnapshotLocked(s)
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -38,8 +38,8 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			open := func(s *StatementScope, oid ids.OID) *exec.Source {
 				t.Helper()
 				d, ref := availableUnitSource(e, oid)
-				e.mu.Lock()
-				source, err := e.openRelationSourceLocked(s, ref, e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+				e.Mu.Lock()
+				source, err := e.openRelationSourceLocked(s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -54,7 +54,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				return source
 			}
 			old := capture()
-			before := old.inquiry.commentCatalog.State()
+			before := old.Inquiry.CommentCatalog.State()
 			sources := map[ids.OID]*exec.Source{first: open(old, first)}
 			retained := make([][]sqltype.Value, len(sources[first].Anonymous))
 			for i, row := range sources[first].Anonymous {
@@ -64,7 +64,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			// Complete an authentic peer publication in this exact gap, no sleeps.
 			extensionUnitPublish(t, e, publisher, stage)
 			fresh := capture()
-			if fresh.inquiry.commentCatalog.State() == before || old.inquiry.commentCatalog.State() != before {
+			if fresh.Inquiry.CommentCatalog.State() == before || old.Inquiry.CommentCatalog.State() != before {
 				t.Fatal("publication did not advance only the fresh statement frontier")
 			}
 			for _, oid := range []ids.OID{12081, 12085, ids.ExtensionClassID} {

@@ -13,26 +13,26 @@ import (
 
 func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
-	if s.op == nil || s.op.Session == nil || s.op.Session.Advisory.Ticket == nil {
+	if s.Op == nil || s.Op.Session == nil || s.Op.Session.Advisory.Ticket == nil {
 		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")
 	}
-	ticket := s.op.Session.Advisory.Ticket
+	ticket := s.Op.Session.Advisory.Ticket
 	if action == functions.AdvisoryUnlockAll {
-		if err := s.engine().locks.UnlockAdvisoryAll(ticket); err != nil {
+		if err := s.Engine().Locks.UnlockAdvisoryAll(ticket); err != nil {
 			return sqltype.Value{}, err
 		}
 		return sqltype.VoidValue(result), nil
 	}
-	ref := lock.Resource{Database: s.engine().catalog.Domain, Kind: lock.AdvisoryBigintResource, High: uint32(uint64(first) >> 32), Low: uint32(first)}
+	ref := lock.Resource{Database: s.Engine().Catalog.Domain, Kind: lock.AdvisoryBigintResource, High: uint32(uint64(first) >> 32), Low: uint32(first)}
 	if pair {
-		ref = lock.Resource{Database: s.engine().catalog.Domain, Kind: lock.AdvisoryPairResource, High: uint32(first), Low: uint32(second)}
+		ref = lock.Resource{Database: s.Engine().Catalog.Domain, Kind: lock.AdvisoryPairResource, High: uint32(first), Low: uint32(second)}
 	}
 	lockMode := lock.AdvisoryExclusive
 	if mode == functions.AdvisoryShare {
 		lockMode = lock.AdvisoryShare
 	}
 	if action == functions.AdvisoryUnlock {
-		unlocked, err := s.engine().locks.UnlockAdvisory(ticket, ref, lockMode)
+		unlocked, err := s.Engine().Locks.UnlockAdvisory(ticket, ref, lockMode)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -41,7 +41,7 @@ func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryActio
 			if mode == functions.AdvisoryShare {
 				message = "you don't own a lock of type ShareLock"
 			}
-			s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})
+			s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})
 		}
 		return sqltype.Boolean(result, unlocked), nil
 	}

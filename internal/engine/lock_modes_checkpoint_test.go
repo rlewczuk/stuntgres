@@ -24,38 +24,38 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 	ta, tb := a.Transactions.Ticket, b.Transactions.Ticket
 	acquire := func(resource lock.Resource, mode lock.Mode) {
 		t.Helper()
-		if err := e.locks.Acquire(context.Background(), ta, resource, mode); err != nil {
+		if err := e.Locks.Acquire(context.Background(), ta, resource, mode); err != nil {
 			t.Fatal(err)
 		}
 	}
 	acquire(table, lock.ShareUpdateExclusive)
 	acquire(table, lock.Share)
 	acquire(row, lock.ForKeyShare)
-	mark := e.locks.Checkpoint(ta)
+	mark := e.Locks.Checkpoint(ta)
 	acquire(table, lock.AccessExclusive)
 	acquire(row, lock.ForUpdate)
 	next := table
 	next.Row = 2
 	acquire(next, lock.ForNoKeyUpdate)
-	request, err := e.locks.StartAcquire(context.Background(), tb, next, lock.ForUpdate, lock.Policy{})
+	request, err := e.Locks.StartAcquire(context.Background(), tb, next, lock.ForUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
-	e.locks.Restore(ta, mark)
+	e.Locks.Restore(ta, mark)
 	if err := request.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	modes := lockState.Resources[table].Holders[ta].Mode
 	rowMode := lockState.Resources[row].Holders[ta].Mode
 	newMode := lockState.Resources[next].Holders[ta].Mode
 	if modes != lock.ShareUpdateExclusive|lock.Share || rowMode != lock.ForKeyShare || newMode != 0 {
 		t.Fatal(modes, rowMode, newMode)
 	}
-	e.locks.Restore(ta, mark)
-	e.endLockOwner(ta)
-	e.locks.Restore(ta, mark)
-	lockState = e.locks.Inspect(ta)
+	e.Locks.Restore(ta, mark)
+	e.EndLockOwner(ta)
+	e.Locks.Restore(ta, mark)
+	lockState = e.Locks.Inspect(ta)
 	_, alive := lockState.Owners[ta.Ref()]
 	held := len(lockState.Journals[ta])
 	if alive || held != 0 {

@@ -50,7 +50,7 @@ func TestCubeTransformProviderIdentity(t *testing.T) {
 			t.Fatal("transform additions displaced coordinate backing", op, proc)
 		}
 	}
-	metadata, err := extension.OwnerMetadata(view,e.roles.PublishedRead(&e.catalog.Owner,view),ext)
+	metadata, err := extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),ext)
 	if err != nil { t.Fatal(err) }
 	record, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata),"-- "))
 	if err != nil || !found { t.Fatal("owner metadata",err) }

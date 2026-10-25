@@ -21,12 +21,12 @@ func TestInfoRoutinePrivilegesOrigins(t *testing.T) {
 		f.check(t, f.state, f.f.reader, public)
 		f.check(t, f.state, f.f.owner, public, owner)
 
-		roles := cloneRoleFixture(f.f.e.roles.Published)
+		roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 		power := fixtureRole(roles, f.f.reader)
 		power.Superuser = true
 		putFixtureRole(roles, power)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}})
-		f.f.e.roles.PublishLocked(roles)
+		f.f.e.RoleStore.PublishLocked(roles)
 		f.check(t, f.state, f.f.member, public)
 		f.check(t, f.state, f.f.reader, public, owner)
 	})

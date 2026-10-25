@@ -58,11 +58,11 @@ func extensionLiveAuthorityFences(t *testing.T) {
 					t.Fatal("role identity reused")
 				}
 			}
-			before := e.catalog.State
+			before := e.Catalog.State
 			if err := scope.Finish(nil); err == nil {
 				t.Fatal("stale actual authority installed provider")
 			}
-			if e.catalog.State != before || e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
+			if e.Catalog.State != before || e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}) != (ids.ObjectAddress{}) {
 				t.Fatal("authority fence partially published")
 			}
 			if reason != "recreated_role" {
@@ -87,9 +87,9 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		if err := extensionUnitExecute(t, e, op, install); err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		private := e.privateCatalogLocked(session.TxOwnerOf(tx).Catalog)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		private := e.PrivateCatalogLocked(session.TxOwnerOf(tx).Catalog)
+		e.Mu.Unlock()
 		a := private.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 		ext := private.MustExtension(a)
 		for _, a := range ext.Members {
@@ -102,9 +102,9 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		if err := extensionUnitExecute(t, e, op, point); err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		private = e.privateCatalogLocked(session.TxOwnerOf(tx).Catalog)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		private = e.PrivateCatalogLocked(session.TxOwnerOf(tx).Catalog)
+		e.Mu.Unlock()
 		for _, a := range ext.Members {
 			if private.Get(a) != nil {
 				t.Fatal("savepoint member retained")
@@ -116,13 +116,13 @@ func extensionLiveAuthorityFences(t *testing.T) {
 		if _, err := e.Commit(op, tx); err != nil {
 			t.Fatal(err)
 		}
-		installed := e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
+		installed := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 		if installed.Address() == ext.Address() {
 			t.Fatal("rolled-back identity reused")
 		}
 		for _, a := range installed.Members {
-			d := e.catalog.State.Get(a)
-			if e.catalog.State.NameAddress(catalog.DescriptorNameKey(d)) != a {
+			d := e.Catalog.State.Get(a)
+			if e.Catalog.State.NameAddress(catalog.DescriptorNameKey(d)) != a {
 				t.Fatal("committed signature identity lost")
 			}
 		}
@@ -132,7 +132,7 @@ func extensionLiveAuthorityFences(t *testing.T) {
 func extensionOwnershipImportUnits(t *testing.T) {
 	e, _, ext := extensionUnitInstalled(t)
 	// Actual isolated Restore stage supplies captured target-principal authority.
-	stage := e.restoreStage()
+	stage := e.RestoreStage()
 	op, done := roleOperation(t, stage, "postgres")
 	defer done()
 	if err := extensionUnitExecute(t, stage, op, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}); err != nil {
@@ -151,7 +151,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 			t.Fatal("owner metadata lost installed slot/schema", record.Members[i])
 		}
 	}
-	before := stage.catalog.State
+	before := stage.Catalog.State
 	for _, kind := range []string{"namespace", "version", "member_owner", "duplicate", "member_identity", "member_name", "member_namespace", "member_slot", "duplicate_slot", "missing_member"} {
 		bad := record
 		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
@@ -181,7 +181,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 		if err := stage.importExtensionOwners(context.Background(), op, records); err == nil {
 			t.Fatal("invalid ownership import accepted", kind)
 		}
-		if stage.catalog.State != before {
+		if stage.Catalog.State != before {
 			t.Fatal("failed ownership import changed staged identities", kind)
 		}
 	}
@@ -190,14 +190,14 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	}
 	// Central DROP dependencies include extension and every owned member, plus
 	// the destination database's real grantor/grantee references.
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	var dependencies []access.RoleDependency
 	access.DescriptorRoleDependencies(ext, owner, &dependencies)
 	if len(dependencies) != 1 || dependencies[0].Address != ext.Address() || dependencies[0].Kind != 'o' || !access.DescriptorRoleDependencies(ext, owner, nil) {
 		t.Fatal("extension owner dependency", dependencies)
 	}
 	for _, a := range ext.Members {
-		d := e.catalog.State.Get(a)
+		d := e.Catalog.State.Get(a)
 		refs := descriptorReferences(d)
 		if a.ClassID == ids.TSTemplateClassID {
 			if len(refs) != 0 {
@@ -217,7 +217,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	admin, adminDone := roleOperation(t, target, "postgres")
 	defer adminDone()
 	originalOwner := roleAttributeCreate(t, target, admin, "ext_import_owner", true, parser.RoleOptions{})
-	imported := target.restoreStage()
+	imported := target.RestoreStage()
 	replay, replayDone := roleOperation(t, imported, "postgres")
 	defer replayDone()
 	if err := extensionUnitExecute(t, imported, replay, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}}); err != nil {
@@ -236,11 +236,11 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	if replacementOwner.Ref == originalOwner.Ref {
 		t.Fatal("target role identity reused")
 	}
-	incumbent := target.catalog.State
-	if _, err := target.replaceCatalog(context.Background(), imported, imported.CatalogRead(), admin); err == nil {
+	incumbent := target.Catalog.State
+	if _, err := target.ReplaceCatalogInOperation(context.Background(), imported, imported.CatalogRead(), admin); err == nil {
 		t.Fatal("member owner target recreation escaped import fence")
 	}
-	if target.catalog.State != incumbent {
+	if target.Catalog.State != incumbent {
 		t.Fatal("member owner fence replaced target")
 	}
 }

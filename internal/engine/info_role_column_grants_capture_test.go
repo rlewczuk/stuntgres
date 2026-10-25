@@ -35,27 +35,27 @@ func TestInfoRoleColumnGrantsCaptureOwnership(t *testing.T) {
 	}
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
-		func(in *pgcatalog.Input) { in.Ref = foreign.catalog.Owner.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
+		func(in *pgcatalog.Input) { in.Ref = foreign.Catalog.Owner.Domain.Ref(in.Ref.Epoch, in.Ref.Address) },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { copy := *in.Source; copy.ObjectAddress.ObjectID++; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.RoleRecord = nil
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engineCatalogRuntime)
-			runtime.auth.State.CurrentUser = f.f.e.roles.Domain.Principal(999999)
+			runtime := in.Runtime.(EngineCatalogRuntime)
+			runtime.Auth.State.CurrentUser = f.f.e.RoleStore.Domain.Principal(999999)
 			in.Runtime = runtime
 		},
 	} {
@@ -114,15 +114,15 @@ func TestInfoRoleColumnGrantsFrontier(t *testing.T) {
 	changed.Columns[0].Name = "renamed_attribute"
 	changed.Security.ColumnACL = map[int32]authorization.ACLValue{1: {Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.f, authorization.SelectPrivilege, authorization.SelectPrivilege)}}}
 	next.SetDescriptor(changed.Address(), &changed)
-	roles := cloneRoleFixture(f.f.e.roles.Published)
+	roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 	reader := fixtureRole(roles, f.f.reader)
 	reader.Name = "renamed_reader"
 	putFixtureRole(roles, reader)
 	owner := fixtureRole(roles, f.f.owner)
 	owner.Name = "renamed_owner"
 	putFixtureRole(roles, owner)
-	f.f.e.roles.PublishLocked(roles)
-	f.f.e.catalog.PublishLocked(next)
+	f.f.e.RoleStore.PublishLocked(roles)
+	f.f.e.Catalog.PublishLocked(next)
 	fresh := roleColumnGrantsBag(t, roleColumnGrantsRows(t, f.input(t, next, f.f.reader)))
 	freshWant := map[[8]string]int{roleColumnGrantsWant("renamed_owner", "renamed_reader", "renamed_attribute", "SELECT", "YES"): 1}
 	if !reflect.DeepEqual(fresh, freshWant) {
@@ -137,7 +137,7 @@ func TestInfoRoleColumnGrantsFrontier(t *testing.T) {
 	// A membership-only publication changes fresh visibility, never old authority.
 	membership := cloneRoleFixture(roles)
 	setFixtureEdges(membership, append(fixtureEdges(membership), authorization.Membership{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}))
-	f.f.e.roles.PublishLocked(membership)
+	f.f.e.RoleStore.PublishLocked(membership)
 	f.check(t, next, f.f.member, roleColumnGrantsWant("renamed_owner", "renamed_reader", "renamed_attribute", "SELECT", "YES"))
 	if got := roleColumnGrantsBag(t, roleColumnGrantsRows(t, old)); !reflect.DeepEqual(got, want) {
 		t.Fatal("membership changed old frontier", got, want)

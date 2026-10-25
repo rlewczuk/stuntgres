@@ -27,19 +27,19 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *session.Operation, q string) 
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		bound, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	var source *exec.Source
 	if err == nil {
 		// Logical-stage fixtures supply cancellation contexts directly, but keep
 		// the actual admission alive until every retained stage is closed.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
+		source, err = e.CaptureQuerySourcesForInvokerLocked(scope, bound.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.QueryLockContext)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil {
 		err = exec.SelectQuerySources(op.Ctx, source)
 	}
@@ -81,8 +81,8 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, param
 		t.Fatal("fixture has no top-level filter")
 	}
 	state := &exec.State{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := scopeOf(source.LiveHost()); scope != nil {
-		state.Input, state.Output = scope.input, scope.output
+	if scope := ScopeOf(source.LiveHost()); scope != nil {
+		state.Input, state.Output = scope.Input, scope.Output
 	}
 	stage, err := exec.OpenNode(context.Background(), state, filter)
 	if err != nil {

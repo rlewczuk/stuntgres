@@ -8,13 +8,13 @@ import (
 )
 
 func (h *statementHost) ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error {
-	s, e := h.scope(), h.scope().engine()
-	if err := s.active(); err != nil {
+	s, e := h.scope(), h.scope().Engine()
+	if err := s.Active(); err != nil {
 		return err
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	auth, err := s.writeAuthorizationLocked(e)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}

@@ -80,7 +80,7 @@ func TestNotificationInfoBinding(t *testing.T) {
 func TestNotificationInfoSource(t *testing.T) {
 	e := New()
 	scope := tablespaceInfoUnitScope(t, e)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	floating, _ := e.CatalogRead().LookupType(sqltype.Float8)
 	node := functions.ListeningChannels{Info: expr.Info{Usage: text.Usage()}}
@@ -92,18 +92,18 @@ func TestNotificationInfoSource(t *testing.T) {
 	if err != nil || present || !v.IsNull() || v.Type() != text || empty.Values != nil {
 		t.Fatal("typed empty EOF", v, present, err)
 	}
-	listener := &payloadOf(scope.op.Session).notifications
-	e.mu.Lock()
+	listener := &PayloadOf(scope.Op.Session).notifications
+	e.Mu.Lock()
 	listener.State = &session.NotificationState{Channels: map[string]struct{}{"committed": {}}, History: true}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	first, err := node.OpenSource(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	e.mu.Lock()
+	e.Mu.Lock()
 	listener.State = &session.NotificationState{Channels: map[string]struct{}{"later": {}}, History: true}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	second, err := node.OpenSource(c)
 	if err != nil {
 		t.Fatal(err)

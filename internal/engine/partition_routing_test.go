@@ -42,15 +42,15 @@ func partitionRoutingUnitEngine(t *testing.T) (*Engine, *catalog.Relation, *cata
 	mid.Partition.Children = []ids.ObjectAddress{source.Address(), destination.Address()}
 	root.Partition.Children = []ids.ObjectAddress{mid.Address()}
 	inheritanceLifecycleInstall(e, root, &mid, source, &destination)
-	delete(e.storage.Relations, root.Address())
-	delete(e.storage.Relations, mid.Address())
+	delete(e.Storage.Relations, root.Address())
+	delete(e.Storage.Relations, mid.Address())
 	value, err := sqltype.Integer(root.Columns[0].Usage.Type, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage.Relations[source.Address()].Versions = []storage.RowVersion{{Row: 11, Version: 21, Born: 1, Values: []sqltype.Value{value}}}
-	e.storage.SetFrontierLocked(11, 21)
-	e.visibility.SetCommitSeqLocked(1)
+	e.Storage.Relations[source.Address()].Versions = []storage.RowVersion{{Row: 11, Version: 21, Born: 1, Values: []sqltype.Value{value}}}
+	e.Storage.SetFrontierLocked(11, 21)
+	e.Visibility.SetCommitSeqLocked(1)
 	return e, root, &mid, source, &destination
 }
 
@@ -66,46 +66,46 @@ func partitionRoutingUnitScope(t *testing.T, e *Engine, target *catalog.Relation
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			scope.Finish(errors.New("abandoned routing unit"))
 		}
 	})
 	syntax := &parser.Update{Only: only}
-	if err := scope.gate(syntax); err != nil {
+	if err := scope.Gate(syntax); err != nil {
 		t.Fatal(err)
 	}
-	scope.statement = syntax
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), target.Address())
-	scope.lockedRef, scope.lockedDescriptor = ref, target
-	scope.lockedStorage = e.storage.Relations[target.Address()]
-	if err := e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive); err != nil {
+	scope.Statement = syntax
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), target.Address())
+	scope.LockedRef, scope.LockedDescriptor = ref, target
+	scope.LockedStorage = e.Storage.Relations[target.Address()]
+	if err := e.Locks.Acquire(op.Context(), scope.LockTicket, lock.Resource{ObjectRef: ref}, lock.RowExclusive); err != nil {
 		t.Fatal(err)
 	}
 	if !only {
-		if err := scope.acquirePartitionDescendants(ref, lock.RowExclusive); err != nil {
+		if err := scope.AcquirePartitionDescendants(ref, lock.RowExclusive); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if err := scope.acquireInheritedMutationTargets(syntax); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.routineAuth = auth
-	e.mu.Lock()
+	scope.RoutineAuth = auth
+	e.Mu.Lock()
 	err = scope.capturePartitionInsertLocked(e, auth, target)
 	var source *exec.Source
-	b := analyze.Binding{Ref: ref, Relation: target, Storage: scope.lockedStorage}
+	b := analyze.Binding{Ref: ref, Relation: target, Storage: scope.LockedStorage}
 	if err == nil {
-		view, captureErr := scope.acquireDataViewsLocked(e, scope.Command.TargetRefs(ref))
+		view, captureErr := scope.AcquireDataViewsLocked(e, scope.Command.TargetRefs(ref))
 		err = captureErr
 		if err == nil {
 			source, err = scope.Command.CaptureSource(op.Context(), view, b)
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestPartitionRoutingCapture(t *testing.T) {
 			if source.Count() != want || source.View == nil || source.View.Load() == nil {
 				t.Fatal("invalid retained capture", source.Count())
 			}
-			if e.storage.Relations[root.Address()] != nil || e.storage.Relations[mid.Address()] != nil {
+			if e.Storage.Relations[root.Address()] != nil || e.Storage.Relations[mid.Address()] != nil {
 				t.Fatal("virtual heap manufactured")
 			}
 			if targetKind == "ordinary" {
@@ -157,7 +157,7 @@ func TestPartitionRoutingCapture(t *testing.T) {
 				}
 			}
 			source.Close()
-			if scope.view.Load() == nil {
+			if scope.View.Load() == nil {
 				t.Fatal("capture consumed statement view")
 			}
 			if err := scope.Finish(nil); err != nil {
@@ -169,7 +169,7 @@ func TestPartitionRoutingCapture(t *testing.T) {
 
 func TestPartitionRoutingLatestRow(t *testing.T) {
 	e, _, _, leaf, _ := partitionRoutingUnitEngine(t)
-	store := e.storage.Relations[leaf.Address()]
+	store := e.Storage.Relations[leaf.Address()]
 	row := store.Versions[0]
 	request := dml.RowRequest{Row: row.Row, Storage: store, Hint: 0}
 	for _, moved := range []bool{false, true} {
@@ -237,16 +237,16 @@ func partitionRoutingCaptureReorderedDestination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage.Relations[sourceRelation.Address()]
+	store := e.Storage.Relations[sourceRelation.Address()]
 	store.Versions[0].Values = append(store.Versions[0].Values, payload)
 	old := store.Versions[0]
 	scope, b, source := partitionRoutingUnitScope(t, e, root, false)
 	partitionRoutingUnitAssignment(t, &b, 2)
-	out, err := dml.ExecuteUpdate(scope.writeHost(), dml.UpdateInput{Context: scope.op.Context(), Binding: b, Source: source, Schema: "public"})
+	out, err := dml.ExecuteUpdate(scope.WriteHost(), dml.UpdateInput{Context: scope.Op.Context(), Binding: b, Source: source, Schema: "public"})
 	if err != nil || out.Count != 1 {
 		t.Fatal(out, err)
 	}
-	physical := scope.stage.rows[destination.Address()][0].Values
+	physical := scope.Stage.Rows[destination.Address()][0].Values
 	two, err := sqltype.Integer(usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)

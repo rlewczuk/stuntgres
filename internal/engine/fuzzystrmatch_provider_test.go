@@ -28,7 +28,7 @@ func daitchUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ""))
-	return e, e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+	return e, e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 }
 
 func daitchUnitExpression(t *testing.T, e *Engine, input string) plan.InstalledTextExpr {
@@ -74,7 +74,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	state.UnbindName(catalog.DescriptorNameKey(proc))
 	state.SetDescriptor(proc.Address(), &renamed)
 	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
-	current := e.catalog.Read(state)
+	current := e.Catalog.Read(state)
 	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "daitch_mokotoff" {
 		t.Fatal("relabel lost installed symbol", symbol, err)
 	}
@@ -117,13 +117,13 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
 		func(p *catalog.Procedure) { p.Dictionary = ext.Address() }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },
 	} {
-		state := catalog.CloneState(e.catalog.State)
+		state := catalog.CloneState(e.Catalog.State)
 		state.UnbindName(catalog.DescriptorNameKey(proc))
 		bad := *proc
 		mutate(&bad)
 		state.SetDescriptor(proc.Address(), &bad)
 		state.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
-		if err := extension.StockFuzzystrmatch.ValidateExtension(e.catalog.Read(state), ext); err == nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
 			t.Fatal("invalid procedure admitted", bad)
 		}
 	}
@@ -140,7 +140,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &duplicate); err == nil {
 		t.Fatal("full-size duplicate inventory admitted")
 	}
-	metadata, err := extension.OwnerMetadata(view, e.roles.PublishedRead(&e.catalog.Owner, view), ext)
+	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,14 +179,14 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		e := New()
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
-		before := e.catalog.State
+		before := e.Catalog.State
 		stage := intarrayUnitStage(t, e, op, "fuzzystrmatch", "")
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled validation", err)
 		}
-		if e.catalog.State != before {
+		if e.Catalog.State != before {
 			t.Fatal("canceled stage published")
 		}
 	})
@@ -196,17 +196,17 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		defer closeOwner()
 		ns := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.Name()))
-		ext := e.catalog.State.MustExtension(e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+		ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 		if err := extension.StockFuzzystrmatch.ValidateExtension(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
 		member := ext.Members[0]
 		closeOwner()
-		if e.catalog.State.Get(ext.Address()) != nil || e.catalog.State.Get(member) != nil {
+		if e.Catalog.State.Get(ext.Address()) != nil || e.Catalog.State.Get(member) != nil {
 			t.Fatal("TEMP provider survived owner retirement")
 		}
 		for _, address := range ext.Members {
-			if e.catalog.State.Get(address) != nil {
+			if e.Catalog.State.Get(address) != nil {
 				t.Fatal("TEMP selected member survived owner retirement", address)
 			}
 		}
@@ -260,11 +260,11 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err := table.ValidateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("procedure subobject generation dependency admitted")
 	}
-	state := catalog.CloneState(e.catalog.State)
+	state := catalog.CloneState(e.Catalog.State)
 	badProcedure := *n.Procedure
 	badProcedure.Result = 25
 	state.SetDescriptor(n.Ref.Address, &badProcedure)
-	if err := table.ValidateGenerationProviders(e.catalog.Read(state), consumer); err == nil {
+	if err := table.ValidateGenerationProviders(e.Catalog.Read(state), consumer); err == nil {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}
 	children := 0
@@ -335,7 +335,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	imported := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+	imported := target.Catalog.State.MustExtension(target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): imported.Address()}
 	for i, address := range ext.Members {
 		mapping[address] = imported.Members[i]
@@ -345,7 +345,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 		if address, ok := mapping[ref.Address]; ok {
 			ref.Address = address
 		}
-		return target.catalog.Domain.Ref(view.Epoch(), ref.Address)
+		return target.Catalog.Domain.Ref(view.Epoch(), ref.Address)
 	}, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		owned, ok := view.LookupType(d.ID())
 		if !ok {
@@ -371,10 +371,10 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	// between the two catalogs' immutable builtin descriptors.
 	currentSourceArray, _ := source.CatalogRead().LookupType(1009)
 	currentSourceText, _ := source.CatalogRead().LookupType(sqltype.Text)
-	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.Procedure != sourceProcedure || source.catalog.State.Get(sourceRef.Address) != sourceProcedure || old.Ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
+	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.Procedure != sourceProcedure || source.Catalog.State.Get(sourceRef.Address) != sourceProcedure || old.Ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
-	if n.Ref.Address != n.Procedure.Address() || n.Ref.Domain() != target.catalog.Domain || n.Ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+	if n.Ref.Address != n.Procedure.Address() || n.Ref.Domain() != target.Catalog.Domain || n.Ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
 		t.Fatal("remapped installed authority still belongs to source")
 	}
 	retainedText, err := sourceArray.Output(context.Background(), oldValue)

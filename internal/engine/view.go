@@ -15,44 +15,44 @@ import (
 // Analyze once after admitting all body sources, before selecting the CREATE
 // destination. Keep inferred persistence and private namespace off the held AST.
 func (s *StatementScope) prepareViewCreation(createView *parser.CreateView) error {
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.statementAuthorizationLocked(s.op, createView)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.StatementAuthorizationLocked(s.Op, createView)
 	if err != nil {
 		return err
 	}
-	b, err := describe(s.op.Context(), e.analysisHost(s.op), createView, auth, ids.ObjectRef{}, s.input, nil, &s.queryLockAdmission)
+	b, err := Describe(s.Op.Context(), e.AnalysisHost(s.Op), createView, auth, ids.ObjectRef{}, s.Input, nil, &s.QueryLockAdmission)
 	if err != nil {
 		return err
 	}
 	if err := e.attachCTEViewTargetsLocked(s, &b, false); err != nil {
 		return err
 	}
-	if err := s.validateQuerySources(b.QuerySources); err != nil {
+	if err := s.ValidateQuerySources(b.QuerySources); err != nil {
 		return err
 	}
 	if parser.HasModifyingCTE(createView.Query) {
-		return sqlError("0A000", "views must not contain data-modifying statements in WITH")
+		return SQLError("0A000", "views must not contain data-modifying statements in WITH")
 	}
 	persistence := view.RequestedViewPersistence(auth.Catalog, createView, b.QuerySources)
 	if persistence == "temporary" && createView.Persistence != "temporary" {
-		s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, createView.Name.Parts[len(createView.Name.Parts)-1].Text)})
+		s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, createView.Name.Parts[len(createView.Name.Parts)-1].Text)})
 	}
 	if err := view.CheckColumnCollations(b.Query.Root); err != nil {
 		return err
 	}
-	changes := s.owner.Catalog.Clone()
-	ns, err := e.relationCreationNamespaceLocked(auth, createView.Name, persistence, changes)
+	changes := s.Owner.Catalog.Clone()
+	ns, err := e.RelationCreationNamespaceLocked(auth, createView.Name, persistence, changes)
 	if err != nil {
 		return err
 	}
-	auth.Catalog = e.privateCatalogLocked(changes)
+	auth.Catalog = e.PrivateCatalogLocked(changes)
 	auth.Recapture(auth.Catalog)
-	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.op.Session.SessionToken {
-		auth.stagedTemporary = table.Address()
+	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.Op.Session.SessionToken {
+		auth.StagedTemporary = table.Address()
 	}
-	if err := auth.CheckCreate(ns); err != nil && !operationReplayOrZero(s.op).tableDestination {
+	if err := auth.CheckCreate(ns); err != nil && !OperationReplayOrZero(s.Op).TableDestination {
 		return err
 	}
 	persistence, err = access.AdjustRelationCreationPersistence(auth.View, auth, ns, persistence)
@@ -67,31 +67,31 @@ func (s *StatementScope) prepareViewCreation(createView *parser.CreateView) erro
 }
 
 func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.CreateView, count int) (Result, error) {
-	op := scope.op
-	e.mu.Lock()
-	if err := scope.validateLockedRelation(e); err != nil {
-		e.mu.Unlock()
+	op := scope.Op
+	e.Mu.Lock()
+	if err := scope.ValidateLockedRelation(e); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	ns := scope.viewCreationOrZero().Namespace
-	if scope.viewCreationOrZero().Changes != nil {
-		auth.Catalog = e.privateCatalogLocked(scope.viewCreationOrZero().Changes)
+	ns := scope.ViewCreationOrZero().Namespace
+	if scope.ViewCreationOrZero().Changes != nil {
+		auth.Catalog = e.PrivateCatalogLocked(scope.ViewCreationOrZero().Changes)
 		auth.Recapture(auth.Catalog)
-		if table, ok := scope.viewCreationOrZero().Changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
-			auth.stagedTemporary = table.Address()
+		if table, ok := scope.ViewCreationOrZero().Changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
+			auth.StagedTemporary = table.Address()
 		}
 	}
 	if err == nil {
 		err = auth.CheckCreate(ns)
-		if operationReplayOrZero(op).tableDestination {
+		if OperationReplayOrZero(op).TableDestination {
 			bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
-			if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
-				e.mu.Unlock()
+			if guardErr != nil || !bootstrap.Superuser || e.ImportTargets == nil {
+				e.Mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
 			}
 			if denied, ok := err.(*sqlstate.Error); ok && denied.Code == "42501" {
@@ -100,65 +100,65 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 		}
 	}
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	old, err := view.CreateTarget(auth.View, auth, createView, ns, scope.lockedRef)
+	old, err := view.CreateTarget(auth.View, auth, createView, ns, scope.LockedRef)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	b := scope.viewCreationOrZero().Binding
-	if err := scope.validateQuerySources(b.QuerySources); err != nil {
-		e.mu.Unlock()
+	b := scope.ViewCreationOrZero().Binding
+	if err := scope.ValidateQuerySources(b.QuerySources); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if count != 0 {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	options, err := view.CheckCreate(auth.Catalog, createView, b, old)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
-	err = view.StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, createView, old, ns, b, options, scope.viewCreationOrZero().Persistence == "temporary")
-	e.mu.Unlock()
+	err = view.StageCreate(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, createView, old, ns, b, options, scope.ViewCreationOrZero().Persistence == "temporary")
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
 	if err := scope.acquireViewDefinitionReferences(b); err != nil {
 		return Result{}, err
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	if scope.viewCreationOrZero().Changes != nil {
+	if scope.ViewCreationOrZero().Changes != nil {
 		// TEMP definitions publish through the overlay rather than the ordinary
 		// publication hook. Admit the same checked procedure sources before
 		// either explicit or inferred TEMP state can enter that overlay.
-		if err := scope.acquireRoutineDefinitionProviders(stage); err != nil {
+		if err := scope.AcquireRoutineDefinitionProviders(stage); err != nil {
 			return Result{}, err
 		}
-		scope.owner.AccessedTemporary = true
-		if err := e.stageCatalogOverlay(scope, stage, scope.viewCreationOrZero().Changes); err != nil {
+		scope.Owner.AccessedTemporary = true
+		if err := e.StageCatalogOverlay(scope, stage, scope.ViewCreationOrZero().Changes); err != nil {
 			return Result{}, err
 		}
 		return Result{}, nil
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return Result{}, err
 }
@@ -171,8 +171,8 @@ func (s *StatementScope) viewCreation() *view.CreationScope {
 	return s.viewCreationSlot
 }
 
-// viewCreationOrZero reads the viewCreation slot; a nil slot reads as zero.
-func (s *StatementScope) viewCreationOrZero() view.CreationScope {
+// ViewCreationOrZero reads the viewCreation slot; a nil slot reads as zero.
+func (s *StatementScope) ViewCreationOrZero() view.CreationScope {
 	if s.viewCreationSlot == nil {
 		return view.CreationScope{}
 	}

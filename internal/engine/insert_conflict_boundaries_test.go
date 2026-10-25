@@ -53,7 +53,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 			if failure == "close" {
 				cursor.closeError = injected
 			}
-			rows, err := dml.AssembleInsertRows(scope.op.Context(), b, cursor, count, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
+			rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, count, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
 			if failure == "none" {
 				if err != nil || len(rows.Values) != 2 || cursor.position != 3 {
 					t.Fatal("consumed vs admitted", count, len(rows.Values), cursor.position, err)
@@ -64,7 +64,7 @@ func TestInsertConflictProducerConsumedCountAndClose(t *testing.T) {
 			if cursor.closes != 1 {
 				t.Fatal("cursor close count", cursor.closes)
 			}
-			if len(scope.stage.rows) != 0 {
+			if len(scope.Stage.Rows) != 0 {
 				t.Fatal("assembly published a partial batch")
 			}
 		}
@@ -74,19 +74,19 @@ func TestInsertConflictOmissionPreservesNonKeyGrants(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
 	resource := lock.Resource{ObjectRef: ref, Row: 5}
-	if err := f.e.locks.Acquire(scope.op.Context(), scope.ticket, resource, lock.ForUpdate); err != nil {
+	if err := f.e.Locks.Acquire(scope.Op.Context(), scope.LockTicket, resource, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
 	// The mark is deliberately unique-only. Real row/relation/completion ownership
 	// must survive even though a new unique-key reservation is discarded.
-	admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
+	admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{}, nil)
 	if err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
-	if len(f.e.locks.CheckpointUnique(scope.ticket, nil)) != 0 {
+	if len(f.e.Locks.CheckpointUnique(scope.LockTicket, nil)) != 0 {
 		t.Fatal("skipped key retained")
 	}
-	if f.e.locks.Checkpoint(scope.ticket)[resource].Mode&lock.ForUpdate == 0 {
+	if f.e.Locks.Checkpoint(scope.LockTicket)[resource].Mode&lock.ForUpdate == 0 {
 		t.Fatal("row witness lock was lost")
 	}
 }
@@ -103,7 +103,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	owner, _ := f.e.Roles().Lookup("postgres")
 	f.parent.Owner = owner.Ref
 	f.index.Owner = owner.Ref
-	ref := f.e.catalog.Domain.Ref(f.e.catalog.State.Epoch(), f.parent.Address())
+	ref := f.e.Catalog.Domain.Ref(f.e.Catalog.State.Epoch(), f.parent.Address())
 	acl := func(privileges authorization.Privileges) authorization.ACLValue {
 		return authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
 	}
@@ -113,9 +113,9 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	b := dml.BindingForConflict(ref, f.parent, dml.NewInsertConflictState(&analyze.InsertConflict{Targets: []int{0, 1}, Reads: []int{0, 1}}))
 	check := func(want string) {
 		t.Helper()
-		f.e.mu.Lock()
-		auth, err := f.e.authorizationLocked(reader)
-		f.e.mu.Unlock()
+		f.e.Mu.Lock()
+		auth, err := f.e.AuthorizationLocked(reader)
+		f.e.Mu.Unlock()
 		if err == nil {
 			err = analyze.CheckBinding(auth, b, &parser.Insert{})
 		}
@@ -154,14 +154,14 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	session := scope.op.Session
-	key := lock.Resource{Database: scope.engine().catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 42}
+	session := scope.Op.Session
+	key := lock.Resource{Database: scope.Engine().Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 42}
 	for range 2 {
-		advisoryUnitGrant(t, session, scope.txRef, key, lock.AdvisoryShare)
-		advisoryUnitGrant(t, session, scope.txRef, key, lock.AdvisoryExclusive)
+		advisoryUnitGrant(t, session, scope.TxRef, key, lock.AdvisoryShare)
+		advisoryUnitGrant(t, session, scope.TxRef, key, lock.AdvisoryExclusive)
 	}
 	want := lock.Hold{Mode: lock.AdvisoryShare | lock.AdvisoryExclusive, Shared: 2, Exclusive: 2}
-	manager := f.e.locks
+	manager := f.e.Locks
 	// A session ticket has no candidate unique-key contribution. The mark must
 	// not capture or later restore the persistent counted ownership.
 	mark := manager.CheckpointUnique(session.Advisory.Ticket, nil)
@@ -170,16 +170,16 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	}
 	manager.RestoreUnique(session.Advisory.Ticket, mark)
 	row := insertConflictUnitRow(t, f, 20)
-	if admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
+	if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, nil); err != nil || !admitted {
 		t.Fatal(admitted, err)
 	}
-	if admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
+	if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: insertConflictUnitRow(t, f, 10)}, index.WriteBatch{Values: [][]sqltype.Value{row}}, nil); err != nil || admitted {
 		t.Fatal(admitted, err)
 	}
 	if got := advisoryUnitHold(session, key); got != want {
 		t.Fatal("candidate omission altered counted grants", got, want)
 	}
-	if len(manager.CheckpointUnique(scope.ticket, nil)) != 1 {
+	if len(manager.CheckpointUnique(scope.LockTicket, nil)) != 1 {
 		t.Fatal("accepted unique claim was lost or skipped claim leaked")
 	}
 	failure := errors.New("candidate statement rollback")
@@ -189,7 +189,7 @@ func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	if got := advisoryUnitHold(session, key); got != want {
 		t.Fatal("statement Finish altered session ownership", got, want)
 	}
-	if len(manager.CheckpointUnique(scope.ticket, nil)) != 0 {
+	if len(manager.CheckpointUnique(scope.LockTicket, nil)) != 0 {
 		t.Fatal("finished statement retained unique claims")
 	}
 	for range 2 {

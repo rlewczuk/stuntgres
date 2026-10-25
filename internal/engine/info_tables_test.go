@@ -15,16 +15,16 @@ import (
 
 func tablesUnitInput(t *testing.T, f defaultUnitFixture, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.e.catalog.Read(state)
+	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoTablesOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "captured_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
 }
 
 func TestInfoTablesProducer(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 22400}, ObjectNamespace: f.schema, ObjectName: "tables_unit", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: f.owner}
 	state.SetDescriptor(table.Address(), table)
 	in := tablesUnitInput(t, f, state, f.owner)
@@ -102,11 +102,11 @@ func TestInfoTablesProducer(t *testing.T) {
 
 func TestInfoTablesCapture(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	old := tablesUnitInput(t, f, f.e.catalog.State, f.owner)
+	old := tablesUnitInput(t, f, f.e.Catalog.State, f.owner)
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoTablesOID)
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
@@ -122,7 +122,7 @@ func TestInfoTablesCapture(t *testing.T) {
 	// These corruptions protect ownership and layout, which public SQL cannot mint.
 	for _, kind := range []string{"width", "domain-generation", "base-generation", "origin"} {
 		t.Run(kind, func(t *testing.T) {
-			state := catalog.CloneState(f.e.catalog.State)
+			state := catalog.CloneState(f.e.Catalog.State)
 			source := *old.Source
 			source.Columns = append([]catalog.Column(nil), source.Columns...)
 			switch kind {

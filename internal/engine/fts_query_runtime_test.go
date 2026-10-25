@@ -123,29 +123,29 @@ func TestFTSQueryFunctionsProducerDemand(t *testing.T) {
 func TestFTSQueryFunctionsScratchRestoration(t *testing.T) {
 	address := ids.ObjectAddress{ObjectID: 90001}
 	original := []storage.RowVersion{{Row: 1, Version: 1}}
-	s := &StatementScope{Expected: &StatementDescription{}, sqlRoutine: sqlRoutineDemand{scalar: true}, ownWrites: map[ids.ObjectAddress][]storage.RowVersion{address: original}}
-	s.stage.rows = map[ids.ObjectAddress][]storage.RowVersion{address: {{Row: 2, Version: 2}}}
+	s := &StatementScope{Expected: &StatementDescription{}, sqlRoutine: sqlRoutineDemand{scalar: true}, OwnWrites: map[ids.ObjectAddress][]storage.RowVersion{address: original}}
+	s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{address: {{Row: 2, Version: 2}}}
 	dependencies := []catalog.ExpressionDependency{{Revision: 7}}
-	s.routineDependencies = dependencies
+	s.RoutineDependencies = dependencies
 	expected := s.Expected
-	prior := s.ownWrites[address]
+	prior := s.OwnWrites[address]
 	restore := s.activateSQLRoutine(nil, catalog.Read{})
-	if s.routineDependencies != nil {
+	if s.RoutineDependencies != nil {
 		t.Fatal("inner scope inherited outer dependencies")
 	}
 	innerDependencies := []catalog.ExpressionDependency{{Revision: 9}}
-	s.routineDependencies = innerDependencies
+	s.RoutineDependencies = innerDependencies
 	s.sqlRoutine.scalar, s.sqlRoutine.rewrite = false, true
-	if len(s.ownWrites[address]) != 2 || len(prior) != 1 {
+	if len(s.OwnWrites[address]) != 2 || len(prior) != 1 {
 		t.Fatal("private staged visibility")
 	}
 	nested := s.activateSQLRoutine(nil, catalog.Read{})
 	s.sqlRoutine.rewrite = false
-	if err := nested(nil); err != nil || !s.sqlRoutine.rewrite || len(s.routineDependencies) != 1 || &s.routineDependencies[0] != &innerDependencies[0] {
+	if err := nested(nil); err != nil || !s.sqlRoutine.rewrite || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &innerDependencies[0] {
 		t.Fatal("stackwise restore", err)
 	}
 	failure := errors.New("primary")
-	if restore(failure) != failure || s.Expected != expected || !s.sqlRoutine.scalar || s.sqlRoutine.rewrite || len(s.ownWrites[address]) != 1 || len(s.routineDependencies) != 1 || &s.routineDependencies[0] != &dependencies[0] {
+	if restore(failure) != failure || s.Expected != expected || !s.sqlRoutine.scalar || s.sqlRoutine.rewrite || len(s.OwnWrites[address]) != 1 || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &dependencies[0] {
 		t.Fatal("error scratch restoration")
 	}
 }

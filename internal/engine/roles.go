@@ -28,12 +28,12 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 	if !present || name == "none" {
 		return authorization.PrincipalRef{}, nil
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	roles := e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current())
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current())
 	target, ok := roles.Lookup(name)
 	if !ok {
-		return authorization.PrincipalRef{}, sqlError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
+		return authorization.PrincipalRef{}, SQLError("22023", fmt.Sprintf("role \"%s\" does not exist", name))
 	}
 	if err := authorization.ValidateInitialRole(roles, authenticated, target.Ref); err != nil {
 		return authorization.PrincipalRef{}, err
@@ -48,9 +48,9 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 	if selection, ok := stmt.(*parser.RoleSelection); ok && selection.Local && implicit {
 		op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	v, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	v, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return Result{}, err
 	}
@@ -73,7 +73,7 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		}
 		return Result{}, e.switchSessionRoleLocked(op, target, false, true)
 	case *parser.DropRole:
-		plan, err := role.PlanDropRoles(ddlHost{e: e, op: op}, v, s)
+		plan, err := role.PlanDropRoles(DDLHost{E: e, Op: op}, v, s)
 		if err != nil {
 			return Result{}, err
 		}
@@ -99,7 +99,7 @@ func (e *Engine) switchSessionRoleLocked(op *session.Operation, target authoriza
 	if err := session.RoleRevisionHeadroom(a, uint64(len(sess.Transactions.Savepoints))+3); err != nil {
 		return err
 	}
-	if err := publicationOperationLocked(e, op); err != nil {
+	if err := PublicationOperationLocked(e, op); err != nil {
 		return err
 	}
 	touchOperationIdentityLocked(op)
@@ -117,7 +117,7 @@ func (e *Engine) switchSessionRoleLocked(op *session.Operation, target authoriza
 func (e *Engine) publishDroppedRolesLocked(op *session.Operation, plan role.DropRolesPlan) (Result, error) {
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	if err := publicationOperationLocked(e, op); err != nil {
+	if err := PublicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
 	if err := e.installOperationRolesLocked(op, plan.Roles); err != nil {

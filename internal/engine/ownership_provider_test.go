@@ -32,7 +32,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					if err := role.StageOwnership(stage, member, source.Ref); err == nil {
 						t.Fatal("template acquired an owner")
 					}
-					if e.catalog.State != original.State() || stage.Get(member.Address()) != nil {
+					if e.Catalog.State != original.State() || stage.Get(member.Address()) != nil {
 						t.Fatal("ownerless template mutation")
 					}
 					return
@@ -41,20 +41,20 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					t.Fatal(err)
 				}
 				ownershipUnitPublish(t, e, stage)
-				sourceGeneration := e.catalog.State.Get(member.Address())
+				sourceGeneration := e.Catalog.State.Get(member.Address())
 				if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "own_source"}}, Target: parser.RoleSpec{Name: "own_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 					t.Fatal("canonical member reassignment", result, err)
 				}
-				reassigned := e.catalog.State.Get(member.Address())
+				reassigned := e.Catalog.State.Get(member.Address())
 				actual, _, _ := access.DescriptorACL(reassigned)
-				if actual != target.Ref || e.catalog.State.Get(extension.Address()) != extension || sourceGeneration == reassigned {
+				if actual != target.Ref || e.Catalog.State.Get(extension.Address()) != extension || sourceGeneration == reassigned {
 					t.Fatal("independent member reassignment")
 				}
 				previous, _, _ := access.DescriptorACL(sourceGeneration)
 				if previous != source.Ref {
 					t.Fatal("old member generation mutated")
 				}
-				committed, roles := e.catalog.State, e.roles.Published
+				committed, roles := e.Catalog.State, e.RoleStore.Published
 				dropMode := parser.DropRestrict
 				if mode == "CASCADE" {
 					dropMode = parser.DropCascade
@@ -82,7 +82,7 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 					t.Fatal("unexpected owned member", member)
 				}
 				expected := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + noun + " because extension unaccent requires it", Hint: "You can drop extension unaccent instead."}
-				if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, expected) || result.Count != 0 || result.Rows != nil || e.catalog.State != committed || e.roles.Published != roles {
+				if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, expected) || result.Count != 0 || result.Rows != nil || e.Catalog.State != committed || e.RoleStore.Published != roles {
 					t.Fatal("foreign member refusal/atomicity", result, err, diagnostic)
 				}
 				// Include the extension owner as an actual second source. Its canonical
@@ -97,11 +97,11 @@ func TestDropOwnedUnionCanonicalExtensionMembers(t *testing.T) {
 				if result, err := e.Execute(op, &parser.DropOwned{Sources: []parser.RoleSpec{{Name: "own_extension"}, {Name: "own_target"}}, Mode: dropMode}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
 					t.Fatal("canonical owner union", result, err)
 				}
-				if e.catalog.State.Get(extension.Address()) != nil {
+				if e.Catalog.State.Get(extension.Address()) != nil {
 					t.Fatal("extension survived complete union")
 				}
 				for _, address := range extension.Members {
-					if e.catalog.State.Get(address) != nil {
+					if e.Catalog.State.Get(address) != nil {
 						t.Fatal("canonical member survived", address)
 					}
 				}

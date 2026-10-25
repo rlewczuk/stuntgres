@@ -13,19 +13,19 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
+		return e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}), nil
 	}
 	name, err := parser.ParseRegclassName(text)
 	if err != nil {
-		return ids.ObjectRef{}, sqlError("42602", "invalid name syntax")
+		return ids.ObjectRef{}, SQLError("42602", "invalid name syntax")
 	}
 	database := ""
-	if auth.session != nil {
-		database = auth.session.DatabaseName
+	if auth.Session != nil {
+		database = auth.Session.DatabaseName
 	}
 	name, err = regobj.ClassQualifiedName(name, text, database)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
-	return e.resolveRelationReference(auth, name, false)
+	return e.ResolveRelationReference(auth, name, false)
 }

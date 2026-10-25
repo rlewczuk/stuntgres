@@ -38,30 +38,30 @@ type sequenceDeletePublicationSnapshot struct {
 
 func captureSequenceDeletePublication(e *Engine, s *session.Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
 	p := sequenceDeletePublicationSnapshot{
-		state: e.catalog.State, catalog: *e.catalog.State,
+		state: e.Catalog.State, catalog: *e.Catalog.State,
 		descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
-		storageID:       uintptr(reflect.ValueOf(e.storage.Relations).UnsafePointer()),
-		generatorsID:    uintptr(reflect.ValueOf(e.storage.Sequences).UnsafePointer()),
+		storageID:       uintptr(reflect.ValueOf(e.Storage.Relations).UnsafePointer()),
+		generatorsID:    uintptr(reflect.ValueOf(e.Storage.Sequences).UnsafePointer()),
 		stores:          make(map[ids.ObjectAddress]*storage.Relation),
 		generators:      make(map[ids.ObjectAddress]*storage.SequenceGenerator),
 		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
-		store:           e.storage.Relations[table], frontier: e.visibility.CommitSeq(),
-		temporary: s.TemporaryNamespace, last: payloadOf(s).sequences.Last(),
+		store:           e.Storage.Relations[table], frontier: e.Visibility.CommitSeq(),
+		temporary: s.TemporaryNamespace, last: PayloadOf(s).Sequences.Last(),
 		memory: make(map[ids.ObjectAddress]*sequence.Memory), memoryValues: make(map[ids.ObjectAddress]sequence.Memory),
 	}
-	for a, d := range e.catalog.State.Descriptors() {
+	for a, d := range e.Catalog.State.Descriptors() {
 		p.descriptors[a] = d
 	}
-	for k, a := range e.catalog.State.Names() {
+	for k, a := range e.Catalog.State.Names() {
 		p.names[k] = a
 	}
-	for a, store := range e.storage.Relations {
+	for a, store := range e.Storage.Relations {
 		p.stores[a] = store
 	}
-	for a, g := range e.storage.Sequences {
+	for a, g := range e.Storage.Sequences {
 		p.generators[a], p.generatorValues[a] = g, *g
 	}
-	for a, m := range payloadOf(s).sequences.All() {
+	for a, m := range PayloadOf(s).Sequences.All() {
 		p.memory[a], p.memoryValues[a] = m, *m
 	}
 	p.root, p.ends = p.store.Versions, p.store.Ends
@@ -80,33 +80,33 @@ func captureSequenceDeletePublication(e *Engine, s *session.Session, table ids.O
 
 func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engine, s *session.Session) {
 	t.Helper()
-	if e.catalog.State != p.state || !reflect.DeepEqual(*e.catalog.State, p.catalog) || !reflect.DeepEqual(maps.Collect(e.catalog.State.Descriptors()), p.descriptors) || !reflect.DeepEqual(maps.Collect(e.catalog.State.Names()), p.names) {
+	if e.Catalog.State != p.state || !reflect.DeepEqual(*e.Catalog.State, p.catalog) || !reflect.DeepEqual(maps.Collect(e.Catalog.State.Descriptors()), p.descriptors) || !reflect.DeepEqual(maps.Collect(e.Catalog.State.Names()), p.names) {
 		t.Fatal("failed combined publication changed catalog authority, descriptor/name bindings or namespace generation")
 	}
-	if uintptr(reflect.ValueOf(e.storage.Relations).UnsafePointer()) != p.storageID || uintptr(reflect.ValueOf(e.storage.Sequences).UnsafePointer()) != p.generatorsID || len(e.storage.Relations) != len(p.stores) || len(e.storage.Sequences) != len(p.generators) {
+	if uintptr(reflect.ValueOf(e.Storage.Relations).UnsafePointer()) != p.storageID || uintptr(reflect.ValueOf(e.Storage.Sequences).UnsafePointer()) != p.generatorsID || len(e.Storage.Relations) != len(p.stores) || len(e.Storage.Sequences) != len(p.generators) {
 		t.Fatal("failed combined publication replaced or resized shared storage/generator containers")
 	}
 	for a, store := range p.stores {
-		if e.storage.Relations[a] != store {
+		if e.Storage.Relations[a] != store {
 			t.Fatal("changed storage identity", a)
 		}
 	}
 	for a, g := range p.generators {
-		if e.storage.Sequences[a] != g || *g != p.generatorValues[a] {
+		if e.Storage.Sequences[a] != g || *g != p.generatorValues[a] {
 			t.Fatal("changed generator identity/state", a)
 		}
 	}
-	if len(p.store.Versions) != len(p.root) || &p.store.Versions[0] != &p.root[0] || !reflect.DeepEqual(p.store.Versions, p.rows) || p.store.Ends != p.ends || e.visibility.CommitSeq() != p.frontier {
+	if len(p.store.Versions) != len(p.root) || &p.store.Versions[0] != &p.root[0] || !reflect.DeepEqual(p.store.Versions, p.rows) || p.store.Ends != p.ends || e.Visibility.CommitSeq() != p.frontier {
 		t.Fatal("failed combined publication changed row/version vector, predecessor root or frontier")
 	}
 	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {
 		t.Fatal("changed committed deletion entries")
 	}
-	if s.TemporaryNamespace != p.temporary || payloadOf(s).sequences.Last() != p.last || payloadOf(s).sequences.Len() != len(p.memory) {
+	if s.TemporaryNamespace != p.temporary || PayloadOf(s).Sequences.Last() != p.last || PayloadOf(s).Sequences.Len() != len(p.memory) {
 		t.Fatal("failed combined publication changed session temporary handle or sequence memory container")
 	}
 	for a, m := range p.memory {
-		if payloadOf(s).sequences.Memory(a) != m || *m != p.memoryValues[a] {
+		if PayloadOf(s).Sequences.Memory(a) != m || *m != p.memoryValues[a] {
 			t.Fatal("changed session sequence memory", a)
 		}
 	}
@@ -119,7 +119,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *session.Session, table, s
 		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
 	}
 	g := tx.Catalog.Generators[sequence]
-	if g == nil || g.Last != 100 || g.Called || g == engineOf(s).storage.Sequences[sequence] {
+	if g == nil || g.Last != 100 || g.Called || g == EngineOf(s).Storage.Sequences[sequence] {
 		t.Fatal("fixture must contain a private restarted generator")
 	}
 	if firstTemp {
@@ -130,13 +130,13 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *session.Session, table, s
 		for a, d := range tx.Catalog.Descriptors {
 			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.SessionToken {
 				namespaces++
-				if tx.Catalog.Originals[a] != nil || engineOf(s).catalog.State.Get(a) != nil {
+				if tx.Catalog.Originals[a] != nil || EngineOf(s).Catalog.State.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}
 			if r, ok := d.(*catalog.Relation); ok && r.Name() == "first_temp" {
 				temps++
-				if tx.Catalog.Generators[a] == nil || engineOf(s).storage.Sequences[a] != nil {
+				if tx.Catalog.Generators[a] == nil || EngineOf(s).Storage.Sequences[a] != nil {
 					t.Fatal("TEMP generator is not private")
 				}
 			}
@@ -153,7 +153,7 @@ func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *session.Session,
 	if tx.State != session.TxIdle || tx.Ref != (ids.TxRef{}) || tx.Command != 0 || !tx.Start.IsZero() || tx.Writes != nil || tx.Deletes != nil || tx.Catalog != nil || tx.Ticket != nil {
 		t.Fatal("failed native Commit did not discard the complete private transaction incarnation")
 	}
-	if len(e.locks.Inspect(old).Journals[old]) != 0 {
+	if len(e.Locks.Inspect(old).Journals[old]) != 0 {
 		t.Fatal("failed transaction retained ticket resources")
 	}
 	lockEmpty(t, e)

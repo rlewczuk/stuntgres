@@ -26,7 +26,7 @@ func blockingUnitOwner(t *testing.T, e *Engine) (*session.Session, *lock.Ticket)
 }
 
 func blockingUnitResource(e *Engine) lock.Resource {
-	return lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
+	return lock.Resource{ObjectRef: e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
 }
 
 func blockingUnitType(e *Engine) *sqltype.Descriptor {
@@ -85,7 +85,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	owner, holder := blockingUnitOwner(t, e)
 	waiter, waiting := blockingUnitOwner(t, e)
 	resource := blockingUnitResource(e)
-	if err := e.locks.Acquire(context.Background(), holder, resource, lock.AccessExclusive); err != nil {
+	if err := e.Locks.Acquire(context.Background(), holder, resource, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	request := deadlockRequest(t, e, waiting, resource, lock.AccessExclusive)
@@ -101,7 +101,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.SessionToken.ID()))
 	inquiry.Arg = plan.LiteralExpr{Info: expr.Info{Usage: input.Type().Usage()}, Value: input}
 	inquiry.Property = expr.Properties{Volatility: expr.Volatile}
-	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}
+	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}}
 	before, err := inquiry.Eval(evaluation)
 	if err != nil || before.IsNull() || before.ArrayLen() != 1 {
 		t.Fatal("live inquiry", before, err)
@@ -110,7 +110,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if pid != int64(owner.SessionToken.ID()) {
 		t.Fatal("physical blocker mapping", pid)
 	}
-	e.endLockOwner(holder)
+	e.EndLockOwner(holder)
 	if err := deadlockResult(t, request); err != nil {
 		t.Fatal(err)
 	}
@@ -126,16 +126,16 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if value, err := planned.Eval(evaluation); err != nil || value.IsNull() || value.ArrayLen() != 0 {
 		t.Fatal("undemanded branch evaluated", value, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), New().catalog.Domain.Session(7), false, e.catalog.Domain); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), New().Catalog.Domain.Session(7), false, e.Catalog.Domain); err != nil || len(values) != 0 {
 		t.Fatal("foreign owner exposed", values, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), e.catalog.Domain.PrivateSession(s), false, e.catalog.Domain); err != nil || len(values) != 0 {
+	if values, err := appendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.PrivateSession(s), false, e.Catalog.Domain); err != nil || len(values) != 0 {
 		t.Fatal("private owner exposed", values, err)
 	}
-	if _, err := appendBlockingPid(nil, blockingUnitType(e), e.catalog.Domain.Session(math.MaxInt32+1), false, e.catalog.Domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+	if _, err := appendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.Session(math.MaxInt32+1), false, e.Catalog.Domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 		t.Fatal("unchecked PID projection", err)
 	}
-	zeros, err := appendBlockingPid(nil, blockingUnitType(e), e.catalog.Domain.Session(math.MaxInt32+1), true, e.catalog.Domain)
+	zeros, err := appendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.Session(math.MaxInt32+1), true, e.Catalog.Domain)
 	if err != nil || len(zeros) != 1 {
 		t.Fatal("prepared projection used physical ID", zeros, err)
 	}
@@ -152,10 +152,10 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		b, bt := blockingUnitOwner(t, e)
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		if err := e.locks.Acquire(context.Background(), at, resource, lock.AccessShare); err != nil {
+		if err := e.Locks.Acquire(context.Background(), at, resource, lock.AccessShare); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.locks.Acquire(context.Background(), bt, resource, lock.AccessShare); err != nil {
+		if err := e.Locks.Acquire(context.Background(), bt, resource, lock.AccessShare); err != nil {
 			t.Fatal(err)
 		}
 		// A is both a conflicting holder and an earlier queued upgrader for C.
@@ -165,7 +165,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			t.Fatal("missing actual upgrade queue")
 		}
 		before := blockingUnitWant(t, e, c.SessionToken.ID(), int64(a.SessionToken.ID()), int64(b.SessionToken.ID()))
-		e.endLockOwner(bt)
+		e.EndLockOwner(bt)
 		if err := deadlockResult(t, ar); err != nil {
 			t.Fatal(err)
 		}
@@ -173,7 +173,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if len(before) != 2 {
 			t.Fatal("snapshot aliases manager", before)
 		}
-		e.endLockOwner(at)
+		e.EndLockOwner(at)
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
@@ -185,7 +185,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		b, bt := blockingUnitOwner(t, e)
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
-		if err := e.locks.Acquire(context.Background(), at, resource, lock.AccessShare); err != nil {
+		if err := e.Locks.Acquire(context.Background(), at, resource, lock.AccessShare); err != nil {
 			t.Fatal(err)
 		}
 		br := deadlockRequest(t, e, bt, resource, lock.AccessExclusive)
@@ -195,7 +195,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		}
 		blockingUnitWant(t, e, b.SessionToken.ID(), int64(a.SessionToken.ID()))
 		blockingUnitWant(t, e, c.SessionToken.ID(), int64(b.SessionToken.ID()))
-		e.endLockOwner(bt)
+		e.EndLockOwner(bt)
 		if !errors.Is(deadlockResult(t, br), lock.ErrOwnerEnded) {
 			t.Fatal("ended requester not terminated")
 		}
@@ -211,10 +211,10 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		c, ct := blockingUnitOwner(t, e)
 		resource := blockingUnitResource(e)
 		for _, owner := range []*lock.Ticket{at, bt} {
-			if err := e.locks.Acquire(context.Background(), owner, resource, lock.AccessShare); err != nil {
+			if err := e.Locks.Acquire(context.Background(), owner, resource, lock.AccessShare); err != nil {
 				t.Fatal(err)
 			}
-			e.locks.DetachPrepared(owner)
+			e.Locks.DetachPrepared(owner)
 		}
 		cr := deadlockRequest(t, e, ct, resource, lock.AccessExclusive)
 		if cr == nil {
@@ -222,9 +222,9 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		}
 		blockingUnitWant(t, e, c.SessionToken.ID(), 0, 0)
 		blockingUnitWant(t, e, a.SessionToken.ID())
-		e.endLockOwner(at)
+		e.EndLockOwner(at)
 		blockingUnitWant(t, e, c.SessionToken.ID(), 0)
-		e.endLockOwner(bt)
+		e.EndLockOwner(bt)
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
@@ -246,7 +246,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		transactionBegin(t, high)
 		ht := high.Transactions.Ticket
 		resource := blockingUnitResource(e)
-		if err := e.locks.Acquire(context.Background(), lt, resource, lock.AccessExclusive); err != nil {
+		if err := e.Locks.Acquire(context.Background(), lt, resource, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		request := deadlockRequest(t, e, ht, resource, lock.AccessExclusive)
@@ -255,7 +255,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		}
 		blockingUnitWant(t, e, math.MaxInt32) // must not truncate high target
 		blockingUnitWant(t, e, high.SessionToken.ID(), int64(low.SessionToken.ID()))
-		e.endLockOwner(lt)
+		e.EndLockOwner(lt)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
@@ -269,7 +269,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if _, err := e.blockingPidValues(next.Session().ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 			t.Fatal("high live blocker", err)
 		}
-		e.endLockOwner(ht)
+		e.EndLockOwner(ht)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
@@ -287,7 +287,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 				first, later = lock.TransactionCompletion, lock.TransactionCompletion
 			} else {
 				resource.Row = 1
-				if err := e.locks.Acquire(context.Background(), at, resource, lock.ForKeyShare); err != nil {
+				if err := e.Locks.Acquire(context.Background(), at, resource, lock.ForKeyShare); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -307,9 +307,9 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 				}
 				blockingUnitWant(t, e, c.SessionToken.ID())
 			}
-			e.endLockOwner(at)
-			e.endLockOwner(bt)
-			e.endLockOwner(ct)
+			e.EndLockOwner(at)
+			e.EndLockOwner(bt)
+			e.EndLockOwner(ct)
 		}
 	})
 }

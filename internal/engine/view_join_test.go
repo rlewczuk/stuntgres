@@ -16,7 +16,7 @@ func TestViewJoinedOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	reader, _ := e.Roles().Lookup("joined_reader")
-	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
@@ -39,7 +39,7 @@ func TestViewJoinedOriginalInvokerAuthority(t *testing.T) {
 		saved := description.Results[0]
 		execute := func(prepared, denied, empty bool) {
 			t.Helper()
-			before := e.catalog.State
+			before := e.Catalog.State
 			scope, err := e.StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
@@ -52,7 +52,7 @@ func TestViewJoinedOriginalInvokerAuthority(t *testing.T) {
 			if denied {
 				var diagnostic *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table b"}
-				if !errors.As(err, &diagnostic) || *diagnostic != want || result.Rows != nil || result.Count != 0 || e.catalog.State != before {
+				if !errors.As(err, &diagnostic) || *diagnostic != want || result.Rows != nil || result.Count != 0 || e.Catalog.State != before {
 					t.Fatal(name, prepared, result, err)
 				}
 				return

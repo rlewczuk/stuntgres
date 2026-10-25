@@ -23,7 +23,7 @@ func snapshotUnitRows(t *testing.T, scope *StatementScope, ref ids.ObjectRef, wa
 	if captured.Frontier() != scope.snapshotFrontier {
 		t.Fatal("physical source advanced the active frontier")
 	}
-	source, err := exec.CaptureSource(scope.op.Context(), captured, ref)
+	source, err := exec.CaptureSource(scope.Op.Context(), captured, ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,12 +47,12 @@ func TestSnapshotAuthoritativeCapture(t *testing.T) {
 			_, bumper := blockingUnitOwner(t, e)
 			pgLocksUnitAssign(t, e, peer)
 			pgLocksUnitAssign(t, e, bumper)
-			e.mu.Lock()
-			e.visibility.SetCommitSeqLocked(10)
-			e.visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
-			store := e.storage.Relations[relation.Address()]
+			e.Mu.Lock()
+			e.Visibility.SetCommitSeqLocked(10)
+			e.Visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
+			store := e.Storage.Relations[relation.Address()]
 			store.Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 10}}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			observer, _ := blockingUnitOwner(t, e)
 			scope, _, _ := concurrentUnitSnapshotScope(t, e, observer)
 			if err := scope.snapshotExecutionAdmission(&parser.Select{}); err != nil {
@@ -61,19 +61,19 @@ func TestSnapshotAuthoritativeCapture(t *testing.T) {
 			if scope.currentSnapshot != nil {
 				t.Fatal("RC dispatch selected a pre-admission snapshot")
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			store.Versions = append(store.Versions, storage.RowVersion{Row: 2, Version: 2, Born: 11})
-			e.visibility.AdvanceCommitSeqLocked()
-			e.visibility.EndTransactionIdentityLocked(peer.Ref(), true)
-			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
+			e.Visibility.AdvanceCommitSeqLocked()
+			e.Visibility.EndTransactionIdentityLocked(peer.Ref(), true)
+			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), relation.Address())
 			var leaves []exec.Leaf
 			if !singleton {
 				leaves = []exec.Leaf{{Ref: ref, Relation: relation, Storage: store}}
 			}
 			// The admitted source tree, including a no-FROM singleton, chooses
 			// the same pair before constructing any physical source.
-			source, err := e.captureQuerySourcesLocked(scope, leaves, singleton)
-			e.mu.Unlock()
+			source, err := e.CaptureQuerySourcesLocked(scope, leaves, singleton)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -82,7 +82,7 @@ func TestSnapshotAuthoritativeCapture(t *testing.T) {
 				t.Fatal("source admission did not select one current pair")
 			}
 			if !singleton {
-				if err := exec.SelectQuerySources(scope.op.Context(), source); err != nil {
+				if err := exec.SelectQuerySources(scope.Op.Context(), source); err != nil {
 					t.Fatal(err)
 				}
 				if source.View.Frontier() != 11 || source.Count() != 2 || source.VersionAt(source.RawIndex(1)).Row != 2 {
@@ -102,16 +102,16 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 	_, bumper := blockingUnitOwner(t, e)
 	pgLocksUnitAssign(t, e, holderRef)
 	pgLocksUnitAssign(t, e, bumper)
-	targetRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), target.Address())
-	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: targetRef}, lock.AccessExclusive); err != nil {
+	targetRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), target.Address())
+	if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: targetRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	e.visibility.SetCommitSeqLocked(10)
-	e.visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
-	store := e.storage.Relations[relation.Address()]
+	e.Mu.Lock()
+	e.Visibility.SetCommitSeqLocked(10)
+	e.Visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
+	store := e.Storage.Relations[relation.Address()]
 	store.Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 10}, {Row: 2, Version: 2, Born: 10}}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	scope := refreshUnitScope(t, e, ctx)
@@ -120,7 +120,7 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 	joined := false
 	defer func() {
 		cancel()
-		e.endLockOwner(holder.Transactions.Ticket)
+		e.EndLockOwner(holder.Transactions.Ticket)
 		if !joined {
 			lockAwait(t, done, context.Canceled)
 		}
@@ -129,29 +129,29 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 	lockPending(t, e, 1)
 	// Publication while the real utility target lock is pending must not move
 	// either half of its active snapshot. Roots are intentionally obtained later.
-	e.mu.Lock()
+	e.Mu.Lock()
 	store.Versions = append(store.Versions, storage.RowVersion{Row: 3, Version: 3, Born: 11})
 	store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{2: {Version: 2, End: 11}}}
-	e.visibility.AdvanceCommitSeqLocked()
-	e.visibility.EndTransactionIdentityLocked(holderRef.Ref(), true)
-	e.mu.Unlock()
-	e.endLockOwner(holder.Transactions.Ticket)
+	e.Visibility.AdvanceCommitSeqLocked()
+	e.Visibility.EndTransactionIdentityLocked(holderRef.Ref(), true)
+	e.Mu.Unlock()
+	e.EndLockOwner(holder.Transactions.Ticket)
 	lockAwait(t, done, nil)
 	joined = true
 	id := uint64(holderRef.AssignedFullXID())
 	if scope.currentSnapshot == nil || scope.currentSnapshot.Visible(id) || scope.snapshotFrontier != 10 {
 		t.Fatal("utility pair refreshed across target wait")
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), relation.Address())
 	snapshotUnitRows(t, scope, ref, []ids.RowID{1, 2})
-	data := scope.view.Data()
+	data := scope.View.Data()
 	if len(data.Committed[ref.Address]) != 3 || !data.NeedsBirthFilterAt(ref.Address) || data.Ends[ref.Address] != store.Ends {
 		t.Fatal("late physical capture did not retain and filter real birth/end roots")
 	}
 	observer, _ := blockingUnitOwner(t, e)
 	next, _, _ := concurrentUnitSnapshotScope(t, e, observer)
 	snapshotUnitRows(t, next, ref, []ids.RowID{1, 3})
-	if next.snapshotFrontier != 11 || !next.currentSnapshot.Visible(id) || next.view.Data().NeedsBirthFilterAt(ref.Address) {
+	if next.snapshotFrontier != 11 || !next.currentSnapshot.Visible(id) || next.View.Data().NeedsBirthFilterAt(ref.Address) {
 		t.Fatal("fresh RC capture did not use the completed publication")
 	}
 }
@@ -168,12 +168,12 @@ func TestSnapshotPartitionUtilityCapture(t *testing.T) {
 			_, bumper := blockingUnitOwner(t, e)
 			pgLocksUnitAssign(t, e, peer)
 			pgLocksUnitAssign(t, e, bumper)
-			e.mu.Lock()
-			e.visibility.SetCommitSeqLocked(10)
-			e.visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
-			store := e.storage.Relations[relation.Address()]
+			e.Mu.Lock()
+			e.Visibility.SetCommitSeqLocked(10)
+			e.Visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
+			store := e.Storage.Relations[relation.Address()]
 			store.Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 10}}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			observer, _ := blockingUnitOwner(t, e)
 			observer.Transactions.Isolation = isolation
 			scope, _, _ := concurrentUnitSnapshotScope(t, e, observer)
@@ -184,18 +184,18 @@ func TestSnapshotPartitionUtilityCapture(t *testing.T) {
 					Bound: parser.PartitionBound{Default: true},
 				},
 			}
-			if err := scope.acquireRelation(stmt, true); err != nil {
+			if err := scope.AcquireRelation(stmt, true); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			store.Versions = append(store.Versions, storage.RowVersion{Row: 2, Version: 2, Born: 11})
-			e.visibility.AdvanceCommitSeqLocked()
-			e.visibility.EndTransactionIdentityLocked(peer.Ref(), true)
-			e.mu.Unlock()
-			if scope.currentSnapshot == nil || scope.currentSnapshot != scope.owner.CurrentSnapshot || scope.currentSnapshot.Visible(uint64(peer.AssignedFullXID())) || scope.snapshotFrontier != 10 {
+			e.Visibility.AdvanceCommitSeqLocked()
+			e.Visibility.EndTransactionIdentityLocked(peer.Ref(), true)
+			e.Mu.Unlock()
+			if scope.currentSnapshot == nil || scope.currentSnapshot != scope.Owner.CurrentSnapshot || scope.currentSnapshot.Visible(uint64(peer.AssignedFullXID())) || scope.snapshotFrontier != 10 {
 				t.Fatal("partition utility did not retain its first stable pair")
 			}
-			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
+			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), relation.Address())
 			snapshotUnitRows(t, scope, ref, []ids.RowID{1})
 		})
 	}

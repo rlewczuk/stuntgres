@@ -19,7 +19,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cursor := &sqlCursor{root: root, source: source, state: state, stage: &stage}
+	cursor := &sqlCursor{root: root, Source: source, state: state, stage: &stage}
 	p := &protocolPortal{producer: cursor}
 	row := make([]sqltype.Value, 1)
 	if calls != 0 {
@@ -43,7 +43,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	newPortal := &protocolPortal{tx: owner.Ref, born: 2, rows: newRows}
 	foreign := &protocolPortal{tx: owner.Ref, born: 3, rows: foreignRows}
 	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)
-	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
+	PayloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
 	owner.Mu.Lock()
 	retireProtocolPortalsAfter(owner, 1)
 	owner.Mu.Unlock()
@@ -59,7 +59,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	if err = p.close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !stage.Closed || cursor.root != nil || cursor.source != nil || cursor.stage != nil || p.producer != nil {
+	if !stage.Closed || cursor.root != nil || cursor.Source != nil || cursor.stage != nil || p.producer != nil {
 		t.Fatal("terminal close retained producer")
 	}
 	if err = p.close(context.Background()); err != nil || calls != 4 {

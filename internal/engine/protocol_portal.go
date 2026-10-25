@@ -80,7 +80,7 @@ func (p *protocolPortal) releaseExecutor(ctx context.Context) error {
 	return err
 }
 func (s *StatementScope) BindProtocolPortal(name, statement string, input session.ProtocolInput) (out session.ProtocolContext, err error) {
-	entry := payloadOf(s.op.Session).preparedSQL.entries[statement]
+	entry := PayloadOf(s.Op.Session).preparedSQL.entries[statement]
 	if entry == nil {
 		return out, missingSQLPrepared(statement)
 	}
@@ -94,40 +94,40 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 		return out, err
 	}
 	if len(formats) > 1 && len(formats) != int(count) {
-		return out, sqlError("08P01", fmt.Sprintf("bind message has %d parameter formats but %d parameters", len(formats), count))
+		return out, SQLError("08P01", fmt.Sprintf("bind message has %d parameter formats but %d parameters", len(formats), count))
 	}
 	if int(count) != entry.description.Parameters.Count {
-		return out, sqlError("08P01", fmt.Sprintf("bind message supplies %d parameters, but prepared statement \"%s\" requires %d", count, statement, entry.description.Parameters.Count))
+		return out, SQLError("08P01", fmt.Sprintf("bind message supplies %d parameters, but prepared statement \"%s\" requires %d", count, statement, entry.description.Parameters.Count))
 	}
-	if err = s.gate(entry.body); err != nil {
+	if err = s.Gate(entry.body); err != nil {
 		return out, err
 	}
 	if entry.body == nil {
-		s.owner.Mu.Lock()
-		err = s.admitTransactionLocked(s.engine())
-		s.owner.Mu.Unlock()
+		s.Owner.Mu.Lock()
+		err = s.admitTransactionLocked(s.Engine())
+		s.Owner.Mu.Unlock()
 		if err != nil {
 			return out, err
 		}
 	}
-	r := payloadOf(s.op.Session).preparedSQL
+	r := PayloadOf(s.Op.Session).preparedSQL
 	if old := r.portals[name]; old != nil && !old.retired {
 		if name != "" {
-			return out, sqlError("42P03", fmt.Sprintf("cursor \"%s\" already exists", name))
+			return out, SQLError("42P03", fmt.Sprintf("cursor \"%s\" already exists", name))
 		}
-		if err = s.protocolSimpleIO(func() error { return old.close(s.op.Context()) }); err != nil {
+		if err = s.protocolSimpleIO(func() error { return old.close(s.Op.Context()) }); err != nil {
 			return out, err
 		}
 	}
-	if payloadOf(s.op.Session).cursors.entries[name] != nil {
-		return out, sqlError("42P03", fmt.Sprintf("cursor \"%s\" already exists", name))
+	if PayloadOf(s.Op.Session).Cursors.Entries[name] != nil {
+		return out, SQLError("42P03", fmt.Sprintf("cursor \"%s\" already exists", name))
 	}
-	births := payloadOf(s.op.Session).cursors
+	births := PayloadOf(s.Op.Session).Cursors
 	if births.ordinal == ^uint64(0) {
 		return out, fmt.Errorf("stuntgres: portal creation counter exhausted")
 	}
 	births.ordinal++
-	p := &protocolPortal{entry: *entry, context: out, columns: entry.description.Results, tx: s.txRef, born: births.ordinal}
+	p := &protocolPortal{entry: *entry, context: out, columns: entry.description.Results, tx: s.TxRef, born: births.ordinal}
 	if r.portals == nil {
 		r.portals = make(map[string]*protocolPortal)
 	}
@@ -137,16 +137,16 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 			err = s.sessionPublicationPreflight()
 		}
 		if err == nil {
-			s.completed, s.sessionCompleted = true, true
+			s.Completed, s.sessionCompleted = true, true
 		}
 		out = p.context
 		if err != nil {
-			_ = s.protocolTerminalIO(func() error { return p.close(s.op.Context()) })
+			_ = s.protocolTerminalIO(func() error { return p.close(s.Op.Context()) })
 			delete(r.portals, name)
 		}
 	}()
 	importer := func(ctx context.Context, formal analyze.ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment) error {
-		if e := session.ImportProtocolParameters(s.op.Context(), s.output, input, formats, formal.Count, formal.Types, frame, env, &p.context, session.ProtocolBindInput); e != nil {
+		if e := session.ImportProtocolParameters(s.Op.Context(), s.Output, input, formats, formal.Count, formal.Types, frame, env, &p.context, session.ProtocolBindInput); e != nil {
 			var diagnostic *sqlstate.Error
 			if errors.As(e, &diagnostic) {
 				copy := *diagnostic
@@ -191,20 +191,20 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 		}
 		if count != 0 {
 			formal := analyze.ParameterInfo{Count: int(count), Types: make([]sqltype.Usage, int(count))}
-			e := s.engine()
-			e.mu.Lock()
-			auth, lookupErr := e.authorizationLocked(s.op)
+			e := s.Engine()
+			e.Mu.Lock()
+			auth, lookupErr := e.AuthorizationLocked(s.Op)
 			if lookupErr == nil {
 				for i, oid := range entry.parameterOIDs {
 					typ, ok := auth.Catalog.LookupType(sqltype.ID(oid))
 					if !ok {
-						lookupErr = sqlError("42704", fmt.Sprintf("type with OID %d does not exist", oid))
+						lookupErr = SQLError("42704", fmt.Sprintf("type with OID %d does not exist", oid))
 						break
 					}
 					formal.Types[i] = typ.Usage()
 				}
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if lookupErr != nil {
 				return out, lookupErr
 			}
@@ -212,7 +212,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 				return out, err
 			}
 			p.values = make([]sqltype.Value, int(count))
-			err = importer(s.op.Context(), formal, p.values, s.input)
+			err = importer(s.Op.Context(), formal, p.values, s.Input)
 		}
 		return out, err
 	}
@@ -227,36 +227,36 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 			return out, err
 		}
 		p.values = make([]sqltype.Value, int(count))
-		err = importer(s.op.Context(), entry.description.Parameters, p.values, s.input)
+		err = importer(s.Op.Context(), entry.description.Parameters, p.values, s.Input)
 	}
-	p.tx = s.txRef
+	p.tx = s.TxRef
 	return out, err
 }
 func (s *StatementScope) DescribeProtocolPortal(name string) (ProtocolPortalDescription, error) {
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return ProtocolPortalDescription{}, err
 	}
-	p := payloadOf(s.op.Session).preparedSQL.portals[name]
+	p := PayloadOf(s.Op.Session).preparedSQL.portals[name]
 	if p == nil || p.retired {
 		return ProtocolPortalDescription{}, missingProtocolPortal(name)
 	}
-	if session.ProtocolHasRows(p.entry.body, p.columns) && s.op.Session.TransactionState() == session.TxAborted {
+	if session.ProtocolHasRows(p.entry.body, p.columns) && s.Op.Session.TransactionState() == session.TxAborted {
 		return ProtocolPortalDescription{}, session.AbortedError()
 	}
 	return ProtocolPortalDescription{Columns: p.columns, Formats: p.formats, Context: p.context, Empty: p.entry.body == nil, HasRows: session.ProtocolHasRows(p.entry.body, p.columns)}, nil
 }
 func (s *StatementScope) CloseProtocolPortal(name string) error {
-	r := payloadOf(s.op.Session).preparedSQL
+	r := PayloadOf(s.Op.Session).preparedSQL
 	if p := r.portals[name]; p != nil {
 		return s.protocolSimpleIO(func() error {
 			delete(r.portals, name)
-			return p.close(s.op.Context())
+			return p.close(s.Op.Context())
 		})
 	}
-	if c := payloadOf(s.op.Session).cursors.entries[name]; c != nil {
+	if c := PayloadOf(s.Op.Session).Cursors.Entries[name]; c != nil {
 		return s.protocolSimpleIO(func() error {
-			delete(payloadOf(s.op.Session).cursors.entries, name)
-			return c.dispose(s.op.Context())
+			delete(PayloadOf(s.Op.Session).Cursors.Entries, name)
+			return c.dispose(s.Op.Context())
 		})
 	}
 	return nil
@@ -265,10 +265,10 @@ func (s *StatementScope) CloseProtocolPortal(name string) error {
 // Savepoint publication only removes visibility; callbacks and producer
 // disposal belong to the existing unlocked terminal cleanup path.
 func retireProtocolPortalsAfter(t *session.TransactionOwner, frontier uint64) {
-	if payloadOf(t.Session).preparedSQL == nil {
+	if PayloadOf(t.Session).preparedSQL == nil {
 		return
 	}
-	for _, p := range payloadOf(t.Session).preparedSQL.portals {
+	for _, p := range PayloadOf(t.Session).preparedSQL.portals {
 		if p.tx == t.Ref && p.born > frontier {
 			p.retired = true
 		}
@@ -281,16 +281,16 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 		source.Close()
 		return Result{}, fmt.Errorf("stuntgres: portal lacks projection")
 	}
-	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), root: project, schema: project.Schema(), source: source, authority: s.authority,
-		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles, routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
-		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog, visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
+	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), root: project, schema: project.Schema(), Source: source, authority: s.authority,
+		leaves: s.QuerySources, locks: s.QueryLockContext, catalog: s.Inquiry.CommentCatalog, roles: s.Inquiry.commentRoles, routineDependencies: s.RoutineDependencies, routineAuth: s.RoutineAuth,
+		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog, visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}
 	c.currentSnapshot, c.snapshotFrontier = s.currentSnapshot, s.snapshotFrontier
-	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
+	c.state = exec.State{Source: source, SourceMode: exec.SourceReusable, Parameters: values, Input: s.Input, Output: s.Output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
 	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil
 	c.state.Output.Regcollation, c.state.Output.Regnamespace, c.state.Output.RegTS = nil, nil, nil
-	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
+	c.deparseAuth.Session, c.deparseAuth.settings = nil, nil
 	regobj.DetachCursorInput(&c.state.Input, c.authority)
 	c.foreignOwner = s.foreignTablesSlot.takeOwner()
 	s.takeRowSecurityPrograms(c)
@@ -298,13 +298,13 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 	bind.producer = c
 	bind.completionBase, bind.completionCounted = "SELECT", true
 	s.authority.Host = nil
-	s.routineAuth = AuthorizationView{}
-	s.routineDependencies = nil
+	s.RoutineAuth = AuthorizationView{}
+	s.RoutineDependencies = nil
 	return Result{}, nil
 }
 
 func (s *StatementScope) ExecuteProtocolPortal(name string, maxRows uint32, sink func([]session.ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (out ProtocolExecution, err error) {
-	p := payloadOf(s.op.Session).preparedSQL.portals[name]
+	p := PayloadOf(s.Op.Session).preparedSQL.portals[name]
 	if p == nil || p.retired {
 		return out, missingProtocolPortal(name)
 	}
@@ -316,22 +316,22 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		out.Empty = true
 		return out, nil
 	}
-	if err = s.gate(p.entry.body); err != nil {
+	if err = s.Gate(p.entry.body); err != nil {
 		return out, err
 	}
-	if p.tx != s.txRef {
+	if p.tx != s.TxRef {
 		return out, missingProtocolPortal(name)
 	}
-	if cycle := s.owner.ProtocolCycle; extended && cycle != nil {
+	if cycle := s.Owner.ProtocolCycle; extended && cycle != nil {
 		cycle.Executed = true
 	}
 	if p.state == protocolPortalDone || p.state == protocolPortalFailed {
-		return out, sqlError("55000", fmt.Sprintf("portal \"%s\" cannot be run", name))
+		return out, SQLError("55000", fmt.Sprintf("portal \"%s\" cannot be run", name))
 	}
 	defer func() {
 		if err != nil {
 			p.state = protocolPortalFailed
-			_ = s.protocolTerminalIO(func() error { return p.releaseExecutor(s.op.Context()) })
+			_ = s.protocolTerminalIO(func() error { return p.releaseExecutor(s.Op.Context()) })
 		}
 	}()
 	if p.state == protocolPortalExhausted {
@@ -384,7 +384,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 	catalogReady := p.producer != nil
 	for int32(maxRows) <= 0 || out.Count < int64(maxRows) {
 		var present bool
-		present, err = p.next(s.op.Context(), values)
+		present, err = p.next(s.Op.Context(), values)
 		if err != nil {
 			return out, err
 		}
@@ -410,10 +410,10 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if !catalogReady {
 			// Stored typed rows remain immutable. This destination captures
 			// current catalog presentation once, never the old Rows formatter.
-			e := s.engine()
-			e.mu.Lock()
-			auth, captureErr := e.authorizationLocked(s.op)
-			e.mu.Unlock()
+			e := s.Engine()
+			e.Mu.Lock()
+			auth, captureErr := e.AuthorizationLocked(s.Op)
+			e.Mu.Unlock()
 			if captureErr != nil {
 				return out, captureErr
 			}
@@ -424,7 +424,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if err = s.captureProtocolOutput(p.outputRows, values, catalog); err != nil {
 			return out, err
 		}
-		fields, scratch, err = session.EncodeProtocolRow(s.op.Context(), values, p.formats, p.outputRows.Output, fields, scratch)
+		fields, scratch, err = session.EncodeProtocolRow(s.Op.Context(), values, p.formats, p.outputRows.Output, fields, scratch)
 		if err != nil {
 			return out, err
 		}
@@ -494,8 +494,8 @@ func (s *StatementScope) enterProtocolProducer(c *sqlCursor) {
 func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
 	c.authority.Host = nil
 	s.setForeignCursor(nil)
-	s.routineAuth = AuthorizationView{}
-	s.routineDependencies = nil
+	s.RoutineAuth = AuthorizationView{}
+	s.RoutineDependencies = nil
 	s.protocol().resume = false
 }
 
@@ -512,7 +512,7 @@ func (s *StatementScope) captureProtocolOutput(rows *exec.FinalRows, values []sq
 	clear(rows.RegobjectOutput)
 	clear(rows.RegTSOutput)
 	clear(rows.AclitemOutput)
-	rows.Values, rows.Output = values, s.output
+	rows.Values, rows.Output = values, s.Output
 	if err := s.captureSQLCursorOutput(rows, catalog); err != nil {
 		return err
 	}

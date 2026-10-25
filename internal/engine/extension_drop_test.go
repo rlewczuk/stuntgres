@@ -94,9 +94,9 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			if err := extensionUnitExecute(t, e, op, extensionDropUnitStatement("unaccent")); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			private := e.privateCatalogLocked(session.TxOwnerOf(tx).Catalog)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			private := e.PrivateCatalogLocked(session.TxOwnerOf(tx).Catalog)
+			e.Mu.Unlock()
 			for _, a := range extension.RemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
 				if private.Get(a) != nil || e.CatalogRead().Get(a) != before.Get(a) {
 					t.Fatal("private retirement leaked", a)
@@ -113,9 +113,9 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			}
 			restored := e.CatalogRead()
 			if savepoint {
-				e.mu.Lock()
-				restored = e.privateCatalogLocked(session.TxOwnerOf(tx).Catalog)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				restored = e.PrivateCatalogLocked(session.TxOwnerOf(tx).Catalog)
+				e.Mu.Unlock()
 			}
 			for _, a := range extension.RemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
 				if restored.Get(a) != before.Get(a) {
@@ -153,9 +153,9 @@ func TestExtensionDropPublication(t *testing.T) {
 					if err := extensionUnitExecute(t, e, op, extensionDropUnitStatement(ext.Name())); err != nil {
 						t.Fatal(err)
 					}
-					e.mu.Lock()
+					e.Mu.Lock()
 					observations := session.TxOwnerOf(tx).Catalog.Dependencies
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					extensionDropUnitCaptured(t, observations, target)
 					if consumer == "query_int_array_column_unsupported" {
 						extensionDropUnitArrayBoundary(t, e, peer, ext, target)
@@ -184,7 +184,7 @@ func TestExtensionDropPublication(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				extensionDropUnitCaptured(t, stage.sequence.IdentityDependencyList(), target)
+				extensionDropUnitCaptured(t, stage.Sequence.IdentityDependencyList(), target)
 				if consumer == "query_int_array_column_unsupported" {
 					extensionDropUnitArrayBoundary(t, e, peer, ext, target)
 					return
@@ -192,7 +192,7 @@ func TestExtensionDropPublication(t *testing.T) {
 				owner := extensionDropUnitConsumer(t, e, peer, consumer, target)
 				before := e.CatalogRead()
 				unchanged := extensionDropUnitStorage(t, e)
-				_, err = e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 				extensionDropUnitRejected(t, e, before, ext, owner, err)
 				unchanged()
 			})
@@ -233,11 +233,11 @@ func extensionDropUnitRetirement(t *testing.T, e *Engine, ext *catalog.Extension
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	roots := extension.RemovalRoots(stage.Base, []ids.ObjectAddress{ext.Address()})
 	for _, address := range roots {
-		if err := stage.removeObject(e.catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
+		if err := stage.removeObject(e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, roots, parser.DropCascade, nil, nil, nil, ext.Address()); err != nil {
+	if err := StageExpressionDependencies(context.Background(), stage, roots, parser.DropCascade, nil, nil, nil, ext.Address()); err != nil {
 		t.Fatal(err)
 	}
 	return stage
@@ -259,14 +259,14 @@ func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *session.Operati
 	alias := before.MustType(target)
 	unchanged := extensionDropUnitStorage(t, e)
 	raw := statement(t, "CREATE TABLE ext_drop_late(v query_int[])").(*parser.CreateTable)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var stage *CatalogStage
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err = e.schemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if stage != nil {
 		e.DiscardCatalogStage(stage)
 	}
@@ -339,21 +339,21 @@ func extensionDropUnitPreserved(t *testing.T, e *Engine, before catalog.Read, ex
 
 func extensionDropUnitStorage(t *testing.T, e *Engine) func() {
 	t.Helper()
-	relations := maps.Clone(e.storage.Relations)
+	relations := maps.Clone(e.Storage.Relations)
 	shapes := make(map[ids.ObjectAddress]session.StorageChange, len(relations))
 	for address, store := range relations {
 		if store != nil {
 			shapes[address] = session.StorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
 		}
 	}
-	indexes := maps.Clone(e.storage.IndexRoots)
+	indexes := maps.Clone(e.Storage.IndexRoots)
 	return func() {
 		t.Helper()
-		if !maps.Equal(relations, e.storage.Relations) || !maps.Equal(indexes, e.storage.IndexRoots) {
+		if !maps.Equal(relations, e.Storage.Relations) || !maps.Equal(indexes, e.Storage.IndexRoots) {
 			t.Error("failed retirement changed committed storage or index roots")
 		}
 		for address, shape := range shapes {
-			store := e.storage.Relations[address]
+			store := e.Storage.Relations[address]
 			if store != shape.Original || store.Generation != shape.Generation || store.Ends != shape.Ends || !storage.SameVersionRoot(store.Versions, shape.Root) {
 				t.Error("failed retirement changed committed row root", address)
 			}
@@ -372,10 +372,10 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				extensionDropUnitCaptured(t, stage.sequence.IdentityDependencyList(), target)
+				extensionDropUnitCaptured(t, stage.Sequence.IdentityDependencyList(), target)
 				if control == "unrelated" {
 					domainUnitTable(t, e, op, "CREATE TABLE ext_drop_unrelated(v integer)")
-					if _, err := e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+					if _, err := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 						t.Fatal("unrelated peer publication rejected", err)
 					}
 					return
@@ -383,7 +383,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 				owner := extensionDropUnitConsumer(t, e, op, consumer, target)
 				current := e.CatalogRead()
 				candidate := catalog.CloneState(current.State())
-				for _, observation := range stage.sequence.IdentityDependencyList() {
+				for _, observation := range stage.Sequence.IdentityDependencyList() {
 					for _, address := range observation.Targets {
 						candidate.RemoveDescriptor(address)
 					}
@@ -406,7 +406,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 						if control == "rewired" {
 							rewire := e.BeginCatalogStage(current)
 							defer e.DiscardCatalogStage(rewire)
-							if err := (ddlHost{stage: rewire}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
+							if err := (DDLHost{CatalogStage: rewire}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
 								t.Fatal(err)
 							}
 							candidate.SetDescriptor(d.Address(), rewire.Get(d.Address()))
@@ -453,7 +453,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 					extensionDropUnitRejected(t, e, before, ext, before.Get(owner.Address()), err)
 					return
 				}
-				err = catalogDependencyPreflight(current.State(), candidate, stage.sequence.IdentityDependencyList(), nil)
+				err = catalogDependencyPreflight(current.State(), candidate, stage.Sequence.IdentityDependencyList(), nil)
 				var conflict catalog.Conflict
 				if control == "still_dependent" {
 					if !errors.As(err, &conflict) {
@@ -488,7 +488,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 		}
 		stage := extensionDropUnitRetirement(t, e, ext)
 		defer e.DiscardCatalogStage(stage)
-		extensionDropUnitCaptured(t, stage.sequence.IdentityDependencyList(), target)
+		extensionDropUnitCaptured(t, stage.Sequence.IdentityDependencyList(), target)
 		if before.Get(target) != alias || before.MustType(target).SQLType != array {
 			t.Fatal("retirement mutated retained automatic alias")
 		}
@@ -533,7 +533,7 @@ func extensionDropUnitWaitingView(t *testing.T, e *Engine, dropper *session.Oper
 	lockPending(t, e, 1)
 	before := e.CatalogRead()
 	resource := lock.Resource{ObjectRef: before.Domain().Ref(before.Epoch(), target)}
-	entry := e.locks.Inspect().Resources[resource]
+	entry := e.Locks.Inspect().Resources[resource]
 	if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Mode != lock.AccessShare || entry.Holders[session.TxOwnerOf(tx).Ticket].Mode&lock.AccessExclusive == 0 {
 		t.Fatal("late checked view did not wait on exact retiring member", target)
 	}
@@ -583,7 +583,7 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 	if err := extensionUnitExecute(t, e, op, consumer); err != nil {
 		t.Fatal(err)
 	}
-	before := e.catalog.State
+	before := e.Catalog.State
 	stmt := extensionDropUnitStatement("fuzzystrmatch")
 	stmt.Mode = parser.DropRestrict
 	err := extensionUnitExecute(t, e, op, stmt)
@@ -591,7 +591,7 @@ func TestExtensionDropDiagnostics(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || diagnostic.Detail != "view ext_drop_generic depends on function levenshtein_less_equal(text,text,integer,integer,integer,integer)" {
 		t.Fatal("generic stored consumer must reject retirement without renderer panic", err)
 	}
-	if e.catalog.State != before {
+	if e.Catalog.State != before {
 		t.Fatal("failed generic retirement mutated committed identities")
 	}
 	stmt.Mode = parser.DropCascade

@@ -47,32 +47,32 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	rows := exec.NewFinalRows(columns, 1)
 	rows.Values = []sqltype.Value{value}
 	disposals := 0
-	p := &protocolPortal{tx: scope.txRef, born: 1, entry: sqlPreparedStatement{body: &parser.Select{}}, columns: columns, started: true, context: session.ProtocolContext{Source: "retained source"}}
+	p := &protocolPortal{tx: scope.TxRef, born: 1, entry: sqlPreparedStatement{body: &parser.Select{}}, columns: columns, started: true, context: session.ProtocolContext{Source: "retained source"}}
 	p.rows = protocolDisposalProbe{RowResult: rows, close: func() error {
 		disposals++
 		if op.Context().Err() == nil {
 			t.Error("disposal did not exercise canceled operation")
 		}
-		if !scope.owner.Admission.TryLock() {
+		if !scope.Owner.Admission.TryLock() {
 			t.Error("failed executor disposal held admission")
 		} else {
-			scope.owner.Admission.Unlock()
+			scope.Owner.Admission.Unlock()
 		}
-		if !e.mu.TryLock() {
+		if !e.Mu.TryLock() {
 			t.Error("failed executor disposal held engine lock")
 		} else {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
-		if !e.replacementMu.TryLock() {
+		if !e.ReplacementMu.TryLock() {
 			t.Error("failed executor disposal held replacement fence")
 		} else {
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 		}
 		return rows.Close()
 	}}
-	payloadOf(sess).preparedSQL.portals = map[string]*protocolPortal{"p": p}
-	e.replacementMu.RLock()
-	scope.replacementRead = true
+	PayloadOf(sess).preparedSQL.portals = map[string]*protocolPortal{"p": p}
+	e.ReplacementMu.RLock()
+	scope.ReplacementRead = true
 	_, err = scope.ExecuteProtocolPortal("p", 0, func(fields []session.ProtocolField) error {
 		if len(fields) != 1 || string(fields[0].Bytes) != "1" {
 			t.Error("actual store row was not delivered", fields)
@@ -83,21 +83,21 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if !errors.Is(err, primary) || disposals != 1 || !rows.Closed {
 		t.Fatal("failed executor lost primary or retained resources", err, disposals)
 	}
-	if p.retired || payloadOf(sess).preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
+	if p.retired || PayloadOf(sess).preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
 		t.Fatal("failed resource release removed identity or retained executor buffers")
 	}
 	// Restoring a frontier that includes this owner keeps its identity, without
 	// reacquiring resources or repeating terminal callbacks.
-	scope.owner.Mu.Lock()
-	retireProtocolPortalsAfter(scope.owner, 1)
-	scope.owner.Mu.Unlock()
-	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(sess).preparedSQL.portals["p"] != p || disposals != 1 {
+	scope.Owner.Mu.Lock()
+	retireProtocolPortalsAfter(scope.Owner, 1)
+	scope.Owner.Mu.Unlock()
+	if err := drainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadOf(sess).preparedSQL.portals["p"] != p || disposals != 1 {
 		t.Fatal("older failed identity did not survive frontier", err, disposals)
 	}
-	scope.owner.Mu.Lock()
-	retireProtocolPortalsAfter(scope.owner, 0)
-	scope.owner.Mu.Unlock()
-	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(sess).preparedSQL.portals["p"] != nil || disposals != 1 {
+	scope.Owner.Mu.Lock()
+	retireProtocolPortalsAfter(scope.Owner, 0)
+	scope.Owner.Mu.Unlock()
+	if err := drainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadOf(sess).preparedSQL.portals["p"] != nil || disposals != 1 {
 		t.Fatal("retirement leaked identity or repeated executor disposal", err, disposals)
 	}
 }
@@ -127,7 +127,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			if present, err := in.ReadLine(); !present || err != nil {
 				t.Fatal("line reader setup", present, err)
 			}
-			cursor := dml.NewCopyCursor(scope.writeHost(), analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in, nil)
+			cursor := dml.NewCopyCursor(scope.WriteHost(), analyze.Binding{Relation: &catalog.Relation{ObjectName: "t"}}, in, nil)
 			got := cursor.Diagnostic(context.Canceled)
 			if !wire {
 				if got != context.Canceled {

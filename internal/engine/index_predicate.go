@@ -37,7 +37,7 @@ func (e *Engine) bindIndexPredicate(op *session.Operation, input sqltype.InputEn
 		return nil, err
 	}
 	if exec.PlannedVolatility(execution) != expr.Immutable {
-		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
+		return nil, SQLError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ids.ObjectRef
 	if _, err = (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: parent, Dependencies: &dependencies}).SQL(op.Context(), auth.Catalog, definition); err != nil {

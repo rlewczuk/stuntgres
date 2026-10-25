@@ -22,7 +22,7 @@ func TestBtreeIndexOrdinaryBuildAdmission(t *testing.T) {
 			done := lockAsync(e, builder, context.Background(), "CREATE INDEX idx ON t(n)", false)
 			lockPending(t, e, 1)
 			// The queued ordinary utility must request exactly Share, not AX/SUE.
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			for _, entry := range lockState.Resources {
 				for _, pending := range entry.Pending {
 					if pending.Mode != lock.Share {
@@ -77,7 +77,7 @@ func TestBtreeIndexWaitingCancellationAndEpochFence(t *testing.T) {
 				lockAwait(t, done, context.Canceled)
 			}
 			transactionEnd(t, writer, tx, false)
-			if len(e.storage.IndexRoots) != 0 {
+			if len(e.Storage.IndexRoots) != 0 {
 				t.Fatal("canceled/fenced build leaked roots")
 			}
 			lockEmpty(t, e)
@@ -99,7 +99,7 @@ func TestBtreeIndexBuildTimeout(t *testing.T) {
 		t.Fatal("timeout did not terminate")
 	}
 	transactionEnd(t, writer, tx, false)
-	if len(e.storage.IndexRoots) != 0 {
+	if len(e.Storage.IndexRoots) != 0 {
 		t.Fatal("timeout published root")
 	}
 	lockEmpty(t, e)

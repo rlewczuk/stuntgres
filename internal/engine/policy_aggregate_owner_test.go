@@ -58,7 +58,7 @@ func TestRLSPolicyAggregateSemanticOwner(t *testing.T) {
 func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
 	e, op, done, d := policyUnitFixture(t)
 	defer done()
-	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	b := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Target.Relation = d
 	b.Clause.AggregateClause = "policy expressions"
 	for range 2 {

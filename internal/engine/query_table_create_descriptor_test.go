@@ -20,9 +20,9 @@ import (
 
 func queryCreateDomain(t *testing.T, e *Engine) *catalog.Type {
 	t.Helper()
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func queryCreateDomain(t *testing.T, e *Engine) *catalog.Type {
 	if err != nil {
 		t.Fatal(err)
 	}
-	descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	if err = stage.Create(descriptor); err != nil {
 		t.Fatal(err)
@@ -58,15 +58,15 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	}
 	query := &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: expressions}}
 	syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: []parser.Identifier{{Text: "renamed"}}, Query: &parser.Select{}, NoData: true}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var stage *CatalogStage
 	var d *catalog.Relation
 	var skipped bool
 	if err == nil {
 		stage, d, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: query})
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal(err, skipped)
 	}
@@ -86,13 +86,13 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 		t.Fatal("source table decorations inherited", d)
 	}
 	queryCreatePublish(t, e, stage)
-	if len(e.storage.Relations[d.Address()].Versions) != 0 {
+	if len(e.Storage.Relations[d.Address()].Versions) != 0 {
 		t.Fatal("descriptor-only phase demanded rows")
 	}
 	// The actual dependency closure records the destination's stable attribute.
 	drop := e.BeginCatalogStage(e.CatalogRead())
-	drop.domainTargets = []ids.ObjectAddress{domain.Address()}
-	edges, err := domainDependencyClosure(context.Background(), drop, drop.domainTargets)
+	drop.DomainTargets = []ids.ObjectAddress{domain.Address()}
+	edges, err := DomainDependencyClosure(context.Background(), drop, drop.DomainTargets)
 	if err != nil || len(edges) != 1 || edges[0].Target != domain.Address() || edges[0].Column != "d" || edges[0].Address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: d.Address().ObjectID, SubID: 2}) {
 		t.Fatal("stored domain dependency lost", edges, err)
 	}
@@ -121,15 +121,15 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, Expressions: []expr.Expr{plan.LiteralExpr{Info: info, Value: sqltype.Null(usage.Type)}, plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.Null(usage.Type)}}}
 			syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: tc.labels, Query: &parser.Select{}}
 			registry := queryCreateTypes(e)
-			e.mu.Lock()
-			auth, authErr := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, authErr := e.AuthorizationLocked(op)
 			var stage *CatalogStage
 			if authErr == nil {
 				stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 			} else {
 				err = authErr
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			var diagnostic *sqlstate.Error
 			if stage != nil || !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Position != "" {
 				t.Fatal(stage, err)
@@ -150,7 +150,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 	e := New()
 	domain := queryCreateDomain(t, e)
 	stage, d := queryCreateStage(t, e, "copy", 0)
-	stage.domainBases = []catalog.Descriptor{domain}
+	stage.DomainBases = []catalog.Descriptor{domain}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
@@ -265,14 +265,14 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "tree", Usage: usage}}, Expressions: []expr.Expr{probe}}
 		syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Query: &parser.Select{}, NoData: noData}
 		registry := queryCreateTypes(e)
-		beforeRow, beforeVersion, beforeFrontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.CommitSeq()
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		beforeRow, beforeVersion, beforeFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier(), e.Visibility.CommitSeq()
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		var stage *CatalogStage
 		if err == nil {
 			stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		var got *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "query table output type pg_node_tree is unsupported"}
 		if stage != nil || !errors.As(err, &got) || *got != *want || calls != 0 {
@@ -280,20 +280,20 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 			t.Fatal("structural DATA/NO DATA admission reached runtime or stage", noData, stage, err, calls)
 		}
 		queryCreateAssertTypes(t, e, registry)
-		if e.storage.RowFrontier() != beforeRow || e.storage.VersionFrontier() != beforeVersion || e.visibility.CommitSeq() != beforeFrontier {
+		if e.Storage.RowFrontier() != beforeRow || e.Storage.VersionFrontier() != beforeVersion || e.Visibility.CommitSeq() != beforeFrontier {
 			done()
 			t.Fatal("structural admission reserved rows/frontier")
 		}
 		existing, d := queryCreateStage(t, e, "copy", 1)
 		queryCreatePublish(t, e, existing)
 		syntax.IfNotExists = true
-		e.mu.Lock()
-		auth, err = e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err = e.AuthorizationLocked(op)
 		var skipped bool
 		if err == nil {
 			stage, _, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.Address()) != d {
 			done()
 			t.Fatal("existing-target skip reached structural validator/runtime", noData, stage, skipped, err, calls)

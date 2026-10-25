@@ -61,13 +61,13 @@ func vacuumPhaseNativeStart(t *testing.T, e *Engine, s *session.Session, q strin
 func vacuumPhaseNativePending(t *testing.T, e *Engine, ref ids.ObjectRef, holder *lock.Ticket) {
 	t.Helper()
 	lockPending(t, e, 1)
-	entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: ref}]
+	entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: ref}]
 	if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Mode != lock.ShareUpdateExclusive || entry.Pending[0].Terminal || entry.Holders[holder].Mode != lock.Share {
 		t.Fatalf("not actual target SUE behind original SHARE holder: %#v", entry)
 	}
-	e.mu.Lock()
-	progress := len(e.vacuumProgress)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	progress := len(e.VacuumProgress)
+	e.Mu.Unlock()
 	if progress != 0 {
 		t.Fatal("queued work must not invent progress", progress)
 	}
@@ -98,7 +98,7 @@ func TestVacuumF6ExecutionPhases(t *testing.T) {
 				transactionBegin(t, holder)
 				defer sessionSQL(t, holder, "ROLLBACK")
 				ticket := holder.Transactions.Ticket
-				if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
+				if err := e.Locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
 					t.Fatal(err)
 				}
 				join := vacuumPhaseNativeStart(t, e, worker, fmt.Sprintf("VACUUM (PROCESS_MAIN %t) phase_view", main))
@@ -110,7 +110,7 @@ func TestVacuumF6ExecutionPhases(t *testing.T) {
 				}
 				sessionSQL(t, holder, "ROLLBACK")
 				vacuumPhaseNativeSuccess(t, join(), []sqlstate.Error{{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message}})
-				if len(e.vacuumProgress) != 0 {
+				if len(e.VacuumProgress) != 0 {
 					t.Fatal("nonheap target created progress")
 				}
 				lockEmpty(t, e)
@@ -135,12 +135,12 @@ func TestVacuumF7ExpansionAuthority(t *testing.T) {
 			transactionBegin(t, holder)
 			defer sessionSQL(t, holder, "ROLLBACK")
 			ticket := holder.Transactions.Ticket
-			if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: parent}, lock.Share); err != nil {
+			if err := e.Locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: parent}, lock.Share); err != nil {
 				t.Fatal(err)
 			}
 			join := vacuumPhaseNativeStart(t, e, worker, "VACUUM phase_parent")
 			vacuumPhaseNativePending(t, e, parent, ticket)
-			if entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: child}]; entry != nil {
+			if entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: child}]; entry != nil {
 				t.Error("descendant was locked during expansion before parent work", entry)
 			}
 			if grant {
@@ -156,7 +156,7 @@ func TestVacuumF7ExpansionAuthority(t *testing.T) {
 				want = []sqlstate.Error{{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: `permission denied to vacuum "phase_child", skipping it`}}
 			}
 			vacuumPhaseNativeSuccess(t, join(), want)
-			if ps.Maintenance.VacuumCount != 1 || cs.Maintenance.VacuumCount != expected || len(e.vacuumProgress) != 0 {
+			if ps.Maintenance.VacuumCount != 1 || cs.Maintenance.VacuumCount != expected || len(e.VacuumProgress) != 0 {
 				t.Error("wrong actual post-grant/revoke effects", ps.Maintenance, cs.Maintenance)
 			}
 			lockEmpty(t, e)
@@ -211,7 +211,7 @@ func TestVacuumF7PartitionWorkAdmission(t *testing.T) {
 			ticket := holder.Transactions.Ticket
 			// The native public LOCK partition utility is preexisting0A000;
 			// this is its existing canonical manager's real holder, not a hook.
-			if err := e.locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
+			if err := e.Locks.Acquire(context.Background(), ticket, lock.Resource{ObjectRef: ref}, lock.Share); err != nil {
 				t.Fatal(err)
 			}
 			if mode == "only_skip" {
@@ -237,7 +237,7 @@ func TestVacuumF7PartitionWorkAdmission(t *testing.T) {
 				want = append(want, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: `permission denied to vacuum "phase_leaf", skipping it`})
 				vacuumPhaseNativeSuccess(t, join(), want)
 			}
-			if leaf.Maintenance != facts || len(e.vacuumProgress) != 0 {
+			if leaf.Maintenance != facts || len(e.VacuumProgress) != 0 {
 				t.Fatal("partition admission performed heap work or leaked progress", leaf.Maintenance)
 			}
 			sessionSQL(t, holder, "ROLLBACK")
@@ -274,7 +274,7 @@ func TestVacuumF6NonheapOwnerAuthority(t *testing.T) {
 			}
 			vacuumPhaseNativeSuccess(t, vacuumPhaseNativeOutcome{result, notices, err}, want)
 			_, table := vacuumStore(t, e, "owner_table")
-			if table.Maintenance.VacuumCount != 0 || len(e.vacuumProgress) != 0 {
+			if table.Maintenance.VacuumCount != 0 || len(e.VacuumProgress) != 0 {
 				t.Fatal("nonheap ownership performed parent heap work")
 			}
 			lockEmpty(t, e)

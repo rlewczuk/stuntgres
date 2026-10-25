@@ -108,7 +108,7 @@ func TestVacuumCompactionIndexes(t *testing.T) {
 	identity := actual
 	sessionSQL(t, s, "DELETE FROM indexed WHERE id=1")
 	sessionSQL(t, s, "VACUUM (INDEX_CLEANUP OFF) indexed")
-	if e.storage.Relations[ref.Address] != identity || len(actual.Versions) != 2 {
+	if e.Storage.Relations[ref.Address] != identity || len(actual.Versions) != 2 {
 		t.Fatal("index maintenance replaced storage/retained dead heads")
 	}
 	if !reflect.DeepEqual(beforeCalls, tuples(sessionSQL(t, s, "SELECT currval('vacuum_calls')"))) {

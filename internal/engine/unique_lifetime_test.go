@@ -27,7 +27,7 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 		op, _, err := s.AcquireCommand(ctx)
 		var result Result
 		if err == nil {
-			result, err = engineOf(s).Execute(op, ast, 0, nil)
+			result, err = EngineOf(s).Execute(op, ast, 0, nil)
 			err = op.CommandError(err)
 			op.Done()
 		}
@@ -52,7 +52,7 @@ func uniqueClaimsEmpty(t *testing.T, e *Engine) {
 
 func uniqueKeyBucketsEmpty(t *testing.T, e *Engine) {
 	t.Helper()
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	if lockState.KeyBuckets != 0 {
 		t.Fatal("retained unique key buckets", lockState.KeyBuckets)
 	}
@@ -68,7 +68,7 @@ func TestUniqueClaimSavepointCancellation(t *testing.T) {
 	sessionSQL(t, a, "SAVEPOINT m")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, a, "ROLLBACK TO m")
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	claims := 0
 	for resource, entry := range lockState.Resources {
 		if resource.Key() != nil && len(entry.Holders) != 0 {
@@ -154,7 +154,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			original := before.MustRelation(roleTableRef(t, source, "portable.t").Address)
 			originalConstraint := original.Constraints.Unique[0]
 			originalConstraint.Attributes = append([]int32(nil), originalConstraint.Attributes...)
-			sourceRoot := source.storage.IndexRoots[originalConstraint.Index]
+			sourceRoot := source.Storage.IndexRoots[originalConstraint.Index]
 			var dump bytes.Buffer
 			if err := source.Dump(ctx, &dump); err != nil {
 				t.Fatal(err)
@@ -167,20 +167,20 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE kept CACHE 10")
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
-			tempRef := description.sequences.Constants[0].Ref
-			temp := target.catalog.State.Get(tempRef.Address)
-			generator := target.storage.Sequences[tempRef.Address]
-			memory := payloadOf(b).sequences.Memory(tempRef.Address)
+			tempRef := description.Sequences.Constants[0].Ref
+			temp := target.Catalog.State.Get(tempRef.Address)
+			generator := target.Storage.Sequences[tempRef.Address]
+			memory := PayloadOf(b).Sequences.Memory(tempRef.Address)
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.Address())
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.State.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || payloadOf(b).sequences.Memory(tempRef.Address) != memory {
+			if target.Catalog.State.Get(tempRef.Address) != temp || target.Storage.Sequences[tempRef.Address] != generator || PayloadOf(b).Sequences.Memory(tempRef.Address) != memory {
 				t.Fatal("retained TEMP identity changed")
 			}
-			parent := target.catalog.State.MustRelation(roleTableRef(t, target, "portable.t").Address)
+			parent := target.Catalog.State.MustRelation(roleTableRef(t, target, "portable.t").Address)
 			index, root := btreeRoot(t, target, "portable.u")
 			if parent.Constraints.Unique[0].Index != index.Address() || index.SQLIndex.Parent != parent.Address() || index.SQLIndex.Constraint.OID != parent.Constraints.Unique[0].OID || len(root.Entries) != 1 || root.Entries[0].Row == 0 || root.Entries[0].Version == 0 {
 				t.Fatal("broken imported closure")
@@ -216,8 +216,8 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(extra INT,k INT CONSTRAINT u UNIQUE)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(0,1)")
 	parentRef := roleTableRef(t, e, "t")
-	original := e.catalog.State.MustRelation(parentRef.Address)
-	originalRoot := e.storage.IndexRoots[original.Constraints.Unique[0].Index]
+	original := e.Catalog.State.MustRelation(parentRef.Address)
+	originalRoot := e.Storage.IndexRoots[original.Constraints.Unique[0].Index]
 	ar := transactionBegin(t, a)
 	op, err := a.Acquire(context.Background())
 	if err != nil {
@@ -228,18 +228,18 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	if err := scope.gate(statement(t, "INSERT INTO t VALUES(0,2)")); err != nil {
+	if err := scope.Gate(statement(t, "INSERT INTO t VALUES(0,2)")); err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
 	}
-	first, err := dml.BindUniqueWrite(scope.writeHost(), parentRef)
+	first, err := dml.BindUniqueWrite(scope.WriteHost(), parentRef)
 	if err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
 	}
-	again, err := dml.BindUniqueWrite(scope.writeHost(), parentRef)
+	again, err := dml.BindUniqueWrite(scope.WriteHost(), parentRef)
 	if err != nil || first != again || first.Keys[0].Ordering.Slots[0] != 1 {
 		scope.Finish(err)
 		op.Done()
@@ -285,12 +285,12 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	if err := scope.gate(statement(t, "INSERT INTO t VALUES(3)")); err != nil {
+	if err := scope.Gate(statement(t, "INSERT INTO t VALUES(3)")); err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
 	}
-	next, err := dml.BindUniqueWrite(scope.writeHost(), parentRef)
+	next, err := dml.BindUniqueWrite(scope.WriteHost(), parentRef)
 	if err != nil || next == first || next.Keys[0].Ordering.Slots[0] != 0 {
 		scope.Finish(err)
 		op.Done()
@@ -306,7 +306,7 @@ func TestUniquePrivateBaselineRootsAndBindingLifetime(t *testing.T) {
 		t.Fatal("DML rebuilt/modified baseline instead of overlaying effects")
 	}
 	transactionEnd(t, a, ar, false)
-	if e.catalog.State.Get(parentRef.Address) != original || e.storage.IndexRoots[original.Constraints.Unique[0].Index] != originalRoot {
+	if e.Catalog.State.Get(parentRef.Address) != original || e.Storage.IndexRoots[original.Constraints.Unique[0].Index] != originalRoot {
 		t.Fatal("rollback changed committed closure")
 	}
 	uniqueClaimsEmpty(t, e)

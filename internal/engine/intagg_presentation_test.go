@@ -61,7 +61,7 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			// A retained occurrence follows its installed slot, not the old
 			// spelling or the extension's installation namespace.
-			renamedState := catalog.CloneState(e.catalog.State)
+			renamedState := catalog.CloneState(e.Catalog.State)
 			original := renamedState.MustProcedure(ref.Address)
 			renamed := *original
 			renamed.ObjectName = "intagg_current_recipe"
@@ -71,7 +71,7 @@ func intaggUnitRecipes(t *testing.T) {
 			renamedState.SetDescriptor(renamed.Address(), &renamed)
 			renamedState.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
 			renamedState.SetProcedureNames(catalog.RebuildProcedureNames(renamedState.Descriptors()))
-			renamedView := e.catalog.Read(renamedState)
+			renamedView := e.Catalog.Read(renamedState)
 			if err := definition.ValidateLiterals(renamedView); err != nil {
 				t.Fatal(err)
 			}
@@ -79,7 +79,7 @@ func intaggUnitRecipes(t *testing.T) {
 			if err != nil || !strings.HasPrefix(text, `"pg_catalog"."intagg_current_recipe"(`) {
 				t.Fatal("intagg occurrence followed stale spelling", text, err)
 			}
-			for _, badRef := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.Address())} {
+			for _, badRef := range []ids.ObjectRef{{}, New().Catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.Address())} {
 				bad := definition.With(func(p *stored.ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef} })
 				if err := bad.ValidateLiterals(e.CatalogRead()); err == nil {
 					t.Fatal("forged frozen reference accepted", badRef)
@@ -99,18 +99,18 @@ func intaggUnitRecipes(t *testing.T) {
 			for i, address := range ext.Members {
 				mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(910001 + i)}
 			}
-			state := catalog.CloneState(e.catalog.State)
+			state := catalog.CloneState(e.Catalog.State)
 			for address := range mapping {
-				state.UnbindName(catalog.DescriptorNameKey(e.catalog.State.Get(address)))
+				state.UnbindName(catalog.DescriptorNameKey(e.Catalog.State.Get(address)))
 				state.RemoveDescriptor(address)
 			}
 			for address, destination := range mapping {
-				d := extension.RemapDescriptor(e.catalog.State.Get(address), mapping)
+				d := extension.RemapDescriptor(e.Catalog.State.Get(address), mapping)
 				state.SetDescriptor(destination, d)
 				state.BindName(catalog.DescriptorNameKey(d), destination)
 			}
 			state.SetEpoch(state.Epoch() + 1)
-			view := e.catalog.Read(state)
+			view := e.Catalog.Read(state)
 			mapRef := func(old ids.ObjectRef) ids.ObjectRef {
 				old.Epoch = state.Epoch()
 				if destination, ok := mapping[old.Address]; ok {
@@ -209,7 +209,7 @@ func TestProviderRoutineOccurrenceIdentity(t *testing.T) {
 					}
 				}
 			}
-			state := catalog.CloneState(e.catalog.State)
+			state := catalog.CloneState(e.Catalog.State)
 			original := state.MustProcedure(ref.Address)
 			renamed := *original
 			renamed.ObjectName = "current_provider_recipe"
@@ -222,7 +222,7 @@ func TestProviderRoutineOccurrenceIdentity(t *testing.T) {
 			state.SetDescriptor(renamed.Address(), &renamed)
 			state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
 			state.SetProcedureNames(catalog.RebuildProcedureNames(state.Descriptors()))
-			read := e.catalog.Read(state)
+			read := e.Catalog.Read(state)
 			if err := definition.ValidateLiterals(read); err != nil {
 				t.Fatal(err)
 			}
@@ -234,7 +234,7 @@ func TestProviderRoutineOccurrenceIdentity(t *testing.T) {
 			}
 			subID := ref
 			subID.Address.SubID = 1
-			for _, badRef := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), subID} {
+			for _, badRef := range []ids.ObjectRef{{}, New().Catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), subID} {
 				bad := definition.With(func(p *stored.ViewParts) { p.RoutineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef} })
 				if err := bad.ValidateLiterals(read); err == nil {
 					t.Fatal("forged provider occurrence accepted", badRef)

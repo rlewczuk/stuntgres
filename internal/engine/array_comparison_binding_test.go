@@ -59,13 +59,13 @@ func TestArrayCompareBinding(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.q).(*parser.Select)
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(binderOperation(b))
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(binderOperation(b))
 		b.Query.Auth = &auth
 		if err == nil {
 			_, err = b.BindSelect(raw, false)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		state(t, err, tc.code)
 	}
 	run(t, e, "CREATE TABLE ac_unit(i INT,j BIGINT)")
@@ -81,13 +81,13 @@ func TestArrayCompareBinding(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.q).(*parser.Select)
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(binderOperation(b))
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(binderOperation(b))
 		b.Query.Auth = &auth
 		if err == nil {
 			_, err = b.BindSelect(raw, false)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if tc.code == "" {
 			if err != nil {
 				t.Fatal(tc.q, err)

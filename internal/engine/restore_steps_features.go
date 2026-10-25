@@ -86,8 +86,8 @@ func prepareRestorePartitionUnique(r *restoreRun, op *session.Operation, stmt pa
 	if err := r.stage.beginPartitionUniqueReplay(op, alteration); err != nil {
 		return err
 	}
-	if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && operationReplayOrZero(op).partitionUnique == nil && r.cur.physicalConstructor == nil {
-		return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
+	if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && OperationReplayOrZero(op).PartitionUnique == nil && r.cur.physicalConstructor == nil {
+		return SQLError("0A000", "restore accepts only captured private virtual unique definitions")
 	}
 	return nil
 }
@@ -129,7 +129,7 @@ func beforeRestoreRoutineDirective(r *restoreRun, op *session.Operation, stmt pa
 	if !routine.ReplayDirective(r.source, stmt) {
 		return false, nil
 	}
-	operationReplay(op).sqlBodies = true
+	OperationReplay(op).SQLBodies = true
 	return true, nil
 }
 

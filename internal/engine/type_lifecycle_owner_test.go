@@ -28,7 +28,7 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 			installed := view.MustExtension(view.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: tc.extension}))
 			base := view.MustType(installed.Members[0])
 			array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
-			roles := e.roles.PublishedRead(&e.catalog.Owner, view)
+			roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, view)
 			target, ok := roles.Lookup("pg_signal_backend")
 			if !ok {
 				t.Fatal("missing released role fixture")
@@ -47,7 +47,7 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 				}
 			}
 			candidate := catalog.CloneState(view.State())
-			next := e.catalog.Read(candidate)
+			next := e.Catalog.Read(candidate)
 			changed, err := extension.ImportOwners(context.Background(), next, roles, []extension.OwnerRecord{record})
 			if err != nil || !changed {
 				t.Fatal("owner import", changed, err)
@@ -57,7 +57,7 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 				if mapped == old || mapped.Owner != target.Ref || mapped.SQLType != old.SQLType || !mapped.ACLSyntheticDefault || !authorization.MatchesDefaultBaseline(mapped.ACL, target.Ref, authorization.DefaultTypes, false) {
 					t.Fatal("owner/codec/raw-NULL baseline fidelity lost", mapped)
 				}
-				if err := e.catalog.Owner.Provider(ids.TypeClassID).Validate(next, mapped); err != nil {
+				if err := e.Catalog.Owner.Provider(ids.TypeClassID).Validate(next, mapped); err != nil {
 					t.Fatal("strict imported type validation", err)
 				}
 			}
@@ -75,10 +75,10 @@ func TestTypeLifecycleOwnerImportACL(t *testing.T) {
 			bad := *base
 			bad.ACL = authorization.ACLValue{Explicit: true}
 			corrupt.SetDescriptor(base.Address(), &bad)
-			invalid := e.catalog.Read(corrupt)
+			invalid := e.Catalog.Read(corrupt)
 			_, err = extension.ImportOwners(context.Background(), invalid, roles, []extension.OwnerRecord{record})
 			if err == nil {
-				err = e.catalog.Owner.Provider(ids.TypeClassID).Validate(invalid, invalid.MustType(base.Address()))
+				err = e.Catalog.Owner.Provider(ids.TypeClassID).Validate(invalid, invalid.MustType(base.Address()))
 			}
 			if err == nil {
 				t.Fatal("invalid synthetic ACL accepted after ownership import")

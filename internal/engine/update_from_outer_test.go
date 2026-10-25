@@ -94,7 +94,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.Relations[ref.Address].Versions[0]
+			original := e.Storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=21 WHERE id=2")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -132,7 +132,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			leftRef := catalogRef(t, e, e.CatalogRead(), "s")
 			rightRef := catalogRef(t, e, e.CatalogRead(), "r")
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
 			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.Transactions.Ticket].Mode == lock.ForNoKeyUpdate
 			sourcesHeld := false
@@ -159,10 +159,10 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			if got.err != nil || got.count != 1 || !reflect.DeepEqual(got.rows, want) {
 				t.Fatal("NULL-extended source was reformed after target grant", got, want)
 			}
-			if got.scope == nil || len(got.scope.querySources) != 0 {
+			if got.scope == nil || len(got.scope.QuerySources) != 0 {
 				t.Fatal("outer source admission leaked")
 			}
-			store := e.storage.Relations[ref.Address]
+			store := e.Storage.Relations[ref.Address]
 			if len(store.Versions) != 1 || store.Versions[0].Row != original.Row || testExport(original.Values[1]) != int64(20) {
 				t.Fatal("absent source replaced physical target identity or mutated capture", store.Versions, original)
 			}

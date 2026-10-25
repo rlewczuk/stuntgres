@@ -14,42 +14,42 @@ import (
 // openRelationSourceLocked consumes e.mu on every return. Definition relation
 // principals affect ACL and row-security checks; expressions keep the invoker.
 func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectRef, invoker authorization.PrincipalRef, mark plan.RowMark, locks *exec.LockContext, outputUses []int) (*exec.Source, error) {
-	ctx := scope.op.Context()
+	ctx := scope.Op.Context()
 	if err := ctx.Err(); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, err
 	}
-	d, exists := e.privateCatalogLocked(scope.owner.Catalog).Relation(ref.Address)
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || !exists {
-		e.mu.Unlock()
+	d, exists := e.PrivateCatalogLocked(scope.Owner.Catalog).Relation(ref.Address)
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || !exists {
+		e.Mu.Unlock()
 		return nil, ids.ErrCatalogReplaced
 	}
 	if catalog.HierarchyRelation(d) && mark.Mode != 0 {
-		e.mu.Unlock()
-		return nil, sqlError("0A000", "row locking partition hierarchies is unsupported")
+		e.Mu.Unlock()
+		return nil, SQLError("0A000", "row locking partition hierarchies is unsupported")
 	}
 	switch d.RelationKind {
 	case catalog.ForeignRelation:
 		source, err := e.captureForeignSourceLocked(scope, ref, d, invoker, outputUses, mark)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return source, err
 	case catalog.CatalogRelation:
 		return e.openCatalogSourceLocked(scope, ref, d)
 	case catalog.SequenceRelation:
 		source, err := e.captureSequenceSourceLocked(scope, ref, d)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return source, err
 	case catalog.ViewRelation:
-		for _, active := range scope.viewCreationOrZero().Active {
+		for _, active := range scope.ViewCreationOrZero().Active {
 			if active == d.Address() {
-				e.mu.Unlock()
-				return nil, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.Name()))
+				e.Mu.Unlock()
+				return nil, SQLError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.Name()))
 			}
 		}
 		views := scope.viewCreation()
 		views.Active = append(views.Active, d.Address())
 		defer func() { views.Active = views.Active[:len(views.Active)-1] }()
-		root, source, err := e.prepareStoredQueryLocked(scope, ref, stored.ViewOf(d), invoker, mark, locks, outputUses)
+		root, source, err := e.PrepareStoredQueryLocked(scope, ref, stored.ViewOf(d), invoker, mark, locks, outputUses)
 		if err != nil {
 			return nil, err
 		}
@@ -63,8 +63,8 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 	case catalog.PartitionedRelation:
 		var leaves [1]exec.Leaf
 		leaves[0] = exec.Leaf{Ref: ref, Relation: d}
-		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves[:], false, invoker, mark, locks)
-		e.mu.Unlock()
+		source, err := e.CaptureQuerySourcesForInvokerLocked(scope, leaves[:], false, invoker, mark, locks)
+		e.Mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -74,10 +74,10 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		}
 		return source, nil
 	case catalog.IndexRelation:
-		e.mu.Unlock()
-		return nil, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, d.Name()))
+		e.Mu.Unlock()
+		return nil, SQLError("42809", fmt.Sprintf(`cannot read from index "%s"`, d.Name()))
 	default:
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, fmt.Errorf("stuntgres: unsupported relation source")
 	}
 }
@@ -85,11 +85,11 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 // Called before unlocked preflight and immediately before source capture. Each
 // leaf checks current ACLs; an ordinary outer owner never replaces the invoker.
 func (e *Engine) authorizeViewSourceLocked(scope *StatementScope, ref ids.ObjectRef, definition *stored.View, invoker authorization.PrincipalRef, mark plan.RowMark) (AuthorizationView, error) {
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return AuthorizationView{}, err
 	}
-	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	return auth, view.AuthorizeSource(auth.View, auth, ref, definition, invoker, mark)
 }

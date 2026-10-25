@@ -37,7 +37,7 @@ type preparedCommandExecution struct {
 // Enter with Engine.mu held; every outcome releases it. Binding, signature and
 // parameter import are statement-wide and have already completed exactly once.
 func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCommandExecution) (Result, error) {
-	op := scope.op
+	op := scope.Op
 	ctx := op.Context()
 	var err error
 	expressions := b.Expressions
@@ -53,20 +53,20 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		evaluation.PlanStaticOperators = true
 	}
 	routineAuth := auth
-	if scope.ruleAction.auth != nil {
-		routineAuth.State.CurrentUser = scope.routineAuth.State.CurrentUser
+	if scope.ruleAction.Auth != nil {
+		routineAuth.State.CurrentUser = scope.RoutineAuth.State.CurrentUser
 		if err := routineAuth.Roles.ValidatePrincipal(routineAuth.State.CurrentUser); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
-	scope.routineAuth = routineAuth
-	scope.routineDependencies = b.Dependencies
+	scope.RoutineAuth = routineAuth
+	scope.RoutineDependencies = b.Dependencies
 	if inserting || b.Merge != nil || b.Update != nil || b.Query != nil || (deleting && (b.Delete.Using != nil || b.Predicate != nil || b.Returning != nil)) || len(b.Insert.Defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err := scope.readmitPreparedPrograms(routineAuth); err != nil {
 			return Result{}, err
 		}
@@ -250,13 +250,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if privateDefaults != nil {
 			b.Insert.Defaults = privateDefaults
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		if err = ctx.Err(); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		if err = scope.validateLockedRelation(e); err != nil {
-			e.mu.Unlock()
+		if err = scope.ValidateLockedRelation(e); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		// Do not authorize source capture with the pre-unlock authority view.
@@ -265,21 +265,21 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// provider evaluation; refreshing roles must not restore the initiator.
 		auth, err = scope.statementAuthorizationLocked(stmt)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		scope.routineAuth = auth
-		e.mu.Unlock()
-		err = scope.readmitPreparedPrograms(scope.routineAuth)
-		e.mu.Lock()
+		scope.RoutineAuth = auth
+		e.Mu.Unlock()
+		err = scope.readmitPreparedPrograms(scope.RoutineAuth)
+		e.Mu.Lock()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		if scope.ruleAction.auth != nil {
-			auth.State.CurrentUser = scope.ruleAction.auth.State.CurrentUser
+		if scope.ruleAction.Auth != nil {
+			auth.State.CurrentUser = scope.ruleAction.Auth.State.CurrentUser
 			if err = auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
 		}
@@ -290,7 +290,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 			err := dml.GuardedCatalogMutationError(auth.View, b.Relation, false)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
@@ -298,27 +298,27 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	case *parser.Insert, *parser.Update, *parser.Delete:
 		if b.ViewWrite == nil && b.Relation.RelationKind != catalog.MaterializedViewRelation && b.Relation.RelationKind != catalog.ForeignRelation {
 			if err := analyze.TableKindError(b.Relation, "change"); err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
 		}
 	}
 	// Released MERGE checks read-only after analysis/planning conversions, but
 	// before executor column/source ACLs. Other statements keep their ordering.
-	if b.Merge != nil && scope.owner.ReadOnly && !temporaryDataTarget(auth, &b, stmt) {
-		e.mu.Unlock()
+	if b.Merge != nil && scope.Owner.ReadOnly && !TemporaryDataTarget(auth, &b, stmt) {
+		e.Mu.Unlock()
 		tag := "MERGE"
 		if prepared != nil && prepared.primaryTag != "" {
 			tag = prepared.primaryTag
 		}
-		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
+		return Result{}, SQLError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	if err = view.CheckRowSecurityBinding(scope.rowSecurity, auth.View, b); err != nil {
-		e.mu.Unlock()
+	if err = view.CheckRowSecurityBinding(scope.RowSecurity, auth.View, b); err != nil {
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if err = analyze.CheckBinding(auth, b, stmt); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	// Preserve the already-checked logical authority before physical lowering.
@@ -328,14 +328,14 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	scope.rlsCommand = &execution
 	defer func() { scope.rlsCommand = previousRLSCommand }()
 	if scope.Expected != nil && b.Parameters.Count == 0 && quoteCaptures.Private {
-		scope.Expected.quotes = quoteCaptures.Entries
+		scope.Expected.Quotes = quoteCaptures.Entries
 		scope.Expected.quoteGeneration = op.Session.DiscardPlansGeneration
 	}
 	quoteCaptures.Sealed = true
 	scope.quoteCaptures = quoteCaptures
 	b = view.PhysicalBinding(b)
 	if err = partition.WriteExtensionBoundary(stmt, b.Relation); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	tag := session.ModifyingTag(stmt)
@@ -350,7 +350,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	// PostgreSQL reports the rewritten SELECT command for a marked view,
 	// including constant views without physical lock leaves. Physical table
 	// rowmarks retain their original SELECT FOR ... diagnostic.
-	if scope.owner.ReadOnly {
+	if scope.Owner.ReadOnly {
 		if selecting {
 			for _, leaf := range b.QuerySources {
 				if leaf.Mark.Mode != 0 && leaf.Relation.RelationKind == catalog.ViewRelation {
@@ -360,60 +360,60 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 	}
-	if selecting && tag == "" && scope.owner.ReadOnly && b.Query != nil {
-		mode, modeErr := view.FirstQueryRowMode(e.privateCatalogLocked(scope.owner.Catalog), b.Query.Root, b.QuerySources)
+	if selecting && tag == "" && scope.Owner.ReadOnly && b.Query != nil {
+		mode, modeErr := view.FirstQueryRowMode(e.PrivateCatalogLocked(scope.Owner.Catalog), b.Query.Root, b.QuerySources)
 		if modeErr != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, modeErr
 		}
 		if mode != 0 {
 			tag = "SELECT"
 		}
 	}
-	if scope.owner.ReadOnly && tag != "" && !temporaryDataTarget(auth, &b, stmt) {
-		e.mu.Unlock()
-		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
+	if scope.Owner.ReadOnly && tag != "" && !TemporaryDataTarget(auth, &b, stmt) {
+		e.Mu.Unlock()
+		return Result{}, SQLError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
 	if b.Relation != nil && b.Relation.RelationKind == catalog.MaterializedViewRelation {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete:
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, analyze.TableKindError(b.Relation, "change")
 		}
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		if err := access.CheckTemporaryStorageAccess(auth.Catalog, b.Relation, op.Session.SessionToken); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
 	if b.Query != nil || b.SubqueryDemand || len(b.QuerySources) != 0 {
-		if err = e.initializeQueryLocksLocked(scope, queryRoot, b.QuerySources); err != nil {
-			e.mu.Unlock()
+		if err = e.InitializeQueryLocksLocked(scope, queryRoot, b.QuerySources); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
-	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.VisibilitySnapshot
+	scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || b.VisibilitySnapshot
 	if b.Query != nil {
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.Query.VisibilitySnapshot
+		scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || b.Query.VisibilitySnapshot
 	}
 	if b.Returning != nil {
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.Returning.VisibilitySnapshot
+		scope.Inquiry.visibilityDemand = scope.Inquiry.visibilityDemand || b.Returning.VisibilitySnapshot
 	}
-	if scope.inquiry.visibilityDemand {
+	if scope.Inquiry.visibilityDemand {
 		err = e.captureVisibilitySnapshotLocked(scope)
 	}
 	if err == nil && b.Relation != nil {
-		err = e.captureCheckVisibilitySnapshotLocked(scope, b.Relation)
+		err = e.CaptureCheckVisibilitySnapshotLocked(scope, b.Relation)
 	}
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if b.Prepared.RegclassConcat && b.Query == nil {
-		if err = e.captureCommentSnapshotLocked(scope); err != nil {
-			e.mu.Unlock()
+		if err = e.CaptureCommentSnapshotLocked(scope); err != nil {
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 	}
@@ -425,13 +425,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			// authenticated reconstruction authority. Reject its actual
 			// foreign target before capability admission or provider capture,
 			// without a second lookup or changes to ordinary diagnostics.
-			if operationReplayOrZero(op).insertAuthority {
-				e.mu.Unlock()
-				return Result{}, sqlError("0A000", "restore cannot write foreign tables")
+			if OperationReplayOrZero(op).InsertAuthority {
+				e.Mu.Unlock()
+				return Result{}, SQLError("0A000", "restore cannot write foreign tables")
 			}
 			if b.Insert.Conflict != nil {
-				e.mu.Unlock()
-				return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
+				e.Mu.Unlock()
+				return Result{}, SQLError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
 			}
 		case *parser.Update:
 			operation = catalog.ForeignUpdate
@@ -441,18 +441,18 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			modifying = false
 		}
 		if modifying {
-			if err := checkRestoreEffect(op); err != nil {
-				e.mu.Unlock()
+			if err := CheckRestoreEffect(op); err != nil {
+				e.Mu.Unlock()
 				return Result{}, err
 			}
 			if err := fdw.ModifyAdmission(auth.Catalog, b.Relation, operation); err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
 		}
 	}
 	if err := e.configureRowSecurityLocked(scope, b, stmt); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	// Static operator planning belongs to preparation, never to a later row,
@@ -463,7 +463,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	if prepared != nil {
 		execution.primaryTag = prepared.primaryTag
 		*prepared = execution
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, nil
 	}
 	return e.executePreparedCommandLocked(scope, stmt, &execution, canonical, creationStage, creationDescriptor)
@@ -488,20 +488,20 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	previousRLSCommand := scope.rlsCommand
 	scope.rlsCommand = execution
 	defer func() { scope.rlsCommand = previousRLSCommand }()
-	op := scope.op
+	op := scope.Op
 	ctx := op.Context()
 	var err error
 	b, auth := view.PhysicalBinding(execution.binding), execution.auth
 	queryRoot := execution.queryRoot
 	if scope.protocolOrZero().simple && !scope.protocolOrZero().simpleCreated {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err := scope.beginProtocolSimplePortal(); err != nil {
 			return Result{}, err
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 	}
 	if err := e.materializePolicySourcesLocked(scope); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if b.Relation != nil && b.Relation.RelationKind == catalog.ForeignRelation {
@@ -512,24 +512,24 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	}
 	switch s := stmt.(type) {
 	case *parser.Merge:
-		err := e.captureCheckCommentSnapshotLocked(scope, b.Relation)
+		err := e.CaptureCheckCommentSnapshotLocked(scope, b.Relation)
 		if err == nil && b.Returning != nil {
-			err = e.captureCommentSnapshotLocked(scope)
+			err = e.CaptureCommentSnapshotLocked(scope)
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		collectAuth := auth
 		collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-		refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.Session.SessionToken, plan.RowMark{})
+		refs, err := e.QueryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.Op.Session.SessionToken, plan.RowMark{})
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		dataView, err := scope.acquireDataViewsLocked(e, refs)
+		dataView, err := scope.AcquireDataViewsLocked(e, refs)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		var target *exec.Source
@@ -539,70 +539,70 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			target, err = exec.CaptureSource(ctx, dataView, b.Ref)
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		inputs, err := e.captureQuerySourcesLocked(scope, b.QuerySources, false)
+		inputs, err := e.CaptureQuerySourcesLocked(scope, b.QuerySources, false)
 		if err != nil {
 			target.Close()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
 		if err = scope.capturePartitionInsertLocked(e, auth, b.Relation); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		err = e.captureCheckCommentSnapshotLocked(scope, b.Relation)
+		err = e.CaptureCheckCommentSnapshotLocked(scope, b.Relation)
 		for _, target := range scope.InheritedTargets {
 			if err != nil {
 				break
 			}
-			err = e.captureCheckCommentSnapshotLocked(scope, target.Relation)
+			err = e.CaptureCheckCommentSnapshotLocked(scope, target.Relation)
 		}
 		if err == nil && b.Returning != nil {
-			err = e.captureCommentSnapshotLocked(scope)
+			err = e.CaptureCommentSnapshotLocked(scope)
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		var view *visibility.View
 		if len(b.QuerySources) != 0 || len(scope.InheritedTargets) != 0 || b.Relation.Partition != nil {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.Command.TargetRefs(b.Ref), scope.op.Session.SessionToken, plan.RowMark{})
+			refs, collectErr := e.QueryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.Command.TargetRefs(b.Ref), scope.Op.Session.SessionToken, plan.RowMark{})
 			if collectErr != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, collectErr
 			}
-			view, err = scope.acquireDataViewsLocked(e, refs)
+			view, err = scope.AcquireDataViewsLocked(e, refs)
 		} else {
-			view, err = scope.acquireDataViewLocked(e, b.Ref)
+			view, err = scope.AcquireDataViewLocked(e, b.Ref)
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		source, err := scope.Command.CaptureSource(ctx, view, b)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		var from *exec.Source
 		if b.Update.From != nil || b.SubqueryDemand {
-			from, err = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
+			from, err = e.CaptureQuerySourcesLocked(scope, b.QuerySources, false)
 			if err != nil {
 				source.Close()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
 		}
 		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return executeUpdate(ctx, scope, b, source, from, canonical, schema)
 	case *parser.Insert:
 		return e.executeInsertLocked(scope, execution, canonical)
@@ -612,22 +612,22 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if len(b.QuerySources) != 0 || len(scope.InheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.Command.TargetRefs(b.Ref), scope.op.Session.SessionToken, plan.RowMark{})
+			refs, err := e.QueryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.Command.TargetRefs(b.Ref), scope.Op.Session.SessionToken, plan.RowMark{})
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return Result{}, err
 			}
-			view, viewErr = scope.acquireDataViewsLocked(e, refs)
+			view, viewErr = scope.AcquireDataViewsLocked(e, refs)
 		} else {
-			view, viewErr = scope.acquireDataViewLocked(e, b.Ref)
+			view, viewErr = scope.AcquireDataViewLocked(e, b.Ref)
 		}
 		var inputs *exec.Source
 		if viewErr == nil && (b.Delete.Using != nil || b.SubqueryDemand) {
-			inputs, viewErr = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
+			inputs, viewErr = e.CaptureQuerySourcesLocked(scope, b.QuerySources, false)
 		} else if viewErr == nil && b.Returning != nil {
-			viewErr = e.captureCommentSnapshotLocked(scope)
+			viewErr = e.CaptureCommentSnapshotLocked(scope)
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if viewErr != nil {
 			view.Release()
 			return Result{}, viewErr
@@ -638,11 +638,11 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	case *parser.DeclareCursor:
 		// Even an unlocked cursor retains physical lineage through derived/view
 		// projections. Zero-mode entries capture identity, never row grants.
-		if scope.queryLocks == nil {
-			scope.queryLocks = &exec.LockContext{IdentityOnly: true}
+		if scope.QueryLockContext == nil {
+			scope.QueryLockContext = &exec.LockContext{IdentityOnly: true}
 		}
-		source, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
-		e.mu.Unlock()
+		source, sourceErr := e.CaptureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
+		e.Mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
@@ -652,11 +652,11 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		return scope.installSQLCursor(s, queryRoot, source, canonical)
 	case *parser.Select:
-		if scope.sqlRoutine.cursor != nil && scope.queryLocks == nil {
-			scope.queryLocks = &exec.LockContext{IdentityOnly: true}
+		if scope.sqlRoutine.cursor != nil && scope.QueryLockContext == nil {
+			scope.QueryLockContext = &exec.LockContext{IdentityOnly: true}
 		}
-		source, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, s.From == nil && s.Values == nil)
-		e.mu.Unlock()
+		source, sourceErr := e.CaptureQuerySourcesLocked(scope, b.QuerySources, s.From == nil && s.Values == nil)
+		e.Mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
@@ -669,7 +669,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if source.Locks.RowMarked() {
 				if scroll {
 					source.Close()
-					err := sqlError("0A000", "DECLARE SCROLL CURSOR ... FOR UPDATE/SHARE is not supported").(*sqlstate.Error)
+					err := SQLError("0A000", "DECLARE SCROLL CURSOR ... FOR UPDATE/SHARE is not supported").(*sqlstate.Error)
 					err.Detail = "Scrollable cursors must be READ ONLY."
 					return Result{}, err
 				}
@@ -681,7 +681,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		if b.Rule.Template {
-			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, hostOf(scope))
+			source = view.FreezeWriteSources(source, b.QuerySources, scope.authority, HostOf(scope))
 		}
 		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
@@ -706,6 +706,6 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		return Result{Count: int64(count), Rows: rows}, nil
 	}
-	e.mu.Unlock()
-	return Result{}, sqlError("0A000", "unsupported statement")
+	e.Mu.Unlock()
+	return Result{}, SQLError("0A000", "unsupported statement")
 }

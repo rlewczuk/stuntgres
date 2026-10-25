@@ -18,7 +18,7 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 	if err := s.checkExclusionCommandEvents(allExclusions, nil, bounded); err != nil {
 		return err
 	}
-	if err := dml.SettleForeignActions(s.writeHost()); err != nil {
+	if err := dml.SettleForeignActions(s.WriteHost()); err != nil {
 		return err
 	}
 	if s.foreignActionsOrZero().ExclusionAdded {
@@ -27,7 +27,7 @@ func (s *StatementScope) completeCommandEffects(allExclusions, bounded bool) err
 		}
 	}
 	if !s.projectedRoots {
-		return dml.CheckForeignKeys(s.writeHost())
+		return dml.CheckForeignKeys(s.WriteHost())
 	}
 	return nil
 }

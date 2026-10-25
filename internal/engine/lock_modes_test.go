@@ -117,7 +117,7 @@ func TestLockModesOrder(t *testing.T) {
 	lockPending(t, e, 1)
 	first := catalogRef(t, e, e.CatalogRead(), "first")
 	later := catalogRef(t, e, e.CatalogRead(), "later")
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	pending := len(lockState.Resources[lock.Resource{ObjectRef: first}].Pending)
 	entry := lockState.Resources[lock.Resource{ObjectRef: later}]
 	if pending != 1 || entry != nil {

@@ -69,7 +69,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 		})
 	}
 	foreign := original
-	foreign.Ref = New().catalog.Domain.Ref(original.Ref.Epoch, original.Ref.Address)
+	foreign.Ref = New().Catalog.Domain.Ref(original.Ref.Epoch, original.Ref.Address)
 	if _, err := (stored.ScalarRenderer{}).SQL(ctx, read, foreign); err == nil {
 		t.Fatal("foreign SQL lifetime accepted")
 	}

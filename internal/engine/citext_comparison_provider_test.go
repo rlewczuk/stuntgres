@@ -62,9 +62,9 @@ func TestCitextComparisonProviderIdentity(t *testing.T) {
 			s.SetDescriptor(p.Address(), &p)
 		},
 	} {
-		s := catalog.CloneState(e.catalog.State)
+		s := catalog.CloneState(e.Catalog.State)
 		mutate(s)
-		if err := extension.StockCitext.ValidateExtension(e.catalog.Read(s), ext); err == nil {
+		if err := extension.StockCitext.ValidateExtension(e.Catalog.Read(s), ext); err == nil {
 			t.Fatal("corrupt comparison admitted")
 		}
 	}
@@ -79,7 +79,7 @@ func TestCitextComparisonProviderOwnerImport(t *testing.T) {
 	e, ext, base := citextUnitInstalled(t)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{base.Address(): {ClassID: ids.TypeClassID, ObjectID: 990001}}
 	for i := range extension.CitextComparisonNames {
-		p := e.catalog.State.MustProcedure(ext.Members[3+i])
+		p := e.Catalog.State.MustProcedure(ext.Members[3+i])
 		mapped := extension.RemapDescriptor(p, mapping).(*catalog.Procedure)
 		if mapped.Signature != "990001,990001" || p.Signature != extension.CitextComparisonSignature(base.SQLType.ID()) {
 			t.Fatal(mapped, p)

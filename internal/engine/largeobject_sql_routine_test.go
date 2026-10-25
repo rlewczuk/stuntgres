@@ -18,14 +18,14 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	base := catalog.CloneState(e.catalog.State)
-	object := &catalog.LargeObject{ObjectAddress: address, ObjectName: "910091", ObjectRevision: 2, Owner: e.roles.Domain.Principal(10), Content: content}
+	e.Mu.Lock()
+	base := catalog.CloneState(e.Catalog.State)
+	object := &catalog.LargeObject{ObjectAddress: address, ObjectName: "910091", ObjectRevision: 2, Owner: e.RoleStore.Domain.Principal(10), Content: content}
 	base.SetDescriptor(address, object)
 	base.BindName(catalog.DescriptorNameKey(object), address)
-	e.catalog.PublishLocked(base)
-	outerRead := e.catalog.Read(base)
-	e.mu.Unlock()
+	e.Catalog.PublishLocked(base)
+	outerRead := e.Catalog.Read(base)
+	e.Mu.Unlock()
 
 	bytesIn := func(view catalog.Read) string {
 		t.Helper()
@@ -48,11 +48,11 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		e.catalogChangeLocked(candidate, address, &bodyObject)
-		bodyRead := e.privateCatalogLocked(candidate)
-		e.mu.Unlock()
-		scope := &StatementScope{owner: owner, catalog: candidate, largeObjectRead: outerRead}
+		e.Mu.Lock()
+		e.CatalogChangeLocked(candidate, address, &bodyObject)
+		bodyRead := e.PrivateCatalogLocked(candidate)
+		e.Mu.Unlock()
+		scope := &StatementScope{Owner: owner, Catalog: candidate, largeObjectRead: outerRead}
 		restoreOuter := scope.activateSQLRoutine(nil, bodyRead)
 		if got := bytesIn(scope.largeObjectRead); got != "bb" {
 			t.Fatalf("body read %q, want calling-command bytes bb", got)
@@ -65,10 +65,10 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		e.catalogChangeLocked(candidate, address, &nestedObject)
-		nestedRead := e.privateCatalogLocked(candidate)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		e.CatalogChangeLocked(candidate, address, &nestedObject)
+		nestedRead := e.PrivateCatalogLocked(candidate)
+		e.Mu.Unlock()
 		if got := bytesIn(scope.largeObjectRead); got != "bb" {
 			t.Fatalf("active body saw later effect %q", got)
 		}
@@ -88,12 +88,12 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		if got := bytesIn(scope.largeObjectRead); got != "aa" {
 			t.Fatalf("outer unwind restored %q, want original bytes aa", got)
 		}
-		if scope.owner != owner || owner.Catalog != ownerJournal || scope.catalog != candidate || len(ownerJournal.Descriptors) != 0 {
+		if scope.Owner != owner || owner.Catalog != ownerJournal || scope.Catalog != candidate || len(ownerJournal.Descriptors) != 0 {
 			t.Fatal("query activation replaced owner or effect journal")
 		}
-		e.mu.Lock()
-		commandRead := e.privateCatalogLocked(scope.catalog)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		commandRead := e.PrivateCatalogLocked(scope.Catalog)
+		e.Mu.Unlock()
 		if got := bytesIn(commandRead); got != "cc" {
 			t.Fatalf("unwind discarded shared command effect %q", got)
 		}

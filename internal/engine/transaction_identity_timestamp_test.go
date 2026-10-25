@@ -8,31 +8,31 @@ func identityUnitTimestampWrap(t *testing.T) {
 		e := NewWithSettings(nil, "", true)
 		_, a := blockingUnitOwner(t, e)
 		_, b := blockingUnitOwner(t, e)
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		e.visibility.SetLastAssignedXIDLocked(4294967294)
-		if err := e.assignTransactionXIDLocked(a.Ref()); err != nil {
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		e.Visibility.SetLastAssignedXIDLocked(4294967294)
+		if err := e.AssignTransactionXIDLocked(a.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.assignTransactionXIDLocked(b.Ref()); err != nil {
+		if err := e.AssignTransactionXIDLocked(b.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		if e.visibility.Entries[a.Ref()].FullXID != 4294967295 || e.visibility.Entries[b.Ref()].FullXID != 4294967299 || len(e.visibility.CommitTimestamps) != 2 {
+		if e.Visibility.Entries[a.Ref()].FullXID != 4294967295 || e.Visibility.Entries[b.Ref()].FullXID != 4294967299 || len(e.Visibility.CommitTimestamps) != 2 {
 			t.Fatal("sparse wrap reservations")
 		}
-		if e.visibility.CommitTimestamps[4294967295].Present || e.visibility.CommitTimestamps[4294967299].Present {
+		if e.Visibility.CommitTimestamps[4294967295].Present || e.Visibility.CommitTimestamps[4294967299].Present {
 			t.Fatal("assignment fabricated completion")
 		}
-		e.visibility.RecordCommitTimestampLocked(b.Ref())
-		newer := e.visibility.LookupCommitTimestampLocked(3)
-		e.visibility.RecordCommitTimestampLocked(a.Ref())
-		older := e.visibility.LookupCommitTimestampLocked(4294967295)
-		if !older.Present || !newer.Present || e.visibility.LastCommittedXID() != 4294967295 || len(e.visibility.CommitTimestamps) != 2 {
+		e.Visibility.RecordCommitTimestampLocked(b.Ref())
+		newer := e.Visibility.LookupCommitTimestampLocked(3)
+		e.Visibility.RecordCommitTimestampLocked(a.Ref())
+		older := e.Visibility.LookupCommitTimestampLocked(4294967295)
+		if !older.Present || !newer.Present || e.Visibility.LastCommittedXID() != 4294967295 || len(e.Visibility.CommitTimestamps) != 2 {
 			t.Fatal("old-epoch active completion lost sparse slot")
 		}
-		last := e.visibility.LastCommitTimestamp()
-		e.visibility.RecordCommitTimestampLocked(a.Ref())
-		if e.visibility.LastCommitTimestamp() != last || e.visibility.LookupCommitTimestampLocked(3) != newer {
+		last := e.Visibility.LastCommitTimestamp()
+		e.Visibility.RecordCommitTimestampLocked(a.Ref())
+		if e.Visibility.LastCommitTimestamp() != last || e.Visibility.LookupCommitTimestampLocked(3) != newer {
 			t.Fatal("duplicate completion changed history")
 		}
 	})
@@ -41,25 +41,25 @@ func identityUnitTimestampWrap(t *testing.T) {
 		_, a := blockingUnitOwner(t, e)
 		_, b := blockingUnitOwner(t, e)
 		pgLocksUnitAssign(t, e, a)
-		e.mu.Lock()
-		e.visibility.RecordCommitTimestampLocked(a.Ref())
-		old := e.visibility.LookupCommitTimestampLocked(3)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		e.Visibility.RecordCommitTimestampLocked(a.Ref())
+		old := e.Visibility.LookupCommitTimestampLocked(3)
+		e.Mu.Unlock()
 		if !old.Present {
 			t.Fatal("missing original actual completion")
 		}
-		e.endLockOwner(a)
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		e.visibility.SetLastAssignedXIDLocked(4294967295)
-		if err := e.assignTransactionXIDLocked(b.Ref()); err != nil {
+		e.EndLockOwner(a)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		e.Visibility.SetLastAssignedXIDLocked(4294967295)
+		if err := e.AssignTransactionXIDLocked(b.Ref()); err != nil {
 			t.Fatal(err)
 		}
-		if _, retained := e.visibility.CommitTimestamps[3]; retained || len(e.visibility.CommitTimestamps) != 1 {
+		if _, retained := e.Visibility.CommitTimestamps[3]; retained || len(e.Visibility.CommitTimestamps) != 1 {
 			t.Fatal("reused low32 retained incompatible timestamp")
 		}
 		e.endSerializableLocked(b.Ref(), false)
-		if e.visibility.LookupCommitTimestampLocked(3).Present {
+		if e.Visibility.LookupCommitTimestampLocked(3).Present {
 			t.Fatal("aborted newest identity fell back to old-epoch completion")
 		}
 	})

@@ -66,14 +66,14 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 		}
 		func() {
 			defer done()
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, source.Ref, sqltype.InputEnvironment{}, nil, nil)
-			e.mu.Unlock()
+			b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, source.Ref, sqltype.InputEnvironment{}, nil, nil)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,19 +123,19 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				if _, err = scope.Describe(ast); err != nil {
 					t.Fatal(err)
 				}
-				e.mu.Lock()
-				auth, err := e.authorizationLocked(op)
+				e.Mu.Lock()
+				auth, err := e.AuthorizationLocked(op)
 				if err != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					t.Fatal(err)
 				}
-				b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+				b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 				if err != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					t.Fatal(err)
 				}
-				view, err := scope.acquireDataViewLocked(e, b.QuerySources[0].Ref)
-				e.mu.Unlock()
+				view, err := scope.AcquireDataViewLocked(e, b.QuerySources[0].Ref)
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -165,7 +165,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				original := expressions[0]
 				calls := 0
 				expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
-				rows, err := dml.EvaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.input, scope.output, scope.writeHost())
+				rows, err := dml.EvaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.Input, scope.Output, scope.WriteHost())
 				if err != nil || len(rows.Values) != 2 || calls != 4 || source.View != nil {
 					t.Fatal(rows, calls, err, source.View)
 				}
@@ -196,7 +196,7 @@ func TestQueryDistinctPhysicalACL(t *testing.T) {
 				roleExecute(t, e, op, "INSERT INTO acl_t VALUES(1,9),(1,8),(2,8)")
 			}
 			reader, _ := e.Roles().Lookup("distinct_reader")
-			grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			table := roleTableRef(t, e, "acl_t")
 			id := table
 			id.Address.SubID = 1

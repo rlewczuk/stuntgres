@@ -23,9 +23,9 @@ func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, 
 		return sqltype.Value{}, err
 	}
 	if kind == functions.ImportSystemCollationsInquiry {
-		engine := scope.engine()
-		engine.mu.Lock()
-		defer engine.mu.Unlock()
+		engine := scope.Engine()
+		engine.Mu.Lock()
+		defer engine.Mu.Unlock()
 		auth, err := scope.namespaceAuthorizationLocked(engine)
 		if err != nil {
 			return sqltype.Value{}, err
@@ -35,41 +35,41 @@ func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, 
 			return sqltype.Value{}, err
 		}
 		if !actor.Superuser {
-			return sqltype.Value{}, sqlError("42501", "must be superuser to import system collations")
+			return sqltype.Value{}, SQLError("42501", "must be superuser to import system collations")
 		}
 		if _, exists := auth.Catalog.Descriptor(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)}); !exists {
-			return sqltype.Value{}, sqlError("3F000", fmt.Sprintf("schema with OID %d does not exist", oid))
+			return sqltype.Value{}, SQLError("3F000", fmt.Sprintf("schema with OID %d does not exist", oid))
 		}
-		return sqltype.Value{}, sqlError("0A000", "system collation import is unsupported in embedded mode")
+		return sqltype.Value{}, SQLError("0A000", "system collation import is unsupported in embedded mode")
 	}
-	if scope.inquiry.visibilityCatalog.State() == nil {
+	if scope.Inquiry.visibilityCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing visibility snapshot")
 	}
-	in := &scope.inquiry
+	in := &scope.Inquiry
 	return regobj.VisibilityInquiry(in.visibilityCatalog, in.visibilityRelationPath, in.visibilityOtherPath, kind, oid, result)
 }
 
 // Engine.mu is held. The execution frontier owns catalog and path, never mutable
 // session settings or an authorization view subsequently consulted by Eval.
 func (e *Engine) captureVisibilitySnapshotLocked(scope *StatementScope) error {
-	if scope.inquiry.visibilityCatalog.State() != nil {
+	if scope.Inquiry.visibilityCatalog.State() != nil {
 		return nil
 	}
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return err
 	}
-	explicit, _, err := explicitPath(auth)
+	explicit, _, err := ExplicitPath(auth)
 	if err != nil {
 		return err
 	}
 	// effectivePath filters TEMP in place for conversion lookup. Give that
 	// derived path its own backing store; the relation path remains immutable.
-	relations := effectivePath(auth, explicit, analyze.RelationLookup)
+	relations := EffectivePath(auth, explicit, analyze.RelationLookup)
 	otherExplicit := make([]ids.ObjectAddress, len(explicit))
 	copy(otherExplicit, explicit)
-	others := effectivePath(auth, otherExplicit, analyze.ConversionLookup)
-	scope.inquiry.visibilityCatalog = auth.Catalog
-	scope.inquiry.visibilityRelationPath, scope.inquiry.visibilityOtherPath = relations, others
+	others := EffectivePath(auth, otherExplicit, analyze.ConversionLookup)
+	scope.Inquiry.visibilityCatalog = auth.Catalog
+	scope.Inquiry.visibilityRelationPath, scope.Inquiry.visibilityOtherPath = relations, others
 	return nil
 }

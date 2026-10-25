@@ -15,20 +15,20 @@ import (
 // Each lexical occurrence keeps its own capture even when physical grants
 // deduplicate. Capture precedes the child's first AX wait; no later lookup may
 // select a replacement endpoint after a wait or an earlier list action.
-type inheritanceRelationshipAdmission struct {
-	action   parser.AlterTableAction
-	ref      ids.ObjectRef
-	lexical  ids.ObjectRef
-	relation *catalog.Relation
-	deferred error
-	admitted bool
+type InheritanceRelationshipAdmission struct {
+	Action   parser.AlterTableAction
+	Ref      ids.ObjectRef
+	Lexical  ids.ObjectRef
+	Relation *catalog.Relation
+	Deferred error
+	Admitted bool
 }
 
 func (s *StatementScope) captureInheritanceRelationshipsLocked(e *Engine, auth AuthorizationView, raw *parser.AlterTable, child ids.ObjectRef) error {
 	if !table.HasRelationshipActions(raw.Actions) || child.Domain() == nil {
 		return nil
 	}
-	auth.definition = nil // Observe actual names, not an ALTER recipe's reader.
+	auth.Definition = nil // Observe actual names, not an ALTER recipe's reader.
 	for _, action := range raw.Actions {
 		if !table.RelationshipAction(action.Action) {
 			continue
@@ -38,25 +38,25 @@ func (s *StatementScope) captureInheritanceRelationshipsLocked(e *Engine, auth A
 				return err
 			}
 		}
-		ref, lookupErr := e.resolveRelationReference(auth, action.Parent, true)
-		lexical, lexicalErr := e.admissionNameReference(auth, action.Parent)
+		ref, lookupErr := e.ResolveRelationReference(auth, action.Parent, true)
+		lexical, lexicalErr := e.AdmissionNameReference(auth, action.Parent)
 		for _, err := range [...]error{lookupErr, lexicalErr} {
 			var diagnostic *sqlstate.Error
 			if err != nil && !errors.As(err, &diagnostic) {
 				return err
 			}
 		}
-		capture := inheritanceRelationshipAdmission{action: action, ref: ref, lexical: lexical, deferred: lookupErr}
-		if capture.deferred == nil {
-			capture.deferred = lexicalErr
+		capture := InheritanceRelationshipAdmission{Action: action, Ref: ref, Lexical: lexical, Deferred: lookupErr}
+		if capture.Deferred == nil {
+			capture.Deferred = lexicalErr
 		}
-		if capture.ref.Domain() == nil {
-			capture.ref = lexical
+		if capture.Ref.Domain() == nil {
+			capture.Ref = lexical
 		}
-		if capture.ref.Domain() != nil {
-			capture.relation, _ = auth.Catalog.Relation(capture.ref.Address)
+		if capture.Ref.Domain() != nil {
+			capture.Relation, _ = auth.Catalog.Relation(capture.Ref.Address)
 		}
-		s.inheritance.relationships = append(s.inheritance.relationships, capture)
+		s.Inheritance.Relationships = append(s.Inheritance.Relationships, capture)
 	}
 	return nil
 }
@@ -64,24 +64,24 @@ func (s *StatementScope) captureInheritanceRelationshipsLocked(e *Engine, auth A
 // Resolve semantics only when this misc action is reached. Initial absence is
 // still an observation: a newly visible same-name object is never its target.
 // Caller holds Engine.mu; neither lookup nor this comparison waits for grants.
-func (s *StatementScope) currentInheritanceRelationshipLocked(e *Engine, capture *inheritanceRelationshipAdmission) (AuthorizationView, *catalog.Relation, error) {
-	auth, err := e.authorizationLocked(s.op)
+func (s *StatementScope) currentInheritanceRelationshipLocked(e *Engine, capture *InheritanceRelationshipAdmission) (AuthorizationView, *catalog.Relation, error) {
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return auth, nil, err
 	}
-	auth.definition = nil // Stage.Base must not hide a newly shadowing endpoint.
-	ref, lookupErr := e.resolveRelationReference(auth, capture.action.Parent, true)
-	lexical, lexicalErr := e.admissionNameReference(auth, capture.action.Parent)
+	auth.Definition = nil // Stage.Base must not hide a newly shadowing endpoint.
+	ref, lookupErr := e.ResolveRelationReference(auth, capture.Action.Parent, true)
+	lexical, lexicalErr := e.AdmissionNameReference(auth, capture.Action.Parent)
 	for _, err := range [...]error{lookupErr, lexicalErr} {
 		var diagnostic *sqlstate.Error
 		if err != nil && !errors.As(err, &diagnostic) {
 			return auth, nil, err
 		}
 	}
-	if lexicalErr == nil && lexical != capture.lexical {
+	if lexicalErr == nil && lexical != capture.Lexical {
 		return auth, nil, ids.ErrCatalogReplaced
 	}
-	if capture.deferred != nil {
+	if capture.Deferred != nil {
 		if lookupErr != nil {
 			return auth, nil, lookupErr
 		}
@@ -90,43 +90,43 @@ func (s *StatementScope) currentInheritanceRelationshipLocked(e *Engine, capture
 		}
 		return auth, nil, ids.ErrCatalogReplaced
 	}
-	actual, exists := auth.Catalog.Relation(capture.ref.Address)
-	if lookupErr != nil || lexicalErr != nil || ref != capture.ref || !exists || capture.ref.Domain() != e.catalog.Domain || capture.ref.Epoch != auth.Catalog.Epoch() || !table.InheritanceMarkerPublication(capture.relation, actual) {
+	actual, exists := auth.Catalog.Relation(capture.Ref.Address)
+	if lookupErr != nil || lexicalErr != nil || ref != capture.Ref || !exists || capture.Ref.Domain() != e.Catalog.Domain || capture.Ref.Epoch != auth.Catalog.Epoch() || !table.InheritanceMarkerPublication(capture.Relation, actual) {
 		return auth, nil, ids.ErrCatalogReplaced
 	}
 	return auth, actual, nil
 }
 
-func (s *StatementScope) admitInheritanceRelationship(capture *inheritanceRelationshipAdmission) error {
-	if capture.admitted {
+func (s *StatementScope) admitInheritanceRelationship(capture *InheritanceRelationshipAdmission) error {
+	if capture.Admitted {
 		return nil
 	}
-	if err := s.op.Context().Err(); err != nil {
+	if err := s.Op.Context().Err(); err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
+	e := s.Engine()
+	e.Mu.Lock()
 	_, _, err := s.currentInheritanceRelationshipLocked(e, capture)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
 	mode := lock.AccessShare
-	if capture.action.Action == parser.InheritTable {
+	if capture.Action.Action == parser.InheritTable {
 		mode = lock.ShareUpdateExclusive
 	}
-	if err := s.acquireSequence(capture.ref, mode, false); err != nil {
+	if err := s.AcquireSequence(capture.Ref, mode, false); err != nil {
 		return err
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	auth, actual, err := s.currentInheritanceRelationshipLocked(e, capture)
-	if err == nil && capture.action.Action == parser.InheritTable {
-		err = auth.Check(access.Requirement{Object: capture.ref, OwnerOnly: true})
+	if err == nil && capture.Action.Action == parser.InheritTable {
+		err = auth.Check(access.Requirement{Object: capture.Ref, OwnerOnly: true})
 	}
 	if err == nil {
-		capture.relation, capture.admitted = actual, true
+		capture.Relation, capture.Admitted = actual, true
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return err
 }
 
@@ -134,25 +134,25 @@ func (s *StatementScope) validateInheritanceRelationshipsLocked(e *Engine) error
 	var auth AuthorizationView
 	var err error
 	captured := false
-	for _, capture := range s.inheritance.relationships {
-		if !capture.admitted {
+	for _, capture := range s.Inheritance.Relationships {
+		if !capture.Admitted {
 			continue
 		}
 		if !captured {
-			auth, err = e.authorizationLocked(s.op)
+			auth, err = e.AuthorizationLocked(s.Op)
 			if err != nil {
 				return err
 			}
-			auth.definition = nil
+			auth.Definition = nil
 			captured = true
 		}
-		current, ok := auth.Catalog.Relation(capture.ref.Address)
-		lexical, err := e.admissionNameReference(auth, capture.action.Parent)
-		if !ok || capture.ref.Domain() != e.catalog.Domain || capture.ref.Epoch != auth.Catalog.Epoch() || !table.InheritanceMarkerPublication(capture.relation, current) || err != nil || lexical != capture.lexical {
+		current, ok := auth.Catalog.Relation(capture.Ref.Address)
+		lexical, err := e.AdmissionNameReference(auth, capture.Action.Parent)
+		if !ok || capture.Ref.Domain() != e.Catalog.Domain || capture.Ref.Epoch != auth.Catalog.Epoch() || !table.InheritanceMarkerPublication(capture.Relation, current) || err != nil || lexical != capture.Lexical {
 			return ids.ErrCatalogReplaced
 		}
-		if capture.action.Action == parser.InheritTable {
-			if err := auth.Check(access.Requirement{Object: capture.ref, OwnerOnly: true}); err != nil {
+		if capture.Action.Action == parser.InheritTable {
+			if err := auth.Check(access.Requirement{Object: capture.Ref, OwnerOnly: true}); err != nil {
 				return err
 			}
 		}
@@ -164,32 +164,32 @@ func (s *StatementScope) inheritanceRelationshipCandidate(stage *CatalogStage, c
 	if err := table.RelationshipChildKind(child, action.Action); err != nil {
 		return nil, err
 	}
-	for i := range s.inheritance.relationships {
-		capture := &s.inheritance.relationships[i]
-		if capture.action.Pos != action.Pos || capture.action.Action != action.Action {
+	for i := range s.Inheritance.Relationships {
+		capture := &s.Inheritance.Relationships[i]
+		if capture.Action.Pos != action.Pos || capture.Action.Action != action.Action {
 			continue
 		}
 		if err := s.admitInheritanceRelationship(capture); err != nil {
 			return nil, err
 		}
-		view := s.engine().stageRead(stage)
-		parent, exists := view.Relation(capture.ref.Address)
+		view := s.Engine().StageRead(stage)
+		parent, exists := view.Relation(capture.Ref.Address)
 		if !exists {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if _, staged := stage.Find(capture.ref.Address); !staged && parent != capture.relation && table.InheritanceMarkerPublication(parent, capture.relation) {
+		if _, staged := stage.Find(capture.Ref.Address); !staged && parent != capture.Relation && table.InheritanceMarkerPublication(parent, capture.Relation) {
 			// Consume the genuine intervening marker, rather than issuing a
 			// second first-child marker from the stage's older base snapshot.
-			if err := stage.Replace(capture.relation); err != nil {
+			if err := stage.Replace(capture.Relation); err != nil {
 				return nil, err
 			}
-			view = s.engine().stageRead(stage)
-			parent = view.MustRelation(capture.ref.Address)
+			view = s.Engine().StageRead(stage)
+			parent = view.MustRelation(capture.Ref.Address)
 		}
 		if action.Action == parser.InheritTable {
-			return table.AttachInheritance(s.op.Context(), view, child, parent)
+			return table.AttachInheritance(s.Op.Context(), view, child, parent)
 		}
-		return table.DetachInheritance(view, child, parent, capture.ref)
+		return table.DetachInheritance(view, child, parent, capture.Ref)
 	}
 	return nil, ids.ErrCatalogReplaced
 }

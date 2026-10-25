@@ -29,16 +29,16 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 				before := e.CatalogRead()
 				old := domainUnitType(t, before, "mood")
 				oldArray := before.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)})
-				oldDatabase := before.MustDatabase(e.catalog.DatabaseAddress())
+				oldDatabase := before.MustDatabase(e.Catalog.DatabaseAddress())
 				value, err := old.SQLType.Input(context.Background(), "a", -1)
 				if err != nil {
 					t.Fatal(err)
 				}
 				original := &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}
-				e.mu.Lock()
-				e.storage.InstallRelationLocked(table.Address(), original)
-				e.visibility.SetCommitSeqLocked(1)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Storage.InstallRelationLocked(table.Address(), original)
+				e.Visibility.SetCommitSeqLocked(1)
+				e.Mu.Unlock()
 				q := "ALTER TYPE public.mood RENAME TO renamed"
 				name, arrayName, namespace := "renamed", "_renamed", old.Namespace()
 				if moving {
@@ -51,7 +51,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 				}
 				stage := domainUnitStage(t, e, op, q)
 				defer e.DiscardCatalogStage(stage)
-				if stage.databasePredecessor != oldDatabase || stage.databaseAuthority != oldDatabase {
+				if stage.DatabasePredecessor != oldDatabase || stage.DatabaseAuthority != oldDatabase {
 					t.Fatal("identity stage did not capture genuine database authority")
 				}
 				prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -59,10 +59,10 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 					t.Fatal(err)
 				}
 				if change == "horizon" {
-					e.mu.Lock()
-					e.databaseFrozenXID = oldDatabase.FrozenXID + 1
+					e.Mu.Lock()
+					e.DatabaseFrozenXID = oldDatabase.FrozenXID + 1
 					e.publishDatabaseFrozenXIDLocked()
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					expected := *oldDatabase
 					expected.FrozenXID++
 					if !reflect.DeepEqual(e.CatalogRead().MustDatabase(oldDatabase.Address()), &expected) {
@@ -73,7 +73,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 					database.ObjectRevision++
 					switch change {
 					case "owner":
-						database.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
+						database.Owner = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
 						if database.Owner == (authorization.PrincipalRef{}) || database.Owner == oldDatabase.Owner {
 							t.Fatal("missing distinct genuine owner")
 						}
@@ -92,7 +92,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 				intervening := e.CatalogRead()
 				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 				if change != "horizon" {
-					if !errors.Is(err, ids.ErrCatalogReplaced) || e.CatalogRead().State() != intervening.State() || e.storage.Relations[table.Address()] != original {
+					if !errors.Is(err, ids.ErrCatalogReplaced) || e.CatalogRead().State() != intervening.State() || e.Storage.Relations[table.Address()] != original {
 						t.Fatal("genuine database authority change did not veto identity publication atomically", err)
 					}
 					if intervening.MustType(old.Address()) != old || intervening.MustType(oldArray.Address()) != oldArray {
@@ -111,12 +111,12 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 				if current.NameAddress(catalog.DescriptorNameKey(old)) != (ids.ObjectAddress{}) || current.NameAddress(catalog.DescriptorNameKey(next)) != old.Address() {
 					t.Fatal("identity lookup cutover lost")
 				}
-				store := e.storage.Relations[table.Address()]
+				store := e.Storage.Relations[table.Address()]
 				if len(store.Versions) != 1 || store.Versions[0].Row != 1 || store.Versions[0].Version != 1 || store.Versions[0].Born != 1 || store.Versions[0].Values[0].Type() != next.SQLType || current.MustRelation(table.Address()).Columns[0].Usage.Type != next.SQLType {
 					t.Fatal("stored identity/data generation closure lost")
 				}
 				text, err := next.SQLType.Output(context.Background(), store.Versions[0].Values[0])
-				if err != nil || text != "a" || current.MustDatabase(oldDatabase.Address()) != intervening.MustDatabase(oldDatabase.Address()) || e.databaseFrozenXID != oldDatabase.FrozenXID+1 {
+				if err != nil || text != "a" || current.MustDatabase(oldDatabase.Address()) != intervening.MustDatabase(oldDatabase.Address()) || e.DatabaseFrozenXID != oldDatabase.FrozenXID+1 {
 					t.Fatal("identity publication lost data or the new maintenance horizon", text, err)
 				}
 				if before.MustType(old.Address()) != old || old.Name() != "mood" || oldArray.SQLType.Element() != old.SQLType || original.Versions[0].Values[0].Type() != old.SQLType || before.MustDatabase(oldDatabase.Address()) != oldDatabase {
@@ -129,10 +129,10 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 
 func TestTypeLifecycleDatabaseAuthorityMetadata(t *testing.T) {
 	e := New()
-	original := e.CatalogRead().MustDatabase(e.catalog.DatabaseAddress())
+	original := e.CatalogRead().MustDatabase(e.Catalog.DatabaseAddress())
 	foreign := New()
-	foreignOwner := foreign.CatalogRead().MustDatabase(foreign.catalog.DatabaseAddress()).Owner
-	otherOwner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
+	foreignOwner := foreign.CatalogRead().MustDatabase(foreign.Catalog.DatabaseAddress()).Owner
+	otherOwner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("pg_read_all_data")
 	for _, tc := range []struct {
 		name   string
 		change func(*catalog.Database)

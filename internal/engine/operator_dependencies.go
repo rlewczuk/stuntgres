@@ -4,8 +4,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 )
 
-func (p *dropProvider) clearOperatorLinks(d *catalog.Operator) error {
-	for address, descriptor := range p.base.Descriptors() {
+func (p *DropProvider) clearOperatorLinks(d *catalog.Operator) error {
+	for address, descriptor := range p.Base.Descriptors() {
 		peer, ok := descriptor.(*catalog.Operator)
 		if !ok || address == d.Address() || p.Removed(address) {
 			continue

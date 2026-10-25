@@ -31,10 +31,10 @@ func (p *extensionVersionValidationGate) Validate(v catalog.Read, d catalog.Desc
 		return err
 	}
 	if ext, ok := d.(*catalog.Extension); ok && ext.Name() == "fuzzystrmatch" && ext.Version == "1.2" && p.once.CompareAndSwap(false, true) {
-		if !p.engine.mu.TryLock() {
+		if !p.engine.Mu.TryLock() {
 			return errors.New("version provider validation holds engine mutex")
 		}
-		p.engine.mu.Unlock()
+		p.engine.Mu.Unlock()
 		close(p.entered)
 		select {
 		case <-p.release:
@@ -67,15 +67,15 @@ func TestExtensionVersionPublication(t *testing.T) {
 			e, admin, old := extensionVersionUnitInstalled(t, "1.1")
 			extensionVersionUnitRevoke(t, e, admin)
 			consumer := extensionVersionUnitConsumer(t, e, admin)
-			oldConsumer, oldStore := e.CatalogRead().Get(consumer), e.storage.Relations[consumer]
+			oldConsumer, oldStore := e.CatalogRead().Get(consumer), e.Storage.Relations[consumer]
 			if oldConsumer == nil || oldStore == nil || len(oldStore.Versions) != 1 {
 				t.Fatal("real stored consumer setup")
 			}
 			data := slices.Clone(oldStore.Versions)
 			oldMembers := extensionVersionUnitMembers(t, e.CatalogRead(), old)
 			oldAddresses := slices.Clone(old.Members)
-			gate := &extensionVersionValidationGate{Provider: e.catalog.Providers[ids.ExtensionClassID], engine: e, entered: make(chan struct{}), release: make(chan struct{})}
-			e.catalog.Providers[ids.ExtensionClassID] = gate
+			gate := &extensionVersionValidationGate{Provider: e.Catalog.Providers[ids.ExtensionClassID], engine: e, entered: make(chan struct{}), release: make(chan struct{})}
+			e.Catalog.Providers[ids.ExtensionClassID] = gate
 			var release sync.Once
 			unblock := func() { release.Do(func() { close(gate.release) }) }
 			worker, closeWorker := roleOperation(t, e, "postgres")
@@ -150,8 +150,8 @@ func TestExtensionVersionPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "restore":
-				replacement := e.restoreStage()
-				if _, err := e.replaceCatalog(context.Background(), replacement, replacement.CatalogRead(), admin); err != nil {
+				replacement := e.RestoreStage()
+				if _, err := e.ReplaceCatalogInOperation(context.Background(), replacement, replacement.CatalogRead(), admin); err != nil {
 					t.Fatal(err)
 				}
 			case "cancel":
@@ -200,7 +200,7 @@ func TestExtensionVersionPublication(t *testing.T) {
 				}
 			}
 			if reason != "reset" && reason != "restore" {
-				if e.CatalogRead().Get(consumer) != oldConsumer || e.storage.Relations[consumer] != oldStore || !reflect.DeepEqual(data, oldStore.Versions) {
+				if e.CatalogRead().Get(consumer) != oldConsumer || e.Storage.Relations[consumer] != oldStore || !reflect.DeepEqual(data, oldStore.Versions) {
 					t.Fatal("update changed consumer or data")
 				}
 				if reason == "competing" {
@@ -218,9 +218,9 @@ func TestExtensionVersionPublication(t *testing.T) {
 	t.Run("CanceledBeforeValidation", func(t *testing.T) {
 		e, op, ext := extensionVersionUnitInstalled(t, "1.1")
 		members := extensionVersionUnitMembers(t, e.CatalogRead(), ext)
-		e.mu.Lock()
-		stage, err := e.stageExtensionUpdateLocked(&StatementScope{op: op}, extensionVersionUnitUpdate())
-		e.mu.Unlock()
+		e.Mu.Lock()
+		stage, err := e.stageExtensionUpdateLocked(&StatementScope{Op: op}, extensionVersionUnitUpdate())
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}

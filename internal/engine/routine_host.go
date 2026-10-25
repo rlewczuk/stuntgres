@@ -16,19 +16,19 @@ import (
 
 // The routine.DDLHost methods of ddlHost beyond the shared ddl.Host.
 
-var _ routine.DDLHost = ddlHost{}
+var _ routine.DDLHost = DDLHost{}
 
-func (h ddlHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return ddlAuthorityOf(a).definitionType(id)
+func (h DDLHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
+	return DDLAuthorityOf(a).definitionType(id)
 }
 
-func (h ddlHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
-	return ddlAuthorityOf(a).definitionLookup(key)
+func (h DDLHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
+	return DDLAuthorityOf(a).DefinitionLookup(key)
 }
 
-func (h ddlHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
-	v := ddlAuthorityOf(a)
-	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
+func (h DDLHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
+	v := DDLAuthorityOf(a)
+	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return catalog.RoutineIdentity{}, 0, err
 	}
@@ -36,18 +36,18 @@ func (h ddlHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signatu
 	return identity, count, nil
 }
 
-func (h ddlHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
-	v := ddlAuthorityOf(a)
-	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
+func (h DDLHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
+	v := DDLAuthorityOf(a)
+	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, nil, sqltype.Usage{}, err
 	}
-	reader := stageDefinitions(h.stage)
-	previous := h.op.Definition
-	h.op.Definition = reader
-	defer func() { h.op.Definition = previous }()
-	v.definition = reader
-	binder := newExpressionBinder(h.Context(), h.e, sqltype.InputEnvironment{}, h.op, nil)
+	reader := StageDefinitions(h.CatalogStage)
+	previous := h.Op.Definition
+	h.Op.Definition = reader
+	defer func() { h.Op.Definition = previous }()
+	v.Definition = reader
+	binder := NewExpressionBinder(h.Context(), h.E, sqltype.InputEnvironment{}, h.Op, nil)
 	binder.Query.Auth = &v
 	selected, err := binder.SelectAggregateSupport(v.Catalog, reader, path, name, inputs)
 	if err != nil {
@@ -64,45 +64,45 @@ func (h ddlHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName,
 	return selected.Procedure, formals, result, err
 }
 
-func (h ddlHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
-	input, err := captureRegtypeInput(ddlAuthorityOf(a), h.op)
+func (h DDLHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
+	input, err := CaptureRegtypeInput(DDLAuthorityOf(a), h.Op)
 	if err != nil {
 		return 0, err
 	}
-	id, err := input.ResolveParsedTypeName(h.op.Context(), raw, h.op)
+	id, err := input.ResolveParsedTypeName(h.Op.Context(), raw, h.Op)
 	return ids.OID(id), err
 }
 
 // BindSQLRoutine binds d's body with the stage's definitions in place of the
 // operation's. Restore defers SQL body validation until the import ends.
-func (h ddlHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
-	if operationReplayOrZero(h.op).sqlBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
+func (h DDLHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
+	if OperationReplayOrZero(h.Op).SQLBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
 		return nil
 	}
-	previous := h.op.Definition
-	h.op.Definition = stageDefinitions(h.stage)
-	defer func() { h.op.Definition = previous }()
-	auth := ddlAuthorityOf(a)
-	auth.definition = h.op.Definition
+	previous := h.Op.Definition
+	h.Op.Definition = StageDefinitions(h.CatalogStage)
+	defer func() { h.Op.Definition = previous }()
+	auth := DDLAuthorityOf(a)
+	auth.Definition = h.Op.Definition
 	if d.SQL.Kind == proc.PLpgSQLBody {
-		return h.e.compilePLRoutineLocked(h.op, auth, d)
+		return h.E.CompilePLRoutineLocked(h.Op, auth, d)
 	}
-	_, _, err := h.e.bindSQLRoutineLocked(h.op, auth, d, input, nil)
+	_, _, err := h.E.BindSQLRoutineLocked(h.Op, auth, d, input, nil)
 	return err
 }
 
 // Defaults never share quoted-body replay deferral. Their legitimate stage
 // includes prior staged objects, but not the declaration currently being built.
-func (h ddlHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []parser.RoutineParameter, input sqltype.InputEnvironment) error {
+func (h DDLHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []parser.RoutineParameter, input sqltype.InputEnvironment) error {
 	if d.SQL.DefaultCount() == 0 {
 		return nil
 	}
-	previous := h.op.Definition
-	h.op.Definition = stageDefinitions(h.stage)
-	defer func() { h.op.Definition = previous }()
-	auth := ddlAuthorityOf(a)
-	auth.definition = h.op.Definition
-	b := newExpressionBinder(h.op.Context(), h.e, input, h.op, nil)
+	previous := h.Op.Definition
+	h.Op.Definition = StageDefinitions(h.CatalogStage)
+	defer func() { h.Op.Definition = previous }()
+	auth := DDLAuthorityOf(a)
+	auth.Definition = h.Op.Definition
+	b := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	b.Query.Auth = &auth
 	b.Params.NoParameters = true
 	entries := make([]expr.Expr, len(d.SQL.Inputs))
@@ -117,7 +117,7 @@ func (h ddlHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []pa
 		}
 		entries[slot] = node
 	}
-	defaults, err := stored.NewRoutineDefaults(h.op.Context(), auth.Catalog, b.DefinitionReader(), entries)
+	defaults, err := stored.NewRoutineDefaults(h.Op.Context(), auth.Catalog, b.DefinitionReader(), entries)
 	if err != nil {
 		return err
 	}

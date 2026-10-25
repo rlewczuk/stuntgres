@@ -15,82 +15,82 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	if operationReplayOrZero(scope.op).tableDestination && s.Concurrent.Character != 0 {
+	if OperationReplayOrZero(scope.Op).TableDestination && s.Concurrent.Character != 0 {
 		return Result{}, fmt.Errorf("stuntgres: restore cannot execute concurrent index phases")
 	}
-	scope.owner.Mu.Lock()
-	explicit := scope.owner.InBlock()
-	scope.owner.Mu.Unlock()
+	scope.Owner.Mu.Lock()
+	explicit := scope.Owner.InBlock()
+	scope.Owner.Mu.Unlock()
 	var nameScratch [8]ids.NameKey
 	for {
 		var reservedNames []ids.NameKey
 		if s.Name.Text == "" && s.Concurrent.Character == 0 {
-			e.mu.Lock()
-			namespace := scope.lockedRef
-			namespace.Address = scope.lockedDescriptor.(*catalog.Relation).Namespace()
-			e.mu.Unlock()
+			e.Mu.Lock()
+			namespace := scope.LockedRef
+			namespace.Address = scope.LockedDescriptor.(*catalog.Relation).Namespace()
+			e.Mu.Unlock()
 			var err error
-			reservedNames, err = e.locks.AppendRelationNameClaims(nameScratch[:0], scope.ticket, namespace)
+			reservedNames, err = e.Locks.AppendRelationNameClaims(nameScratch[:0], scope.LockTicket, namespace)
 			if err != nil {
 				return Result{}, err
 			}
 		}
-		e.mu.Lock()
-		fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-		if err := scope.refreshRelationGrantsLocked(e); err != nil {
+		e.Mu.Lock()
+		fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+		if err := scope.RefreshRelationGrantsLocked(e); err != nil {
 			return fail(err)
 		}
-		auth, err := e.statementAuthorizationLocked(scope.op, s)
+		auth, err := e.StatementAuthorizationLocked(scope.Op, s)
 		if err != nil {
 			return fail(err)
 		}
-		if err = scope.captureIdentityLocked(auth); err != nil {
+		if err = scope.CaptureIdentityLocked(auth); err != nil {
 			return fail(err)
 		}
-		parent, ok := auth.Catalog.Relation(scope.lockedRef.Address)
+		parent, ok := auth.Catalog.Relation(scope.LockedRef.Address)
 		if !ok {
 			return fail(ids.ErrCatalogReplaced)
 		}
 		base := auth.Catalog
 		stage := e.BeginCatalogStage(base)
-		stage.authorizeLocked(auth, scope.op.Session)
-		stage.indexes().Output = scope.output
+		stage.AuthorizeLocked(auth, scope.Op.Session)
+		stage.Indexes().Output = scope.Output
 		failStage := func(err error) (Result, error) {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
-		h := ddlHost{e: e, op: scope.op, stage: stage}
-		created, err := index.PrepareCreate(h, auth, parent, s, scope.input, reservedNames)
+		h := DDLHost{E: e, Op: scope.Op, CatalogStage: stage}
+		created, err := index.PrepareCreate(h, auth, parent, s, scope.Input, reservedNames)
 		if err != nil {
 			return failStage(err)
 		}
 		key, ns, name := created.Key, created.Namespace, created.Key.Name
 		if created.Skip {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			e.DiscardCatalogStage(stage)
-			scope.op.ExistingRelationNotice(name)
-			scope.completed = true
+			scope.Op.ExistingRelationNotice(name)
+			scope.Completed = true
 			return Result{}, nil
 		}
 		d := created.Relation
 		if s.Concurrent.Character != 0 {
-			if err := e.visibilityWriteLocked(scope.txRef); err != nil {
+			if err := e.VisibilityWriteLocked(scope.TxRef); err != nil {
 				return failStage(err)
 			}
 		}
 		err = index.StageCreate(h, parent, d, s.Only)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			e.DiscardCatalogStage(stage)
 			return Result{}, index.DefaultClassDiagnostic(h, auth, err)
 		}
-		prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
+		prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 		if err != nil {
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
-		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
+		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 		e.DiscardCatalogStage(stage)
 		_, conflict := err.(catalog.Conflict)
 		if err != nil && !conflict && (s.Name.Text == "" || s.IfNotExists) {
@@ -105,44 +105,44 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			}
 		}
 		if conflict {
-			if contextErr := scope.op.Context().Err(); contextErr != nil {
+			if contextErr := scope.Op.Context().Err(); contextErr != nil {
 				return Result{}, contextErr
 			}
 			if s.Name.Text == "" {
 				continue
 			}
 			if s.IfNotExists {
-				e.mu.Lock()
-				currentAuth, authErr := e.statementAuthorizationLocked(scope.op, s)
-				current := e.privateCatalogLocked(scope.owner.Catalog)
+				e.Mu.Lock()
+				currentAuth, authErr := e.StatementAuthorizationLocked(scope.Op, s)
+				current := e.PrivateCatalogLocked(scope.Owner.Catalog)
 				_, exists := current.LookupName(key)
 				same := current.Epoch() == base.Epoch() && current.Get(parent.Address()) != nil
 				if authErr == nil && same {
-					authErr = currentAuth.Check(access.Requirement{Object: scope.lockedRef, OwnerOnly: true})
+					authErr = currentAuth.Check(access.Requirement{Object: scope.LockedRef, OwnerOnly: true})
 				}
 				if authErr == nil && same {
 					authErr = currentAuth.CheckCreate(ns)
 				}
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if authErr != nil {
 					return Result{}, authErr
 				}
 				if same && exists {
-					scope.op.ExistingRelationNotice(name)
-					scope.completed = true
+					scope.Op.ExistingRelationNotice(name)
+					scope.Completed = true
 					return Result{}, nil
 				}
 			}
-			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+			return Result{}, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		if err == nil && s.Concurrent.Character != 0 {
-			e.mu.Lock()
-			e.visibility.ResetPhaseLocked(scope.txRef)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			e.Visibility.ResetPhaseLocked(scope.TxRef)
+			e.Mu.Unlock()
 			return e.executeConcurrentIndex(scope, s, d)
 		}
 		if err == nil {
-			scope.completed = true
+			scope.Completed = true
 		}
 		return Result{}, err
 	}

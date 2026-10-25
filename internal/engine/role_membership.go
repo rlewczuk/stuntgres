@@ -17,15 +17,15 @@ func (e *Engine) membershipLocked(op *session.Operation, v AuthorizationView, s 
 		if err != nil {
 			return Result{}, err
 		}
-		if scope := scopeOfLease(op.Lease); scope != nil && !scope.finished {
-			e.mu.Unlock()
+		if scope := ScopeOfLease(op.Lease); scope != nil && !scope.Finished {
+			e.Mu.Unlock()
 			lockErr := scope.acquireMembershipLocks(v, s, &n)
-			e.mu.Lock()
+			e.Mu.Lock()
 			if lockErr != nil {
 				op.Notices = notices
 				return Result{}, lockErr
 			}
-			fresh, err := e.authorizationLocked(op)
+			fresh, err := e.AuthorizationLocked(op)
 			if err != nil {
 				return Result{}, err
 			}
@@ -43,7 +43,7 @@ func (e *Engine) membershipLocked(op *session.Operation, v AuthorizationView, s 
 		}
 		op.Session.Mu.Lock()
 		defer op.Session.Mu.Unlock()
-		if err := publicationOperationLocked(e, op); err != nil {
+		if err := PublicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
 		return Result{}, e.installOperationRolesLocked(op, &access.RoleRecord{Root: n})

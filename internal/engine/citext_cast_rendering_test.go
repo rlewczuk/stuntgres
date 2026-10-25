@@ -40,7 +40,7 @@ func TestCitextCastRoutineRenderingAuthority(t *testing.T) {
 	state.UnbindName(catalog.DescriptorNameKey(namespace))
 	state.SetDescriptor(moved.Address(), &moved)
 	state.BindName(catalog.DescriptorNameKey(&moved), moved.Address())
-	current := e.catalog.Read(state)
+	current := e.Catalog.Read(state)
 	text, err := stored.DefaultSQL(context.Background(), current, call)
 	if err != nil || !strings.HasPrefix(text, `"cast_rendering_moved"."citext"(`) {
 		t.Fatal("rendering did not project current checked namespace", text, err)
@@ -74,7 +74,7 @@ func TestCitextCastRoutineRenderingAuthority(t *testing.T) {
 		ext.Members = append([]ids.ObjectAddress(nil), installation.Members...)
 		ext.Members[extension.CitextConversionProcedureStart+1] = ext.Members[extension.CitextConversionProcedureStart]
 		broken.SetDescriptor(ext.Address(), &ext)
-		if _, err := stored.DefaultSQL(context.Background(), e.catalog.Read(broken), call); err == nil {
+		if _, err := stored.DefaultSQL(context.Background(), e.Catalog.Read(broken), call); err == nil {
 			t.Fatal("cast routine outside its provider manifest accepted")
 		}
 	})

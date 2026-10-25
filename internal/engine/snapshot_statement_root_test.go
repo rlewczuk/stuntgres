@@ -20,7 +20,7 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	integer, _ := read.LookupType(sqltype.Int4)
 	triggerUnitAdmit(t, seed, relation)
 	values := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 10)}
-	if count, err := dml.ApplyInsertValidated(seed.writeHost(), seed.lockedRef, index.WriteBatch{Values: [][]sqltype.Value{values}}); err != nil || count != 1 {
+	if count, err := dml.ApplyInsertValidated(seed.WriteHost(), seed.LockedRef, index.WriteBatch{Values: [][]sqltype.Value{values}}); err != nil || count != 1 {
 		t.Fatal("seed real committed predecessor", count, err)
 	}
 	if err := seed.Finish(nil); err != nil {
@@ -38,10 +38,10 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	}
 	defer writer.Finish(nil)
 	update := statement(t, "UPDATE public."+relation.Name()+" SET v=v+1 WHERE id=1")
-	if err := writer.gate(update); err != nil {
+	if err := writer.Gate(update); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.acquireRelation(update, true); err != nil {
+	if err := writer.AcquireRelation(update, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := writer.snapshotPhase(update); err != nil {
@@ -51,9 +51,9 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	if snapshot == nil {
 		t.Fatal("admitted writer has no command snapshot")
 	}
-	e.mu.Lock()
-	predecessor := e.storage.Relations[relation.Address()].Versions[0]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	predecessor := e.Storage.Relations[relation.Address()].Versions[0]
+	e.Mu.Unlock()
 
 	// A separate real operation publishes the successor before this command
 	// has acquired any target data view. This fixes the failing interleaving.
@@ -61,17 +61,17 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	if err != nil || peer.Count != 1 {
 		t.Fatal("peer replacement commit", peer.Count, err)
 	}
-	e.mu.Lock()
-	successor := e.storage.Relations[relation.Address()].Versions[0]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	successor := e.Storage.Relations[relation.Address()].Versions[0]
+	e.Mu.Unlock()
 	if successor.Row != predecessor.Row || successor.Version == predecessor.Version || successor.Born <= frontier {
 		t.Fatal("peer did not publish a new committed version of the same row after the selected frontier")
 	}
-	view, err := writer.AcquireDataView(writer.lockedRef)
+	view, err := writer.AcquireDataView(writer.LockedRef)
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := exec.CaptureSource(ctx, view, writer.lockedRef)
+	source, err := exec.CaptureSource(ctx, view, writer.LockedRef)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,9 +98,9 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	if err := writer.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	committed := e.storage.Relations[relation.Address()].Versions[0]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	committed := e.Storage.Relations[relation.Address()].Versions[0]
+	e.Mu.Unlock()
 	want := triggerUnitInt(t, integer, 21)
 	if committed.Row != predecessor.Row || !sqltype.SameDatum(committed.Values[1], want) {
 		t.Fatal("writer did not retain logical identity and apply SET to the committed latest predecessor")

@@ -13,7 +13,7 @@ import (
 
 func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	source := New()
-	e := source.restoreStage()
+	e := source.RestoreStage()
 	parent := partitionAttachUnitRoot(t, e, "using_replay_parent", 46800)
 	child := inheritanceUnitRelation(e, "using_replay_child", 46801, "k")
 	child.RelationKind = catalog.TableRelation
@@ -26,19 +26,19 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	index.Columns[0].OriginAttribute = 1
 	child.History.HasIndexes = true
 	partitionAttachUnitInstall(t, e, parent, child, index)
-	child = e.catalog.State.MustRelation(child.Address())
-	index = e.catalog.State.MustRelation(index.Address())
+	child = e.Catalog.State.MustRelation(child.Address())
+	index = e.Catalog.State.MustRelation(index.Address())
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUsingIndex, UsingIndex: &parser.UsingIndexConstraint{Name: parser.Identifier{Text: index.Name()}, Index: parser.Identifier{Text: index.Name()}}}}}
 	if err := e.beginPartitionUsingIndexReplay(op, raw); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || operationReplayOrZero(op).partitionUsingIndex.Index != index {
+	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || OperationReplayOrZero(op).PartitionUsingIndex.Index != index {
 		t.Fatal("exact private physical/index origin not captured")
 	}
 	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err != nil {
@@ -61,18 +61,18 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if partitionUsingIndexReplayAllowed(op, auth, &other, child) {
 		t.Fatal("different syntax granted")
 	}
-	origin := operationReplayOrZero(op).partitionUsingIndex
-	operationReplay(op).partitionUsingIndex = nil
+	origin := OperationReplayOrZero(op).PartitionUsingIndex
+	OperationReplay(op).PartitionUsingIndex = nil
 	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err == nil {
 		t.Fatal("public hierarchy ADD USING INDEX admitted")
 	}
-	operationReplay(op).partitionUsingIndex = origin
-	next := catalog.CloneState(e.catalog.State)
+	OperationReplay(op).PartitionUsingIndex = origin
+	next := catalog.CloneState(e.Catalog.State)
 	changed := *index
 	changed.ObjectRevision++
 	next.SetDescriptor(index.Address(), &changed)
-	e.catalog.PublishLocked(next)
-	fresh, err := operationAuthorization(op)
+	e.Catalog.PublishLocked(next)
+	fresh, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

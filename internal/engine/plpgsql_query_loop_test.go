@@ -151,15 +151,15 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 	in := outer.Statements[0]
 	integer, _ := read.LookupType(sqltype.Int4)
 	value, _ := sqltype.Integer(integer, 1)
-	ctx, cancel := context.WithCancel(s.op.Context())
+	ctx, cancel := context.WithCancel(s.Op.Context())
 	defer cancel()
-	originalContext := s.op.Ctx
-	s.op.Ctx = queryLoopAssignedCancel{Context: ctx, cancel: cancel, assigned: func() bool { return f.Values[in.QueryLoop.Target.Slot].Type() != nil }}
+	originalContext := s.Op.Ctx
+	s.Op.Ctx = queryLoopAssignedCancel{Context: ctx, cancel: cancel, assigned: func() bool { return f.Values[in.QueryLoop.Target.Slot].Type() != nil }}
 	rows, source := queryLoopUnitRows(t, []catalog.Column{{Name: "i", Usage: integer.Usage()}}, [][]sqltype.Value{{value}, {value}}, plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0})
 	owner := &exec.CTEInvocation{Frame: 1}
 	owned := &exec.CTEOwnedRows{RowResult: rows, Owner: owner, Source: source}
 	_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
-	s.op.Ctx = originalContext
+	s.Op.Ctx = originalContext
 	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
 		t.Fatal("empty-body cancellation retained producer authority", flow, err)
 	}

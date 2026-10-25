@@ -16,7 +16,7 @@ import (
 func TestRowSecuritySettingsCapture(t *testing.T) {
 	e := New()
 	settings := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
-	if err := settings.Initialize(context.Background(), e.settings.Definitions(), e.settings.Order(), nil); err != nil {
+	if err := settings.Initialize(context.Background(), e.Settings.Definitions(), e.Settings.Order(), nil); err != nil {
 		t.Fatal(err)
 	}
 	sess := &session.Session{Settings: settings}
@@ -26,14 +26,14 @@ func TestRowSecuritySettingsCapture(t *testing.T) {
 	settings.Values["row_security"] = "off"
 	settings.Mu.Unlock()
 	second := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
-	if !first.rowSecurity || second.rowSecurity {
-		t.Fatal("statement did not retain/recapture setting", first.rowSecurity, second.rowSecurity)
+	if !first.RowSecurity || second.RowSecurity {
+		t.Fatal("statement did not retain/recapture setting", first.RowSecurity, second.RowSecurity)
 	}
 	settings.Mu.Lock()
 	delete(settings.Values, "row_security")
 	settings.Mu.Unlock()
 	third := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
-	if !third.rowSecurity || second.rowSecurity {
+	if !third.RowSecurity || second.RowSecurity {
 		t.Fatal("restored default changed prior scope")
 	}
 }
@@ -42,16 +42,16 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	e := New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"row_security": "off"}, calls: map[string]int{}}
 	settings := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
-	if err := settings.Initialize(context.Background(), e.settings.Definitions(), e.settings.Order(), provider); err != nil {
+	if err := settings.Initialize(context.Background(), e.Settings.Definitions(), e.Settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
 	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
-	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
 	capture := func(value, source string) *exec.Source {
 		t.Helper()
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings, registry: e.settings}}, capturePGSettings)
-		if err != nil || len(rows.Anonymous) != len(e.settings.Order()) {
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{settings: settings, registry: e.Settings}}, capturePGSettings)
+		if err != nil || len(rows.Anonymous) != len(e.Settings.Order()) {
 			t.Fatal(rows, err)
 		}
 		row := settingsMetadataRow(t, rows.Anonymous, "row_security")
@@ -86,7 +86,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings, registry: e.settings}}, capturePGSettings); source != nil || err != context.Canceled {
+	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: EngineCatalogRuntime{settings: settings, registry: e.Settings}}, capturePGSettings); source != nil || err != context.Canceled {
 		t.Fatal(source, err)
 	}
 }

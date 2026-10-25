@@ -17,7 +17,7 @@ func TestQueryOuterJoinsBothUsingKeysACL(t *testing.T) {
 				roleExecute(t, e, op, sql)
 			}
 			reader, _ := e.Roles().Lookup("outer_key_reader")
-			grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 				t.Helper()
 				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {

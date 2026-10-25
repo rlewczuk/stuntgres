@@ -38,30 +38,30 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if !needed {
 		return installedStage, ctx.Err()
 	}
-	catalogSnapshot, roles, frontier := e.catalog.State, e.roles.Published, e.visibility.CommitSeq()
-	oidFrontier := e.catalog.NextOID()
-	e.mu.Unlock()
+	catalogSnapshot, roles, frontier := e.Catalog.State, e.RoleStore.Published, e.Visibility.CommitSeq()
+	oidFrontier := e.Catalog.NextOID()
+	e.Mu.Unlock()
 	defer func() {
-		e.mu.Lock()
-		if result == nil && (e.catalog.State != catalogSnapshot || e.roles.Published != roles || e.visibility.CommitSeq() != frontier || e.catalog.NextOID() != oidFrontier) {
+		e.Mu.Lock()
+		if result == nil && (e.Catalog.State != catalogSnapshot || e.RoleStore.Published != roles || e.Visibility.CommitSeq() != frontier || e.Catalog.NextOID() != oidFrontier) {
 			result = ids.ErrCatalogReplaced
 		}
 	}()
 	var stage *Engine
 	if op == nil {
-		stage = e.restoreStage()
+		stage = e.RestoreStage()
 	} else {
-		stage = engineOf(op.Session)
+		stage = EngineOf(op.Session)
 	}
 	candidate := catalog.CloneState(next)
-	stage.mu.Lock()
-	_, procedure, err := stage.remapPreparedCatalog(candidate, e.roles.Read(&e.catalog.Owner, e.catalog.Read(next), roles), stage.roles.PublishedRead(&stage.catalog.Owner, stage.catalog.Current()), nil)
+	stage.Mu.Lock()
+	_, procedure, err := stage.remapPreparedCatalog(candidate, e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Read(next), roles), stage.RoleStore.PublishedRead(&stage.Catalog.Owner, stage.Catalog.Current()), nil)
 	if err == nil {
 		// ReownExpressions targets the next epoch. Preserve final numeric
 		// identities while projecting only engine/principal ownership.
-		stage.catalog.PublishLocked(catalog.CloneState(stage.catalog.State))
-		stage.catalog.State.SetEpoch(candidate.Epoch() - 1)
-		view := stage.catalog.Read(candidate)
+		stage.Catalog.PublishLocked(catalog.CloneState(stage.Catalog.State))
+		stage.Catalog.State.SetEpoch(candidate.Epoch() - 1)
+		view := stage.Catalog.Read(candidate)
 		typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == nil {
 				return nil
@@ -79,17 +79,17 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		}
 	}
 	if err == nil {
-		stage.catalog.PublishLocked(candidate)
-		stage.storage.ReplaceRelationsLocked(relations)
-		stage.storage.ReplaceSequencesLocked(sequences)
+		stage.Catalog.PublishLocked(candidate)
+		stage.Storage.ReplaceRelationsLocked(relations)
+		stage.Storage.ReplaceSequencesLocked(sequences)
 		installedStage = stage
 	}
-	stage.mu.Unlock()
+	stage.Mu.Unlock()
 	if err != nil {
 		return installedStage, err
 	}
 	if op == nil {
-		sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.roles.Domain.Principal(10)})
+		sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.RoleStore.Domain.Principal(10)})
 		if err != nil {
 			return installedStage, err
 		}
@@ -105,21 +105,21 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return installedStage, err
 	}
 	stmt := &parser.Insert{}
-	err = scope.gate(stmt)
+	err = scope.Gate(stmt)
 	var auth AuthorizationView
 	if err == nil {
-		stage.mu.Lock()
-		auth, err = stage.authorizationLocked(op)
+		stage.Mu.Lock()
+		auth, err = stage.AuthorizationLocked(op)
 		if err == nil {
-			err = scope.captureIdentityLocked(auth)
-			scope.routineAuth = auth
+			err = scope.CaptureIdentityLocked(auth)
+			scope.RoutineAuth = auth
 		}
 		if err == nil {
-			scope.input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
+			scope.Input.TypeDiagnosticName, err = CaptureTypeDiagnosticName(auth)
 		}
-		stage.mu.Unlock()
+		stage.Mu.Unlock()
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.catalog.Read(candidate)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: stage.Catalog.Read(candidate)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if err == nil && rangeValidation {
 		err = stored.ValidateRemappedRanges(ctx, candidate, relations)
 	}
@@ -132,10 +132,10 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		moved, err = stage.repairRemappedHashPartitions(ctx, &evaluation, auth, indexes)
 	}
 	if err == nil {
-		err = indexes.Repair(ctx, &evaluation, relations, changed, moved, auth.View, disclosureEnv(&auth))
+		err = indexes.Repair(ctx, &evaluation, relations, changed, moved, auth.View, DisclosureEnv(&auth))
 	}
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	err = scope.Finish(err)
 	if err != nil {
@@ -150,18 +150,18 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 // remapped relation for the statement behind host, in one Engine.mu window.
 // It returns nil when host has no statement scope.
 func remapCheckCapture(host exec.Host) func(*catalog.Relation) error {
-	scope := scopeOf(host)
+	scope := ScopeOf(host)
 	if scope == nil {
 		return nil
 	}
 	return func(historical *catalog.Relation) error {
-		stage := scope.engine()
-		stage.mu.Lock()
-		err := stage.captureCheckCommentSnapshotLocked(scope, historical)
+		stage := scope.Engine()
+		stage.Mu.Lock()
+		err := stage.CaptureCheckCommentSnapshotLocked(scope, historical)
 		if err == nil {
-			err = stage.captureCheckVisibilitySnapshotLocked(scope, historical)
+			err = stage.CaptureCheckVisibilitySnapshotLocked(scope, historical)
 		}
-		stage.mu.Unlock()
+		stage.Mu.Unlock()
 		return err
 	}
 }

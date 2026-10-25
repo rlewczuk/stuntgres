@@ -15,10 +15,10 @@ func (h *statementHost) CommentInquiry(c *exec.Context, kind functions.CommentIn
 	if err := admitInquiryBody(c, provenance); err != nil {
 		return sqltype.Value{}, err
 	}
-	if scope.inquiry.commentCatalog.State() == nil {
+	if scope.Inquiry.CommentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
 	}
-	text, err := regobj.CommentText(scope.inquiry.commentCatalog, scope.inquiry.commentRoles, kind, values)
+	text, err := regobj.CommentText(scope.Inquiry.CommentCatalog, scope.Inquiry.commentRoles, kind, values)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

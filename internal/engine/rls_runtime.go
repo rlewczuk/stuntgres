@@ -25,22 +25,22 @@ func (e *Engine) captureRowSecurityLocked(s *StatementScope, d *catalog.Relation
 			result = nil
 		}
 	}()
-	if err := s.op.Context().Err(); err != nil {
+	if err := s.Op.Context().Err(); err != nil {
 		return nil, err
 	}
 	if !d.Security.RLSEnabled {
 		return nil, nil
 	}
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return nil, err
 	}
-	auth.Recapture(e.privateCatalogLocked(s.owner.Catalog))
+	auth.Recapture(e.PrivateCatalogLocked(s.Owner.Catalog))
 	if principal == (authorization.PrincipalRef{}) {
 		principal = auth.State.CurrentUser
 	}
 	auth.State.CurrentUser = principal
-	if err := access.RowSecuritySettingGuard(s.rowSecurity, auth.Roles, d, principal); err != nil {
+	if err := access.RowSecuritySettingGuard(s.RowSecurity, auth.Roles, d, principal); err != nil {
 		return nil, err
 	}
 	selection, err := access.SelectRowSecurity(auth.Roles, d, principal, command, proposed, selectRead)
@@ -63,7 +63,7 @@ func (e *Engine) captureRowSecurityLocked(s *StatementScope, d *catalog.Relation
 	}
 	for _, active := range s.rlsActive {
 		if active == d.Address() {
-			return nil, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in policy for relation "%s"`, d.Name()))
+			return nil, SQLError("42P17", fmt.Sprintf(`infinite recursion detected in policy for relation "%s"`, d.Name()))
 		}
 	}
 	s.rlsActive = append(s.rlsActive, d.Address())
@@ -91,7 +91,7 @@ func (e *Engine) captureRowSecurityLocked(s *StatementScope, d *catalog.Relation
 }
 
 func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.Relation, auth AuthorizationView, clause access.RLSClause, out *exec.RLSRuntimeClause, admission *rowSecurityProgram) error {
-	if err := s.op.Context().Err(); err != nil {
+	if err := s.Op.Context().Err(); err != nil {
 		return err
 	}
 	policy := stored.PolicyOf(clause.Payload)
@@ -99,36 +99,36 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 		return ids.ErrCatalogReplaced
 	}
 	read := auth.Catalog
-	imported, err := view.ImportPolicyClause(read, e.catalog.Domain, consumer, policy, auth.State.CurrentUser)
+	imported, err := view.ImportPolicyClause(read, e.Catalog.Domain, consumer, policy, auth.State.CurrentUser)
 	if err != nil {
 		return err
 	}
 	definition, binding, node, closure, refs := policy.Presentation(), &imported.Binding, imported.Node, imported.Closure, imported.Refs
 	for i := range binding.QuerySources {
-		binding.QuerySources[i].Storage = e.privateStorageLocked(s.owner.Catalog, binding.QuerySources[i].Ref.Address)
+		binding.QuerySources[i].Storage = e.PrivateStorageLocked(s.Owner.Catalog, binding.QuerySources[i].Ref.Address)
 	}
 	admitted := make([]exec.Leaf, 0, len(closure.Modes))
 	for ref := range closure.Modes {
-		admitted = append(admitted, exec.Leaf{Ref: ref, Relation: read.MustRelation(ref.Address), Storage: e.privateStorageLocked(s.owner.Catalog, ref.Address)})
+		admitted = append(admitted, exec.Leaf{Ref: ref, Relation: read.MustRelation(ref.Address), Storage: e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)})
 	}
 	if len(refs) != 0 {
 		roots := binding.QuerySources
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		err = s.acquireBoundViewRelationModes(refs, closure.Modes)
-		e.mu.Lock()
+		e.Mu.Lock()
 		if err != nil {
 			return err
 		}
 		for _, leaf := range admitted {
-			if err := e.validatePolicySourceLocked(s, e.privateCatalogLocked(s.owner.Catalog), leaf); err != nil {
+			if err := e.validatePolicySourceLocked(s, e.PrivateCatalogLocked(s.Owner.Catalog), leaf); err != nil {
 				return err
 			}
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if len(roots) != 0 {
 			err = s.acquireInheritanceSources(closure.Modes, roots)
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		if err != nil {
 			return err
 		}
@@ -151,14 +151,14 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 		binding.QuerySources[i].Relation = auth.Catalog.MustRelation(leaf.Ref.Address)
 	}
 	current := auth.Catalog
-	evaluation := exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: current, Input: s.input, Output: s.output, PlanStaticOperators: true}}
+	evaluation := exec.Context{EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: current, Input: s.Input, Output: s.Output, PlanStaticOperators: true}}
 	evaluation.RoutineRecipe = true
 	evaluation.RoutineConsumer = consumer
 	evaluation.RoutineChecks = definition.Dependencies()
 	evaluation.RoutineAuthority = &auth
-	s.inquiry.visibilityDemand = s.inquiry.visibilityDemand || binding.VisibilitySnapshot
+	s.Inquiry.visibilityDemand = s.Inquiry.visibilityDemand || binding.VisibilitySnapshot
 	if binding.Prepared.RegclassConcat {
-		if err := e.captureCommentSnapshotLocked(s); err != nil {
+		if err := e.CaptureCommentSnapshotLocked(s); err != nil {
 			return err
 		}
 	}
@@ -167,12 +167,12 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 			return err
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	node, _, err = exec.PreflightCoercions(&evaluation, node)
 	if err == nil {
 		err = exec.AdmitExpression(&evaluation, node, current)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	if err != nil {
 		return err
 	}
@@ -185,16 +185,16 @@ func (e *Engine) importPolicyClauseLocked(s *StatementScope, consumer *catalog.R
 	// AdmitExpression already validates every nested marked query's ordinary
 	// join/shape legality. Extend the existing physical occurrence owner rather
 	// than silently dropping supported marks or creating a clause-local arbiter.
-	if err := e.initializeQueryLocksLocked(s, nil, binding.QuerySources); err != nil {
+	if err := e.InitializeQueryLocksLocked(s, nil, binding.QuerySources); err != nil {
 		return err
 	}
-	if s.owner.ReadOnly {
-		mode, err := view.FirstQueryRowMode(e.privateCatalogLocked(s.owner.Catalog), nil, binding.QuerySources)
+	if s.Owner.ReadOnly {
+		mode, err := view.FirstQueryRowMode(e.PrivateCatalogLocked(s.Owner.Catalog), nil, binding.QuerySources)
 		if err != nil {
 			return err
 		}
 		if mode != 0 {
-			return sqlError("25006", "cannot execute SELECT "+analyze.RowLockClause(mode)+" in a read-only transaction")
+			return SQLError("25006", "cannot execute SELECT "+analyze.RowLockClause(mode)+" in a read-only transaction")
 		}
 	}
 	prepared, err := e.prepareQuerySourcesLocked(s, binding.QuerySources, true, auth.State.CurrentUser, plan.RowMark{})

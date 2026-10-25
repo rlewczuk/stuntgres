@@ -27,13 +27,13 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "CREATE INDEX source_expression ON src((10/n)) WHERE active")
 	source := e.CatalogRead().MustRelation(roleTableRef(t, e, "src").Address)
 	external := roleTableRef(t, e, "anchor")
-	externalType := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
+	externalType := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), domainUnitType(t, e.CatalogRead(), "predicate_type").Address())
 	ordinary := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_partial").Address)
 	expression := e.CatalogRead().MustRelation(roleTableRef(t, e, "source_expression").Address)
 	sourcePredicate := ordinary.SQLIndex.Predicate
 	sourceAttributes := slices.Clone(sourcePredicate.Attributes)
 	sourceDependencies := slices.Clone(sourcePredicate.Dependencies)
-	sourceRoots := e.storage.IndexRoots
+	sourceRoots := e.Storage.IndexRoots
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(lead TEXT,LIKE src INCLUDING ALL)")
@@ -41,7 +41,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	local := e.catalog.Domain.Ref(stage.Base.Epoch(), destination.Address())
+	local := e.Catalog.Domain.Ref(stage.Base.Epoch(), destination.Address())
 	local.Address.SubID = 4
 	var copied []*catalog.Relation
 	for _, descriptor := range stage.Descriptors() {
@@ -73,7 +73,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			}
 		}
 		for _, node := range []expr.Expr{predicate.Definition, predicate.Execution} {
-			if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
+			if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.StageRead(stage), node); err != nil {
 				t.Fatal("wrong owner in predicate tree", err)
 			}
 		}
@@ -94,7 +94,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			}
 		}
 		var executionDependencies []ids.ObjectRef
-		if _, err := (stored.ScalarRenderer{Owner: destination, Dependencies: &executionDependencies}).SQL(context.Background(), e.stageRead(stage), predicate.Execution); err != nil {
+		if _, err := (stored.ScalarRenderer{Owner: destination, Dependencies: &executionDependencies}).SQL(context.Background(), e.StageRead(stage), predicate.Execution); err != nil {
 			t.Fatal(err)
 		}
 		if slices.Contains(executionDependencies, external) || slices.Contains(executionDependencies, externalType) {
@@ -104,9 +104,9 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			if idx.SQLIndex.Keys[0].Attribute != 3 || !reflect.DeepEqual(idx.SQLIndex.Include, []int32{2}) || !slices.Contains(predicate.Dependencies, external) {
 				t.Fatal("key/include/external identity lost", idx.SQLIndex)
 			}
-			booleanType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
-			regclassType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-			regtypeType := e.catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
+			booleanType := e.Catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Bool)})
+			regclassType := e.Catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
+			regtypeType := e.Catalog.Domain.Ref(stage.Base.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regtype)})
 			if !slices.Equal(predicate.Dependencies, []ids.ObjectRef{booleanType, local, regclassType, external, regtypeType, externalType}) {
 				t.Fatal("analyzed predicate dependency manifest", predicate.Dependencies)
 			}
@@ -121,7 +121,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 				t.Fatal("dropped attribute mapping lost", key.Dependencies)
 			}
 			for _, node := range []expr.Expr{key.Definition, key.Execution} {
-				if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.stageRead(stage), node); err != nil {
+				if _, err := (stored.ScalarRenderer{Owner: destination}).SQL(context.Background(), e.StageRead(stage), node); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -140,12 +140,12 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, index := range copied {
-		root := e.storage.IndexRoots[index.Address()]
+		root := e.Storage.IndexRoots[index.Address()]
 		if root == nil || root.Membership == nil || len(root.Entries) != 0 || len(root.Membership) != 0 {
 			t.Fatal("copy root not independently empty", root)
 		}
 		for address, old := range sourceRoots {
-			if root == old || e.storage.IndexRoots[address] != old {
+			if root == old || e.Storage.IndexRoots[address] != old {
 				t.Fatal("source root reused or changed", index.Name())
 			}
 		}
@@ -153,7 +153,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	run(t, e, "INSERT INTO clone VALUES('x',1,10,TRUE,2),('x',2,20,FALSE,0),('x',3,30,NULL,0),('x',4,NULL,TRUE,2),('x',5,10,TRUE,2)")
 	assertMembership := func(count int) {
 		want := make(map[ids.RowID]ids.VersionID)
-		for _, row := range e.storage.Relations[destination.Address()].Versions {
+		for _, row := range e.Storage.Relations[destination.Address()].Versions {
 			truth, err := plan.TruthOf(row.Values[3])
 			if err != nil {
 				t.Fatal(err)
@@ -166,7 +166,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			t.Fatal("unexpected current physical members", want, count)
 		}
 		for _, index := range copied {
-			partialWantMembership(t, e.storage.IndexRoots[index.Address()], want)
+			partialWantMembership(t, e.Storage.IndexRoots[index.Address()], want)
 		}
 	}
 	assertMembership(3)
@@ -209,7 +209,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 		}
 	}
 	queryCreatePublish(t, e, stage)
-	if e.storage.IndexRoots[copied.Address()] == nil || e.storage.IndexRoots[copied.Address()] == e.storage.IndexRoots[source.Address()] || e.storage.IndexRoots[copied.Address()].Membership == nil {
+	if e.Storage.IndexRoots[copied.Address()] == nil || e.Storage.IndexRoots[copied.Address()] == e.Storage.IndexRoots[source.Address()] || e.Storage.IndexRoots[copied.Address()].Membership == nil {
 		t.Fatal("partial unique root shared")
 	}
 }
@@ -253,7 +253,7 @@ func TestTableLikePartialConstants(t *testing.T) {
 			}
 			queryCreatePublish(t, e, stage)
 			run(t, e, "INSERT INTO clone VALUES('x',1,0),('x',2,0)")
-			root := e.storage.IndexRoots[copied.Address()]
+			root := e.Storage.IndexRoots[copied.Address()]
 			if truth == "TRUE" {
 				if root.Membership != nil || len(root.Entries) != 2 {
 					t.Fatal("TRUE did not include all rows", root)
@@ -273,7 +273,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.gate(statement(t, "CREATE TABLE clone(id INT)")); err != nil {
+	if err := scope.Gate(statement(t, "CREATE TABLE clone(id INT)")); err != nil {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
@@ -282,13 +282,13 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE anchor(a INT)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE anchor(a INT)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		auth.Catalog = e.stageRead(stage)
+		auth.Catalog = e.StageRead(stage)
 		auth.Recapture(auth.Catalog)
 	}
 	raw := statement(t, "CREATE INDEX private_partial ON private_source(k) WHERE active AND ('anchor'::regclass IS NOT NULL)").(*parser.CreateIndex)
@@ -297,14 +297,14 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		var predicate *catalog.IndexPredicate
 		predicate, err = e.bindIndexPredicate(op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
 		if err == nil {
-			definition, columns, attributes, lookup, bindErr := index.BindAttributes(ddlHost{e: e, op: op}, auth, sqltype.InputEnvironment{}, source, raw)
+			definition, columns, attributes, lookup, bindErr := index.BindAttributes(DDLHost{E: e, Op: op}, auth, sqltype.InputEnvironment{}, source, raw)
 			err = bindErr
 			if err == nil {
 				definition.Predicate = predicate
-				oid, allocationErr := e.catalog.AllocateOIDLocked()
+				oid, allocationErr := e.Catalog.AllocateOIDLocked()
 				err = allocationErr
 				if err == nil {
-					revision, revisionErr := e.catalog.RevisionLocked()
+					revision, revisionErr := e.Catalog.RevisionLocked()
 					err = revisionErr
 					if err == nil {
 						for i := range columns {
@@ -319,21 +319,21 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		}
 	}
 	if err == nil {
-		auth.Catalog = e.stageRead(stage)
+		auth.Catalog = e.StageRead(stage)
 		auth.Recapture(auth.Catalog)
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE clone(lead TEXT,LIKE private_source INCLUDING ALL)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE clone(lead TEXT,LIKE private_source INCLUDING ALL)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(stage.tableOrZero().LikeSources) != 2 {
 		t.Fatal("private source/index not captured", stage.tableOrZero().LikeSources)
 	}
-	if err := scope.acquireDefinitionProviders(stage); err != nil {
+	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		t.Fatal(err)
 	}
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	held := len(lockState.Resources)
 	if held != 0 {
 		t.Fatal("private providers received incumbent holds", held)
@@ -343,7 +343,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if !current.History.HasIndexes || current.Revision() != source.Revision() || current == source {
 		t.Fatal("private normalization invariant", current)
 	}
-	if e.storage.IndexRoots[created.Address()] == nil {
+	if e.Storage.IndexRoots[created.Address()] == nil {
 		t.Fatal("private predicate index root absent")
 	}
 }

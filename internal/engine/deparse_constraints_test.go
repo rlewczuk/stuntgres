@@ -98,13 +98,13 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer scope.Finish(nil)
-			e.mu.Lock()
-			err = e.captureCommentSnapshotLocked(scope)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err = e.CaptureCommentSnapshotLocked(scope)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			view := scope.inquiry.commentCatalog
+			view := scope.Inquiry.CommentCatalog
 			d := view.MustRelation(roleTableRef(t, e, "t").Address)
 			node := d.Constraints.Check[0].Expression
 			for _, pretty := range []bool{false, true} {
@@ -112,7 +112,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty, Path: scope.inquiry.deparsePath, Output: scope.output, NonstandardStrings: op.NonstandardStrings}).SQL(context.Background(), node, stored.DeparseParent{})
+				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty, Path: scope.Inquiry.DeparsePath, Output: scope.Output, NonstandardStrings: op.NonstandardStrings}).SQL(context.Background(), node, stored.DeparseParent{})
 				if err != nil || got != want {
 					t.Fatalf("pretty=%t got %q, %v; want %q", pretty, got, err, want)
 				}
@@ -310,11 +310,11 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	if _, err := (stored.Deparser{View: current}).SQL(context.Background(), node, stored.DeparseParent{}); err == nil {
 		t.Fatal("Var accepted with zero relation")
 	}
-	before := e.catalog.NextOID()
+	before := e.Catalog.NextOID()
 	if _, err := testDescribe(e, statement(t, "SELECT pg_get_expr($1,$2,$3)")); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.NextOID() != before {
+	if e.Catalog.NextOID() != before {
 		t.Fatal("Describe allocated definition identities")
 	}
 }
@@ -379,10 +379,10 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	view := e.CatalogRead()
 	d := view.MustRelation(roleTableRef(t, e, "t").Address)
 	for _, id := range []ids.OID{d.ColumnMeta.Defaults[1].OID, d.Constraints.NotNull[0].OID, d.Constraints.Check[0].OID} {
-		e.mu.Lock()
-		e.catalog.InstallOIDFrontierLocked(id)
-		next, err := e.catalog.AllocateOIDLocked()
-		e.mu.Unlock()
+		e.Mu.Lock()
+		e.Catalog.InstallOIDFrontierLocked(id)
+		next, err := e.Catalog.AllocateOIDLocked()
+		e.Mu.Unlock()
 		if err != nil || next == id || catalog.DefinitionOIDUsed(d, next) {
 			t.Fatal(id, next, err)
 		}
@@ -392,16 +392,16 @@ func TestDeparseConstraintsAllocatorOccupancy(t *testing.T) {
 	copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
 	copy.Constraints.Check[0].OID = d.ColumnMeta.Defaults[1].OID
 	bad.SetDescriptor(d.Address(), &copy)
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(bad)); err == nil {
+	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(bad)); err == nil {
 		t.Fatal("duplicate identity accepted")
 	}
-	e.mu.Lock()
-	err := control.RemapDefinitionOIDs(e.catalog.Read(bad), e.catalog.AllocateOIDLocked)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := control.RemapDefinitionOIDs(e.Catalog.Read(bad), e.Catalog.AllocateOIDLocked)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(bad)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(bad)); err != nil {
 		t.Fatal(err)
 	}
 	if d.Constraints.Check[0].OID == d.ColumnMeta.Defaults[1].OID {

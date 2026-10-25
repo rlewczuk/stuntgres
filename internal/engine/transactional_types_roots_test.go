@@ -16,11 +16,11 @@ func TestTransactionalTypesPrivateRootSelection(t *testing.T) {
 	defer transactionEnd(t, s, ref, false)
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123}
 	committed, private := new(storage.IndexRoot), new(storage.IndexRoot)
-	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{address: committed}
+	e.Storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{address: committed}
 	changes := session.NewJournal()
 	index.JournalIndexes(changes).UniqueRoots = map[ids.ObjectAddress]*storage.IndexRoot{address: private}
 	s.Transactions.Catalog = changes
-	stage := &CatalogStage{authSession: s}
+	stage := &CatalogStage{AuthSession: s}
 	if got := e.domainStageIndexRootLocked(stage, address); got != private {
 		t.Fatal("explicit domain stage selected committed rather than private logical root")
 	}

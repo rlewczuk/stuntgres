@@ -11,7 +11,7 @@ import (
 
 func TestInfoColumnsTypeFacts(t *testing.T) {
 	f := newColumnsUnitFixture(t)
-	view := f.dc.f.e.catalog.Read(f.state)
+	view := f.dc.f.e.Catalog.Read(f.state)
 	// Dimension order: max characters, max octets, numeric precision/radix/
 	// scale, datetime precision. -1 is inapplicable, never zero/MAXINT.
 	cases := []struct {
@@ -116,7 +116,7 @@ func TestInfoColumnsTypeFacts(t *testing.T) {
 	integer.SQLType = foreign
 	state.SetDescriptor(integer.Address(), &integer)
 	usage := f.dc.nn.SQLType.Usage()
-	if _, err := pgcatalog.InfoColumnTypeFacts(f.dc.f.e.catalog.Read(state), usage); err == nil {
+	if _, err := pgcatalog.InfoColumnTypeFacts(f.dc.f.e.Catalog.Read(state), usage); err == nil {
 		t.Fatal("stale immediate domain base accepted")
 	}
 }

@@ -13,7 +13,7 @@ import (
 // validateRoleAttributesLocked is repeated after preparation: held statements,
 // catalog changes and effective identity changes never cache authority.
 func (e *Engine) validateRoleAttributesLocked(op *session.Operation, stmt parser.Statement) (AuthorizationView, authorization.RoleDescriptor, authorization.RoleDescriptor, parser.RoleOptions, error) {
-	v, err := e.authorizationLocked(op)
+	v, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return v, authorization.RoleDescriptor{}, authorization.RoleDescriptor{}, parser.RoleOptions{}, err
 	}
@@ -22,7 +22,7 @@ func (e *Engine) validateRoleAttributesLocked(op *session.Operation, stmt parser
 		return v, actor, target, o, err
 	}
 	if _, creating := stmt.(*parser.CreateRole); creating {
-		if _, err := e.roles.PrincipalCandidateLocked(); err != nil {
+		if _, err := e.RoleStore.PrincipalCandidateLocked(); err != nil {
 			return v, actor, target, o, err
 		}
 	}
@@ -36,15 +36,15 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	op := scope.op
-	e.mu.Lock()
+	op := scope.Op
+	e.Mu.Lock()
 	_, _, target, o, err := e.validateRoleAttributesLocked(op, stmt)
-	typ, _ := e.catalog.Current().LookupType(sqltype.Timestamptz)
-	e.mu.Unlock()
+	typ, _ := e.Catalog.Current().LookupType(sqltype.Timestamptz)
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
-	if scope.ticket != nil {
+	if scope.LockTicket != nil {
 		if err := scope.acquireRoleAttributeLocks(stmt, target); err != nil {
 			return Result{}, err
 		}
@@ -53,7 +53,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	// locks. Preparation has no catalog effects; all semantics are revalidated.
 	var expiry int64
 	if o.Present&parser.RoleValidUntil != 0 {
-		value, err := typ.InputWithEnvironment(op.Context(), o.ValidUntil, -1, scope.input)
+		value, err := typ.InputWithEnvironment(op.Context(), o.ValidUntil, -1, scope.Input)
 		if err != nil {
 			return Result{}, err
 		}
@@ -70,15 +70,15 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	for {
 		v, actor, target, o, err := e.validateRoleAttributesLocked(op, stmt)
 		if err != nil {
 			return Result{}, err
 		}
 		d := authorization.ApplyRoleOptions(target, o)
-		d.AuthIDVersion, err = e.roles.RevisionCandidateLocked()
+		d.AuthIDVersion, err = e.RoleStore.RevisionCandidateLocked()
 		if err != nil {
 			return Result{}, err
 		}
@@ -92,7 +92,7 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		var create *parser.CreateRole
 		if c, creating := stmt.(*parser.CreateRole); creating {
 			create = c
-			d.Ref, err = e.roles.PrincipalCandidateLocked()
+			d.Ref, err = e.RoleStore.PrincipalCandidateLocked()
 			if err != nil {
 				return Result{}, err
 			}
@@ -104,10 +104,10 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 		if err != nil {
 			return Result{}, err
 		}
-		if create != nil && scope.ticket != nil {
-			e.mu.Unlock()
+		if create != nil && scope.LockTicket != nil {
+			e.Mu.Unlock()
 			lockErr := scope.acquireInitialMembershipLocks(&v.RoleRecord.Root, &n, d.Ref)
-			e.mu.Lock()
+			e.Mu.Lock()
 			if lockErr != nil {
 				op.Notices = notices
 				return Result{}, lockErr
@@ -116,22 +116,22 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			if err != nil {
 				return Result{}, err
 			}
-			revision, err := e.roles.RevisionCandidateLocked()
+			revision, err := e.RoleStore.RevisionCandidateLocked()
 			if err != nil {
 				return Result{}, err
 			}
-			if fresh.RoleRecord != v.RoleRecord || e.roles.NextPrincipal() != d.Ref.ID() || revision != d.AuthIDVersion {
+			if fresh.RoleRecord != v.RoleRecord || e.RoleStore.NextPrincipal() != d.Ref.ID() || revision != d.AuthIDVersion {
 				continue
 			}
 		}
 		op.Notices = notices
 		op.Session.Mu.Lock()
 		defer op.Session.Mu.Unlock()
-		if err := publicationOperationLocked(e, op); err != nil {
+		if err := PublicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
 		if _, creating := stmt.(*parser.CreateRole); creating {
-			e.roles.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
+			e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
 		}
 		if err := e.installOperationRolesLocked(op, &access.RoleRecord{Root: n}); err != nil {
 			return Result{}, err

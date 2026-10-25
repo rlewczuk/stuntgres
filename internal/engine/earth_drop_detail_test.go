@@ -18,7 +18,7 @@ func TestEarthPrerequisiteRemovalDetail(t *testing.T) {
 	e, earth, domain := earthUnitInstalled(t)
 	catalogView := e.CatalogRead()
 	cube := catalogView.MustExtension(catalogView.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
-	reader := &dropProvider{owner: e, base: catalogView, ctx: context.Background()}
+	reader := &DropProvider{Owner: e, Base: catalogView, Ctx: context.Background()}
 	extensionEdge := table.DomainDependency{Address: earth.Address(), Target: cube.Address(), Label: "extension earthdistance"}
 	memberEdge := table.DomainDependency{Address: domain.Address(), Target: cube.Members[0], Label: "type earth"}
 	for _, tc := range []struct {

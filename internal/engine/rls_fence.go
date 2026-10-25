@@ -39,11 +39,11 @@ func (e *Engine) endRowSecurityAdmissionLocked(s *StatementScope, err error) err
 // refreshPolicyAuthorityLocked checks the admitted immutable source identities
 // against current role/schema/table authority, never re-resolving SQL names.
 func (e *Engine) refreshPolicyAuthorityLocked(s *StatementScope, consumer *catalog.Relation, policy *stored.Policy, principal authorization.PrincipalRef) (AuthorizationView, error) {
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return auth, err
 	}
-	auth.Recapture(e.privateCatalogLocked(s.owner.Catalog))
+	auth.Recapture(e.PrivateCatalogLocked(s.Owner.Catalog))
 	auth.State.CurrentUser = principal
 	return auth, view.CheckPolicyAuthority(auth.View, auth, consumer, policy)
 }
@@ -52,7 +52,7 @@ func (e *Engine) refreshPolicyAuthorityLocked(s *StatementScope, consumer *catal
 // Ordinary same-shape table ACL/RLS metadata is refreshed after this identity
 // proof; no source is ever reopened by a current SQL name.
 func (e *Engine) validatePolicySourceLocked(s *StatementScope, read catalog.Read, leaf exec.Leaf) error {
-	live, err := currentQuerySourceLocked(e, read, s.owner.Catalog, leaf)
+	live, err := CurrentQuerySourceLocked(e, read, s.Owner.Catalog, leaf)
 	if err != nil {
 		return err
 	}
@@ -69,14 +69,14 @@ func (e *Engine) fenceRowSecurityProgramsLocked(s *StatementScope) error {
 	if len(s.rlsPrograms) == 0 {
 		return nil
 	}
-	if err := s.op.Context().Err(); err != nil {
+	if err := s.Op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return err
 	}
-	auth.Recapture(e.privateCatalogLocked(s.owner.Catalog))
+	auth.Recapture(e.PrivateCatalogLocked(s.Owner.Catalog))
 	for _, p := range s.rlsPrograms {
 		if !p.complete {
 			return ids.ErrCatalogReplaced
@@ -100,13 +100,13 @@ func (e *Engine) fenceRowSecurityProgramsLocked(s *StatementScope) error {
 	}
 	// Preserve the original live invoker/rule principal, never a policy owner.
 	routineAuth := auth
-	if s.routineAuth.live() {
-		routineAuth.State.CurrentUser = s.routineAuth.State.CurrentUser
+	if s.RoutineAuth.live() {
+		routineAuth.State.CurrentUser = s.RoutineAuth.State.CurrentUser
 	}
 	if err := routineAuth.Roles.ValidatePrincipal(routineAuth.State.CurrentUser); err != nil {
 		return err
 	}
-	s.routineAuth = routineAuth
+	s.RoutineAuth = routineAuth
 	for _, p := range s.rlsPrograms {
 		if p.selection.Count == 0 || p.selection.Denied() {
 			continue
@@ -119,11 +119,11 @@ func (e *Engine) fenceRowSecurityProgramsLocked(s *StatementScope) error {
 					return err
 				}
 				local := runtime[i].Evaluation
-				local.Context = s.op.Context()
+				local.Context = s.Op.Context()
 				local.RoutineAuthority = &fresh
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				err = exec.AdmitExpression(&local, runtime[i].Expression, fresh.Catalog)
-				e.mu.Lock()
+				e.Mu.Lock()
 				if err != nil {
 					return err
 				}

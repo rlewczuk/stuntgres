@@ -21,8 +21,8 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			}
 			owner, _ := e.Roles().Lookup("owner")
 			successor, _ := e.Roles().Lookup("successor")
-			admin := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-			ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})[0])
+			admin := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+			ns := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "s"})[0])
 			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}, {Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: successor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
@@ -31,11 +31,11 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			}
 			ref := roleTableRef(t, e, "s.v")
 			roleExecute(t, e, op, "SET SESSION AUTHORIZATION owner")
-			before := e.catalog.State
+			before := e.Catalog.State
 			_, err := e.Execute(op, statement(t, "ALTER VIEW s.v OWNER TO successor"), 0, nil)
 			if !set {
 				viewReplaceError(t, err, sqlstate.Error{Code: "42501", Message: "must be able to SET ROLE \"successor\""})
-				if e.catalog.State != before {
+				if e.Catalog.State != before {
 					t.Fatal("failed transfer published")
 				}
 				return
@@ -43,7 +43,7 @@ func TestViewReplaceOwnerTransferAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if e.catalog.State.MustRelation(ref.Address).Owner != successor.Ref {
+			if e.Catalog.State.MustRelation(ref.Address).Owner != successor.Ref {
 				t.Fatal("transfer changed identity")
 			}
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
@@ -67,10 +67,10 @@ func TestViewReplaceSchemaOwnerDrop(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	for _, q := range []string{"ALTER VIEW s.v SET(security_barrier=true)", "CREATE OR REPLACE VIEW s.v AS SELECT id FROM s.t"} {
-		before := e.catalog.State
+		before := e.Catalog.State
 		_, err := e.Execute(op, statement(t, q), 0, nil)
 		viewReplaceError(t, err, sqlstate.Error{Code: "42501", Message: "must be owner of view v"})
-		if e.catalog.State != before {
+		if e.Catalog.State != before {
 			t.Fatal("schema ownership widened ALTER rights")
 		}
 	}

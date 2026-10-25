@@ -17,16 +17,16 @@ import (
 
 func routinesUnitInput(t *testing.T, f defaultUnitFixture, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.e.catalog.Read(state)
+	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoutinesOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "captured_database"}, TypeNamePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "captured_database"}, TypeNamePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
 }
 
 func TestInfoRoutinesProducer(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	// Use a genuine released declaration, not an execution stand-in.
 	original := f.e.CatalogRead().MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1397})
 	owned := *original
@@ -97,7 +97,7 @@ func TestInfoRoutinesProducer(t *testing.T) {
 	}
 	// All-hidden success is nonnil, not a canceled or absent source.
 	hidden := catalog.CloneState(state)
-	for _, descriptor := range f.e.catalog.Read(state).Descriptors() {
+	for _, descriptor := range f.e.Catalog.Read(state).Descriptors() {
 		if p, ok := descriptor.(*catalog.Procedure); ok {
 			copy := *p
 			copy.Owner, copy.ACL = f.owner, authorization.ACLValue{Explicit: true}
@@ -122,11 +122,11 @@ func TestInfoRoutinesProducer(t *testing.T) {
 
 func TestInfoRoutinesCapture(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	old := routinesUnitInput(t, f, f.e.catalog.State, f.owner)
+	old := routinesUnitInput(t, f, f.e.Catalog.State, f.owner)
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoRoutinesOID)
 	foreign := New()
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
@@ -136,13 +136,13 @@ func TestInfoRoutinesCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Runtime = nil },
 		func(in *pgcatalog.Input) { in.TypeNamePath = nil },
 		func(in *pgcatalog.Input) {
-			a := in.Runtime.(engineCatalogRuntime)
-			a.auth.RoleRecord = nil
+			a := in.Runtime.(EngineCatalogRuntime)
+			a.Auth.RoleRecord = nil
 			in.Runtime = a
 		},
 		func(in *pgcatalog.Input) {
-			a := in.Runtime.(engineCatalogRuntime)
-			a.auth.State.CurrentUser = old.Owner.Principals.Principal(99999)
+			a := in.Runtime.(EngineCatalogRuntime)
+			a.Auth.State.CurrentUser = old.Owner.Principals.Principal(99999)
 			in.Runtime = a
 		},
 	} {
@@ -154,7 +154,7 @@ func TestInfoRoutinesCapture(t *testing.T) {
 	}
 	// Same principal domain, separately published role frontier: valid when
 	// paired with its authority, invalid when mixed into the old capture.
-	auth := old.Runtime.(engineCatalogRuntime).auth
+	auth := old.Runtime.(EngineCatalogRuntime).Auth
 	role, ok := auth.Roles.Find(f.owner)
 	if !ok {
 		t.Fatal("missing owner role")
@@ -172,13 +172,13 @@ func TestInfoRoutinesCapture(t *testing.T) {
 	if rows, err := produce(mixed); rows != nil || err == nil {
 		t.Fatal("mixed role frontier accepted", rows, err)
 	}
-	mixed.Runtime = engineCatalogRuntime{auth: next, database: "captured_database"}
+	mixed.Runtime = EngineCatalogRuntime{Auth: next, Database: "captured_database"}
 	if rows, err := produce(mixed); rows == nil || err != nil {
 		t.Fatal("paired advanced frontier rejected", rows, err)
 	}
 	for _, kind := range []string{"width", "domain-generation", "base-generation", "origin", "column-name", "missing-display", "invalid-language", "namespace", "result"} {
 		t.Run(kind, func(t *testing.T) {
-			state := catalog.CloneState(f.e.catalog.State)
+			state := catalog.CloneState(f.e.Catalog.State)
 			source := *old.Source
 			source.Columns = append([]catalog.Column(nil), source.Columns...)
 			p := *old.Catalog.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 1397})

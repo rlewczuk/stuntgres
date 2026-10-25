@@ -22,7 +22,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	var resources [2]lock.Resource
 	for i, name := range []string{"cycle_left", "cycle_right"} {
 		d := domainUnitType(t, e.CatalogRead(), name)
-		resources[i] = lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())}
+		resources[i] = lock.Resource{ObjectRef: e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())}
 	}
 	sessions := [2]*session.Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
 	var refs [2]ids.TxRef
@@ -31,7 +31,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for i, s := range sessions {
 		refs[i] = transactionBegin(t, s)
 		tickets[i] = s.Transactions.Ticket
-		t.Cleanup(func() { e.endLockOwner(tickets[i]) })
+		t.Cleanup(func() { e.EndLockOwner(tickets[i]) })
 		if r := deadlockRequest(t, e, tickets[i], resources[i], lock.TypeExclusive); r != nil {
 			t.Fatal("initial type grant queued")
 		}
@@ -43,7 +43,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 		}
 	}
 	victim := -1
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	for i, r := range pending {
 		if r.Terminal() && r.Err() != nil {
 			if victim != -1 {
@@ -87,7 +87,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for _, s := range sessions {
 		ref := transactionBegin(t, s)
 		for _, resource := range resources {
-			if err := e.locks.Acquire(context.Background(), s.Transactions.Ticket, resource, lock.TypeExclusive); err != nil {
+			if err := e.Locks.Acquire(context.Background(), s.Transactions.Ticket, resource, lock.TypeExclusive); err != nil {
 				t.Fatal("retired cycle blocked fresh owner", err)
 			}
 		}

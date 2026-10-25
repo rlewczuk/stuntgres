@@ -61,15 +61,15 @@ func inheritanceMetadataScope(t *testing.T, e *Engine, role, sql string) *inheri
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { scope.Finish(context.Canceled) })
-	if err := scope.gate(raw); err != nil {
+	if err := scope.Gate(raw); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.acquireRelation(raw, true); err != nil {
+	if err := scope.AcquireRelation(raw, true); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.statementAuthorizationLocked(op, raw)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.StatementAuthorizationLocked(op, raw)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +77,8 @@ func inheritanceMetadataScope(t *testing.T, e *Engine, role, sql string) *inheri
 }
 
 func (command *inheritanceMetadataAdmissionCase) run() error {
-	command.e.mu.Lock()
-	root := command.scope.lockedDescriptor.(*catalog.Relation)
+	command.e.Mu.Lock()
+	root := command.scope.LockedDescriptor.(*catalog.Relation)
 	var err error
 	switch raw := command.raw.(type) {
 	case *parser.AlterTableDefault:
@@ -88,7 +88,7 @@ func (command *inheritanceMetadataAdmissionCase) run() error {
 	case *parser.AlterTableRenameConstraint:
 		_, err = command.e.renameInheritanceConstraintLocked(command.scope, command.op, command.auth, raw, root, 'n')
 	default:
-		command.e.mu.Unlock()
+		command.e.Mu.Unlock()
 		return errors.New("metadata admission fixture has no matching private provider")
 	}
 	return err
@@ -131,13 +131,13 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := statement(t, "CREATE TABLE public."+catalog.QuoteIdentifier(name)+" () INHERITS (public."+catalog.QuoteIdentifier(parent.Name())+")").(*parser.CreateTable)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var stage *CatalogStage
 	var child *catalog.Relation
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err = e.schemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
 		address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
@@ -146,12 +146,12 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 			err = errors.New("authentic CREATE provider did not stage the descendant")
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if err := e.stageQueryTableRows(context.Background(), stage, child, [][]sqltype.Value{{inheritanceQueryInt(e, value)}}, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, child, [][]sqltype.Value{{inheritanceQueryInt(e, value)}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -175,10 +175,10 @@ func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissi
 		}
 	})
 	lockPending(t, command.e, 1)
-	ref := command.e.catalog.Domain.Ref(command.auth.Catalog.Epoch(), child.Address())
-	lockState := command.e.locks.Inspect()
+	ref := command.e.Catalog.Domain.Ref(command.auth.Catalog.Epoch(), child.Address())
+	lockState := command.e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.ticket && entry.Pending[0].Mode == lock.AccessExclusive
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == command.scope.LockTicket && entry.Pending[0].Mode == lock.AccessExclusive
 	if !queued {
 		t.Fatal("metadata provider did not queue its actual descendant AX request")
 	}
@@ -259,8 +259,8 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				if grown.Epoch() != before.Epoch() || (!sticky && (currentChild == child || !table.InheritanceMarkerPublication(child, currentChild) || currentChild.History.SubclassPredecessor != child || currentChild.Revision() != currentChild.History.SubclassPublication)) || sticky && currentChild != child {
 					t.Fatal("fixture did not publish genuine additive growth/marker identity")
 				}
-				originals := table.InheritanceAlterOrder(grown, grown.MustRelation(command.scope.lockedRef.Address))
-				stores := maps.Clone(e.storage.Relations)
+				originals := table.InheritanceAlterOrder(grown, grown.MustRelation(command.scope.LockedRef.Address))
+				stores := maps.Clone(e.Storage.Relations)
 				rows := inheritanceAlterRowRoots(e)
 				for _, old := range originals {
 					if old.Columns[0].Name != "i" || len(old.Constraints.NotNull) != 1 || old.Constraints.NotNull[0].Name != "metadata_nn" {
@@ -290,13 +290,13 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					t.Fatal("completed metadata utility changed physical row values")
 				}
 				for _, old := range originals {
-					ref := e.catalog.Domain.Ref(grown.Epoch(), old.Address())
+					ref := e.Catalog.Domain.Ref(grown.Epoch(), old.Address())
 					if !command.scope.holdsColumnDropGrant(ref) {
 						t.Fatal("actual reconciled target lacks AX admission", old.Name())
 					}
 					current, _ := completed.Relation(old.Address())
 					inheritanceMetadataAssert(t, e, action.name, old, current)
-					if e.storage.Relations[old.Address()] != stores[old.Address()] {
+					if e.Storage.Relations[old.Address()] != stores[old.Address()] {
 						t.Fatal("completed metadata utility replaced physical storage", old.Name())
 					}
 				}
@@ -306,7 +306,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				published := e.CatalogRead()
 				for _, old := range originals {
 					inheritanceMetadataAssert(t, e, action.name, old, published.MustRelation(old.Address()))
-					if e.storage.Relations[old.Address()] != stores[old.Address()] {
+					if e.Storage.Relations[old.Address()] != stores[old.Address()] {
 						t.Fatal("metadata-only publication replaced physical storage", old.Name())
 					}
 				}
@@ -335,7 +335,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					result, joined := inheritanceMetadataWorker(t, command, holder, child)
 					owner := child.Owner
 					if fence == "new_descendant_owner" {
-						owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("metadata_other")
+						owner = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("metadata_other")
 					}
 					inheritanceMetadataChild(t, e, child, "late_grandchild", 40, owner)
 					if fence == "subsequent_replacement" {
@@ -353,7 +353,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 						}
 					}
 					stable := e.CatalogRead()
-					stores, rows := maps.Clone(e.storage.Relations), inheritanceAlterRowRoots(e)
+					stores, rows := maps.Clone(e.Storage.Relations), inheritanceAlterRowRoots(e)
 					if fence == "cancellation" {
 						command.cancel()
 					} else {
@@ -374,7 +374,7 @@ func TestInheritanceMetadataAdmissionFences(t *testing.T) {
 					}
 					command.scope.Finish(err)
 					holder.Finish(nil)
-					if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.storage.Relations) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
+					if e.CatalogRead().State() != stable.State() || !reflect.DeepEqual(stores, e.Storage.Relations) || !reflect.DeepEqual(rows, inheritanceAlterRowRoots(e)) {
 						t.Fatal("failed metadata admission published any partial graph or row change")
 					}
 					lockEmpty(t, e)

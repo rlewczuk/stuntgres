@@ -17,12 +17,12 @@ func (s *CatalogStage) CascadeRevision(revision ids.DefinitionRevision) (ids.Def
 }
 
 func (s *CatalogStage) BaseRef(address ids.ObjectAddress) ids.ObjectRef {
-	return s.owner.catalog.Domain.Ref(s.Base.Epoch(), address)
+	return s.Owner.Catalog.Domain.Ref(s.Base.Epoch(), address)
 }
 
-func (s *CatalogStage) RoleCandidate() *access.RoleRecord { return s.roleCandidate }
+func (s *CatalogStage) RoleCandidate() *access.RoleRecord { return s.RoleCandidateRecord }
 
 func (s *CatalogStage) SetRoleCandidate(candidate, publication *access.RoleRecord) authorization.Read {
-	s.roleCandidate = candidate
-	return s.roleRead(publication, s.owner.stageRead(s))
+	s.RoleCandidateRecord = candidate
+	return s.roleRead(publication, s.Owner.StageRead(s))
 }

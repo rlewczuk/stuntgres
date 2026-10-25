@@ -18,13 +18,13 @@ import (
 // ddlHost implements partition.Host for CREATE ... PARTITION OF and
 // PARTITION BY. Like the rest of ddlHost, every method runs under Engine.mu
 // and never waits.
-var _ partition.Host = ddlHost{}
+var _ partition.Host = DDLHost{}
 
-func (h ddlHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, []int, error) {
-	auth := ddlAuthorityOf(a)
-	ref := h.e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
+func (h DDLHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, []int, error) {
+	auth := DDLAuthorityOf(a)
+	ref := h.E.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	namespace := analyze.RelationNamespace(auth.Catalog, d, ref, 0)
-	binder := newExpressionBinder(h.op.Context(), h.e, input, h.op, nil)
+	binder := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	binder.Consumer.PartitionConsumer, binder.Params.NoParameters, binder.Query.Auth = "partition key expression", true, &auth
 	binder.Query.Namespace = &namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
@@ -32,7 +32,7 @@ func (h ddlHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw par
 	if err != nil {
 		return nil, nil, err
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: h.Op.Context(), Input: binder.Input, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	planned, _, err := exec.PreflightCoercionsWithPolicy(&evaluation, node, true)
 	if err != nil {
 		return nil, nil, err
@@ -54,20 +54,20 @@ var _ partition.BoundBinder = partitionBoundBinder{}
 // transient sequence calls retain their ordinary RX/grant-time admission.
 func (b partitionBoundBinder) BindBound(datum parser.PartitionDatum, key catalog.PartitionKeyEntry) (expr.Expr, error) {
 	scope, p := b.scope, b.pending
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(scope.op)
+	e := scope.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err
 	}
 	if auth.Catalog.Epoch() != p.auth.Catalog.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if auth.Revision != p.stage.authRevision || auth.RoleRecord.Revision != p.stage.roleRevision {
+	if auth.Revision != p.stage.AuthRevision || auth.RoleRecord.Revision != p.stage.RoleRevision {
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
 	}
-	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
+	binder := NewExpressionBinder(scope.Op.Context(), e, scope.Input, scope.Op, nil)
 	binder.Query.Auth = &p.auth
 	binder.Params.NoParameters = true
 	binder.Consumer.PartitionConsumer = "partition bound"

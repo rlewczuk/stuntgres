@@ -19,16 +19,16 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	s.setProtocolBind(nil)
 	defer func() { s.Expected = expected; s.setProtocolBind(binding) }()
 	if !(s.protocolOrZero().command || s.protocolOrZero().simple) || !session.ProtocolPlainSelect(query) {
-		result, err := s.engine().executeStatement(s, query, 0, nil)
+		result, err := s.Engine().executeStatement(s, query, 0, nil)
 		return result.Rows, err
 	}
 	capture := protocolPortal{}
 	s.protocol().bind = &capture
-	_, err := s.engine().executeStatement(s, query, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+	_, err := s.Engine().executeStatement(s, query, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 		return nil
 	})
 	if err != nil {
-		_ = s.protocolTerminalIO(func() error { return capture.releaseExecutor(s.op.Context()) })
+		_ = s.protocolTerminalIO(func() error { return capture.releaseExecutor(s.Op.Context()) })
 		return nil, err
 	}
 	if capture.producer == nil {
@@ -37,7 +37,7 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	rows := &protocolCopyQueryRows{scope: s, producer: capture.producer, schema: capture.producer.schema}
 	capture.producer = nil
 	rows.output = exec.NewFinalRows(rows.schema, 0)
-	rows.output.Output = s.output
+	rows.output.Output = s.Output
 	err = func() error {
 		s.enterProtocolProducer(rows.producer)
 		defer s.leaveProtocolProducer(rows.producer)
@@ -68,7 +68,7 @@ func (r *protocolCopyQueryRows) Next(ctx context.Context, values []sqltype.Value
 	if c == nil {
 		return false, nil
 	}
-	if err := r.scope.active(); err != nil {
+	if err := r.scope.Active(); err != nil {
 		return false, err
 	}
 	r.scope.enterProtocolProducer(c)
@@ -93,7 +93,7 @@ func (r *protocolCopyQueryRows) Close() error {
 	}
 	r.producer = nil
 	return r.scope.protocolTerminalIO(func() error {
-		err := c.dispose(r.scope.op.Context())
+		err := c.dispose(r.scope.Op.Context())
 		if closeErr := r.output.Close(); err == nil {
 			err = closeErr
 		}

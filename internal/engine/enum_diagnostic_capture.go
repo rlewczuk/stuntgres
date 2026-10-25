@@ -8,10 +8,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// captureTypeDiagnosticName freezes type naming against the catalog and the
+// CaptureTypeDiagnosticName freezes type naming against the catalog and the
 // reference path used for binding (catalog.TypeDiagnosticNamer).
-func captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error) {
-	path, err := referencePath(auth)
+func CaptureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error) {
+	path, err := ReferencePath(auth)
 	if err != nil {
 		return nil, err
 	}
@@ -22,7 +22,7 @@ func captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string,
 // standalone binders borrow the same immutable root; candidate mutations clone
 // it. Inputs are never retained across admissions, so an existing callback is
 // already the current scope's capture and can be shared without another closure.
-func captureEnumOperationSafety(op *session.Operation, input *sqltype.InputEnvironment) {
+func CaptureEnumOperationSafety(op *session.Operation, input *sqltype.InputEnvironment) {
 	if input.EnumMemberSafe != nil || op == nil || op.Session == nil || op.Session.Transactions == nil || op.Session.Transactions.Catalog == nil {
 		return
 	}
@@ -36,20 +36,20 @@ func captureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvir
 		return nil
 	}
 	var err error
-	input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
+	input.TypeDiagnosticName, err = CaptureTypeDiagnosticName(auth)
 	return err
 }
 
-func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
+func (e *Engine) CaptureTypeDiagnosticInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
 	if sqltype.IsFTS(typ.BaseType().ID()) && input.FTS == nil {
 		input.FTS = session.FTSInput{Op: op}
 	}
 	if typ.ContainsACLItem() && input.ACLItem == nil {
-		input.ACLItem = e.captureACLItemInput(auth, op)
+		input.ACLItem = e.CaptureACLItemInput(auth, op)
 	}
 	if input.TypeDiagnosticName == nil && analyze.NeedsTypeDiagnosticInput(typ) {
 		var err error
-		input.TypeDiagnosticName, err = captureTypeDiagnosticName(auth)
+		input.TypeDiagnosticName, err = CaptureTypeDiagnosticName(auth)
 		return err
 	}
 	return nil

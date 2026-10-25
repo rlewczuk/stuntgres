@@ -23,7 +23,7 @@ func TestInfoRoutinesNominalReturns(t *testing.T) {
 		t.Fatal(err)
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoRoutinesOID)
-	in := routinesUnitInput(t, f, f.e.catalog.State, f.owner)
+	in := routinesUnitInput(t, f, f.e.Catalog.State, f.owner)
 	rows, err := produce(in)
 	if err != nil || rows == nil {
 		t.Fatal("valid nominal capture rejected", rows, err)
@@ -77,21 +77,21 @@ func TestInfoRoutinesDeclaredReturnGenerations(t *testing.T) {
 				resultName, dataType = "_ir_result_base", "ARRAY"
 				resultSQL = "public.ir_result_base[]"
 			}
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
 			declaration := statement(t, "CREATE FUNCTION public.ir_result() RETURNS "+resultSQL+" LANGUAGE SQL AS 'SELECT NULL::"+resultSQL+"'").(*parser.CreateFunction)
-			f.e.mu.Lock()
+			f.e.Mu.Lock()
 			stage := f.e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(ddlHost{e: f.e, op: op, stage: stage}, auth, declaration, sqltype.InputEnvironment{})
-			f.e.mu.Unlock()
+			err = routine.StageCreateFunction(DDLHost{E: f.e, Op: op, CatalogStage: stage}, auth, declaration, sqltype.InputEnvironment{})
+			f.e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
 			domainUnitPublish(t, f.e, stage)
-			valid := f.e.catalog.State
-			view := f.e.catalog.Read(valid)
+			valid := f.e.Catalog.State
+			view := f.e.Catalog.Read(valid)
 			base := domainUnitType(t, view, "ir_result_base")
 			result := domainUnitType(t, view, resultName)
 			produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoRoutinesOID)

@@ -13,43 +13,43 @@ import (
 )
 
 func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	h := ddlHost{e: e, op: scope.op}
-	old, ref, err := fdw.AlterTarget(h, auth, s, scope.lockedRef)
+	h := DDLHost{E: e, Op: scope.Op}
+	old, ref, err := fdw.AlterTarget(h, auth, s, scope.LockedRef)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if old == nil {
-		e.mu.Unlock()
-		scope.completed = true
+		e.Mu.Unlock()
+		scope.Completed = true
 		return Result{}, nil
 	}
 	if s.Owner != nil {
 		target, identity := access.OwnershipRoleOperand(*s.Owner)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return e.executeRelationOwnership(scope, s.Name, target, identity, "foreign table", s.IfExists, 0)
 	}
 	if s.Inner != nil {
 		switch inner := s.Inner.(type) {
 		case *parser.AlterTableRenameTable:
-			return e.renameRelationLocked(scope, scope.op, auth, inner.Name, "", inner.NewName.Text, inner.IfExists, false, false, false, 0)
+			return e.renameRelationLocked(scope, scope.Op, auth, inner.Name, "", inner.NewName.Text, inner.IfExists, false, false, false, 0)
 		case *parser.AlterTableRenameColumn:
-			return e.renameRelationLocked(scope, scope.op, auth, inner.Name, inner.Column.Text, inner.NewName.Text, inner.IfExists, true, false, false, 0)
+			return e.renameRelationLocked(scope, scope.Op, auth, inner.Name, inner.Column.Text, inner.NewName.Text, inner.IfExists, true, false, false, 0)
 		case *parser.AlterTableSetSchema:
-			return e.alterSchemaLocked(scope, scope.op, auth, inner, 0)
+			return e.alterSchemaLocked(scope, scope.Op, auth, inner, 0)
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.Session)
-	h.stage = stage
+	stage.AuthorizeLocked(auth, scope.Op.Session)
+	h.CatalogStage = stage
 	wrapper, err := fdw.AlterBases(h, auth, old)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		return Result{}, err
@@ -76,13 +76,13 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			if phase != pass {
 				continue
 			}
-			if err := scope.op.Context().Err(); err != nil {
+			if err := scope.Op.Context().Err(); err != nil {
 				return Result{}, err
 			}
 			if action.Options != nil {
-				e.mu.Lock()
+				e.Mu.Lock()
 				job, er := fdw.AlterOptions(h, &next, wrapper, action)
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if er != nil {
 					return Result{}, er
 				}
@@ -100,9 +100,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				if a.Action == parser.DropDefault {
 					delete(next.ColumnMeta.Defaults, attribute)
 				} else {
-					e.mu.Lock()
-					definition, er := e.cookAlterDefaultLocked(scope, scope.op, auth, &next, slot, a.Expression)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					definition, er := e.cookAlterDefaultLocked(scope, scope.Op, auth, &next, slot, a.Expression)
+					e.Mu.Unlock()
 					if er != nil {
 						return Result{}, er
 					}
@@ -120,13 +120,13 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			var candidate *catalog.Relation
 			switch a.Action {
 			case parser.SetNotNull, parser.DropNotNull, parser.AddNotNull, parser.DropConstraint:
-				candidate, err = table.NotNullCandidate(scope.op, auth.Catalog, &next, a, table.NotNullDirect)
+				candidate, err = table.NotNullCandidate(scope.Op, auth.Catalog, &next, a, table.NotNullDirect)
 			case parser.AddCheck:
 				candidate = &next
 				candidate.Constraints.Check = slices.Clone(next.Constraints.Check)
-				e.mu.Lock()
-				err = table.BindChecks(alterHost{h, scope}, auth, candidate, []*parser.CheckConstraint{a.Check}, scope.input, true, nil)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				err = table.BindChecks(alterHost{h, scope}, auth, candidate, []*parser.CheckConstraint{a.Check}, scope.Input, true, nil)
+				e.Mu.Unlock()
 			case parser.DropColumn:
 				candidate, err = scope.dropColumnCandidate(stage, &next, ref, a, nil)
 			case parser.AddColumn:
@@ -134,10 +134,10 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					return Result{}, err
 				}
 				var added table.AddedColumn
-				candidate, added, err = e.addColumnCandidate(scope, scope.op, auth, &next, a, nil)
+				candidate, added, err = e.addColumnCandidate(scope, scope.Op, auth, &next, a, nil)
 				if err == nil && added.Column != nil {
 					if added.Declaration.NotNull {
-						candidate, err = table.NotNullCandidate(scope.op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, table.NotNullDirect)
+						candidate, err = table.NotNullCandidate(scope.Op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, table.NotNullDirect)
 					}
 					if err == nil {
 						var checks []*parser.CheckConstraint
@@ -148,15 +148,15 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 						}
 						if len(checks) != 0 {
 							candidate.Constraints.Check = slices.Clone(candidate.Constraints.Check)
-							e.mu.Lock()
-							err = table.BindChecks(alterHost{h, scope}, auth, candidate, checks, scope.input, true, nil)
-							e.mu.Unlock()
+							e.Mu.Lock()
+							err = table.BindChecks(alterHost{h, scope}, auth, candidate, checks, scope.Input, true, nil)
+							e.Mu.Unlock()
 						}
 					}
 					if err == nil {
-						e.mu.Lock()
+						e.Mu.Lock()
 						job, er := fdw.AddedColumnOptions(h, candidate, wrapper, a.Column.Text, action.ColumnOptions)
-						e.mu.Unlock()
+						e.Mu.Unlock()
 						if er != nil {
 							return Result{}, er
 						}
@@ -164,15 +164,15 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					}
 				}
 			case parser.AlterColumnType:
-				e.mu.Lock()
-				prepared, prepareErr := e.prepareAlterTypeLocked(scope, scope.op, auth, old, ref, a, nil)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				prepared, prepareErr := e.prepareAlterTypeLocked(scope, scope.Op, auth, old, ref, a, nil)
+				e.Mu.Unlock()
 				if prepareErr != nil {
 					return Result{}, prepareErr
 				}
-				candidate, _, err = e.alterTypeCandidate(scope, scope.op, auth, stage, old, &next, ref, a, prepared)
+				candidate, _, err = e.alterTypeCandidate(scope, scope.Op, auth, stage, old, &next, ref, a, prepared)
 			case parser.SetExpression, parser.DropExpression:
-				candidate, _, err = e.generationCandidate(scope, scope.op, auth, &next, a)
+				candidate, _, err = e.generationCandidate(scope, scope.Op, auth, &next, a)
 			default:
 				return Result{}, fdw.UnsupportedAlter()
 			}
@@ -182,11 +182,11 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			next = *candidate
 		}
 		if pass == 0 {
-			pendingChecks, err = table.CaptureAlterTypeChecks(scope.op, auth.Catalog, old, &next, typeActions)
+			pendingChecks, err = table.CaptureAlterTypeChecks(scope.Op, auth.Catalog, old, &next, typeActions)
 		}
 		if err == nil && pass == 1 {
 			var rebound *catalog.Relation
-			rebound, _, err = e.rebindAlterTypeChecks(scope, scope.op, auth, ref, &next, pendingChecks)
+			rebound, _, err = e.rebindAlterTypeChecks(scope, scope.Op, auth, ref, &next, pendingChecks)
 			if err == nil {
 				next = *rebound
 			}
@@ -195,32 +195,32 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	next.ObjectRevision, err = e.catalog.RevisionLocked()
+	e.Mu.Lock()
+	next.ObjectRevision, err = e.Catalog.RevisionLocked()
 	if err == nil {
-		err = table.AssignDefinitionOIDs(ddlHost{e: e}, &next)
+		err = table.AssignDefinitionOIDs(DDLHost{E: e}, &next)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
 	if err = stage.Replace(&next); err != nil {
 		return Result{}, err
 	}
-	if err = scope.acquireDefinitionProviders(stage); err != nil {
+	if err = scope.AcquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
-	if err = fdw.RunValidations(scope.op.Context(), jobs); err != nil {
+	if err = fdw.RunValidations(scope.Op.Context(), jobs); err != nil {
 		return Result{}, err
 	}
-	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
+	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 	return Result{}, err
 }

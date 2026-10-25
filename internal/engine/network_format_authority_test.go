@@ -32,18 +32,18 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			ref := roleTableRef(t, e, "public.nf_unit")
 			input, _ := admin.Session.Settings.Presentation()
 			raw := statement(t, "SELECT "+tc.expr).(*parser.Select).Targets[0]
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(admin)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(admin)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := newExpressionBinder(context.Background(), e, input, admin, nil)
+			binder := NewExpressionBinder(context.Background(), e, input, admin, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 			bindTestTargetNamespace(binder)
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,7 +77,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 						case "missing":
 							continue
 						case "foreign":
-							dep.Ref = foreign.catalog.Domain.Ref(dep.Ref.Epoch, dep.Ref.Address)
+							dep.Ref = foreign.Catalog.Domain.Ref(dep.Ref.Epoch, dep.Ref.Address)
 						case "stale":
 							dep.Revision++
 						}

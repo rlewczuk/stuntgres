@@ -50,12 +50,12 @@ func (s *StatementScope) startProtocolCopy(hooks CopyProtocolHooks, from bool, o
 func CopyBoundary(s *parser.Copy) error {
 	switch s.Endpoint {
 	case parser.CopyFile:
-		return sqlError("0A000", "COPY server files are unsupported")
+		return SQLError("0A000", "COPY server files are unsupported")
 	case parser.CopyProgram:
-		return sqlError("0A000", "COPY PROGRAM is unsupported")
+		return SQLError("0A000", "COPY PROGRAM is unsupported")
 	}
 	if s.From {
-		return sqlError("0A000", "COPY FROM STDIN requires stuntgres.CopyFrom")
+		return SQLError("0A000", "COPY FROM STDIN requires stuntgres.CopyFrom")
 	}
-	return sqlError("0A000", "COPY TO STDOUT requires stuntgres.CopyTo")
+	return SQLError("0A000", "COPY TO STDOUT requires stuntgres.CopyTo")
 }

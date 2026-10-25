@@ -27,8 +27,8 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				t.Fatal(err)
 			}
 			base := e.CatalogRead()
-			ref := e.catalog.Domain.Ref(base.Epoch(), parent.Address())
-			if err = e.locks.Acquire(context.Background(), holder.Session.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
+			ref := e.Catalog.Domain.Ref(base.Epoch(), parent.Address())
+			if err = e.Locks.Acquire(context.Background(), holder.Session.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -42,7 +42,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scope := &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.Ticket}
+			scope := &StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
 			defer func() {
 				if op.Context().Err() != nil {
 					// A canceled Commit follows the real failed-commit rollback
@@ -78,7 +78,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				}
 			}()
 			go func() {
-				result <- stageDropProvider(nil, stage, scope, nil, nil).lockInheritanceClosure([]ids.ObjectAddress{parent.Address()})
+				result <- StageDropProvider(nil, stage, scope, nil, nil).lockInheritanceClosure([]ids.ObjectAddress{parent.Address()})
 			}()
 			lockPending(t, e, 1)
 			if cancelWait {
@@ -112,10 +112,10 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				if stage.Base.State() == base.State() || len(catalog.InheritanceChildren(stage.Base, firstChild.Address())) != 1 {
 					t.Fatal("late child omitted")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
+				if err = StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
 					t.Fatal("late child did not block RESTRICT")
 				}
-				if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+				if err = StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{parent.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 					t.Fatal(err)
 				}
 				if stage.RemovalCount() != 3 {
@@ -143,8 +143,8 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 		lockEmpty(t, e)
 	}()
 	base := e.CatalogRead()
-	ref := e.catalog.Domain.Ref(base.Epoch(), table.Address())
-	if err := e.locks.Acquire(context.Background(), holder.Session.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+	ref := e.Catalog.Domain.Ref(base.Epoch(), table.Address())
+	if err := e.Locks.Acquire(context.Background(), holder.Session.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -167,17 +167,17 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 			t.Error(err)
 		}
 	}()
-	scope := &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.Ticket}
+	scope := &StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageDropProvider(nil, stage, scope, nil, nil).lockInheritanceClosure([]ids.ObjectAddress{table.Address()}); err != nil {
+	if err := StageDropProvider(nil, stage, scope, nil, nil).lockInheritanceClosure([]ids.ObjectAddress{table.Address()}); err != nil {
 		t.Fatal("standalone DROP attempted an extra root grant", err)
 	}
-	lockState := e.locks.Inspect(scope.ticket)
-	resources := len(lockState.Journals[scope.ticket])
+	lockState := e.Locks.Inspect(scope.LockTicket)
+	resources := len(lockState.Journals[scope.LockTicket])
 	if resources != 0 || stage.Base.State() != base.State() || stage.RemovalCount() != 1 {
 		t.Fatal("standalone closure changed lock ownership or staged catalog")
 	}

@@ -126,9 +126,9 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			// All stored values and bound operators use the same descriptor
 			// authority; mixing a fresh Builtins set with engine-owned values
 			// would fail equality before reaching collection validation.
-			e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-			e.catalog.State.SetDescriptor(parent.Address(), parent)
-			e.catalog.State.SetDescriptor(idx.Address(), idx)
+			e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+			e.Catalog.State.SetDescriptor(parent.Address(), parent)
+			e.Catalog.State.SetDescriptor(idx.Address(), idx)
 			store := &storage.Relation{Versions: []storage.RowVersion{
 				row(1, "10.0.0.1", "[1,5)"),
 				row(2, "10.0.0.1", "empty"),
@@ -137,12 +137,12 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			e.storage.InstallRelationLocked(parent.Address(), store)
-			e.mu.Unlock()
-			e.mu.Lock()
-			e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
-			e.mu.Unlock()
+			e.Mu.Lock()
+			e.Storage.InstallRelationLocked(parent.Address(), store)
+			e.Mu.Unlock()
+			e.Mu.Lock()
+			e.Storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
+			e.Mu.Unlock()
 			before := indexMaintenanceCapture(e)
 			storeBefore := uniquePublicationStore(store)
 			entriesBefore := append([]storage.IndexEntry(nil), root.Entries...)
@@ -152,7 +152,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			rootBefore := *root
 			// The candidate extends the same typed private fixture, not a
 			// separately initialized SQL catalog.
-			captured := index.CaptureIndexStores(e.storage.Relations, e.catalog.State)
+			captured := index.CaptureIndexStores(e.Storage.Relations, e.Catalog.State)
 			candidate := captured[parent.Address()]
 			candidate.Versions = append(append([]storage.RowVersion(nil), candidate.Versions...), row(3, "10.0.0.1", "[3,7)"))
 			candidateBefore := uniquePublicationStore(candidate)
@@ -160,7 +160,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			// row delta: validation must inspect rebuilt A/empty/C membership.
 			roots, err := e.prepareIndexRoots(
 				&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
-				e.catalog.State, e.catalog.State, captured, e.storage.IndexRoots,
+				e.Catalog.State, e.Catalog.State, captured, e.Storage.IndexRoots,
 				map[ids.ObjectAddress]bool{parent.Address(): true}, nil, nil,
 				materialize, sqltype.OutputEnvironment{}, nil, nil, nil,
 			)

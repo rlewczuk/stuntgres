@@ -35,23 +35,23 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *exec.Sou
 		t.Fatal(err)
 	}
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	from := ast.(*parser.Select).From
 	if alias, ok := from.(*parser.AliasReference); ok {
 		from = alias.Input
 	}
-	ref, err := e.resolveReference(auth, from.(*parser.TableReference).Name)
+	ref, err := e.ResolveReference(auth, from.(*parser.TableReference).Name)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.mu.Unlock()
+	b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,9 +38,9 @@ func TestRangeTypeAliasMaximumRetainedEndpointCapacity(t *testing.T) {
 			}
 
 			target := New()
-			target.mu.Lock()
-			_, err = target.catalog.AllocateOIDAtLeastLocked(29999)
-			target.mu.Unlock()
+			target.Mu.Lock()
+			_, err = target.Catalog.AllocateOIDAtLeastLocked(29999)
+			target.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -58,15 +58,15 @@ func TestRangeTypeAliasMaximumRetainedEndpointCapacity(t *testing.T) {
 			if retained[address(ids.NamespaceClassID, 30000)] == nil || retained[unrelated.Address()] == nil {
 				t.Fatal("missing actual TEMP prefix collision", retained)
 			}
-			before := target.catalog.State
-			target.mu.Lock()
-			_, err = target.catalog.AllocateOIDAtLeastLocked(30010)
+			before := target.Catalog.State
+			target.Mu.Lock()
+			_, err = target.Catalog.AllocateOIDAtLeastLocked(30010)
 			if err != nil {
-				target.mu.Unlock()
+				target.Mu.Unlock()
 				t.Fatal(err)
 			}
-			mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.catalog.AllocateOIDAtLeastLocked)
-			target.mu.Unlock()
+			mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+			target.Mu.Unlock()
 			if err != nil {
 				t.Fatal("feasible endpoint plus ordinary collision must not exhaust speculative alternatives", err)
 			}
@@ -84,7 +84,7 @@ func TestRangeTypeAliasMaximumRetainedEndpointCapacity(t *testing.T) {
 					}
 				}
 			}
-			if target.catalog.State != before || next.Get(lower.Address()) != lower || next.Get(upper.Address()) != upper || (ordinary && next.Get(unrelated.Address()) != unrelated) {
+			if target.Catalog.State != before || next.Get(lower.Address()) != lower || next.Get(upper.Address()) != upper || (ordinary && next.Get(unrelated.Address()) != unrelated) {
 				t.Fatal("planning mutated source or target generations")
 			}
 			if data := tuples(roleExecute(t, target, op, "SELECT k FROM capacity_live")); len(data) != 1 || data[0][0] != int64(7) {
@@ -96,9 +96,9 @@ func TestRangeTypeAliasMaximumRetainedEndpointCapacity(t *testing.T) {
 			if ordinary {
 				expectedNext = 30013
 			}
-			target.mu.Lock()
-			fresh, err := target.catalog.AllocateOIDLocked()
-			target.mu.Unlock()
+			target.Mu.Lock()
+			fresh, err := target.Catalog.AllocateOIDLocked()
+			target.Mu.Unlock()
 			if err != nil || fresh != expectedNext {
 				t.Fatal("speculative alternatives consumed future capacity", fresh, expectedNext, err)
 			}
@@ -126,9 +126,9 @@ func TestRangeTypeAliasCompleteCapacityLimits(t *testing.T) {
 				t.Fatal(err)
 			}
 			target := New()
-			target.mu.Lock()
-			_, err = target.catalog.AllocateOIDAtLeastLocked(29999)
-			target.mu.Unlock()
+			target.Mu.Lock()
+			_, err = target.Catalog.AllocateOIDAtLeastLocked(29999)
+			target.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -139,37 +139,37 @@ func TestRangeTypeAliasCompleteCapacityLimits(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			before := target.catalog.State
-			target.mu.Lock()
+			before := target.Catalog.State
+			target.Mu.Lock()
 			floor := ^ids.OID(0) - 2
 			if exhausted {
 				floor = ^ids.OID(0)
 			}
-			_, err = target.catalog.AllocateOIDAtLeastLocked(floor)
+			_, err = target.Catalog.AllocateOIDAtLeastLocked(floor)
 			if err != nil {
-				target.mu.Unlock()
+				target.Mu.Unlock()
 				t.Fatal(err)
 			}
-			mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.catalog.AllocateOIDAtLeastLocked)
-			target.mu.Unlock()
+			mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+			target.Mu.Unlock()
 			var diagnostic interface{ SQLState() string }
 			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22000" || mapping != nil {
 				t.Fatal("two fresh demands cannot share one remaining unreserved output", mapping, err)
 			}
-			if target.catalog.State != before || next.Get(lower.Address()) != lower {
+			if target.Catalog.State != before || next.Get(lower.Address()) != lower {
 				t.Fatal("capacity failure published a generation")
 			}
-			target.mu.Lock()
-			_, err = target.catalog.AllocateOIDAtLeastLocked(1)
-			target.mu.Unlock()
+			target.Mu.Lock()
+			_, err = target.Catalog.AllocateOIDAtLeastLocked(1)
+			target.Mu.Unlock()
 			if !errors.Is(err, catalog.ErrObjectIdentityExhausted) {
 				t.Fatal("failed search rewound/revived exhausted frontier", err)
 			}
 			canceled, cancel := context.WithCancel(ctx)
 			cancel()
-			target.mu.Lock()
-			_, err = control.TemporaryCollisionMapping(canceled, next, retained, constraints, target.catalog.AllocateOIDAtLeastLocked)
-			target.mu.Unlock()
+			target.Mu.Lock()
+			_, err = control.TemporaryCollisionMapping(canceled, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+			target.Mu.Unlock()
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal("capacity search lost cancellation", err)
 			}
@@ -193,15 +193,15 @@ func TestRangeTypeAliasSparseCapacity(t *testing.T) {
 	temp := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 4000000100}, ObjectRevision: 1, ObjectName: "pg_temp_sparse"}
 	retained := map[ids.ObjectAddress]catalog.Descriptor{temp.Address(): temp}
 	target := New()
-	target.mu.Lock()
-	_, err = target.catalog.AllocateOIDAtLeastLocked(30010)
+	target.Mu.Lock()
+	_, err = target.Catalog.AllocateOIDAtLeastLocked(30010)
 	if err != nil {
-		target.mu.Unlock()
+		target.Mu.Unlock()
 		t.Fatal(err)
 	}
-	mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.catalog.AllocateOIDAtLeastLocked)
-	fresh, nextErr := target.catalog.AllocateOIDLocked()
-	target.mu.Unlock()
+	mapping, err := control.TemporaryCollisionMapping(ctx, next, retained, constraints, target.Catalog.AllocateOIDAtLeastLocked)
+	fresh, nextErr := target.Catalog.AllocateOIDLocked()
+	target.Mu.Unlock()
 	if err != nil || mapping[upper.Address()].ObjectID != 4000000001 || nextErr != nil || fresh != 4000000002 {
 		t.Fatal("required sparse interval must use one real floor-aware output then stop", mapping, err, fresh, nextErr)
 	}

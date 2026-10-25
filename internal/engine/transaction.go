@@ -29,11 +29,11 @@ type EndResult struct{ Committed bool }
 
 func clearTransaction(t *session.TransactionOwner) {
 	ownerExtensionOf(t).retireForeign()
-	if payloadOf(t.Session).cursors != nil {
-		ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
+	if PayloadOf(t.Session).Cursors != nil {
+		ownerExtensionOf(t).detachCursors(PayloadOf(t.Session).Cursors.endTransaction(t.Ref))
 	}
-	if payloadOf(t.Session).preparedSQL != nil {
-		for _, p := range payloadOf(t.Session).preparedSQL.portals {
+	if PayloadOf(t.Session).preparedSQL != nil {
+		for _, p := range PayloadOf(t.Session).preparedSQL.portals {
 			if p.tx == t.Ref {
 				p.retired = true
 			}
@@ -64,18 +64,18 @@ func endTransactionSession(t *session.TransactionOwner, token ids.SessionToken) 
 		t.Mu.Unlock()
 		return errors.New("stuntgres: foreign transaction session")
 	}
-	engineOf(t.Session).endSerializable(t.Ref, false)
+	EngineOf(t.Session).endSerializable(t.Ref, false)
 	t.Session.Settings.FinishTransaction(false)
 	clearTransaction(t)
 	t.Session.RetireTransactionTimeout()
 	ticket := t.Ticket
 	t.Ticket = nil
 	t.Mu.Unlock()
-	engineOf(t.Session).endLockOwner(ticket)
+	EngineOf(t.Session).EndLockOwner(ticket)
 	cleanupErr := drainCursorCleanup(t, context.Background(), nil)
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
-	if err := engineOf(t.Session).endTemporarySession(t.Session); cleanupErr == nil {
+	if err := EngineOf(t.Session).endTemporarySession(t.Session); cleanupErr == nil {
 		cleanupErr = err
 	}
 	return cleanupErr
@@ -86,23 +86,23 @@ func (e *Engine) beginLocked(op *session.Operation, t *session.TransactionOwner,
 		return errors.New("stuntgres: transaction identity exhausted")
 	}
 	sess := op.Session
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	settings := sess.Settings
 	settings.Mu.Lock()
 	defer settings.Mu.Unlock()
 	sess.Mu.Lock()
 	defer sess.Mu.Unlock()
-	if err := publicationOperationLocked(e, op); err != nil {
+	if err := PublicationOperationLocked(e, op); err != nil {
 		return err
 	}
-	diagnostic, err := e.visibility.NextDiagnosticTxLocked()
+	diagnostic, err := e.Visibility.NextDiagnosticTxLocked()
 	if err != nil {
 		return err
 	}
 	t.Next++
-	t.Ref = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.State.Epoch(), t, diagnostic)
-	payloadOf(sess).notifications.Busy = true
+	t.Ref = e.Catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.Catalog.State.Epoch(), t, diagnostic)
+	PayloadOf(sess).notifications.Busy = true
 	t.BeginLocked(settings, state, start)
 	e.enrollSerializableLocked(t.Ref, t.Isolation)
 	sess.BeginTimeoutLocked(t.Ref, state == session.TxActive, start)
@@ -175,20 +175,20 @@ func (e *Engine) Commit(op *session.Operation, ref ids.TxRef) (EndResult, error)
 // Binding uses current resolution metadata; data consumers explicitly acquire a
 // policy-selected committed view. Writes stage effects here, never in storage.
 type StatementScope struct {
-	statementMutation
+	StatementMutation
 	currentSnapshot         *sqltype.Snapshot
 	snapshotFrontier        ids.CommitSeq
 	snapshotTarget          visibility.Root
 	snapshotTargets         map[ids.ObjectAddress]visibility.Root
 	snapshotTargetAdmission bool // Actual snapshotPhase command, not CTE bookkeeping.
-	mutations               []statementMutation
-	activeMutation          int
+	mutations               []StatementMutation
+	ActiveMutation          int
 	cteInvocation           *exec.CTEInvocation
 	self                    *StatementScope
-	owner                   *session.TransactionOwner
-	op                      *session.Operation
-	ruleAction              ruleActionScope
-	rowSecurity             bool                      // Immutable effective setting for this admitted statement.
+	Owner                   *session.TransactionOwner
+	Op                      *session.Operation
+	ruleAction              RuleActionScope
+	RowSecurity             bool                      // Immutable effective setting for this admitted statement.
 	rlsActive               []ids.ObjectAddress       // Active policy expansion path, not an occurrence cache.
 	rlsPrograms             []*rowSecurityProgram     // Owns runtime plus original selected admission identities.
 	rlsAdmissionDepth       int                       // Whole target/source admission, including recursive policies.
@@ -199,66 +199,66 @@ type StatementScope struct {
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
 	// it is neither prepared-plan state nor a cached permission decision.
-	routineAuth                 AuthorizationView
-	stage                       WriteStage
+	RoutineAuth                 AuthorizationView
+	Stage                       WriteStage
 	notificationActions         []session.NotificationAction
 	notificationEvents          []session.Notification
-	view                        *visibility.View
-	finished                    bool
+	View                        *visibility.View
+	Finished                    bool
 	message                     bool
 	messageEnded                bool
 	messageResult               error
 	result                      error
 	worked                      bool
-	completed                   bool
+	Completed                   bool
 	sessionCompleted            bool // Successful session utilities have no private stage to merge.
 	controlOutcome              controlOutcome
-	replacementRead             bool
-	ticket                      *lock.Ticket
+	ReplacementRead             bool
+	LockTicket                  *lock.Ticket
 	multiEvents                 []lock.MultiEvent
-	querySources                []exec.Leaf
-	queryLockAdmission          analyze.LockAdmission
-	queryLocks                  *exec.LockContext
-	txRef                       ids.TxRef
-	command                     ids.CommandID
-	ownWrites                   map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes                  map[ids.ObjectAddress]*visibility.PrivateDeletes
+	QuerySources                []exec.Leaf
+	QueryLockAdmission          analyze.LockAdmission
+	QueryLockContext            *exec.LockContext
+	TxRef                       ids.TxRef
+	CommandID                   ids.CommandID
+	OwnWrites                   map[ids.ObjectAddress][]storage.RowVersion
+	OwnDeletes                  map[ids.ObjectAddress]*visibility.PrivateDeletes
 	Expected                    *StatementDescription
 	admissionWaited             bool
 	implicit                    bool
-	input                       sqltype.InputEnvironment
+	Input                       sqltype.InputEnvironment
 	routinePrograms             []commandRoutineProgram                 // Consumed command graphs; same admission lease as exec.Authority.
 	checkPrograms               map[*catalog.Relation]exec.CheckProgram // Lazy ordinary CHECK preparation; shared by borrowed evaluations.
 	statementStart              time.Time
 	transactionStart            time.Time
 	lease                       session.StatementLease // identity for session-layer state; never copied on purpose
-	output                      sqltype.OutputEnvironment
+	Output                      sqltype.OutputEnvironment
 	initialParameters           []sqltype.Usage
 	activeSQLRoutineDepth       int                         // Root invocation owner; never saved/reset as lexical scratch.
 	effectCommand, effectSerial uint64                      // admission-private command event ownership; never rewound
 	quoteCaptures               *exec.QuoteCaptureCandidate // sealed before executor/source publication
-	catalog                     *session.Journal
+	Catalog                     *session.Journal
 	largeObjectRead             catalog.Read // Immutable active-query READ view, saved/restored by SQL body activation.
-	catalogAuthority            *session.CatalogAuthority
+	CatalogAuthority            *session.CatalogAuthority
 	projectedRoots              bool
-	foreignActionAuth           *AuthorizationView
-	identity                    exec.IdentitySnapshot
+	ForeignActionAuth           *AuthorizationView
+	Identity                    exec.IdentitySnapshot
 	// Feature state lives in slots. Groups that every statement writes are
 	// values. A pointer slot xSlot stays nil until its first write through
 	// x(); reads use xOrZero(), which never allocates, so nil means all zero.
 	// Only the SQL routine scratch swaps slot pointers (protocol,
 	// presentation); nothing else resets a slot to nil.
-	inquiry            inquirySnapshot
+	Inquiry            inquirySnapshot
 	prepared           preparedRebind
 	sqlRoutine         sqlRoutineDemand
-	inheritance        inheritanceScope
-	domains            domainScope
+	Inheritance        inheritanceScope
+	Domains            domainScope
 	protocolSlot       *protocolScope
 	presentationSlot   *presentationCaches
 	truncateSlot       *dml.TruncateScope
-	dropsSlot          *dropScope
+	DropsSlot          *DropScope
 	foreignActionsSlot *dml.ForeignActionScope
-	foreignKeysSlot    *table.ForeignKeyCreation
+	ForeignKeysSlot    *table.ForeignKeyCreation
 	viewCreationSlot   *view.CreationScope
 	materializedSlot   *view.MaterializedRefreshScope
 	indexesSlot        *index.Scope
@@ -269,8 +269,8 @@ type StatementScope struct {
 type WriteStage struct {
 	self      *WriteStage
 	scope     *StatementScope
-	rows      map[ids.ObjectAddress][]storage.RowVersion
-	deletes   map[ids.ObjectAddress]*visibility.PrivateDeletes
+	Rows      map[ids.ObjectAddress][]storage.RowVersion
+	Deletes   map[ids.ObjectAddress]*visibility.PrivateDeletes
 	replacing bool
 }
 
@@ -292,32 +292,32 @@ func (e *Engine) StartStatement(op *session.Operation) (*StatementScope, error) 
 // Held-cursor precommit borrows a fresh current operation/presentation scope
 // without starting a new admitted statement or provisional timeout.
 func newStatementScope(op *session.Operation, owner *session.TransactionOwner, start time.Time) *StatementScope {
-	s := &StatementScope{owner: owner, op: op, statementStart: start}
+	s := &StatementScope{Owner: owner, Op: op, statementStart: start}
 	s.self = s
 	s.lease.Statement = s
-	s.stage.scope = s
-	s.stage.self = &s.stage
-	s.input, s.output = op.Session.Settings.Presentation()
+	s.Stage.scope = s
+	s.Stage.self = &s.Stage
+	s.Input, s.Output = op.Session.Settings.Presentation()
 	// Only private Restore INSERT replay owns this authority. The same input
 	// flows to literal analysis and execution-time coercions; ordinary scopes
 	// (including statements after Restore) retain normal BOX normalization.
-	s.input.RawBoxReplay = operationReplayOrZero(op).insertAuthority
+	s.Input.RawBoxReplay = OperationReplayOrZero(op).InsertAuthority
 	settings := op.Session.Settings
 	settings.Mu.Lock()
-	s.rowSecurity = settings.Value("row_security") == "on"
+	s.RowSecurity = settings.Value("row_security") == "on"
 	settings.Mu.Unlock()
 	return s
 }
 
-func (s *StatementScope) active() error {
-	if s == nil || s.self != s || s.finished {
+func (s *StatementScope) Active() error {
+	if s == nil || s.self != s || s.Finished {
 		return errors.New("stuntgres: inactive statement scope")
 	}
-	return s.engine().validateOperation(s.op)
+	return s.Engine().ValidateOperation(s.Op)
 }
 
-func (s *StatementScope) gate(stmt parser.Statement) error {
-	if err := s.active(); err != nil {
+func (s *StatementScope) Gate(stmt parser.Statement) error {
+	if err := s.Active(); err != nil {
 		return err
 	}
 	if stmt == nil {
@@ -328,40 +328,40 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return s.gateSavepoint(control)
 	}
 	if control, ok := stmt.(*parser.TransactionControl); ok {
-		s.owner.Mu.Lock()
-		defer s.owner.Mu.Unlock()
+		s.Owner.Mu.Lock()
+		defer s.Owner.Mu.Unlock()
 		if s.message {
-			if err := s.admitTransactionLocked(s.engine()); err != nil {
+			if err := s.admitTransactionLocked(s.Engine()); err != nil {
 				return err
 			}
 		}
-		if err := s.engine().endPreflight(s.op); err != nil {
+		if err := s.Engine().endPreflight(s.Op); err != nil {
 			return err
 		}
-		if s.owner.State == session.TxAborted && !session.AbortedControlAllowed(control) {
+		if s.Owner.State == session.TxAborted && !session.AbortedControlAllowed(control) {
 			return session.AbortedError()
 		}
 		return nil
 	}
-	t := s.owner
-	e := s.engine()
+	t := s.Owner
+	e := s.Engine()
 	// Admission serializes this session, so the idle classification stays valid
 	// while reserving replacement admission outside transaction synchronization.
 	t.Mu.Lock()
 	idle := t.State == session.TxIdle
 	t.Mu.Unlock()
 	if idle && session.ReplacementRead(stmt) {
-		e.replacementMu.RLock()
-		s.replacementRead = true
+		e.ReplacementMu.RLock()
+		s.ReplacementRead = true
 	}
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 	if err := s.admitTransactionLocked(e); err != nil {
 		return err
 	}
-	e.mu.Lock()
-	stale := t.Ref.Epoch() != e.catalog.State.Epoch()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	stale := t.Ref.Epoch() != e.Catalog.State.Epoch()
+	e.Mu.Unlock()
 	if stale {
 		return ids.ErrCatalogReplaced
 	}
@@ -376,24 +376,24 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 
 // The transaction owner mutex is held; admission protects the projected roots.
 func (s *StatementScope) attachTransactionLocked() {
-	t := s.owner
-	s.ticket = t.Ticket
-	s.txRef = t.Ref
+	t := s.Owner
+	s.LockTicket = t.Ticket
+	s.TxRef = t.Ref
 	s.implicit = t.State == session.TxImplicit
-	s.input.TransactionStart = t.Start
-	s.command = t.Command
-	s.ownWrites = t.Writes
-	s.ownDeletes = t.Deletes
+	s.Input.TransactionStart = t.Start
+	s.CommandID = t.Command
+	s.OwnWrites = t.Writes
+	s.OwnDeletes = t.Deletes
 }
 
 func (s *StatementScope) ResolutionCatalog() catalog.Read {
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		panic(err)
 	}
-	return s.engine().CatalogRead()
+	return s.Engine().CatalogRead()
 }
 
-func (s *StatementScope) Writes() *WriteStage { return &s.stage }
+func (s *StatementScope) Writes() *WriteStage { return &s.Stage }
 
 // Apply takes immutable payload ownership only after provenance and capacity
 // checks. The binder supplied the original ObjectRef, not a reconstructed name.
@@ -402,22 +402,22 @@ func (w *WriteStage) Apply(ref ids.ObjectRef, rows [][]sqltype.Value) error {
 		return errors.New("stuntgres: foreign or missing write stage")
 	}
 	s := w.scope
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return err
 	}
 	batch := index.WriteBatch{Values: rows}
 	for i := range batch.Values {
 		candidate := batch.Candidate(i)
-		if err := dml.CheckUniqueRow(s.writeHost(), ref, &candidate, nil, batch.Prefix(i)); err != nil {
+		if err := dml.CheckUniqueRow(s.WriteHost(), ref, &candidate, nil, batch.Prefix(i)); err != nil {
 			return err
 		}
 		batch.Set(i, candidate)
 	}
-	return dml.ApplyValidated(s.writeHost(), ref, batch)
+	return dml.ApplyValidated(s.WriteHost(), ref, batch)
 }
 
 func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, error) {
-	if err := s.gate(stmt); err != nil {
+	if err := s.Gate(stmt); err != nil {
 		return StatementDescription{}, err
 	}
 	if copy, ok := stmt.(*parser.Copy); ok {
@@ -439,11 +439,11 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	case session.DescribeEmpty:
 		return StatementDescription{}, nil
 	case session.DescribeOperation:
-		return s.engine().describeOperation(s, stmt)
+		return s.Engine().describeOperation(s, stmt)
 	}
 	if session.TransactionalSchemaUtility(stmt) {
 		if _, queryCreation := stmt.(*parser.CreateQueryTable); !queryCreation {
-			return s.engine().describeOperation(s, stmt)
+			return s.Engine().describeOperation(s, stmt)
 		}
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
@@ -458,19 +458,19 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if session.DescribeAfterSnapshot(stmt) {
 		// Definition utilities have no result signature. Resolve ownership, read-only
 		// precedence and persistent-DDL exclusions only when actually executing.
-		return s.engine().describeOperation(s, stmt)
+		return s.Engine().describeOperation(s, stmt)
 	}
 	indexBuild := session.EarlyIndexUtility(stmt)
-	if !queryCreation && s.owner.State == session.TxActive && session.ExplicitUtility(stmt) && !indexBuild {
+	if !queryCreation && s.Owner.State == session.TxActive && session.ExplicitUtility(stmt) && !indexBuild {
 		return StatementDescription{}, session.UnsupportedInBlockError()
 	}
 	if err := s.selectPreparedAnalysis(stmt); err != nil {
 		return StatementDescription{}, err
 	}
-	if err := s.acquireRelation(stmt, false); err != nil {
+	if err := s.AcquireRelation(stmt, false); err != nil {
 		return StatementDescription{}, err
 	}
-	return s.engine().describeOperation(s, stmt)
+	return s.Engine().describeOperation(s, stmt)
 }
 
 func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
@@ -480,10 +480,10 @@ func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame F
 // One canonical resolver/importer/executor serves embedded and protocol callers.
 func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame FrameImporter, stream *protocolCopyExecution) (result Result, err error) {
 	var before session.TxState
-	if s != nil && s.owner != nil {
-		s.owner.Mu.Lock()
-		before = s.owner.State
-		s.owner.Mu.Unlock()
+	if s != nil && s.Owner != nil {
+		s.Owner.Mu.Lock()
+		before = s.Owner.State
+		s.Owner.Mu.Unlock()
 	}
 	// Adapter argument normalization precedes scope admission.
 	execute, wrapped := stmt.(*parser.ExecuteSQL)
@@ -495,7 +495,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	}
 	var utilityFrame []sqltype.Value
 	for execute != nil {
-		if err := s.active(); err != nil {
+		if err := s.Active(); err != nil {
 			return Result{}, err
 		}
 		if count != 0 && !preparedInvocation {
@@ -504,7 +504,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if count != 0 || stream != nil && s.protocolOrZero().simple {
 			// SQL EXECUTE is an outer utility: its portal exists before the
 			// prepared-name lookup, actual arguments and inner planning.
-			if err := s.gate(stmt); err != nil {
+			if err := s.Gate(stmt); err != nil {
 				return Result{}, err
 			}
 			if stream != nil && s.protocolOrZero().simple {
@@ -522,16 +522,16 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			} else {
 				utilityFrame = utilityFrame[:formal.Count]
 			}
-			importErr := importFrame(s.op.Context(), formal, utilityFrame, s.input)
+			importErr := importFrame(s.Op.Context(), formal, utilityFrame, s.Input)
 			clear(utilityFrame)
 			if importErr != nil {
 				return Result{}, importErr
 			}
 		}
-		entry := payloadOf(s.op.Session).preparedSQL.entries[execute.Name.Text]
+		entry := PayloadOf(s.Op.Session).preparedSQL.entries[execute.Name.Text]
 		if entry == nil {
 			// Establish the ordinary failed-command transaction boundary too.
-			if err := s.gate(stmt); err != nil {
+			if err := s.Gate(stmt); err != nil {
 				return Result{}, err
 			}
 			return Result{}, missingSQLPrepared(execute.Name.Text)
@@ -547,7 +547,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	}
 	base, counted, insert, ok := session.ClassifyCommandTag(stmt, before)
 	if !ok {
-		return Result{}, sqlError("0A000", "statement command tag is not supported")
+		return Result{}, SQLError("0A000", "statement command tag is not supported")
 	}
 	defer func() {
 		if err != nil || result.CommandTag != "" {
@@ -561,11 +561,11 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			result.CommandTag = base
 		}
 	}()
-	if err := s.gate(stmt); err != nil {
+	if err := s.Gate(stmt); err != nil {
 		return Result{}, err
 	}
 	if s.protocolOrZero().simpleStreaming && !wrapped && session.ProtocolPlainSelect(stmt) {
-		p := &protocolPortal{entry: sqlPreparedStatement{body: stmt}, tx: s.txRef}
+		p := &protocolPortal{entry: sqlPreparedStatement{body: stmt}, tx: s.TxRef}
 		s.protocol().simplePortal, s.protocol().bind = p, p
 		if count == 0 && importFrame == nil {
 			importFrame = func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
@@ -585,7 +585,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if wrapped && count != 0 {
 			formal := s.Expected.Parameters
 			frame := make([]sqltype.Value, formal.Count)
-			if err := importFrame(s.op.Context(), formal, frame, s.input); err != nil {
+			if err := importFrame(s.Op.Context(), formal, frame, s.Input); err != nil {
 				return Result{}, err
 			}
 		}
@@ -606,7 +606,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	}
 	// VACUUM owns option-first admission and never takes a data snapshot.
 	if _, ok := stmt.(*parser.Vacuum); ok {
-		return s.engine().executeStatement(s, stmt, count, importFrame)
+		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
 	if _, ok := stmt.(*parser.CreateDatabaseStmt); ok {
 		// Cluster creation has no local data snapshot. Reject read-only mode
@@ -618,7 +618,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
 		}
-		return s.engine().executeStatement(s, stmt, count, importFrame)
+		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
 	if queryCreation && !session.TransactionalSchemaUtility(stmt) {
@@ -658,7 +658,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
 		}
-		return s.engine().executeStatement(s, stmt, count, importFrame)
+		return s.Engine().executeStatement(s, stmt, count, importFrame)
 	}
 	indexBuild := session.EarlyIndexUtility(stmt)
 	_, refreshing := stmt.(*parser.RefreshMaterializedView)
@@ -671,7 +671,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if err := s.selectPreparedAnalysis(stmt); err != nil {
 		return Result{}, err
 	}
-	if err := s.acquireRelation(stmt, true); err != nil {
+	if err := s.AcquireRelation(stmt, true); err != nil {
 		return Result{}, err
 	}
 	// SELECT (including cursor and query COPY sources) acquires its RC pair
@@ -694,16 +694,16 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if !queryCreation && session.ModifyingTag(stmt) != "" {
 		index, concurrent := stmt.(*parser.CreateIndex)
 		if !concurrent || index.Concurrent.Character == 0 {
-			e := s.engine()
-			e.mu.Lock()
-			err := e.visibilityWriteLocked(s.txRef)
-			e.mu.Unlock()
+			e := s.Engine()
+			e.Mu.Lock()
+			err := e.VisibilityWriteLocked(s.TxRef)
+			e.Mu.Unlock()
 			if err != nil {
 				return Result{}, err
 			}
 		}
 	}
-	return s.engine().executeStatement(s, stmt, count, importFrame)
+	return s.Engine().executeStatement(s, stmt, count, importFrame)
 }
 
 func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope *StatementScope) error {
@@ -722,12 +722,12 @@ func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope 
 	if failure := fdw.Rollback(ctx, participants); err == nil {
 		err = failure
 	}
-	if payloadOf(t.Session).preparedSQL == nil {
+	if PayloadOf(t.Session).preparedSQL == nil {
 		return err
 	}
-	for name, p := range payloadOf(t.Session).preparedSQL.portals {
+	for name, p := range PayloadOf(t.Session).preparedSQL.portals {
 		if p.retired {
-			delete(payloadOf(t.Session).preparedSQL.portals, name)
+			delete(PayloadOf(t.Session).preparedSQL.portals, name)
 			var failure error
 			if wire {
 				failure = scope.protocolTerminalIO(func() error { return p.close(ctx) })
@@ -742,8 +742,8 @@ func drainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope 
 	return err
 }
 
-// scopeOfLease returns the statement scope that holds l, or nil.
-func scopeOfLease(l *session.StatementLease) *StatementScope {
+// ScopeOfLease returns the statement scope that holds l, or nil.
+func ScopeOfLease(l *session.StatementLease) *StatementScope {
 	if l == nil {
 		return nil
 	}

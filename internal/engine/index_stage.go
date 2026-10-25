@@ -11,10 +11,10 @@ func (s *CatalogStage) StageBase() catalog.Read { return s.Base }
 
 // recordIndexCandidate records a produced root candidate in the indexes slot.
 func (s *CatalogStage) recordIndexCandidate(idx ids.ObjectAddress, candidate index.RootCandidate) {
-	if s.indexesOrZero().Candidates == nil {
-		s.indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
+	if s.IndexesOrZero().Candidates == nil {
+		s.Indexes().Candidates = make(map[ids.ObjectAddress]index.RootCandidate)
 	}
-	s.indexes().Candidates[idx] = candidate
+	s.Indexes().Candidates[idx] = candidate
 }
 
 // Removed reports whether the stage removed address.
@@ -28,16 +28,16 @@ func (s *CatalogStage) Replacement(address ids.ObjectAddress) catalog.Descriptor
 	return s.Get(address)
 }
 
-// indexes returns the indexes slot, allocating it on first use.
-func (s *CatalogStage) indexes() *index.Stage {
+// Indexes returns the indexes slot, allocating it on first use.
+func (s *CatalogStage) Indexes() *index.Stage {
 	if s.indexesSlot == nil {
 		s.indexesSlot = new(index.Stage)
 	}
 	return s.indexesSlot
 }
 
-// indexesOrZero reads the indexes slot; a nil slot reads as zero.
-func (s *CatalogStage) indexesOrZero() index.Stage {
+// IndexesOrZero reads the indexes slot; a nil slot reads as zero.
+func (s *CatalogStage) IndexesOrZero() index.Stage {
 	if s.indexesSlot == nil {
 		return index.Stage{}
 	}

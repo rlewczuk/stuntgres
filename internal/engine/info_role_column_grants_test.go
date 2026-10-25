@@ -21,7 +21,7 @@ type roleColumnGrantsFixture struct {
 func newRoleColumnGrantsFixture(t *testing.T) roleColumnGrantsFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	typ, _ := f.e.CatalogRead().LookupType(sqltype.Int4)
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20520}, ObjectNamespace: f.schema, ObjectName: "rcg_unit", ObjectRevision: 1, Owner: f.owner, RelationKind: catalog.TableRelation, Attributes: []int32{1, 3}, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "b", Usage: typ.Usage()}}, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true}}}
 	state.SetDescriptor(relation.Address(), relation)
@@ -29,11 +29,11 @@ func newRoleColumnGrantsFixture(t *testing.T) roleColumnGrantsFixture {
 }
 func (f roleColumnGrantsFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.Read(state)
+	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoleColumnGrantsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 func roleColumnGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -41,7 +41,7 @@ func roleColumnGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing role_column_grants producer")
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,9 +156,9 @@ func TestInfoRoleColumnGrantsSemantics(t *testing.T) {
 		yes := a
 		yes[7] = "YES"
 		f.check(t, f.state, f.f.reader, a, yes, b)
-		roles := cloneRoleFixture(f.f.e.roles.Published)
+		roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 		setFixtureEdges(roles, append(fixtureEdges(roles), authorization.Membership{Role: f.f.owner, Member: f.f.reader, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}))
-		f.f.e.roles.PublishLocked(roles)
+		f.f.e.RoleStore.PublishLocked(roles)
 		b[7] = "YES"
 		f.check(t, f.state, f.f.reader, yes, yes, b)
 		// The owner sees its reader grants through the enabled-grantor side.
@@ -235,13 +235,13 @@ func TestInfoRoleColumnGrantsSemantics(t *testing.T) {
 		f.check(t, f.state, f.f.reader, a, b)
 		f.check(t, f.state, f.f.owner, a)
 		f.check(t, f.state, f.f.member, a, b)
-		roles := cloneRoleFixture(f.f.e.roles.Published)
+		roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.owner, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Set: true, Admin: true}})
-		f.f.e.roles.PublishLocked(roles)
+		f.f.e.RoleStore.PublishLocked(roles)
 		f.check(t, f.state, f.f.member, b)
 		setOnly := cloneRoleFixture(roles)
 		setFixtureEdges(setOnly, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Set: true, Admin: true}})
-		f.f.e.roles.PublishLocked(setOnly)
+		f.f.e.RoleStore.PublishLocked(setOnly)
 		f.check(t, f.state, f.f.member, b)
 	})
 	t.Run("public_and_superuser_attribute", func(t *testing.T) {
@@ -254,12 +254,12 @@ func TestInfoRoleColumnGrantsSemantics(t *testing.T) {
 		f.check(t, f.state, f.f.owner, public)
 		f.check(t, f.state, f.f.member, public)
 		f.check(t, f.state, f.f.e.Roles().LookupRef("postgres"), public)
-		roles := cloneRoleFixture(f.f.e.roles.Published)
+		roles := cloneRoleFixture(f.f.e.RoleStore.Published)
 		power := fixtureRole(roles, f.f.reader)
 		power.Superuser = true
 		putFixtureRole(roles, power)
 		setFixtureEdges(roles, []authorization.Membership{{Role: f.f.reader, Member: f.f.member, Grantor: f.f.e.Roles().LookupRef("postgres"), Inherit: true}})
-		f.f.e.roles.PublishLocked(roles)
+		f.f.e.RoleStore.PublishLocked(roles)
 		f.check(t, f.state, f.f.member)
 		f.check(t, f.state, f.f.reader, public)
 	})

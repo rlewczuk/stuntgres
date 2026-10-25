@@ -30,7 +30,7 @@ func TestUpdateCoreRowWaitRecheck(t *testing.T) {
 			done := lockAsync(e, b, ctx, "UPDATE t SET b=a WHERE id=1", false)
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			rowWait := false
 			for resource, entry := range lockState.Resources {
 				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.Pending) == 1 {

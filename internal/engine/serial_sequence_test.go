@@ -36,9 +36,9 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	view = view.WithState(catalog.CloneState(view.State()))
 	text, _ := view.LookupType(sqltype.Text)
 	integer, _ := view.LookupType(sqltype.Int4)
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90001}, ObjectName: "Mixed.Schema", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	table := &catalog.Relation{
-		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}, ObjectNamespace: ns.Address(), ObjectName: "Owned", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		Columns:    []catalog.Column{{Name: "ID", Usage: integer.Usage()}, {Name: "plain", Usage: integer.Usage()}},
 		Attributes: []int32{7, 9}, Index: map[string]int{"ID": 0, "plain": 1}, ColumnMeta: catalog.ColumnMetadata{
 			HighWater: 9,
@@ -47,7 +47,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 	owner := table.Address()
 	owner.SubID = 7
 	sequence := &catalog.Relation{
-		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, ObjectNamespace: ns.Address(), ObjectName: "Owned.Seq", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}, ObjectNamespace: ns.Address(), ObjectName: "Owned.Seq", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"),
 		RelationKind: catalog.SequenceRelation, Sequence: &catalog.SequenceOptions{Owned: owner},
 	}
 	for _, descriptor := range []catalog.Descriptor{ns, table, sequence} {
@@ -61,8 +61,8 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		Info:      expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}},
 		Signature: functions.DeparseSerialSequence, Args: []expr.Expr{literal(`"Mixed.Schema"."Owned"`), literal("ID")},
 	}
-	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: view, deparseAuth: catalogAuthorization(e, view)}}
-	return serialSequenceUnit{e, view, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}, table, sequence, node}
+	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: view, deparseAuth: catalogAuthorization(e, view)}}
+	return serialSequenceUnit{e, view, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}}, table, sequence, node}
 }
 
 func TestSerialSequenceOwnership(t *testing.T) {
@@ -108,12 +108,12 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	}
 	// Replacement of the engine's live map must not change a captured inquiry.
 	f := serialSequenceUnitFixture(t)
-	f.engine.catalog.PublishLocked(catalog.CloneState(f.view.State()))
+	f.engine.Catalog.PublishLocked(catalog.CloneState(f.view.State()))
 	changed := *f.sequence
 	options := *changed.Sequence
 	options.Owned = ids.ObjectAddress{}
 	changed.Sequence = &options
-	f.engine.catalog.State.SetDescriptor(changed.Address(), &changed)
+	f.engine.Catalog.State.SetDescriptor(changed.Address(), &changed)
 	value, err := f.node.Eval(f.context)
 	if err != nil {
 		t.Fatal(err)
@@ -121,11 +121,11 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	if text, err := value.Text(); err != nil || text != `"Mixed.Schema"."Owned.Seq"` {
 		t.Fatal(text, err)
 	}
-	fresh := *scopeOf(f.context.Host)
-	fresh.inquiry.commentCatalog = f.engine.catalog.Current()
-	fresh.inquiry.deparseAuth.Catalog = fresh.inquiry.commentCatalog
-	fresh.inquiry.deparseAuth.PairedCatalog = fresh.inquiry.deparseAuth.Catalog
-	value, err = f.node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&fresh)}})
+	fresh := *ScopeOf(f.context.Host)
+	fresh.Inquiry.CommentCatalog = f.engine.Catalog.Current()
+	fresh.Inquiry.deparseAuth.Catalog = fresh.Inquiry.CommentCatalog
+	fresh.Inquiry.deparseAuth.PairedCatalog = fresh.Inquiry.deparseAuth.Catalog
+	value, err = f.node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(&fresh)}})
 	if err != nil || !value.IsNull() {
 		t.Fatal("fresh snapshot ignored NONE", value, err)
 	}

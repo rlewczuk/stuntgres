@@ -22,14 +22,14 @@ func TestCopyFilterProviderProvenance(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, `CREATE DOMAIN public.copy_provider_proof AS text CHECK(VALUE<>'')`))
 	view := e.CatalogRead()
 	domain := domainUnitType(t, view, "copy_provider_proof").SQLType
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	acl := e.captureACLItemInput(auth, op)
-	e.mu.Unlock()
+	acl := e.CaptureACLItemInput(auth, op)
+	e.Mu.Unlock()
 	input := sqltype.InputEnvironment{ACLItem: acl}
 	for _, tc := range []struct {
 		id         sqltype.ID

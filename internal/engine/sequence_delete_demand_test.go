@@ -35,7 +35,7 @@ func TestSequenceDeleteUndemandedLocks(t *testing.T) {
 					deleteCount(t, a, q, 0)
 				}
 				ticket := a.Transactions.Ticket
-				lockState := e.locks.Inspect(ticket)
+				lockState := e.Locks.Inspect(ticket)
 				entry := lockState.Resources[lock.Resource{ObjectRef: sequence}]
 				sequenceHeld := entry != nil && entry.Holders[ticket].Mode != 0
 				_, sequenceJournaled := lockState.Journals[ticket][lock.Resource{ObjectRef: sequence}]
@@ -44,9 +44,9 @@ func TestSequenceDeleteUndemandedLocks(t *testing.T) {
 				if sequenceHeld || sequenceJournaled || !targetHeld {
 					t.Fatal("wrong live transaction grants", sequenceHeld, sequenceJournaled, targetHeld)
 				}
-				e.mu.Lock()
-				generator := *e.storage.Sequences[sequence.Address]
-				e.mu.Unlock()
+				e.Mu.Lock()
+				generator := *e.Storage.Sequences[sequence.Address]
+				e.Mu.Unlock()
 				if generator.Last != 31 || generator.Called {
 					t.Fatal("undemanded DELETE allocated", generator)
 				}
@@ -84,7 +84,7 @@ func TestSequenceDeleteDecisiveFalseDemand(t *testing.T) {
 			deleteCount(t, a, q, 0)
 		}
 		ticket := a.Transactions.Ticket
-		lockState := e.locks.Inspect(ticket)
+		lockState := e.Locks.Inspect(ticket)
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		held := entry != nil && entry.Holders[ticket].Mode == lock.RowExclusive
 		_, journaled := lockState.Journals[ticket][lock.Resource{ObjectRef: ref}]
@@ -92,9 +92,9 @@ func TestSequenceDeleteDecisiveFalseDemand(t *testing.T) {
 			t.Fatal("demanded per-row nextval lacks sequence RX", held, journaled)
 		}
 		want := int64(103 + i*3)
-		e.mu.Lock()
-		generator := *e.storage.Sequences[ref.Address]
-		e.mu.Unlock()
+		e.Mu.Lock()
+		generator := *e.Storage.Sequences[ref.Address]
+		e.Mu.Unlock()
 		if generator.Last != want || !generator.Called {
 			t.Fatal("per-row allocation count", generator, want)
 		}

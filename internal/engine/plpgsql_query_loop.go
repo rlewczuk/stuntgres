@@ -48,7 +48,7 @@ func (h *plHost) beginQueryRows(f *proc.PLFrame, in proc.PLInstruction) *plQuery
 // open plans and executes the loop query. On failure it has already closed q.
 func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 	s := q.host.s
-	noticeStart, sourceComplete := len(s.op.Notices), false
+	noticeStart, sourceComplete := len(s.Op.Notices), false
 	defer func() {
 		if !sourceComplete {
 			s.appendPLNoticeContext(noticeStart, q.origin)
@@ -60,22 +60,22 @@ func (q *plQueryRows) open(f *proc.PLFrame, in proc.PLInstruction) (err error) {
 		return s.plRuntimeQueryError(cause, q.host.read, q.host.d, q.position, proc.PLQueryLoopAction, diagnostic)
 	}
 	s.sqlRoutine.plPlanning = true
-	if err = s.acquireRelation(query, true); err != nil {
+	if err = s.AcquireRelation(query, true); err != nil {
 		return q.Close(planningError(err))
 	}
-	description, err := s.engine().describeOperation(s, query)
+	description, err := s.Engine().describeOperation(s, query)
 	if err != nil {
 		return q.Close(planningError(err))
 	}
 	s.Expected = &description
 	if !rewriteTupleStatement(query) {
-		return q.Close(q.queryError(sqlError("42P11", "cannot open "+routineCommandTag(query)+" query as cursor")))
+		return q.Close(q.queryError(SQLError("42P11", "cannot open "+routineCommandTag(query)+" query as cursor")))
 	}
 	finishCommand, err := s.beginRoutineCommand()
 	if err != nil {
 		return q.Close(err)
 	}
-	result, executionErr := s.engine().executeStatement(s, query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+	result, executionErr := s.Engine().executeStatement(s, query, f.Program.FormalCount, func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, f.Values[:f.Program.FormalCount])
 		return nil
 	})
@@ -110,7 +110,7 @@ func (q *plQueryRows) Column(i int) (string, sqltype.Usage) {
 
 func (q *plQueryRows) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
 	s := q.host.s
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	present, err := q.result.Rows.Next(ctx, dst)
 	s.appendPLNoticeContext(noticeStart, q.origin)
 	return present, err
@@ -120,7 +120,7 @@ func (q *plQueryRows) Next(ctx context.Context, dst []sqltype.Value) (bool, erro
 // the adapter for reuse by the next query loop at this depth.
 func (q *plQueryRows) Close(primary error) error {
 	s, err := q.host.s, primary
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	if q.result.Rows != nil {
 		if closeErr := q.result.Rows.Close(); err == nil {
 			err = q.queryError(closeErr)

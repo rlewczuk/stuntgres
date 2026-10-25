@@ -15,7 +15,7 @@ func columnsUnitPairedCapture(t *testing.T) {
 	t.Helper()
 	f := newColumnsUnitFixture(t)
 	e := f.dc.f.e
-	e.catalog.PublishLocked(f.state)
+	e.Catalog.PublishLocked(f.state)
 	f.dc.f.op.Session.DatabaseName = "captured_database"
 	f.dc.f.actor(f.dc.f.member)
 	scope, err := e.StartStatement(f.dc.f.op)
@@ -27,20 +27,20 @@ func columnsUnitPairedCapture(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	e.mu.Lock()
-	err = e.captureCommentSnapshotLocked(scope)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.CaptureCommentSnapshotLocked(scope)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	old := scope.inquiry.commentCatalog
+	old := scope.Inquiry.CommentCatalog
 	source := old.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnsOID})
 	next := catalog.CloneState(f.state)
 	table := *f.table
 	table.ColumnMeta.Defaults = nil
 	table.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f.dc.f, authorization.SelectPrivilege, 0)}}
 	next.SetDescriptor(table.Address(), &table)
-	roles := cloneRoleFixture(e.roles.Published)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 	var edges []authorization.Membership
 	for _, edge := range fixtureEdges(roles) {
 		if edge.Member != f.dc.f.member || edge.Role != f.dc.f.owner {
@@ -48,9 +48,9 @@ func columnsUnitPairedCapture(t *testing.T) {
 		}
 	}
 	setFixtureEdges(roles, edges)
-	e.catalog.PublishLocked(next)
-	e.roles.PublishLocked(roles)
-	e.mu.Lock()
+	e.Catalog.PublishLocked(next)
+	e.RoleStore.PublishLocked(roles)
+	e.Mu.Lock()
 	captured, err := e.openRelationSourceLocked(scope, old.Owner().Domain.Ref(old.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("paired columns source", err)

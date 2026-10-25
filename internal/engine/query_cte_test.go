@@ -375,7 +375,7 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	definition := &plan.CTEDefinition{Query: &plan.Query{Root: project}, Owner: 1, References: 2, Hint: parser.CTENotMaterialized}
 	scan := &plan.DerivedNode{QuerySchema: project.Schema(), Query: definition.Query, CTE: definition, ScanFrame: 1, Demand: []bool{false, true}}
 	parent := plan.ColumnExpr{Info: expr.Info{Usage: boolean.Usage()}, Scope: 1, Frame: 1, Slot: 0}
-	mapped, moved, err := analyze.PushCTEOccurrence(e.analysisHost(nil), e.CatalogRead(), scan, parent, 0)
+	mapped, moved, err := analyze.PushCTEOccurrence(e.AnalysisHost(nil), e.CatalogRead(), scan, parent, 0)
 	if err != nil || !moved {
 		t.Fatal(moved, err)
 	}
@@ -395,12 +395,12 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	}
 	wrong := parent
 	wrong.Frame = 99
-	if _, moved, err := analyze.PushCTEOccurrence(e.analysisHost(nil), e.CatalogRead(), scan, wrong, 0); err != nil || moved {
+	if _, moved, err := analyze.PushCTEOccurrence(e.AnalysisHost(nil), e.CatalogRead(), scan, wrong, 0); err != nil || moved {
 		t.Fatal("foreign frame restriction moved", moved, err)
 	}
 	wrong = parent
 	wrong.Slot = 2
-	if _, moved, err := analyze.PushCTEOccurrence(e.analysisHost(nil), e.CatalogRead(), scan, wrong, 0); err != nil || moved {
+	if _, moved, err := analyze.PushCTEOccurrence(e.AnalysisHost(nil), e.CatalogRead(), scan, wrong, 0); err != nil || moved {
 		t.Fatal("other occurrence restriction moved", moved, err)
 	}
 }

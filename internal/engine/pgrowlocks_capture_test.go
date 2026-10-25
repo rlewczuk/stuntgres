@@ -10,7 +10,7 @@ import (
 
 func pgrowlocksUnitCapture(t *testing.T, e *Engine, caller *lock.Ticket, tuple lock.MultiTuple, private bool) []lock.PgrowlocksRecord {
 	t.Helper()
-	rows, err := e.locks.Pgrowlocks(context.Background(), caller, []lock.PgrowlocksTuple{{Tuple: tuple, PrivateInsertion: private}})
+	rows, err := e.Locks.Pgrowlocks(context.Background(), caller, []lock.PgrowlocksTuple{{Tuple: tuple, PrivateInsertion: private}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,9 +28,9 @@ func TestPgrowlocksCapture(t *testing.T) {
 	identityMultiEmit(t, e, a, tuple, lock.MultiKeyShare)
 	identityMultiGrant(t, e, b, tuple, lock.ForShare)
 	identityMultiEmit(t, e, b, tuple, lock.MultiShare)
-	before := e.locks.Inspect()
-	frontier := e.visibility.LastAssignedXID()
-	next := e.locks.NextMultiXact(e.catalog.Domain)
+	before := e.Locks.Inspect()
+	frontier := e.Visibility.LastAssignedXID()
+	next := e.Locks.NextMultiXact(e.Catalog.Domain)
 	rows := pgrowlocksUnitCapture(t, e, observer, tuple, false)
 	if len(rows) != 1 || !rows[0].Multi || rows[0].Locker != before.MultiRows[tuple].ID || len(rows[0].Members) != 2 {
 		t.Fatal(rows)
@@ -39,7 +39,7 @@ func TestPgrowlocksCapture(t *testing.T) {
 	if !reflect.DeepEqual(rows[0].Members, want) {
 		t.Fatal(rows[0].Members, want)
 	}
-	if observer.AssignedPublicXID() != 0 || e.visibility.LastAssignedXID() != frontier || e.locks.NextMultiXact(e.catalog.Domain) != next || !reflect.DeepEqual(before, e.locks.Inspect()) {
+	if observer.AssignedPublicXID() != 0 || e.Visibility.LastAssignedXID() != frontier || e.Locks.NextMultiXact(e.Catalog.Domain) != next || !reflect.DeepEqual(before, e.Locks.Inspect()) {
 		t.Fatal("capture mutated lock/XID authority")
 	}
 	wrong := tuple
@@ -50,7 +50,7 @@ func TestPgrowlocksCapture(t *testing.T) {
 	_, waiter := blockingUnitOwner(t, e)
 	pgLocksUnitAssign(t, e, waiter)
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := e.locks.StartAcquire(ctx, waiter, tuple.Resource, lock.ForUpdate, lock.Policy{})
+	request, err := e.Locks.StartAcquire(ctx, waiter, tuple.Resource, lock.ForUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		cancel()
 		t.Fatal("real conflicting waiter", request, err)
@@ -78,7 +78,7 @@ func TestPgrowlocksCapture(t *testing.T) {
 	if !reflect.DeepEqual(rows[0].Members, want) {
 		t.Fatal("retained output mutated", rows)
 	}
-	e.locks.DetachPrepared(a)
+	e.Locks.DetachPrepared(a)
 	detached := pgrowlocksUnitCapture(t, e, observer, tuple, false)
 	if detached[0].Members[0].PID != 0 {
 		t.Fatal("prepared owner retained backend PID", detached)

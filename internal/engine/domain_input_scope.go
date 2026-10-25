@@ -16,35 +16,35 @@ import (
 // unlocked phase never resolves a new name or retries a side-effecting CHECK.
 func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
 	eval, ok := input.DomainChecks.(*exec.Context)
-	if !ok || scopeOf(eval.Host) != s || eval.Catalog.State() == nil {
+	if !ok || ScopeOf(eval.Host) != s || eval.Catalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing captured domain input authority")
 	}
-	e := s.engine()
+	e := s.Engine()
 	providers := typedef.CaptureDomainInputProviders(eval.Catalog, typ)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	value, err := typ.InputWithEnvironment(ctx, text, typmod, input)
-	e.mu.Lock()
+	e.Mu.Lock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	current, err := e.authorizationLocked(s.op)
+	current, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	// Preserve the actual trusted caller captured before input, including a
 	// local RI actor; later session capture cannot substitute another principal.
-	if routineAuth := routineAuthorityView(eval); routineAuth != nil {
+	if routineAuth := RoutineAuthorityView(eval); routineAuth != nil {
 		current.State.CurrentUser = routineAuth.State.CurrentUser
 		if err := current.Roles.ValidatePrincipal(current.State.CurrentUser); err != nil {
 			return sqltype.Value{}, err
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	err = s.readmitPreparedPrograms(current)
-	e.mu.Lock()
+	e.Mu.Lock()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -65,12 +65,12 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 // rather than a pointer slot.
 type domainScope struct {
 	evaluation     *exec.Context
-	preparedChecks map[*catalog.Type]exec.DomainCheckProgram
-	inputCatalog   catalog.Read
+	PreparedChecks map[*catalog.Type]exec.DomainCheckProgram
+	InputCatalog   catalog.Read
 }
 
 // endAdmission drops the prepared checks and the evaluation context borrowed
 // from the statement's admission. The input catalog stays.
 func (d *domainScope) endAdmission() {
-	d.preparedChecks, d.evaluation = nil, nil
+	d.PreparedChecks, d.evaluation = nil, nil
 }

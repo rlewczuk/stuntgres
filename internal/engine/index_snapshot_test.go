@@ -27,12 +27,12 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 						run(t, source, query)
 					}
 					sequence := roleTableRef(t, source, "steps").Address
-					if source.storage.Sequences[sequence].Last != 2 {
-						t.Fatal("index event replayed before snapshot", source.storage.Sequences[sequence].Last)
+					if source.Storage.Sequences[sequence].Last != 2 {
+						t.Fatal("index event replayed before snapshot", source.Storage.Sequences[sequence].Last)
 					}
 					indexAddress := roleTableRef(t, source, "checked_idx").Address
 					parentAddress := roleTableRef(t, source, "subject").Address
-					oldRoot, oldStore := source.storage.IndexRoots[indexAddress], source.storage.Relations[parentAddress]
+					oldRoot, oldStore := source.Storage.IndexRoots[indexAddress], source.Storage.Relations[parentAddress]
 					oldRows := slices.Clone(oldStore.Versions)
 					target := New()
 					if self {
@@ -42,15 +42,15 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 						t.Fatal(err)
 					}
 					importedSequence := roleTableRef(t, target, "steps").Address
-					if target.storage.Sequences[importedSequence].Last != 2 || source.storage.Sequences[sequence].Last != 2 {
+					if target.Storage.Sequences[importedSequence].Last != 2 || source.Storage.Sequences[sequence].Last != 2 {
 						t.Fatal("snapshot replayed CHECK SQL")
 					}
-					newStore := target.storage.Relations[roleTableRef(t, target, "subject").Address]
-					newRoot := target.storage.IndexRoots[roleTableRef(t, target, "checked_idx").Address]
+					newStore := target.Storage.Relations[roleTableRef(t, target, "subject").Address]
+					newRoot := target.Storage.IndexRoots[roleTableRef(t, target, "checked_idx").Address]
 					if len(newStore.Versions) != 1 || newRoot == oldRoot || newStore == oldStore {
 						t.Fatal("snapshot retained old physical authority")
 					}
-					parent := target.catalog.State.MustRelation(roleTableRef(t, target, "subject").Address)
+					parent := target.Catalog.State.MustRelation(roleTableRef(t, target, "subject").Address)
 					if newRoot.Hash != nil {
 						count := 0
 						for _, bucket := range newRoot.Hash.Buckets {
@@ -87,30 +87,30 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	ctx := context.Background()
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.Relations, nil, f.e.visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.Storage.Relations, nil, f.e.Visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing root accepted", err)
 	}
-	original := f.e.storage.IndexRoots[f.index.Address()]
+	original := f.e.Storage.IndexRoots[f.index.Address()]
 	malformed := *original
 	malformed.Entries = slices.Clone(original.Entries)
 	malformed.Entries[0].Position = len(f.store.Versions)
 	roots := map[ids.ObjectAddress]*storage.IndexRoot{f.index.Address(): &malformed}
-	previous := f.e.storage.IndexRoots
-	f.e.mu.Lock()
-	f.e.storage.ReplaceIndexRootsLocked(roots)
-	f.e.mu.Unlock()
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.Relations, roots, f.e.visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
+	previous := f.e.Storage.IndexRoots
+	f.e.Mu.Lock()
+	f.e.Storage.ReplaceIndexRootsLocked(roots)
+	f.e.Mu.Unlock()
+	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.Storage.Relations, roots, f.e.Visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("malformed source provenance accepted", err)
 	}
-	f.e.mu.Lock()
-	f.e.storage.ReplaceIndexRootsLocked(previous)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	f.e.Storage.ReplaceIndexRootsLocked(previous)
+	f.e.Mu.Unlock()
 	if original.Entries[0].Position == malformed.Entries[0].Position {
 		t.Fatal("rejection mutated source")
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.storage.Relations, f.e.storage.IndexRoots, f.e.visibility.CommitSeq()); !errors.Is(err, context.Canceled) {
+	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.Storage.Relations, f.e.Storage.IndexRoots, f.e.Visibility.CommitSeq()); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost", err)
 	}
 }
@@ -151,7 +151,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	importer := target.roles.ACLItemImporter(source.roles, &target.catalog, source.Roles(), target.Roles(), nil)
+	importer := target.RoleStore.ACLItemImporter(source.RoleStore, &target.Catalog, source.Roles(), target.Roles(), nil)
 	snapshot := &index.Snapshot{}
 	mapped, err := snapshot.Datum(composite, toComposite, nil, importer)
 	if err != nil {
@@ -164,7 +164,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	authority, grantee, grantor, privileges, options, err := nested.ArrayElement(0).ACLItem()
 	reader, _ := target.Roles().Lookup("snapshot_reader")
 	writer, _ := target.Roles().Lookup("snapshot_grantor")
-	if err != nil || authority != &target.roles.ACLAuthority || grantee != uint32(reader.Ref.ID()) || grantor != uint32(writer.Ref.ID()) || privileges != 2 || options != 2 {
+	if err != nil || authority != &target.RoleStore.ACLAuthority || grantee != uint32(reader.Ref.ID()) || grantor != uint32(writer.Ref.ID()) || privileges != 2 || options != 2 {
 		t.Fatal("snapshot lost ACL principal authority/options", err)
 	}
 	if mapped.Type() != toComposite || mapped.CompositeField(0).Type() != toDomain || nested.Type() != toArray || !nested.ArrayElement(1).IsNull() {
@@ -177,7 +177,7 @@ func TestDomainCheckIndexSnapshotACLReownership(t *testing.T) {
 	if err != nil || again != mapped {
 		t.Fatal("destination-owned ACL copied/reimported", err)
 	}
-	if source.catalog.State.ACLItemImport() != nil || target.catalog.State.ACLItemImport() != nil {
+	if source.Catalog.State.ACLItemImport() != nil || target.Catalog.State.ACLItemImport() != nil {
 		t.Fatal("snapshot published import callback")
 	}
 }

@@ -17,12 +17,12 @@ func syncCharacteristics(t *session.TransactionOwner) {
 	settings.CurrentReadOnly = t.ReadOnly
 	settings.CurrentDeferrable = t.Deferrable
 	settings.Mu.Unlock()
-	e := engineOf(t.Session)
-	e.mu.Lock()
+	e := EngineOf(t.Session)
+	e.Mu.Lock()
 	if !t.SnapshotSet && (t.State == session.TxActive || t.State == session.TxImplicit) {
 		e.enrollSerializableLocked(t.Ref, t.Isolation)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 }
 func assignModes(t *session.TransactionOwner, modes []parser.TransactionMode) error {
 	if err := t.AssignModes(modes); err != nil {
@@ -34,7 +34,7 @@ func assignModes(t *session.TransactionOwner, modes []parser.TransactionMode) er
 
 func (e *Engine) applyCurrentCharacteristic(op *session.Operation, d settings.Definition, input *string) (string, error) {
 	if input == nil {
-		return "", sqlError("0A000", fmt.Sprintf(`parameter "%s" cannot be reset`, d.Name))
+		return "", SQLError("0A000", fmt.Sprintf(`parameter "%s" cannot be reset`, d.Name))
 	}
 	value, err := d.Parse(*input)
 	if err != nil {
@@ -56,34 +56,34 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: transaction characteristics take no arguments")
 	}
-	e, t := s.engine(), s.owner
-	if !s.op.CommandAdmission {
-		s.op.SnapshotNoticeThreshold()
+	e, t := s.Engine(), s.Owner
+	if !s.Op.CommandAdmission {
+		s.Op.SnapshotNoticeThreshold()
 	}
 	if stmt.Session {
 		for _, mode := range stmt.Modes {
 			name, value := session.SessionCharacteristicSetting(mode)
-			e.mu.Lock()
-			d := e.settings.Definitions()[name]
-			e.mu.Unlock()
-			if _, err := e.applySetting(s.op, t.Session.Settings, d, &value, false); err != nil {
+			e.Mu.Lock()
+			d := e.Settings.Definitions()[name]
+			e.Mu.Unlock()
+			if _, err := e.applySetting(s.Op, t.Session.Settings, d, &value, false); err != nil {
 				return Result{}, err
 			}
 		}
-		s.completed = true
+		s.Completed = true
 		return Result{}, nil
 	}
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
-	if err := e.endPreflight(s.op); err != nil {
+	if err := e.endPreflight(s.Op); err != nil {
 		return Result{}, err
 	}
 	if !t.InBlock() {
-		s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
+		s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
 	}
 	err := assignModes(t, stmt.Modes)
 	if err == nil {
-		s.completed = true
+		s.Completed = true
 	}
 	return Result{}, err
 }
@@ -91,7 +91,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 // Analysis can establish a transaction-stable snapshot, but RC analysis must
 // not select the later command's execution frontier.
 func (s *StatementScope) snapshotAnalysisPhase(stmt parser.Statement) error {
-	if !s.owner.Isolation.Stable() {
+	if !s.Owner.Isolation.Stable() {
 		return nil
 	}
 	return s.snapshotPhase(stmt)
@@ -121,41 +121,41 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 // Fastpath has no SQL AST but obtains the same transaction snapshot before
 // reading its function identity or invoking argument/result codecs.
 func (s *StatementScope) snapshotDataPhase() error {
-	t, e := s.owner, s.engine()
+	t, e := s.Owner, s.Engine()
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
-	if err := s.acquireSerializableSnapshot(); err != nil {
+	if err := s.AcquireSerializableSnapshot(); err != nil {
 		return err
 	}
 	if t.SnapshotSet && !t.NeedsSnapshotProjection(t.Roots) && s.currentSnapshot != nil {
 		return nil
 	}
-	sess := s.op.Session
-	e.mu.Lock()
+	sess := s.Op.Session
+	e.Mu.Lock()
 	sess.Mu.Lock()
 	check := func() error {
-		if err := publicationOperationLocked(e, s.op); err != nil {
+		if err := PublicationOperationLocked(e, s.Op); err != nil {
 			return err
 		}
-		if t.Ref != s.txRef || t.Ref.Epoch() != e.catalog.State.Epoch() {
+		if t.Ref != s.TxRef || t.Ref.Epoch() != e.Catalog.State.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		return nil
 	}
 	if err := check(); err != nil {
 		sess.Mu.Unlock()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	if !t.SnapshotSet && t.Isolation.Stable() {
-		if _, err := e.visibilitySnapshotLocked(t.Ref, false); err != nil {
+		if _, err := e.VisibilitySnapshotLocked(t.Ref, false); err != nil {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		if err := e.retainTransactionSnapshotLocked(t); err != nil {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 	}
@@ -167,19 +167,19 @@ func (s *StatementScope) snapshotDataPhase() error {
 		t.SnapshotSet = true
 		err := e.captureStatementSnapshotLocked(s)
 		sess.Mu.Unlock()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	catalog := t.Catalog
 	sess.Mu.Unlock()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	// Raw roots remain the committed authority. Dense private projections are
 	// prepared outside metadata locks and attached only after final admission.
-	projected, err := session.ProjectPrivateSnapshotRoots(s.op.Context(), catalog, roots)
+	projected, err := session.ProjectPrivateSnapshotRoots(s.Op.Context(), catalog, roots)
 	if err != nil {
 		return err
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	sess.Mu.Lock()
 	err = check()
 	if err == nil {
@@ -190,7 +190,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		err = e.captureStatementSnapshotLocked(s)
 	}
 	sess.Mu.Unlock()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return err
 }
 
@@ -201,19 +201,19 @@ func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
 	if s.currentSnapshot != nil {
 		return nil
 	}
-	t := s.owner
+	t := s.Owner
 	if t.Isolation.Stable() {
 		if !t.SnapshotSet || t.CurrentSnapshot == nil {
-			return sqlError("55000", "no active transaction snapshot")
+			return SQLError("55000", "no active transaction snapshot")
 		}
 		s.currentSnapshot, s.snapshotFrontier = t.CurrentSnapshot, t.Frontier
 		return nil
 	}
-	snapshot, err := e.visibility.CurrentSnapshotLocked(t.Ref)
+	snapshot, err := e.Visibility.CurrentSnapshotLocked(t.Ref)
 	if err != nil {
 		return err
 	}
-	s.currentSnapshot, s.snapshotFrontier = snapshot, e.visibility.CommitSeq()
+	s.currentSnapshot, s.snapshotFrontier = snapshot, e.Visibility.CommitSeq()
 	s.retainSnapshotTargetRootsLocked(e)
 	// RC retains the command pair and admitted target roots, not transaction-wide
 	// roots. Snapshot acquisition closes the transaction-characteristics window.
@@ -225,12 +225,12 @@ func (e *Engine) captureStatementSnapshotLocked(s *StatementScope) error {
 // Engine.mu window. SSI uses the same acquisition for each safe candidate;
 // SnapshotSet is installed only after that candidate/projection is accepted.
 func (e *Engine) retainTransactionSnapshotLocked(t *session.TransactionOwner) error {
-	snapshot, err := e.visibility.CurrentSnapshotLocked(t.Ref)
+	snapshot, err := e.Visibility.CurrentSnapshotLocked(t.Ref)
 	if err != nil {
 		return err
 	}
-	t.CurrentSnapshot, t.Frontier = snapshot, e.visibility.CommitSeq()
-	t.Roots, t.SequenceCatalog = session.CommittedRoots(e.catalog.State, &e.storage), e.catalog.State
+	t.CurrentSnapshot, t.Frontier = snapshot, e.Visibility.CommitSeq()
+	t.Roots, t.SequenceCatalog = session.CommittedRoots(e.Catalog.State, &e.Storage), e.Catalog.State
 	return nil
 }
 
@@ -238,7 +238,7 @@ func (s *StatementScope) readOnlyUtilityEligibility(stmt parser.Statement) error
 	if session.ReadOnlyExempt(stmt) {
 		return nil
 	}
-	t := s.owner
+	t := s.Owner
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 	return session.ReadOnlyRefusal(stmt, t.ReadOnly)
@@ -250,7 +250,7 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character == 0 {
 		return nil
 	}
-	t := s.owner
+	t := s.Owner
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 	return session.ExplicitUtilityRefusal(stmt, t.State, t.InBlock())

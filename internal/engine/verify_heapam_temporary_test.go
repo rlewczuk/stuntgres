@@ -34,7 +34,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 				return view.MustRelation(view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: name}))
 			}
 			target, wrong := lookup("heap_checked_tmp"), lookup("heap_wrong_tmp")
-			store, generator := e.storage.Relations[target.Address()], e.storage.Sequences[target.Address()]
+			store, generator := e.Storage.Relations[target.Address()], e.Storage.Sequences[target.Address()]
 			var versions []storage.RowVersion
 			var ends *storage.DeletionRoot
 			var sequence storage.SequenceGenerator
@@ -42,7 +42,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 			if generator != nil { sequence = *generator }
 			unchanged := func(t *testing.T) {
 				t.Helper()
-				if e.CatalogRead().Get(target.Address()) != target || e.storage.Relations[target.Address()] != store || e.storage.Sequences[target.Address()] != generator { t.Fatal("TEMP verification replaced source authority") }
+				if e.CatalogRead().Get(target.Address()) != target || e.Storage.Relations[target.Address()] != store || e.Storage.Sequences[target.Address()] != generator { t.Fatal("TEMP verification replaced source authority") }
 				if store != nil && (!reflect.DeepEqual(store.Versions, versions) || store.Ends != ends) { t.Fatal("TEMP verification changed retained row roots") }
 				if generator != nil && *generator != sequence { t.Fatal("TEMP verification changed actual sequence generator") }
 			}
@@ -53,16 +53,16 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 					namespace := peer.TemporaryNamespace
 					transactionBegin(t, peer)
 					scope := pgrowlocksUnitScope(t, e, peer)
-					resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(view.Epoch(), target.Address())}
+					resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(view.Epoch(), target.Address())}
 					if prior {
-						request, err := e.locks.StartAcquire(context.Background(), scope.ticket, resource, lock.AccessShare, lock.Policy{})
+						request, err := e.Locks.StartAcquire(context.Background(), scope.LockTicket, resource, lock.AccessShare, lock.Policy{})
 						if request != nil || err != nil { t.Fatal(request, err) }
 					}
 					rows, err := (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, target, false), n.Usage.Type)
 					var diagnostic *sqlstate.Error
 					want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
 					if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || len(rows) != 0 { t.Fatal("foreign TEMP must be denied before materialization", rows, err) }
-					if e.locks.HasAccessShare(scope.ticket, resource) != prior { t.Fatal("foreign rejection changed prior AccessShare contribution", prior) }
+					if e.Locks.HasAccessShare(scope.LockTicket, resource) != prior { t.Fatal("foreign rejection changed prior AccessShare contribution", prior) }
 					if !peer.Transactions.AccessedTemporary || peer.TemporaryNamespace != namespace { t.Fatal("foreign rejection omitted TEMP-attempt footprint or changed caller namespace") }
 					unchanged(t)
 					rows, err = (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, persistent, false), n.Usage.Type)
@@ -74,7 +74,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 				transactionBegin(t, owner)
 				scope := pgrowlocksUnitScope(t, e, owner)
 				missing := *target
-				missing.ObjectAddress.ObjectID = e.catalog.NextOID()+999
+				missing.ObjectAddress.ObjectID = e.Catalog.NextOID()+999
 				for _, tc := range []struct { target *catalog.Relation; code string }{{&missing, "XX000"}, {wrong, "42809"}} {
 					_, err := (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, tc.target, false), n.Usage.Type)
 					var diagnostic *sqlstate.Error
@@ -89,8 +89,8 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 				scope := pgrowlocksUnitScope(t, e, owner)
 				rows, err := (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, target, false), n.Usage.Type)
 				if err != nil || len(rows) != 0 || !owner.Transactions.AccessedTemporary { t.Fatal("own TEMP admission omitted sticky transaction accounting", rows, err) }
-				resource := lock.Resource{ObjectRef: e.catalog.Domain.Ref(view.Epoch(), target.Address())}
-				if e.locks.HasAccessShare(scope.ticket, resource) { t.Fatal("own TEMP verification retained added AccessShare") }
+				resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(view.Epoch(), target.Address())}
+				if e.Locks.HasAccessShare(scope.LockTicket, resource) { t.Fatal("own TEMP verification retained added AccessShare") }
 				unchanged(t)
 			})
 			sessionSQL(t, owner, "ROLLBACK TO heap_before")

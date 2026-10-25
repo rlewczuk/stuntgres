@@ -20,7 +20,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 			}
 			t.Run(boundary+"/"+invalid, func(t *testing.T) {
 				e := New()
-				d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
+				d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 				provider := &exec.PGSequencesSource{}
 				leaf := &exec.Source{PGSequences: provider}
 				child := &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}
@@ -75,7 +75,7 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 // offsets; a frame guard must not become a blanket pushdown prohibition.
 func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 	e := New()
-	d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
+	d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	for _, boundary := range []string{"derived", "stored_project", "stored_input"} {
 		t.Run(boundary, func(t *testing.T) {
 			provider := &exec.PGSequencesSource{}
@@ -120,15 +120,15 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := statement(t, "SELECT sequencename FROM (SELECT sequencename FROM pg_sequences) s WHERE sequencename='a' FOR UPDATE").(*parser.Select)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	binder.Query.Auth = &auth
 	var query *plan.Query
 	if err == nil {
 		query, err = binder.BindSelect(raw, false)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

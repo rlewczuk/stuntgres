@@ -85,7 +85,7 @@ func TestRandomBinderRetainsStrictNullChildren(t *testing.T) {
 			found := false
 			for _, dependency := range binder.Dependencies {
 				if dependency.Ref.Address == address {
-					found = dependency.Ref.Domain() == e.catalog.Domain && dependency.Revision == captured.Revision()
+					found = dependency.Ref.Domain() == e.Catalog.Domain && dependency.Revision == captured.Revision()
 				}
 			}
 			if !found {
@@ -207,9 +207,9 @@ func TestRandomStrictNullPlanning(t *testing.T) {
 		}
 	}
 	sequence := catalogRef(t, e, e.CatalogRead(), "random_planning_steps")
-	e.mu.Lock()
-	called := e.storage.Sequences[sequence.Address].Called
-	e.mu.Unlock()
+	e.Mu.Lock()
+	called := e.Storage.Sequences[sequence.Address].Called
+	e.Mu.Unlock()
 	if called {
 		t.Fatal("post-preflight executable invoked discarded sequence sibling")
 	}
@@ -233,7 +233,7 @@ func TestRandomStrictNullPlanning(t *testing.T) {
 	evaluation.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
 	_, _, err = exec.SimplifyConditional(&evaluation, node, true)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function abs"})
-	reader := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_reader")
+	reader := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_reader")
 	owner := e.CatalogRead().MustProcedure(child.Ref.Address).Owner
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, reader, authorization.ExecutePrivilege, 0)}}
 	if err := e.SetObjectACL(context.Background(), child.Ref, acl); err != nil {
@@ -273,8 +273,8 @@ func TestRandomStrictNullOriginalManifest(t *testing.T) {
 	evaluation.RoutineAuthority = nil
 	evaluation.RoutineRecipe = false
 	evaluation.RoutineChecks = nil
-	scope.routineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
-	scope.routineDependencies = original
+	scope.RoutineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
+	scope.RoutineDependencies = original
 	if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 		t.Fatal("erased strict call acquired EXECUTE demand", err)
 	}
@@ -284,7 +284,7 @@ func TestRandomStrictNullOriginalManifest(t *testing.T) {
 	}
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
-	target := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
+	target := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
 	if err := role.StageOwnership(stage, base.MustProcedure(captured.Address()), target); err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +293,7 @@ func TestRandomStrictNullOriginalManifest(t *testing.T) {
 	if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 		t.Fatal("owner COW changed retained source snapshot", err)
 	}
-	scope.routineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
+	scope.RoutineAuth = *eMustJSONBRoutineAuthority(t, e, readerOp)
 	err = exec.AdmitRoutineCall(&evaluation, node, false, false)
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
@@ -332,7 +332,7 @@ func TestRandomPlanningConcurrentReuse(t *testing.T) {
 	authorized := evaluation
 	authorized.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, op)
 	denied := evaluation
-	denied.Host = hostOf(readerScope)
+	denied.Host = HostOf(readerScope)
 	denied.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
 	inputType := binder.Params.Parameters[1].Type
 	one, err := sqltype.Integer(inputType, -1)

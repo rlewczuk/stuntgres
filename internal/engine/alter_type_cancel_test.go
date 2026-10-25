@@ -20,7 +20,7 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 				run(t, e, "CREATE TABLE t("+fixture.declaration+")")
 				run(t, e, "INSERT INTO t VALUES"+fixture.seed)
 				ref := roleTableRef(t, e, "t")
-				old, storage := e.catalog.State.Get(ref.Address), e.storage.Relations[ref.Address]
+				old, storage := e.Catalog.State.Get(ref.Address), e.Storage.Relations[ref.Address]
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, cleanup, err := testOperation(e, ctx)
@@ -28,9 +28,9 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer cleanup()
-				provider := e.catalog.Providers[ids.RelationClassID]
-				e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-					e.catalog.Providers[ids.RelationClassID] = provider
+				provider := e.Catalog.Providers[ids.RelationClassID]
+				e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+					e.Catalog.Providers[ids.RelationClassID] = provider
 					switch kind {
 					case "cancel":
 						cancel()
@@ -46,7 +46,7 @@ func TestAlterTypeCancellationAndReplacement(t *testing.T) {
 				}}
 				_, err = e.Execute(op, statement(t, "ALTER TABLE t "+fixture.action), 0, nil)
 				if kind == "cancel" {
-					if !errors.Is(err, context.Canceled) || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
+					if !errors.Is(err, context.Canceled) || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage {
 						t.Fatal(err, "published canceled rewrite")
 					}
 					run(t, e, "ALTER TABLE t "+fixture.action)

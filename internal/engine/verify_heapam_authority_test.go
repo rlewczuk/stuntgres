@@ -45,18 +45,18 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 		bad := *p
 		mutate(&bad)
 		state.SetDescriptor(p.Address(), &bad)
-		if err := extension.StockAmcheck.ValidateExtension(e.catalog.Read(state), ext); err == nil { t.Fatal("forged member admitted", bad) }
+		if err := extension.StockAmcheck.ValidateExtension(e.Catalog.Read(state), ext); err == nil { t.Fatal("forged member admitted", bad) }
 	}
 	for _, members := range [][]ids.ObjectAddress{nil, {p.Address(), p.Address()}, {{ClassID: ids.ProcedureClassID, ObjectID: p.Address().ObjectID+1}}} {
 		state := catalog.CloneState(view.State())
 		bad := *ext
 		bad.Members = members
 		state.SetDescriptor(ext.Address(), &bad)
-		if err := extension.StockAmcheck.ValidateExtension(e.catalog.Read(state), &bad); err == nil { t.Fatal("forged manifest admitted", members) }
+		if err := extension.StockAmcheck.ValidateExtension(e.Catalog.Read(state), &bad); err == nil { t.Fatal("forged manifest admitted", members) }
 	}
 	for _, bad := range []plan.InstalledVerifyHeapamExpr{
 		func() plan.InstalledVerifyHeapamExpr { bad := n; bad.Ref.Epoch++; return bad }(),
-		func() plan.InstalledVerifyHeapamExpr { bad := n; bad.Ref = New().catalog.Domain.Ref(n.Ref.Epoch, n.Ref.Address); return bad }(),
+		func() plan.InstalledVerifyHeapamExpr { bad := n; bad.Ref = New().Catalog.Domain.Ref(n.Ref.Epoch, n.Ref.Address); return bad }(),
 		func() plan.InstalledVerifyHeapamExpr { bad := n; stale := *p; stale.ObjectAddress.ObjectID++; bad.Procedure, bad.RoutineReference = &stale, &stale; return bad }(),
 		func() plan.InstalledVerifyHeapamExpr { bad := n; bad.Args[0] = n.Args[1]; return bad }(),
 		func() plan.InstalledVerifyHeapamExpr { bad := n; bad.Usage = testUsage(e, sqltype.Bool); return bad }(),
@@ -74,7 +74,7 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 		state.BindName(catalog.DescriptorNameKey(d), destination)
 	}
 	state.SetEpoch(state.Epoch()+1)
-	destination := e.catalog.Read(state)
+	destination := e.Catalog.Read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch = state.Epoch(); if address, ok := mapping[ref.Address]; ok { ref.Address = address }; return ref }
 	mapper := stored.ViewQueryRemapper{Catalog: destination, Ref: remap, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: extension.ProcedureRemapper(mapping, nil, nil)}
 	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "findings", Usage: n.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{n}}

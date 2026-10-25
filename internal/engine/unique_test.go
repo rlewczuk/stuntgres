@@ -16,7 +16,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(k INT CONSTRAINT u UNIQUE,v TEXT)")
 	ref := roleTableRef(t, e, "t")
-	parent := e.catalog.State.MustRelation(ref.Address)
+	parent := e.Catalog.State.MustRelation(ref.Address)
 	if len(parent.Constraints.Unique) != 1 {
 		t.Fatal(parent.Constraints.Unique)
 	}
@@ -36,7 +36,7 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 			t.Fatal(result)
 		}
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: "Key (k)=(1) already exists.", Schema: "public", Table: "t", Constraint: "u"})
-		if e.storage.IndexRoots[index.Address()] != old {
+		if e.Storage.IndexRoots[index.Address()] != old {
 			t.Fatal("failed batch published root")
 		}
 		lockEmpty(t, e)
@@ -47,16 +47,16 @@ func TestUniqueBackingRootsAndAtomicity(t *testing.T) {
 		t.Fatal("retained root mutated")
 	}
 	run(t, e, "ALTER TABLE t ALTER k TYPE BIGINT")
-	next := e.catalog.State.MustRelation(ref.Address)
+	next := e.Catalog.State.MustRelation(ref.Address)
 	if next.Address() != parent.Address() || next.Constraints.Unique[0].OID == c.OID || next.Constraints.Unique[0].Index == c.Index {
 		t.Fatal("TYPE identity contract")
 	}
-	if _, ok := e.catalog.State.Find(c.Index); ok {
+	if _, ok := e.Catalog.State.Find(c.Index); ok {
 		t.Fatal("retained old backing object")
 	}
 	btreeWantKeys(t, e, "u", "1", "NULL", "NULL")
 	run(t, e, "ALTER TABLE t DROP CONSTRAINT u")
-	if len(e.storage.IndexRoots) != 0 {
+	if len(e.Storage.IndexRoots) != 0 {
 		t.Fatal("orphan backing root")
 	}
 	run(t, e, "INSERT INTO t VALUES(1,'duplicate allowed')")
@@ -77,12 +77,12 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	if err := scope.gate(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
+	if err := scope.Gate(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
 		t.Fatal(err)
 	}
 	idx, _ := btreeRoot(t, e, "u")
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), idx.Address())
-	parent := e.catalog.State.MustRelation(idx.SQLIndex.Parent)
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), idx.Address())
+	parent := e.Catalog.State.MustRelation(idx.SQLIndex.Parent)
 	ordering, err := index.BindIndexOrdering(operatorFamilyTestRead(), parent, idx.SQLIndex)
 	if err != nil {
 		t.Fatal(err)
@@ -112,25 +112,25 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	collision, releaseCollision, err := e.locks.PinUniqueKey(context.Background(), scope.ticket, ref, hash, &index.UniqueKeyValues{Ordering: ordering, Values: []sqltype.Value{two}})
+	collision, releaseCollision, err := e.Locks.PinUniqueKey(context.Background(), scope.LockTicket, ref, hash, &index.UniqueKeyValues{Ordering: ordering, Values: []sqltype.Value{two}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
+	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.Key() == collision.Key() {
 		t.Fatal("hash collision established equality")
 	}
-	equal, releaseEqual, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{scaled})
+	equal, releaseEqual, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{scaled})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if equal.Key() != first.Key() {
 		t.Fatal("normalized numeric equality split claims")
 	}
-	again, releaseAgain, err := e.pinUniqueKey(context.Background(), scope.ticket, ref, ordering, grouping, []sqltype.Value{one})
+	again, releaseAgain, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,14 +141,14 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	releaseEqual()
 	releaseFirst()
 	releaseCollision()
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	left := lockState.KeyBuckets
 	if left != 0 {
 		t.Fatal("empty interner buckets retained", left)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, release, err := e.pinUniqueKey(canceled, scope.ticket, ref, ordering, grouping, []sqltype.Value{one}); !errors.Is(err, context.Canceled) || release != nil {
+	if _, release, err := e.pinUniqueKey(canceled, scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one}); !errors.Is(err, context.Canceled) || release != nil {
 		t.Fatal(err)
 	}
 }
@@ -168,7 +168,7 @@ func TestUniqueInsertPrivilegeDisclosure(t *testing.T) {
 				grant := func(attribute int32, privileges authorization.Privileges) {
 					target := ref
 					target.Address.SubID = attribute
-					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
+					if err := e.SetObjectACL(context.Background(), target, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}); err != nil {
 						t.Fatal(err)
 					}
 				}

@@ -16,26 +16,26 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	run(t, e, "CREATE VIEW v AS SELECT b FROM t")
 	table := roleTableRef(t, e, "t")
 	view := roleTableRef(t, e, "v")
-	old := e.catalog.State.Get(table.Address)
-	originalView := e.catalog.State.MustRelation(view.Address)
-	store := e.storage.Relations[table.Address]
-	provider := e.catalog.Providers[ids.RelationClassID]
+	old := e.Catalog.State.Get(table.Address)
+	originalView := e.Catalog.State.MustRelation(view.Address)
+	store := e.Storage.Relations[table.Address]
+	provider := e.Catalog.Providers[ids.RelationClassID]
 	var added ids.ObjectAddress
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
-		e.catalog.Providers[ids.RelationClassID] = provider
-		e.mu.Lock()
-		oid, err := e.catalog.AllocateOIDLocked()
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+		e.Catalog.Providers[ids.RelationClassID] = provider
+		e.Mu.Lock()
+		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		rule, err := e.catalog.AllocateOIDLocked()
+		rule, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		revision, err := e.catalog.RevisionLocked()
-		e.mu.Unlock()
+		revision, err := e.Catalog.RevisionLocked()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +66,7 @@ func TestAlterNullabilityGrowingDependencyClosure(t *testing.T) {
 	if err == nil {
 		t.Fatal("stale dependency closure installed")
 	}
-	if added == (ids.ObjectAddress{}) || e.catalog.State.Get(added) == nil || e.catalog.State.Get(table.Address) != old || e.catalog.State.Get(view.Address) != originalView || e.storage.Relations[table.Address] != store {
+	if added == (ids.ObjectAddress{}) || e.Catalog.State.Get(added) == nil || e.Catalog.State.Get(table.Address) != old || e.Catalog.State.Get(view.Address) != originalView || e.Storage.Relations[table.Address] != store {
 		t.Fatal("failed list published a closure prefix", err)
 	}
 	if got := tuples(run(t, e, "SELECT * FROM late_view")); len(got) != 1 || got[0][0] != int64(9) {

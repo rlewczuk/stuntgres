@@ -23,7 +23,7 @@ func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, build
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		var found *lock.Request
 		if entry := lockState.Resources[lock.CompletionOf(owner)]; entry != nil {
 			for _, request := range entry.Pending {
@@ -45,15 +45,15 @@ func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, build
 
 func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	namespace := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
-	index, ok := e.catalog.State.Relation(address)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	namespace := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
+	index, ok := e.Catalog.State.Relation(address)
 	if !ok || index.SQLIndex == nil || index.SQLIndex.Ready != ready || index.SQLIndex.Valid != valid || !index.SQLIndex.Live {
 		t.Fatalf("index %s has unexpected phase: %#v", name, index)
 	}
-	return index, e.storage.IndexRoots[address]
+	return index, e.Storage.IndexRoots[address]
 }
 
 func concurrentUnitError(t *testing.T, s *session.Session, query, code string) error {
@@ -63,7 +63,7 @@ func concurrentUnitError(t *testing.T, s *session.Session, query, code string) e
 		t.Fatal(err)
 	}
 	defer op.Done()
-	result, err := engineOf(s).Execute(op, statement(t, query), 0, nil)
+	result, err := EngineOf(s).Execute(op, statement(t, query), 0, nil)
 	if result.Rows != nil {
 		result.Rows.Close()
 	}
@@ -76,11 +76,11 @@ func concurrentUnitError(t *testing.T, s *session.Session, query, code string) e
 
 func concurrentUnitRootMatchesStorage(t *testing.T, e *Engine, idx *catalog.Relation) {
 	t.Helper()
-	e.mu.Lock()
-	parent := e.catalog.State.MustRelation(idx.SQLIndex.Parent)
-	snapshot := *e.storage.Relations[parent.Address()]
-	root := e.storage.IndexRoots[idx.Address()]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	parent := e.Catalog.State.MustRelation(idx.SQLIndex.Parent)
+	snapshot := *e.Storage.Relations[parent.Address()]
+	root := e.Storage.IndexRoots[idx.Address()]
+	e.Mu.Unlock()
 	expected, err := index.BuildIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, idx.SQLIndex, &snapshot, nil)
 	if err != nil || !reflect.DeepEqual(root, expected) {
 		t.Fatalf("installed logical root differs from actual live row-version build: %v", err)
@@ -96,21 +96,21 @@ func TestConcurrentIndexU1RootPhasesAndVersions(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	owner := a.Transactions.Ticket
 	table := roleTableRef(t, e, "t")
-	e.mu.Lock()
-	store := e.storage.Relations[table.Address]
+	e.Mu.Lock()
+	store := e.Storage.Relations[table.Address]
 	generation := store.Generation
 	ends := store.Ends
 	length := len(store.Versions)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	_, await := indexMaintenanceAsync(t, e, b, "CREATE INDEX CONCURRENTLY ix ON t(n DESC NULLS LAST)")
 	concurrentUnitCompletion(t, e, owner, b)
 	initial, root := concurrentUnitIndex(t, e, "ix", false, false)
 	if root != nil {
 		t.Fatal("initial phase fabricated a logical root")
 	}
-	e.mu.Lock()
-	unchanged := e.storage.Relations[table.Address] == store && store.Generation == generation && store.Ends == ends && len(store.Versions) == length
-	e.mu.Unlock()
+	e.Mu.Lock()
+	unchanged := e.Storage.Relations[table.Address] == store && store.Generation == generation && store.Ends == ends && len(store.Versions) == length
+	e.Mu.Unlock()
 	if !unchanged {
 		t.Fatal("descriptor publication rewrote parent storage")
 	}

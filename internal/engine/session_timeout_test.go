@@ -52,7 +52,7 @@ func timeoutMechanicsSettings(s *session.Session, transaction, idleTransaction, 
 }
 
 func timeoutMechanicsRef(s *session.Session, id ids.TxID) ids.TxRef {
-	return engineOf(s).catalog.Domain.Tx(s.Token(), id, 0, s.Transactions, 0)
+	return EngineOf(s).Catalog.Domain.Tx(s.Token(), id, 0, s.Transactions, 0)
 }
 
 func TestSessionTimeoutGenerationMechanics(t *testing.T) {
@@ -65,7 +65,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
 	scope := &StatementScope{statementStart: now, transactionStart: now}
-	s.StartProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
+	s.StartProvisionalTimeout(&scope.lease, scope.Op, scope.transactionStart)
 	s.Transactions.Mu.Lock()
 	if s.Transactions.Next != 0 || s.Transactions.State != session.TxIdle {
 		t.Error("provisional budget minted transaction state")
@@ -276,15 +276,15 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			defer op.Done()
 			now := time.Now()
 			timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
-			scope := &StatementScope{op: op, statementStart: now, transactionStart: now}
-			s.StartProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
+			scope := &StatementScope{Op: op, statementStart: now, transactionStart: now}
+			s.StartProvisionalTimeout(&scope.lease, scope.Op, scope.transactionStart)
 			timed, expireStatement := context.WithCancelCause(op.Ctx)
 			s.Mu.Lock()
 			op.Ctx = timed
 			s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
 			s.Mu.Unlock()
 			if completed {
-				s.FinishScopeTimeout(&scope.lease, scope.op, scope.message, scope.txRef, false)
+				s.FinishScopeTimeout(&scope.lease, scope.Op, scope.message, scope.TxRef, false)
 			}
 			expireStatement(session.StatementTimeoutCause)
 			s.Mu.Lock()
@@ -356,7 +356,7 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer op.Done()
-			scope, err := engineOf(s).StartStatement(op)
+			scope, err := EngineOf(s).StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -466,7 +466,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	ref, err := engineOf(s).Begin(op, session.TxOptions{})
+	ref, err := EngineOf(s).Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,7 +478,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 	s.Mu.Unlock()
 
 	// Invoke the existing batch mutation seam, not a SQL parser/response test.
-	if _, err := engineOf(s).executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
+	if _, err := EngineOf(s).executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	s.Mu.Lock()
@@ -501,7 +501,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 		}
 	}
 	s.Settings.Mu.Unlock()
-	if _, err := engineOf(s).Rollback(op, ref); err != nil {
+	if _, err := EngineOf(s).Rollback(op, ref); err != nil {
 		t.Fatal(err)
 	}
 	s.Mu.Lock()

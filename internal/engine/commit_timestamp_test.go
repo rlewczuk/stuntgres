@@ -23,70 +23,70 @@ import (
 )
 
 func commitTimeUnitRef(e *Engine, id ids.TxID) ids.TxRef {
-	return e.catalog.Domain.Tx(ids.SessionToken{}, id, e.catalog.State.Epoch(), nil, 0)
+	return e.Catalog.Domain.Tx(ids.SessionToken{}, id, e.Catalog.State.Epoch(), nil, 0)
 }
 
 func TestCommitTimeAssignment(t *testing.T) {
 	e := NewWithSettings(nil, "", true)
 	a, b := commitTimeUnitRef(e, 1), commitTimeUnitRef(e, 2)
-	if e.visibility.LastAssignedXID() != 2 || len(e.visibility.CommitTimestamps) != 0 {
+	if e.Visibility.LastAssignedXID() != 2 || len(e.Visibility.CommitTimestamps) != 0 {
 		t.Fatal("startup assigned a transaction")
 	}
-	if _, err := e.visibilitySnapshotLocked(a, false); err != nil {
+	if _, err := e.VisibilitySnapshotLocked(a, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibilityWriteLocked(a); err != nil {
+	if err := e.VisibilityWriteLocked(a); err != nil {
 		t.Fatal(err)
 	}
-	first := e.visibility.Entries[a]
-	if first.XID != 1 || first.AssignedXID != 0 || len(e.visibility.CommitTimestamps) != 0 {
+	first := e.Visibility.Entries[a]
+	if first.XID != 1 || first.AssignedXID != 0 || len(e.Visibility.CommitTimestamps) != 0 {
 		t.Fatal("potential writer admission assigned a public XID", first)
 	}
-	if err := e.visibilityWriteLocked(a); err != nil || e.visibility.Entries[a] != first {
+	if err := e.VisibilityWriteLocked(a); err != nil || e.Visibility.Entries[a] != first {
 		t.Fatal("repeated ordering admission changed identity", err)
 	}
-	e.visibility.RecordCommitTimestampLocked(a)
-	if e.visibility.LastCommittedXID() != 0 {
+	e.Visibility.RecordCommitTimestampLocked(a)
+	if e.Visibility.LastCommittedXID() != 0 {
 		t.Fatal("ordering-only completion fabricated a commit")
 	}
 	// Public exhaustion cannot prevent independent visibility ordering.
-	e.visibility.SetLastAssignedXIDLocked(^uint64(0))
-	if err := e.visibilityWriteLocked(b); err != nil || e.visibility.Entries[b].XID != 2 || e.visibility.Entries[b].AssignedXID != 0 {
+	e.Visibility.SetLastAssignedXIDLocked(^uint64(0))
+	if err := e.VisibilityWriteLocked(b); err != nil || e.Visibility.Entries[b].XID != 2 || e.Visibility.Entries[b].AssignedXID != 0 {
 		t.Fatal("visibility ordering depends on public assignment", err)
 	}
-	e.visibility.SetLastAssignedXIDLocked(2)
-	if err := e.assignTransactionXIDLocked(a); err != nil {
+	e.Visibility.SetLastAssignedXIDLocked(2)
+	if err := e.AssignTransactionXIDLocked(a); err != nil {
 		t.Fatal(err)
 	}
-	if e.visibility.Entries[a].AssignedXID != 3 || e.visibility.Entries[a].XID != first.XID || e.visibility.CommitTimestamps[3].Present {
+	if e.Visibility.Entries[a].AssignedXID != 3 || e.Visibility.Entries[a].XID != first.XID || e.Visibility.CommitTimestamps[3].Present {
 		t.Fatal("actual assignment changed ordering or published history")
 	}
-	e.visibility.DropSnapshotLocked(a)
-	if e.visibility.Entries[a].AssignedXID != 3 {
+	e.Visibility.DropSnapshotLocked(a)
+	if e.Visibility.Entries[a].AssignedXID != 3 {
 		t.Fatal("snapshot drop consumed actual assignment")
 	}
-	if err := e.assignTransactionXIDLocked(b); err != nil {
+	if err := e.AssignTransactionXIDLocked(b); err != nil {
 		t.Fatal(err)
 	}
-	counter, slots, ordering := e.visibility.LastAssignedXID(), len(e.visibility.CommitTimestamps), e.visibility.VisibilityXID()
-	e.visibility.SetLastAssignedXIDLocked(^uint64(0))
+	counter, slots, ordering := e.Visibility.LastAssignedXID(), len(e.Visibility.CommitTimestamps), e.Visibility.VisibilityXID()
+	e.Visibility.SetLastAssignedXIDLocked(^uint64(0))
 	c := commitTimeUnitRef(e, 3)
-	if err := e.assignTransactionXIDLocked(c); err == nil || e.visibility.Entries[c] != (visibility.Entry{}) || len(e.visibility.CommitTimestamps) != slots || e.visibility.VisibilityXID() != ordering {
+	if err := e.AssignTransactionXIDLocked(c); err == nil || e.Visibility.Entries[c] != (visibility.Entry{}) || len(e.Visibility.CommitTimestamps) != slots || e.Visibility.VisibilityXID() != ordering {
 		t.Fatal("exhaustion partially assigned identity", err)
 	}
-	e.visibility.SetLastAssignedXIDLocked(counter)
-	if err := e.assignTransactionXIDLocked(c); err != nil {
+	e.Visibility.SetLastAssignedXIDLocked(counter)
+	if err := e.AssignTransactionXIDLocked(c); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibilityWriteLocked(c); err != nil || e.visibility.Entries[c].FullXID != counter+1 || uint64(e.visibility.Entries[c].AssignedXID) != counter+1 || e.visibility.Entries[c].XID != ordering+1 {
+	if err := e.VisibilityWriteLocked(c); err != nil || e.Visibility.Entries[c].FullXID != counter+1 || uint64(e.Visibility.Entries[c].AssignedXID) != counter+1 || e.Visibility.Entries[c].XID != ordering+1 {
 		t.Fatal("public and visibility authorities conflated", err)
 	}
 	d := commitTimeUnitRef(e, 4)
-	if err := e.assignTransactionXIDLocked(d); err != nil {
+	if err := e.AssignTransactionXIDLocked(d); err != nil {
 		t.Fatal(err)
 	}
-	e.visibility.DropSnapshotLocked(d)
-	if e.visibility.Entries[d].XID != 0 || e.visibility.Entries[d].AssignedXID == 0 {
+	e.Visibility.DropSnapshotLocked(d)
+	if e.Visibility.Entries[d].XID != 0 || e.Visibility.Entries[d].AssignedXID == 0 {
 		t.Fatal("assigned-only prepared ownership was discarded")
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384}
@@ -98,18 +98,18 @@ func TestCommitTimeAssignment(t *testing.T) {
 	}
 	disabled := New()
 	ref := commitTimeUnitRef(disabled, 1)
-	if err := disabled.assignTransactionXIDLocked(ref); err != nil || len(disabled.visibility.CommitTimestamps) != 0 {
+	if err := disabled.AssignTransactionXIDLocked(ref); err != nil || len(disabled.Visibility.CommitTimestamps) != 0 {
 		t.Fatal("disabled history allocation", err)
 	}
 	// Enrollment can follow assignment (for example a later captured snapshot).
-	publicXID := disabled.visibility.Entries[ref].AssignedXID
+	publicXID := disabled.Visibility.Entries[ref].AssignedXID
 	disabled.enrollSerializableLocked(ref, session.Serializable)
-	node := disabled.visibility.Serializable.Nodes[ref]
+	node := disabled.Visibility.Serializable.Nodes[ref]
 	if node.AssignedXID != publicXID {
 		t.Fatal("late SSI enrollment lost the assigned public identity")
 	}
-	disabled.visibility.RecordCommitTimestampLocked(ref)
-	if disabled.visibility.Entries[ref].AssignedXID != 0 || node.AssignedXID != publicXID {
+	disabled.Visibility.RecordCommitTimestampLocked(ref)
+	if disabled.Visibility.Entries[ref].AssignedXID != 0 || node.AssignedXID != publicXID {
 		t.Fatal("completion consumed the retained SSI diagnostic identity")
 	}
 }
@@ -135,20 +135,20 @@ func TestCommitTimePublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				ref := tx.Ref
-				if err := e.assignTransactionXIDLocked(ref); err != nil {
+				if err := e.AssignTransactionXIDLocked(ref); err != nil {
 					t.Fatal(err)
 				}
-				xid := e.visibility.Entries[ref].AssignedXID
-				old := e.catalog.State
+				xid := e.Visibility.Entries[ref].AssignedXID
+				old := e.Catalog.State
 				var prepared *PreparedCatalogPublication
 				var writes map[ids.ObjectAddress][]storage.RowVersion
 				var rowStore *storage.Relation
 				if route != "empty" {
 					stage := e.BeginCatalogStage(e.CatalogRead())
 					if route == "catalog" {
-						stage.initialTx = ref
+						stage.InitialTx = ref
 					}
-					d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "commit_time_unit", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
+					d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "commit_time_unit", ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 					if err := stage.Create(d); err != nil {
 						t.Fatal(err)
 					}
@@ -160,17 +160,17 @@ func TestCommitTimePublication(t *testing.T) {
 						if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: old.Epoch()}); err != nil {
 							t.Fatal(err)
 						}
-						old = e.catalog.State
+						old = e.Catalog.State
 						value, err := sqltype.Integer(d.Columns[0].Usage.Type, 7)
 						if err != nil {
 							t.Fatal(err)
 						}
-						versions, err := e.storage.AllocateRowVersionsLocked([][]sqltype.Value{{value}}, e.catalog.State)
+						versions, err := e.Storage.AllocateRowVersionsLocked([][]sqltype.Value{{value}}, e.Catalog.State)
 						if err != nil {
 							t.Fatal(err)
 						}
 						writes = map[ids.ObjectAddress][]storage.RowVersion{d.Address(): versions}
-						rowStore = e.storage.Relations[d.Address()]
+						rowStore = e.Storage.Relations[d.Address()]
 					}
 				}
 				barrier := &transactionBarrierContext{Context: ctx, entered: make(chan struct{}), release: make(chan struct{})}
@@ -206,7 +206,7 @@ func TestCommitTimePublication(t *testing.T) {
 				before := time.Now().UTC().Truncate(time.Microsecond)
 				go func() {
 					if route == "catalog" {
-						_, failure := e.publishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: old.Epoch()})
+						_, failure := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: old.Epoch()})
 						done <- failure
 					} else {
 						done <- e.publishRowsPrepared(op, ref, writes, nil, nil, nil, nil, nil)
@@ -222,9 +222,9 @@ func TestCommitTimePublication(t *testing.T) {
 				}
 				observed := make(chan [3]bool, 1)
 				go func() {
-					e.mu.Lock()
-					snapshot := [3]bool{e.catalog.State != old, rowStore != nil && len(rowStore.Versions) != 0, e.visibility.LastCommittedXID() == xid && e.visibility.CommitTimestamps[uint64(xid)].Present}
-					e.mu.Unlock()
+					e.Mu.Lock()
+					snapshot := [3]bool{e.Catalog.State != old, rowStore != nil && len(rowStore.Versions) != 0, e.Visibility.LastCommittedXID() == xid && e.Visibility.CommitTimestamps[uint64(xid)].Present}
+					e.Mu.Unlock()
 					observed <- snapshot
 				}()
 				if mode == "cancel_before" {
@@ -247,17 +247,17 @@ func TestCommitTimePublication(t *testing.T) {
 					t.Fatal("publication observer did not finish")
 				}
 				if !committed {
-					if !errors.Is(err, context.Canceled) || e.visibility.LastCommittedXID() != 0 || e.visibility.CommitTimestamps[uint64(xid)].Present || e.catalog.State != old {
+					if !errors.Is(err, context.Canceled) || e.Visibility.LastCommittedXID() != 0 || e.Visibility.CommitTimestamps[uint64(xid)].Present || e.Catalog.State != old {
 						t.Fatal("failed publication leaked a commit", err)
 					}
 				} else {
-					if err != nil || e.visibility.LastCommittedXID() != xid || !e.visibility.CommitTimestamps[uint64(xid)].Present || e.visibility.LastCommitTimestamp().Stamp.Before(before) || e.visibility.LastCommitTimestamp().Origin != 0 {
+					if err != nil || e.Visibility.LastCommittedXID() != xid || !e.Visibility.CommitTimestamps[uint64(xid)].Present || e.Visibility.LastCommitTimestamp().Stamp.Before(before) || e.Visibility.LastCommitTimestamp().Origin != 0 {
 						t.Fatal("successful publication missing commit", err)
 					}
-					stamp := e.visibility.LastCommitTimestamp()
+					stamp := e.Visibility.LastCommitTimestamp()
 					// A successful catalog publisher has already consumed completion.
-					e.visibility.RecordCommitTimestampLocked(ref)
-					if e.visibility.LastCommitTimestamp() != stamp || e.visibility.Entries[ref].AssignedXID != 0 {
+					e.Visibility.RecordCommitTimestampLocked(ref)
+					if e.Visibility.LastCommitTimestamp() != stamp || e.Visibility.Entries[ref].AssignedXID != 0 {
 						t.Fatal("double completion")
 					}
 				}
@@ -270,11 +270,11 @@ func TestCommitTimeReplacement(t *testing.T) {
 	for _, foreign := range []bool{false, true} {
 		e := NewWithSettings(nil, "", true)
 		ref := commitTimeUnitRef(e, 1)
-		if err := e.assignTransactionXIDLocked(ref); err != nil {
+		if err := e.AssignTransactionXIDLocked(ref); err != nil {
 			t.Fatal(err)
 		}
-		xid := e.visibility.Entries[ref].AssignedXID
-		e.visibility.RecordCommitTimestampLocked(ref)
+		xid := e.Visibility.Entries[ref].AssignedXID
+		e.Visibility.RecordCommitTimestampLocked(ref)
 		source := e
 		if foreign {
 			source = New()
@@ -282,16 +282,16 @@ func TestCommitTimeReplacement(t *testing.T) {
 		view := source.CatalogRead()
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if _, err := e.ReplaceCatalog(ctx, source, view); !errors.Is(err, context.Canceled) || e.visibility.LastCommittedXID() != xid {
+		if _, err := e.ReplaceCatalog(ctx, source, view); !errors.Is(err, context.Canceled) || e.Visibility.LastCommittedXID() != xid {
 			t.Fatal("failed replacement changed history", err)
 		}
 		if _, err := e.ReplaceCatalog(context.Background(), source, view); err != nil {
 			t.Fatal(err)
 		}
-		if !e.visibility.TracksCommitTimestamps() || e.visibility.LastCommittedXID() != 0 || len(e.visibility.CommitTimestamps) != 0 || e.visibility.CommitTimestampBase() != uint64(xid)+1 || e.visibility.LastAssignedXID() != uint64(xid) {
+		if !e.Visibility.TracksCommitTimestamps() || e.Visibility.LastCommittedXID() != 0 || len(e.Visibility.CommitTimestamps) != 0 || e.Visibility.CommitTimestampBase() != uint64(xid)+1 || e.Visibility.LastAssignedXID() != uint64(xid) {
 			t.Fatal("replacement imported or reused history")
 		}
-		if err := e.assignTransactionXIDLocked(commitTimeUnitRef(e, 2)); err != nil || e.visibility.LastAssignedXID() != uint64(xid)+1 {
+		if err := e.AssignTransactionXIDLocked(commitTimeUnitRef(e, 2)); err != nil || e.Visibility.LastAssignedXID() != uint64(xid)+1 {
 			t.Fatal("replacement identity reuse", err)
 		}
 	}

@@ -21,7 +21,7 @@ func (truncateGraphFence) Kind() session.FenceKind { return fenceTruncateGraph }
 // currentLocked checks the admitted graph against the private catalog and the
 // published sequence generators. Caller holds Engine.mu.
 func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) error {
-	return fence.CheckCurrent(e.privateCatalogLocked(c), c, e.storage.Sequences)
+	return fence.CheckCurrent(e.PrivateCatalogLocked(c), c, e.Storage.Sequences)
 }
 
 // stageTruncate replaces roots, never scans/discards individual row values.
@@ -31,30 +31,30 @@ func (s *StatementScope) stageTruncate() error {
 	if err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
-	if s.txRef.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
 	for _, named := range s.truncateOrZero().Names {
 		if lookupErr := e.truncateNameCurrent(auth, named); lookupErr != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return lookupErr
 		}
 	}
-	changes := s.owner.Catalog.Clone()
+	changes := s.Owner.Catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, s.op.Session)
+	stage.AuthorizeLocked(auth, s.Op.Session)
 	for _, selected := range s.truncateOrZero().Relations {
 		ref := selected.Ref
 		d, ok := auth.Catalog.Relation(ref.Address)
-		store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
+		store := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
 		if !ok || d.Namespace() != selected.Relation.Namespace() || !index.SameRelationRowShape(d, selected.Relation) || store != selected.Storage {
 			err = ids.ErrCatalogReplaced
 			break
@@ -65,7 +65,7 @@ func (s *StatementScope) stageTruncate() error {
 		if err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE"); err != nil {
 			break
 		}
-		stage.querySources = append(stage.querySources, d)
+		stage.QuerySources = append(stage.QuerySources, d)
 		if d.RelationKind == catalog.PartitionedRelation || d.RelationKind == catalog.ForeignRelation {
 			continue
 		}
@@ -79,7 +79,7 @@ func (s *StatementScope) stageTruncate() error {
 		}
 		shape, exists := changes.Storage[ref.Address]
 		if !exists {
-			original := e.storage.Relations[ref.Address]
+			original := e.Storage.Relations[ref.Address]
 			if original == nil {
 				err = ids.ErrCatalogReplaced
 				break
@@ -95,12 +95,12 @@ func (s *StatementScope) stageTruncate() error {
 		}
 		shape.Replacement = &storage.Relation{Generation: store.Generation + 1, TruncateLineage: lineage}
 		shape.Relation = d
-		shape.Rewritten, shape.Frontier = true, e.visibility.CommitSeq()
+		shape.Rewritten, shape.Frontier = true, e.Visibility.CommitSeq()
 		shape.Snapshot, shape.HasSnapshot = nil, false
 		shape.Fills = nil
 		changes.Storage[ref.Address] = shape
 		e.fenceEmptyIndexStorageLocked(auth.Catalog.State(), changes, ref.Address)
-		if err = e.serializableWriteLocked(s, ref, []visibility.SerializableWrite{{Rewrite: true}}); err != nil {
+		if err = e.SerializableWriteLocked(s, ref, []visibility.SerializableWrite{{Rewrite: true}}); err != nil {
 			break
 		}
 	}
@@ -116,9 +116,9 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.AddFence(truncateGraphFence{dml.TruncateGraph{Base: auth.Catalog.State(), Targets: s.truncateOrZero().Selected, Token: s.op.Session.SessionToken, Restart: s.truncateOrZero().Restart, Sequences: sequences}})
+		changes.AddFence(truncateGraphFence{dml.TruncateGraph{Base: auth.Catalog.State(), Targets: s.truncateOrZero().Selected, Token: s.Op.Session.SessionToken, Restart: s.truncateOrZero().Restart, Sequences: sequences}})
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		return err
@@ -126,15 +126,15 @@ func (s *StatementScope) stageTruncate() error {
 	for _, selected := range s.truncateOrZero().Relations {
 		address := selected.Ref.Address
 		if selected.Relation.RelationKind != catalog.PartitionedRelation && selected.Relation.RelationKind != catalog.ForeignRelation {
-			if err := index.TransportEmptyIndexStorage(s.op.Context(), auth.Catalog, changes, stage.recordIndexCandidate, address, changes.Storage[address].Replacement); err != nil {
+			if err := index.TransportEmptyIndexStorage(s.Op.Context(), auth.Catalog, changes, stage.recordIndexCandidate, address, changes.Storage[address].Replacement); err != nil {
 				return err
 			}
 		}
-		if len(s.ownWrites[address]) != 0 || s.ownDeletes[address] != nil {
-			s.stageProjectedColumnRoots(address, nil, nil)
+		if len(s.OwnWrites[address]) != 0 || s.OwnDeletes[address] != nil {
+			s.StageProjectedColumnRoots(address, nil, nil)
 		}
 	}
-	if err := e.stageCatalogOverlay(s, stage, changes); err != nil {
+	if err := e.StageCatalogOverlay(s, stage, changes); err != nil {
 		return err
 	}
 	return s.executeForeignTruncate(groups)
@@ -142,7 +142,7 @@ func (s *StatementScope) stageTruncate() error {
 
 // A name observation is a fence, not permission to replay on a new relation.
 func (e *Engine) truncateNameCurrent(auth AuthorizationView, named dml.TruncateName) error {
-	ref, err := e.resolveRelationReference(auth, named.Name, true)
+	ref, err := e.ResolveRelationReference(auth, named.Name, true)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42P01" || diagnostic.Code == "3F000") {
 		return ids.ErrCatalogReplaced
 	}

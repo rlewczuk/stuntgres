@@ -17,7 +17,7 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[str
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE captured_owner")
-	e := source.restoreStage()
+	e := source.RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	declarations := []string{
@@ -31,11 +31,11 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[str
 	for _, sql := range declarations {
 		raw := statement(t, sql).(*parser.CreateTable)
 		roleExecute(t, e, op, sql)
-		auth, err := operationAuthorization(op)
+		auth, err := OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ref, err := e.resolveRelationReference(auth, raw.Name, false)
+		ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -48,18 +48,18 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[str
 func TestCastDefinitionRestoreCheckAdmission(t *testing.T) {
 	e, op, _, _ := inheritedRestoreFixture(t)
 	raw := statement(t, "ALTER TABLE public.unrelated ADD CONSTRAINT positive CHECK(a>0)").(*parser.AlterTable)
-	before := e.catalog.State
-	if err := e.restoreCheck(op, raw, nil); err != nil || e.catalog.State != before {
+	before := e.Catalog.State
+	if err := e.restoreCheck(op, raw, nil); err != nil || e.Catalog.State != before {
 		t.Fatal("ordinary CHECK admission must be quiet and need no generation repair", err)
 	}
 	// The private replay admission never grants ordinary execution importer
 	// authority, and inheriting tables still need the real repair recipe.
-	importTargets := e.importTargets
-	e.importTargets = nil
+	importTargets := e.ImportTargets
+	e.ImportTargets = nil
 	if err := e.restoreCheck(op, raw, nil); err == nil {
 		t.Fatal("valid CHECK admitted outside the private importer")
 	}
-	e.importTargets = importTargets
+	e.ImportTargets = importTargets
 	inherited := statement(t, "ALTER TABLE public.c ADD CONSTRAINT positive CHECK(a>0)").(*parser.AlterTable)
 	if err := e.restoreCheck(op, inherited, nil); err == nil {
 		t.Fatal("inherited CHECK admitted without generation repair")
@@ -70,8 +70,8 @@ func TestCastDefinitionRestoreLocalCheckAdmission(t *testing.T) {
 	e, op, refs, _ := inheritedRestoreFixture(t)
 	const declaration = "ALTER TABLE ONLY public.c ADD CONSTRAINT local_positive CHECK(a>0) NO INHERIT"
 	raw := statement(t, declaration).(*parser.AlterTable)
-	before := e.catalog.State
-	if err := e.restoreCheck(op, raw, nil); err != nil || e.catalog.State != before {
+	before := e.Catalog.State
+	if err := e.restoreCheck(op, raw, nil); err != nil || e.Catalog.State != before {
 		t.Fatal("fresh local NO INHERIT CHECK admission must be effect-free", err)
 	}
 	for _, mutate := range []func(*parser.AlterTable){
@@ -86,7 +86,7 @@ func TestCastDefinitionRestoreLocalCheckAdmission(t *testing.T) {
 	} {
 		candidate := statement(t, declaration).(*parser.AlterTable)
 		mutate(candidate)
-		if err := e.restoreCheck(op, candidate, nil); err == nil || e.catalog.State != before {
+		if err := e.restoreCheck(op, candidate, nil); err == nil || e.Catalog.State != before {
 			t.Fatal("non-local replay shape gained admission", candidate, err)
 		}
 	}
@@ -120,8 +120,8 @@ func TestCastDefinitionRestoreLocalCheckAdmission(t *testing.T) {
 	// original NO INHERIT=false rather than changing catalog semantics.
 	const leafDeclaration = "ALTER TABLE ONLY public.c ADD CONSTRAINT leaf_check CHECK(a<10)"
 	leaf := statement(t, leafDeclaration).(*parser.AlterTable)
-	before = e.catalog.State
-	if err := e.restoreCheck(op, leaf, nil); err != nil || e.catalog.State != before {
+	before = e.Catalog.State
+	if err := e.restoreCheck(op, leaf, nil); err != nil || e.Catalog.State != before {
 		t.Fatal("fresh leaf local inheritable CHECK rejected", err)
 	}
 	roleExecute(t, e, op, leafDeclaration)
@@ -153,11 +153,11 @@ func TestCastDefinitionRestoreRecursiveCheckAdmission(t *testing.T) {
 	} {
 		raw := statement(t, declaration).(*parser.CreateTable)
 		roleExecute(t, e, op, declaration)
-		auth, err := operationAuthorization(op)
+		auth, err := OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ref, err := e.resolveRelationReference(auth, raw.Name, false)
+		ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -165,15 +165,15 @@ func TestCastDefinitionRestoreRecursiveCheckAdmission(t *testing.T) {
 	}
 	const declaration = "ALTER TABLE public.rp ADD CONSTRAINT recursive_positive CHECK(a>0)"
 	raw := statement(t, declaration).(*parser.AlterTable)
-	before := e.catalog.State
+	before := e.Catalog.State
 	unrelated := table.RestoredGenerationRecipe{Ref: refs["unrelated"]}
-	if err := e.restoreCheck(op, raw, []table.RestoredGenerationRecipe{unrelated}); err != nil || e.catalog.State != before {
+	if err := e.restoreCheck(op, raw, []table.RestoredGenerationRecipe{unrelated}); err != nil || e.Catalog.State != before {
 		t.Fatal("fresh recursive admission must ignore unrelated repairs and publish nothing", err)
 	}
 	roleExecute(t, e, op, "ALTER TABLE ONLY public.rc ADD CONSTRAINT collision CHECK(a<10) NO INHERIT")
 	collision := statement(t, "ALTER TABLE public.rp ADD CONSTRAINT collision CHECK(a<10)").(*parser.AlterTable)
-	before = e.catalog.State
-	if err := e.restoreCheck(op, collision, nil); err == nil || e.catalog.State != before {
+	before = e.Catalog.State
+	if err := e.restoreCheck(op, collision, nil); err == nil || e.Catalog.State != before {
 		t.Fatal("descendant name collision admitted recursive merge", err)
 	}
 	roleExecute(t, e, op, declaration)
@@ -206,11 +206,11 @@ func TestCastDefinitionPlainGenerationRepair(t *testing.T) {
 	const declaration = "CREATE TABLE public.plain_generated(a INT,g INT GENERATED ALWAYS AS(NULL) STORED)"
 	created := statement(t, declaration).(*parser.CreateTable)
 	roleExecute(t, e, op, declaration)
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref, err := e.resolveRelationReference(auth, created.Name, false)
+	ref, err := e.ResolveRelationReference(auth, created.Name, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,14 +226,14 @@ func TestCastDefinitionPlainGenerationRepair(t *testing.T) {
 	}
 	const alteration = "ALTER TABLE ONLY public.plain_generated ALTER g SET EXPRESSION AS(a+1)"
 	raw := statement(t, alteration).(*parser.AlterTable)
-	before := e.catalog.State
-	if err := e.pairRestoredGeneration(op, raw, origins); err != nil || e.catalog.State != before {
+	before := e.Catalog.State
+	if err := e.pairRestoredGeneration(op, raw, origins); err != nil || e.Catalog.State != before {
 		t.Fatal("genuine plain generation repair pairing rejected or published", err)
 	}
 	bad := maps.Clone(origins)
 	record.Attribute++
 	bad[key] = record
-	if err := e.pairRestoredGeneration(op, raw, bad); err == nil || e.catalog.State != before {
+	if err := e.pairRestoredGeneration(op, raw, bad); err == nil || e.Catalog.State != before {
 		t.Fatal("mismatched generation attribute gained pairing authority", err)
 	}
 	if err := e.pairRestoredGeneration(op, raw, nil); err == nil {
@@ -258,7 +258,7 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*table.RestoredGenerationRecipe){
 		"epoch":     func(r *table.RestoredGenerationRecipe) { r.Ref.Epoch++ },
-		"owner":     func(r *table.RestoredGenerationRecipe) { r.Ref = New().catalog.Domain.Ref(r.Ref.Epoch, r.Ref.Address) },
+		"owner":     func(r *table.RestoredGenerationRecipe) { r.Ref = New().Catalog.Domain.Ref(r.Ref.Epoch, r.Ref.Address) },
 		"attribute": func(r *table.RestoredGenerationRecipe) { r.Attribute++ },
 		"identity":  func(r *table.RestoredGenerationRecipe) { r.Generation++ },
 		"kind":      func(r *table.RestoredGenerationRecipe) { r.Kind = catalog.GenerationStored },
@@ -269,8 +269,8 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 			record := bad[key]
 			mutate(&record)
 			bad[key] = record
-			before := e.catalog.State
-			if err := e.pairRestoredGeneration(op, raw, bad); err == nil || e.catalog.State != before {
+			before := e.Catalog.State
+			if err := e.pairRestoredGeneration(op, raw, bad); err == nil || e.Catalog.State != before {
 				t.Fatal("mismatched generation gained authority", err)
 			}
 		})
@@ -309,13 +309,13 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 	} {
 		candidate := statement(t, admitted).(*parser.AlterTable)
 		test.change(candidate)
-		before := e.catalog.State
-		if err := e.restoreCheck(op, candidate, []table.RestoredGenerationRecipe{repair}); err == nil || e.catalog.State != before {
+		before := e.Catalog.State
+		if err := e.restoreCheck(op, candidate, []table.RestoredGenerationRecipe{repair}); err == nil || e.Catalog.State != before {
 			t.Fatal("unpaired CHECK shape admitted", test.name, err)
 		}
 	}
 	foreign := repair
-	foreign.Ref = New().catalog.Domain.Ref(repair.Ref.Epoch, repair.Ref.Address)
+	foreign.Ref = New().Catalog.Domain.Ref(repair.Ref.Epoch, repair.Ref.Address)
 	for _, bad := range []table.RestoredGenerationRecipe{
 		{Ref: repair.Ref, Attribute: repair.Attribute, Generation: repair.Generation + 1, Usage: repair.Usage, Kind: repair.Kind},
 		foreign,
@@ -326,24 +326,24 @@ func TestRestoreInheritedDefinitionChecks(t *testing.T) {
 		}
 	}
 	// Real inherited origins, not mere graph connectivity, remain mandatory.
-	before := e.catalog.State
+	before := e.Catalog.State
 	child := *before.MustRelation(refs["c"].Address)
 	child.Inheritance = catalog.CloneInheritance(child.Inheritance)
 	child.Inheritance.Columns[2] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: refs["q"].Address, Attribute: 1}}}
 	changed := catalog.CloneState(before)
 	changed.SetDescriptor(child.Address(), &child)
-	e.catalog.PublishLocked(changed)
+	e.Catalog.PublishLocked(changed)
 	childRaw := statement(t, "ALTER TABLE ONLY public.c ALTER g SET EXPRESSION AS(a+1)").(*parser.AlterTable)
-	if err := e.pairRestoredGeneration(op, childRaw, origins); err == nil || e.catalog.State != changed {
+	if err := e.pairRestoredGeneration(op, childRaw, origins); err == nil || e.Catalog.State != changed {
 		t.Fatal("forged generation origin accepted", err)
 	}
-	e.catalog.PublishLocked(before)
-	targets := e.importTargets
-	e.importTargets = nil
+	e.Catalog.PublishLocked(before)
+	targets := e.ImportTargets
+	e.ImportTargets = nil
 	if err := e.restoreCheck(op, check, []table.RestoredGenerationRecipe{repair}); err == nil {
 		t.Fatal("ordinary CHECK gained importer authority")
 	}
-	e.importTargets = targets
+	e.ImportTargets = targets
 	canceled, cancel := context.WithCancel(context.Background())
 	cancelOp, done, err := testOperation(e, canceled)
 	if err != nil {
@@ -385,8 +385,8 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 		"ALTER TABLE c OWNER TO captured_owner",
 		"ALTER TABLE public.c OWNER TO CURRENT_USER",
 	} {
-		before := e.catalog.State
-		if err := e.restoreInheritedOwner(op, statement(t, sql).(*parser.AlterOwner), pair); err == nil || e.catalog.State != before {
+		before := e.Catalog.State
+		if err := e.restoreInheritedOwner(op, statement(t, sql).(*parser.AlterOwner), pair); err == nil || e.Catalog.State != before {
 			t.Fatal("foreign owner target accepted", sql, err)
 		}
 	}
@@ -399,18 +399,18 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			candidate := pair
 			mutate(&candidate)
-			before := e.catalog.State
-			if err := e.restoreInheritedOwner(op, raw, candidate); err == nil || e.catalog.State != before {
+			before := e.Catalog.State
+			if err := e.restoreInheritedOwner(op, raw, candidate); err == nil || e.Catalog.State != before {
 				t.Fatal("mismatched owner identity admitted", err)
 			}
 		})
 	}
-	targets := e.importTargets
-	e.importTargets = nil
+	targets := e.ImportTargets
+	e.ImportTargets = nil
 	if err := e.restoreInheritedOwner(op, raw, pair); err == nil {
 		t.Fatal("ordinary OWNER gained importer authority")
 	}
-	e.importTargets = targets
+	e.ImportTargets = targets
 	before := e.CatalogRead().MustRelation(refs["c"].Address)
 	nn := table.RestoredNotNull{Ref: refs["c"], Attribute: 1, Constraint: before.Constraints.NotNull[0].OID}
 	roleExecute(t, e, op, "ALTER TABLE public.c OWNER TO captured_owner")

@@ -29,7 +29,7 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if err != nil || out != `("2000-02-29 12:34:56.123456+00","2000-03-01 00:00:00+00"]` || len(b.Prepared.Temporals) != 1 || !sqltype.SameDatum(v, b.Prepared.Temporals[0].Value) {
 		t.Fatal("whole capture", out, b.Prepared.Temporals, err)
 	}
-	description := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...)}
+	description := &StatementDescription{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...)}
 	retained := newTestExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.InputConstant("must not reparse", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) {
@@ -52,7 +52,7 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.Prepared.Temporals) != 1 {
 		t.Fatal("refresh", err)
 	}
-	if !sqltype.SameDatum(description.temporals[0].Value, v) {
+	if !sqltype.SameDatum(description.Temporals[0].Value, v) {
 		t.Fatal("retained capture mutated")
 	}
 	domain, err := sqltype.Domain(20000, "span", "span", d.Usage())

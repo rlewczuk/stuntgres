@@ -34,14 +34,14 @@ func operatorParsedOptions(t *testing.T, text string) []parser.OperatorOption {
 func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	withPublicSchemaUnitOwner(t, e, "pg_monitor", func() {
-		e.mu.Lock()
-		refreshed, err := e.authorizationLocked(op)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		refreshed, err := e.AuthorizationLocked(op)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,9 +62,9 @@ func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 			s := &parser.CreateOperator{Name: operatorUnitName("public", "#%#"), Options: operatorParsedOptions(t, tc.options)}
 			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.Catalog)
-			e.mu.Lock()
-			err = routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, s)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err = routine.StageCreateOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, s)
+			e.Mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, tc.detail)
 			if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
 				t.Fatal("failed validation published/staged operator", tc.options)
@@ -91,13 +91,13 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	// Both references are captured from the original stage, but their updates
 	// must accumulate on the same actual private peer rather than stale copies.
 	stage := e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err := routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#@#),hashes,merges")})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := routine.StageAlterOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#@#),hashes,merges")})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	staged := e.stageRead(stage)
+	staged := e.StageRead(stage)
 	next := staged.MustOperator(source.Address())
 	reciprocal := staged.MustOperator(peer.Address())
 	if next.Commutator != peer.Address().ObjectID || next.Negator != peer.Address().ObjectID || !next.Hash || !next.Merge ||
@@ -132,9 +132,9 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		t.Run(tc.options, func(t *testing.T) {
 			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.Catalog)
-			e.mu.Lock()
-			err := routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err := routine.StageAlterOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+			e.Mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
 			if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
 				t.Fatal("semantic validation changed actual catalog roots", tc.options)
@@ -154,9 +154,9 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	} {
 		t.Run(tc.options, func(t *testing.T) {
 			stage := e.BeginCatalogStage(auth.Catalog)
-			e.mu.Lock()
-			err := routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
-			e.mu.Unlock()
+			e.Mu.Lock()
+			err := routine.StageAlterOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+			e.Mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
 			if e.CatalogRead().State() != auth.Catalog.State() || stage.DescriptorCount() != 0 {
 				t.Fatal("parameter validation followed reciprocal mutation", tc.options)
@@ -189,9 +189,9 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 				definition := operatorUnitDefinition(symbol, "int4pl")
 				definition.Options = append(definition.Options, operatorParsedOptions(t, tc.options)...)
 				stage := e.BeginCatalogStage(auth.Catalog)
-				e.mu.Lock()
-				err := routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, definition)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				err := routine.StageCreateOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, definition)
+				e.Mu.Unlock()
 				code, message := tc.code, tc.message
 				if symbol == "invalid" && code == "42P13" {
 					code, message = "42602", `"invalid" is not a valid operator name`
@@ -233,15 +233,15 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 			}
 			t.Run(command+"/"+tc.options, func(t *testing.T) {
 				stage := e.BeginCatalogStage(auth.Catalog)
-				e.mu.Lock()
+				e.Mu.Lock()
 				var err error
 				if alter {
-					err = routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+					err = routine.StageAlterOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 				} else {
 					definition := &parser.CreateOperator{Name: operatorUnitName("public", "##?"), Options: operatorParsedOptions(t, "rightarg=int4,function=int4um,"+tc.options)}
-					err = routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, definition)
+					err = routine.StageCreateOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, definition)
 				}
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				operatorOptionDiagnostic(t, err, "42P13", tc.message, "")
 				if e.CatalogRead().State() != auth.Catalog.State() || stage.DescriptorCount() != 0 {
 					t.Fatal("parameter failure changed source, peers or forward shells")
@@ -263,7 +263,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	definition.Options = append(definition.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#!#)")...)
 	before := e.CatalogRead().State()
 	stage := operatorUnitStage(t, e, op, auth, definition)
-	staged := e.stageRead(stage)
+	staged := e.StageRead(stage)
 	source := staged.MustOperator(staged.NameAddress(key("#=#")))
 	shell := staged.MustOperator(staged.NameAddress(key("#!#")))
 	if source.Commutator != shell.Address().ObjectID || source.Negator != shell.Address().ObjectID ||
@@ -280,7 +280,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	completion := operatorUnitDefinition("#!#", "int4ne")
 	completion.Options = append(completion.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#!#),negator=OPERATOR(public.#=#)")...)
 	stage = operatorUnitStage(t, e, op, auth, completion)
-	completed := e.stageRead(stage).MustOperator(shell.Address())
+	completed := e.StageRead(stage).MustOperator(shell.Address())
 	if completed.Address() != shell.Address() || completed.Function != 144 || completed.Result != 16 ||
 		completed.Owner != auth.State.CurrentUser || completed.Commutator != completed.Address().ObjectID ||
 		completed.Negator != source.Address().ObjectID {
@@ -301,11 +301,11 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	failed := operatorUnitDefinition("#?#", "int4eq")
 	failed.Options = append(failed.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#=#)")...)
 	stage = e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err := routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, failed)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := routine.StageCreateOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, failed)
+	e.Mu.Unlock()
 	operatorOptionDiagnostic(t, err, "42P13", "negator operator #=# is already the negator of operator #!#", "")
-	staged = e.stageRead(stage)
+	staged = e.StageRead(stage)
 	privateSource := staged.MustOperator(staged.NameAddress(key("#?#")))
 	privateShell := staged.MustOperator(staged.NameAddress(key("#@#")))
 	if privateSource.Commutator != privateShell.Address().ObjectID || privateShell.Commutator != privateSource.Address().ObjectID ||

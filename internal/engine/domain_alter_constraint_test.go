@@ -29,7 +29,7 @@ func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids
 	}
 	for i := range f.Uses {
 		use := &f.Uses[i]
-		use.Storage = e.storage.Relations[use.Relation.Address()]
+		use.Storage = e.Storage.Relations[use.Relation.Address()]
 		if use.Storage == nil {
 			t.Fatal("missing physical use")
 		}
@@ -113,20 +113,20 @@ func TestDomainAlterConstraintDiscovery(t *testing.T) {
 	view := e.CatalogRead()
 	d := domainUnitType(t, view, "d")
 	f := domainAlterUnitFence(t, e, view, d.Address())
-	if len(f.Uses) != 1 || f.Uses[0].Relation != table || !slices.Equal(f.Uses[0].Columns, []int{0, 1}) || !f.Current(view, e.storage.Relations) {
+	if len(f.Uses) != 1 || f.Uses[0].Relation != table || !slices.Equal(f.Uses[0].Columns, []int{0, 1}) || !f.Current(view, e.Storage.Relations) {
 		t.Fatal("physical target/attribute deduplication", f.Uses)
 	}
 	domainUnitTable(t, e, op, "CREATE TABLE public.unrelated(v integer)")
-	if !f.Current(e.CatalogRead(), e.storage.Relations) {
+	if !f.Current(e.CatalogRead(), e.Storage.Relations) {
 		t.Fatal("unrelated declaration invalidated observation")
 	}
 	domainUnitTable(t, e, op, "CREATE TABLE public.late(v public.child)")
-	if f.Current(e.CatalogRead(), e.storage.Relations) {
+	if f.Current(e.CatalogRead(), e.Storage.Relations) {
 		t.Fatal("late direct use escaped observation")
 	}
 	f = domainAlterUnitFence(t, e, e.CatalogRead(), d.Address())
 	domainUnitTable(t, e, op, "CREATE TABLE public.blocker(v public.unstored[])")
-	if f.Current(e.CatalogRead(), e.storage.Relations) {
+	if f.Current(e.CatalogRead(), e.Storage.Relations) {
 		t.Fatal("late stored container escaped observation")
 	}
 	_, err := typedef.DomainUsesAt(e.CatalogRead(), d.Address(), []ids.ObjectAddress{})
@@ -158,31 +158,31 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value, arrayValue, composite}}}}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), store)
-	e.mu.Unlock()
-	e.visibility.SetCommitSeqLocked(3)
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), store)
+	e.Mu.Unlock()
+	e.Visibility.SetCommitSeqLocked(3)
 	// A permanently FALSE recipe proves pure retagging does not check old data.
 	raw := statement(t, "CREATE DOMAIN public.unused AS integer CONSTRAINT positive CHECK(FALSE)").(*parser.CreateDomain)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	next := *d
 	if err == nil {
-		err = e.bindDomainConstraintDefinitions(op.Context(), op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
+		err = e.BindDomainConstraintDefinitions(op.Context(), op, auth, stage, &next, raw.Constraints, sqltype.InputEnvironment{})
 	}
 	if err == nil {
 		next.DomainChecks[0].NotValid = true
 		next.SQLType, err = sqltype.Domain(d.SQLType.ID(), d.Name(), d.SQLType.SQLName(), d.SQLType.DomainBase(), true)
 	}
 	if err == nil {
-		next.ObjectRevision, err = e.catalog.RevisionLocked()
+		next.ObjectRevision, err = e.Catalog.RevisionLocked()
 	}
 	if err == nil {
 		err = stage.Replace(&next)
 	}
-	stage.domainAlterState().Ctx = context.Background()
-	e.mu.Unlock()
+	stage.DomainAlterState().Ctx = context.Background()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if !newD.DomainChecks[0].NotValid || !newChild.SQLType.HasDomainChecks() || newD.SQLType.ID() != d.SQLType.ID() || newChild.SQLType.ID() != child.SQLType.ID() || newChild.SQLType.DomainBase().Type != newD.SQLType {
 		t.Fatal("same-ID checked ancestry lost")
 	}
-	mapped := e.storage.Relations[table.Address()]
+	mapped := e.Storage.Relations[table.Address()]
 	if mapped == store || mapped.Versions[0].Values[0].Type() != newChild.SQLType || store.Versions[0].Values[0].Type() != child.SQLType || d.SQLType.HasDomainChecks() {
 		t.Fatal("old row/type roots mutated")
 	}
@@ -202,10 +202,10 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		t.Fatal("container generations/bounds/NULLs lost")
 	}
 	drop := e.BeginCatalogStage(current)
-	if err := (ddlHost{stage: drop}).RemoveDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
+	if err := (DDLHost{CatalogStage: drop}).RemoveDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	drop.domainAlterState().Ctx = context.Background()
+	drop.DomainAlterState().Ctx = context.Background()
 	domainUnitPublish(t, e, drop)
 	if domainUnitType(t, e.CatalogRead(), "child").SQLType.HasDomainChecks() || !newChild.SQLType.HasDomainChecks() || !newD.DomainChecks[0].NotValid {
 		t.Fatal("last DROP changed retained generations")

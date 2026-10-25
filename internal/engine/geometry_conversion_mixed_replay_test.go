@@ -9,7 +9,7 @@ import (
 )
 
 func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.conversion_mixed_required AS integer NOT NULL"))
@@ -26,10 +26,10 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	if err := scope.gate(source); err != nil {
+	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 	members := []typedef.DomainReplayMember{{Name: "n", Value: &domainNull}, {Name: "a", Value: &array}}
 	mixed := typedef.DomainReplayNode{Kind: "composite", Members: &members}
 	record := typedef.DomainReplayRecord{Schema: "public", Table: "conversion_mixed_destination", Cells: []typedef.DomainReplayCell{{Column: "v", Value: &mixed}}}
-	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	u := relation.Columns[0].Usage
@@ -80,18 +80,18 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 		}
 	}
 	check("reconstruction")
-	value = capture.cells[0].Value
+	value = capture.Cells[0].Value
 	check("admitted exact cell")
 }
 
 func TestGeometryConversionMixedReplayBoundedRow(t *testing.T) {
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.conversion_row_required AS integer NOT NULL"))
 	domainUnitTable(t, e, op, "CREATE TABLE public.conversion_row_leaf(c circle)")
 	relation := domainUnitTable(t, e, op, "CREATE TABLE public.conversion_row_destination(v public.conversion_row_required[],a public.conversion_row_leaf[])")
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

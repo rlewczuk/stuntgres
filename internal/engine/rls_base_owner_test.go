@@ -13,7 +13,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	defer done()
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_reader")
 	roleExecute(t, e, op, "CREATE ROLE rls_publication_bypass BYPASSRLS")
-	reader, bypass := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_reader"), e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_bypass")
+	reader, bypass := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_reader"), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_publication_bypass")
 	publish := func(next *catalog.Relation) {
 		t.Helper()
 		base := e.CatalogRead()
@@ -38,10 +38,10 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 	retainedDescriptor := retained.MustRelation(d.Address())
 	decision := func(principal authorization.PrincipalRef, denied bool) {
 		t.Helper()
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
-		current := e.catalog.State.MustRelation(d.Address())
-		e.mu.Unlock()
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
+		current := e.Catalog.State.MustRelation(d.Address())
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -186,7 +186,7 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 	reader, _ := e.Roles().Lookup("reader")
 	column := ref
 	column.Address.SubID = 2
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
@@ -202,14 +202,14 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	ast := statement(t, "SELECT v IS DISTINCT FROM id FROM secret")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.mu.Unlock()
+	b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,17 +281,17 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	describe := func(q string) (analyze.Binding, ids.ObjectRef) {
 		t.Helper()
 		ast := statement(t, q)
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+		ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		if err != nil {
 			t.Fatal(q, err)
 		}
@@ -349,7 +349,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		}
 		seen := map[int32]bool{}
 		for _, d := range b.Dependencies {
-			if d.Ref.Domain() != e.catalog.Domain || d.Revision == 0 {
+			if d.Ref.Domain() != e.Catalog.Domain || d.Revision == 0 {
 				t.Fatal(d)
 			}
 			if d.Ref.Address.ClassID == ids.RelationClassID && d.Ref.Address.ObjectID == ref.Address.ObjectID {

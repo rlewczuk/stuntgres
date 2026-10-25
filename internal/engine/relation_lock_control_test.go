@@ -100,22 +100,22 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	stmt := statement(t, "SELECT v FROM t")
-	if err = scope.gate(stmt); err != nil {
+	if err = scope.Gate(stmt); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
 	// A real queued request relinquishes admission. Hold the writer reservation
 	// while the grant is transferred, before the implicit reader can readmit.
 	// No production test hooks: manager's actual holder journal proves grant.
-	ticket := scope.ticket
+	ticket := scope.LockTicket
 	done := make(chan error, 1)
 	go func() { _, err := scope.Execute(stmt, 0, nil); done <- err }()
 	lockPending(t, e, 1)
-	e.replacementMu.Lock()
+	e.ReplacementMu.Lock()
 	transactionEnd(t, holder, holderRef, false)
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		held := false
 		for _, entry := range lockState.Resources {
 			if entry.Holders[ticket].Mode != 0 {
@@ -126,19 +126,19 @@ func TestRelationLockReplacementGrantedReadmission(t *testing.T) {
 			break
 		}
 		if time.Now().After(deadline) {
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 			t.Fatal("transferred grant absent")
 		}
 		runtime.Gosched()
 	}
-	e.mu.Lock()
-	next := catalog.CloneState(e.catalog.State)
+	e.Mu.Lock()
+	next := catalog.CloneState(e.Catalog.State)
 	next.SetEpoch(next.Epoch() + 1)
-	e.catalog.PublishLocked(next)
+	e.Catalog.PublishLocked(next)
 	epoch := next.Epoch()
-	e.mu.Unlock()
-	e.replacementMu.Unlock()
-	e.locks.Fence(e.catalog.Domain, epoch)
+	e.Mu.Unlock()
+	e.ReplacementMu.Unlock()
+	e.Locks.Fence(e.Catalog.Domain, epoch)
 	lockAwait(t, done, ids.ErrCatalogReplaced)
 	if err = scope.Finish(ids.ErrCatalogReplaced); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
@@ -155,24 +155,24 @@ func TestRelationLockCancelEndRace(t *testing.T) {
 		ra := transactionBegin(t, a)
 		rb := transactionBegin(t, b)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+		if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			done <- e.locks.Acquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare)
+			done <- e.Locks.Acquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare)
 		}()
 		lockPending(t, e, 1)
 		ended := make(chan struct{})
-		go func() { e.endLockOwner(a.Transactions.Ticket); close(ended) }()
+		go func() { e.EndLockOwner(a.Transactions.Ticket); close(ended) }()
 		cancel()
 		err := <-done
 		<-ended
 		if err != nil && !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		held := lock.Mode(0)
 		if entry := lockState.Resources[lock.Resource{ObjectRef: ref}]; entry != nil {
 			held = entry.Holders[b.Transactions.Ticket].Mode

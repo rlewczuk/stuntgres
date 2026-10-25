@@ -34,18 +34,18 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 	seen := make(map[parser.Statement]bool)
 	for i := range scope.mutations {
 		mutation := scope.mutations[i]
-		if i == scope.activeMutation {
-			mutation = scope.statementMutation
+		if i == scope.ActiveMutation {
+			mutation = scope.StatementMutation
 		}
-		if seen[mutation.statement] || mutation.lockedRef != ref || description.analysis.targets[mutation.statement] != ref {
-			t.Fatal("wrong exact target occurrence", i, mutation.lockedRef)
+		if seen[mutation.Statement] || mutation.LockedRef != ref || description.analysis.targets[mutation.Statement] != ref {
+			t.Fatal("wrong exact target occurrence", i, mutation.LockedRef)
 		}
-		seen[mutation.statement] = true
+		seen[mutation.Statement] = true
 		if mutation.InsertReturning != nil || mutation.UniqueBinding != nil || mutation.PartitionInsert != nil {
 			t.Fatal("Prepare retained executable target state")
 		}
 	}
-	if scope.stage.rows != nil || scope.stage.deletes != nil || scope.view != nil || scope.cteInvocation != nil {
+	if scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.View != nil || scope.cteInvocation != nil {
 		t.Fatal("Prepare executed a modifier or captured data")
 	}
 	if err := scope.Finish(nil); err != nil {

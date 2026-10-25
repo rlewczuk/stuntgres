@@ -21,7 +21,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (s *StatementScope) acquireQueryRelations(statement parser.Statement, authorityStmt parser.Statement, execute bool) error {
+func (s *StatementScope) AcquireQueryRelations(statement parser.Statement, authorityStmt parser.Statement, execute bool) error {
 	admission, tables, queries, err := analyze.NewLockAdmission(statement)
 	if err != nil {
 		return err
@@ -30,7 +30,7 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 }
 
 func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdmission, tables []*parser.TableReference, queries []*parser.Select, authorityStmt parser.Statement, execute bool) error {
-	s.queryLockAdmission = admission
+	s.QueryLockAdmission = admission
 	for i, table := range tables {
 		mark := admission.TableMark(table)
 		selection := &parser.Select{From: table}
@@ -42,31 +42,31 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdm
 			if !ok || prior.Query != admission.RetainedQuery(table) {
 				return ids.ErrCatalogReplaced
 			}
-			s.queryLockAdmission.TableQueries[table] = analyze.PreparedSource{Query: queries[i], Ref: prior.Ref}
+			s.QueryLockAdmission.TableQueries[table] = analyze.PreparedSource{Query: queries[i], Ref: prior.Ref}
 		}
 		if err := s.acquireRelationTarget(selection, authorityStmt, execute, true); err != nil {
 			return analyze.FutureCTEError(err, admission.FutureCTE[table])
 		}
-		leaf := &s.querySources[len(s.querySources)-1]
+		leaf := &s.QuerySources[len(s.QuerySources)-1]
 		// Keep SQL marks in the admission manifest for exact binder validation.
 		// pg_sequences drops only effective physical marks during source capture.
 		leaf.Mark, leaf.Query, leaf.Table, leaf.Only = mark, queries[i], table, table.Only
-		entry := s.queryLockAdmission.TableQueries[table]
+		entry := s.QueryLockAdmission.TableQueries[table]
 		entry.Query, entry.Ref = queries[i], leaf.Ref
-		s.queryLockAdmission.TableQueries[table] = entry
+		s.QueryLockAdmission.TableQueries[table] = entry
 	}
 	return nil
 }
 
-// currentQuerySourceLocked validates an admitted leaf against catalogView and
+// CurrentQuerySourceLocked validates an admitted leaf against catalogView and
 // the storage journal changes sees (view.CurrentQuerySource).
-func currentQuerySourceLocked(e *Engine, catalogView catalog.Read, changes *session.Journal, source exec.Leaf) (*catalog.Relation, error) {
-	return view.CurrentQuerySource(catalogView, e.catalog.Domain, e.catalog.State.Epoch(), e.privateStorageLocked(changes, source.Ref.Address), source)
+func CurrentQuerySourceLocked(e *Engine, catalogView catalog.Read, changes *session.Journal, source exec.Leaf) (*catalog.Relation, error) {
+	return view.CurrentQuerySource(catalogView, e.Catalog.Domain, e.Catalog.State.Epoch(), e.PrivateStorageLocked(changes, source.Ref.Address), source)
 }
 
-func (s *StatementScope) validateQuerySources(leaves []exec.Leaf) error {
-	if len(s.mutations) != 0 && len(leaves) != len(s.querySources) {
-		for _, grant := range s.querySources {
+func (s *StatementScope) ValidateQuerySources(leaves []exec.Leaf) error {
+	if len(s.mutations) != 0 && len(leaves) != len(s.QuerySources) {
+		for _, grant := range s.QuerySources {
 			found := false
 			for _, leaf := range leaves {
 				if leaf.Table != grant.Table {
@@ -82,35 +82,35 @@ func (s *StatementScope) validateQuerySources(leaves []exec.Leaf) error {
 				return ids.ErrCatalogReplaced
 			}
 		}
-		e := s.engine()
-		catalog := e.privateCatalogLocked(s.owner.Catalog)
+		e := s.Engine()
+		catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
 		for _, leaf := range leaves {
-			if _, err := currentQuerySourceLocked(e, catalog, s.owner.Catalog, leaf); err != nil {
+			if _, err := CurrentQuerySourceLocked(e, catalog, s.Owner.Catalog, leaf); err != nil {
 				return err
 			}
 		}
-		s.querySources = leaves
+		s.QuerySources = leaves
 		return nil
 	}
-	if len(leaves) != len(s.querySources) {
+	if len(leaves) != len(s.QuerySources) {
 		return ids.ErrCatalogReplaced
 	}
 	for i, leaf := range leaves {
-		grant := s.querySources[i]
+		grant := s.QuerySources[i]
 		if leaf.Ref != grant.Ref || leaf.Relation != grant.Relation || leaf.Storage != grant.Storage || leaf.Mark != grant.Mark || leaf.Only != grant.Only {
 			return ids.ErrCatalogReplaced
 		}
 	}
 	if len(s.mutations) != 0 {
-		s.querySources = leaves
+		s.QuerySources = leaves
 	}
 	return nil
 }
 
 // Called once with e.mu held: all table roots share this statement frontier.
-func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []exec.Leaf, singleton bool) (*exec.Source, error) {
+func (e *Engine) CaptureQuerySourcesLocked(scope *StatementScope, leaves []exec.Leaf, singleton bool) (*exec.Source, error) {
 	if scope.authority == nil {
-		scope.authority = &exec.Authority{Host: hostOf(scope)}
+		scope.authority = &exec.Authority{Host: HostOf(scope)}
 	}
 	if command := scope.rlsCommand; command != nil && command.sources != nil {
 		prepared := command.sources
@@ -127,12 +127,12 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []exec.
 		if err := e.materializePolicySourcesLocked(scope); err != nil {
 			return nil, err
 		}
-		source, err := e.capturePreparedQuerySourcesLocked(scope, prepared, scope.queryLocks)
+		source, err := e.capturePreparedQuerySourcesLocked(scope, prepared, scope.QueryLockContext)
 		if err == nil {
 			err = e.fenceRowSecurityProgramsLocked(scope)
 		}
 		if err != nil && source != nil {
-			e.closeQuerySourceSetLocked(scope.op.Context(), source, nil)
+			e.closeQuerySourceSetLocked(scope.Op.Context(), source, nil)
 			source = nil
 		}
 		return source, err
@@ -148,82 +148,82 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []exec.
 			break
 		}
 	}
-	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, plan.RowMark{}, scope.queryLocks)
+	return e.CaptureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, plan.RowMark{}, scope.QueryLockContext)
 }
 
 // commentEngine returns the engine whose catalog the comment snapshot was
 // captured from, or nil before capture.
 func (s *StatementScope) commentEngine() *Engine {
-	if s.inquiry.commentCatalog.Owner() == nil {
+	if s.Inquiry.CommentCatalog.Owner() == nil {
 		return nil
 	}
-	return s.engine()
+	return s.Engine()
 }
 
-// captureCommentSnapshotLocked shares one immutable catalog/role pair across
+// CaptureCommentSnapshotLocked shares one immutable catalog/role pair across
 // query providers and completed-row CHECK evaluation. The caller holds e.mu.
-func (e *Engine) captureCommentSnapshotLocked(scope *StatementScope) error {
-	if scope.inquiry.commentCatalog.State() == nil {
-		scope.inquiry.commentCatalog = e.privateCatalogLocked(scope.owner.Catalog)
-		scope.inquiry.commentRoles = e.roles.Read(&e.catalog.Owner, scope.inquiry.commentCatalog, e.operationRolesLocked(scope.op))
+func (e *Engine) CaptureCommentSnapshotLocked(scope *StatementScope) error {
+	if scope.Inquiry.CommentCatalog.State() == nil {
+		scope.Inquiry.CommentCatalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
+		scope.Inquiry.commentRoles = e.RoleStore.Read(&e.Catalog.Owner, scope.Inquiry.CommentCatalog, e.OperationRolesLocked(scope.Op))
 	}
-	scope.output.ACLItem = scope
-	scope.output.Regrole = scope
-	scope.output.Operator = scope
-	scope.output.Regcollation, scope.output.Regnamespace = scope, scope
-	scope.output.RegTS = scope
-	if scope.inquiry.deparsePath == nil {
-		auth, err := e.authorizationLocked(scope.op)
+	scope.Output.ACLItem = scope
+	scope.Output.Regrole = scope
+	scope.Output.Operator = scope
+	scope.Output.Regcollation, scope.Output.Regnamespace = scope, scope
+	scope.Output.RegTS = scope
+	if scope.Inquiry.DeparsePath == nil {
+		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			return err
 		}
-		auth.Recapture(scope.inquiry.commentCatalog)
-		scope.inquiry.commentRoles = auth.Roles
-		scope.inquiry.deparseAuth = auth
-		scope.inquiry.deparsePath, err = referencePath(auth)
+		auth.Recapture(scope.Inquiry.CommentCatalog)
+		scope.Inquiry.commentRoles = auth.Roles
+		scope.Inquiry.deparseAuth = auth
+		scope.Inquiry.DeparsePath, err = ReferencePath(auth)
 		if err != nil {
 			return err
 		}
-		scope.inquiry.collationPath, err = lookupPath(auth, analyze.CollationLookup)
+		scope.Inquiry.collationPath, err = LookupPath(auth, analyze.CollationLookup)
 		if err != nil {
 			return err
 		}
 	}
-	scope.input.Regrole = regobj.RoleInput{Roles: scope.inquiry.commentRoles}
-	input := captureRegObjectsOnPath(scope.inquiry.deparseAuth, scope.inquiry.collationPath)
-	scope.input.Regcollation, scope.input.Regnamespace = input, input
+	scope.Input.Regrole = regobj.RoleInput{Roles: scope.Inquiry.commentRoles}
+	input := captureRegObjectsOnPath(scope.Inquiry.deparseAuth, scope.Inquiry.collationPath)
+	scope.Input.Regcollation, scope.Input.Regnamespace = input, input
 	return nil
 }
 
-func (e *Engine) captureCheckCommentSnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
+func (e *Engine) CaptureCheckCommentSnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
 	for _, column := range relation.Columns {
 		if column.Usage.Type.ContainsRegclass() || column.Usage.Type.ContainsOperatorAlias() || column.Usage.Type.ContainsACLItem() || column.Usage.Type.ContainsRegObject() || column.Usage.Type.ContainsRegTS() {
-			if err := e.captureCommentSnapshotLocked(scope); err != nil {
+			if err := e.CaptureCommentSnapshotLocked(scope); err != nil {
 				return err
 			}
-			scope.output.Regclass = scope
+			scope.Output.Regclass = scope
 			return nil
 		}
 	}
 	for _, definition := range relation.ColumnMeta.Defaults {
 		if definition.CatalogSnapshot {
-			return e.captureCommentSnapshotLocked(scope)
+			return e.CaptureCommentSnapshotLocked(scope)
 		}
 	}
 	for _, definition := range relation.ColumnMeta.Generations {
 		if definition.CatalogSnapshot {
-			return e.captureCommentSnapshotLocked(scope)
+			return e.CaptureCommentSnapshotLocked(scope)
 		}
 	}
 	for _, check := range relation.Constraints.Check {
 		if check.CommentSnapshot {
-			return e.captureCommentSnapshotLocked(scope)
+			return e.CaptureCommentSnapshotLocked(scope)
 		}
 	}
 	return nil
 }
 
-func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
+func (e *Engine) CaptureCheckVisibilitySnapshotLocked(scope *StatementScope, relation *catalog.Relation) error {
 	for _, check := range relation.Constraints.Check {
 		if check.VisibilitySnapshot {
 			return e.captureVisibilitySnapshotLocked(scope)
@@ -232,7 +232,7 @@ func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, rel
 	return nil
 }
 
-func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []exec.Leaf, singleton bool, invoker authorization.PrincipalRef, inherited plan.RowMark, locks *exec.LockContext) (result *exec.Source, err error) {
+func (e *Engine) CaptureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []exec.Leaf, singleton bool, invoker authorization.PrincipalRef, inherited plan.RowMark, locks *exec.LockContext) (result *exec.Source, err error) {
 	scope.rlsAdmissionDepth++
 	prepared, err := e.prepareQuerySourcesLocked(scope, leaves, singleton, invoker, inherited)
 	err = e.endRowSecurityAdmissionLocked(scope, err)
@@ -247,7 +247,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		err = e.fenceRowSecurityProgramsLocked(scope)
 	}
 	if err != nil && result != nil {
-		e.closeQuerySourceSetLocked(scope.op.Context(), result, nil)
+		e.closeQuerySourceSetLocked(scope.Op.Context(), result, nil)
 		result = nil
 	}
 	return result, err
@@ -262,17 +262,17 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 	prepared.consumed = true
 	leaves, singleton, invoker, inherited := prepared.leaves, prepared.singleton, prepared.invoker, prepared.inherited
 	if locks == nil {
-		locks = scope.queryLocks
+		locks = scope.QueryLockContext
 	}
 	if err := e.captureStatementSnapshotLocked(scope); err != nil {
 		return nil, err
 	}
-	if scope.txRef != (ids.TxRef{}) {
-		if _, err := e.visibilitySnapshotLocked(scope.txRef, false); err != nil {
+	if scope.TxRef != (ids.TxRef{}) {
+		if _, err := e.VisibilitySnapshotLocked(scope.TxRef, false); err != nil {
 			return nil, err
 		}
 	}
-	if scope.inquiry.visibilityDemand {
+	if scope.Inquiry.visibilityDemand {
 		if err := e.captureVisibilitySnapshotLocked(scope); err != nil {
 			return nil, err
 		}
@@ -294,7 +294,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 		}
 	}
 	if needsView {
-		catalogView, err = scope.acquireDataViewsLocked(e, prepared.refs)
+		catalogView, err = scope.AcquireDataViewsLocked(e, prepared.refs)
 		if err != nil {
 			return nil, err
 		}
@@ -336,7 +336,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 			case catalog.PartitionedRelation:
 				if mark.Mode != 0 {
 					source = nil
-					err = sqlError("0A000", "row locking partition hierarchies is unsupported")
+					err = SQLError("0A000", "row locking partition hierarchies is unsupported")
 				} else if leaf.Only {
 					// Empty virtual prefixes retain the same visibility authority
 					// as ordinary hierarchy sources, without opening descendants.
@@ -347,10 +347,10 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 						source = &exec.Source{Ref: leaf.Ref, View: pin, Inheritance: []exec.InheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = partition.CaptureQueryPrefix(partition.CaptureCatalog(scope.inquiry.commentCatalog, scope.PartitionRelations), catalogView, leaf.Ref, leaf.Relation)
+					source, err = partition.CaptureQueryPrefix(partition.CaptureCatalog(scope.Inquiry.CommentCatalog, scope.PartitionRelations), catalogView, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
-				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), catalogView, leaf, scope.op.Session.SessionToken)
+				source, err = table.CaptureInheritanceQueryPrefix(scope.inheritanceRead(scope.Inquiry.CommentCatalog), catalogView, leaf, scope.Op.Session.SessionToken)
 				if err == nil && program == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {
@@ -386,19 +386,19 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 					uses = []int{}
 				}
 				sourceInvoker := invoker
-				if scope.ruleAction.auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
+				if scope.ruleAction.Auth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
 					sourceInvoker = leaf.Principal
 				}
 				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses)
-				e.mu.Lock()
+				e.Mu.Lock()
 			}
 		}
 		if err != nil {
-			e.closeQuerySourceSetLocked(scope.op.Context(), first, sources)
+			e.closeQuerySourceSetLocked(scope.Op.Context(), first, sources)
 			return nil, err
 		}
 		if program == nil && !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
-			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog), scope.PartitionRelations), leaf.Relation, source)
+			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations), leaf.Relation, source)
 		}
 		source.RLS = program
 		borrowQueryAuthority(source, scope)
@@ -425,7 +425,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 // Source teardown can enter foreign provider code. Detach the captured set
 // while locked, then release all provider resources outside Engine.mu.
 func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *exec.Source, sources []*exec.Source) {
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if first != nil {
 		_ = exec.FinishForeignSources(ctx, first)
 		first.Close()
@@ -436,30 +436,30 @@ func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *exec.Sour
 			source.Close()
 		}
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 }
 
 // inquirySnapshot is the statement's catalog-inquiry snapshot: comment, deparse,
 // visibility and namespace reads captured once per statement. It is a value
 // group, not a pointer slot, so capturing it allocates nothing.
 type inquirySnapshot struct {
-	commentCatalog         catalog.Read
+	CommentCatalog         catalog.Read
 	commentRoles           authorization.Read
 	deparseAuth            AuthorizationView
-	deparsePath            []ids.ObjectAddress
+	DeparsePath            []ids.ObjectAddress
 	collationPath          []ids.ObjectAddress
 	visibilityCatalog      catalog.Read
 	visibilityRelationPath []ids.ObjectAddress
 	visibilityOtherPath    []ids.ObjectAddress
 	visibilityDemand       bool
-	currentSchemaResult    sqltype.Value
+	CurrentSchemaResult    sqltype.Value
 	searchPathResults      [2]sqltype.Value
 }
 
 // captureHashIndexesLocked fills index.HashCapture from the published engine
 // state. The caller holds e.mu, the same owner as visibility-prefix capture.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf exec.Leaf, source *exec.Source, mark plan.RowMark) error {
-	in := index.HashCapture{Eligible: scope.implicit && scope.catalog == nil, Live: e.catalog.State, Relations: e.storage.Relations, Roots: e.storage.IndexRoots, Commit: e.visibility.CommitSeq()}
+	in := index.HashCapture{Eligible: scope.implicit && scope.Catalog == nil, Live: e.Catalog.State, Relations: e.Storage.Relations, Roots: e.Storage.IndexRoots, Commit: e.Visibility.CommitSeq()}
 	return index.CaptureHashIndexesLocked(in, leaf, source, mark)
 }
 
@@ -472,12 +472,12 @@ func borrowQueryAuthority(s *exec.Source, scope *StatementScope) {
 	}
 	s.Host = nil
 	if s.Authority == nil {
-		s.Host = hostOf(scope)
+		s.Host = HostOf(scope)
 	}
 }
 
 func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation) (*exec.Source, error) {
-	g := e.sequenceGeneratorLocked(scope, ref.Address)
+	g := e.SequenceGeneratorLocked(scope, ref.Address)
 	if g == nil {
 		return nil, fmt.Errorf("stuntgres: sequence state missing")
 	}

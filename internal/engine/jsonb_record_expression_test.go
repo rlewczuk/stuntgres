@@ -22,9 +22,9 @@ import (
 func TestJSONBRecordBinding(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(binderOperation(b))
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(binderOperation(b))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,9 +185,9 @@ func TestJSONBRecordDomainErrors(t *testing.T) {
 func TestJSONBRecordExpansion(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(binderOperation(b))
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(binderOperation(b))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	oldSource := []analyze.QueryColumn{column("x", 5, first.Usage), column("y", 6, second.Usage)}
 	oldColumns := []analyze.QueryColumn{left, oldSource[0], oldSource[1], column("n", 7, first.Usage)}
 	star := parser.StarExpr{Pos: parser.Position{Offset: 7}}
-	b := analyze.Binder{Host: e.analysisHost(nil), Query: analyze.QueryScopeState{Auth: &AuthorizationView{View: access.View{Catalog: view}}}}
+	b := analyze.Binder{Host: e.AnalysisHost(nil), Query: analyze.QueryScopeState{Auth: &AuthorizationView{View: access.View{Catalog: view}}}}
 	out, err := b.JSONBRecordCallStar(oldColumns, oldSource, star, callFor(original))
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)
@@ -473,9 +473,9 @@ func TestJSONBRecordLayout(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(binderOperation(b))
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(binderOperation(b))
 	if err != nil {
 		t.Fatal(err)
 	}

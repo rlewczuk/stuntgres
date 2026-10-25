@@ -34,7 +34,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(errors.New("unit rollback"))
 		}
 		if scope.InsertReturning != nil {
@@ -43,24 +43,24 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 		op.Done()
 	})
 	stmt := statement(t, query)
-	if err := scope.gate(stmt); err != nil {
+	if err := scope.Gate(stmt); err != nil {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = describe(op.Context(), e.analysisHost(op), stmt, auth, ref, scope.input, nil, nil)
+		b, err = Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
 	scope.InsertConflict = conflict
 	if conflict != nil {
-		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if err := conflict.SelectArbiters(&c, b.Relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
@@ -68,7 +68,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q
 			t.Fatal(err)
 		}
 	}
-	dml.BeginInsertReturning(scope.writeHost(), b)
+	dml.BeginInsertReturning(scope.WriteHost(), b)
 	return op, scope, b
 }
 
@@ -133,7 +133,7 @@ func TestInsertReturningWholeRow(t *testing.T) {
 			for i, col := range b.Relation.Columns {
 				row[i] = sqltype.Null(col.Usage.Type)
 			}
-			c := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row}}
+			c := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row}}
 			for i, expr := range b.Returning.Expressions {
 				v, err := expr.Eval(&c)
 				if err != nil || v.Type() != typ || v.IsNull() != (i == 0) {
@@ -176,15 +176,15 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 				injected := errors.New("late private output veto")
 				b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
-					if len(scope.stage.rows[b.Ref.Address]) != calls || cursor.position != calls {
-						t.Fatal("projection preceded final stage or next proposal", calls, cursor.position, scope.stage.rows)
+					if len(scope.Stage.Rows[b.Ref.Address]) != calls || cursor.position != calls {
+						t.Fatal("projection preceded final stage or next proposal", calls, cursor.position, scope.Stage.Rows)
 					}
 					if failure && calls == 2 {
 						return sqltype.Value{}, injected
 					}
 					return c.Row[1], nil
 				})
-				rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
+				rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
 				if rows.Values != nil || calls != 2 || cursor.closes != 1 {
 					t.Fatal(rows, calls, cursor.closes)
 				}
@@ -217,8 +217,8 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		one, _ := sqltype.Integer(b.Relation.Columns[0].Usage.Type, 1)
 		ten, _ := sqltype.Integer(b.Relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		admitted, err := dml.AdmitInsertRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation)
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		admitted, err := dml.AdmitInsertRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)
 		}
@@ -241,16 +241,16 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
-		accepted, retry, err := dml.AppendAcceptedInsert(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: row})
-		if err != nil || accepted || !retry || len(scope.stage.rows[b.Ref.Address]) != 0 || scope.InsertReturning.Rows.Count != 0 {
-			t.Fatal("stale provider admitted output", accepted, retry, err, scope.stage.rows)
+		accepted, retry, err := dml.AppendAcceptedInsert(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: row})
+		if err != nil || accepted || !retry || len(scope.Stage.Rows[b.Ref.Address]) != 0 || scope.InsertReturning.Rows.Count != 0 {
+			t.Fatal("stale provider admitted output", accepted, retry, err, scope.Stage.Rows)
 		}
 		calls := 0
 		b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[1].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.Row[1], nil })
-		if _, err := dml.AdmitInsertProducer(scope.writeHost(), b, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation); err != nil {
+		if _, err := dml.AdmitInsertProducer(scope.WriteHost(), b, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation); err != nil {
 			t.Fatal(err)
 		}
-		if scope.UniqueBinding == prior || calls != 1 || scope.InsertReturning.Rows.Count != 1 || len(scope.stage.rows[b.Ref.Address]) != 1 {
+		if scope.UniqueBinding == prior || calls != 1 || scope.InsertReturning.Rows.Count != 1 || len(scope.Stage.Rows[b.Ref.Address]) != 1 {
 			t.Fatal("retry did not freshly admit exactly one output", calls, scope.InsertReturning.Rows.Count)
 		}
 		if err := scope.Finish(nil); err != nil {
@@ -281,12 +281,12 @@ func TestInsertReturningProducerClose(t *testing.T) {
 			if primary {
 				cursor.nextError = nextErr
 			}
-			rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
+			rows, err := dml.AssembleInsertRows(op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
 			want, count := closeErr, 2
 			if primary {
 				want, count = nextErr, 1
 			}
-			if !errors.Is(err, want) || rows.Values != nil || cursor.closes != 1 || scope.InsertReturning.Rows.Count != count || len(scope.stage.rows[b.Ref.Address]) != int(count) {
+			if !errors.Is(err, want) || rows.Values != nil || cursor.closes != 1 || scope.InsertReturning.Rows.Count != count || len(scope.Stage.Rows[b.Ref.Address]) != int(count) {
 				t.Fatal("veto did not follow actual staged/output prefix", rows, err, cursor.closes, scope.InsertReturning.Rows.Count)
 			}
 			if err := scope.Finish(err); !errors.Is(err, want) {
@@ -308,7 +308,7 @@ func TestInsertReturningRowRecheck(t *testing.T) {
 				sessionSQL(t, observer, "CREATE TABLE t(k INT UNIQUE,v INT)")
 				sessionSQL(t, observer, "INSERT INTO t VALUES(1,10)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				id := e.storage.Relations[ref.Address].Versions[0].Row
+				id := e.Storage.Relations[ref.Address].Versions[0].Row
 				holderTx := transactionBegin(t, holder)
 				transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 				query := "INSERT INTO t VALUES(1,20) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v"
@@ -366,7 +366,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				sessionSQL(t, worker, "SET SESSION AUTHORIZATION output_waiter")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				var indexAddress ids.ObjectAddress
-				for address, descriptor := range e.catalog.State.Descriptors() {
+				for address, descriptor := range e.Catalog.State.Descriptors() {
 					if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil && index.SQLIndex.Parent == ref.Address && index.SQLIndex.Unique {
 						indexAddress = address
 					}
@@ -387,14 +387,14 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 				}
 				running := conflictUpdateStartWorker(t, e, worker, q)
 				if conflict {
-					id := e.storage.Relations[ref.Address].Versions[0].Row
+					id := e.Storage.Relations[ref.Address].Versions[0].Row
 					ticket, mode := conflictUpdatePendingRow(t, e, ref, id)
 					if ticket == nil || mode != lock.ForNoKeyUpdate {
 						t.Fatal("not exact pending output worker", ticket, mode)
 					}
 				} else {
 					lockPending(t, e, 1)
-					lockState := e.locks.Inspect()
+					lockState := e.Locks.Inspect()
 					exact := false
 					for resource, entry := range lockState.Resources {
 						if len(entry.Pending) == 1 && resource.Key() != nil && entry.Pending[0].Resource == resource && entry.Pending[0].Ticket != nil {

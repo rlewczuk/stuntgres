@@ -8,62 +8,62 @@ import (
 )
 
 func (s *StatementScope) reserveCopy() error {
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return err
 	}
-	if s.owner.CopyLease != nil {
+	if s.Owner.CopyLease != nil {
 		return errors.New("stuntgres: COPY owner is already reserved")
 	}
-	s.owner.CopyLease = &s.lease
-	s.owner.CopyDone = make(chan struct{})
+	s.Owner.CopyLease = &s.lease
+	s.Owner.CopyDone = make(chan struct{})
 	return nil
 }
 func (s *StatementScope) releaseCopyReservation() {
-	if s.self == s && s.owner.CopyLease == &s.lease {
-		done := s.owner.CopyDone
-		s.owner.CopyLease = nil
-		s.owner.CopyDone = nil
+	if s.self == s && s.Owner.CopyLease == &s.lease {
+		done := s.Owner.CopyDone
+		s.Owner.CopyLease = nil
+		s.Owner.CopyDone = nil
 		close(done)
 	}
 }
 func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
-	if s == nil || s.self != s || s.finished || s.owner.CopyLease != &s.lease {
+	if s == nil || s.self != s || s.Finished || s.Owner.CopyLease != &s.lease {
 		return 0, errors.New("stuntgres: invalid COPY reservation")
 	}
-	if err = s.active(); err != nil {
+	if err = s.Active(); err != nil {
 		return 0, err
 	}
-	e := s.engine()
-	fenced := s.replacementRead
+	e := s.Engine()
+	fenced := s.ReplacementRead
 	if fenced {
-		e.replacementMu.RUnlock()
-		s.replacementRead = false
+		e.ReplacementMu.RUnlock()
+		s.ReplacementRead = false
 	}
-	s.owner.Admission.Unlock()
+	s.Owner.Admission.Unlock()
 	defer func() {
-		s.owner.Admission.Lock()
+		s.Owner.Admission.Lock()
 		if fenced {
-			e.replacementMu.RLock()
-			s.replacementRead = true
+			e.ReplacementMu.RLock()
+			s.ReplacementRead = true
 		}
-		resume := s.active()
-		if resume == nil && s.owner.CopyLease != &s.lease {
+		resume := s.Active()
+		if resume == nil && s.Owner.CopyLease != &s.lease {
 			resume = errors.New("stuntgres: lost COPY reservation")
 		}
-		s.owner.Mu.Lock()
-		if resume == nil && (s.owner.Ref != s.txRef || s.owner.Command != s.command) {
+		s.Owner.Mu.Lock()
+		if resume == nil && (s.Owner.Ref != s.TxRef || s.Owner.Command != s.CommandID) {
 			resume = errors.New("stuntgres: stale COPY owner")
 		}
 		if resume == nil {
-			e.mu.Lock()
-			if s.txRef.Epoch() != e.catalog.State.Epoch() {
+			e.Mu.Lock()
+			if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
 				resume = ids.ErrCatalogReplaced
 			} else {
-				resume = s.validateLockedRelation(e)
+				resume = s.ValidateLockedRelation(e)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 		}
-		s.owner.Mu.Unlock()
+		s.Owner.Mu.Unlock()
 		if err == nil || err == io.EOF {
 			if resume != nil {
 				n = 0

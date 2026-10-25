@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/engine/view"
 )
 
-func (r engineCatalogRuntime) ViewCapabilities(ctx context.Context, read catalog.Read, relation *catalog.Relation) (pgcatalog.ViewCapability, error) {
+func (r EngineCatalogRuntime) ViewCapabilities(ctx context.Context, read catalog.Read, relation *catalog.Relation) (pgcatalog.ViewCapability, error) {
 	events, err := view.Capabilities(ctx, read, relation, nil, catalogViewLeafEvents)
 	return pgcatalog.ViewCapability{Events: events}, err
 }
@@ -67,7 +67,7 @@ func catalogViewLeafEvents(ctx context.Context, read catalog.Read, relation *cat
 	return events, nil
 }
 
-func (r engineCatalogRuntime) builtinViewDefinition(ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
+func (r EngineCatalogRuntime) builtinViewDefinition(ctx context.Context, read catalog.Read, relation *catalog.Relation) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -94,7 +94,7 @@ func (r engineCatalogRuntime) builtinViewDefinition(ctx context.Context, read ca
 
 // This bounded display lookup applies only to explicitly named references in
 // the builtin-owned fragments. It does not install upstream-only descriptors.
-func (r engineCatalogRuntime) builtinViewName(read catalog.Read, name pgcatalog.BuiltinViewName) (string, error) {
+func (r EngineCatalogRuntime) builtinViewName(read catalog.Read, name pgcatalog.BuiltinViewName) (string, error) {
 	path := r.presentation.Path
 	identifier := (stored.Deparser{Output: r.presentation.Output}).Identifier
 	if name.IdentifierOnly {

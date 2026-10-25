@@ -84,21 +84,21 @@ func TestLoProviderConflicts(t *testing.T) {
 		e, ext, _ := loUnitInstalled(t)
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
-		before := e.catalog.State
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		before := e.Catalog.State
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
-		stage.authorizeLocked(auth, op.Session)
+		stage.AuthorizeLocked(auth, op.Session)
 		copy := *ext
 		err = extension.StockLo.Stage(&extensionHost{engine: e, op: op, auth: auth, stage: stage}, &copy, ext.Owner)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != `type "lo" already exists` || diagnostic.Context != "SQL statement \"CREATE DOMAIN lo AS pg_catalog.oid\"\nextension script file \"lo--1.1.sql\", near line 10" || e.catalog.State != before {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != `type "lo" already exists` || diagnostic.Context != "SQL statement \"CREATE DOMAIN lo AS pg_catalog.oid\"\nextension script file \"lo--1.1.sql\", near line 10" || e.Catalog.State != before {
 			t.Fatal("genuine collision must publish nothing", err)
 		}
 	})
@@ -107,15 +107,15 @@ func TestLoProviderConflicts(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			before := e.catalog.State
-			e.mu.Lock()
-			e.catalog.InstallOIDFrontierLocked(frontier)
-			stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
-			e.mu.Unlock()
+			before := e.Catalog.State
+			e.Mu.Lock()
+			e.Catalog.InstallOIDFrontierLocked(frontier)
+			stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
+			e.Mu.Unlock()
 			if stage != nil {
 				e.DiscardCatalogStage(stage)
 			}
-			if err == nil || stage != nil || e.catalog.State != before {
+			if err == nil || stage != nil || e.Catalog.State != before {
 				t.Fatal("exhausted installation published a prefix", stage, err)
 			}
 			if e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "lo"}) != (ids.ObjectAddress{}) || e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "lo"}) != (ids.ObjectAddress{}) {
@@ -180,10 +180,10 @@ func TestLoManifestAdmission(t *testing.T) {
 			state.SetDescriptor(ext.Address(), &x)
 			state.SetDescriptor(domain.Address(), &d)
 			state.SetDescriptor(array.Address(), &a)
-			if err := extension.StockLo.ValidateExtension(e.catalog.Read(state), &x); err == nil {
+			if err := extension.StockLo.ValidateExtension(e.Catalog.Read(state), &x); err == nil {
 				t.Fatal("corrupt lo manifest admitted")
 			}
-			if e.catalog.State != view.State() || view.MustType(domain.Address()) != domain || view.MustType(array.Address()) != array {
+			if e.Catalog.State != view.State() || view.MustType(domain.Address()) != domain || view.MustType(array.Address()) != array {
 				t.Fatal("manifest validation mutated source")
 			}
 		})
@@ -193,7 +193,7 @@ func TestLoManifestAdmission(t *testing.T) {
 	loose := *domain
 	loose.Extension = ids.ObjectAddress{}
 	state.SetDescriptor(domain.Address(), &loose)
-	if err := (stored.TypeProvider{}).Validate(e.catalog.Read(state), &loose); err != nil {
+	if err := (stored.TypeProvider{}).Validate(e.Catalog.Read(state), &loose); err != nil {
 		t.Fatal("lo spelling claimed unrelated domain", err)
 	}
 	if err := extension.StockLo.ValidateExtension(view, nil); err == nil {
@@ -204,9 +204,9 @@ func TestLoManifestAdmission(t *testing.T) {
 		t.Fatal("foreign provider admitted")
 	}
 	t.Run("unlisted_member", func(t *testing.T) {
-		e.mu.Lock()
-		oid, err := e.catalog.AllocateOIDLocked()
-		e.mu.Unlock()
+		e.Mu.Lock()
+		oid, err := e.Catalog.AllocateOIDLocked()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -218,7 +218,7 @@ func TestLoManifestAdmission(t *testing.T) {
 		state := catalog.CloneState(view.State())
 		state.SetDescriptor(extra.Address(), extra)
 		state.BindName(catalog.DescriptorNameKey(extra), extra.Address())
-		if err := (stored.TypeProvider{}).Validate(e.catalog.Read(state), extra); err == nil {
+		if err := (stored.TypeProvider{}).Validate(e.Catalog.Read(state), extra); err == nil {
 			t.Fatal("unlisted extension type admitted")
 		}
 	})
@@ -238,7 +238,7 @@ func TestLoManifestAdmission(t *testing.T) {
 			state.SetDescriptor(next.Address(), next)
 			state.BindName(catalog.DescriptorNameKey(next), next.Address())
 		}
-		next := e.catalog.Read(state)
+		next := e.Catalog.Read(state)
 		if err := extension.StockLo.ValidateExtension(next, ext); err != nil {
 			t.Fatal("manifest identity depended on spelling", err)
 		}
@@ -294,11 +294,11 @@ func TestLoOwnerMetadata(t *testing.T) {
 			if _, found, err := extension.DecodeOwners(encode(bad)); !found || err == nil {
 				t.Fatal("corrupt owner record decoded", bad)
 			}
-			admission := e.catalog.Read(catalog.CloneState(view.State()))
+			admission := e.Catalog.Read(catalog.CloneState(view.State()))
 			if _, err := extension.ImportOwners(context.Background(), admission, e.Roles(), []extension.OwnerRecord{bad}); err == nil {
 				t.Fatal("invalid owner record bypassed decoder", bad)
 			}
-			if e.catalog.State != view.State() {
+			if e.Catalog.State != view.State() {
 				t.Fatal("invalid private owner import published")
 			}
 		})
@@ -317,7 +317,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 		t.Fatal("valid reverse slot order rejected", err)
 	}
 	state := catalog.CloneState(view.State())
-	next := e.catalog.Read(state)
+	next := e.Catalog.Read(state)
 	changed, err := extension.ImportOwners(context.Background(), next, roles, []extension.OwnerRecord{record})
 	if err != nil || !changed {
 		t.Fatal("lo owner import", changed, err)
@@ -335,7 +335,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if domain.Owner != ext.Owner || view.MustType(ext.Members[1]).Owner != ext.Owner || e.catalog.State != view.State() {
+	if domain.Owner != ext.Owner || view.MustType(ext.Members[1]).Owner != ext.Owner || e.Catalog.State != view.State() {
 		t.Fatal("owner import mutated source")
 	}
 	t.Run("installer_member_owner_split", func(t *testing.T) {
@@ -343,7 +343,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 		installed := *ext
 		installed.Owner = target.Ref
 		state.SetDescriptor(ext.Address(), &installed)
-		candidate := e.catalog.Read(state)
+		candidate := e.Catalog.Read(state)
 		metadata, err := extension.OwnerMetadata(candidate, e.Roles(), &installed)
 		if err != nil {
 			t.Fatal(err)
@@ -360,19 +360,19 @@ func TestLoOwnerMetadata(t *testing.T) {
 		e := New()
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
-		e.mu.Lock()
-		oid, err := e.catalog.AllocateOIDLocked()
+		e.Mu.Lock()
+		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		arrayOID, err := e.catalog.AllocateOIDLocked()
+		arrayOID, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		revision, err := e.catalog.RevisionLocked()
-		e.mu.Unlock()
+		revision, err := e.Catalog.RevisionLocked()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -410,7 +410,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 		if err != nil || !found || r.Members[1].Name != "lo[]" {
 			t.Fatal("companion role derived from spelling", r, err)
 		}
-		candidate := e.catalog.Read(catalog.CloneState(view.State()))
+		candidate := e.Catalog.Read(catalog.CloneState(view.State()))
 		if _, err := extension.ImportOwners(context.Background(), candidate, e.Roles(), []extension.OwnerRecord{r}); err != nil {
 			t.Fatal("actual collided companion import", err)
 		}
@@ -420,7 +420,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 		admin, done := roleOperation(t, target, "postgres")
 		defer done()
 		original := roleAttributeCreate(t, target, admin, "lo_import_owner", true, parser.RoleOptions{})
-		staged := target.restoreStage()
+		staged := target.RestoreStage()
 		replay, replayDone := roleOperation(t, staged, "postgres")
 		defer replayDone()
 		extensionUnitPublish(t, staged, replay, cubeUnitStage(t, staged, replay, "lo", ""))
@@ -437,8 +437,8 @@ func TestLoOwnerMetadata(t *testing.T) {
 		if replacement.Ref == original.Ref {
 			t.Fatal("role identity reused")
 		}
-		before := target.catalog.State
-		if _, err := target.replaceCatalog(context.Background(), staged, staged.CatalogRead(), admin); err == nil || target.catalog.State != before {
+		before := target.Catalog.State
+		if _, err := target.ReplaceCatalogInOperation(context.Background(), staged, staged.CatalogRead(), admin); err == nil || target.Catalog.State != before {
 			t.Fatal("lo member owner recreation escaped replacement fence", err)
 		}
 	})

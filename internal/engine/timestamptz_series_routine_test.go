@@ -56,7 +56,7 @@ func TestTimestamptzSeriesRoutineAuthority(t *testing.T) {
 		for _, dependency := range original {
 			if dependency.Ref.Address == address {
 				found = true
-				if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
+				if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.Catalog.Domain {
 					t.Fatal("original manifest", dependency)
 				}
 			}
@@ -98,12 +98,12 @@ func TestTimestamptzSeriesRoutineAuthority(t *testing.T) {
 			}
 		}
 		probe := evaluation
-		foreignAuthority := *routineAuthorityView(&foreign)
+		foreignAuthority := *RoutineAuthorityView(&foreign)
 		probe.RoutineAuthority = &foreignAuthority
 		if err := exec.AdmitRoutineCall(&probe, s, false, false); err == nil {
 			t.Fatal("foreign equal-OID authority")
 		}
-		changed := *routineAuthorityView(&evaluation)
+		changed := *RoutineAuthorityView(&evaluation)
 		changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 		replacement := *captured
 		replacement.Volatility = expr.Volatile

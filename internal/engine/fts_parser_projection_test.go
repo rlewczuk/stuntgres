@@ -40,7 +40,7 @@ func TestFTSParserHandlerProjection(t *testing.T) {
 	}
 	capture := func(t *testing.T, read catalog.Read, represented *catalog.Procedure) map[ids.OID][]sqltype.Value {
 		t.Helper()
-		rows,err := produce(pgcatalog.Input{Context:context.Background(),Catalog:read,Source:source,Owner:read.Owner(),Runtime:engineCatalogRuntime{}})
+		rows,err := produce(pgcatalog.Input{Context:context.Background(),Catalog:read,Source:source,Owner:read.Owner(),Runtime:EngineCatalogRuntime{}})
 		if err != nil { t.Fatal(err) }
 		wanted := map[ids.OID]bool{3717:true,3718:true,3719:true,3720:true,3721:true}
 		if represented != nil { delete(wanted,represented.Address().ObjectID) }

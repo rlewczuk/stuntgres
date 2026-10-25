@@ -15,7 +15,7 @@ import (
 
 func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
 	owner := session.TxOwnerOf(ref)
-	if op == nil || op.Self != op || op.Session == nil || op.Session.Transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.Session.SessionToken || owner != op.Session.Transactions || ref.ID() == 0 || ref != owner.Ref {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.Transactions == nil || owner == nil || ref.Domain() != DomainOf(e) || ref.Session() != op.Session.SessionToken || owner != op.Session.Transactions || ref.ID() == 0 || ref != owner.Ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
 	}
 	if owner.State != session.TxActive && owner.State != session.TxImplicit {
@@ -64,9 +64,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		return err
 	}
 	if len(events) != 0 || publicationNeedsXID(writes, deletes, c, phase) {
-		e.mu.Lock()
-		err := e.assignTransactionXIDLocked(ref)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err := e.AssignTransactionXIDLocked(ref)
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
@@ -76,16 +76,16 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		for {
 			notifications := e.prepareNotificationPublication(op.Session, actions, events)
 		emptyFence:
-			e.mu.Lock()
+			e.Mu.Lock()
 			if scope != nil {
 				if err := scope.validateInheritanceRelationshipsLocked(e); err != nil {
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					return err
 				}
 			}
 			op.Session.Mu.Lock()
-			err := publicationOperationLocked(e, op)
-			if err == nil && ref.Epoch() != e.catalog.State.Epoch() {
+			err := PublicationOperationLocked(e, op)
+			if err == nil && ref.Epoch() != e.Catalog.State.Epoch() {
 				err = ids.ErrCatalogReplaced
 			}
 			if err == nil {
@@ -95,19 +95,19 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				err = e.preparedPublicationPreflightLocked(op, phase)
 			}
 			if err == nil && op.DiscardRoleResetPending() {
-				err = session.ValidateRoleResetLocked(op.Session.Authorization, op.DiscardRoleReset, e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()))
+				err = session.ValidateRoleResetLocked(op.Session.Authorization, op.DiscardRoleReset, e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()))
 			}
 			if err == nil {
-				err = e.visibility.SerializablePrecommitLocked(ref)
+				err = e.Visibility.SerializablePrecommitLocked(ref)
 			}
 			if err != nil {
 				op.Session.Mu.Unlock()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return err
 			}
 			if !e.notificationPublicationUnchangedLocked(notifications) {
 				op.Session.Mu.Unlock()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if remoteSettled {
 					return catalog.Conflict{}
 				}
@@ -115,12 +115,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 			if err := notificationPublicationError(notifications); err != nil {
 				op.Session.Mu.Unlock()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return err
 			}
 			if phase == nil && !remoteSettled && foreignPending(session.TxOwnerOf(ref)) {
 				op.Session.Mu.Unlock()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if scope != nil {
 					if err := scope.finishForeignStatements(nil); err != nil {
 						return err
@@ -137,19 +137,19 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				e.installPreparedLocked(phase)
 			} else {
 				e.installNotificationPublicationLocked(notifications)
-				e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())
-				e.visibility.RecordCommitTimestampLocked(ref)
+				e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())
+				e.Visibility.RecordCommitTimestampLocked(ref)
 				e.finishPreparedLocked(phase)
 				op.FinishDiscardRoleResetLocked()
 			}
 			op.Session.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil
 		}
 	}
 	input, output := op.Session.Settings.Presentation()
 	if scope != nil {
-		input, output = scope.input, scope.output
+		input, output = scope.Input, scope.Output
 	}
 	sourceCatalog := c
 	for {
@@ -164,38 +164,38 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 		}
 		prepared := make([]index.RowPublication, 0, len(writes)+len(deletes))
-		e.mu.Lock()
-		if ref.Epoch() != e.catalog.State.Epoch() {
-			e.mu.Unlock()
+		e.Mu.Lock()
+		if ref.Epoch() != e.Catalog.State.Epoch() {
+			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
 		c, err = e.publicationRolesLocked(op.Context(), c)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		mergedRoles := c != nil && sourceCatalog != nil && c.Roles != sourceCatalog.Roles
-		currentRoles := e.roles.Published
-		current, frontier := e.catalog.State, e.visibility.CommitSeq()
+		currentRoles := e.RoleStore.Published
+		current, frontier := e.Catalog.State, e.Visibility.CommitSeq()
 		var indexStores map[ids.ObjectAddress]*storage.Relation
-		if len(e.storage.IndexRoots) != 0 || c != nil {
+		if len(e.Storage.IndexRoots) != 0 || c != nil {
 			captureCatalog := current
 			if nextCatalog != nil {
 				captureCatalog = nextCatalog
 			}
-			indexStores = index.CaptureIndexStores(e.storage.Relations, captureCatalog)
+			indexStores = index.CaptureIndexStores(e.Storage.Relations, captureCatalog)
 		}
-		indexPredecessors := e.storage.IndexRoots
+		indexPredecessors := e.Storage.IndexRoots
 		var nextSequences map[ids.ObjectAddress]*storage.SequenceGenerator
 		var nextStorage map[ids.ObjectAddress]*storage.Relation
 		var materializedTokens map[ids.ObjectAddress]*storage.MaterializedLineage
 		if c != nil {
 			if c.CachedBase != current {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				continue
 			}
-			if err = e.catalogPreflightLocked(c); err != nil {
-				e.mu.Unlock()
+			if err = e.CatalogPreflightLocked(c); err != nil {
+				e.Mu.Unlock()
 				return err
 			}
 			if materialize {
@@ -211,20 +211,20 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 						materializedTokens[address] = token
 					}
 				}
-				nextSequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.storage.Sequences)+len(c.Generators))
-				for a, g := range e.storage.Sequences {
+				nextSequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(e.Storage.Sequences)+len(c.Generators))
+				for a, g := range e.Storage.Sequences {
 					nextSequences[a] = g
 				}
-				nextStorage = make(map[ids.ObjectAddress]*storage.Relation, len(e.storage.Relations))
-				for a, store := range e.storage.Relations {
+				nextStorage = make(map[ids.ObjectAddress]*storage.Relation, len(e.Storage.Relations))
+				for a, store := range e.Storage.Relations {
 					nextStorage[a] = store
 				}
 			}
 		}
 		capture := func(a ids.ObjectAddress, rows []storage.RowVersion, deletion *visibility.PrivateDeletes) error {
-			original := e.storage.Relations[a]
-			store := e.privateStorageLocked(c, a)
-			originalRelation, live := e.catalog.State.Relation(a)
+			original := e.Storage.Relations[a]
+			store := e.PrivateStorageLocked(c, a)
+			originalRelation, live := e.Catalog.State.Relation(a)
 			relation := originalRelation
 			if c != nil {
 				relation, live = nextCatalog.Relation(a)
@@ -252,9 +252,9 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		}
 		var disclosure AuthorizationView
 		if err == nil {
-			disclosure, err = e.authorizationLocked(op)
+			disclosure, err = e.AuthorizationLocked(op)
 			if nextCatalog != nil {
-				disclosure.Catalog = e.catalog.Read(nextCatalog)
+				disclosure.Catalog = e.Catalog.Read(nextCatalog)
 				disclosure.Recapture(disclosure.Catalog)
 				if c != nil && c.Roles != nil {
 					disclosure.RoleRecord = c.Roles
@@ -262,7 +262,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				}
 			}
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
@@ -307,7 +307,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 		}
 		for i := range prepared {
-			if err := index.PrepareRowPublication(&prepared[i], e.catalog.Domain, ref, materialize); err != nil {
+			if err := index.PrepareRowPublication(&prepared[i], e.Catalog.Domain, ref, materialize); err != nil {
 				return err
 			}
 		}
@@ -348,38 +348,38 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					}
 				}
 			}
-			indexRoots, indexErr = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
+			indexRoots, indexErr = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Input: input, Output: output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, indexCatalog, buildStores, indexPredecessors, rebuildIndexes, rebuildIntents, prepared, materialize, output, &disclosure, runtimeOwners, indexCandidates)
 			if indexErr != nil {
 				return indexErr
 			}
 		}
 	publicationFence:
 		sess := op.Session
-		e.mu.Lock()
+		e.Mu.Lock()
 		if scope != nil {
 			if err := scope.validateInheritanceRelationshipsLocked(e); err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return err
 			}
 		}
 		sess.Mu.Lock()
-		err = publicationOperationLocked(e, op)
-		if err == nil && ref.Epoch() != e.catalog.State.Epoch() {
+		err = PublicationOperationLocked(e, op)
+		if err == nil && ref.Epoch() != e.Catalog.State.Epoch() {
 			err = ids.ErrCatalogReplaced
 		}
-		if err == nil && e.visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
+		if err == nil && e.Visibility.CommitSeq() == ids.CommitSeq(^uint64(0)) {
 			err = errors.New("stuntgres: commit sequence exhausted")
 		}
-		changed := e.roles.Published != currentRoles || !e.notificationPublicationUnchangedLocked(notifications) || e.catalog.State != current || c != nil && e.visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
+		changed := e.RoleStore.Published != currentRoles || !e.notificationPublicationUnchangedLocked(notifications) || e.Catalog.State != current || c != nil && e.Visibility.CommitSeq() != frontier || !index.StoresUnchanged(e.Storage.Relations, indexStores, current, indexCatalog, indexRoots, indexPredecessors)
 		if err == nil {
 			for _, p := range prepared {
-				if e.storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || len(p.Store.Versions) != len(p.Root) {
+				if e.Storage.Relations[p.Address] != p.Original || p.Store.Generation != p.Generation || p.Store.Ends != p.Ends || len(p.Store.Versions) != len(p.Root) {
 					changed = true
 					break
 				}
-				current, ok := e.catalog.State.Relation(p.Address)
+				current, ok := e.Catalog.State.Relation(p.Address)
 				if p.OriginalRelation == nil {
-					if e.catalog.State.Get(p.Address) != nil {
+					if e.Catalog.State.Get(p.Address) != nil {
 						err = ids.ErrCatalogReplaced
 						break
 					}
@@ -394,7 +394,7 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			}
 		}
 		if err == nil && !changed && c != nil {
-			err = e.catalogPreflightLocked(c)
+			err = e.CatalogPreflightLocked(c)
 			if err == nil {
 				err = e.roleRetirementPreflightLocked(c, nextCatalog)
 			}
@@ -406,47 +406,47 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 			err = e.preparedPublicationPreflightLocked(op, phase)
 		}
 		if err == nil && op.DiscardRoleResetPending() {
-			err = session.ValidateRoleResetLocked(op.Session.Authorization, op.DiscardRoleReset, e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()))
+			err = session.ValidateRoleResetLocked(op.Session.Authorization, op.DiscardRoleReset, e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()))
 		}
 		if err == nil && mergedRoles {
-			c.Roles.Revision, err = e.roles.RevisionCandidateLocked()
+			c.Roles.Revision, err = e.RoleStore.RevisionCandidateLocked()
 		}
 		if err != nil {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		if changed {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if remoteSettled {
 				return catalog.Conflict{}
 			}
 			continue
 		}
-		nextRevision := e.catalog.NextRevision()
+		nextRevision := e.Catalog.NextRevision()
 		if c != nil && materialize {
 			nextRevision = catalog.RevisionFrontier(nextRevision, maps.All(c.Descriptors))
 		}
-		if err := e.visibility.SerializablePrecommitLocked(ref); err != nil {
+		if err := e.Visibility.SerializablePrecommitLocked(ref); err != nil {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		if err := notificationPublicationError(notifications); err != nil {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		if phase != nil && phase.Preparing {
 			e.installPreparedLocked(phase)
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil
 		}
 		if phase == nil && !remoteSettled && foreignPending(session.TxOwnerOf(ref)) {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if scope != nil {
 				if err := scope.finishForeignStatements(nil); err != nil {
 					return err
@@ -461,12 +461,12 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 		rolePublication, err := e.journalRolePublicationLocked(c, true)
 		if err != nil {
 			sess.Mu.Unlock()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return err
 		}
 		var databaseRoots catalog.DatabaseProjection
 		if c != nil {
-			databaseRoots = e.catalog.ProjectDatabasesLocked(nextCatalog, e.cluster.catalogs)
+			databaseRoots = e.Catalog.ProjectDatabasesLocked(nextCatalog, e.Cluster.Catalogs)
 		}
 		// No callback, allocation or failure remains after this point.
 		e.installNotificationPublicationLocked(notifications)
@@ -507,8 +507,8 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					p.Store.Maintenance.Updates++
 				}
 				p.Store.Maintenance.Modifications++
-				row.Born, row.Base = e.visibility.CommitSeq()+1, 0
-				row.InsertFullXID = e.visibility.FullXIDLocked(ref)
+				row.Born, row.Base = e.Visibility.CommitSeq()+1, 0
+				row.InsertFullXID = e.Visibility.FullXIDLocked(ref)
 				p.Store.Maintenance.RecordBirth(row.InsertFullXID)
 				row.Frozen, row.ImportFrozen = false, false
 				row.IndexAdmission = nil
@@ -525,13 +525,13 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					p.Store.Maintenance.Modifications++
 					p.Store.Maintenance.Live--
 					p.Store.Maintenance.Dead++
-					p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, End: e.visibility.CommitSeq() + 1, Moved: candidate.Moved}
+					p.NextEnds.Rows[id] = storage.RowEnd{Version: candidate.Version, End: e.Visibility.CommitSeq() + 1, Moved: candidate.Moved}
 				}
 				p.Store.Ends = p.NextEnds
 			}
 			p.Store.Versions = p.Next
 			p.Store.Generation++
-			e.visibility.InitializeMaintenanceLocked(p.Store)
+			e.Visibility.InitializeMaintenanceLocked(p.Store)
 		}
 		if c != nil {
 			for address, shape := range c.Storage {
@@ -544,8 +544,8 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				}
 				if shape.Rewritten && shape.Relation.RelationKind == catalog.MaterializedViewRelation {
 					for i := range shape.Replacement.Versions {
-						shape.Replacement.Versions[i].Born = e.visibility.CommitSeq() + 1
-						shape.Replacement.Versions[i].InsertFullXID = e.visibility.FullXIDLocked(ref)
+						shape.Replacement.Versions[i].Born = e.Visibility.CommitSeq() + 1
+						shape.Replacement.Versions[i].InsertFullXID = e.Visibility.FullXIDLocked(ref)
 						shape.Replacement.Maintenance.RecordBirth(shape.Replacement.Versions[i].InsertFullXID)
 						shape.Replacement.Versions[i].Frozen = false
 						shape.Replacement.Versions[i].ImportFrozen = false
@@ -556,16 +556,16 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 					shape.Replacement.Maintenance.Modifications += n
 					shape.Replacement.Maintenance.Live = n
 				}
-				e.visibility.InitializeMaintenanceLocked(shape.Replacement)
+				e.Visibility.InitializeMaintenanceLocked(shape.Replacement)
 			}
-			e.storage.ReplaceSequencesLocked(nextSequences)
-			e.storage.ReplaceRelationsLocked(nextStorage)
-			e.catalog.PublishLocked(nextCatalog)
+			e.Storage.ReplaceSequencesLocked(nextSequences)
+			e.Storage.ReplaceRelationsLocked(nextStorage)
+			e.Catalog.PublishLocked(nextCatalog)
 			databaseRoots.InstallLocked()
-			e.catalog.InstallRevisionFrontierLocked(nextRevision)
+			e.Catalog.InstallRevisionFrontierLocked(nextRevision)
 			if c.Roles != nil {
-				e.roles.PublishLocked(rolePublication)
-				e.roles.AdvanceRevisionFrontierLocked(rolePublication.Revision)
+				e.RoleStore.PublishLocked(rolePublication)
+				e.RoleStore.AdvanceRevisionFrontierLocked(rolePublication.Revision)
 			}
 			for a, d := range c.Descriptors {
 				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == sess.SessionToken {
@@ -573,20 +573,20 @@ func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, write
 				}
 			}
 		}
-		index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
-		e.storage.ReplaceIndexRootsLocked(indexRoots)
-		e.visibility.AdvanceCommitSeqLocked()
-		e.visibility.RecordCommitTimestampLocked(ref)
-		e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())
+		index.PreserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.Storage.IndexRoots)
+		e.Storage.ReplaceIndexRootsLocked(indexRoots)
+		e.Visibility.AdvanceCommitSeqLocked()
+		e.Visibility.RecordCommitTimestampLocked(ref)
+		e.Visibility.SerializableCommittedLocked(ref, e.Visibility.CommitSeq())
 		e.finishPreparedLocked(phase)
 		op.FinishDiscardRoleResetLocked()
 		sess.Mu.Unlock()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil
 	}
 }
 
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
-func publicationOperationLocked(e *Engine, op *session.Operation) error {
-	return session.PublicationOperationLocked(domainOf(e), op)
+func PublicationOperationLocked(e *Engine, op *session.Operation) error {
+	return session.PublicationOperationLocked(DomainOf(e), op)
 }

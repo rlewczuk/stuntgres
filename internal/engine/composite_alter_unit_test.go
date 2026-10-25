@@ -16,18 +16,18 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
 	usage := testUsage(e, sqltype.Int4)
-	e.mu.Lock()
+	e.Mu.Lock()
 	prepared, err := e.prepareAlterTypeLocked(nil, op, auth, source, ref, action, &usage)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,15 +50,15 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := e.catalog.Providers[ids.RelationClassID]
+			provider := e.Catalog.Providers[ids.RelationClassID]
 			calls := 0
-			e.catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
 				calls++
-				e.catalog.Providers[ids.RelationClassID] = provider
-				if !e.mu.TryLock() {
+				e.Catalog.Providers[ids.RelationClassID] = provider
+				if !e.Mu.TryLock() {
 					t.Fatal("provider called under engine lock")
 				}
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if kind == "cancel" {
 					cancel()
 				} else if err := e.Reset(context.Background()); err != nil {

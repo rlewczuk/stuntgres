@@ -21,7 +21,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			sequenceScalar(t, s, "SELECT nextval('s')", 1)
 			table := catalogRef(t, e, e.CatalogRead(), "t")
 			sequence := catalogRef(t, e, e.CatalogRead(), "s")
-			healthyFrontier, healthyNamespace := e.visibility.CommitSeq(), e.catalog.State.NamespaceGeneration()
+			healthyFrontier, healthyNamespace := e.Visibility.CommitSeq(), e.Catalog.State.NamespaceGeneration()
 			ref := transactionBegin(t, s)
 			sessionSQL(t, s, "ALTER SEQUENCE s RESTART 100")
 			if r := sessionSQL(t, s, "DELETE FROM t WHERE v=1"); r.Count != 2 {
@@ -33,13 +33,13 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				// No TEMP object has ever committed in this session: this is a
 				// genuine new namespace descriptor, not another temp relation.
 				sessionSQL(t, s, "CREATE TEMP SEQUENCE first_temp START 40")
-				state := catalog.CloneState(e.catalog.State)
+				state := catalog.CloneState(e.Catalog.State)
 				state.SetNamespaceGeneration(^uint64(0))
-				e.catalog.PublishLocked(state)
+				e.Catalog.PublishLocked(state)
 			}
 			switch phase {
 			case "frontier":
-				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 			case "predecessor":
 				for id, candidate := range s.Transactions.Deletes[table.Address].Rows {
 					candidate.Version++
@@ -48,15 +48,15 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				}
 			case "shape":
 				// Preserve every row and its width; only shape authority changes.
-				replacement := *e.storage.Relations[table.Address]
-				e.mu.Lock()
-				e.storage.InstallRelationLocked(table.Address, &replacement)
-				e.mu.Unlock()
+				replacement := *e.Storage.Relations[table.Address]
+				e.Mu.Lock()
+				e.Storage.InstallRelationLocked(table.Address, &replacement)
+				e.Mu.Unlock()
 			}
 			assertSequenceDeletePrivateBatch(t, s, table.Address, sequence.Address, phase == "namespace")
 			before := captureSequenceDeletePublication(e, s, table.Address)
 			ticket := s.Transactions.Ticket
-			if ticket == nil || len(e.locks.Inspect(ticket).Journals[ticket]) == 0 {
+			if ticket == nil || len(e.Locks.Inspect(ticket).Journals[ticket]) == 0 {
 				t.Fatal("mixed staging did not acquire transaction resources")
 			}
 			op := transactionOperation(t, s)
@@ -103,12 +103,12 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			// Restore only deliberately exhausted counters, after checking
 			// failure atomicity and disposal. Never restore private effects.
 			if phase == "frontier" {
-				e.visibility.SetCommitSeqLocked(healthyFrontier)
+				e.Visibility.SetCommitSeqLocked(healthyFrontier)
 			}
 			if phase == "namespace" {
-				state := catalog.CloneState(e.catalog.State)
+				state := catalog.CloneState(e.Catalog.State)
 				state.SetNamespaceGeneration(healthyNamespace)
-				e.catalog.PublishLocked(state)
+				e.Catalog.PublishLocked(state)
 			}
 			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 1, 2)
 			sequenceScalar(t, s, "SELECT currval('s')", 1)
@@ -124,9 +124,9 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			if phase == "namespace" {
 				sessionSQL(t, s, "CREATE TEMP SEQUENCE first_temp START 40")
 			}
-			frontier := e.visibility.CommitSeq()
-			if r := transactionEnd(t, s, next, true); !r.Committed || e.visibility.CommitSeq() != frontier+1 {
-				t.Fatal("healthy combined transaction failed", r, e.visibility.CommitSeq(), frontier)
+			frontier := e.Visibility.CommitSeq()
+			if r := transactionEnd(t, s, next, true); !r.Committed || e.Visibility.CommitSeq() != frontier+1 {
+				t.Fatal("healthy combined transaction failed", r, e.Visibility.CommitSeq(), frontier)
 			}
 			transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 1, 9)
 			sequenceScalar(t, peer, "SELECT nextval('s')", 200)
@@ -146,7 +146,7 @@ func TestSequenceDeleteCompositionSingleFrontier(t *testing.T) {
 	sessionSQL(t, s, "CREATE SEQUENCE s")
 	sequenceScalar(t, s, "SELECT nextval('s')", 1)
 	table := catalogRef(t, e, e.CatalogRead(), "t")
-	frontier := e.visibility.CommitSeq()
+	frontier := e.Visibility.CommitSeq()
 	ref := transactionBegin(t, s)
 	sessionSQL(t, s, "ALTER SEQUENCE s RESTART 100")
 	sessionSQL(t, s, "DELETE FROM t WHERE v=1")
@@ -156,9 +156,9 @@ func TestSequenceDeleteCompositionSingleFrontier(t *testing.T) {
 	if _, err := e.Commit(op, ref); err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage.Relations[table.Address]
-	if e.visibility.CommitSeq() != frontier+1 || len(store.Versions) != 5 || store.Ends == nil || len(store.Ends.Rows) != 3 {
-		t.Fatal("mixed publication did not install one frontier", e.visibility.CommitSeq(), frontier, len(store.Versions), store.Ends)
+	store := e.Storage.Relations[table.Address]
+	if e.Visibility.CommitSeq() != frontier+1 || len(store.Versions) != 5 || store.Ends == nil || len(store.Ends.Rows) != 3 {
+		t.Fatal("mixed publication did not install one frontier", e.Visibility.CommitSeq(), frontier, len(store.Versions), store.Ends)
 	}
 	for _, version := range store.Versions[3:] {
 		if version.Born != frontier+1 {

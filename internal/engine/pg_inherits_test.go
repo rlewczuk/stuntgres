@@ -17,11 +17,11 @@ import (
 func pgInheritsUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2611}
-	source, ok := e.catalog.State.Relation(address)
+	source, ok := e.Catalog.State.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_inherits")
 	}
-	return source, e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
+	return source, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 }
 
 func TestPGInheritsShapeAndOwnership(t *testing.T) {
@@ -51,7 +51,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 	if !acl.Explicit || len(acl.Entries) != 1 || !acl.Entries[0].Grantee.Public || acl.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", acl)
 	}
-	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	captured, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGInherits)
 	if err != nil || captured == nil || captured.Ref != ref || len(captured.Anonymous) != 0 {
 		t.Fatal("fresh projection", captured, err)
 	}
@@ -60,7 +60,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 	foreign := New()
 	foreignSource, _ := pgInheritsUnitSource(t, foreign)
 	for _, wrong := range []*catalog.Relation{&invalid, foreignSource} {
-		got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: wrong, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+		got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: wrong, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGInherits)
 		var sqlError interface{ SQLState() string }
 		if got != nil || err == nil || errors.As(err, &sqlError) {
 			t.Fatal("invalid source must return ordinary internal error", got, err)
@@ -72,7 +72,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 // Public reference tests independently exercise the real DDL owners.
 func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 	t.Helper()
-	state := *e.catalog.State
+	state := *e.Catalog.State
 	address := func(id ids.OID) ids.ObjectAddress {
 		return ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}
 	}
@@ -89,7 +89,7 @@ func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 	} {
 		state.SetDescriptor(relation.Address(), relation)
 	}
-	return e.catalog.Read(&state)
+	return e.Catalog.Read(&state)
 }
 
 func pgInheritsUnitEdges(t *testing.T, captured *exec.Source, view catalog.Read) map[[3]int64]int {
@@ -130,7 +130,7 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	e := New()
 	source, ref := pgInheritsUnitSource(t, e)
 	view := pgInheritsUnitGraph(t, e)
-	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	captured, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGInherits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,8 +144,8 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	child := *next.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 41003})
 	child.Inheritance = nil
 	next.SetDescriptor(child.Address(), &child)
-	e.catalog.PublishLocked(&next)
-	current, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	e.Catalog.PublishLocked(&next)
+	current, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGInherits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestPGInheritsDescriptorEdges(t *testing.T) {
 	if got := pgInheritsUnitEdges(t, current, e.CatalogRead()); !reflect.DeepEqual(got, remaining) {
 		t.Fatal("new generation", got, remaining)
 	}
-	again, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
+	again, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGInherits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestPGInheritsCancellation(t *testing.T) {
 		&pgEnumCancelDuringCapture{Context: context.Background(), after: 2},
 		&pgEnumCancelDuringCapture{Context: context.Background(), after: view.DescriptorCount() + 2},
 	} {
-		if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGInherits); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial capture published", got, err)
 		}
 	}

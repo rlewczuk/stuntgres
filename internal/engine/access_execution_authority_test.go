@@ -44,7 +44,7 @@ func TestAccessExecutionInquiryOriginalAuthority(t *testing.T) {
 			for _,manifest:=range [][]catalog.ExpressionDependency{nil,{},missing} {probe:=evaluation;probe.RoutineChecks=manifest;if err:=exec.AdmitRoutineCall(&probe,call,false,false);err==nil {t.Fatal("missing original manifest repaired")}}
 			for _,mutation:=range []string{"foreign","epoch","revision"} {
 				checks:=append([]catalog.ExpressionDependency(nil),original...)
-				for j:=range checks {if checks[j].Ref.Address==captured.Address(){switch mutation {case "foreign":checks[j].Ref=other.catalog.Domain.Ref(checks[j].Ref.Epoch,checks[j].Ref.Address);case "epoch":checks[j].Ref.Epoch++;case "revision":checks[j].Revision++}}}
+				for j:=range checks {if checks[j].Ref.Address==captured.Address(){switch mutation {case "foreign":checks[j].Ref=other.Catalog.Domain.Ref(checks[j].Ref.Epoch,checks[j].Ref.Address);case "epoch":checks[j].Ref.Epoch++;case "revision":checks[j].Revision++}}}
 				probe:=evaluation;probe.RoutineChecks=checks;if err:=exec.AdmitRoutineCall(&probe,call,false,false);err==nil {t.Fatal("invalid original manifest",mutation)}
 			}
 			probe:=evaluation;probe.RoutineAuthority=foreign.RoutineAuthority
@@ -54,7 +54,7 @@ func TestAccessExecutionInquiryOriginalAuthority(t *testing.T) {
 			if err:=exec.AdmitRoutineCall(&probe,mapped,false,false);err==nil {t.Fatal("retag manufactured authority")}
 			invalid:=call;invalid.RoutineReference=(*catalog.Procedure)(nil)
 			if err:=exec.AdmitRoutineCall(&evaluation,invalid,false,false);err==nil {t.Fatal("typed nil admitted")}
-			changed:=*routineAuthorityView(&evaluation);changed.Catalog=changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
+			changed:=*RoutineAuthorityView(&evaluation);changed.Catalog=changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement:=*captured;replacement.Strict=false;changed.Catalog.State().SetDescriptor(captured.Address(),&replacement)
 			probe=evaluation;probe.RoutineAuthority=&changed
 			if err:=exec.AdmitRoutineCall(&probe,call,false,false);err==nil {t.Fatal("incompatible current declaration admitted")}

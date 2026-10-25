@@ -24,7 +24,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	audit := catalogRef(t, e, e.CatalogRead(), "audit")
-	row := e.storage.Relations[ref.Address].Versions[0].Row
+	row := e.Storage.Relations[ref.Address].Versions[0].Row
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=99 WHERE id=1")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -83,10 +83,10 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.Ticket, lock.ForNoKeyUpdate)
 	// The manager mutex's enqueue/observation ordering publishes this earlier
 	// private stage while the exact original-row worker remains blocked.
-	if len(scope.stage.rows[audit.Address]) != 1 || scope.view == nil || scope.ticket == nil || scope.cteInvocation == nil {
+	if len(scope.Stage.Rows[audit.Address]) != 1 || scope.View == nil || scope.LockTicket == nil || scope.cteInvocation == nil {
 		t.Fatal("wait preceded the required earlier real mutation")
 	}
-	view := scope.view.Load()
+	view := scope.View.Load()
 	if view == nil {
 		t.Fatal("pending statement lost its shared view")
 	}
@@ -102,10 +102,10 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 	if replacement {
 		// Exercise the genuine physical-storage fence while a different target
 		// is active/pending. The same SQL identity must not authorize a new root.
-		e.mu.Lock()
-		old := e.storage.Relations[audit.Address]
-		e.storage.InstallRelationLocked(audit.Address, &storage.Relation{Versions: old.Versions, Ends: old.Ends, Generation: old.Generation})
-		e.mu.Unlock()
+		e.Mu.Lock()
+		old := e.Storage.Relations[audit.Address]
+		e.Storage.InstallRelationLocked(audit.Address, &storage.Relation{Versions: old.Versions, Ends: old.Ends, Generation: old.Generation})
+		e.Mu.Unlock()
 		want = ids.ErrCatalogReplaced
 		transactionEnd(t, holder, tx, false)
 	} else {
@@ -116,7 +116,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		if !errors.Is(out.err, want) || out.result.Rows != nil || out.result.Count != 0 || out.scope != scope {
 			t.Fatal(out.result, out.err, want)
 		}
-		if scope.view != nil || scope.ticket != nil || scope.stage.rows != nil || scope.stage.deletes != nil || scope.mutations != nil || scope.cteInvocation != nil || !scope.finished {
+		if scope.View != nil || scope.LockTicket != nil || scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.mutations != nil || scope.cteInvocation != nil || !scope.Finished {
 			t.Fatal("cancellation retained stage/view/target/producer ownership")
 		}
 	case <-time.After(5 * time.Second):

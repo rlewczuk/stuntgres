@@ -18,9 +18,9 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			e.mu.Lock()
-			defer e.mu.Unlock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			defer e.Mu.Unlock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -31,14 +31,14 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 				database.ACL = authorization.ACLValue{Explicit: true}
 				database.ObjectRevision++
 				selected.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
-				auth.Catalog = e.catalog.Read(selected)
+				auth.Catalog = e.Catalog.Read(selected)
 				auth.Recapture(auth.Catalog)
 			}
 			stage := e.BeginCatalogStage(auth.Catalog)
 			defer e.DiscardCatalogStage(stage)
-			stage.authorizeLocked(auth, op.Session)
+			stage.AuthorizeLocked(auth, op.Session)
 			changes := session.NewJournal()
-			authority := auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
+			authority := auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
 			// Empty descriptor/removal sets are deliberate: storage-only TRUNCATE and
 			// other staged authorities must still record the database predecessor.
 			if err := e.captureCatalogStageLocked(stage, changes, auth.Catalog.State(), authority); err != nil {
@@ -52,21 +52,21 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if child.Originals[catalog.CurrentDatabaseAddress] != committed || released.Originals[catalog.CurrentDatabaseAddress] != committed {
 				t.Fatal("savepoint clone lost predecessor")
 			}
-			if err := e.catalogPreflightLocked(released); err != nil {
+			if err := e.CatalogPreflightLocked(released); err != nil {
 				t.Fatal("unchanged predecessor rejected", err)
 			}
-			next := catalog.CloneState(e.catalog.State)
+			next := catalog.CloneState(e.Catalog.State)
 			database := *committed.(*catalog.Database)
 			database.ObjectRevision++
 			next.SetDescriptor(catalog.CurrentDatabaseAddress, &database)
-			e.catalog.PublishLocked(next)
-			if err := e.catalogPreflightLocked(released); err == nil {
+			e.Catalog.PublishLocked(next)
+			if err := e.CatalogPreflightLocked(released); err == nil {
 				t.Fatal("outer commit accepted changed database predecessor")
 			}
 			if err := e.captureCatalogStageLocked(stage, session.NewJournal(), auth.Catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("Finish accepted changed committed predecessor", err)
 			}
-			if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != stage.databaseAuthority || auth.RoleRecord.Revision != e.roles.Published.Revision {
+			if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != stage.DatabaseAuthority || auth.RoleRecord.Revision != e.RoleStore.Published.Revision {
 				t.Fatal("retained authority mutated or artificial role revision")
 			}
 			implicit := auth.Roles.LookupRef("pg_database_owner")
@@ -111,9 +111,9 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			defer cancel()
 			message := batchUnitStart(t, sess, ctx)
 			defer message.end(context.Canceled)
-			oldCatalog, oldRoles := f.e.catalog.State, f.e.roles.Published
-			relations := make(map[ids.ObjectAddress]*storage.Relation, len(f.e.storage.Relations))
-			for address, root := range f.e.storage.Relations {
+			oldCatalog, oldRoles := f.e.Catalog.State, f.e.RoleStore.Published
+			relations := make(map[ids.ObjectAddress]*storage.Relation, len(f.e.Storage.Relations))
+			for address, root := range f.e.Storage.Relations {
 				relations[address] = root
 			}
 			sessionRevision := sess.Authorization.Revision
@@ -134,7 +134,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			if err := message.scope.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			retained, err := operationAuthorization(message.op)
+			retained, err := OperationAuthorization(message.op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -145,7 +145,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			if policy == nil || pendingRoles == oldRoles || retained.Catalog.State() == oldCatalog || retained.PairedCatalog.State() != retained.Catalog.State() || retained.Catalog.Get(catalog.CurrentDatabaseAddress) != &database {
 				t.Fatal("missing paired private default/role/DB authority")
 			}
-			if f.e.catalog.State != oldCatalog || f.e.roles.Published != oldRoles || oldCatalog.DefaultACLCount() != 0 {
+			if f.e.Catalog.State != oldCatalog || f.e.RoleStore.Published != oldRoles || oldCatalog.DefaultACLCount() != 0 {
 				t.Fatal("utility published a prefix before message completion")
 			}
 			if veto == "database" {
@@ -163,8 +163,8 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			} else {
 				cancel()
 			}
-			current := f.e.catalog.State
-			if f.e.roles.Published != oldRoles || current.Epoch() != oldCatalog.Epoch() || sess.Authorization.Revision != sessionRevision {
+			current := f.e.Catalog.State
+			if f.e.RoleStore.Published != oldRoles || current.Epoch() != oldCatalog.Epoch() || sess.Authorization.Revision != sessionRevision {
 				t.Fatal("intervening DB change altered unrelated authority")
 			}
 			finishErr := message.scope.Finish(nil)
@@ -179,11 +179,11 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 					t.Fatal("missing final DB predecessor veto", err)
 				}
 			}
-			if f.e.catalog.State != current || f.e.roles.Published != oldRoles || current.DefaultACLCount() != 0 || len(f.e.storage.Relations) != len(relations) {
+			if f.e.Catalog.State != current || f.e.RoleStore.Published != oldRoles || current.DefaultACLCount() != 0 || len(f.e.Storage.Relations) != len(relations) {
 				t.Fatal("veto published catalog, role or default-policy prefix")
 			}
 			for address, root := range relations {
-				if f.e.storage.Relations[address] != root {
+				if f.e.Storage.Relations[address] != root {
 					t.Fatal("veto published a storage prefix")
 				}
 			}

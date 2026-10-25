@@ -59,7 +59,7 @@ func TestInheritanceMaintReviewTemporaryHistory(t *testing.T) {
 			before := e.CatalogRead()
 			childGraph := inheritanceMaintReviewGraphSnapshot(child.Inheritance)
 			leafGraph := inheritanceMaintReviewGraphSnapshot(leaf.Inheritance)
-			physical := e.storage.Relations[child.Address()]
+			physical := e.Storage.Relations[child.Address()]
 			var dump bytes.Buffer
 			if replacement == "Reset" {
 				if err := e.Reset(context.Background()); err != nil {
@@ -74,7 +74,7 @@ func TestInheritanceMaintReviewTemporaryHistory(t *testing.T) {
 				}
 			}
 			current := e.CatalogRead()
-			if current.Epoch() == before.Epoch() || current.Get(parent.Address()) != parent || current.Get(child.Address()) != child || current.Get(leaf.Address()) != leaf || e.storage.Relations[child.Address()] != physical {
+			if current.Epoch() == before.Epoch() || current.Get(parent.Address()) != parent || current.Get(child.Address()) != child || current.Get(leaf.Address()) != leaf || e.Storage.Relations[child.Address()] != physical {
 				t.Fatal("fixture did not perform real replacement retaining exact TEMP providers")
 			}
 			if err := table.ValidateInheritance(current, child); err != nil {
@@ -113,7 +113,7 @@ func TestInheritanceMaintReviewTemporaryHistory(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(current)
 			defer e.DiscardCatalogStage(stage)
-			beforeDetach, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
+			beforeDetach, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
 			if err != nil || !slices.ContainsFunc(beforeDetach, func(edge table.DomainDependency) bool {
 				return edge.Address == child.Address() && edge.Target == parent.Address() && !edge.Automatic
 			}) {
@@ -122,7 +122,7 @@ func TestInheritanceMaintReviewTemporaryHistory(t *testing.T) {
 			if err := stage.Replace(candidate); err != nil {
 				t.Fatal(err)
 			}
-			edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
+			edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -135,7 +135,7 @@ func TestInheritanceMaintReviewTemporaryHistory(t *testing.T) {
 					t.Fatal("archived history retained an external former-parent drop dependency", edge)
 				}
 			}
-			if !reflect.DeepEqual(childGraph, child.Inheritance) || !reflect.DeepEqual(leafGraph, leaf.Inheritance) || e.storage.Relations[child.Address()] != physical {
+			if !reflect.DeepEqual(childGraph, child.Inheritance) || !reflect.DeepEqual(leafGraph, leaf.Inheritance) || e.Storage.Relations[child.Address()] != physical {
 				t.Fatal("dependency observation mutated retained source authority")
 			}
 		})

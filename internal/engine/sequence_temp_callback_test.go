@@ -21,9 +21,9 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				sessionSQL(t, a, q)
 			}
 			if scenario == "Exhaustion" {
-				state := catalog.CloneState(e.catalog.State)
+				state := catalog.CloneState(e.Catalog.State)
 				state.SetNamespaceGeneration(^uint64(0))
-				e.catalog.PublishLocked(state)
+				e.Catalog.PublishLocked(state)
 			}
 			ast, description := sequencePreparedDescription(t, e, a, "SELECT nextval('s')")
 			held := func(want int64) {
@@ -41,12 +41,12 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 			held(10)
 			sessionSQL(t, a, "CREATE SEQUENCE a.s START 100 CACHE 1")
 			held(11)
-			before := e.catalog.State
+			before := e.Catalog.State
 			sessionSQL(t, b, "BEGIN")
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE unrelated_temp")
-			e.mu.Lock()
-			private := e.privateCatalogLocked(b.Transactions.Catalog).State()
-			e.mu.Unlock()
+			e.Mu.Lock()
+			private := e.PrivateCatalogLocked(b.Transactions.Catalog).State()
+			e.Mu.Unlock()
 			if scenario == "Rollback" {
 				sessionSQL(t, b, "ROLLBACK")
 			} else if scenario == "Exhaustion" {
@@ -60,7 +60,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 					t.Fatal("exhausted namespace accepted combined publication", err)
 				}
-				if e.catalog.State != before || b.TemporaryNamespace != (ids.ObjectAddress{}) {
+				if e.Catalog.State != before || b.TemporaryNamespace != (ids.ObjectAddress{}) {
 					t.Fatal("failed commit published catalog/session namespace")
 				}
 				if got := tuples(sessionSQL(t, a, "SELECT v FROM public.sentinel")); len(got) != 0 {
@@ -102,15 +102,15 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	}
 	sessionSQL(t, b, "CREATE TEMP SEQUENCE owned_temp START 30")
 	sessionSQL(t, c, "CREATE TEMP SEQUENCE peer_temp START 40")
-	state := catalog.CloneState(e.catalog.State)
+	state := catalog.CloneState(e.Catalog.State)
 	state.SetNamespaceGeneration(^uint64(0))
 	state.SetEpoch(ids.CatalogEpoch(^uint64(0)))
-	e.catalog.PublishLocked(state)
+	e.Catalog.PublishLocked(state)
 	_, bd := sequencePreparedDescription(t, e, b, "SELECT nextval('owned_temp')")
-	owned := bd.sequences.Constants[0].Ref.Address
+	owned := bd.Sequences.Constants[0].Ref.Address
 	namespace := b.TemporaryNamespace
 	retained := e.CatalogRead()
-	generators, storage := e.storage.Sequences, e.storage.Relations
+	generators, storage := e.Storage.Sequences, e.Storage.Relations
 	snapshot := sessionSQL(t, b, "SELECT last_value FROM owned_temp")
 	ast, description := sequencePreparedDescription(t, e, a, "SELECT nextval('s')")
 	held := func(want int64) {
@@ -132,14 +132,14 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	if err := b.WaitEnd(context.Background()); err != nil {
 		t.Fatal("terminal authority prevented physical cleanup", err)
 	}
-	if e.catalog.State.Epoch() != state.Epoch() || e.catalog.State.NamespaceGeneration() != state.NamespaceGeneration() {
+	if e.Catalog.State.Epoch() != state.Epoch() || e.Catalog.State.NamespaceGeneration() != state.NamespaceGeneration() {
 		t.Fatal("logical retirement changed global callback or epoch authority")
 	}
 	assertTemporaryNamespacePair(t, e, b.SessionToken, namespace)
-	if _, ok := e.catalog.State.Find(owned); ok || e.storage.Sequences[owned] != nil || e.storage.Relations[owned] != nil {
+	if _, ok := e.Catalog.State.Find(owned); ok || e.Storage.Sequences[owned] != nil || e.Storage.Relations[owned] != nil {
 		t.Fatal("ended session leaked temporary relation or generator")
 	}
-	if _, ok := retained.Descriptor(owned); !ok || generators[owned] == nil || len(storage) != len(e.storage.Relations) {
+	if _, ok := retained.Descriptor(owned); !ok || generators[owned] == nil || len(storage) != len(e.Storage.Relations) {
 		t.Fatal("cleanup mutated retained catalog or generator map")
 	}
 	got := tuples(snapshot)

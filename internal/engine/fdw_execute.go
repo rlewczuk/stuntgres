@@ -16,23 +16,23 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	b := view.PhysicalBinding(execution.binding)
 	op, invoker, err := dml.ForeignCommandPrologue(stmt, &b, execution.auth.State.CurrentUser)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	target, err := e.captureForeignSourceLocked(s, b.Ref, b.Relation, invoker, nil, plan.RowMark{})
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if err = fdw.OperationSupported(target.Foreign.Wrapper, op, b.Relation.Name()); err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
-	inputs, err := e.captureQuerySourcesLocked(s, b.QuerySources, len(b.QuerySources) == 0)
+	inputs, err := e.CaptureQuerySourcesLocked(s, b.QuerySources, len(b.QuerySources) == 0)
 	if err == nil && b.Returning != nil {
-		err = e.captureCommentSnapshotLocked(s)
+		err = e.CaptureCommentSnapshotLocked(s)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if inputs != nil {
 		defer inputs.Close()
 	}
@@ -40,7 +40,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		return Result{}, err
 	}
 	s.foreignUnlocked()
-	outcome, err := dml.ExecuteForeign(s.writeHost(), dml.ForeignCommand{
+	outcome, err := dml.ExecuteForeign(s.WriteHost(), dml.ForeignCommand{
 		Binding: b, Op: op, Foreign: target.Foreign, Inputs: inputs, Parameters: parameters,
 		Evaluation: execution.evaluation, QueryRoot: execution.queryRoot,
 		Catalog: execution.auth.Catalog, Expressions: execution.expressions,

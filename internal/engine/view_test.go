@@ -18,7 +18,7 @@ func TestViewOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, admin, q)
 	}
 	reader, _ := e.Roles().Lookup("view_reader")
-	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		ref := roleTableRef(t, e, name)
@@ -65,7 +65,7 @@ func TestViewPreparedOriginalInvokerAuthority(t *testing.T) {
 		roleExecute(t, e, admin, query)
 	}
 	reader, _ := e.Roles().Lookup("prepared_view_reader")
-	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(name string, rights authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), roleTableRef(t, e, name), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
@@ -88,7 +88,7 @@ func TestViewPreparedOriginalInvokerAuthority(t *testing.T) {
 		savedResult := description.Results[0]
 		execute := func(prepared, denied bool) {
 			t.Helper()
-			before := e.catalog.State
+			before := e.Catalog.State
 			scope, err := e.StartStatement(admin)
 			if err != nil {
 				t.Fatal(err)
@@ -101,7 +101,7 @@ func TestViewPreparedOriginalInvokerAuthority(t *testing.T) {
 			if denied {
 				var diagnostic *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table t"}
-				if !errors.As(err, &diagnostic) || *diagnostic != want || result.Rows != nil || result.Count != 0 || e.catalog.State != before {
+				if !errors.As(err, &diagnostic) || *diagnostic != want || result.Rows != nil || result.Count != 0 || e.Catalog.State != before {
 					t.Fatal(name, prepared, result, err)
 				}
 				return
@@ -162,13 +162,13 @@ func TestViewFrozenRelativeLiteralNativeReplay(t *testing.T) {
 	// Establish the implicit transaction before fixing its authoritative clock.
 	// Execute refreshes scope.input from this owner; setting scope.input directly
 	// would be overwritten.
-	if err = scope.gate(create); err != nil {
+	if err = scope.Gate(create); err != nil {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	scope.owner.Mu.Lock()
-	scope.owner.Start = time.Date(2003, 7, 7, 4, 5, 6, 0, time.UTC)
-	scope.owner.Mu.Unlock()
+	scope.Owner.Mu.Lock()
+	scope.Owner.Start = time.Date(2003, 7, 7, 4, 5, 6, 0, time.UTC)
+	scope.Owner.Mu.Unlock()
 	_, err = scope.Execute(create, 0, nil)
 	if err = scope.Finish(err); err != nil {
 		t.Fatal(err)

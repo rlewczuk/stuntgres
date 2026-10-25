@@ -74,7 +74,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			// This is replacement data, not the captured original candidate.
 			key := rows[physical][1]
 			rows[physical][1] = sqltype.Null(key.Type())
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{queryLocks: locks})}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, OrderValues: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(&StatementScope{QueryLockContext: locks})}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, OrderValues: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
 			scratch := make([]sqltype.Value, exec.QueryLockRecheckWidth(outer, inputs))
 			offset := 0
 			got, ok, err := exec.RecheckLockedQuery(outer, inputs, rows, &evaluation, scratch, &offset, make([]sqltype.Value, len(outer.Schema())))
@@ -117,7 +117,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 				calls++
 				return sqltype.Boolean(boolType, false), nil
 			})}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Host: hostOf(&StatementScope{queryLocks: locks})}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Host: HostOf(&StatementScope{QueryLockContext: locks})}}
 			offset := 0
 			got, ok, err := exec.RecheckLockedQuery(join, inputs, [][]sqltype.Value{row, {}}, &evaluation, make([]sqltype.Value, width), &offset, make([]sqltype.Value, width))
 			if err != nil || ok || got != nil || calls != 1 {
@@ -142,7 +142,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			t.Fatal("stale nested order lineage", bridge.Lineage, inner.Lineage)
 		}
 		inputs := &exec.Source{Sources: []*exec.Source{bridge}}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Host: hostOf(&StatementScope{queryLocks: &exec.LockContext{}})}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Host: HostOf(&StatementScope{QueryLockContext: &exec.LockContext{}})}}
 		offset := 0
 		got, ok, err := exec.RecheckLockedQuery(&plan.SourceNode{Occurrence: 0}, inputs, nil, &evaluation, nil, &offset, nil)
 		if err != nil || !ok || got != nil || calls != 0 || offset != 0 {
@@ -162,7 +162,7 @@ func TestQueryOuterJoinsChangedPairRecheck(t *testing.T) {
 		join.Kind = kind
 		rows := [][]sqltype.Value{inputs.Sources[0].Row(0), inputs.Sources[1].Row(2)}
 		locks := &exec.LockContext{Leaves: []exec.QueryLockLeaf{{Changed: true}, {}}}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{queryLocks: locks})}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(&StatementScope{QueryLockContext: locks})}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		offset := 0
 		got, ok, err := exec.RecheckLockedQuery(join, inputs, rows, &evaluation, make([]sqltype.Value, exec.QueryLockRecheckWidth(join, inputs)), &offset, make([]sqltype.Value, len(join.Schema())))
 		if err != nil || ok || got != nil {

@@ -53,15 +53,15 @@ func TestExclusionDisclosure(t *testing.T) {
 				if disclosure == "columns" {
 					grant(2, authorization.SelectPrivilege)
 				}
-				auth, err := operationAuthorization(owner)
+				auth, err := OperationAuthorization(owner)
 				if err != nil {
 					t.Fatal(err)
 				}
-				parent := e.catalog.State.MustRelation(ref.Address)
+				parent := e.Catalog.State.MustRelation(ref.Address)
 				idx, root := btreeRoot(t, e, "public.ex")
 				previous := root.Entries[0]
 				current := previous
-				current.Row, current.Version = ids.RowID(e.storage.RowFrontier()+1), ids.VersionID(e.storage.VersionFrontier()+1)
+				current.Row, current.Version = ids.RowID(e.Storage.RowFrontier()+1), ids.VersionID(e.Storage.VersionFrontier()+1)
 				visible := disclosure == "table" || disclosure == "columns" && !expression
 				for _, building := range []bool{false, true} {
 					detail := "Key conflicts with existing key."
@@ -77,7 +77,7 @@ func TestExclusionDisclosure(t *testing.T) {
 						label := "(" + strings.Join([]string{key, "b"}, ", ") + ")"
 						detail = "Key " + label + "=(x, 2)" + middle + label + "=(x, 2)."
 					}
-					err := index.ValidateExclusionPair(context.Background(), parent, idx, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, disclosureEnv(&auth), building)
+					err := index.ValidateExclusionPair(context.Background(), parent, idx, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, DisclosureEnv(&auth), building)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23P01", Message: message, Detail: detail, Schema: "public", Table: "t", Constraint: "ex"})
 				}
 			})

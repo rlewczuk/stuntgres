@@ -16,12 +16,12 @@ import (
 // Engine.mu and the owner-authorized AX grant are held on entry. Every
 // return releases Engine.mu; relabeling never copies or scans row storage.
 func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	ref, err := e.resolveRelationReference(auth, name, true)
-	if err == nil && ref != scope.lockedRef {
+	ref, err := e.ResolveRelationReference(auth, name, true)
+	if err == nil && ref != scope.LockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if ifExists && table.RenameMissing(err) {
@@ -33,14 +33,14 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	old := scope.lockedDescriptor.(*catalog.Relation)
+	old := scope.LockedDescriptor.(*catalog.Relation)
 	if columnRename && old.RelationKind == catalog.IndexRelation && !allowIndexColumn {
 		return fail(analyze.TableKindError(old, "rename"))
 	}
 	var renamed *catalog.Relation
 	if columnRename {
 		if old.OfType != (ids.ObjectAddress{}) {
-			return fail(sqlError("42809", "cannot rename column of typed table"))
+			return fail(SQLError("42809", "cannot rename column of typed table"))
 		}
 		if err := table.InheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
@@ -60,11 +60,11 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 			return fail(err)
 		}
 	} else {
-		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, old.Namespace())); err != nil {
+		if err = auth.CheckCreate(e.Catalog.Domain.Ref(ref.Epoch, old.Namespace())); err != nil {
 			return fail(err)
 		}
 		if _, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination}); exists {
-			return fail(sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination)))
+			return fail(SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination)))
 		}
 	}
 	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
@@ -79,47 +79,47 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *session.Operati
 		if old.RelationKind == catalog.SequenceRelation {
 			// Relation rename invalidates analyzed sequence source without
 			// making every descriptor revision a sequence-plan event.
-			next.SequencePlanStamp, err = e.catalog.RevisionLocked()
+			next.SequencePlanStamp, err = e.Catalog.RevisionLocked()
 			if err != nil {
 				return fail(err)
 			}
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	if !columnRename && old.SQLIndex != nil && old.SQLIndex.Constraint != nil {
 		if err = index.StageBackingIndexRename(stage, &next); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
 	}
-	e.mu.Unlock()
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	e.Mu.Unlock()
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err == nil {
 		var prepared *PreparedCatalogPublication
 		prepared, err = e.ValidateCatalogStage(op.Context(), stage)
 		if err == nil {
-			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+			_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
 		}
 	}
 	if _, conflict := err.(catalog.Conflict); conflict && !columnRename {
-		e.mu.Lock()
-		current := e.stageCatalogBaseLocked(stage)
+		e.Mu.Lock()
+		current := e.StageCatalogBaseLocked(stage)
 		winner, exists := current.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination})
 		sameEpoch := current.Epoch() == ref.Epoch
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if sameEpoch && exists && winner != ref.Address {
-			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination))
+			return Result{}, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination))
 		}
 	}
 	if err != nil {
 		return Result{}, err
 	}
-	scope.completed = true
+	scope.Completed = true
 	return Result{}, nil
 }

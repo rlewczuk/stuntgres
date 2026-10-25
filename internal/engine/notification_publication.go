@@ -10,7 +10,7 @@ import (
 func notificationEffects(op *session.Operation, ref ids.TxRef, phase *session.PreparedPublication, scope *StatementScope) ([]session.NotificationAction, []session.Notification, error) {
 	var statement *session.NotificationStatement
 	if scope != nil {
-		statement = &session.NotificationStatement{Op: scope.op, Owner: scope.owner, Actions: scope.notificationActions, Events: scope.notificationEvents}
+		statement = &session.NotificationStatement{Op: scope.Op, Owner: scope.Owner, Actions: scope.notificationActions, Events: scope.notificationEvents}
 	}
 	return session.NotificationEffects(op, ref, phase != nil && !phase.Preparing, statement)
 }
@@ -35,19 +35,19 @@ func (e *Engine) prepareNotificationPublication(sender *session.Session, actions
 		return nil
 	}
 	p := &notificationPublication{}
-	e.mu.Lock()
-	p.head = e.cluster.notificationHead
-	p.targets = make([]notificationTargetPublication, 0, len(e.cluster.targets))
-	for name, runtime := range e.cluster.targets {
+	e.Mu.Lock()
+	p.head = e.Cluster.notificationHead
+	p.targets = make([]notificationTargetPublication, 0, len(e.Cluster.Targets))
+	for name, runtime := range e.Cluster.Targets {
 		p.targets = append(p.targets, notificationTargetPublication{name: name, engine: runtime})
 		target := &p.targets[len(p.targets)-1]
 		var own *session.NotificationListener
 		if runtime == e {
-			own = &payloadOf(sender).notifications
+			own = &PayloadOf(sender).notifications
 		}
 		runtime.notifications.CaptureLocked(&target.publication, own)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	var start session.NotificationQueuePosition
 	if p.head != nil {
 		start = *p.head
@@ -77,12 +77,12 @@ func (e *Engine) notificationPublicationUnchangedLocked(p *notificationPublicati
 	if p == nil {
 		return true
 	}
-	if e.cluster.notificationHead != p.head || len(e.cluster.targets) != len(p.targets) {
+	if e.Cluster.notificationHead != p.head || len(e.Cluster.Targets) != len(p.targets) {
 		return false
 	}
 	for i := range p.targets {
 		target := &p.targets[i]
-		if e.cluster.targets[target.name] != target.engine || !target.engine.notifications.UnchangedLocked(&target.publication) {
+		if e.Cluster.Targets[target.name] != target.engine || !target.engine.notifications.UnchangedLocked(&target.publication) {
 			return false
 		}
 	}
@@ -94,7 +94,7 @@ func (e *Engine) installNotificationPublicationLocked(p *notificationPublication
 		return
 	}
 	if p.next != nil {
-		e.cluster.notificationHead = p.next
+		e.Cluster.notificationHead = p.next
 	}
 	for i := range p.targets {
 		target := &p.targets[i]
@@ -112,12 +112,12 @@ func notificationPublicationError(p *notificationPublication) error {
 // notificationQueueUsageLocked eagerly accounts idle processing at publication
 // and outer boundaries; only registered busy unread cursors retain pages.
 func (e *Engine) notificationQueueUsageLocked() float64 {
-	if e.cluster.notificationHead == nil {
+	if e.Cluster.notificationHead == nil {
 		return 0
 	}
-	head := *e.cluster.notificationHead
+	head := *e.Cluster.notificationHead
 	tail := head
-	for _, runtime := range e.cluster.targets {
+	for _, runtime := range e.Cluster.Targets {
 		for _, listener := range runtime.notifications {
 			state := listener.State
 			if !listener.Ended && state != nil && state.Unread && state.Position.Before(tail) {

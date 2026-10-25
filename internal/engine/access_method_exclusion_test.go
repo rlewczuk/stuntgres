@@ -25,9 +25,9 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 				stage := e.BeginCatalogStage(auth.Catalog)
 				defer e.DiscardCatalogStage(stage)
 				raw := &parser.ExclusionConstraint{Index: parser.CreateIndex{Method: name, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}}, Operators: []parser.ObjectName{ddlHostName("=")}}
-				e.mu.Lock()
-				err := index.StageExclusion(ddlHost{e: e, op: op, stage: stage}, auth, sqltype.InputEnvironment{}, &catalog.Relation{}, raw, false)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				err := index.StageExclusion(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, sqltype.InputEnvironment{}, &catalog.Relation{}, raw, false)
+				e.Mu.Unlock()
 				code, message := "0A000", `access method "`+name+`" does not support exclusion constraints`
 				if kind == "table" {
 					code, message = "55000", `access method "`+name+`" is not of type INDEX`
@@ -71,17 +71,17 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(before)
 			defer e.DiscardCatalogStage(stage)
-			h := ddlHost{e: e, op: op, stage: stage}
+			h := DDLHost{E: e, Op: op, CatalogStage: stage}
 			typ, _ := before.LookupType(sqltype.Int4)
 			raw := &parser.ExclusionConstraint{
 				Name:      parser.Identifier{Text: "am_exclusion_backing"},
 				Index:     parser.CreateIndex{Method: name, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}},
 				Operators: []parser.ObjectName{ddlHostName("pg_catalog", "=")},
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			parent, err := table.NewRelation(h, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "am_exclusion_rows", auth.State.CurrentUser, []catalog.Column{{Name: "n", Usage: typ.Usage()}}, nil)
 			if err == nil {
-				err = e.stageRowTypeLocked(stage, parent)
+				err = e.StageRowTypeLocked(stage, parent)
 			}
 			if err == nil {
 				err = stage.Create(parent)
@@ -89,7 +89,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 			if err == nil {
 				err = index.StageExclusion(h, auth, sqltype.InputEnvironment{}, parent, raw, false)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("registered btree descriptor must override absent-builtin spelling", err)
 			}

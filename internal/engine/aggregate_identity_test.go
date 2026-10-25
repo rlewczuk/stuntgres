@@ -79,15 +79,15 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal("prepared helper literal omitted real owner dependency")
 	}
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
-	ref := e.catalog.Domain.Ref(view.Epoch(), source.Address())
-	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
+	ref := e.Catalog.Domain.Ref(view.Epoch(), source.Address())
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGAggregate)
 	if err != nil || len(rows.Anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)
 	}
 	removed := catalog.CloneState(view.State())
 	removed.RemoveDescriptor(proc.Address())
 	removed.UnbindName(catalog.DescriptorNameKey(proc))
-	retired := e.catalog.Read(removed)
+	retired := e.Catalog.Read(removed)
 	for _, helper := range proc.Aggregate.Helpers {
 		if _, ok := regobj.RoutineIdentityByOID(retired, helper.ID); ok {
 			t.Fatal("retired helper still resolves")
@@ -127,7 +127,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		bad.Aggregate = &owned
 		state := catalog.CloneState(view.State())
 		state.SetDescriptor(proc.Address(), &bad)
-		if err := extension.StockIntagg.ValidateExtension(e.catalog.Read(state), ext); err == nil {
+		if err := extension.StockIntagg.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
 			t.Fatal("invalid owned aggregate admitted", owned)
 		}
 	}
@@ -140,7 +140,7 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 		}
 		state := catalog.CloneState(view.State())
 		state.SetDescriptor(member, &bad)
-		if err := extension.StockIntagg.ValidateExtension(e.catalog.Read(state), ext); err == nil {
+		if err := extension.StockIntagg.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
 			t.Fatal("aggregate payload attached to wrong owner", member)
 		}
 	}
@@ -149,10 +149,10 @@ func TestPGAggregateIntaggValidation(t *testing.T) {
 	namespace := *view.MustNamespace(proc.Namespace())
 	namespace.ObjectAddress = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: helper.ID}
 	collision.SetDescriptor(namespace.Address(), &namespace)
-	if err := extension.StockIntagg.ValidateExtension(e.catalog.Read(collision), ext); err == nil {
+	if err := extension.StockIntagg.ValidateExtension(e.Catalog.Read(collision), ext); err == nil {
 		t.Fatal("cross-class owned helper collision admitted")
 	}
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(collision)); err == nil {
+	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(collision)); err == nil {
 		t.Fatal("global definition collision omitted helper")
 	}
 }
@@ -208,8 +208,8 @@ func TestPGAggregateIntaggRemap(t *testing.T) {
 	}
 	// The global allocator must skip metadata-only owned IDs just like actual
 	// definitions, even when their identities have been remapped out of order.
-	e.catalog.InstallOIDFrontierLocked(original.Helpers[0].ID)
-	allocated, err := e.catalog.AllocateOIDLocked()
+	e.Catalog.InstallOIDFrontierLocked(original.Helpers[0].ID)
+	allocated, err := e.Catalog.AllocateOIDLocked()
 	if err != nil || allocated == original.Helpers[0].ID || allocated == original.Helpers[1].ID {
 		t.Fatal("allocator reused owned helper", allocated, err)
 	}
@@ -219,15 +219,15 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	e := New()
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
-	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "intagg", Version: "1.1", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.Domain.Principal(10)}
-	e.catalog.InstallOIDFrontierLocked(^ids.OID(0) - 1) // aggregate and state can allocate; final helper cannot.
+	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "intagg", Version: "1.1", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.RoleStore.Domain.Principal(10)}
+	e.Catalog.InstallOIDFrontierLocked(^ids.OID(0) - 1) // aggregate and state can allocate; final helper cannot.
 	if err := extension.StockIntagg.Stage(&extensionHost{engine: e, stage: stage}, ext, ext.Owner); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
 	}
-	if e.catalog.State != before.State() {
+	if e.Catalog.State != before.State() {
 		t.Fatal("failed provider published partial installation")
 	}
-	for _, d := range e.catalog.State.Descriptors() {
+	for _, d := range e.Catalog.State.Descriptors() {
 		if p, ok := d.(*catalog.Procedure); ok && extension.IntaggProviderOf(p) != nil {
 			t.Fatal("failed provider leaked a callable/aggregate owner")
 		}
@@ -236,22 +236,22 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 
 func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 	source, ext := intaggUnitInstalled(t)
-	proc := source.catalog.State.MustProcedure(ext.Members[0])
+	proc := source.Catalog.State.MustProcedure(ext.Members[0])
 	original := *proc.Aggregate
 	target := New()
-	target.catalog.PublishLocked(catalog.CloneState(target.catalog.State))
+	target.Catalog.PublishLocked(catalog.CloneState(target.Catalog.State))
 	namespace := &catalog.Namespace{
 		ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: original.Helpers[0].ID},
-		ObjectName:    "pg_temp_pga_collision", ObjectRevision: 1, Owner: target.roles.Domain.Principal(10),
-		Temporary: target.catalog.Domain.Session(99),
+		ObjectName:    "pg_temp_pga_collision", ObjectRevision: 1, Owner: target.RoleStore.Domain.Principal(10),
+		Temporary: target.Catalog.Domain.Session(99),
 	}
-	target.catalog.State.SetDescriptor(namespace.Address(), namespace)
-	target.catalog.State.BindName(catalog.DescriptorNameKey(namespace), namespace.Address())
-	target.catalog.InstallOIDFrontierLocked(30000)
-	next := catalog.CloneState(source.catalog.State)
-	target.mu.Lock()
-	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.catalog.NextOID(), Next: target.catalog.NextOID()})
-	target.mu.Unlock()
+	target.Catalog.State.SetDescriptor(namespace.Address(), namespace)
+	target.Catalog.State.BindName(catalog.DescriptorNameKey(namespace), namespace.Address())
+	target.Catalog.InstallOIDFrontierLocked(30000)
+	next := catalog.CloneState(source.Catalog.State)
+	target.Mu.Lock()
+	err := target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.Catalog.NextOID(), Next: target.Catalog.NextOID()})
+	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestPGAggregateIntaggRetainedCollision(t *testing.T) {
 			t.Fatal("mapping-only helper became a descriptor")
 		}
 	}
-	if err := catalog.ValidateDefinitionOIDs(target.catalog.Read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(target.Catalog.Read(next)); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -286,7 +286,7 @@ func TestPGAggregateIntaggRelabelIdentity(t *testing.T) {
 	state.UnbindName(catalog.DescriptorNameKey(original))
 	state.SetDescriptor(renamed.Address(), &renamed)
 	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
-	current := e.catalog.Read(state)
+	current := e.Catalog.Read(state)
 	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "int_array_aggregate" {
 		t.Fatal(symbol, err)
 	}

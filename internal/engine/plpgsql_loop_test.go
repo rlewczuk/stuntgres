@@ -25,12 +25,12 @@ func loopUnitFrame(t *testing.T, source string) (*StatementScope, *catalog.Proce
 		t.Fatal(err)
 	}
 	d := &catalog.Procedure{ObjectName: "loop_unit", Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "loop_unit", Source: source, Result: integer.Usage(), PLSyntax: raw}}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {
-		err = e.compilePLRoutineLocked(s.op, auth, d)
+		err = e.CompilePLRoutineLocked(s.Op, auth, d)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,8 +92,8 @@ func (c loopFrameCancel) Err() error {
 func TestPLpgSQLLoopCancellation(t *testing.T) {
 	for _, source := range []string{"BEGIN LOOP END LOOP; RETURN 7; END", "BEGIN LOOP CONTINUE; END LOOP; RETURN 7; END"} {
 		s, d, f, read := loopUnitFrame(t, source)
-		ctx, cancel := context.WithCancel(s.op.Context())
-		s.op.Ctx = loopFrameCancel{Context: ctx, cancel: cancel, frame: f}
+		ctx, cancel := context.WithCancel(s.Op.Context())
+		s.Op.Ctx = loopFrameCancel{Context: ctx, cancel: cancel, frame: f}
 		_, flow, err := s.newPLRun(d, f, read).Block(d.SQL.PL.Root)
 		cancel()
 		if !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal {

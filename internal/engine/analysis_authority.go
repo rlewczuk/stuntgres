@@ -56,29 +56,29 @@ func authorityBase(a analyze.Authority) (*AuthorizationView, bool) {
 }
 
 // operationDefinition is the operation's current definition reader, or nil.
-func (h *bindingHost) operationDefinition() catalog.DefinitionReader {
-	if h.op == nil {
+func (h *BindingHost) operationDefinition() catalog.DefinitionReader {
+	if h.Op == nil {
 		return nil
 	}
-	return h.op.Definition
+	return h.Op.Definition
 }
 
 // view is the authorization view behind a, with the operation's definition
 // reader on a binding authority.
-func (h *bindingHost) view(a analyze.Authority) AuthorizationView {
+func (h *BindingHost) view(a analyze.Authority) AuthorizationView {
 	base, binding := authorityBase(a)
 	view := *base
 	if d := h.operationDefinition(); binding && d != nil {
-		view.definition = d
+		view.Definition = d
 	}
 	return view
 }
 
 // BindingAuthority is the authority binding resolves under: base read through
 // the operation's definition reader, or a fresh authority without one.
-func (h *bindingHost) BindingAuthority(base analyze.Authority) (analyze.Authority, error) {
+func (h *BindingHost) BindingAuthority(base analyze.Authority) (analyze.Authority, error) {
 	if base == nil {
-		auth, err := h.engine.authorizationLocked(h.op)
+		auth, err := h.Engine.AuthorizationLocked(h.Op)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +93,7 @@ func (h *bindingHost) BindingAuthority(base analyze.Authority) (analyze.Authorit
 
 // BindingDefinition is the definition reader of base's binding authority: the
 // operation's reader, or else base's own.
-func (h *bindingHost) BindingDefinition(base analyze.Authority) catalog.DefinitionReader {
+func (h *BindingHost) BindingDefinition(base analyze.Authority) catalog.DefinitionReader {
 	if d := h.operationDefinition(); d != nil {
 		return d
 	}
@@ -101,14 +101,14 @@ func (h *bindingHost) BindingDefinition(base analyze.Authority) catalog.Definiti
 		return nil
 	}
 	view, _ := authorityBase(base)
-	return view.definition
+	return view.Definition
 }
 
 // DefinitionOf is the definition reader a reads through.
-func (h *bindingHost) DefinitionOf(a analyze.Authority) catalog.DefinitionReader {
+func (h *BindingHost) DefinitionOf(a analyze.Authority) catalog.DefinitionReader {
 	view, binding := authorityBase(a)
 	if d := h.operationDefinition(); binding && d != nil {
 		return d
 	}
-	return view.definition
+	return view.Definition
 }

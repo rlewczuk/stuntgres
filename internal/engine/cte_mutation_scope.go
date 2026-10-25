@@ -15,37 +15,37 @@ import (
 // The embedded context keeps single-command statements allocation-free.
 // The DML groups are dml.Command; every group is a value, so activateMutation
 // and the rule and SQL routine save/restore copy the whole mutation at once.
-type statementMutation struct {
-	statement parser.Statement
-	mutationTarget
+type StatementMutation struct {
+	Statement parser.Statement
+	MutationTarget
 	dml.Command
 	effectAdmission foreignEffectAdmission
 }
 
-// mutationTarget is the admitted, locked command target. It stays in the
+// MutationTarget is the admitted, locked command target. It stays in the
 // engine: statement lock admission and DDL read it.
-type mutationTarget struct {
-	lockedRef             ids.ObjectRef
-	lockedDescriptor      catalog.Descriptor
-	lockedStorage         *storage.Relation
+type MutationTarget struct {
+	LockedRef             ids.ObjectRef
+	LockedDescriptor      catalog.Descriptor
+	LockedStorage         *storage.Relation
 	lockedIdentityOnly    bool
-	admittedTargetName    parser.ObjectName
-	admittedTargetLexical ids.ObjectRef
-	routineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
+	AdmittedTargetName    parser.ObjectName
+	AdmittedTargetLexical ids.ObjectRef
+	RoutineDependencies   []catalog.ExpressionDependency // Borrowed immutable manifest follows command activation.
 }
 
 func (s *StatementScope) activateMutation(index int) {
-	if len(s.mutations) == 0 || index == s.activeMutation {
+	if len(s.mutations) == 0 || index == s.ActiveMutation {
 		return
 	}
-	s.mutations[s.activeMutation] = s.statementMutation
-	s.statementMutation = s.mutations[index]
-	s.activeMutation = index
+	s.mutations[s.ActiveMutation] = s.StatementMutation
+	s.StatementMutation = s.mutations[index]
+	s.ActiveMutation = index
 }
 
 func (s *StatementScope) mutationIndex(statement parser.Statement) int {
 	for i := range s.mutations {
-		if s.mutations[i].statement == statement {
+		if s.mutations[i].Statement == statement {
 			return i
 		}
 	}
@@ -61,7 +61,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 		return err
 	}
 	if err := parser.VisitMutationTargets(statement, func(command parser.Statement) error {
-		s.mutations = append(s.mutations, statementMutation{statement: command})
+		s.mutations = append(s.mutations, StatementMutation{Statement: command})
 		return nil
 	}); err != nil {
 		return err
@@ -70,13 +70,13 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 	// auxiliary's target. Main DML already occupies its final occurrence.
 	root := dml.StatementCTERoot(statement)
 	if !parser.ModifyingStatement(root) {
-		s.mutations = append(s.mutations, statementMutation{statement: root})
+		s.mutations = append(s.mutations, StatementMutation{Statement: root})
 	}
-	s.activeMutation = 0
-	s.statementMutation = s.mutations[0]
+	s.ActiveMutation = 0
+	s.StatementMutation = s.mutations[0]
 	for i := range s.mutations {
 		s.activateMutation(i)
-		command := s.statement
+		command := s.Statement
 		if !parser.ModifyingStatement(command) {
 			continue
 		}
@@ -92,7 +92,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 			return err
 		}
 		if insert, ok := command.(*parser.Insert); ok {
-			if err := analyze.BindInsertTargets(s.lockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
+			if err := analyze.BindInsertTargets(s.LockedDescriptor.(*catalog.Relation), insert.Targets, nil); err != nil {
 				return err
 			}
 		}
@@ -102,23 +102,23 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 	}
 	for i := range s.mutations {
 		mutation := s.mutations[i]
-		if i == s.activeMutation {
-			mutation = s.statementMutation
+		if i == s.ActiveMutation {
+			mutation = s.StatementMutation
 		}
-		if mutation.lockedRef.Domain() == nil {
+		if mutation.LockedRef.Domain() == nil {
 			continue
 		}
-		s.queryLockAdmission.MutationTargets = append(s.queryLockAdmission.MutationTargets, analyze.MutationTarget{Statement: mutation.statement, Ref: mutation.lockedRef})
+		s.QueryLockAdmission.MutationTargets = append(s.QueryLockAdmission.MutationTargets, analyze.MutationTarget{Statement: mutation.Statement, Ref: mutation.LockedRef})
 	}
-	if _, err := s.acquireViewSources(false); err != nil {
+	if _, err := s.AcquireViewSources(false); err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.statementAuthorizationLocked(s.op, statement)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.StatementAuthorizationLocked(s.Op, statement)
 	if err == nil {
-		err = s.validateAdmissionNamesLocked(e, auth)
+		err = s.ValidateAdmissionNamesLocked(e, auth)
 	}
 	return err
 }
@@ -129,7 +129,7 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *analyze.Bi
 	if len(scope.mutations) == 0 {
 		return nil
 	}
-	main := scope.activeMutation
+	main := scope.ActiveMutation
 	defer scope.activateMutation(main)
 	for _, definition := range b.CTEs {
 		mutation, ok := analyze.MutationBinding(definition)
@@ -142,21 +142,21 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *analyze.Bi
 		}
 		scope.activateMutation(index)
 		if execute {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			err := scope.acquireViewWriteTarget(view.ViewWriteOf(mutation.ViewWrite))
-			e.mu.Lock()
+			e.Mu.Lock()
 			if err != nil {
 				return err
 			}
-			mutation.Storage = scope.lockedStorage
+			mutation.Storage = scope.LockedStorage
 		}
 		if err := e.attachViewWriteSourcesLocked(scope, mutation); err != nil {
 			return err
 		}
 	}
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err == nil {
-		err = scope.validateAdmissionNamesLocked(e, auth)
+		err = scope.ValidateAdmissionNamesLocked(e, auth)
 	}
 	return err
 }

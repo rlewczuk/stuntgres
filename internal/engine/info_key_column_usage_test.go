@@ -23,8 +23,8 @@ type kcuUnitFixture struct {
 func newKCUUnitFixture(t *testing.T) kcuUnitFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
-	typ, _ := f.e.catalog.Read(state).LookupType(sqltype.Int4)
+	state := catalog.CloneState(f.e.Catalog.State)
+	typ, _ := f.e.Catalog.Read(state).LookupType(sqltype.Int4)
 	relation := func(oid ids.OID, name string) *catalog.Relation {
 		return &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: f.schema, ObjectName: name, ObjectRevision: 1, Owner: f.owner, RelationKind: catalog.TableRelation, Security: catalog.RelationSecurity{ACL: authorization.ACLValue{Explicit: true}}, Attributes: []int32{1, 3}, Columns: []catalog.Column{{Name: "a", Usage: typ.Usage()}, {Name: "b", Usage: typ.Usage()}}}
 	}
@@ -50,11 +50,11 @@ func newKCUUnitFixture(t *testing.T) kcuUnitFixture {
 }
 func (f kcuUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.Read(state)
+	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.KeyColumnUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 func kcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -62,7 +62,7 @@ func kcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestInfoKeyColumnUsageProducer(t *testing.T) {
 			t.Fatal("relation kind population", kind, len(rows))
 		}
 	}
-	empty := catalog.CloneState(f.f.e.catalog.State)
+	empty := catalog.CloneState(f.f.e.Catalog.State)
 	if rows := kcuUnitRows(t, f.input(t, empty, f.f.owner)); len(rows) != 0 {
 		t.Fatal("invented keys", rows)
 	}
@@ -198,7 +198,7 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 	if rows := kcuUnitRows(t, tempInput); len(rows) != 2 {
 		t.Fatal("peer TEMP disclosed", len(rows))
 	}
-	runtime := tempInput.Runtime.(engineCatalogRuntime)
+	runtime := tempInput.Runtime.(EngineCatalogRuntime)
 	runtime.temporary = ns.Temporary
 	tempInput.Runtime = runtime
 	if rows := kcuUnitRows(t, tempInput); len(rows) != 4 {
@@ -221,14 +221,14 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 	}
 	produce, _ := pgcatalog.ProducerFor(pgcatalog.KeyColumnUsageOID)
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.RoleRecord = nil
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 	} {
@@ -271,7 +271,7 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 // This wrapper delegates every metadata/privilege result to the real runtime.
 // Only cancellation timing is controlled, at actual column/index walk entries.
 type kcuCancelRuntime struct {
-	engineCatalogRuntime
+	EngineCatalogRuntime
 	child                        ids.ObjectAddress
 	cancel                       context.CancelFunc
 	effectiveCalls, indexCalls   int
@@ -285,7 +285,7 @@ func (r *kcuCancelRuntime) Effective(ref ids.ObjectRef, owner bool) (authorizati
 			r.cancel()
 		}
 	}
-	return r.engineCatalogRuntime.Effective(ref, owner)
+	return r.EngineCatalogRuntime.Effective(ref, owner)
 }
 
 func (r *kcuCancelRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key catalog.IndexKey) (int32, bool) {
@@ -293,7 +293,7 @@ func (r *kcuCancelRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key ca
 	if r.indexCalls == r.cancelIndex {
 		r.cancel()
 	}
-	return r.engineCatalogRuntime.IndexSimpleAttribute(parent, key)
+	return r.EngineCatalogRuntime.IndexSimpleAttribute(parent, key)
 }
 
 func TestInfoKeyColumnUsageCancellation(t *testing.T) {
@@ -330,7 +330,7 @@ func TestInfoKeyColumnUsageCancellation(t *testing.T) {
 		in := f.input(t, state, actor)
 		ctx, cancel := context.WithCancel(t.Context())
 		in.Context = ctx
-		runtime := &kcuCancelRuntime{engineCatalogRuntime: in.Runtime.(engineCatalogRuntime), child: child.Address(), cancel: cancel}
+		runtime := &kcuCancelRuntime{EngineCatalogRuntime: in.Runtime.(EngineCatalogRuntime), child: child.Address(), cancel: cancel}
 		if stage == "column" {
 			runtime.cancelEffective = 2
 		} else {
@@ -349,11 +349,11 @@ func TestInfoKeyColumnUsageCancellation(t *testing.T) {
 			t.Fatal("index cancellation did not follow first complete row", runtime.indexCalls)
 		}
 	}
-	empty := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
+	empty := f.input(t, catalog.CloneState(f.f.e.Catalog.State), f.f.owner)
 	if rows, err := produce(empty); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("successful empty capture", rows, err)
 	}
-	in := f.input(t, catalog.CloneState(f.f.e.catalog.State), f.f.owner)
+	in := f.input(t, catalog.CloneState(f.f.e.Catalog.State), f.f.owner)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	in.Context = ctx

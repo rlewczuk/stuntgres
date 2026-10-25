@@ -165,12 +165,12 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	e := New()
 	// Publish real immutable authorization roots; no SQL, enumeration cache or
 	// mocked lookup is involved. The statement keeps the original root frontier.
-	e.mu.Lock()
-	ref := e.roles.Domain.Principal(50000)
-	first := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	ref := e.RoleStore.Domain.Principal(50000)
+	first := cloneRoleFixture(e.RoleStore.Published)
 	putFixtureRole(first, authorization.RoleDescriptor{Ref: ref, Name: "captured é\"role", ConnectionLimit: -1})
-	e.roles.PublishLocked(first)
-	e.mu.Unlock()
+	e.RoleStore.PublishLocked(first)
+	e.Mu.Unlock()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	scope, err := e.StartStatement(op)
@@ -178,20 +178,20 @@ func TestCatalogRelationsCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
-	e.mu.Lock()
-	err = e.captureCommentSnapshotLocked(scope)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.CaptureCommentSnapshotLocked(scope)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := scope.inquiry.commentRoles
-	e.mu.Lock()
-	next := cloneRoleFixture(e.roles.Published)
+	original := scope.Inquiry.commentRoles
+	e.Mu.Lock()
+	next := cloneRoleFixture(e.RoleStore.Published)
 	retireFixtureRole(next, ref)
-	replacement := e.roles.Domain.Principal(50001)
+	replacement := e.RoleStore.Domain.Principal(50001)
 	putFixtureRole(next, authorization.RoleDescriptor{Ref: replacement, Name: "captured é\"role", ConnectionLimit: -1})
-	e.roles.PublishLocked(next)
-	e.mu.Unlock()
+	e.RoleStore.PublishLocked(next)
+	e.Mu.Unlock()
 	oidType, _ := e.CatalogRead().LookupType(sqltype.Oid)
 	nameType, _ := e.CatalogRead().LookupType(sqltype.Name)
 	lookup := func(scope *StatementScope, oid uint32, want string) {
@@ -201,7 +201,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
-		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}})
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -212,10 +212,10 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	}
 	lookup(scope, 50000, "captured é\"role")
 	lookup(scope, 50001, "unknown (OID=50001)")
-	e.mu.Lock()
-	err = e.captureCommentSnapshotLocked(scope)
-	e.mu.Unlock()
-	if err != nil || scope.inquiry.commentRoles != original {
+	e.Mu.Lock()
+	err = e.CaptureCommentSnapshotLocked(scope)
+	e.Mu.Unlock()
+	if err != nil || scope.Inquiry.commentRoles != original {
 		t.Fatal("statement snapshot recaptured", err)
 	}
 	newer, newDone := roleOperation(t, e, "postgres")
@@ -225,9 +225,9 @@ func TestCatalogRelationsCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer current.Finish(context.Canceled)
-	e.mu.Lock()
-	err = e.captureCommentSnapshotLocked(current)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.CaptureCommentSnapshotLocked(current)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,12 +235,12 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	lookup(current, 50001, "captured é\"role")
 	lookup(current, 0, "unknown (OID=0)")
 	foreign := New()
-	saved := current.inquiry.commentRoles
-	current.inquiry.commentRoles = foreign.roles.Published.Root.Read(authorization.PrincipalRef{})
+	saved := current.Inquiry.commentRoles
+	current.Inquiry.commentRoles = foreign.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
 	node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
-	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(current)}}); err == nil {
+	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(current)}}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}
-	current.inquiry.commentRoles = saved
+	current.Inquiry.commentRoles = saved
 }

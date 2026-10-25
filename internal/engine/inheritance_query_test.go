@@ -24,8 +24,8 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	l := inheritanceLifecycleTable(e, 20001, "l", p.Address())
 	r := inheritanceLifecycleTable(e, 20002, "r", p.Address())
 	d := inheritanceLifecycleTable(e, 20003, "d", l.Address(), r.Address(), p.Address())
-	own := e.catalog.Domain.Session(1)
-	peer := e.catalog.Domain.Session(2)
+	own := e.Catalog.Domain.Session(1)
+	peer := e.Catalog.Domain.Session(2)
 	ownNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20004}
 	peerNamespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}
 	o := inheritanceLifecycleTable(e, 20006, "own", p.Address())
@@ -35,8 +35,8 @@ func TestInheritanceQueryClosure(t *testing.T) {
 	branch := inheritanceLifecycleTable(e, 20008, "foreign_branch", f.Address())
 	branch.ObjectNamespace = peerNamespace
 	inheritanceLifecycleInstall(e, p, l, r, d, o, f, branch)
-	e.catalog.State.SetDescriptor(ownNamespace, &catalog.Namespace{ObjectAddress: ownNamespace, Temporary: own})
-	e.catalog.State.SetDescriptor(peerNamespace, &catalog.Namespace{ObjectAddress: peerNamespace, Temporary: peer})
+	e.Catalog.State.SetDescriptor(ownNamespace, &catalog.Namespace{ObjectAddress: ownNamespace, Temporary: own})
+	e.Catalog.State.SetDescriptor(peerNamespace, &catalog.Namespace{ObjectAddress: peerNamespace, Temporary: peer})
 	for range 2 {
 		var got []ids.ObjectAddress
 		if err := table.InheritanceQueryClosure(e.CatalogRead(), p, own, func(d *catalog.Relation) error { got = append(got, d.Address()); return nil }); err != nil {
@@ -113,7 +113,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	p := inheritanceQueryUnitColumns(e, 20000, "a")
 	c := inheritanceQueryUnitColumns(e, 20001, "y", "a")
 	ref := func(d *catalog.Relation) ids.ObjectRef {
-		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
+		return e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	one := storage.RowVersion{Row: 1, Version: 1, Values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
 	two := storage.RowVersion{Row: 1, Version: 2, Values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
@@ -148,9 +148,9 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
-	e.visibility.SetCommitSeqLocked(1)
-	e.storage.Relations[p.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}}
-	e.storage.Relations[c.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{}}}
+	e.Visibility.SetCommitSeqLocked(1)
+	e.Storage.Relations[p.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}}
+	e.Storage.Relations[c.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{}}}
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -161,34 +161,34 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	if err = scope.gate(&parser.Select{}); err != nil {
+	if err = scope.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	leaf := exec.Leaf{Ref: ref, Relation: p, Storage: e.storage.Relations[p.Address()]}
-	scope.querySources = []exec.Leaf{leaf}
-	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
+	leaf := exec.Leaf{Ref: ref, Relation: p, Storage: e.Storage.Relations[p.Address()]}
+	scope.QuerySources = []exec.Leaf{leaf}
+	if err = e.Locks.Acquire(op.Context(), scope.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.acquireInheritanceSources(nil); err != nil {
 		t.Fatal(err)
 	}
-	collectAuth, err := operationAuthorization(op)
+	collectAuth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(scope.inheritance.catalog)
-	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.Session.SessionToken, plan.RowMark{})
+	collectAuth.Recapture(scope.Inheritance.catalog)
+	e.Mu.Lock()
+	refs, err := e.QueryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.QuerySources, nil, op.Session.SessionToken, plan.RowMark{})
 	var view *visibility.View
 	if err == nil {
-		view, err = scope.acquireDataViewsLocked(e, refs)
+		view, err = scope.AcquireDataViewsLocked(e, refs)
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = table.CaptureInheritanceQueryPrefix(scope.inheritance.catalog, view, leaf, op.Session.SessionToken)
+		source, err = table.CaptureInheritanceQueryPrefix(scope.Inheritance.catalog, view, leaf, op.Session.SessionToken)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,12 +196,12 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = exec.SelectQuerySources(op.Context(), source); err != nil || source.Count() != 3 {
 		t.Fatal(source.Count(), err)
 	}
-	if source.View.Data() != view.Data() || source.Inheritance[1].Prefix.View.Data() != view.Data() || &source.Inheritance[1].Prefix.Committed[0] != &e.storage.Relations[c.Address()].Versions[0] {
+	if source.View.Data() != view.Data() || source.Inheritance[1].Prefix.View.Data() != view.Data() || &source.Inheritance[1].Prefix.Committed[0] != &e.Storage.Relations[c.Address()].Versions[0] {
 		t.Fatal("hierarchy acquired a second visibility owner or copied immutable rows")
 	}
-	e.mu.Lock()
-	same, err := scope.acquireDataViewsLocked(e, refs)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	same, err := scope.AcquireDataViewsLocked(e, refs)
+	e.Mu.Unlock()
 	if err != nil || same != view {
 		t.Fatal("statement did not reuse sole view", err)
 	}
@@ -222,16 +222,16 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer failed.Finish(nil)
-	if err = failed.gate(&parser.Select{}); err != nil {
+	if err = failed.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	incomplete, err := failed.acquireDataViewsLocked(e, []ids.ObjectRef{ref})
+	e.Mu.Lock()
+	incomplete, err := failed.AcquireDataViewsLocked(e, []ids.ObjectRef{ref})
 	var partial *exec.Source
 	if err == nil {
 		partial, err = table.CaptureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.Session.SessionToken)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil || partial != nil || incomplete == nil || incomplete.Load() == nil {
 		t.Fatal("partial capture leaked a result or consumed sole view", partial, err)
 	}
@@ -265,7 +265,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	inheritanceLifecycleInstall(e, p, c)
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++

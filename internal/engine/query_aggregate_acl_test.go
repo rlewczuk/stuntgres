@@ -20,7 +20,7 @@ func TestCountExpressionColumnACL(t *testing.T) {
 				roleExecute(t, e, op, "CREATE USER aggregate_reader")
 				roleExecute(t, e, op, "CREATE TABLE t(k TEXT,v INT)")
 				worker, _ := e.Roles().Lookup("aggregate_reader")
-				grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				table := roleTableRef(t, e, "t")
 				grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 					t.Helper()
@@ -86,7 +86,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO am_acl VALUES(1,1)")
 		}
 		reader, _ := e.Roles().Lookup("am_unit_reader")
-		grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 			t.Helper()
 			if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {

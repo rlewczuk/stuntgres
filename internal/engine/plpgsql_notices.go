@@ -21,13 +21,13 @@ func (s *StatementScope) plNoticeOrigin(f *proc.PLFrame, position parser.Positio
 // The operation still owns these filtered records; adapters deliver them later.
 // Formatting does no work for the overwhelmingly common no-notice execution.
 func (s *StatementScope) appendPLNoticeContext(start int, origin plNoticeOrigin) {
-	if start == len(s.op.Notices) || origin.action == "" { return }
+	if start == len(s.Op.Notices) || origin.action == "" { return }
 	s.appendNoticeContext(start,proc.PLActionContext(origin.source,origin.identity,origin.position,origin.action))
 }
 
 func (s *StatementScope) appendNoticeContext(start int, context string) {
-	for i := start; i < len(s.op.Notices); i++ {
-		diagnostic := &s.op.Notices[i]
+	for i := start; i < len(s.Op.Notices); i++ {
+		diagnostic := &s.Op.Notices[i]
 		if diagnostic.Context != "" { diagnostic.Context += "\n" }
 		diagnostic.Context += context
 	}

@@ -16,7 +16,7 @@ import (
 
 func availableUnitSource(e *Engine, oid ids.OID) (*catalog.Relation, ids.ObjectRef) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
-	return e.catalog.State.MustRelation(a), e.catalog.Domain.Ref(e.catalog.State.Epoch(), a)
+	return e.Catalog.State.MustRelation(a), e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a)
 }
 
 func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
@@ -31,7 +31,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		{12085, 12087, 12086, []string{"name", "version", "installed", "superuser", "trusted", "relocatable", "schema", "requires", "comment"}, []sqltype.ID{19, 25, 16, 16, 16, 16, 19, 1003, 25}, []uint32{950, 100, 0, 0, 0, 0, 950, 950, 100}},
 	} {
 		d, ref := availableUnitSource(e, spec.oid)
-		owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || d.Owner != owner || d.RowType != sqltype.ID(spec.row) || len(d.Columns) != len(spec.names) || d.ColumnMeta.HighWater != int32(len(spec.names)) {
 			t.Fatal("view identity", d)
 		}
@@ -46,15 +46,15 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 			invalid := *d
 			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(spec.ids[i])
-			if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
+			if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
 				t.Fatal("foreign generation accepted", i, source, err)
 			}
 		}
 		if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
-		row := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})
-		array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array})
+		row := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})
+		array := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.array})
 		ownedArray, ok := e.CatalogRead().LookupArray(row.SQLType)
 		if !ok || ownedArray != array.SQLType || row.Array != sqltype.ID(spec.array) || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != owner || array.Owner != owner {
 			t.Fatal("reciprocal ownership", row, array)
@@ -62,7 +62,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 		for _, width := range []int{0, len(d.Columns) - 1, len(d.Columns) + 1} {
 			invalid := *d
 			invalid.Columns = make([]catalog.Column, width)
-			if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
+			if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{}}, captureAvailableExtensions); err == nil || source != nil {
 				t.Fatal("malformed width accepted", width, source, err)
 			}
 		}
@@ -74,7 +74,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 	comment := "text search dictionary that removes accents"
 	for _, oid := range []ids.OID{12081, 12085} {
 		d, ref := availableUnitSource(e, oid)
-		source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
+		source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{}}, captureAvailableExtensions)
 		if err != nil || source == nil || source.Ref != ref {
 			t.Fatal("capture", source, err)
 		}
@@ -166,19 +166,19 @@ func TestAvailableExtensionsProjection(t *testing.T) {
 	availableUnitExpected(t, e, e.CatalogRead(), "1.1", true)
 	// Authentic installed descriptor, privately copied with only its version
 	// changed for projection. It is never validated/published as installation.
-	state := *e.catalog.State
+	state := *e.Catalog.State
 	address := state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := *state.MustExtension(address)
 	ext.Version = "available-unknown"
 	state.SetDescriptor(address, &ext)
-	availableUnitExpected(t, e, e.catalog.Read(&state), "available-unknown", false)
+	availableUnitExpected(t, e, e.Catalog.Read(&state), "available-unknown", false)
 	// A private installed descriptor with no registered package is not a row.
 	unavailable := ext
 	unavailable.ObjectAddress.ObjectID++
 	unavailable.ObjectName = "unavailable-component-fixture"
 	state.SetDescriptor(unavailable.Address(), &unavailable)
 	state.BindName(ids.NameKey{ClassID: ids.ExtensionClassID, Name: unavailable.Name()}, unavailable.Address())
-	availableUnitExpected(t, e, e.catalog.Read(&state), "available-unknown", false)
+	availableUnitExpected(t, e, e.Catalog.Read(&state), "available-unknown", false)
 }
 
 func TestAvailableExtensionsMetadataValues(t *testing.T) {
@@ -218,9 +218,9 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	if err := registry.registerExtension("unaccent", extension.StockUnaccent); err != nil {
 		t.Fatal(err)
 	}
-	read := registry.catalog.Extensions["unaccent"].Control()
+	read := registry.Catalog.Extensions["unaccent"].Control()
 	*read.Comment = "mutated"
-	if stored := registry.catalog.Extensions["unaccent"].Control(); registry.catalog.Extensions["unaccent"] != extension.StockUnaccent || *stored.Comment != "text search dictionary that removes accents" {
+	if stored := registry.Catalog.Extensions["unaccent"].Control(); registry.Catalog.Extensions["unaccent"] != extension.StockUnaccent || *stored.Comment != "text search dictionary that removes accents" {
 		t.Fatal("registry storage shared", stored)
 	}
 	empty, schema = "", "fixed_control_schema"
@@ -253,19 +253,19 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 	d, ref := availableUnitSource(e, 12081)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("pre-cancellation", source, err)
 	}
 	ctx, cancel = context.WithCancel(context.Background())
 	defer cancel()
 	during := &availableCancelContext{Context: ctx, cancel: cancel}
-	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) || during.checks != 2 {
+	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{}}, captureAvailableExtensions); source != nil || !errors.Is(err, context.Canceled) || during.checks != 2 {
 		t.Fatal("iteration cancellation", source, err)
 	}
 	op, done := roleOperation(t, e, "postgres")
 	extensionUnitPublish(t, e, op, extensionUnitStage(t, e, op))
 	done()
-	old, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{}}, captureAvailableExtensions)
+	old, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{}}, captureAvailableExtensions)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 	if version, err := installedRow[2].Text(); err != nil || version != "1.1" {
 		t.Fatal("retained installed state", version, err)
 	}
-	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{}}, captureAvailableExtensions); source != nil || err == nil {
+	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{}}, captureAvailableExtensions); source != nil || err == nil {
 		t.Fatal("old generation admitted", source, err)
 	}
 }

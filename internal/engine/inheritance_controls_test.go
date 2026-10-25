@@ -20,11 +20,11 @@ import (
 
 func inheritanceControlsTemporary(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *catalog.Relation {
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 21000}
-	if e.catalog.State.Get(ns) == nil {
-		e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-		d := &catalog.Namespace{ObjectAddress: ns, ObjectName: "pg_temp_inheritance_unit", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: e.catalog.Domain.Session(99)}
-		e.catalog.State.SetDescriptor(ns, d)
-		e.catalog.State.BindName(catalog.DescriptorNameKey(d), ns)
+	if e.Catalog.State.Get(ns) == nil {
+		e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+		d := &catalog.Namespace{ObjectAddress: ns, ObjectName: "pg_temp_inheritance_unit", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: e.Catalog.Domain.Session(99)}
+		e.Catalog.State.SetDescriptor(ns, d)
+		e.Catalog.State.BindName(catalog.DescriptorNameKey(d), ns)
 	}
 	table := inheritanceLifecycleTable(e, id, name, parents...)
 	table.ObjectNamespace = ns
@@ -37,22 +37,22 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 	p := inheritanceLifecycleTable(e, 20000, "p")
 	inheritanceLifecycleInstall(e, p)
 	temp := inheritanceControlsTemporary(e, 20001, "tc", p.Address())
-	state, oid, revision, epoch, stored := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision(), e.catalog.State.Epoch(), e.storage.Relations[temp.Address()]
-	next := catalog.CloneState(New().catalog.State)
-	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, nil, &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
-	e.mu.Unlock()
+	state, oid, revision, epoch, stored := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision(), e.Catalog.State.Epoch(), e.Storage.Relations[temp.Address()]
+	next := catalog.CloneState(New().Catalog.State)
+	e.Mu.Lock()
+	err := e.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, nil, &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
+	e.Mu.Unlock()
 	if err == nil || err.Error() != control.TemporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.catalog.State.Epoch() != epoch || e.storage.Relations[temp.Address()] != stored {
+	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Catalog.State.Epoch() != epoch || e.Storage.Relations[temp.Address()] != stored {
 		t.Fatal("rejection changed target/allocator")
 	}
 	// Reset uses the same final replacement fence, not just a helper-only guard.
 	if err = e.Reset(context.Background()); err == nil || err.Error() != control.TemporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
-	if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.storage.Relations[temp.Address()] != stored {
+	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Storage.Relations[temp.Address()] != stored {
 		t.Fatal("Reset rejection changed state")
 	}
 }
@@ -61,17 +61,17 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	e := New()
 	temp := inheritanceControlsTemporary(e, 20000, "tp")
 	tempChild := inheritanceControlsTemporary(e, 20004, "tc", temp.Address())
-	retainedStorage := e.storage.Relations[temp.Address()]
+	retainedStorage := e.Storage.Relations[temp.Address()]
 	source := New()
 	parent := inheritanceLifecycleTable(source, 20000, "p")
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.Address())
 	inheritanceLifecycleInstall(source, parent, child)
-	next := catalog.CloneState(source.catalog.State)
+	next := catalog.CloneState(source.Catalog.State)
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
-	e.catalog.InstallOIDFrontierLocked(30000)
-	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
-	e.mu.Unlock()
+	e.Catalog.InstallOIDFrontierLocked(30000)
+	e.Mu.Lock()
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestInheritanceControlsRetainedTemporaryCollision(t *testing.T) {
 	if child.Inheritance.Parents[0].Relation != parent.Address() || imported == child {
 		t.Fatal("source graph mutated")
 	}
-	predecessor, err := control.Resolver{}.Predecessor(e.catalog.Read(next), mapped, child.Address())
+	predecessor, err := control.Resolver{}.Predecessor(e.Catalog.Read(next), mapped, child.Address())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestInheritanceControlsConstraintOriginRemap(t *testing.T) {
 	old := map[ids.ObjectAddress]catalog.Descriptor{parent.Address(): parent, child.Address(): child}
 	changed := *parent
 	changed.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 30000, Name: "nn", Attribute: 1}}
-	next := catalog.CloneState(e.catalog.State)
+	next := catalog.CloneState(e.Catalog.State)
 	next.SetDescriptor(parent.Address(), &changed)
 	next.SetDescriptor(child.Address(), child)
 	if err := table.RemapInheritanceConstraintOrigins(next, old); err != nil {
@@ -129,11 +129,11 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	parent := inheritanceLifecycleTable(source, 22000, "p")
 	child := inheritanceLifecycleTable(source, 20001, "c", parent.Address())
 	inheritanceLifecycleInstall(source, parent, child)
-	next := catalog.CloneState(source.catalog.State)
+	next := catalog.CloneState(source.Catalog.State)
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
-	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestInheritanceControlsRetainedDefinitionCollision(t *testing.T) {
 	if next.Get(temp.Address()) != temp || temp.Constraints.NotNull[0].OID != 22000 {
 		t.Fatal("retained definition or descriptor changed")
 	}
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(next)); err != nil {
 		t.Fatal("combined identities remain colliding", err)
 	}
 }
@@ -167,7 +167,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 		p.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
 		c.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}
 		for _, table := range []*catalog.Relation{p, c} {
-			ref := owner.catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
+			ref := owner.Catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
 			ref.Address.SubID = 1
 			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: plan.ColumnExpr{Info: expr.Info{Usage: usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}}}
 		}
@@ -178,12 +178,12 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	installDefinitions(e, temp, tempChild)
 	installDefinitions(source, parent, child)
 	inheritanceLifecycleInstall(source, parent, child)
-	next := catalog.CloneState(source.catalog.State)
+	next := catalog.CloneState(source.Catalog.State)
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}}
-	retainedStorage := e.storage.Relations[tempChild.Address()]
-	e.mu.Lock()
-	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
-	e.mu.Unlock()
+	retainedStorage := e.Storage.Relations[tempChild.Address()]
+	e.Mu.Lock()
+	err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,11 +198,11 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 	if imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.Constraints.NotNull[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.Constraints.Check[0].OID {
 		t.Fatal("imported provenance retained old definition IDs")
 	}
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(next)); err != nil {
 		t.Fatal(err)
 	}
 	for _, tbl := range []*catalog.Relation{tempChild, imported} {
-		if err := table.ValidateInheritance(e.catalog.Read(next), tbl); err != nil {
+		if err := table.ValidateInheritance(e.Catalog.Read(next), tbl); err != nil {
 			t.Fatal(tbl.Name(), err)
 		}
 	}
@@ -225,7 +225,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 			table.Attributes = []int32{1, 2}
 			table.ColumnMeta.HighWater = 2
 			table.Index = map[string]int{"a": 0, "b": 1}
-			ref := owner.catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
+			ref := owner.Catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
 			ref.Address.SubID = 2
 			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: plan.ColumnExpr{Info: expr.Info{Usage: table.Columns[1].Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}}}
 		}
@@ -258,15 +258,15 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if err := index.ValidateExclusions(e.CatalogRead(), tempChild, map[string]bool{}); err != nil {
 		t.Fatal("invalid real exclusion fixture", err)
 	}
-	before := e.catalog.State
-	retainedParentStorage, retainedChildStorage := e.storage.Relations[temp.Address()], e.storage.Relations[tempChild.Address()]
+	before := e.Catalog.State
+	retainedParentStorage, retainedChildStorage := e.Storage.Relations[temp.Address()], e.Storage.Relations[tempChild.Address()]
 	originalIndex := idx.SQLIndex
-	next := catalog.CloneState(source.catalog.State)
+	next := catalog.CloneState(source.Catalog.State)
 	parentStorage, childStorage := &storage.Relation{}, &storage.Relation{}
 	relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): parentStorage, child.Address(): childStorage}
-	e.mu.Lock()
-	err = e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.catalog.NextOID(), Next: e.catalog.NextOID()})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,17 +282,17 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 	if mappedParent.Columns[0].OriginTable != uint32(mapped.ObjectID) || mappedParent.Columns[1].OriginTable != uint32(mapped.ObjectID) || imported.Inheritance.NotNull[1].Origins[0].Constraint != mappedParent.Constraints.NotNull[0].OID || imported.Inheritance.Checks["ck"].Origins[0].Constraint != mappedParent.Constraints.Check[0].OID {
 		t.Fatal("imported row/constraint origins did not follow mapping")
 	}
-	if e.catalog.State != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(idx.Address()) != idx || relations[temp.Address()] != retainedParentStorage || relations[tempChild.Address()] != retainedChildStorage || idx.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !index.BackingConstraintPresent(tempChild, idx) {
+	if e.Catalog.State != before || next.Get(temp.Address()) != temp || next.Get(tempChild.Address()) != tempChild || next.Get(idx.Address()) != idx || relations[temp.Address()] != retainedParentStorage || relations[tempChild.Address()] != retainedChildStorage || idx.SQLIndex != originalIndex || !reflect.DeepEqual(tempChild.Constraints.Exclusion[0], constraint) || !index.BackingConstraintPresent(tempChild, idx) {
 		t.Fatal("retained TEMP descriptors, exclusion attachment, storage or source authority changed")
 	}
-	if source.catalog.State.Get(parent.Address()) != parent || source.catalog.State.Get(child.Address()) != child || child.Inheritance.Parents[0].Relation != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {
+	if source.Catalog.State.Get(parent.Address()) != parent || source.Catalog.State.Get(child.Address()) != child || child.Inheritance.Parents[0].Relation != parent.Address() || child.Inheritance.Columns[1].Origins[0].Parent != parent.Address() || parent.Columns[0].OriginTable != uint32(parent.Address().ObjectID) || child.Inheritance.NotNull[1].Origins[0].Constraint != 23000 {
 		t.Fatal("imported source authority mutated")
 	}
-	if err := catalog.ValidateDefinitionOIDs(e.catalog.Read(next)); err != nil {
+	if err := catalog.ValidateDefinitionOIDs(e.Catalog.Read(next)); err != nil {
 		t.Fatal("combined definition identities invalid", err)
 	}
 	for _, tbl := range []*catalog.Relation{tempChild, imported} {
-		if err := table.ValidateInheritance(e.catalog.Read(next), tbl); err != nil {
+		if err := table.ValidateInheritance(e.Catalog.Read(next), tbl); err != nil {
 			t.Fatal(tbl.Name(), err)
 		}
 	}

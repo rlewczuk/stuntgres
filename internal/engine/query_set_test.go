@@ -243,14 +243,14 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	}
 	defer done()
 	ast := statement(t, "SELECT NULL UNION (SELECT NULL UNION SELECT 1)")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
-	e.mu.Unlock()
+	b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,19 +434,19 @@ func TestQuerySetAssignmentSchemaOwnership(t *testing.T) {
 			}
 			defer done()
 			ast := statement(t, "INSERT INTO set_dest "+tc.query).(*parser.Insert)
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			ref, err := e.resolveReference(auth, ast.Name)
+			ref, err := e.ResolveReference(auth, ast.Name)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-			e.mu.Unlock()
+			bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}

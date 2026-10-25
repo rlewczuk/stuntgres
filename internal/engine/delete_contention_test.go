@@ -24,7 +24,7 @@ func deleteAsync(t *testing.T, s *session.Session, ctx context.Context, query st
 		op, err := s.Acquire(ctx)
 		var result Result
 		if err == nil {
-			result, err = engineOf(s).Execute(op, ast, 0, nil)
+			result, err = EngineOf(s).Execute(op, ast, 0, nil)
 			op.Done()
 		}
 		done <- deleteOutcome{result, err}
@@ -59,10 +59,10 @@ func TestDeleteCoreContention(t *testing.T) {
 			done := deleteAsync(t, b, ctx, "DELETE FROM t WHERE v>=1")
 			lockPending(t, e, 1)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			e.mu.Lock()
-			row := e.storage.Relations[target.Address].Versions[0].Row
-			e.mu.Unlock()
-			lockState := e.locks.Inspect()
+			e.Mu.Lock()
+			row := e.Storage.Relations[target.Address].Versions[0].Row
+			e.Mu.Unlock()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: target, Row: row}]
 			queued := entry != nil && len(entry.Pending) == 1 && entry.Holders[a.Transactions.Ticket].Mode == lock.ForUpdate
 			if !queued {
@@ -107,7 +107,7 @@ func TestDeleteCoreRowAuthority(t *testing.T) {
 	ar, br := transactionBegin(t, a), transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	resource := lock.Resource{ObjectRef: ref, Row: 1}
-	manager := e.locks
+	manager := e.Locks
 	if err := manager.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}

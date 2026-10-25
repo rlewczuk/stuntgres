@@ -35,13 +35,13 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES"+conflictUpdateBatchValues(size, 10))
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			committed := e.storage.Relations[ref.Address].Versions
-			frontier := e.visibility.CommitSeq()
+			committed := e.Storage.Relations[ref.Address].Versions
+			frontier := e.Visibility.CommitSeq()
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE k<=64")
 			prior := s.Transactions.Writes[ref.Address]
 			op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			integer := func(n int64) sqltype.Value {
 				value, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 				if err != nil {
@@ -52,10 +52,10 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			var pinned []storage.RowVersion
 			for k := 1; k <= size*2; k++ {
 				proposal := []sqltype.Value{integer(int64(k)), integer(1)}
-				if admitted, err := dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
+				if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
-				stage := scope.stage.rows[ref.Address]
+				stage := scope.Stage.Rows[ref.Address]
 				if len(stage) != k || scope.InsertConflict.Affected != k || len(scope.InsertConflict.AffectedRows) != k || scope.InsertConflict.AffectedRows[stage[k-1].Row] != k-1 {
 					t.Fatal("append order/identity lookup/count", k, len(stage), scope.InsertConflict.Affected)
 				}
@@ -80,7 +80,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 					t.Fatal("exact replacement payload", k, row)
 				}
 			}
-			stage := scope.stage.rows[ref.Address]
+			stage := scope.Stage.Rows[ref.Address]
 			if pinned[0].Version != stage[0].Version || testExport(pinned[0].Values[1]) != int64(12) {
 				t.Fatal("retained current-command prefix mutated", pinned)
 			}
@@ -96,9 +96,9 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			}
 			var finishErr error
 			if duplicate {
-				_, finishErr = dml.AdmitInsertRow(scope.writeHost(), ref, &index.WriteCandidate{Values: []sqltype.Value{integer(1), integer(1)}}, index.WriteBatch{}, &evaluation)
+				_, finishErr = dml.AdmitInsertRow(scope.WriteHost(), ref, &index.WriteCandidate{Values: []sqltype.Value{integer(1), integer(1)}}, index.WriteBatch{}, &evaluation)
 				var d *sqlstate.Error
-				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.stage.rows[ref.Address]) != size*2 || scope.InsertConflict.Affected != size*2 {
+				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.Stage.Rows[ref.Address]) != size*2 || scope.InsertConflict.Affected != size*2 {
 					t.Fatal("duplicate does not append or count", finishErr, scope.InsertConflict.Affected)
 				}
 			}
@@ -109,7 +109,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 				t.Fatal("once-only Finish result", err)
 			}
 			op.Done()
-			if e.visibility.CommitSeq() != frontier {
+			if e.Visibility.CommitSeq() != frontier {
 				t.Fatal("statement published before transaction commit")
 			}
 			if duplicate {
@@ -132,8 +132,8 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 				}
 				transactionRows(t, s, "SELECT v FROM t ORDER BY k", want...)
 				transactionEnd(t, s, tx, true)
-				if e.visibility.CommitSeq() != frontier+1 {
-					t.Fatal("not exactly one transaction publication", e.visibility.CommitSeq(), frontier)
+				if e.Visibility.CommitSeq() != frontier+1 {
+					t.Fatal("not exactly one transaction publication", e.Visibility.CommitSeq(), frontier)
 				}
 				transactionRows(t, observer, "SELECT v FROM t ORDER BY k", want...)
 			}
@@ -145,47 +145,47 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	binding, err := dml.BindUniqueWrite(scope.writeHost(), ref)
+	binding, err := dml.BindUniqueWrite(scope.WriteHost(), ref)
 	if err != nil {
 		t.Fatal(err)
 	}
 	bound := &binding.Keys[0]
-	manager := f.e.locks
+	manager := f.e.Locks
 	indexRef := ref
 	indexRef.Address = bound.Index.Address()
 	oldKey := insertConflictUnitRow(t, f, 10)[:1]
 	newKey := insertConflictUnitRow(t, f, 20)[:1]
-	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, oldKey); err != nil {
+	if err := scope.WriteHost().ClaimUniqueKey(indexRef, bound, oldKey); err != nil {
 		t.Fatal(err)
 	}
 	// UniqueKey requests admit only uniqueClaim. Stronger modes belong to
 	// actual logical-row resources, not a fabricated mode on an interned key.
 	strong := lock.Resource{ObjectRef: ref, Row: 98}
-	if err := manager.Acquire(scope.op.Context(), scope.ticket, strong, lock.ForUpdate); err != nil {
+	if err := manager.Acquire(scope.Op.Context(), scope.LockTicket, strong, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
-	manager.BeginUniqueDelta(scope.ticket)
-	defer manager.EndUniqueDelta(scope.ticket)
-	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, oldKey); err != nil {
+	manager.BeginUniqueDelta(scope.LockTicket)
+	defer manager.EndUniqueDelta(scope.LockTicket)
+	if err := scope.WriteHost().ClaimUniqueKey(indexRef, bound, oldKey); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, newKey); err != nil {
+	if err := scope.WriteHost().ClaimUniqueKey(indexRef, bound, newKey); err != nil {
 		t.Fatal(err)
 	}
 	row := lock.Resource{ObjectRef: ref, Row: 99}
-	if err := manager.Acquire(scope.op.Context(), scope.ticket, row, lock.ForUpdate); err != nil {
+	if err := manager.Acquire(scope.Op.Context(), scope.LockTicket, row, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
-	recorded := len(manager.Inspect().UniqueDeltas[scope.ticket])
+	recorded := len(manager.Inspect().UniqueDeltas[scope.LockTicket])
 	if recorded != 1 {
 		t.Fatal("delta contains prior unique or non-key grants", recorded)
 	}
-	manager.RestoreUniqueDelta(scope.ticket)
-	held := manager.Checkpoint(scope.ticket)
+	manager.RestoreUniqueDelta(scope.LockTicket)
+	held := manager.Checkpoint(scope.LockTicket)
 	if held[strong].Mode != lock.ForUpdate || held[row].Mode != lock.ForUpdate {
 		t.Fatal("stronger/new row grants lost", held)
 	}
-	keys := manager.CheckpointUnique(scope.ticket, nil)
+	keys := manager.CheckpointUnique(scope.LockTicket, nil)
 	for _, mode := range keys {
 		if mode.Mode != lock.UniqueClaim || len(mode.Multi) != 0 {
 			t.Fatal("prior key mode lost", keys)
@@ -195,21 +195,21 @@ func TestInsertConflictUpdateUniqueDelta(t *testing.T) {
 		t.Fatal("prior unique claim lost or fresh candidate retained", keys)
 	}
 	// The same mark remains active across a retry; accepted keys survive end.
-	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, newKey); err != nil {
+	if err := scope.WriteHost().ClaimUniqueKey(indexRef, bound, newKey); err != nil {
 		t.Fatal(err)
 	}
-	manager.EndUniqueDelta(scope.ticket)
-	if manager.Checkpoint(scope.ticket)[strong].Mode != lock.ForUpdate || len(manager.CheckpointUnique(scope.ticket, nil)) != 2 {
+	manager.EndUniqueDelta(scope.LockTicket)
+	if manager.Checkpoint(scope.LockTicket)[strong].Mode != lock.ForUpdate || len(manager.CheckpointUnique(scope.LockTicket, nil)) != 2 {
 		t.Fatal("accepted candidate or stronger row contribution lost")
 	}
 	// A later release cannot be resurrected by a stale candidate journal.
-	manager.BeginUniqueDelta(scope.ticket)
-	if err := scope.writeHost().ClaimUniqueKey(indexRef, bound, insertConflictUnitRow(t, f, 30)[:1]); err != nil {
+	manager.BeginUniqueDelta(scope.LockTicket)
+	if err := scope.WriteHost().ClaimUniqueKey(indexRef, bound, insertConflictUnitRow(t, f, 30)[:1]); err != nil {
 		t.Fatal(err)
 	}
-	manager.Restore(scope.ticket, nil)
-	manager.RestoreUniqueDelta(scope.ticket)
-	if len(manager.Checkpoint(scope.ticket)) != 0 {
+	manager.Restore(scope.LockTicket, nil)
+	manager.RestoreUniqueDelta(scope.LockTicket)
+	if len(manager.Checkpoint(scope.LockTicket)) != 0 {
 		t.Fatal("delta resurrected released grants")
 	}
 }

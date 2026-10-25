@@ -14,9 +14,9 @@ import (
 func TestInfoRoleUsageGrantsDeparseFrontier(t *testing.T) {
 	e := New()
 	read := e.CatalogRead()
-	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: read, deparseAuth: catalogAuthorization(e, read), deparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
+	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: read, deparseAuth: catalogAuthorization(e, read), DeparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
 	old := scope.deparseInputs()
-	scope.output.QuoteAllIdentifiers = true
+	scope.Output.QuoteAllIdentifiers = true
 	fresh := scope.deparseInputs()
 	text, ok := read.LookupType(sqltype.Text)
 	if !ok {

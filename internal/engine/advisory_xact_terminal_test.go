@@ -19,9 +19,9 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 				e := New()
 				a, _ := advisoryUnitOwner(t, e)
 				b, _ := advisoryUnitOwner(t, e)
-				m := e.locks
+				m := e.Locks
 				at, bt := a.Transactions.Ticket, b.Transactions.Ticket
-				key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
+				key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
 				advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -102,10 +102,10 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		e := New()
 		a, _ := advisoryUnitOwner(t, e)
 		b, _ := advisoryUnitOwner(t, e)
-		key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 66}
+		key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 66}
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		ctx, cancel := context.WithCancel(context.Background())
-		request, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Timeout: time.Hour})
+		request, err := e.Locks.StartAcquire(ctx, b.Transactions.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Timeout: time.Hour})
 		if err != nil || request == nil {
 			cancel()
 			t.Fatal(request, err)
@@ -114,7 +114,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		var joined sync.WaitGroup
 		joined.Add(2)
 		go func() { defer joined.Done(); <-start; cancel() }()
-		go func() { defer joined.Done(); <-start; e.endLockOwner(a.Transactions.Ticket) }()
+		go func() { defer joined.Done(); <-start; e.EndLockOwner(a.Transactions.Ticket) }()
 		close(start)
 		joined.Wait()
 		err = deadlockResult(t, request)
@@ -122,6 +122,6 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		if err == nil && held != lock.AdvisoryExclusive || err != nil && (!errors.Is(err, context.Canceled) || held != 0) {
 			t.Fatal("inconsistent terminal publication", err, held)
 		}
-		e.endLockOwner(b.Transactions.Ticket)
+		e.EndLockOwner(b.Transactions.Ticket)
 	}
 }

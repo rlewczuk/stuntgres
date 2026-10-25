@@ -13,28 +13,28 @@ import (
 // after every wait, including the first-child marker's exact publication copy.
 // No stage, statement view, row evaluation or publication exists in this phase.
 func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, preparatory bool) error {
-	state := scope.inheritance.alter
+	state := scope.Inheritance.Alter
 	if !preparatory && len(state.Targets) == 1 {
 		return nil
 	}
-	original := scope.statementMutation
+	original := scope.StatementMutation
 	locked := map[ids.ObjectAddress]bool{state.Root.Address(): true}
 	processed := make(map[ids.ObjectAddress]bool)
 	state.Definition = table.InheritanceDefinitionReader{Base: auth.Catalog}
 	if !preparatory {
-		state.prepared = make(map[ids.ObjectAddress]*table.InheritancePreparedNode)
+		state.Prepared = make(map[ids.ObjectAddress]*table.InheritancePreparedNode)
 		state.Preparing = true
 		defer func() { state.Preparing = false }()
 	}
 	for {
-		e.mu.Lock()
-		current := e.privateCatalogLocked(scope.owner.Catalog)
+		e.Mu.Lock()
+		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
 		if current.Epoch() != auth.Catalog.Epoch() {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return ids.ErrCatalogReplaced
 		}
 		targets := table.InheritanceAlterOrder(current, state.Root)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		state.Targets = targets
 		progress := false
 		for index, observed := range targets {
@@ -48,26 +48,26 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 					continue
 				}
 			}
-			ref := original.lockedRef
+			ref := original.LockedRef
 			ref.Address = observed.Address()
 			if !locked[observed.Address()] {
-				if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+				if err := scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 					return err
 				}
 				locked[observed.Address()] = true
 			}
-			e.mu.Lock()
-			actualCatalog := e.privateCatalogLocked(scope.owner.Catalog)
+			e.Mu.Lock()
+			actualCatalog := e.PrivateCatalogLocked(scope.Owner.Catalog)
 			actual, _ := actualCatalog.Relation(observed.Address())
 			if actualCatalog.Epoch() != auth.Catalog.Epoch() || !table.InheritanceMarkerPublication(observed, actual) {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return ids.ErrCatalogReplaced
 			}
-			currentAuth, err := e.statementAuthorizationLocked(op, raw)
+			currentAuth, err := e.StatementAuthorizationLocked(op, raw)
 			if err == nil && !preparatory && (index == 0 || table.InheritanceEntryOwner(incoming)) {
 				err = currentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				return err
 			}
@@ -76,7 +76,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 				progress = true
 				break
 			}
-			for _, prepared := range state.prepared {
+			for _, prepared := range state.Prepared {
 				if err := prepared.Reader.Validate(actualCatalog); err != nil {
 					return err
 				}
@@ -92,20 +92,20 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 				}
 			}
 			if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 {
-				e.mu.Lock()
+				e.Mu.Lock()
 				err = currentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true})
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if err != nil {
 					return err
 				}
 			}
-			scope.lockedRef, scope.lockedDescriptor = ref, actual
+			scope.LockedRef, scope.LockedDescriptor = ref, actual
 			state.Selected[actual.Address()] = true
 			prepared, err := table.PrepareInheritanceNode(inheritancePrepareHost{e: e, scope: scope, op: op, auth: currentAuth}, op, currentAuth.Catalog, &state.InheritanceAlterPlan, actual, planned)
 			if err != nil {
 				return err
 			}
-			state.prepared[actual.Address()] = prepared
+			state.Prepared[actual.Address()] = prepared
 			processed[actual.Address()] = true
 			progress = true
 			break // Capture actual newly admitted descendants before the next provider.
@@ -115,17 +115,17 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 		}
 		// Every prepared ancestor is protected by its real acquired grant. A final
 		// actual closure capture contains growth admitted during the last wait.
-		e.mu.Lock()
-		current = e.privateCatalogLocked(scope.owner.Catalog)
-		for _, prepared := range state.prepared {
+		e.Mu.Lock()
+		current = e.PrivateCatalogLocked(scope.Owner.Catalog)
+		for _, prepared := range state.Prepared {
 			if err := prepared.Reader.Validate(current); err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return err
 			}
 		}
 		state.Targets = table.InheritanceAlterOrder(current, state.Root)
-		e.mu.Unlock()
-		scope.statementMutation = original
+		e.Mu.Unlock()
+		scope.StatementMutation = original
 		return nil
 	}
 }

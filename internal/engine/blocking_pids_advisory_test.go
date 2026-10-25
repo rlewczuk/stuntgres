@@ -16,11 +16,11 @@ func TestBlockingPidsAdvisorySafeSnapshot(t *testing.T) {
 	e := New()
 	a, ra := advisoryUnitOwner(t, e)
 	b, rb := advisoryUnitOwner(t, e)
-	key := lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 187418}
+	key := lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 187418}
 	advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r, err := e.locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: rb})
+	r, err := e.Locks.StartAcquire(ctx, b.Advisory.Ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: rb})
 	if err != nil || r == nil {
 		t.Fatal("persistent advisory request", r, err)
 	}

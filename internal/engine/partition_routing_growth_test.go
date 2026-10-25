@@ -34,9 +34,9 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			candidate := inheritanceUnitRelation(e, "routing_growth_candidate", 46202, "k")
 			candidate.RelationKind = catalog.TableRelation
 			partitionAttachUnitInstall(t, e, parent, old, candidate)
-			parent = e.catalog.State.MustRelation(parent.Address())
-			old = e.catalog.State.MustRelation(old.Address())
-			candidate = e.catalog.State.MustRelation(candidate.Address())
+			parent = e.Catalog.State.MustRelation(parent.Address())
+			old = e.Catalog.State.MustRelation(old.Address())
+			candidate = e.Catalog.State.MustRelation(candidate.Address())
 			value := func(n int64) sqltype.Value {
 				v, err := sqltype.Integer(parent.Columns[0].Usage.Type, n)
 				if err != nil {
@@ -44,22 +44,22 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 				}
 				return v
 			}
-			e.mu.Lock()
-			e.storage.Relations[old.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(25)}}}
-			e.storage.Relations[candidate.Address()].Versions = []storage.RowVersion{{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2)}}}
-			e.storage.SetFrontierLocked(2, 2)
-			e.visibility.SetCommitSeqLocked(1)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			e.Storage.Relations[old.Address()].Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(25)}}}
+			e.Storage.Relations[candidate.Address()].Versions = []storage.RowVersion{{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2)}}}
+			e.Storage.SetFrontierLocked(2, 2)
+			e.Visibility.SetCommitSeqLocked(1)
+			e.Mu.Unlock()
 			reader, op := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			holder, _ := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
 			syntax := statement(t, "UPDATE routing_growth_parent SET k=2").(*parser.Update)
-			if err := reader.gate(syntax); err != nil {
+			if err := reader.Gate(syntax); err != nil {
 				t.Fatal(err)
 			}
-			reader.statement = syntax
-			oldRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), old.Address())
-			parentRef := e.catalog.Domain.Ref(oldRef.Epoch, parent.Address())
-			candidateRef := e.catalog.Domain.Ref(oldRef.Epoch, candidate.Address())
+			reader.Statement = syntax
+			oldRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), old.Address())
+			parentRef := e.Catalog.Domain.Ref(oldRef.Epoch, parent.Address())
+			candidateRef := e.Catalog.Domain.Ref(oldRef.Epoch, candidate.Address())
 			partitionAttachUnitGrant(t, holder, oldRef, lock.AccessExclusive)
 			join := partitionAttachUnitWorker(t, reader, func() error {
 				if err := reader.acquireRelationTarget(syntax, syntax, true, false); err != nil {
@@ -67,13 +67,13 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 				}
 				return reader.acquireInheritedMutationTargets(syntax)
 			})
-			partitionAttachUnitQueued(t, e, oldRef, reader.ticket, lock.RowExclusive)
-			if !e.locks.Holds(reader.ticket, lock.Resource{ObjectRef: parentRef}, lock.RowExclusive) {
+			partitionAttachUnitQueued(t, e, oldRef, reader.LockTicket, lock.RowExclusive)
+			if !e.Locks.Holds(reader.LockTicket, lock.Resource{ObjectRef: parentRef}, lock.RowExclusive) {
 				t.Fatal("UPDATE did not admit its named parent before descendant wait")
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			admitted := reader.PartitionRelations[parent.Address()]
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if admitted != parent {
 				t.Fatal("UPDATE failed to retain pre-wait parent topology")
 			}
@@ -99,7 +99,7 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			current := e.catalog.State.MustRelation(parent.Address())
+			current := e.Catalog.State.MustRelation(parent.Address())
 			if !partition.AppendCompatible(parent, current) || !slices.Equal(current.Partition.Children, []ids.ObjectAddress{old.Address(), candidate.Address()}) {
 				t.Fatal("fixture did not publish append-compatible topology growth")
 			}
@@ -112,24 +112,24 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			if len(reader.InheritedTargets) != 1 || reader.InheritedTargets[0].Ref != oldRef {
 				t.Fatal("UPDATE adopted post-admission mutation targets", reader.InheritedTargets)
 			}
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
-			reader.routineAuth = auth
+			reader.RoutineAuth = auth
 			binding := analyze.Binding{Ref: parentRef, Relation: current}
-			e.mu.Lock()
+			e.Mu.Lock()
 			err = reader.capturePartitionInsertLocked(e, auth, current)
 			refs := reader.Command.TargetRefs(parentRef)
 			var source *exec.Source
 			if err == nil {
-				data, captureErr := reader.acquireDataViewsLocked(e, refs)
+				data, captureErr := reader.AcquireDataViewsLocked(e, refs)
 				err = captureErr
 				if err == nil {
 					source, err = reader.Command.CaptureSource(op.Context(), data, binding)
 				}
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -145,8 +145,8 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			if routing.Target != parent || !slices.Equal(routing.Catalog.MustRelation(parent.Address()).Partition.Children, []ids.ObjectAddress{old.Address()}) {
 				t.Fatal("UPDATE routing did not retain the source manifest's admitted topology")
 			}
-			input, output := reader.writeHost().Environments()
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: routing.Catalog, Host: reader.writeHost(), Input: input, Output: output}}
+			input, output := reader.WriteHost().Environments()
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: routing.Catalog, Host: reader.WriteHost(), Input: input, Output: output}}
 			destination, err := routing.Route(&evaluation, []sqltype.Value{value(25)}, input, output)
 			if err != nil || destination.Address() != old.Address() {
 				t.Fatal("admitted destination was lost", destination, err)
@@ -156,9 +156,9 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			if destination != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "23514" || diagnostic.Message != `no partition of relation "routing_growth_parent" found for row` || diagnostic.Schema != "public" || diagnostic.Table != parent.Name() {
 				t.Fatal("UPDATE adopted newly attached destination", destination, err)
 			}
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: candidateRef}]
-			if entry != nil && entry.Holders[reader.ticket].Mode != 0 {
+			if entry != nil && entry.Holders[reader.LockTicket].Mode != 0 {
 				t.Fatal("UPDATE manufactured a mutation grant for the new branch")
 			}
 			if reader.PartitionRelations[candidate.Address()] != nil {
@@ -180,9 +180,9 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 
 func partitionRoutingGrowthFences(s *StatementScope, e *Engine, old *catalog.Relation, physical exec.QueryPhysicalRow, fence string) error {
 	if fence == "append" {
-		e.mu.Lock()
-		err := s.validateLockedRelation(e)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err := s.ValidateLockedRelation(e)
+		e.Mu.Unlock()
 		return err
 	}
 	if fence == "descriptor_replacement" {
@@ -202,19 +202,19 @@ func partitionRoutingGrowthFences(s *StatementScope, e *Engine, old *catalog.Rel
 			return err
 		}
 	} else {
-		e.mu.Lock()
-		store := *e.storage.Relations[old.Address()]
+		e.Mu.Lock()
+		store := *e.Storage.Relations[old.Address()]
 		store.Versions = slices.Clone(store.Versions)
-		e.storage.InstallRelationLocked(old.Address(), &store)
-		e.mu.Unlock()
+		e.Storage.InstallRelationLocked(old.Address(), &store)
+		e.Mu.Unlock()
 	}
-	e.mu.Lock()
-	err := s.validateLockedRelation(e)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := s.ValidateLockedRelation(e)
+	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		return errors.New("UPDATE admission accepted a genuine descriptor/storage replacement")
 	}
-	_, err = s.writeHost().LatestRow(dml.RowRequest{Kind: dml.RowUpdate, Ref: physical.Leaf.Ref, Row: physical.Version.Row, Storage: physical.Leaf.Storage, Hint: physical.Hint})
+	_, err = s.WriteHost().LatestRow(dml.RowRequest{Kind: dml.RowUpdate, Ref: physical.Leaf.Ref, Row: physical.Version.Row, Storage: physical.Leaf.Storage, Hint: physical.Hint})
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		return errors.New("UPDATE latest-row read accepted a replaced captured target")
 	}

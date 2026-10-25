@@ -143,10 +143,10 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 			subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "late_cardinality" && calls == 3 {
-					stagedBeforeCancel = len(scope.stage.rows[b.Ref.Address]) != 0
+					stagedBeforeCancel = len(scope.Stage.Rows[b.Ref.Address]) != 0
 				}
 				if calls == 2 && phase == "live_source" {
-					stagedBeforeCancel = len(scope.stage.rows[b.Ref.Address]) != 0
+					stagedBeforeCancel = len(scope.Stage.Rows[b.Ref.Address]) != 0
 					cancel()
 					return sqltype.Value{}, ctx.Err()
 				}
@@ -163,7 +163,7 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 					t.Fatal("cardinality did not discard earlier staged row", result, calls, stagedBeforeCancel)
 				}
 			} else {
-				if err != nil || result.Count != 2 || result.Rows == nil || calls != 2 || len(scope.stage.rows[b.Ref.Address]) == 0 {
+				if err != nil || result.Count != 2 || result.Rows == nil || calls != 2 || len(scope.Stage.Rows[b.Ref.Address]) == 0 {
 					t.Fatal("private replacements missing", result, err, calls)
 				}
 				result.Rows.Close()

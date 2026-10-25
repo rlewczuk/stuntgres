@@ -31,20 +31,20 @@ func TestCommentPublicationFailures(t *testing.T) {
 	if e.CatalogRead().State() != before.State() {
 		t.Fatal("invalid provider mutation")
 	}
-	original := e.catalog.NextRevision()
-	e.catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
+	original := e.Catalog.NextRevision()
+	e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
 	if _, err := e.Execute(op, statement(t, "COMMENT ON TABLE t IS 'bad'"), 0, nil); err == nil {
 		t.Fatal("revision exhaustion accepted")
 	}
-	e.catalog.InstallRevisionFrontierLocked(original)
+	e.Catalog.InstallRevisionFrontierLocked(original)
 	commentWant(t, e, e.CatalogRead(), ref, "old")
 	roleExecute(t, e, op, "CREATE ROLE free")
-	roles := e.roles.Published
-	e.roles.PublishLocked(&access.RoleRecord{Revision: ^uint64(0), Root: roles.Root})
+	roles := e.RoleStore.Published
+	e.RoleStore.PublishLocked(&access.RoleRecord{Revision: ^uint64(0), Root: roles.Root})
 	if _, err := e.Execute(op, statement(t, "COMMENT ON ROLE free IS 'bad'"), 0, nil); err == nil {
 		t.Fatal("role exhaustion accepted")
 	}
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	if d, _ := e.Roles().Lookup("free"); d.Comment != "" {
 		t.Fatal(d)
 	}

@@ -30,15 +30,15 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			e := New()
 			project, anonymous := queryCreateBoundSource(t, e, 1)
 			sourceStage, sourceDescriptor := queryCreateStage(t, e, "source", 1)
-			if err := e.stageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.Anonymous, ids.TxRef{}); err != nil {
+			if err := e.StageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.Anonymous, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, sourceStage)
-			sourceRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), sourceDescriptor.Address())
+			sourceRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), sourceDescriptor.Address())
 			sess := sessionStart(t, e, nil)
 			op := transactionOperation(t, sess)
 			isolation := "serializable"
-			if _, err := e.applySetting(op, sess.Settings, e.settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
+			if _, err := e.applySetting(op, sess.Settings, e.Settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
 				t.Fatal(err)
 			}
 			scope, err := e.StartStatement(op)
@@ -48,7 +48,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			var outcome error
 			defer func() { _ = scope.Finish(outcome) }()
 			statement := &parser.CreateQueryTable{Query: &parser.Select{}}
-			if err = scope.gate(statement); err != nil {
+			if err = scope.Gate(statement); err != nil {
 				outcome = err
 				t.Fatal(err)
 			}
@@ -56,13 +56,13 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			node := e.visibility.Serializable.Nodes[scope.txRef]
-			if node == nil || !node.Captured || scope.owner.State != session.TxImplicit {
+			node := e.Visibility.Serializable.Nodes[scope.TxRef]
+			if node == nil || !node.Captured || scope.Owner.State != session.TxImplicit {
 				t.Fatal("missing actual implicit serializable consumer")
 			}
-			e.mu.Lock()
-			source, err := e.captureQuerySourcesLocked(scope, []exec.Leaf{{Ref: sourceRef, Relation: sourceDescriptor, Storage: e.storage.Relations[sourceRef.Address]}}, false)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			source, err := e.CaptureQuerySourcesLocked(scope, []exec.Leaf{{Ref: sourceRef, Relation: sourceDescriptor, Storage: e.Storage.Relations[sourceRef.Address]}}, false)
+			e.Mu.Unlock()
 			if err != nil {
 				outcome = err
 				t.Fatal(err)
@@ -105,12 +105,12 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			var peer *visibility.SerializableTx
 			if tc.doomed {
 				peer = serializableUnitCycle(t, e, node)
-				e.mu.Lock()
-				err = e.visibility.SerializablePrecommitLocked(peer.Ref)
+				e.Mu.Lock()
+				err = e.Visibility.SerializablePrecommitLocked(peer.Ref)
 				if err == nil {
-					e.visibility.SerializableCommittedLocked(peer.Ref, e.visibility.CommitSeq())
+					e.Visibility.SerializableCommittedLocked(peer.Ref, e.Visibility.CommitSeq())
 				}
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if err != nil || !node.Doomed {
 					t.Fatal("actual cycle failed to doom consumer", err)
 				}
@@ -120,9 +120,9 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			stage, d := queryCreateStage(t, e, "copy", 1)
 			defer e.DiscardCatalogStage(stage)
 			types := queryCreateTypes(e)
-			beforeFrontier, beforeOrder := e.visibility.CommitSeq(), e.visibility.SerializableOrder()
-			beforeRows, beforeVersions := e.storage.RowFrontier(), e.storage.VersionFrontier()
-			if err = e.stageQueryTableRows(op.Context(), stage, d, rows, scope.txRef); err != nil {
+			beforeFrontier, beforeOrder := e.Visibility.CommitSeq(), e.Visibility.SerializableOrder()
+			beforeRows, beforeVersions := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
+			if err = e.StageQueryTableRows(op.Context(), stage, d, rows, scope.TxRef); err != nil {
 				outcome = err
 				t.Fatal(err)
 			}
@@ -131,7 +131,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				serializableUnitDiagnostic(t, outcome, "Canceled on identification as a pivot, during commit attempt.")
 				queryCreateAssertAbsent(t, e, d)
 				queryCreateAssertTypes(t, e, types)
-				if scope.completed || node.Committed || e.visibility.CommitSeq() != beforeFrontier || e.visibility.SerializableOrder() != beforeOrder {
+				if scope.Completed || node.Committed || e.Visibility.CommitSeq() != beforeFrontier || e.Visibility.SerializableOrder() != beforeOrder {
 					t.Fatal("doomed producer crossed installation fence")
 				}
 			} else {
@@ -142,24 +142,24 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				if wanted != 0 {
 					wantedFrontier++
 				}
-				if !scope.completed || !node.Committed || node.CommitFrontier != wantedFrontier || node.Order != beforeOrder+1 || e.visibility.SerializableOrder() != beforeOrder+1 || e.visibility.CommitSeq() != wantedFrontier {
-					t.Fatal("successful producer did not finalize once at its installation frontier", node, e.visibility.CommitSeq(), e.visibility.SerializableOrder())
+				if !scope.Completed || !node.Committed || node.CommitFrontier != wantedFrontier || node.Order != beforeOrder+1 || e.Visibility.SerializableOrder() != beforeOrder+1 || e.Visibility.CommitSeq() != wantedFrontier {
+					t.Fatal("successful producer did not finalize once at its installation frontier", node, e.Visibility.CommitSeq(), e.Visibility.SerializableOrder())
 				}
-				if len(e.storage.Relations[d.Address()].Versions) != wanted {
+				if len(e.Storage.Relations[d.Address()].Versions) != wanted {
 					t.Fatal("installed row count changed")
 				}
 			}
-			if e.storage.RowFrontier() != beforeRows+uint64(wanted) || e.storage.VersionFrontier() != beforeVersions+uint64(wanted) || predicates != 3 {
+			if e.Storage.RowFrontier() != beforeRows+uint64(wanted) || e.Storage.VersionFrontier() != beforeVersions+uint64(wanted) || predicates != 3 {
 				t.Fatal("identity reservation or producer demand replayed")
 			}
-			afterOrder, afterFrontier := e.visibility.SerializableOrder(), e.visibility.CommitSeq()
+			afterOrder, afterFrontier := e.Visibility.SerializableOrder(), e.Visibility.CommitSeq()
 			if got := scope.Finish(outcome); got != outcome {
 				t.Fatal("Finish changed publication outcome", got, outcome)
 			}
 			if got := scope.Finish(outcome); got != outcome {
 				t.Fatal("repeated Finish changed publication outcome", got, outcome)
 			}
-			if e.visibility.SerializableOrder() != afterOrder || e.visibility.CommitSeq() != afterFrontier || !node.Ended || peer.Ended || e.visibility.Serializable.Nodes[node.Ref] != node {
+			if e.Visibility.SerializableOrder() != afterOrder || e.Visibility.CommitSeq() != afterFrontier || !node.Ended || peer.Ended || e.Visibility.Serializable.Nodes[node.Ref] != node {
 				t.Fatal("Finish replayed commit or discarded overlapping evidence")
 			}
 			if _, ok := node.Reads[sourceRef.Address]; !ok {

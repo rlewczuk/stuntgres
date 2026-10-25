@@ -30,8 +30,8 @@ func triggerPartitionUnitTree(t *testing.T, e *Engine, model *catalog.Relation) 
 		t.Fatal(err)
 	}
 	var relations [3]*catalog.Relation
-	e.mu.Lock()
-	state := catalog.CloneState(e.catalog.State)
+	e.Mu.Lock()
+	state := catalog.CloneState(e.Catalog.State)
 	for i, name := range []string{"trigger_partition_root", "trigger_partition_low", "trigger_partition_high"} {
 		d := *model
 		d.ObjectAddress.ObjectID = 9500101 + ids.OID(i)
@@ -41,7 +41,7 @@ func triggerPartitionUnitTree(t *testing.T, e *Engine, model *catalog.Relation) 
 		members := []sqltype.CompositeMember{{Attribute: 1, Name: "id", Usage: integer.Usage()}, {Attribute: 2, Name: "v", Usage: integer.Usage()}}
 		shape, failure := sqltype.Composite(d.RowType, name, "public."+name, 0, members)
 		if failure != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(failure)
 		}
 		rowtype := &catalog.Type{SQLType: shape, ObjectNamespace: d.Namespace(), ObjectRevision: 1, Owner: d.Owner, OwningRelation: d.Address()}
@@ -59,10 +59,10 @@ func triggerPartitionUnitTree(t *testing.T, e *Engine, model *catalog.Relation) 
 		state.SetDescriptor(d.Address(), d)
 		state.BindName(catalog.DescriptorNameKey(d), d.Address())
 	}
-	e.catalog.PublishLocked(state)
-	e.storage.Relations[low.Address()] = &storage.Relation{Generation: 1}
-	e.storage.Relations[high.Address()] = &storage.Relation{Generation: 1}
-	e.mu.Unlock()
+	e.Catalog.PublishLocked(state)
+	e.Storage.Relations[low.Address()] = &storage.Relation{Generation: 1}
+	e.Storage.Relations[high.Address()] = &storage.Relation{Generation: 1}
+	e.Mu.Unlock()
 	return root, low, high
 }
 
@@ -80,25 +80,25 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 				low = triggerUnitInstall(t, e, low, definition)
 			}
 			syntax := &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: root.Name()}}}}
-			if err := scope.gate(syntax); err != nil {
+			if err := scope.Gate(syntax); err != nil {
 				t.Fatal(err)
 			}
-			scope.statement = syntax
+			scope.Statement = syntax
 			if err := scope.acquireRelationTarget(syntax, syntax, true, false); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(scope.op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(scope.Op)
 			if err == nil {
-				scope.routineAuth = auth
+				scope.RoutineAuth = auth
 				err = scope.capturePartitionInsertLocked(e, auth, root)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			binding := analyze.Binding{Ref: scope.lockedRef, Relation: root, Targets: []int{0, 1}}
-			host := scope.writeHost()
+			binding := analyze.Binding{Ref: scope.LockedRef, Relation: root, Targets: []int{0, 1}}
+			host := scope.WriteHost()
 			incremental := mode == "leaf_insert"
 			if !incremental {
 				if allocations := testing.AllocsPerRun(10, func() { dml.BeginInsertReturning(host, binding) }); allocations != 0 {
@@ -116,7 +116,7 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 			}
 			integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 			row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.op.Context(), Host: host, Catalog: e.CatalogRead(), Input: scope.input, Output: scope.output}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: host, Catalog: e.CatalogRead(), Input: scope.Input, Output: scope.Output}}
 			proceed, err := dml.ValidateInsertRow(host, binding, "public", row, &evaluation)
 			if err != nil || !proceed {
 				t.Fatal(proceed, err)
@@ -134,11 +134,11 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 				batch.Append(candidate)
 			}
 			if incremental {
-				if admitted || len(scope.stage.rows[low.Address()]) != 1 || scope.InsertReturning.Rows.Count != 1 {
+				if admitted || len(scope.Stage.Rows[low.Address()]) != 1 || scope.InsertReturning.Rows.Count != 1 {
 					t.Fatal("leaf trigger did not publish a private accepted prefix")
 				}
 			} else {
-				if !admitted || len(scope.stage.rows[low.Address()]) != 0 {
+				if !admitted || len(scope.Stage.Rows[low.Address()]) != 0 {
 					t.Fatal("trigger-free proposal bypassed batch ownership")
 				}
 				count, err := dml.ApplyInsertValidated(host, binding.Ref, batch)
@@ -146,13 +146,13 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 					t.Fatal(count, err)
 				}
 			}
-			if len(e.storage.Relations[low.Address()].Versions) != 0 {
+			if len(e.Storage.Relations[low.Address()].Versions) != 0 {
 				t.Fatal("private insertion escaped before Finish")
 			}
 			if err := scope.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			if len(e.storage.Relations[low.Address()].Versions) != 1 {
+			if len(e.Storage.Relations[low.Address()].Versions) != 1 {
 				t.Fatal("accepted insertion did not publish at Finish")
 			}
 		})
@@ -169,16 +169,16 @@ func TestTriggerCoreWhenProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := syntax[0].(*parser.Select).Targets[0]
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
 	var condition expr.Expr
 	var query *parser.Select
 	var binding analyze.Binding
 	if err == nil {
-		var h view.Host = ddlHost{e: e, op: scope.op}
-		condition, query, binding, err = h.BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.input)
+		var h view.Host = DDLHost{E: e, Op: scope.Op}
+		condition, query, binding, err = h.BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.Input)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestTriggerCoreWhenProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	references, err := stored.ExpressionDependRefs(scope.op.Context(), read, condition)
+	references, err := stored.ExpressionDependRefs(scope.Op.Context(), read, condition)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -15,7 +15,7 @@ import (
 )
 
 func TestSQLDiagnosticSeverityAndRowDetail(t *testing.T) {
-	err := sqlError("22003", "out of range")
+	err := SQLError("22003", "out of range")
 	var got *sqlstate.Error
 	if !errors.As(err, &got) || got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" || got.Schema != "" {
 		t.Fatalf("SQL error fields = %#v", got)
@@ -61,8 +61,8 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	namespace := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 	var loser ids.ObjectAddress
 	var winnerView catalog.Read
-	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
-		Provider: e.catalog.Providers[ids.RelationClassID],
+	e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{
+		Provider: e.Catalog.Providers[ids.RelationClassID],
 		publishWinner: func(d catalog.Descriptor) {
 			loser = d.Address()
 			// Validation runs outside the engine lock. Publish a competing real
@@ -90,7 +90,7 @@ func TestErrorFieldsExecutePublicationConflict(t *testing.T) {
 	if winnerView.State() == nil || after.State() != winnerView.State() {
 		t.Fatal("losing Execute replaced the winning catalog")
 	}
-	if _, ok := after.Descriptor(loser); ok || e.storage.Relations[loser] != nil {
+	if _, ok := after.Descriptor(loser); ok || e.Storage.Relations[loser] != nil {
 		t.Fatal("losing Execute installed its descriptor or storage")
 	}
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "conflict_rows"}

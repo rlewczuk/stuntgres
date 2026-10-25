@@ -30,19 +30,19 @@ func materializedUnitStage(t *testing.T, e *Engine) (*session.Operation, func(),
 	}
 	s := statements[0].(*parser.CreateQueryTable)
 	input, _ := op.Session.Settings.Presentation()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(context.Background(), e.analysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
+	b, err := Describe(context.Background(), e.AnalysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	stage, descriptor, skipped, err := e.prepareQueryTableLocked(op, auth, s, b)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatalf("private stage: %v, skipped %v", err, skipped)
 	}
@@ -53,7 +53,7 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	e := New()
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	view := e.stageRead(stage)
+	view := e.StageRead(stage)
 	if !d.RelationKind.Stored() || d.Populated || d.View == nil || stored.ViewOf(d).RuleOID() == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
@@ -89,7 +89,7 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := [][]sqltype.Value{{value}}
-	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	store := stage.initialTables[d.Address()]
@@ -114,16 +114,16 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	source := &catalog.Relation{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
-	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
 	b := analyze.Binding{Query: stored.ViewOf(d).Query(), QuerySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
-	e.mu.Unlock()
+	definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,29 +182,29 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 		"INSERT INTO public.unit_mv VALUES ((SELECT 1));",
 	} {
 		t.Run(rows, func(t *testing.T) {
-			e := New().restoreStage()
+			e := New().RestoreStage()
 			op, done, stage, d := materializedUnitStage(t, e)
 			defer done()
-			e.catalog.PublishLocked(e.stageRead(stage).State())
-			e.mu.Lock()
-			e.storage.InstallRelationLocked(d.Address(), &storage.Relation{})
-			e.mu.Unlock()
-			before, store := e.catalog.State, e.storage.Relations[d.Address()]
+			e.Catalog.PublishLocked(e.StageRead(stage).State())
+			e.Mu.Lock()
+			e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
+			e.Mu.Unlock()
+			before, store := e.Catalog.State, e.Storage.Relations[d.Address()]
 			if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
 			}
-			if e.catalog.State != before || e.storage.Relations[d.Address()] != store || d.Populated {
+			if e.Catalog.State != before || e.Storage.Relations[d.Address()] != store || d.Populated {
 				t.Fatal("failed private import published a prefix")
 			}
 		})
 	}
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
-	e.catalog.PublishLocked(e.stageRead(stage).State())
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(d.Address(), &storage.Relation{})
-	e.mu.Unlock()
+	e.Catalog.PublishLocked(e.StageRead(stage).State())
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
+	e.Mu.Unlock()
 	record := view.MaterializedSnapshot{Schema: "public", Name: "unit_mv", Populated: true, Rows: "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
 	if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{record, record}); err == nil {
 		t.Fatal("duplicate target accepted")
@@ -212,8 +212,8 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	if err := e.importMaterializedSnapshots(context.Background(), op, []view.MaterializedSnapshot{record}); err != nil {
 		t.Fatal(err)
 	}
-	current := e.catalog.State.MustRelation(d.Address())
-	stored := e.storage.Relations[d.Address()].Versions
+	current := e.Catalog.State.MustRelation(d.Address())
+	stored := e.Storage.Relations[d.Address()].Versions
 	if current == d || !current.Populated || d.Populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].Values[0], stored[1].Values[0]) || !stored[2].Values[0].IsNull() {
 		t.Fatal("import lost immutable descriptor, duplicate or NULL")
 	}
@@ -224,7 +224,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 	_, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	d.Populated = true
-	before := e.catalog.State
+	before := e.Catalog.State
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	value, err := sqltype.Integer(d.Columns[0].Usage.Type, 7)
@@ -232,15 +232,15 @@ func TestMaterializedViewPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	rows := [][]sqltype.Value{{value}}
-	if err := e.stageQueryTableRows(ctx, stage, d, rows, ids.TxRef{}); !errors.Is(err, context.Canceled) {
+	if err := e.StageQueryTableRows(ctx, stage, d, rows, ids.TxRef{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if stage.initialTables != nil || e.catalog.State != before {
+	if stage.initialTables != nil || e.Catalog.State != before {
 		t.Fatal("canceled stage published rows/catalog")
 	}
-	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-	e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
-	if err := e.stageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+	e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
+	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	if stage.initialTables != nil {

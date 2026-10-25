@@ -16,8 +16,8 @@ func TestTransactionalIndexAuthorityFences(t *testing.T) {
 			for _, q := range []string{"CREATE USER actor", "CREATE TABLE t(n INT)", "ALTER TABLE t OWNER TO actor", "CREATE TABLE other(n INT)"} {
 				sessionSQL(t, root, q)
 			}
-			ns := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-			roles := e.roles.Published.Root.Read(authorization.PrincipalRef{})
+			ns := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+			roles := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
 			grantor, grantee := roles.LookupRef("postgres"), roles.LookupRef("actor")
 			set := func(rights authorization.Privileges) {
 				t.Helper()
@@ -35,7 +35,7 @@ func TestTransactionalIndexAuthorityFences(t *testing.T) {
 			if err != nil {
 				t.Fatal("Describe authorized target", err)
 			}
-			if len(e.locks.Inspect().Resources) != 0 || actor.Transactions.Catalog != nil {
+			if len(e.Locks.Inspect().Resources) != 0 || actor.Transactions.Catalog != nil {
 				t.Fatal("Describe acquired resources or staged roots")
 			}
 			set(authorization.UsagePrivilege | authorization.CreatePrivilege)
@@ -57,7 +57,7 @@ func TestTransactionalIndexAuthorityFences(t *testing.T) {
 			transactionEnd(t, root, rt, false)
 			state(t, <-done, "42501")
 			transactionEnd(t, actor, at, false)
-			if !nameWait && len(e.storage.IndexRoots) != 0 {
+			if !nameWait && len(e.Storage.IndexRoots) != 0 {
 				t.Fatal("authority failure leaked root")
 			}
 			lockEmpty(t, e)

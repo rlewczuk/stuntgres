@@ -77,7 +77,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	provider, root := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider.Address()})
+	edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,10 +88,10 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if !found {
 		t.Fatal("real closure lacks whole-hierarchy dependency edge")
 	}
-	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), provider.Address())); err != nil {
+	if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), provider.Address())); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
@@ -152,9 +152,9 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	e.mu.Lock()
-	base := e.privateCatalogLocked(owner.Catalog)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	base := e.PrivateCatalogLocked(owner.Catalog)
+	e.Mu.Unlock()
 	_, _ = rangePartitionRetirementDescriptors(t, base)
 	writes, deletes, changes := owner.Writes, owner.Deletes, owner.Catalog
 	if deletes[provider.Address()] == nil {
@@ -205,7 +205,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	op.Done()
 	transactionEnd(t, s, ref, true)
 	for a := range removed {
-		if e.catalog.State.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.IndexRoots[a] != nil || e.storage.Sequences[a] != nil {
+		if e.Catalog.State.Get(a) != nil || e.Storage.Relations[a] != nil || e.Storage.IndexRoots[a] != nil || e.Storage.Sequences[a] != nil {
 			t.Fatal("outer commit retained closure state", a)
 		}
 	}
@@ -225,7 +225,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	provider, _ := rangePartitionRetirementDescriptors(t, base)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
@@ -236,7 +236,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	peerIndexes := make(map[ids.ObjectAddress]*storage.IndexRoot)
 	for a, d := range base.Descriptors() {
 		if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == peer.SessionToken {
-			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage.Relations[a], e.storage.IndexRoots[a]
+			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.Storage.Relations[a], e.Storage.IndexRoots[a]
 		}
 	}
 	s.RequestEnd(session.CleanClose)
@@ -244,15 +244,15 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 		t.Fatal(err)
 	}
 	for a := range stage.Removals() {
-		if e.catalog.State.Get(a) != nil || e.storage.Relations[a] != nil || e.storage.IndexRoots[a] != nil || e.storage.Sequences[a] != nil {
+		if e.Catalog.State.Get(a) != nil || e.Storage.Relations[a] != nil || e.Storage.IndexRoots[a] != nil || e.Storage.Sequences[a] != nil {
 			t.Fatal("physical retirement retained closure state", a)
 		}
 	}
-	if e.catalog.State.Get(provider.Address()) != nil || e.storage.Relations[provider.Address()] != nil {
+	if e.Catalog.State.Get(provider.Address()) != nil || e.Storage.Relations[provider.Address()] != nil {
 		t.Fatal("physical retirement retained provider")
 	}
 	for a, d := range peerDescriptors {
-		if e.catalog.State.Get(a) != d || e.storage.Relations[a] != peerStorage[a] || e.storage.IndexRoots[a] != peerIndexes[a] {
+		if e.Catalog.State.Get(a) != d || e.Storage.Relations[a] != peerStorage[a] || e.Storage.IndexRoots[a] != peerIndexes[a] {
 			t.Fatal("physical retirement changed peer authority/storage/index", a)
 		}
 	}

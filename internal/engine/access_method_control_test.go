@@ -38,7 +38,7 @@ func TestAccessMethodDropClosure(t *testing.T) {
 	view := base.WithState(state)
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{method.Address()})
+	edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{method.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	view := e.CatalogRead()
 	source, ref := pgAMUnitSource(t, e)
 	capture := func(ctx context.Context, v catalog.Read) [][]sqltype.Value {
-		rows, err := e.captureCatalogSourceLocked(ctx, v, e.roles.PublishedRead(&e.catalog.Owner, v), ref, source)
+		rows, err := e.captureCatalogSourceLocked(ctx, v, e.RoleStore.PublishedRead(&e.Catalog.Owner, v), ref, source)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := e.captureCatalogSourceLocked(ctx, view, e.roles.PublishedRead(&e.catalog.Owner, view), ref, source); !errors.Is(err, context.Canceled) {
+	if _, err := e.captureCatalogSourceLocked(ctx, view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, source); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", err)
 	}
 	selected, ok := view.IndexClass(class.Address().ObjectID)
@@ -174,7 +174,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	}
 	// Materialized pg_depend suppresses the stock pinned handler, while retaining
 	// the actual automatic family link to the remapped method.
-	edges, err := pgcatalog.CollectDepend(context.Background(), remapped, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), remapped, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

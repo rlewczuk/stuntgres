@@ -42,18 +42,18 @@ func TestViewRecursiveLockCancellation(t *testing.T) {
 func TestViewValidationReplacementAdmission(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
-	original := e.catalog.Providers[ids.RelationClassID]
+	original := e.Catalog.Providers[ids.RelationClassID]
 	var once sync.Once
 	callbackRan, admissionReleased := false, false
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: original, callback: func() {
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: original, callback: func() {
 		once.Do(func() {
 			callbackRan = true
-			e.catalog.Providers[ids.RelationClassID] = original
-			admissionReleased = e.replacementMu.TryLock()
+			e.Catalog.Providers[ids.RelationClassID] = original
+			admissionReleased = e.ReplacementMu.TryLock()
 			if !admissionReleased {
 				return
 			}
-			e.replacementMu.Unlock()
+			e.ReplacementMu.Unlock()
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
@@ -77,9 +77,9 @@ func TestViewValidationCancellationAtomicity(t *testing.T) {
 	before := e.CatalogRead().State()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	original := e.catalog.Providers[ids.RelationClassID]
+	original := e.Catalog.Providers[ids.RelationClassID]
 	var once sync.Once
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: original, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: original, callback: func() { once.Do(func() { e.Catalog.Providers[ids.RelationClassID] = original; cancel() }) }}
 	_, err := testExecute(e, ctx, statement(t, "CREATE VIEW v AS SELECT id FROM sentinel"), nil)
 	if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 		t.Fatal(err, "partial catalog publication")

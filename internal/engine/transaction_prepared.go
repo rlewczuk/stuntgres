@@ -19,14 +19,14 @@ func (e *Engine) preparedPublicationPreflightLocked(op *session.Operation, p *se
 
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *session.Operation, entry *session.PreparedTransaction) error {
-	roles := e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current())
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current())
 	return entry.CheckActor(roles, op.Session.Authorization.State.CurrentUser)
 }
 
 // Called at the canonical publisher's callback-free final boundary.
 func (e *Engine) installPreparedLocked(p *session.PreparedPublication) {
-	e.visibility.SerializablePreparedLocked(p.Entry.Ref)
-	e.visibility.DropSnapshotLocked(p.Entry.Ref)
+	e.Visibility.SerializablePreparedLocked(p.Entry.Ref)
+	e.Visibility.DropSnapshotLocked(p.Entry.Ref)
 	e.prepared.InstallLocked(p.Entry)
 	p.Origin.Ticket = nil
 	clearTransaction(p.Origin)
@@ -42,15 +42,15 @@ func (e *Engine) finishPreparedLocked(p *session.PreparedPublication) {
 }
 
 func (s *StatementScope) executePrepared(control *parser.TransactionControl, step session.ControlStep, state session.TxState, ref ids.TxRef) error {
-	e, t := s.engine(), s.owner
+	e, t := s.Engine(), s.Owner
 	switch step.Action {
 	case session.ControlRefuse:
 		return step.Err
 	case session.ControlComplete:
-		return e.completePrepared(s.op, control.GID, control.Kind == parser.KindCommitPrepared)
+		return e.completePrepared(s.Op, control.GID, control.Kind == parser.KindCommitPrepared)
 	}
 	if step.Warning != nil {
-		s.op.EmitNotice(session.LevelWarning, *step.Warning)
+		s.Op.EmitNotice(session.LevelWarning, *step.Warning)
 	}
 	if step.Action == session.ControlWarn {
 		return nil
@@ -58,28 +58,28 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
 	s.controlOutcome = controlExecuted
 	if state == session.TxAborted {
-		_, err := e.endAdmitted(s.op, t, ref, false, false, true, s.statementStart, s)
+		_, err := e.endAdmitted(s.Op, t, ref, false, false, true, s.statementStart, s)
 		return err
 	}
 	t.Mu.Lock()
-	err := t.PrepareRefusal(control.GID, payloadOf(t.Session).cursors.hasCurrentHold(ref), ownerHasForeign(t))
+	err := t.PrepareRefusal(control.GID, PayloadOf(t.Session).Cursors.hasCurrentHold(ref), ownerHasForeign(t))
 	var entry *session.PreparedTransaction
 	if err == nil {
-		auth, authErr := operationAuthorization(s.op)
+		auth, authErr := OperationAuthorization(s.Op)
 		err = authErr
 		if err == nil {
-			entry = t.PreparedEntry(control.GID, ref, auth.State.CurrentUser, s.op.Session.DatabaseName, time.Now().UTC().Truncate(time.Microsecond))
-			e.mu.Lock()
+			entry = t.PreparedEntry(control.GID, ref, auth.State.CurrentUser, s.Op.Session.DatabaseName, time.Now().UTC().Truncate(time.Microsecond))
+			e.Mu.Lock()
 			e.prepared.ReserveLocked()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			s.attachTransactionLocked()
 			t.Mu.Unlock()
-			err = e.locks.CheckPreparedAdvisory(entry.Ticket)
+			err = e.Locks.CheckPreparedAdvisory(entry.Ticket)
 			if err == nil {
 				err = e.checkTransactionExclusions(s)
 			}
 			if err == nil {
-				err = e.publishRowsPrepared(s.op, ref, t.Writes, t.Deletes, t.Catalog, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)
+				err = e.publishRowsPrepared(s.Op, ref, t.Writes, t.Deletes, t.Catalog, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: t}, s)
 			}
 			t.Mu.Lock()
 		}
@@ -92,32 +92,32 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, ste
 		t.Session.RetireTransactionTimeout()
 		t.Session.Settings.FinishTransaction(false)
 		t.Mu.Unlock()
-		e.endLockOwner(ticket)
+		e.EndLockOwner(ticket)
 		return err
 	}
 	t.Session.Settings.FinishTransaction(true)
 	t.Mu.Unlock()
-	e.locks.DetachPrepared(entry.Ticket)
+	e.Locks.DetachPrepared(entry.Ticket)
 	return nil
 }
 
 func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool) error {
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var entry *session.PreparedTransaction
 	if err == nil {
 		entry, err = e.prepared.ClaimLocked(gid, auth.Roles, auth.State.CurrentUser)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
 	if commit {
 		err = e.publishRowsPrepared(op, entry.Ref, entry.Writes, entry.Deletes, entry.Catalog, nil, &session.PreparedPublication{Entry: entry}, nil)
 	} else {
-		e.mu.Lock()
+		e.Mu.Lock()
 		op.Session.Mu.Lock()
-		err = publicationOperationLocked(e, op)
+		err = PublicationOperationLocked(e, op)
 		if err == nil {
 			err = e.preparedPublicationPreflightLocked(op, &session.PreparedPublication{Entry: entry})
 		}
@@ -126,14 +126,14 @@ func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool
 			e.endSerializableLocked(entry.Ref, false)
 		}
 		op.Session.Mu.Unlock()
-		e.mu.Unlock()
+		e.Mu.Unlock()
 	}
 	if err != nil {
-		e.mu.Lock()
+		e.Mu.Lock()
 		e.prepared.ReleaseLocked(entry)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
-	e.endLockOwner(entry.Ticket)
+	e.EndLockOwner(entry.Ticket)
 	return nil
 }

@@ -22,9 +22,9 @@ func TestListPartitionPublicationCancellation(t *testing.T) {
 				sessionSQL(t, session, query)
 			}
 			before := e.CatalogRead().State()
-			e.mu.Lock()
-			storageCount := len(e.storage.Relations)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			storageCount := len(e.Storage.Relations)
+			e.Mu.Unlock()
 			underlying, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			ctx := &rangePartitionPhaseContext{Context: underlying, target: target, effect: cancel}
@@ -41,9 +41,9 @@ func TestListPartitionPublicationCancellation(t *testing.T) {
 			if e.CatalogRead().State() != before {
 				t.Fatal("canceled definition published catalog fragments")
 			}
-			e.mu.Lock()
-			unchanged := len(e.storage.Relations) == storageCount
-			e.mu.Unlock()
+			e.Mu.Lock()
+			unchanged := len(e.Storage.Relations) == storageCount
+			e.Mu.Unlock()
 			if !unchanged {
 				t.Fatal("canceled definition installed leaf/index storage")
 			}

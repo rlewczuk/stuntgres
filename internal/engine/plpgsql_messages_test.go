@@ -31,14 +31,14 @@ func TestPLpgSQLAssertRuntime(t *testing.T) {
 			input := proc.NewFrame(nil)
 			defer input.Close()
 			read := e.CatalogRead()
-			setting, err := e.settings.Lookup("plpgsql.check_asserts")
+			setting, err := e.Settings.Lookup("plpgsql.check_asserts")
 			if err != nil { t.Fatal("assert setting not registered", err) }
 			originalRoutine, originalDepth := s.sqlRoutine, s.activeSQLRoutineDepth
 			for _, enabled := range []bool{false,true,false,true} {
 				var inputSetting *string
 				off := "off"
 				if !enabled { inputSetting = &off }
-				if _, err := e.applySetting(s.op, s.op.Session.Settings, setting, inputSetting, false); err != nil { t.Fatal(err) }
+				if _, err := e.applySetting(s.Op, s.Op.Session.Settings, setting, inputSetting, false); err != nil { t.Fatal(err) }
 				value, err := s.invokePLRoutine(d, input, read, sqltype.CollationRef{})
 				want := tc.code
 				if !enabled { want = "" }

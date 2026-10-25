@@ -19,9 +19,9 @@ func (e *Engine) newStatementScope(op *session.Operation, t *session.Transaction
 // The caller holds owner.mu. Every reached retained command, including a
 // control first in a new segment, uses the ordinary incarnation and lock ticket.
 func (s *StatementScope) admitTransactionLocked(e *Engine) error {
-	t := s.owner
+	t := s.Owner
 	if t.State == session.TxIdle {
-		if err := e.beginLocked(s.op, t, session.TxImplicit, s.transactionStart); err != nil {
+		if err := e.beginLocked(s.Op, t, session.TxImplicit, s.transactionStart); err != nil {
 			return err
 		}
 	}
@@ -43,27 +43,27 @@ func (s *StatementScope) admitTransactionLocked(e *Engine) error {
 // The scope remains responsible for ending this message even after SQL controls
 // end or replace an incarnation within it.
 func (s *StatementScope) RetainMessage() error {
-	if err := s.active(); err != nil {
+	if err := s.Active(); err != nil {
 		return err
 	}
 	if !s.ownsMessageScope() {
 		return errors.New("stuntgres: foreign message admission")
 	}
 	s.message = true
-	s.owner.Mu.Lock()
-	s.owner.RetainedMessage = true
-	s.owner.MessageBorn = s.owner.State != session.TxIdle
-	s.owner.Mu.Unlock()
+	s.Owner.Mu.Lock()
+	s.Owner.RetainedMessage = true
+	s.Owner.MessageBorn = s.Owner.State != session.TxIdle
+	s.Owner.Mu.Unlock()
 	return nil
 }
 func (s *StatementScope) NextStatement() (*StatementScope, error) {
-	if s == nil || s.self != s || !s.message || !s.finished || s.messageEnded || !s.ownsMessageScope() {
+	if s == nil || s.self != s || !s.message || !s.Finished || s.messageEnded || !s.ownsMessageScope() {
 		return nil, errors.New("stuntgres: inactive message admission")
 	}
-	if err := s.op.RefreshStatementBudget(); err != nil {
+	if err := s.Op.RefreshStatementBudget(); err != nil {
 		return nil, err
 	}
-	next := s.engine().newStatementScope(s.op, s.owner, s.statementStart)
+	next := s.Engine().newStatementScope(s.Op, s.Owner, s.statementStart)
 	next.message = true
 	if s.protocolOrZero().simple {
 		next.protocol().simple = true
@@ -80,15 +80,15 @@ func (s *StatementScope) FinishMessage(err error) error {
 	if !s.ownsMessageScope() {
 		return errors.New("stuntgres: stale message admission")
 	}
-	if !s.finished {
+	if !s.Finished {
 		err = s.Finish(err)
 	}
-	t := s.owner
+	t := s.Owner
 	t.Mu.Lock()
 	state, ref := t.State, t.Ref
 	t.Mu.Unlock()
-	if err != nil && (state == session.TxImplicit || state == session.TxActive) && s.finished {
-		failed := s.engine().newStatementScope(s.op, t, s.statementStart)
+	if err != nil && (state == session.TxImplicit || state == session.TxActive) && s.Finished {
+		failed := s.Engine().newStatementScope(s.Op, t, s.statementStart)
 		failed.message = true
 		_ = failed.Finish(err)
 		t.Mu.Lock()
@@ -96,7 +96,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 		t.Mu.Unlock()
 	}
 	if state == session.TxImplicit {
-		_, endErr := s.engine().endAdmitted(s.op, t, ref, err == nil, false, true, s.statementStart, s)
+		_, endErr := s.Engine().endAdmitted(s.Op, t, ref, err == nil, false, true, s.statementStart, s)
 		if err == nil {
 			err = endErr
 		}
@@ -105,21 +105,21 @@ func (s *StatementScope) FinishMessage(err error) error {
 	t.RetainedMessage = false
 	finishNotificationBoundary(t)
 	t.Mu.Unlock()
-	s.op.Session.Mu.Lock()
-	s.op.SQLFinished = true
-	s.op.Session.Mu.Unlock()
+	s.Op.Session.Mu.Lock()
+	s.Op.SQLFinished = true
+	s.Op.Session.Mu.Unlock()
 	s.messageEnded = true
 	s.messageResult = err
 	t.Admission.Unlock()
 	return err
 }
 func (s *StatementScope) ownsMessageScope() bool {
-	if s.op == nil || s.op.Self != s.op || s.op.Session == nil || s.owner != s.op.Session.Transactions {
+	if s.Op == nil || s.Op.Self != s.Op || s.Op.Session == nil || s.Owner != s.Op.Session.Transactions {
 		return false
 	}
-	s.op.Session.Mu.Lock()
-	_, registered := s.op.Session.Operations[s.op]
-	owned := registered && !s.op.Released && s.op.Lease == &s.lease
-	s.op.Session.Mu.Unlock()
+	s.Op.Session.Mu.Lock()
+	_, registered := s.Op.Session.Operations[s.Op]
+	owned := registered && !s.Op.Released && s.Op.Lease == &s.lease
+	s.Op.Session.Mu.Unlock()
 	return owned
 }

@@ -32,7 +32,7 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 				}
 				before := boundary == "cancel_before" || boundary == "end_before"
 				if before {
-					if err = scope.gate(statement(t, query)); err != nil {
+					if err = scope.Gate(statement(t, query)); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -114,7 +114,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			sessionSQL(t, s, "CREATE TABLE u(v INT)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			store := e.storage.Relations[ref.Address]
+			store := e.Storage.Relations[ref.Address]
 			changes, copied := 0, 0
 			var retained *exec.FinalRows
 			for i := range n {
@@ -213,7 +213,7 @@ func benchmarkTransactionSQL(b *testing.B, s *session.Session, query string) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	result, err := engineOf(s).Execute(op, stmt[0], 0, nil)
+	result, err := EngineOf(s).Execute(op, stmt[0], 0, nil)
 	op.Done()
 	if err != nil {
 		b.Fatal(err)

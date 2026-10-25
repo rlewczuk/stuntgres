@@ -12,7 +12,7 @@ func TestMergeDeleteDeletionBaseAuthority(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := e.storage.Relations[ref.Address].Versions[0]
+	original := e.Storage.Relations[ref.Address].Versions[0]
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET v=11")
 	op, err := s.Acquire(context.Background())
@@ -33,7 +33,7 @@ func TestMergeDeleteDeletionBaseAuthority(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal("own replacement deletion count", result.Count)
 	}
-	root := scope.stage.deletes[ref.Address]
+	root := scope.Stage.Deletes[ref.Address]
 	candidate := root.Rows[original.Row]
 	if !candidate.Own || candidate.Base != original.Version || candidate.Version == original.Version {
 		scope.Finish(err)

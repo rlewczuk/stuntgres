@@ -24,22 +24,22 @@ type defaultUnitFixture struct {
 func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 	t.Helper()
 	e := New()
-	roles := cloneRoleFixture(e.roles.Published)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 	refs := make([]authorization.PrincipalRef, 3)
 	for i, name := range []string{"default_owner", "default_reader", "default_member"} {
-		ref := e.roles.Domain.Principal(uint64(20001 + i))
+		ref := e.RoleStore.Domain.Principal(uint64(20001 + i))
 		refs[i] = ref
 		putFixtureRole(roles, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1})
 
 	}
-	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
-	e.roles.PublishLocked(roles)
+	setFixtureEdges(roles, append(append([]authorization.Membership(nil), fixtureEdges(roles)...), authorization.Membership{Role: refs[0], Member: refs[2], Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Inherit: true, Set: true}))
+	e.RoleStore.PublishLocked(roles)
 	schema := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20010}
-	next := catalog.CloneState(e.catalog.State)
+	next := catalog.CloneState(e.Catalog.State)
 	namespace := &catalog.Namespace{ObjectAddress: schema, ObjectName: "default_schema", ObjectRevision: 2, Owner: refs[0]}
 	next.SetDescriptor(schema, namespace)
 	next.BindName(catalog.DescriptorNameKey(namespace), schema)
-	e.catalog.PublishLocked(next)
+	e.Catalog.PublishLocked(next)
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	return defaultUnitFixture{e: e, op: op, owner: refs[0], reader: refs[1], member: refs[2], schema: schema}
@@ -79,12 +79,12 @@ func (f defaultUnitFixture) grant(t *testing.T, class, privilege string, schemas
 	return s
 }
 func (f defaultUnitFixture) actor(ref authorization.PrincipalRef) {
-	f.e.mu.Lock()
+	f.e.Mu.Lock()
 	f.op.Session.Mu.Lock()
 	f.op.Session.Authorization.State.CurrentUser = ref
 	f.op.Session.Authorization.Revision++
 	f.op.Session.Mu.Unlock()
-	f.e.mu.Unlock()
+	f.e.Mu.Unlock()
 }
 func defaultUnitDiagnostic(t *testing.T, err error, code, message string) {
 	t.Helper()
@@ -105,13 +105,13 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, n
 	if !ok {
 		t.Fatal("stage has no int4 carrier")
 	}
-	f.e.mu.Lock()
-	d, err := table.NewRelation(ddlHost{e: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
+	f.e.Mu.Lock()
+	d, err := table.NewRelation(DDLHost{E: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
 		d.Security.ACL = stage.CreationACL(owner, f.schema, authorization.DefaultTables)
-		err = f.e.stageRowTypeLocked(stage, d)
+		err = f.e.StageRowTypeLocked(stage, d)
 	}
-	f.e.mu.Unlock()
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

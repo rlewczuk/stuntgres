@@ -16,11 +16,11 @@ import (
 
 func TestAlterTablespacePreparation(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
 	prepare := func(actions []parser.AlterTableAction) (table.AlterTablePreparation, error) {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		return e.prepareAlterTableActions(scope, scope.op, auth, old, ref, actions)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		return e.prepareAlterTableActions(scope, scope.Op, auth, old, ref, actions)
 	}
 	action := func(name string) parser.AlterTableAction {
 		return parser.AlterTableAction{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: name}}
@@ -74,13 +74,13 @@ func TestAlterTablespacePreparation(t *testing.T) {
 
 func TestAlterTablespaceNoop(t *testing.T) {
 	e, candidateScope, auth, old := alterAddUnitScope(t)
-	before, roles, store, revision, epoch := e.catalog.State, e.roles.Published, e.storage.Relations[old.Address()], old.Revision(), e.catalog.State.Epoch()
+	before, roles, store, revision, epoch := e.Catalog.State, e.RoleStore.Published, e.Storage.Relations[old.Address()], old.Revision(), e.Catalog.State.Epoch()
 	actions := []parser.AlterTableAction{{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: "pg_default"}}}
-	e.mu.Lock()
-	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.op, auth, old, e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), actions)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.Op, auth, old, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), actions)
+	e.Mu.Unlock()
 	work, destination := prepared.Actions, prepared.Destination
-	if err != nil || len(work) != 0 || e.catalog.State != before || e.roles.Published != roles || e.storage.Relations[old.Address()] != store || old.Revision() != revision || e.catalog.State.Epoch() != epoch {
+	if err != nil || len(work) != 0 || e.Catalog.State != before || e.RoleStore.Published != roles || e.Storage.Relations[old.Address()] != store || old.Revision() != revision || e.Catalog.State.Epoch() != epoch {
 		t.Fatal("default preparation changed authority/storage", work, err)
 	}
 	if err := table.ValidateAlterTablespaceMove(destination); err != nil {
@@ -110,16 +110,16 @@ func TestAlterTablespaceNoop(t *testing.T) {
 
 func TestAlterTablespaceTypeCapture(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
-	before, roles, revision := e.catalog.State, e.roles.Published, old.Revision()
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address())
+	before, roles, revision := e.Catalog.State, e.RoleStore.Published, old.Revision()
 	prepare := func(query string) (table.AlterTablePreparation, error) {
 		statements, err := parser.Parse(query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		return e.prepareAlterTableActions(scope, scope.op, auth, old, ref, statements[0].(*parser.AlterTable).Actions)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		return e.prepareAlterTableActions(scope, scope.Op, auth, old, ref, statements[0].(*parser.AlterTable).Actions)
 	}
 	for _, tc := range []struct {
 		clause, code string
@@ -143,7 +143,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 			if first && diagnostic.Code != tc.code || !first && (diagnostic.Code != "42704" || diagnostic.Message != `tablespace "ats_missing" does not exist`) {
 				t.Fatal(query, diagnostic)
 			}
-			if e.catalog.State != before || e.roles.Published != roles || old.Revision() != revision || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
+			if e.Catalog.State != before || e.RoleStore.Published != roles || old.Revision() != revision || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 				t.Fatal("preparation published state", query)
 			}
 		}
@@ -163,7 +163,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 	// second raw USING graph. This is the actual mutation seam, not a binder mock.
 	action := prepared.Actions[0]
 	action.Using = alterAddUnitAction(t, "ALTER TABLE t ALTER a TYPE BIGINT USING absent").Using
-	next, consumed, err := e.alterTypeCandidate(scope, scope.op, auth, nil, old, old, ref, action, prepared.Types[0])
+	next, consumed, err := e.alterTypeCandidate(scope, scope.Op, auth, nil, old, old, ref, action, prepared.Types[0])
 	if err != nil || next.Columns[0].Usage.Type.ID() != sqltype.Int8 || !reflect.DeepEqual(consumed, prepared.Types[0].Transformation) || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate did not consume capture", next, consumed, err)
 	}
@@ -175,7 +175,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 	command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE p ALTER i TYPE BIGINT USING i+1, SET TABLESPACE pg_default")
 	// Bound column origins identify an attribute, not just its relation.
 	// Keep the complete admitted identity, including owner and catalog epoch.
-	rootColumn := command.scope.lockedRef
+	rootColumn := command.scope.LockedRef
 	rootColumn.Address.SubID = parent.Attributes[0]
 	holder := inheritanceAlterAXHolder(t, e, child)
 	result, joined := inheritanceAlterWorker(t, command, holder)
@@ -219,10 +219,10 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		want int64
 	}{{parent, 11}, {child, 21}} {
 		current := e.CatalogRead().MustRelation(pair.old.Address())
-		if current.Columns[0].Usage.Type.ID() != sqltype.Int8 || len(e.storage.Relations[current.Address()].Versions) != 1 {
+		if current.Columns[0].Usage.Type.ID() != sqltype.Int8 || len(e.Storage.Relations[current.Address()].Versions) != 1 {
 			t.Fatal("TYPE capture did not reach physical candidate", current)
 		}
-		value, err := e.storage.Relations[current.Address()].Versions[0].Values[0].Integer()
+		value, err := e.Storage.Relations[current.Address()].Versions[0].Values[0].Integer()
 		if err != nil || value != pair.want {
 			t.Fatal("descendant did not use its original row", current.Name(), value, err)
 		}

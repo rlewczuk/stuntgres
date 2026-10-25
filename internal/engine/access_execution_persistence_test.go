@@ -20,7 +20,7 @@ func TestAccessExecutionACLRawPersistence(t *testing.T) {
 	next:=New();destination:=sessionStart(t,next,nil)
 	for _,q:=range []string{"CREATE ROLE ae_reader","CREATE ROLE ae_grantor","CREATE ROLE ae_owner"} {sessionSQL(t,destination,q)}
 	if err:=next.Restore(context.Background(),strings.NewReader(out.String()));err!=nil {t.Fatal(err)}
-	read:=next.CatalogRead();roles:=next.roles.PublishedRead(&next.catalog.Owner,read)
+	read:=next.CatalogRead();roles:=next.RoleStore.PublishedRead(&next.Catalog.Owner,read)
 	get:=func(name string)*catalog.Procedure {
 		a:=read.NameAddress(ids.NameKey{ClassID:ids.ProcedureClassID,Namespace:ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:ids.PublicNamespaceOID},Name:name})
 		p,ok:=read.Procedure(a);if !ok {t.Fatal("missing routine",name)};return p

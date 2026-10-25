@@ -7,11 +7,11 @@ import (
 )
 
 func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.Binding) error {
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return err
 	}
-	auth.Catalog = e.privateCatalogLocked(scope.owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(scope.Owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	original := len(view.ViewWriteOf(b.ViewWrite).Logical.QuerySources)
 	for i := original; i < len(b.QuerySources); i++ {
@@ -26,7 +26,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 			continue
 		}
 		source := &b.QuerySources[i]
-		source.Storage = e.privateStorageLocked(scope.owner.Catalog, source.Ref.Address)
+		source.Storage = e.PrivateStorageLocked(scope.Owner.Catalog, source.Ref.Address)
 		for key, ordinal := range view.ViewWriteOf(b.ViewWrite).QueryOccurrences {
 			if ordinal != i {
 				continue
@@ -44,7 +44,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.
 			}
 		}
 		if len(scope.mutations) == 0 {
-			scope.querySources = append(scope.querySources, *source)
+			scope.QuerySources = append(scope.QuerySources, *source)
 		}
 	}
 	return nil

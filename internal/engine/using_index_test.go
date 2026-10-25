@@ -27,10 +27,10 @@ func TestUsingIndexBlockedCancellation(t *testing.T) {
 			holder := sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 				t.Fatal(err)
 			}
-			catalog, store, root := e.catalog.State, e.storage.Relations[parent.Address()], e.storage.IndexRoots[idx.Address()]
+			catalog, store, root := e.Catalog.State, e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()]
 			entries := slices.Clone(root.Entries)
 			for i := range entries {
 				entries[i].Keys = slices.Clone(entries[i].Keys)
@@ -68,14 +68,14 @@ func TestUsingIndexBlockedCancellation(t *testing.T) {
 			if len(notices) != 0 {
 				t.Fatal("blocked cancellation emitted attachment notices", notices)
 			}
-			if waiter.TransactionState() != session.TxIdle || e.catalog.State != catalog || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[idx.Address()] != root || !reflect.DeepEqual(root.Entries, entries) || len(parent.Constraints.Unique) != 0 || idx.SQLIndex.Constraint != nil {
+			if waiter.TransactionState() != session.TxIdle || e.Catalog.State != catalog || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[idx.Address()] != root || !reflect.DeepEqual(root.Entries, entries) || len(parent.Constraints.Unique) != 0 || idx.SQLIndex.Constraint != nil {
 				t.Fatal("blocked cancellation leaked state or aborted connection")
 			}
 			transactionEnd(t, holder, tx, false)
 			lockEmpty(t, e)
 			usingIndexUnitExecute(t, e, waiter, usingIndexUnitAlter(true))
 			attached := primaryKeyUnitRelation(t, e, "owned")
-			if attached.Address() != idx.Address() || !index.BackingConstraintPresent(primaryKeyUnitRelation(t, e, "t"), attached) || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[idx.Address()] != root {
+			if attached.Address() != idx.Address() || !index.BackingConstraintPresent(primaryKeyUnitRelation(t, e, "t"), attached) || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[idx.Address()] != root {
 				t.Fatal("same-session retry lost original group/root")
 			}
 			if usingIndexUnitExecute(t, e, waiter, primaryKeyUnitInsert(3)).Count != 1 {
@@ -210,13 +210,13 @@ func TestUsingIndexImmutableGroup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.State.Epoch()}); err != nil {
+			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			parent := primaryKeyUnitRelation(t, e, "t")
 			idx = primaryKeyUnitRelation(t, e, "prebuilt")
 			sibling := primaryKeyUnitRelation(t, e, "sibling")
-			store, root, siblingRoot := e.storage.Relations[parent.Address()], e.storage.IndexRoots[idx.Address()], e.storage.IndexRoots[sibling.Address()]
+			store, root, siblingRoot := e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()], e.Storage.IndexRoots[sibling.Address()]
 			sourceColumns, sourceNN := slices.Clone(parent.Columns), slices.Clone(parent.Constraints.NotNull)
 			sourceEntries := slices.Clone(root.Entries)
 			for i := range sourceEntries {
@@ -225,7 +225,7 @@ func TestUsingIndexImmutableGroup(t *testing.T) {
 			usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(primary))
 			next := primaryKeyUnitRelation(t, e, "t")
 			attached := primaryKeyUnitRelation(t, e, "owned")
-			if next == parent || attached == idx || next.Address() != parent.Address() || attached.Address() != idx.Address() || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[idx.Address()] != root || e.storage.IndexRoots[sibling.Address()] != siblingRoot || e.catalog.State.Get(sibling.Address()) != sibling {
+			if next == parent || attached == idx || next.Address() != parent.Address() || attached.Address() != idx.Address() || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[idx.Address()] != root || e.Storage.IndexRoots[sibling.Address()] != siblingRoot || e.Catalog.State.Get(sibling.Address()) != sibling {
 				t.Fatal("metadata attachment copied/reminted storage, roots or sibling")
 			}
 			if len(next.Constraints.Unique) != 1 || next.Constraints.Unique[0].OID == 0 || next.Constraints.Unique[0].Index != idx.Address() || !index.BackingConstraintPresent(next, attached) || attached.SQLIndex.Constraint.Primary != primary || attached.Comment != idx.Comment || attached.Owner != idx.Owner || attached.Namespace() != idx.Namespace() {
@@ -248,8 +248,8 @@ func TestUsingIndexImmutableGroup(t *testing.T) {
 			}
 			usingIndexUnitExecute(t, e, s, &parser.CreateTable{Name: primaryKeyUnitName("copied"), Elements: []parser.TableElement{{Like: &parser.TableLike{Name: primaryKeyUnitName("t"), Options: []parser.LikeOption{{Name: "all", Including: true}}}}}})
 			copied := primaryKeyUnitRelation(t, e, "copied")
-			copiedIndex := e.catalog.State.MustRelation(copied.Constraints.Unique[0].Index)
-			if copiedIndex.Address() == attached.Address() || copied.Constraints.Unique[0].OID == next.Constraints.Unique[0].OID || copiedIndex.Comment != attached.Comment || !index.BackingConstraintPresent(copied, copiedIndex) || e.storage.IndexRoots[copiedIndex.Address()] == root || len(e.storage.IndexRoots[copiedIndex.Address()].Entries) != 0 || e.catalog.State.Get(attached.Address()) != attached || e.storage.IndexRoots[attached.Address()] != root {
+			copiedIndex := e.Catalog.State.MustRelation(copied.Constraints.Unique[0].Index)
+			if copiedIndex.Address() == attached.Address() || copied.Constraints.Unique[0].OID == next.Constraints.Unique[0].OID || copiedIndex.Comment != attached.Comment || !index.BackingConstraintPresent(copied, copiedIndex) || e.Storage.IndexRoots[copiedIndex.Address()] == root || len(e.Storage.IndexRoots[copiedIndex.Address()].Entries) != 0 || e.Catalog.State.Get(attached.Address()) != attached || e.Storage.IndexRoots[attached.Address()] != root {
 				t.Fatal("LIKE lost backing metadata, reused identity/data or mutated source")
 			}
 		})
@@ -271,7 +271,7 @@ func TestUsingIndexCombinedTypeAttachment(t *testing.T) {
 						if collision {
 							usingIndexUnitExecute(t, e, s, usingIndexUnitTable("owned"))
 						}
-						catalog, store, root := e.catalog.State, e.storage.Relations[parent.Address()], e.storage.IndexRoots[idx.Address()]
+						catalog, store, root := e.Catalog.State, e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()]
 						entries := slices.Clone(root.Entries)
 						for i := range entries {
 							entries[i].Keys = slices.Clone(entries[i].Keys)
@@ -294,7 +294,7 @@ func TestUsingIndexCombinedTypeAttachment(t *testing.T) {
 							if !errors.As(err, &diagnostic) || diagnostic.Code != "42P07" || diagnostic.Message != `relation "owned" already exists` {
 								t.Fatal(result, err)
 							}
-							if e.catalog.State != catalog || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[idx.Address()] != root || !reflect.DeepEqual(root.Entries, entries) || primaryKeyUnitRelation(t, e, "prebuilt") != idx {
+							if e.Catalog.State != catalog || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[idx.Address()] != root || !reflect.DeepEqual(root.Entries, entries) || primaryKeyUnitRelation(t, e, "prebuilt") != idx {
 								t.Fatal("failed combined TYPE attachment published a candidate")
 							}
 							retry := usingIndexUnitAlter(primary)
@@ -310,7 +310,7 @@ func TestUsingIndexCombinedTypeAttachment(t *testing.T) {
 							t.Fatal(result, err)
 						}
 						current, backing := primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "owned")
-						if current.Address() != parent.Address() || backing.Address() == idx.Address() || !index.BackingConstraintPresent(current, backing) || len(current.Constraints.Unique) != 1 || current.Constraints.Unique[0].Index != backing.Address() || current.Columns[change.slot].Usage.Type.ID() != change.usage || backing.Columns[change.slot].Usage.Type.ID() != change.usage || len(e.storage.IndexRoots[backing.Address()].Entries) != 2 {
+						if current.Address() != parent.Address() || backing.Address() == idx.Address() || !index.BackingConstraintPresent(current, backing) || len(current.Constraints.Unique) != 1 || current.Constraints.Unique[0].Index != backing.Address() || current.Columns[change.slot].Usage.Type.ID() != change.usage || backing.Columns[change.slot].Usage.Type.ID() != change.usage || len(e.Storage.IndexRoots[backing.Address()].Entries) != 2 {
 							t.Fatal("combined TYPE attachment lost reminted reciprocal identity, type or rows")
 						}
 						if len(parent.Constraints.Unique) != 0 || idx.SQLIndex.Constraint != nil || idx.Columns[change.slot].Usage.Type.ID() == change.usage || !reflect.DeepEqual(root.Entries, entries) {
@@ -332,7 +332,7 @@ func TestUsingIndexCombinedTypeAttachment(t *testing.T) {
 func TestUsingIndexPrivateOverlay(t *testing.T) {
 	t.Run("metadata_only_commit", func(t *testing.T) {
 		e, s, parent, idx := usingIndexUnitFixture(t)
-		store, root := e.storage.Relations[parent.Address()], e.storage.IndexRoots[idx.Address()]
+		store, root := e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()]
 		entries := slices.Clone(root.Entries)
 		for i := range entries {
 			entries[i].Keys = slices.Clone(entries[i].Keys)
@@ -342,19 +342,19 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 		if _, exists := s.Transactions.Catalog.Storage[parent.Address()]; exists {
 			t.Fatal("metadata attachment registered an index rebuild shape")
 		}
-		if index.JournalIndexesOrZero(s.Transactions.Catalog).UniqueRoots[idx.Address()] != nil || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store || len(parent.Constraints.Unique) != 0 {
+		if index.JournalIndexesOrZero(s.Transactions.Catalog).UniqueRoots[idx.Address()] != nil || e.Storage.IndexRoots[idx.Address()] != root || e.Storage.Relations[parent.Address()] != store || len(parent.Constraints.Unique) != 0 {
 			t.Fatal("metadata attachment copied a private baseline or leaked")
 		}
 		if !transactionEnd(t, s, tx, true).Committed {
 			t.Fatal("metadata commit rolled back")
 		}
 		current := primaryKeyUnitRelation(t, e, "owned")
-		if current.Address() != idx.Address() || !index.BackingConstraintPresent(primaryKeyUnitRelation(t, e, "t"), current) || e.storage.IndexRoots[idx.Address()] != root || e.storage.Relations[parent.Address()] != store || !reflect.DeepEqual(root.Entries, entries) {
+		if current.Address() != idx.Address() || !index.BackingConstraintPresent(primaryKeyUnitRelation(t, e, "t"), current) || e.Storage.IndexRoots[idx.Address()] != root || e.Storage.Relations[parent.Address()] != store || !reflect.DeepEqual(root.Entries, entries) {
 			t.Fatal("metadata-only commit rebuilt roots/storage or changed entries")
 		}
 	})
 	e, s, parent, idx := usingIndexUnitFixture(t)
-	committedStore, committedRoot := e.storage.Relations[parent.Address()], e.storage.IndexRoots[idx.Address()]
+	committedStore, committedRoot := e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()]
 	tx := transactionBegin(t, s)
 	usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}, TypeName: parser.TypeName{Name: "bigint"}}}})
 	earlier := s.Transactions.Catalog
@@ -366,7 +366,7 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before"}})
 	usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(true))
 	attached := s.Transactions.Catalog
-	if attached == earlier || index.JournalIndexesOrZero(attached).UniqueRoots[idx.Address()] != privateRoot || attached.Storage[parent.Address()].Replacement != privateStore || earlier.Descriptors[idx.Address()].(*catalog.Relation).SQLIndex.Constraint != nil || attached.Originals[parent.Address()] != parent || attached.Originals[idx.Address()] != idx || e.catalog.State.Get(parent.Address()) != parent || e.catalog.State.Get(idx.Address()) != idx {
+	if attached == earlier || index.JournalIndexesOrZero(attached).UniqueRoots[idx.Address()] != privateRoot || attached.Storage[parent.Address()].Replacement != privateStore || earlier.Descriptors[idx.Address()].(*catalog.Relation).SQLIndex.Constraint != nil || attached.Originals[parent.Address()] != parent || attached.Originals[idx.Address()] != idx || e.Catalog.State.Get(parent.Address()) != parent || e.Catalog.State.Get(idx.Address()) != idx {
 		t.Fatal("private attachment copied roots, changed originals or leaked")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "attached"}})
@@ -388,8 +388,8 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 	}
 	current := primaryKeyUnitRelation(t, e, "owned")
 	// Earlier TYPE, not attachment, legitimately reconstructs at final publication.
-	committed := e.storage.IndexRoots[idx.Address()]
-	if current.Address() != idx.Address() || committed == committedRoot || len(committed.Entries) != 2 || committed.Entries[0].Keys[0].Type().ID() != sqltype.Int8 || e.storage.Relations[parent.Address()] != privateStore || len(parent.Constraints.Unique) != 0 || len(committedRoot.Entries) != 2 || len(committedStore.Versions) != 2 {
+	committed := e.Storage.IndexRoots[idx.Address()]
+	if current.Address() != idx.Address() || committed == committedRoot || len(committed.Entries) != 2 || committed.Entries[0].Keys[0].Type().ID() != sqltype.Int8 || e.Storage.Relations[parent.Address()] != privateStore || len(parent.Constraints.Unique) != 0 || len(committedRoot.Entries) != 2 || len(committedStore.Versions) != 2 {
 		t.Fatal("TYPE/attachment commit lost its real data or mutated old snapshot")
 	}
 }
@@ -399,7 +399,7 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 		for _, change := range []string{"cancel", "reset", "restore", "collision", "parent_descriptor", "index_descriptor", "authorization"} {
 			t.Run(phase+"/"+change, func(t *testing.T) {
 				e, s, parent, index := usingIndexUnitFixture(t)
-				store, root := e.storage.Relations[parent.Address()], e.storage.IndexRoots[index.Address()]
+				store, root := e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[index.Address()]
 				var dump bytes.Buffer
 				if err := e.Dump(context.Background(), &dump); err != nil {
 					t.Fatal(err)
@@ -426,22 +426,22 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 						if change == "index_descriptor" {
 							original = index
 						}
-						e.mu.Lock()
+						e.Mu.Lock()
 						copyDescriptor := *original
 						copyDescriptor.ObjectRevision++
 						copyDescriptor.Comment = "concurrent replacement"
-						state := catalog.CloneState(e.catalog.State)
+						state := catalog.CloneState(e.Catalog.State)
 						state.SetDescriptor(original.Address(), &copyDescriptor)
-						e.catalog.PublishLocked(state)
-						e.mu.Unlock()
+						e.Catalog.PublishLocked(state)
+						e.Mu.Unlock()
 					case "authorization":
 						usingIndexUnitExecute(t, e, sessionStart(t, e, nil), &parser.CreateRole{Name: parser.Identifier{Text: "changed_authority"}, DefaultLogin: true})
 					}
 				}
-				provider := e.catalog.Providers[ids.RelationClassID]
+				provider := e.Catalog.Providers[ids.RelationClassID]
 				if phase == "validation" {
 					var once sync.Once
-					e.catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() { once.Do(func() { e.catalog.Providers[ids.RelationClassID] = provider; mutate() }) }}
+					e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{Provider: provider, callback: func() { once.Do(func() { e.Catalog.Providers[ids.RelationClassID] = provider; mutate() }) }}
 				}
 				op, err := s.Acquire(ctx)
 				if err != nil {
@@ -478,11 +478,11 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 					}
 					return
 				}
-				if change != "index_descriptor" && e.catalog.State.Get(index.Address()) != index || change != "parent_descriptor" && e.catalog.State.Get(parent.Address()) != parent || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root || len(parent.Constraints.Unique) != 0 || len(parent.Constraints.NotNull) != 0 || index.SQLIndex.Constraint != nil {
+				if change != "index_descriptor" && e.Catalog.State.Get(index.Address()) != index || change != "parent_descriptor" && e.Catalog.State.Get(parent.Address()) != parent || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[index.Address()] != root || len(parent.Constraints.Unique) != 0 || len(parent.Constraints.NotNull) != 0 || index.SQLIndex.Constraint != nil {
 					t.Fatal("failed publication leaked an attachment, NN, storage or root")
 				}
-				liveParent := e.catalog.State.MustRelation(parent.Address())
-				liveIndex := e.catalog.State.MustRelation(index.Address())
+				liveParent := e.Catalog.State.MustRelation(parent.Address())
+				liveIndex := e.Catalog.State.MustRelation(index.Address())
 				if len(liveParent.Constraints.Unique) != 0 || len(liveParent.Constraints.NotNull) != 0 || liveIndex.SQLIndex.Constraint != nil || liveIndex.Name() != "prebuilt" {
 					t.Fatal("replacement descriptor retained failed candidate")
 				}
@@ -491,7 +491,7 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 	}
 	t.Run("successful_finish_no_retroactive_cancel", func(t *testing.T) {
 		e, s, parent, idx := usingIndexUnitFixture(t)
-		root := e.storage.IndexRoots[idx.Address()]
+		root := e.Storage.IndexRoots[idx.Address()]
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, err := s.Acquire(ctx)
@@ -508,7 +508,7 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 			t.Fatal(err)
 		}
 		cancel()
-		if primaryKeyUnitRelation(t, e, "owned").Address() != idx.Address() || !index.BackingConstraintPresent(primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "owned")) || e.storage.IndexRoots[idx.Address()] != root || len(parent.Constraints.Unique) != 0 {
+		if primaryKeyUnitRelation(t, e, "owned").Address() != idx.Address() || !index.BackingConstraintPresent(primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "owned")) || e.Storage.IndexRoots[idx.Address()] != root || len(parent.Constraints.Unique) != 0 {
 			t.Fatal("successful effect undone by later cancellation")
 		}
 	})
@@ -523,12 +523,12 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 	if len(constraint.Attributes) != 2 || len(index.SQLIndex.Include) != 1 {
 		t.Fatal("INCLUDE entered conkey")
 	}
-	for _, entry := range e.storage.IndexRoots[index.Address()].Entries {
+	for _, entry := range e.Storage.IndexRoots[index.Address()].Entries {
 		if len(entry.Keys) != 2 {
 			t.Fatal("INCLUDE entered equality root")
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -552,12 +552,12 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 	usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "current_secret"}, TypeName: parser.TypeName{Name: "varchar"}}}})
 	typed := primaryKeyUnitRelation(t, e, "t")
 	backing := primaryKeyUnitRelation(t, e, "owned")
-	if typed.Address() != renamed.Address() || typed.Constraints.Unique[0].OID == constraint.OID || backing.Address() == oldIndex.Address() || !reflect.DeepEqual(typed.Constraints.NotNull, oldNN) || backing.Columns[2].Usage.Type.ID() != sqltype.VarChar || backing.Columns[2].Name != "current_secret" || backing.Columns[2].OriginTable != uint32(backing.Address().ObjectID) || oldIndex.Columns[2].Usage.Type.ID() != sqltype.Text || len(e.storage.IndexRoots[backing.Address()].Entries) != 2 {
+	if typed.Address() != renamed.Address() || typed.Constraints.Unique[0].OID == constraint.OID || backing.Address() == oldIndex.Address() || !reflect.DeepEqual(typed.Constraints.NotNull, oldNN) || backing.Columns[2].Usage.Type.ID() != sqltype.VarChar || backing.Columns[2].Name != "current_secret" || backing.Columns[2].OriginTable != uint32(backing.Address().ObjectID) || oldIndex.Columns[2].Usage.Type.ID() != sqltype.Text || len(e.Storage.IndexRoots[backing.Address()].Entries) != 2 {
 		t.Fatal("INCLUDE TYPE did not rebuild reciprocal current metadata immutably")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.DropColumn, Column: parser.Identifier{Text: "current_secret"}, Mode: parser.DropRestrict}}})
 	dropped := primaryKeyUnitRelation(t, e, "t")
-	if len(dropped.Constraints.Unique) != 0 || !reflect.DeepEqual(dropped.Constraints.NotNull, oldNN) || len(dropped.Columns) != 2 || dropped.Columns[0].Nullable || dropped.Columns[1].Nullable || e.catalog.State.Get(backing.Address()) != nil || e.storage.IndexRoots[backing.Address()] != nil || len(typed.Constraints.Unique) != 1 {
+	if len(dropped.Constraints.Unique) != 0 || !reflect.DeepEqual(dropped.Constraints.NotNull, oldNN) || len(dropped.Columns) != 2 || dropped.Columns[0].Nullable || dropped.Columns[1].Nullable || e.Catalog.State.Get(backing.Address()) != nil || e.Storage.IndexRoots[backing.Address()] != nil || len(typed.Constraints.Unique) != 1 {
 		t.Fatal("INCLUDE DROP retained group or removed key NN/mutated source")
 	}
 }
@@ -575,14 +575,14 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(bindOp)
+	auth, err := OperationAuthorization(bindOp)
 	if err != nil {
 		bindOp.Done()
 		t.Fatal(err)
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	derived, _, err := e.bindIndexExpression(bindOp, sqltype.InputEnvironment{}, auth, parentInput, parser.ColumnExpr{Name: primaryKeyUnitName("a")}, nil)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	bindOp.Done()
 	if err != nil {
 		t.Fatal(err)
@@ -602,7 +602,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.catalog.State.Epoch()}); err != nil {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	source := primaryKeyUnitRelation(t, e, "prebuilt")
@@ -623,8 +623,8 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	}
 	usingIndexUnitExecute(t, e, s, &parser.CreateTable{Name: primaryKeyUnitName("copied"), Elements: []parser.TableElement{{Like: &parser.TableLike{Name: primaryKeyUnitName("t"), Options: []parser.LikeOption{{Name: "all", Including: true}}}}}})
 	copied := primaryKeyUnitRelation(t, e, "copied")
-	copyIndex := e.catalog.State.MustRelation(copied.Constraints.Unique[0].Index)
-	copyRoot := e.storage.IndexRoots[copyIndex.Address()]
+	copyIndex := e.Catalog.State.MustRelation(copied.Constraints.Unique[0].Index)
+	copyRoot := e.Storage.IndexRoots[copyIndex.Address()]
 	if copyIndex.Address() == keyBacking.Address() || copyIndex.SQLIndex.Keys[0].Attribute != 0 || copyIndex.SQLIndex.Keys[0].Derived == nil || copyIndex.SQLIndex.Keys[0].Derived.Execution.ResultUsage().Type.ID() != sqltype.Int8 || !index.BackingConstraintPresent(copied, copyIndex) || len(copyRoot.Entries) != 0 {
 		t.Fatal("LIKE did not independently remap actual Var/include metadata")
 	}
@@ -647,7 +647,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	defer op.Done()
 	_, err = e.Execute(op, insert, 0, nil)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "` + copied.Constraints.Unique[0].Name + `"`, Detail: "Key (a)=(3) already exists.", Schema: "public", Table: "copied", Constraint: copied.Constraints.Unique[0].Name})
-	if len(copyRoot.Entries) != 0 || len(e.storage.IndexRoots[copyIndex.Address()].Entries) != 1 || len(source.SQLIndex.Include) != 1 || source.SQLIndex.Constraint != nil {
+	if len(copyRoot.Entries) != 0 || len(e.Storage.IndexRoots[copyIndex.Address()].Entries) != 1 || len(source.SQLIndex.Include) != 1 || source.SQLIndex.Constraint != nil {
 		t.Fatal("copy enforcement mutated held source/baseline")
 	}
 }
@@ -665,7 +665,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 	parent, idx := primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "owned")
 	parentRef, indexRef := catalogRef(t, e, before, "t"), catalogRef(t, e, before, "owned")
 	constraintRef := parentRef.Domain().Ref(before.Epoch(), ids.ObjectAddress{ClassID: 2606, ObjectID: parent.Constraints.Unique[0].OID})
-	store, root := e.storage.Relations[parent.Address()], e.storage.IndexRoots[idx.Address()]
+	store, root := e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()]
 	versions := slices.Clone(store.Versions)
 	columns, constraints := slices.Clone(parent.Columns), slices.Clone(parent.Constraints.Unique)
 	entries := slices.Clone(root.Entries)
@@ -688,7 +688,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 	if after.Epoch() != before.Epoch()+1 || currentParentRef == parentRef || currentIndexRef == indexRef || currentConstraintRef == constraintRef || current.Address() != parent.Address() {
 		t.Fatal("Restore did not establish fresh group generation at retained parent", before.Epoch(), after.Epoch(), constraintRef, currentConstraintRef)
 	}
-	if current == parent || backing == idx || e.storage.Relations[current.Address()] == store || e.storage.IndexRoots[backing.Address()] == root || len(e.storage.IndexRoots[backing.Address()].Entries) != 2 || !index.BackingConstraintPresent(current, backing) {
+	if current == parent || backing == idx || e.Storage.Relations[current.Address()] == store || e.Storage.IndexRoots[backing.Address()] == root || len(e.Storage.IndexRoots[backing.Address()].Entries) != 2 || !index.BackingConstraintPresent(current, backing) {
 		t.Fatal("Restore transplanted old descriptor/storage/root or lost reciprocal data")
 	}
 	if current.Columns[0].Nullable || current.Columns[1].Nullable || !current.Columns[2].Nullable || len(backing.SQLIndex.Keys) != 2 || len(backing.SQLIndex.Include) != 1 {
@@ -703,7 +703,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 	}
 	// The real old session now targets new storage, and the discarded key is reusable.
 	usingIndexUnitExecute(t, e, s, primaryKeyUnitInsert(3))
-	if len(e.storage.IndexRoots[backing.Address()].Entries) != 3 || !reflect.DeepEqual(root.Entries, entries) {
+	if len(e.Storage.IndexRoots[backing.Address()].Entries) != 3 || !reflect.DeepEqual(root.Entries, entries) {
 		t.Fatal("retained session did not target fresh enforcement root")
 	}
 }

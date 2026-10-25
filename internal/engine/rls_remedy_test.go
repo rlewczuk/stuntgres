@@ -106,20 +106,20 @@ func TestRLSPolicySnapshotReadFootprint(t *testing.T) {
 	defer sessionSQL(t, session, "ROLLBACK")
 	target := roleTableRef(t, e, "snapshot_target")
 	source := roleTableRef(t, e, "snapshot_source")
-	e.mu.Lock()
-	node := e.visibility.Serializable.Nodes[session.Transactions.Ref]
+	e.Mu.Lock()
+	node := e.Visibility.Serializable.Nodes[session.Transactions.Ref]
 	valid := node != nil && node.Captured && node.DidWrite && len(node.Reads) == 0
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if !valid {
 		t.Fatal("target-only snapshot capture registered a read or omitted write")
 	}
 	sessionSQL(t, session, "INSERT INTO snapshot_target SELECT id FROM snapshot_source")
-	e.mu.Lock()
-	node = e.visibility.Serializable.Nodes[session.Transactions.Ref]
+	e.Mu.Lock()
+	node = e.Visibility.Serializable.Nodes[session.Transactions.Ref]
 	_, readSource := node.Reads[source.Address]
 	_, readTarget := node.Reads[target.Address]
 	count := len(node.Reads)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if !readSource || readTarget || count != 1 {
 		t.Fatal("snapshot union replaced actual source read footprint", readSource, readTarget, count)
 	}

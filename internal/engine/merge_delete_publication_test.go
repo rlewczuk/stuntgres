@@ -49,7 +49,7 @@ func TestMergeDeletePublication(t *testing.T) {
 				}
 				transactionRows(t, peer, "SELECT v FROM t ORDER BY id", 21, 40)
 			}
-			if scope.view != nil || scope.ticket != nil || scope.lockedStorage != nil || !scope.finished {
+			if scope.View != nil || scope.LockTicket != nil || scope.LockedStorage != nil || !scope.Finished {
 				t.Fatal("Finish retained DELETE resources")
 			}
 			lockEmpty(t, e)
@@ -66,7 +66,7 @@ func TestMergeDeleteLineage(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.Relations[ref.Address].Versions[0]
+			original := e.Storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, s)
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE id=1")
 			sessionSQL(t, s, "INSERT INTO t VALUES(2,20)")
@@ -80,12 +80,12 @@ func TestMergeDeleteLineage(t *testing.T) {
 			transactionEnd(t, s, tx, commit)
 			if commit {
 				transactionRows(t, peer, "SELECT v FROM t")
-				if e.storage.Relations[ref.Address].Ends == nil {
+				if e.Storage.Relations[ref.Address].Ends == nil {
 					t.Fatal("no canonical deletion root")
 				}
 			} else {
 				transactionRows(t, peer, "SELECT v FROM t", 10)
-				head := e.storage.Relations[ref.Address].Versions[0]
+				head := e.Storage.Relations[ref.Address].Versions[0]
 				if head.Row != original.Row || head.Version != original.Version {
 					t.Fatal("rollback reminted predecessor")
 				}
@@ -115,7 +115,7 @@ func TestMergeDeleteLineage(t *testing.T) {
 				t.Fatal(err)
 			}
 			var candidate visibility.DeleteCandidate
-			for _, root := range scope.stage.deletes {
+			for _, root := range scope.Stage.Deletes {
 				for _, c := range root.Rows {
 					candidate = c
 				}

@@ -21,29 +21,29 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 	t.Helper()
 	raw := statement(t, "CREATE TEMP VIEW "+name+" AS SELECT "+namespace.Name()+"."+call+" AS v").(*parser.CreateView)
 	stage, consumer, err := func() (*CatalogStage, *catalog.Relation, error) {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return nil, nil, err
 		}
-		b, err := describe(op.Context(), e.analysisHost(nil), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
+		b, err := Describe(op.Context(), e.AnalysisHost(nil), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
 		if err != nil {
 			return nil, nil, err
 		}
-		oid, err := e.catalog.AllocateOIDLocked()
+		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
 			return nil, nil, err
 		}
-		rule, err := e.catalog.AllocateOIDLocked()
+		rule, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
 			return nil, nil, err
 		}
-		revision, err := e.catalog.RevisionLocked()
+		revision, err := e.Catalog.RevisionLocked()
 		if err != nil {
 			return nil, nil, err
 		}
-		definition, err := view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, rule, catalog.ViewRelation, true)
+		definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, rule, catalog.ViewRelation, true)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -51,7 +51,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 		definition = definition.With(func(p *stored.ViewParts) { p.Consumer = d.Address() })
 		d.View = stored.ViewPayload(definition)
 		stage := e.BeginCatalogStage(auth.Catalog)
-		if err := e.stageRowTypeLocked(stage, d); err != nil {
+		if err := e.StageRowTypeLocked(stage, d); err != nil {
 			e.DiscardCatalogStage(stage)
 			return nil, nil, err
 		}
@@ -130,10 +130,10 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			impostor := *proc
 			state := catalog.CloneState(view.State())
 			state.SetDescriptor(ref.Address, &impostor)
-			if stored.ViewReferenceValid(e.catalog.Read(state), consumer, ref) {
+			if stored.ViewReferenceValid(e.Catalog.Read(state), consumer, ref) {
 				t.Fatal("same-address procedure clone gained captured authority")
 			}
-			if _, err := stored.ViewOf(consumer).IntaggRecipeProcedure(e.catalog.Read(state), path, proc.Name()); err == nil {
+			if _, err := stored.ViewOf(consumer).IntaggRecipeProcedure(e.Catalog.Read(state), path, proc.Name()); err == nil {
 				t.Fatal("recipe accepted substituted procedure descriptor")
 			}
 			unretained := *consumer

@@ -12,7 +12,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 	if len(queue) == 0 {
 		return next, nil, nil
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return table.RebindAlterTypeChecks(alterHost{ddlHost{e: e, op: op}, scope}, auth, ref, next, queue)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return table.RebindAlterTypeChecks(alterHost{DDLHost{E: e, Op: op}, scope}, auth, ref, next, queue)
 }

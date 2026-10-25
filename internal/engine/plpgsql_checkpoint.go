@@ -41,7 +41,7 @@ type plExceptionCheckpoint struct {
 	foreignModifications                        int
 	holdPromotions                              []*sqlCursor
 	truncate                                    *dml.TruncateScope
-	drops                                       *dropScope
+	drops                                       *DropScope
 	foreignKeys                                 *table.ForeignKeyCreation
 	viewCreation                                *view.CreationScope
 	materialized                                *view.MaterializedRefreshScope
@@ -106,9 +106,9 @@ func exceptionIndexes(scope *index.Scope) *index.Scope {
 }
 
 func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
-	t := s.owner
+	t := s.Owner
 	t.Mu.Lock()
-	if err := t.Validate(s.txRef); err != nil {
+	if err := t.Validate(s.TxRef); err != nil {
 		t.Mu.Unlock()
 		return nil, err
 	}
@@ -120,17 +120,17 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 	mark.Internal = true
 	t.Mu.Unlock()
 	s.foreignUnlocked()
-	if err := foreignSavepoint(t, s.op.Context(), 0, mark.Serial); err != nil {
+	if err := foreignSavepoint(t, s.Op.Context(), 0, mark.Serial); err != nil {
 		return nil, &proc.PLExceptionCleanupError{Primary: err, Cleanup: errors.New("exception mark acquisition failed")}
 	}
-	c := &plExceptionCheckpoint{scope: s, owner: t, serial: mark.Serial, rows: exceptionRows(s.stage.rows), deletes: exceptionDeletes(s.stage.deletes), replacing: s.stage.replacing,
-		ownWrites: exceptionRows(s.ownWrites), ownDeletes: exceptionDeletes(s.ownDeletes), catalog: s.catalog, catalogAuthority: s.catalogAuthority,
+	c := &plExceptionCheckpoint{scope: s, owner: t, serial: mark.Serial, rows: exceptionRows(s.Stage.Rows), deletes: exceptionDeletes(s.Stage.Deletes), replacing: s.Stage.replacing,
+		ownWrites: exceptionRows(s.OwnWrites), ownDeletes: exceptionDeletes(s.OwnDeletes), catalog: s.Catalog, catalogAuthority: s.CatalogAuthority,
 		foreignActions: exceptionForeignActions(s.foreignActionsSlot), indexes: exceptionIndexes(s.indexesSlot), multiEvents: slices.Clone(s.multiEvents),
-		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.completed, sessionCompleted: s.sessionCompleted, projectedRoots: s.projectedRoots,
+		notificationActions: slices.Clone(s.notificationActions), notificationEvents: slices.Clone(s.notificationEvents), completed: s.Completed, sessionCompleted: s.sessionCompleted, projectedRoots: s.projectedRoots,
 		foreignModifications: len(s.foreignTablesOrZero().modifications)}
 	c.holdPromotions = slices.Clone(s.foreignTablesOrZero().holdPromotions)
-	if s.catalogAuthority != nil {
-		owned := *s.catalogAuthority
+	if s.CatalogAuthority != nil {
+		owned := *s.CatalogAuthority
 		owned.Observations = slices.Clone(owned.Observations)
 		c.catalogAuthority = &owned
 	}
@@ -140,13 +140,13 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 		owned.Selected = maps.Clone(owned.Selected)
 		c.truncate = &owned
 	}
-	if s.dropsSlot != nil {
-		owned := *s.dropsSlot
-		owned.consumedColumns = maps.Clone(owned.consumedColumns)
+	if s.DropsSlot != nil {
+		owned := *s.DropsSlot
+		owned.ConsumedColumns = maps.Clone(owned.ConsumedColumns)
 		c.drops = &owned
 	}
-	if s.foreignKeysSlot != nil {
-		owned := *s.foreignKeysSlot
+	if s.ForeignKeysSlot != nil {
+		owned := *s.ForeignKeysSlot
 		owned.KeyTargets, owned.AlterKeys = slices.Clone(owned.KeyTargets), slices.Clone(owned.AlterKeys)
 		c.foreignKeys = &owned
 	}
@@ -165,8 +165,8 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 	}
 	// A journal is COW at command boundaries. Fence an already-live statement
 	// journal as well, so a nested utility cannot mutate its retained predecessor.
-	if s.catalog != nil {
-		s.catalog = s.catalog.Clone()
+	if s.Catalog != nil {
+		s.Catalog = s.Catalog.Clone()
 	}
 	t.Mu.Lock()
 	t.Savepoints = append(t.Savepoints, mark)
@@ -175,10 +175,10 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 }
 
 func (s *StatementScope) endPLException(c *plExceptionCheckpoint, rollback bool, primary error) error {
-	if c == nil || c.scope != s || c.owner != s.owner || c.disposed {
+	if c == nil || c.scope != s || c.owner != s.Owner || c.disposed {
 		return errors.New("stuntgres: foreign or disposed exception checkpoint")
 	}
-	t := s.owner
+	t := s.Owner
 	t.Mu.Lock()
 	n := len(t.Savepoints) - 1
 	if n < 0 || !t.Savepoints[n].Internal || t.Savepoints[n].Serial != c.serial {
@@ -196,22 +196,22 @@ func (s *StatementScope) endPLException(c *plExceptionCheckpoint, rollback bool,
 		// not the root statement or an unrelated live producer.
 		if slot := s.foreignTablesSlot; slot != nil {
 			for _, modification := range slot.modifications[c.foreignModifications:] {
-				cleanup = errors.Join(cleanup, modification.End(context.WithoutCancel(s.op.Context())))
+				cleanup = errors.Join(cleanup, modification.End(context.WithoutCancel(s.Op.Context())))
 			}
 			clear(slot.modifications[c.foreignModifications:])
 			slot.modifications = slot.modifications[:c.foreignModifications]
 		}
-		cleanup = errors.Join(cleanup, foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.Serial))
+		cleanup = errors.Join(cleanup, foreignSavepoint(t, context.WithoutCancel(s.Op.Context()), 1, mark.Serial))
 	}
 	if cleanup == nil {
-		cleanup = foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 2, mark.Serial)
+		cleanup = foreignSavepoint(t, context.WithoutCancel(s.Op.Context()), 2, mark.Serial)
 	}
 	t.Mu.Lock()
 	if rollback {
 		restoreSavepoint(t, mark, mark.Settings.Clone())
-		s.stage.rows, s.stage.deletes, s.stage.replacing = c.rows, c.deletes, c.replacing
-		s.ownWrites, s.ownDeletes = c.ownWrites, c.ownDeletes
-		s.catalog, s.catalogAuthority = c.catalog, c.catalogAuthority
+		s.Stage.Rows, s.Stage.Deletes, s.Stage.replacing = c.rows, c.deletes, c.replacing
+		s.OwnWrites, s.OwnDeletes = c.ownWrites, c.ownDeletes
+		s.Catalog, s.CatalogAuthority = c.catalog, c.catalogAuthority
 		if c.foreignActions != nil && s.foreignActionsSlot != nil {
 			*s.foreignActionsSlot = *c.foreignActions
 		} else {
@@ -222,19 +222,19 @@ func (s *StatementScope) endPLException(c *plExceptionCheckpoint, rollback bool,
 		} else {
 			s.indexesSlot = c.indexes
 		}
-		s.truncateSlot, s.dropsSlot, s.foreignKeysSlot = c.truncate, c.drops, c.foreignKeys
+		s.truncateSlot, s.DropsSlot, s.ForeignKeysSlot = c.truncate, c.drops, c.foreignKeys
 		s.viewCreationSlot, s.materializedSlot = c.viewCreation, c.materialized
 		if s.foreignTablesSlot != nil {
 			s.foreignTablesSlot.holdPromotions = c.holdPromotions
 		}
 		s.multiEvents = c.multiEvents
 		s.notificationActions, s.notificationEvents = c.notificationActions, c.notificationEvents
-		s.completed, s.sessionCompleted, s.projectedRoots = c.completed, c.sessionCompleted, c.projectedRoots
+		s.Completed, s.sessionCompleted, s.projectedRoots = c.completed, c.sessionCompleted, c.projectedRoots
 	}
 	t.TruncateSavepoints(n)
 	t.Mu.Unlock()
 	if rollback {
-		s.engine().locks.Restore(t.Ticket, mark.Locks)
+		s.Engine().Locks.Restore(t.Ticket, mark.Locks)
 	}
 	if cleanup != nil {
 		return &proc.PLExceptionCleanupError{Primary: primary, Cleanup: cleanup}

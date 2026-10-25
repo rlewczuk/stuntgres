@@ -39,9 +39,9 @@ func TestTransactionalIndexPrivateRoots(t *testing.T) {
 				sessionSQL(t, s, "CREATE TABLE t(n INT)")
 				sessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3),(4)")
 			}
-			view := e.privateCatalogLocked(s.Transactions.Catalog)
+			view := e.PrivateCatalogLocked(s.Transactions.Catalog)
 			parent := catalogRef(t, e, view, "t")
-			committed := e.storage.Relations[parent.Address]
+			committed := e.Storage.Relations[parent.Address]
 			sessionSQL(t, s, "UPDATE t SET n=10 WHERE n=1")
 			sessionSQL(t, s, "DELETE FROM t WHERE n=2")
 			sessionSQL(t, s, "INSERT INTO t VALUES(5)")
@@ -49,13 +49,13 @@ func TestTransactionalIndexPrivateRoots(t *testing.T) {
 			priorCopy := append([]storage.RowVersion(nil), priorWrites...)
 			sessionSQL(t, s, "CREATE INDEX idx ON t(n)")
 			journal := s.Transactions.Catalog
-			view = e.privateCatalogLocked(journal)
+			view = e.PrivateCatalogLocked(journal)
 			ref := catalogRef(t, e, view, "idx")
 			idx := view.MustRelation(ref.Address)
 			j := index.JournalIndexesOrZero(journal)
 			root := j.UniqueRoots[ref.Address]
 			candidate, ok := j.Candidates[ref.Address]
-			if !ok || root == nil || candidate.Root != root || candidate.Index != idx || idx.SQLIndex.Parent != parent.Address || !candidate.MatchesIndex(idx, e.privateStorageLocked(journal, parent.Address)) {
+			if !ok || root == nil || candidate.Root != root || candidate.Index != idx || idx.SQLIndex.Parent != parent.Address || !candidate.MatchesIndex(idx, e.PrivateStorageLocked(journal, parent.Address)) {
 				t.Fatal("invalid private candidate/identity", candidate)
 			}
 			wantBaseline := []string{}
@@ -74,7 +74,7 @@ func TestTransactionalIndexPrivateRoots(t *testing.T) {
 					t.Fatal("wrong physical baseline identity/key", entry, row)
 				}
 			}
-			if e.storage.IndexRoots[ref.Address] != nil || e.catalog.State.Get(ref.Address) != nil || e.storage.Relations[parent.Address] != committed {
+			if e.Storage.IndexRoots[ref.Address] != nil || e.Catalog.State.Get(ref.Address) != nil || e.Storage.Relations[parent.Address] != committed {
 				t.Fatal("private build published early")
 			}
 			if !reflect.DeepEqual(priorWrites, priorCopy) {
@@ -117,7 +117,7 @@ func TestTransactionalIndexPrivateRoots(t *testing.T) {
 			if got := btreeKeys(t, final); !reflect.DeepEqual(got, []string{"5", "6", "10", "30"}) {
 				t.Fatal("wrong committed membership", got)
 			}
-			store := e.storage.Relations[parent.Address]
+			store := e.Storage.Relations[parent.Address]
 			seen := map[ids.RowID]bool{}
 			for _, entry := range final.Entries {
 				row := store.Versions[entry.Position]
@@ -126,7 +126,7 @@ func TestTransactionalIndexPrivateRoots(t *testing.T) {
 				}
 				seen[entry.Row] = true
 			}
-			if e.storage.IndexRoots[roleTableRef(t, e, "unrelated_idx").Address] != unrelated || !reflect.DeepEqual(unrelated.Entries, unrelatedEntries) || !reflect.DeepEqual(root.Entries, retained) {
+			if e.Storage.IndexRoots[roleTableRef(t, e, "unrelated_idx").Address] != unrelated || !reflect.DeepEqual(unrelated.Entries, unrelatedEntries) || !reflect.DeepEqual(root.Entries, retained) {
 				t.Fatal("commit mutated retained/unrelated roots")
 			}
 			lockEmpty(t, e)
@@ -158,13 +158,13 @@ func TestTransactionalIndexSavepointRoots(t *testing.T) {
 	for range 2 {
 		sessionSQL(t, s, "INSERT INTO later VALUES(3),(3)")
 		sessionSQL(t, s, "CREATE INDEX later_idx ON later(n)")
-		view := e.privateCatalogLocked(s.Transactions.Catalog)
+		view := e.PrivateCatalogLocked(s.Transactions.Catalog)
 		later := catalogRef(t, e, view, "later_idx").Address
 		sessionSQL(t, s, "ROLLBACK TO kept")
 		if s.Transactions.Catalog != prefix || !storage.SameVersionRoot(s.Transactions.Writes[early], writes) || s.Transactions.Deletes[early] != deletes || !reflect.DeepEqual(prefix.Clone(), snapshot) {
 			t.Fatal("savepoint did not restore exact immutable prefix")
 		}
-		if e.privateCatalogLocked(prefix).Get(later) != nil || e.storage.IndexRoots[later] != nil {
+		if e.PrivateCatalogLocked(prefix).Get(later) != nil || e.Storage.IndexRoots[later] != nil {
 			t.Fatal("postmark descriptor/root survived")
 		}
 		for a, r := range j.UniqueRoots {

@@ -49,7 +49,7 @@ func roleSwitchUnitSession(t *testing.T) (*Engine, *session.Session) {
 }
 func roleSwitchAssert(t *testing.T, s *session.Session, before authorization.RoleState, name string) {
 	t.Helper()
-	role, ok := engineOf(s).Roles().Lookup(name)
+	role, ok := EngineOf(s).Roles().Lookup(name)
 	if !ok {
 		t.Fatal(name)
 	}
@@ -68,7 +68,7 @@ func roleSwitchUnitExec(t *testing.T, s *session.Session, q string) error {
 		return err
 	}
 	defer op.Done()
-	_, err = engineOf(s).Execute(op, statement(t, q), 0, nil)
+	_, err = EngineOf(s).Execute(op, statement(t, q), 0, nil)
 	return err
 }
 
@@ -88,7 +88,7 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 			t.Run(strings.Join(tc.commands, ";")+map[bool]string{false: "/rollback", true: "/commit"}[commit], func(t *testing.T) {
 				e, s := roleSwitchUnitSession(t)
 				before := s.Authorization.State
-				graph, catalog := e.roles.Published, e.catalog.State
+				graph, catalog := e.RoleStore.Published, e.Catalog.State
 				sessionSQL(t, s, "BEGIN")
 				for _, q := range tc.commands {
 					sessionSQL(t, s, q)
@@ -103,7 +103,7 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 				}
 				sessionSQL(t, s, end)
 				roleSwitchAssert(t, s, before, want)
-				if s.Settings.RoleAction.Present || e.roles.Published != graph || e.catalog.State != catalog {
+				if s.Settings.RoleAction.Present || e.RoleStore.Published != graph || e.Catalog.State != catalog {
 					t.Fatal("journal/catalog changed")
 				}
 				if want != tc.inside && s.Authorization.Revision != revision+1 {
@@ -154,10 +154,10 @@ func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
 		if d.Type != settings.String || d.BootDefault != "none" {
 			t.Fatal(d)
 		}
-		if !e.mu.TryLock() {
+		if !e.Mu.TryLock() {
 			t.Fatal("provider under Engine lock")
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 	}}
 	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
 	if err != nil {

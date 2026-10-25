@@ -20,9 +20,9 @@ func (s *StatementScope) plMessageOperand(d *catalog.Procedure, f *proc.PLFrame,
 }
 
 func (s *StatementScope) plMessageText(value sqltype.Value, origin plNoticeOrigin) (string, error) {
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	defer func() { s.appendPLNoticeContext(noticeStart, origin) }()
-	return value.Type().OutputWithEnvironment(s.op.Context(), value, s.output)
+	return value.Type().OutputWithEnvironment(s.Op.Context(), value, s.Output)
 }
 
 func (s *StatementScope) executePLRaise(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) error {
@@ -68,18 +68,18 @@ func (s *StatementScope) executePLRaise(d *catalog.Procedure, f *proc.PLFrame, i
 	for i, option := range checked.Options {
 		value, err := s.plMessageOperand(d, f, read, option.Query, raw.Options[i].Value, in.Syntax.Pos, "at RAISE")
 		if err != nil { return err }
-		if value.IsNull() { return fail(sqlError("22004", "RAISE statement option cannot be null")) }
+		if value.IsNull() { return fail(SQLError("22004", "RAISE statement option cannot be null")) }
 		output, err := s.plMessageText(value, s.plNoticeOrigin(f, in.Syntax.Pos, "at RAISE"))
 		if err != nil { return fail(err) }
 		if option.Kind == parser.PLRaiseErrcode {
-			if diagnostic.Code != "" && diagnostic.Code != "00000" { return fail(sqlError("42601", "RAISE option already specified: ERRCODE")) }
+			if diagnostic.Code != "" && diagnostic.Code != "00000" { return fail(SQLError("42601", "RAISE option already specified: ERRCODE")) }
 			diagnostic.Code, err = proc.RaiseSQLState(output)
 			if err != nil { return fail(err) }
 			condition = output
 			continue
 		}
 		bit := uint16(1) << option.Kind
-		if seen & bit != 0 { return fail(sqlError("42601", "RAISE option already specified: "+option.Kind.String())) }
+		if seen & bit != 0 { return fail(SQLError("42601", "RAISE option already specified: "+option.Kind.String())) }
 		seen |= bit
 		switch option.Kind {
 		case parser.PLRaiseMessage: diagnostic.Message, messageSet = output, true
@@ -109,12 +109,12 @@ func (s *StatementScope) executePLRaise(d *catalog.Procedure, f *proc.PLFrame, i
 	}
 	if level == session.LevelError { return fail(&diagnostic) }
 	diagnostic.Context = proc.PLActionContext(d.SQL.Source, s.plRoutineDiagnosticIdentity(read, d), in.Syntax.Pos, "at RAISE")
-	s.op.EmitNotice(level, diagnostic)
+	s.Op.EmitNotice(level, diagnostic)
 	return nil
 }
 
 func (s *StatementScope) executePLAssert(d *catalog.Procedure, f *proc.PLFrame, in proc.PLInstruction, read catalog.Read) error {
-	enabled, ok := s.op.Session.Setting("plpgsql.check_asserts")
+	enabled, ok := s.Op.Session.Setting("plpgsql.check_asserts")
 	if !ok { return errors.New("stuntgres: missing PL assertion setting") }
 	if enabled == "off" { return nil }
 	raw := in.Syntax.Assert
@@ -122,7 +122,7 @@ func (s *StatementScope) executePLAssert(d *catalog.Procedure, f *proc.PLFrame, 
 	if err != nil { return err }
 	boolean, ok := read.LookupType(sqltype.Bool)
 	if !ok { return errors.New("stuntgres: missing PL condition Boolean type") }
-	noticeStart := len(s.op.Notices)
+	noticeStart := len(s.Op.Notices)
 	value, err = s.convertPLValue(value, boolean.Usage())
 	s.appendPLNoticeContext(noticeStart, s.plNoticeOrigin(f, in.Syntax.Pos, "at ASSERT"))
 	if err != nil { return s.plRuntimeError(err, read, d, raw.Condition.Start, raw.Condition.End, in.Syntax.Pos, "at ASSERT", false) }
@@ -140,5 +140,5 @@ func (s *StatementScope) executePLAssert(d *catalog.Procedure, f *proc.PLFrame, 
 			if err != nil { return s.plRuntimeError(err, read, d, raw.Message.Start, raw.Message.End, in.Syntax.Pos, "at ASSERT", false) }
 		}
 	}
-	return s.plRuntimeError(sqlError("P0004", message), read, d, parser.Position{}, parser.Position{}, in.Syntax.Pos, "at ASSERT", false)
+	return s.plRuntimeError(SQLError("P0004", message), read, d, parser.Position{}, parser.Position{}, in.Syntax.Pos, "at ASSERT", false)
 }

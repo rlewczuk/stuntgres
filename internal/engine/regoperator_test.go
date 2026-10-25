@@ -93,7 +93,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		ns          int
 		left, right ids.OID
 	}{{0, 23, 23}, {1, 23, 23}, {2, 23, 23}, {2, 20, 20}, {3, 23, 23}} {
-		d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: namespaces[row.ns], ObjectRevision: 1, ObjectName: "#=#", Left: row.left, Right: row.right, Owner: e.roles.Domain.Principal(10)}
+		d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(91000 + i)}, ObjectNamespace: namespaces[row.ns], ObjectRevision: 1, ObjectName: "#=#", Left: row.left, Right: row.right, Owner: e.RoleStore.Domain.Principal(10)}
 		if err := stage.Create(d); err != nil {
 			t.Fatal(err)
 		}

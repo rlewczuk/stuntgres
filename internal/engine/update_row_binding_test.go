@@ -25,17 +25,17 @@ func updateRowTestBinding(t *testing.T, q string) (*Engine, analyze.Binding) {
 	}
 	defer done()
 	ast := statement(t, q)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ref, err := e.resolveReference(auth, ast.(*parser.Update).Name)
+	ref, err := e.ResolveReference(auth, ast.(*parser.Update).Name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := describe(op.Context(), e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := Describe(op.Context(), e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

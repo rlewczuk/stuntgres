@@ -18,35 +18,35 @@ import (
 // This is the ordinary ticket/request lifecycle, including savepoint checkpoints
 // and replacement fencing. No manager call or wait is made under Engine.mu.
 func (s *StatementScope) acquireTransactionResource(resource lock.Resource, mode lock.Mode) error {
-	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, mode, policy)
+	e := s.Engine()
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, resource, mode, policy)
 	if request != nil {
 		s.admissionWaited = true
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
 	if err != nil {
 		return err
 	}
-	if s.implicit && !s.replacementRead {
-		e.replacementMu.RLock()
-		s.replacementRead = true
+	if s.implicit && !s.ReplacementRead {
+		e.ReplacementMu.RLock()
+		s.ReplacementRead = true
 	}
 	return nil
 }
 
-func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
+func (s *StatementScope) AcquireCatalogResource(resource lock.Resource, mode lock.Mode) error {
 	// These unique-index claims project a real blocker transaction, including
 	// the interval before an implicit statement reaches catalog publication.
 	if resource.Name.ClassID == ids.CollationClassID || resource.Name.ClassID == ids.ConversionClassID || resource.Name.ClassID == ids.CastClassID {
-		e := s.engine()
-		e.mu.Lock()
-		err := e.assignTransactionXIDLocked(s.txRef)
-		e.mu.Unlock()
+		e := s.Engine()
+		e.Mu.Lock()
+		err := e.AssignTransactionXIDLocked(s.TxRef)
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
@@ -54,10 +54,10 @@ func (s *StatementScope) acquireCatalogResource(resource lock.Resource, mode loc
 	if err := s.acquireTransactionResource(resource, mode); err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if resource.Domain() != e.catalog.Domain || resource.Epoch != s.txRef.Epoch() || resource.Epoch != e.catalog.State.Epoch() {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if resource.Domain() != e.Catalog.Domain || resource.Epoch != s.TxRef.Epoch() || resource.Epoch != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	return nil
@@ -107,7 +107,7 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	slices.SortFunc(namespaces, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
 	namespaces = slices.Compact(namespaces)
 	for _, address := range namespaces {
-		if err := s.acquireCatalogNamespace(stage.Base, address, stage.creationName); err != nil {
+		if err := s.AcquireCatalogNamespace(stage.Base, address, stage.CreationName); err != nil {
 			return err
 		}
 	}
@@ -124,14 +124,14 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 		return cmp.Compare(a.Key.Signature, b.Key.Signature)
 	})
 	for _, claim := range claims {
-		resource := lock.Resource{ObjectRef: stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), claim.Key.Namespace), Name: claim.Key}
-		if err := s.acquireCatalogResource(resource, lock.AccessExclusive); err != nil {
+		resource := lock.Resource{ObjectRef: stage.Owner.Catalog.Domain.Ref(stage.Base.Epoch(), claim.Key.Namespace), Name: claim.Key}
+		if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {
 			return err
 		}
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil && auth.Catalog.Epoch() != stage.Base.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
@@ -145,14 +145,14 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 			}
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
 	for _, claim := range claims {
 		if claim.Key.ClassID == ids.RelationClassID && stage.Base.Get(claim.Address) == nil {
-			ref := stage.owner.catalog.Domain.Ref(stage.Base.Epoch(), claim.Address)
-			if err := s.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+			ref := stage.Owner.Catalog.Domain.Ref(stage.Base.Epoch(), claim.Address)
+			if err := s.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 				return err
 			}
 		}
@@ -161,31 +161,31 @@ func (s *StatementScope) acquireCatalogNames(stage *CatalogStage) error {
 	return nil
 }
 
-func (s *StatementScope) acquireCatalogNamespace(base catalog.Read, address ids.ObjectAddress, name parser.ObjectName) error {
-	ref := s.engine().catalog.Domain.Ref(base.Epoch(), address)
-	if err := s.acquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+func (s *StatementScope) AcquireCatalogNamespace(base catalog.Read, address ids.ObjectAddress, name parser.ObjectName) error {
+	ref := s.Engine().Catalog.Domain.Ref(base.Epoch(), address)
+	if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil && auth.Catalog.Get(address) == nil {
-		err = ddl.CreationError(sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, base.Get(address).Name())), name)
+		err = ddl.CreationError(SQLError("3F000", fmt.Sprintf(`schema "%s" does not exist`, base.Get(address).Name())), name)
 	}
 	return err
 }
 
 func (s *StatementScope) acquireCatalogBinding(base catalog.Read, claim catalog.BindingClaim) error {
 	key := claim.Key
-	resource := lock.Resource{ObjectRef: s.engine().catalog.Domain.Ref(base.Epoch(), key.Namespace), Name: key}
-	if err := s.acquireCatalogResource(resource, lock.AccessExclusive); err != nil {
+	resource := lock.Resource{ObjectRef: s.Engine().Catalog.Domain.Ref(base.Epoch(), key.Namespace), Name: key}
+	if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return err
 	}
@@ -198,14 +198,14 @@ func (s *StatementScope) acquireCatalogBinding(base catalog.Read, claim catalog.
 // Schema removal protects the captured namespace before constructing its
 // dependency closure. Rename/owner changes deliberately do not take this AX.
 func (s *StatementScope) acquireSchemaDrop(stmt *parser.DropSchema) (ddl.SchemaDropManifest, error) {
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	var manifest ddl.SchemaDropManifest
 	if err == nil {
-		manifest, err = ddl.CaptureSchemaDrop(ddlHost{e: e, op: s.op}, auth, stmt)
+		manifest, err = ddl.CaptureSchemaDrop(DDLHost{E: e, Op: s.Op}, auth, stmt)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return ddl.SchemaDropManifest{}, err
 	}
@@ -219,7 +219,7 @@ func (s *StatementScope) acquireSchemaDrop(stmt *parser.DropSchema) (ddl.SchemaD
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	refs = slices.Compact(refs)
 	for _, ref := range refs {
-		if err := s.acquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 			return ddl.SchemaDropManifest{}, err
 		}
 	}
@@ -231,20 +231,20 @@ func (s *StatementScope) acquireSchemaDrop(stmt *parser.DropSchema) (ddl.SchemaD
 // A conditional creation may skip only its original destination, never an
 // unrelated companion collision. Recheck current namespace authority after
 // waiting; do not rerun the command or adopt the peer's created identity.
-func (s *StatementScope) skipConcurrentRelation(base catalog.Read, key ids.NameKey, name parser.ObjectName, failure error) (bool, error) {
+func (s *StatementScope) SkipConcurrentRelation(base catalog.Read, key ids.NameKey, name parser.ObjectName, failure error) (bool, error) {
 	var diagnostic *sqlstate.Error
 	if !errors.As(failure, &diagnostic) || diagnostic.Code != "23505" {
 		return false, failure
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	exists := err == nil && auth.Catalog.NameAddress(key) != (ids.ObjectAddress{})
 	if exists {
 		if auth.Catalog.Epoch() != base.Epoch() || auth.Catalog.Get(key.Namespace) == nil {
 			err = ids.ErrCatalogReplaced
 		} else {
-			resolved, resolveErr := e.creationNamespace(auth, name)
+			resolved, resolveErr := e.CreationNamespace(auth, name)
 			if resolveErr != nil {
 				err = ddl.CreationError(resolveErr, name)
 			} else if resolved.Address != key.Namespace {
@@ -256,14 +256,14 @@ func (s *StatementScope) skipConcurrentRelation(base catalog.Read, key ids.NameK
 			}
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return false, err
 	}
 	if !exists {
 		return false, failure
 	}
-	s.op.ExistingRelationNotice(key.Name)
+	s.Op.ExistingRelationNotice(key.Name)
 	return true, nil
 }
 
@@ -272,24 +272,24 @@ func (s *StatementScope) skipConcurrentSchema(stage *CatalogStage, stmt *parser.
 	if !errors.As(failure, &diagnostic) || diagnostic.Code != "23505" {
 		return false, failure
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	var name string
 	if err == nil {
-		_, name, err = ddl.ResolveSchemaCreation(ddlHost{e: e, op: s.op}, auth, stmt)
+		_, name, err = ddl.ResolveSchemaCreation(DDLHost{E: e, Op: s.Op}, auth, stmt)
 	}
 	exists := err == nil && auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}) != (ids.ObjectAddress{})
 	if exists && auth.Catalog.Epoch() != stage.Base.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return false, err
 	}
 	if !exists {
 		return false, failure
 	}
-	s.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P06", Message: fmt.Sprintf(`schema "%s" already exists, skipping`, name)})
+	s.Op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P06", Message: fmt.Sprintf(`schema "%s" already exists, skipping`, name)})
 	return true, nil
 }

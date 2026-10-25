@@ -97,7 +97,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
+					if dependency.Ref.Domain() != e.Catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original selected lifetime", dependency)
 					}
 				} else {
@@ -128,7 +128,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					if checks[i].Ref.Address == address {
 						switch mode {
 						case "foreign":
-							checks[i].Ref = other.catalog.Domain.Ref(checks[i].Ref.Epoch, checks[i].Ref.Address)
+							checks[i].Ref = other.Catalog.Domain.Ref(checks[i].Ref.Epoch, checks[i].Ref.Address)
 						case "epoch":
 							checks[i].Ref.Epoch++
 						case "revision":
@@ -167,7 +167,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("retag manufactured original destination authority")
 				}
 			}
-			changed := *routineAuthorityView(&evaluation)
+			changed := *RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false

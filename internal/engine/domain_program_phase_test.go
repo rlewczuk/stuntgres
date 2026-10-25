@@ -55,31 +55,31 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			if result.Rows != nil {
 				result.Rows.Close()
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(caller)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(caller)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			view := auth.Catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "phase_child"})
 			child := view.MustRelation(childRef[0])
 			ownerAuth := auth.actingAs(child.Owner)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			domain := domainUnitType(t, view, "phase_checked")
 			value, err := sqltype.Integer(domain.SQLType.DomainBase().Type, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}}
+			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope), Catalog: view, Input: scope.Input, Output: scope.Output}}
 			local := invoker
 			local.RoutineAuthority = &ownerAuth
 			check := func(evaluation *exec.Context) error {
 				// Use the same command-local owner phase slot as real RI
 				// planning/execution, then restore the original caller context.
 				if evaluation == &local {
-					scope.foreignActionAuth = &ownerAuth
-					defer func() { scope.foreignActionAuth = nil }()
+					scope.ForeignActionAuth = &ownerAuth
+					defer func() { scope.ForeignActionAuth = nil }()
 				}
 				return evaluation.CheckDomain(context.Background(), domain.SQLType, value)
 			}
@@ -93,28 +93,28 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			err = check(second)
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
 			sequence := catalogRef(t, e, view, "phase_steps")
-			e.mu.Lock()
-			last := e.storage.Sequences[sequence.Address].Last
-			e.mu.Unlock()
+			e.Mu.Lock()
+			last := e.Storage.Sequences[sequence.Address].Last
+			e.Mu.Unlock()
 			if last != 1 {
 				t.Fatal("phase admission replayed CHECK truth", last)
 			}
-			if scope.routineAuth.State.CurrentUser != auth.State.CurrentUser {
+			if scope.RoutineAuth.State.CurrentUser != auth.State.CurrentUser {
 				t.Fatal("local RI phase replaced original invoker")
 			}
 			// Publication re-admits the actual successfully consumed actor, not
 			// whichever actor happened to touch the shared map most recently.
 			roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.int4gt(integer,integer) FROM "+allowed)
-			e.mu.Lock()
-			current, captureErr := e.authorizationLocked(caller)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			current, captureErr := e.AuthorizationLocked(caller)
+			e.Mu.Unlock()
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
 			nullCountUnitDiagnostic(t, scope.readmitPreparedPrograms(current), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
-			e.mu.Lock()
-			last = e.storage.Sequences[sequence.Address].Last
-			e.mu.Unlock()
+			e.Mu.Lock()
+			last = e.Storage.Sequences[sequence.Address].Last
+			e.Mu.Unlock()
 			if last != 1 {
 				t.Fatal("publication repeated volatile CHECK", last)
 			}
@@ -160,20 +160,20 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 				result.Rows.Close()
 			}
 			raw := statement(t, "SELECT obj_description(1::oid,'pg_class')").(*parser.Select).Targets[0]
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(caller)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(caller)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			view := auth.Catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "inquiry_phase_child"})
 			child := view.MustRelation(childRef[0])
 			ownerAuth := auth.actingAs(child.Owner)
-			binder := newExpressionBinder(context.Background(), e, scope.input, caller, nil)
+			binder := NewExpressionBinder(context.Background(), e, scope.Input, caller, nil)
 			binder.Query.Auth, binder.Query.Namespace = &auth, &analyze.QueryNamespace{}
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -181,13 +181,13 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if !ok {
 				t.Fatalf("actual inquiry provider %T", node)
 			}
-			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}, EvalAdmission: exec.EvalAdmission{RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
+			invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope), Catalog: view, Input: scope.Input, Output: scope.Output}, EvalAdmission: exec.EvalAdmission{RoutineRecipe: true, RoutineChecks: binder.Dependencies}}
 			local := invoker
 			local.RoutineAuthority = &ownerAuth
 			enter := func(evaluation *exec.Context) error {
 				if evaluation == &local {
-					scope.foreignActionAuth = &ownerAuth
-					defer func() { scope.foreignActionAuth = nil }()
+					scope.ForeignActionAuth = &ownerAuth
+					defer func() { scope.ForeignActionAuth = nil }()
 				}
 				if err := exec.AdmitRoutineCall(evaluation, node, true, false); err != nil {
 					return err
@@ -202,13 +202,13 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 				t.Fatal("authorized first actual body entry", err)
 			}
 			nullCountUnitDiagnostic(t, enter(second), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
-			if scope.routineAuth.State.CurrentUser != auth.State.CurrentUser {
+			if scope.RoutineAuth.State.CurrentUser != auth.State.CurrentUser {
 				t.Fatal("lazy local owner changed statement invoker")
 			}
 			roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.oideq(oid,oid) FROM "+allowed)
-			e.mu.Lock()
-			current, captureErr := e.authorizationLocked(caller)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			current, captureErr := e.AuthorizationLocked(caller)
+			e.Mu.Unlock()
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
@@ -216,9 +216,9 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			// Both are now denied. The actually consumed outer call must win
 			// with its original caller diagnostic, not the body's SQL Context.
 			roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.obj_description(oid,name) FROM PUBLIC")
-			e.mu.Lock()
-			current, captureErr = e.authorizationLocked(caller)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			current, captureErr = e.AuthorizationLocked(caller)
+			e.Mu.Unlock()
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}

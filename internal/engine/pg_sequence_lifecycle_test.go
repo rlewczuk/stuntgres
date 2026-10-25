@@ -21,7 +21,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 				t.Fatal(err)
 			}
 			owner := op.Session.Transactions
-			scope := &StatementScope{op: op, owner: owner, txRef: ref}
+			scope := &StatementScope{Op: op, Owner: owner, TxRef: ref}
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
@@ -36,7 +36,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 			case "abort":
 				scope.self = scope
 				owner.Admission.Lock()
-				failure := sqlError("22023", "unit admitted failure")
+				failure := SQLError("22023", "unit admitted failure")
 				if err := scope.Finish(failure); err != failure {
 					t.Fatal(err)
 				}
@@ -63,23 +63,23 @@ func TestPGSequenceSerializableCandidateEpochFence(t *testing.T) {
 	scope, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, node)
-	e.mu.Lock()
-	old := e.catalog.State
-	retained := scope.owner.SequenceCatalog
-	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-	e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
+	e.Mu.Lock()
+	old := e.Catalog.State
+	retained := scope.Owner.SequenceCatalog
+	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+	e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
 	// Wake the candidate as an ordinary resolved safe candidate: admission
 	// must still reject its old epoch and discard the retained catalog pointer.
 	node.Resolved = true
 	close(node.Ready)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if retained != old {
 		t.Fatal("candidate catalog was not captured")
 	}
 	if err := join(); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
-	if scope.owner.SequenceCatalog != nil || scope.owner.SnapshotSet {
+	if scope.Owner.SequenceCatalog != nil || scope.Owner.SnapshotSet {
 		t.Fatal("fenced candidate retained old catalog")
 	}
 }

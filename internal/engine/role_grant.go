@@ -17,27 +17,27 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(scope.op)
-	publishedRoles := e.roles.Published
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
+	publishedRoles := e.RoleStore.Published
 	var request role.GrantRequest
 	if err == nil {
-		request, err = role.ObjectGrantRequest(ddlHost{e: e, op: scope.op}, auth, statement)
+		request, err = role.ObjectGrantRequest(DDLHost{E: e, Op: scope.Op}, auth, statement)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
 	if err = scope.admitObjectGrant(request, statement); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	fresh, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	fresh, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.RoleStore.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
 	for _, target := range request.Targets() {
@@ -47,23 +47,23 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 		}
 	}
 	result, err := e.stageObjectGrantLocked(scope, fresh, statement, request, publishedRoles)
-	if err == nil && scope.catalogAuthority != nil {
-		scope.catalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
-		scope.catalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
+	if err == nil && scope.CatalogAuthority != nil {
+		scope.CatalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
+		scope.CatalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
 	}
 	return result, err
 }
 
 func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth AuthorizationView, statement *parser.ObjectGrant, request role.GrantRequest, publishedRoles *access.RoleRecord) (Result, error) {
-	plan, warnings, err := role.ObjectGrantPlan(scope.op.Context(), auth.View, statement, request, e.catalog.RevisionLocked)
+	plan, warnings, err := role.ObjectGrantPlan(scope.Op.Context(), auth.View, statement, request, e.Catalog.RevisionLocked)
 	for _, warning := range warnings {
-		scope.op.EmitNotice(session.LevelWarning, warning)
+		scope.Op.EmitNotice(session.LevelWarning, warning)
 	}
 	if err != nil {
 		return Result{}, err
 	}
 	if plan.Candidate == nil {
-		return Result{}, scope.op.Context().Err()
+		return Result{}, scope.Op.Context().Err()
 	}
 	if statement.Kind == "schema" {
 		// Preserve the early overflow diagnostic. The combined publisher owns
@@ -75,42 +75,42 @@ func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth Authorizatio
 	if auth.RoleRecord.Revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	if _, err := e.roles.RevisionCandidateLocked(); err != nil {
+	if _, err := e.RoleStore.RevisionCandidateLocked(); err != nil {
 		return Result{}, err
 	}
-	changes := scope.owner.Catalog.Clone()
+	changes := scope.Owner.Catalog.Clone()
 	for address, change := range plan.Changed {
-		e.catalogChangeLocked(changes, address, change.Descriptor)
+		e.CatalogChangeLocked(changes, address, change.Descriptor)
 	}
 	if changes.RolesBase == nil {
-		changes.RolesBase = e.roles.Published
+		changes.RolesBase = e.RoleStore.Published
 	}
 	changes.Roles = auth.RoleRecord.Advance()
-	if err := scope.acquireJournalRoleDependenciesLocked(changes); err != nil {
+	if err := scope.AcquireJournalRoleDependenciesLocked(changes); err != nil {
 		return Result{}, err
 	}
-	fresh, err := e.authorizationLocked(scope.op)
+	fresh, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.RoleStore.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
-	if err := e.catalogPreflightLocked(changes); err != nil {
+	if err := e.CatalogPreflightLocked(changes); err != nil {
 		return Result{}, err
 	}
-	if err := scope.op.Context().Err(); err != nil {
+	if err := scope.Op.Context().Err(); err != nil {
 		return Result{}, err
 	}
 	if err := e.reserveMixedACLRevisionLocked(changes); err != nil {
 		return Result{}, err
 	}
-	if err := e.assignTransactionXIDLocked(scope.txRef); err != nil {
+	if err := e.AssignTransactionXIDLocked(scope.TxRef); err != nil {
 		return Result{}, err
 	}
-	scope.catalog = changes
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
-	scope.catalogAuthority.ACLRoles = auth.RoleRecord
-	scope.catalogAuthority.ACLPublishedRoles = publishedRoles
+	scope.Catalog = changes
+	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
+	scope.CatalogAuthority.ACLRoles = auth.RoleRecord
+	scope.CatalogAuthority.ACLPublishedRoles = publishedRoles
 	return Result{}, nil
 }

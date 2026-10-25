@@ -31,8 +31,8 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, _ := v.Timestamp()
-	wantDesc := StatementDescription{temporals: b.Prepared.Temporals}
-	before := append([]analyze.TemporalConstant(nil), wantDesc.temporals...)
+	wantDesc := StatementDescription{Temporals: b.Prepared.Temporals}
+	before := append([]analyze.TemporalConstant(nil), wantDesc.Temporals...)
 	old := v.Type()
 	if err = e.Reset(ctx); err != nil {
 		t.Fatal(err)
@@ -49,7 +49,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	}
 	v, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
 	got, _ := v.Timestamp()
-	if err != nil || v.Type() != current || got != n || node.ResultUsage().Typmod != 3 || !reflect.DeepEqual(before, wantDesc.temporals) {
+	if err != nil || v.Type() != current || got != n || node.ResultUsage().Typmod != 3 || !reflect.DeepEqual(before, wantDesc.Temporals) {
 		t.Fatal(v, node.ResultUsage(), err)
 	}
 	dest, _, _ := current.ResolveModifiers(0)
@@ -99,7 +99,7 @@ func TestTimestampDescriptionMetadataAndNoticeOnce(t *testing.T) {
 	if len(notices) != 1 || notices[0].Code != "22023" || notices[0].Position != "8" {
 		t.Fatal(notices)
 	}
-	if len(description.temporals) != 1 || description.Parameters.Count != 1 || description.Parameters.Types[0].Typmod != -1 || description.Parameters.Types[0].Type.ID() != 1114 {
+	if len(description.Temporals) != 1 || description.Parameters.Count != 1 || description.Parameters.Types[0].Typmod != -1 || description.Parameters.Types[0].Type.ID() != 1114 {
 		t.Fatal(description)
 	}
 	a, b := description.Results[0], description.Results[1]
@@ -155,8 +155,8 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 			scope.Finish(err)
 			t.Fatal(err)
 		}
-		if !scope.input.TransactionStart.Equal(start) || len(desc.temporals) != 1 {
-			t.Fatal(scope.input, desc)
+		if !scope.Input.TransactionStart.Equal(start) || len(desc.Temporals) != 1 {
+			t.Fatal(scope.Input, desc)
 		}
 		if err = scope.Finish(nil); err != nil {
 			t.Fatal(err)
@@ -211,7 +211,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := StatementDescription{temporals: b.Prepared.Temporals}
+		description := StatementDescription{Temporals: b.Prepared.Temporals}
 		b = newTestExpressionBinder(t, ctx, e, later, &description)
 		node, err = b.Bind(raw, policy)
 		if err != nil {

@@ -27,7 +27,7 @@ func TestUpdateCoreColumnAuthority(t *testing.T) {
 	column.Address.SubID = 1
 	grant := func(ref ids.ObjectRef, privileges authorization.Privileges) {
 		t.Helper()
-		err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}})
+		err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +72,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						t.Helper()
 						target := ref
 						target.Address.SubID = subID
-						acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("nn_acl_owner"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
+						acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("nn_acl_owner"), Grantee: authorization.ACLGrantee{Role: role.Ref}, Privileges: privileges}}}
 						if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
 							t.Fatal(err)
 						}
@@ -126,7 +126,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						}
 						expected = &description
 					}
-					original := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+					original := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
 					repeats := 1
 					if prepared {
 						repeats = 2
@@ -166,7 +166,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 							roleError(t, e, op, "UPDATE t SET n=3", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "")
 							roleExecute(t, e, op, "ROLLBACK")
 						}
-						if !reflect.DeepEqual(e.storage.Relations[ref.Address].Versions, original) {
+						if !reflect.DeepEqual(e.Storage.Relations[ref.Address].Versions, original) {
 							t.Fatal("failed UPDATE changed protected row or version")
 						}
 						result = roleExecute(t, e, admin, "SELECT n,secret,readable FROM t")

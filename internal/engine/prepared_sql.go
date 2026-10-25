@@ -50,45 +50,45 @@ func (r *sqlPreparedRegistry) EndSession(token ids.SessionToken, _ session.EndRe
 }
 func missingSQLPrepared(name string) error {
 	if name == "" {
-		return sqlError("26000", "unnamed prepared statement does not exist")
+		return SQLError("26000", "unnamed prepared statement does not exist")
 	}
-	return sqlError("26000", fmt.Sprintf("prepared statement \"%s\" does not exist", name))
+	return SQLError("26000", fmt.Sprintf("prepared statement \"%s\" does not exist", name))
 }
 
 func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e := s.engine()
+	e := s.Engine()
 	// Declarations enter the sole analyzer as a formal input seed. Typmods on
 	// declarations are not input constraints; real destinations still own theirs.
 	types := make([]sqltype.Usage, len(raw.Types))
-	e.mu.Lock()
+	e.Mu.Lock()
 	for i, declaration := range raw.Types {
-		usage, err := e.resolveAnnotationType(declaration, s.op, true)
+		usage, err := e.resolveAnnotationType(declaration, s.Op, true)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		if usage.Type != nil && usage.Type.ID() != sqltype.Unknown {
 			types[i] = usage.Type.Usage()
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	s.initialParameters = types
 	if err := s.selectPreparedAnalysis(raw.Body); err != nil {
 		return Result{}, err
 	}
-	if err := s.acquireRelation(raw.Body, false); err != nil {
+	if err := s.AcquireRelation(raw.Body, false); err != nil {
 		return Result{}, err
 	}
 	description, err := e.describeOperation(s, raw.Body)
 	if err != nil {
 		return Result{}, err
 	}
-	r := payloadOf(s.op.Session).preparedSQL
+	r := PayloadOf(s.Op.Session).preparedSQL
 	if r.entries[raw.Name.Text] != nil {
-		return Result{}, sqlError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", raw.Name.Text))
+		return Result{}, SQLError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", raw.Name.Text))
 	}
 	entry := &sqlPreparedStatement{body: raw.Body, source: raw.Source, description: description}
 	if err := s.sessionPublicationPreflight(); err != nil {
@@ -96,7 +96,7 @@ func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (R
 	}
 	r.entries[raw.Name.Text] = entry
 	// Like cursor mutations, SQL names are session effects, not rollback state.
-	s.completed, s.sessionCompleted = true, true
+	s.Completed, s.sessionCompleted = true, true
 	return Result{}, nil
 }
 
@@ -104,7 +104,7 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	r := payloadOf(s.op.Session).preparedSQL
+	r := PayloadOf(s.Op.Session).preparedSQL
 	if !raw.All && r.entries[raw.Name.Text] == nil {
 		return Result{}, missingSQLPrepared(raw.Name.Text)
 	}
@@ -116,7 +116,7 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 	} else {
 		delete(r.entries, raw.Name.Text)
 	}
-	s.completed, s.sessionCompleted = true, true
+	s.Completed, s.sessionCompleted = true, true
 	return Result{}, nil
 }
 
@@ -126,7 +126,7 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput bool) FrameImporter {
 	return func(ctx context.Context, formal analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 		if len(raw.Arguments) != formal.Count {
-			d := sqlError("42601", fmt.Sprintf("wrong number of parameters for prepared statement \"%s\"", raw.Name.Text)).(*sqlstate.Error)
+			d := SQLError("42601", fmt.Sprintf("wrong number of parameters for prepared statement \"%s\"", raw.Name.Text)).(*sqlstate.Error)
 			d.Detail = fmt.Sprintf("Expected %d parameters but got %d.", formal.Count, len(raw.Arguments))
 			return d
 		}
@@ -134,22 +134,22 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			if err := s.prepareProtocolUtilityInput(formal.Types); err != nil {
 				return err
 			}
-			input = s.input
+			input = s.Input
 		}
-		e := s.engine()
-		e.mu.Lock()
+		e := s.Engine()
+		e.Mu.Lock()
 		locked := true
 		defer func() {
 			if locked {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
 		}()
 		input.LockedDomainInput = s
-		auth, err := e.authorizationLocked(s.op)
+		auth, err := e.AuthorizationLocked(s.Op)
 		if err != nil {
 			return err
 		}
-		binder := newExpressionBinder(ctx, e, input, s.op, nil)
+		binder := NewExpressionBinder(ctx, e, input, s.Op, nil)
 		binder.Query.Auth, binder.Params.NoParameters, binder.Params.ExecuteParameters = &auth, true, true
 		nodes := make([]expr.Expr, formal.Count)
 		for i, argument := range raw.Arguments {
@@ -167,24 +167,24 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			nodes[i] = node
 		}
 		if binder.Consumer.CatalogSnapshot || binder.Prepared.RegclassConcat {
-			if err := e.captureCommentSnapshotLocked(s); err != nil {
+			if err := e.CaptureCommentSnapshotLocked(s); err != nil {
 				return err
 			}
 		}
 		if binder.Consumer.VisibilitySnapshot {
-			s.inquiry.visibilityDemand = true
+			s.Inquiry.visibilityDemand = true
 			if err := e.captureVisibilitySnapshotLocked(s); err != nil {
 				return err
 			}
 		}
 		input = binder.Input
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		locked = false
 		// Actuals are their own executable recipe, not the prepared body's
 		// parameter-only binding. Borrow the original actual manifest without
 		// replacing the statement's main-query authority or dependencies.
 		var actualProgram exec.RoutineProgram
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Catalog: auth.Catalog, Input: input, Output: s.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies, RoutineProgram: &actualProgram}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(s), Catalog: auth.Catalog, Input: input, Output: s.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.Dependencies, RoutineProgram: &actualProgram}}
 		for _, node := range nodes {
 			if sqltype.ContainsDomainConstraints(node.ResultUsage().Type) {
 				evaluation.Input.DomainChecks = &evaluation
@@ -224,19 +224,19 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 				s.routinePrograms = append(s.routinePrograms, commandRoutineProgram{admission: &actualProgram})
 			}
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		locked = true
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		current, err := e.authorizationLocked(s.op)
+		current, err := e.AuthorizationLocked(s.Op)
 		if err != nil {
 			return err
 		}
 		if err := typedef.ValidateCapturedInputBinding(auth.Catalog, current.Catalog, binder.Dependencies); err != nil {
 			return err
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		locked = false
 		return s.readmitPreparedPrograms(current)
 	}

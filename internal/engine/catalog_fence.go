@@ -21,7 +21,7 @@ type catalogFence interface {
 // every kind at a fixed position and in a fixed order, so the first error a
 // commit reports does not depend on how fences are stored.
 const (
-	fenceExtensionAuthority = session.FenceRootKinds + iota // extensionAuthorityFence
+	FenceExtensionAuthority = session.FenceRootKinds + iota // extensionAuthorityFence
 	fenceTruncateGraph                                      // truncateGraphFence
 	fenceMaterializedSource                                 // materializedSourceFence
 	fenceCatalogRoleRead                                    // catalogRoleReadFence
@@ -38,7 +38,7 @@ func (e *Engine) catalogFencesCurrentLocked(c *session.Journal, kinds ...session
 			var err error
 			switch fence := f.(type) {
 			case session.CommittedFence:
-				err = fence.Current(e.catalog.State, e.storage.Relations)
+				err = fence.Current(e.Catalog.State, e.Storage.Relations)
 			case catalogFence:
 				err = fence.currentLocked(e, c)
 			default:

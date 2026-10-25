@@ -57,9 +57,9 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 					if r.Rows != nil {
 						r.Rows.Close()
 					}
-					e.mu.Lock()
-					auth, err := e.authorizationLocked(caller)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					auth, err := e.AuthorizationLocked(caller)
+					e.Mu.Unlock()
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -71,13 +71,13 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}}
+					invoker := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope), Catalog: view, Input: scope.Input, Output: scope.Output}}
 					local := invoker
 					local.RoutineAuthority = &ownerAuth
 					check := func(c *exec.Context) error {
 						if c == &local {
-							scope.foreignActionAuth = &ownerAuth
-							defer func() { scope.foreignActionAuth = nil }()
+							scope.ForeignActionAuth = &ownerAuth
+							defer func() { scope.ForeignActionAuth = nil }()
 						}
 						failed, err := table.ValidateCheckRow(child, []sqltype.Value{value}, c)
 						if failed != nil {
@@ -118,9 +118,9 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 						nullCountUnitDiagnostic(t, check(second), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 					}
 					sequence := catalogRef(t, e, view, "check_phase_steps")
-					e.mu.Lock()
-					before := *e.storage.Sequences[sequence.Address]
-					e.mu.Unlock()
+					e.Mu.Lock()
+					before := *e.Storage.Sequences[sequence.Address]
+					e.Mu.Unlock()
 					want := int64(1)
 					if sameActor {
 						want = 2
@@ -128,20 +128,20 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 					if before.Last != want {
 						t.Fatal("denied phase evaluated volatile truth", before.Last, want)
 					}
-					if scope.routineAuth.State.CurrentUser != auth.State.CurrentUser {
+					if scope.RoutineAuth.State.CurrentUser != auth.State.CurrentUser {
 						t.Fatal("RI phase replaced outer invoker")
 					}
 					roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.json_array_length(json) FROM "+allowed)
-					e.mu.Lock()
-					current, err := e.authorizationLocked(caller)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					current, err := e.AuthorizationLocked(caller)
+					e.Mu.Unlock()
 					if err != nil {
 						t.Fatal(err)
 					}
 					nullCountUnitDiagnostic(t, scope.readmitPreparedPrograms(current), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
-					e.mu.Lock()
-					after := *e.storage.Sequences[sequence.Address]
-					e.mu.Unlock()
+					e.Mu.Lock()
+					after := *e.Storage.Sequences[sequence.Address]
+					e.Mu.Unlock()
 					if after != before {
 						t.Fatal("actor readmission replayed truth", before, after)
 					}
@@ -202,7 +202,7 @@ func TestCheckProgramOriginalManifestRetention(t *testing.T) {
 			for i, c := range d.Constraints.Check {
 				dependencies[i] = append([]catalog.ExpressionDependency(nil), c.Dependencies...)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope), Catalog: view, Input: scope.Input, Output: scope.Output}}
 			evaluation.RoutineChecks = d.Constraints.Check[1].Dependencies
 			// An unrelated borrowed manifest must never replace either stored
 			// constraint's genuine original dependencies.
@@ -217,9 +217,9 @@ func TestCheckProgramOriginalManifestRetention(t *testing.T) {
 				}
 			}
 			roleExecute(t, e, admin, "GRANT EXECUTE ON FUNCTION pg_catalog.json_array_length(json) TO check_manifest_reader")
-			e.mu.Lock()
-			current, err := e.authorizationLocked(reader)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			current, err := e.AuthorizationLocked(reader)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -279,9 +279,9 @@ func TestCheckProgramOriginalManifestRetention(t *testing.T) {
 				t.Fatal("ordinary CHECK lost folded/row or volatile original call", seenJSON, seenSequence)
 			}
 			sequence := catalogRef(t, e, view, "check_manifest_steps")
-			e.mu.Lock()
-			last := e.storage.Sequences[sequence.Address].Last
-			e.mu.Unlock()
+			e.Mu.Lock()
+			last := e.Storage.Sequences[sequence.Address].Last
+			e.Mu.Unlock()
 			if last != 2 {
 				t.Fatal("failed preflight or reused preparation replayed truth", last)
 			}

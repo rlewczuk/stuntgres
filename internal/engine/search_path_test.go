@@ -20,9 +20,9 @@ func TestSearchPathLookupKinds(t *testing.T) {
 	for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TEMP SEQUENCE temp_seq", "SET search_path TO missing,b,b,a"} {
 		roleExecute(t, e, op, q)
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestSearchPathLookupKinds(t *testing.T) {
 		kind analyze.LookupKind
 		want []string
 	}{{analyze.RelationLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.TypeLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.FunctionLookup, []string{"pg_catalog", "b", "a"}}, {analyze.OperatorLookup, []string{"pg_catalog", "b", "a"}}} {
-		path, err := lookupPath(auth, tc.kind)
+		path, err := LookupPath(auth, tc.kind)
 		if err != nil || !reflect.DeepEqual(names(path), tc.want) {
 			t.Fatal(tc.kind, names(path), tc.want, err)
 		}
@@ -52,19 +52,19 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	for _, q := range []string{"CREATE SCHEMA hidden", "CREATE SCHEMA visible"} {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
-	e.mu.Lock()
-	reader := e.roles.Domain.Principal(e.roles.NextPrincipal())
-	e.roles.InstallPrincipalFrontierLocked(e.roles.NextPrincipal() + 1)
-	roles := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	reader := e.RoleStore.Domain.Principal(e.RoleStore.NextPrincipal())
+	e.RoleStore.InstallPrincipalFrontierLocked(e.RoleStore.NextPrincipal() + 1)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader", Login: true, Inherit: true, ConnectionLimit: -1})
-	e.roles.PublishLocked(roles)
-	e.mu.Unlock()
-	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	e.RoleStore.PublishLocked(roles)
+	e.Mu.Unlock()
+	if err := e.SetObjectACL(context.Background(), schemaRef(t, e, "visible"), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.bounded(id pg_catalog._name)")
-	setting, err := e.settings.Definitions()["search_path"].Parse("hidden,missing,visible,visible,public")
+	setting, err := e.Settings.Definitions()["search_path"].Parse("hidden,missing,visible,visible,public")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if err = scope.gate(statement(t, "SELECT current_schemas(false)")); err != nil {
+	if err = scope.Gate(statement(t, "SELECT current_schemas(false)")); err != nil {
 		t.Fatal(err)
 	}
 	query := domainUnitBindSelect(t, e, readerOp, "SELECT current_schemas(false)")
@@ -93,7 +93,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if c.Usage.Type.ID() != sqltype.NameArray || c.Usage.Type.Name() != "_name" || c.Usage.Type.DatabaseName() != "_NAME" || c.Usage.Typmod != -1 || c.Usage.Collation.ID != 950 || c.OriginTable != 0 || c.OriginAttribute != 0 || table.Columns[0].Usage != c.Usage {
 		t.Fatal(c, table.Columns)
 	}
-	value, err := query.Root.(*plan.ProjectNode).Expressions[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}})
+	value, err := query.Root.(*plan.ProjectNode).Expressions[0].Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,13 +109,13 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if err != nil || text != "{visible,public}" {
 		t.Fatal(text, err)
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(readerOp)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, _, err := explicitPath(auth)
+	path, _, err := ExplicitPath(auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	if !reflect.DeepEqual(names, []string{"visible", "public"}) {
 		t.Fatal(names)
 	}
-	target, err := e.creationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "no_fallback"}}})
+	target, err := e.CreationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "no_fallback"}}})
 	if err != nil || target.Address != path[0] {
 		t.Fatal("creation fell back from first usable namespace", target, err)
 	}
@@ -139,9 +139,9 @@ func TestSearchPathMissingQualifiedNamespace(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func newTestExpressionBinder(t *testing.T, ctx context.Context, e *Engine, input
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	return newExpressionBinder(ctx, e, input, op, expected)
+	return NewExpressionBinder(ctx, e, input, op, expected)
 }
 
 func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
@@ -174,24 +174,24 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	roleExecute(t, e, peer, "CREATE TEMP SEQUENCE peer_seq")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	other, err := e.authorizationLocked(peer)
+	other, err := e.AuthorizationLocked(peer)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	temp := auth.Catalog.Get(temporaryNamespace(auth)).Name()
 	foreign := other.Catalog.Get(temporaryNamespace(other)).Name()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	roleExecute(t, e, op, "SET search_path TO b,pg_catalog,pg_temp,"+temp+","+foreign+",a")
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err = e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err = e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		{analyze.FunctionLookup, []string{"b", "pg_catalog", "a"}},
 		{analyze.OperatorLookup, []string{"b", "pg_catalog", "a"}},
 	} {
-		path, err := lookupPath(auth, tc.kind)
+		path, err := LookupPath(auth, tc.kind)
 		if err != nil {
 			t.Fatal(err)
 		}

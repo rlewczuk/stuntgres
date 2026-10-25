@@ -36,7 +36,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 			if locked[address] {
 				continue
 			}
-			if err := scope.acquireSequence(view.Owner().Domain.Ref(view.Epoch(), address), lock.AccessExclusive, true); err != nil {
+			if err := scope.AcquireSequence(view.Owner().Domain.Ref(view.Epoch(), address), lock.AccessExclusive, true); err != nil {
 				return view, err
 			}
 			locked[address] = true
@@ -58,7 +58,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 		if private {
 			return view, nil
 		}
-		current := scope.engine().CatalogRead()
+		current := scope.Engine().CatalogRead()
 		if current.Epoch() != view.Epoch() {
 			return view, ids.ErrCatalogReplaced
 		}

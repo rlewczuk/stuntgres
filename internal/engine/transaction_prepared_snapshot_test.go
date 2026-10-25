@@ -48,10 +48,10 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			reader, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
 			join := serializableUnitCaptureWorker(t, reader)
 			serializableUnitAwaitCandidate(t, e, node)
-			e.mu.Lock()
-			original := reader.owner.Roots[relation.Address]
-			frontier := reader.owner.Frontier
-			e.mu.Unlock()
+			e.Mu.Lock()
+			original := reader.Owner.Roots[relation.Address]
+			frontier := reader.Owner.Frontier
+			e.Mu.Unlock()
 			if err := preparedUnitControl(t, e, writer, parser.KindPrepareTransaction, "candidate"); err != nil {
 				t.Fatal(err)
 			}
@@ -59,12 +59,12 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			if err := writer.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			if node.Resolved || len(node.Possible) != 1 || reader.owner.SnapshotSet || reader.owner.Frontier != frontier || reader.owner.Roots[relation.Address].Storage != original.Storage {
-				e.mu.Unlock()
+			e.Mu.Lock()
+			if node.Resolved || len(node.Possible) != 1 || reader.Owner.SnapshotSet || reader.Owner.Frontier != frontier || reader.Owner.Roots[relation.Address].Storage != original.Storage {
+				e.Mu.Unlock()
 				t.Fatal("prepare/origin end prematurely resolved or replaced admitted candidate")
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			kind := parser.KindRollbackPrepared
 			if commit {
 				kind = parser.KindCommitPrepared
@@ -75,13 +75,13 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			if err := join(); err != nil {
 				t.Fatal(err)
 			}
-			reader.owner.Mu.Lock()
-			root := reader.owner.Roots[relation.Address]
-			if !reader.owner.SnapshotSet || reader.owner.Frontier != frontier || root.Storage != original.Storage {
-				reader.owner.Mu.Unlock()
+			reader.Owner.Mu.Lock()
+			root := reader.Owner.Roots[relation.Address]
+			if !reader.Owner.SnapshotSet || reader.Owner.Frontier != frontier || root.Storage != original.Storage {
+				reader.Owner.Mu.Unlock()
 				t.Fatal("final outcome replaced admitted snapshot")
 			}
-			reader.owner.Mu.Unlock()
+			reader.Owner.Mu.Unlock()
 			heap := accessMethodHeapOperationsUnit(t, e.CatalogRead())
 			source, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: root.Versions}, frontier, root.Ends, nil, heap)
 			if err != nil {
@@ -95,10 +95,10 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			if err != nil || value != 0 {
 				t.Fatal("admitted snapshot did not retain predecessor0", value, err)
 			}
-			e.mu.Lock()
-			current := e.storage.Relations[relation.Address]
-			published, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: current.Versions}, e.visibility.CommitSeq(), current.Ends, nil, heap)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			current := e.Storage.Relations[relation.Address]
+			published, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: current.Versions}, e.Visibility.CommitSeq(), current.Ends, nil, heap)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}

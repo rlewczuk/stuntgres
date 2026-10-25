@@ -7,14 +7,14 @@ import (
 )
 
 func (s *StatementScope) FormatRegcollation(id uint32) (string, error) {
-	if s == nil || s.inquiry.commentCatalog.State() == nil {
+	if s == nil || s.Inquiry.CommentCatalog.State() == nil {
 		return exec.DetachedPresentation{}.FormatRegcollation(id)
 	}
-	return regobj.ObjectSpelling(s.inquiry.commentCatalog, s.inquiry.collationPath, ids.CollationClassID, ids.OID(id)), nil
+	return regobj.ObjectSpelling(s.Inquiry.CommentCatalog, s.Inquiry.collationPath, ids.CollationClassID, ids.OID(id)), nil
 }
 func (s *StatementScope) FormatRegnamespace(id uint32) (string, error) {
-	if s == nil || s.inquiry.commentCatalog.State() == nil {
+	if s == nil || s.Inquiry.CommentCatalog.State() == nil {
 		return exec.DetachedPresentation{}.FormatRegnamespace(id)
 	}
-	return regobj.ObjectSpelling(s.inquiry.commentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
+	return regobj.ObjectSpelling(s.Inquiry.CommentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }

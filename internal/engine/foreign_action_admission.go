@@ -15,21 +15,21 @@ import (
 )
 
 func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRef) error {
-	if err := s.validateLockedRelation(e); err != nil {
+	if err := s.ValidateLockedRelation(e); err != nil {
 		return err
 	}
 	admission := s.foreignActionsOrZero().Admissions[ref.Address]
-	if admission == nil || admission.Ref != ref || admission.Tx != s.txRef || s.owner.Ref != s.txRef {
+	if admission == nil || admission.Ref != ref || admission.Tx != s.TxRef || s.Owner.Ref != s.TxRef {
 		return errors.New("stuntgres: missing internal action admission")
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-	if !ok || !index.SameRelationRowShape(admission.Relation, current) || e.privateStorageLocked(s.owner.Catalog, ref.Address) != admission.Storage {
+	current, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
+	if !ok || !index.SameRelationRowShape(admission.Relation, current) || e.PrivateStorageLocked(s.Owner.Catalog, ref.Address) != admission.Storage {
 		return ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(s.owner.Catalog)
+	view := e.PrivateCatalogLocked(s.Owner.Catalog)
 	for _, captured := range admission.Jobs {
 		if err := dml.RefreshForeignActionJob(view, &captured); err != nil {
 			return err
@@ -39,21 +39,21 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 }
 
 func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView, error) {
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return auth, err
 	}
 	// Keep the actual invoker capture in the statement slot. Rule relation
 	// authority and RI owner substitution remain local to the returned view.
-	s.routineAuth = auth
-	if s.ruleAction.auth != nil {
-		auth.State.CurrentUser = s.ruleAction.auth.State.CurrentUser
+	s.RoutineAuth = auth
+	if s.ruleAction.Auth != nil {
+		auth.State.CurrentUser = s.ruleAction.Auth.State.CurrentUser
 		if err = auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 			return AuthorizationView{}, err
 		}
 	}
-	if s.foreignActionAuth != nil {
-		auth.State.CurrentUser = s.foreignActionAuth.State.CurrentUser
+	if s.ForeignActionAuth != nil {
+		auth.State.CurrentUser = s.ForeignActionAuth.State.CurrentUser
 		if err = auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
 			return AuthorizationView{}, err
 		}
@@ -62,29 +62,29 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 }
 
 func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *dml.ForeignKeyJob, writable bool) error {
-	e := s.engine()
+	e := s.Engine()
 	required := lock.RowShare | lock.RowExclusive
 	if writable {
 		required = lock.RowExclusive
 	}
-	held := e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref}, required)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
+	held := e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref}, required)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := s.ValidateLockedRelation(e); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() || ref.Address != job.Child.Address() {
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() || ref.Address != job.Child.Address() {
 		return ids.ErrCatalogReplaced
 	}
 	if !held {
 		return errors.New("stuntgres: internal action admission requires its relation grant")
 	}
-	current, ok := e.privateCatalogLocked(s.owner.Catalog).Relation(ref.Address)
-	storage := e.privateStorageLocked(s.owner.Catalog, ref.Address)
+	current, ok := e.PrivateCatalogLocked(s.Owner.Catalog).Relation(ref.Address)
+	storage := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
 	if !ok || !index.SameRelationRowShape(current, job.Child) || storage == nil {
 		return ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(s.owner.Catalog)
+	view := e.PrivateCatalogLocked(s.Owner.Catalog)
 	if err := dml.RefreshForeignActionJob(view, job); err != nil {
 		return err
 	}
@@ -105,32 +105,32 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *dml.ForeignK
 		previous.Writable = previous.Writable || writable
 		return nil
 	}
-	s.foreignActions().Admissions[ref.Address] = &dml.ForeignActionAdmission{Ref: ref, Storage: storage, Relation: current, Tx: s.txRef, Jobs: []dml.ForeignKeyJob{*job}, Writable: writable}
+	s.foreignActions().Admissions[ref.Address] = &dml.ForeignActionAdmission{Ref: ref, Storage: storage, Relation: current, Tx: s.TxRef, Jobs: []dml.ForeignKeyJob{*job}, Writable: writable}
 	return nil
 }
 
 // Locate the latest live physical row after the row grant, including this
 // statement's replacements. Stable snapshots use the ordinary conflict seam.
 func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error) {
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return storage.RowVersion{}, false, err
 	}
 	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage
-	if index.UniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
+	if index.UniqueRowDeleted(candidate.Row, s.OwnDeletes[ref.Address], s.Stage.Deletes[ref.Address]) {
 		return storage.RowVersion{}, false, nil
 	}
-	for _, rows := range [][]storage.RowVersion{s.stage.rows[ref.Address], s.ownWrites[ref.Address], stored.Versions} {
+	for _, rows := range [][]storage.RowVersion{s.Stage.Rows[ref.Address], s.OwnWrites[ref.Address], stored.Versions} {
 		row, _, found := storage.RowByID(rows, candidate.Row, -1)
 		if !found {
 			continue
 		}
-		if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, stored.Ends); err != nil {
+		if err := visibility.RepeatableConflict(s.Owner.Isolation.Stable(), s.Owner.Frontier, row, stored.Ends); err != nil {
 			return storage.RowVersion{}, false, err
 		}
-		return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), stored.Ends, nil), nil
+		return row, visibility.LiveVersion(row, e.Visibility.CommitSeq(), stored.Ends, nil), nil
 	}
 	return storage.RowVersion{}, false, fmt.Errorf("stuntgres: missing internal action predecessor")
 }
@@ -144,24 +144,24 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 			s.multiEvents = nil
 		}
 	}()
-	e := s.engine()
-	if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref, Row: old.Row}, lock.ForUpdate) {
+	e := s.Engine()
+	if !e.Locks.Holds(s.LockTicket, lock.Resource{ObjectRef: ref, Row: old.Row}, lock.ForUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
-	s.owner.Mu.Lock()
-	defer s.owner.Mu.Unlock()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	s.Owner.Mu.Lock()
+	defer s.Owner.Mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return err
 	}
 	if !s.foreignActionsOrZero().Admissions[ref.Address].Writable {
 		return errors.New("stuntgres: read-only internal action admission")
 	}
-	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
+	if !s.worked || s.Owner.State == session.TxIdle || s.Owner.State == session.TxAborted {
 		return errors.New("stuntgres: inactive internal action stage")
 	}
-	if index.UniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
+	if index.UniqueRowDeleted(old.Row, s.OwnDeletes[ref.Address], w.Deletes[ref.Address]) {
 		return nil
 	}
 	stored := s.foreignActionsOrZero().Admissions[ref.Address].Storage

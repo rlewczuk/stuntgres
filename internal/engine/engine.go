@@ -39,37 +39,37 @@ import (
 var _ ddl.Allocator = (*catalog.Store)(nil)
 
 type Engine struct {
-	mu            *sync.Mutex
-	locks         *lock.Manager
-	analysis      bindingHost                  // Binding host without an operation; immutable after New.
+	Mu            *sync.Mutex
+	Locks         *lock.Manager
+	Analysis      BindingHost                  // Binding host without an operation; immutable after New.
 	notifications session.NotificationRegistry // Engine.mu; committed registrations only.
 	// Implicit row work finishes before replacement; explicit work is epoch-fenced.
-	replacementMu     replacementAdmission
-	catalog           catalog.Store
-	databaseName      string
-	databaseNameError error
-	storage           storage.Store
+	ReplacementMu     replacementAdmission
+	Catalog           catalog.Store
+	DatabaseName      string
+	DatabaseNameError error
+	Storage           storage.Store
 	sessionMu         sync.Mutex
 	sessions          map[ids.SessionToken]*session.Session
-	settings          settings.Registry // Immutable, initialized once before publication.
-	authority         authorityInputs   // Points at settings and storage; shared by engine-built views.
-	visibility        visibility.Registry
-	indexWaits        index.WaitRegistry
-	exclusions        index.ExclusionRegistry
+	Settings          settings.Registry // Immutable, initialized once before publication.
+	Authority         AuthorityInputs   // Points at settings and storage; shared by engine-built views.
+	Visibility        visibility.Registry
+	IndexWaits        index.WaitRegistry
+	Exclusions        index.ExclusionRegistry
 	prepared          session.PreparedRegistry
-	roles             *access.RoleStore
-	cluster           *databaseCluster
-	importTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
-	foreign           fdw.Registry
-	databaseFrozenXID uint64
-	vacuumProgress    map[ids.TxRef]vacuumProgress // Engine.mu; only actual work.
+	RoleStore         *access.RoleStore
+	Cluster           *DatabaseCluster
+	ImportTargets     map[authorization.PrincipalRef]authorization.PrincipalRef
+	Foreign           fdw.Registry
+	DatabaseFrozenXID uint64
+	VacuumProgress    map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
 }
 type Result struct {
 	CommandTag string
 	Count      int64
 	Rows       exec.RowResult
 	RowSets    []exec.RowResult
-	created    ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
+	Created    ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
 
 func New() *Engine {
@@ -97,26 +97,26 @@ func NewWithSettings(definitions []settings.Definition, database string, trackCo
 
 func newEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	cluster := &databaseCluster{}
-	e := &Engine{mu: &cluster.mu, roles: &cluster.roles, cluster: cluster, catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
-	e.analysis = bindingHost{engine: e}
-	e.authority = authorityInputs{domain: e.catalog.Domain, settings: &e.settings, storage: &e.storage}
-	e.mu.Lock()
-	e.storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{})
-	e.mu.Unlock()
-	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.Domain, &e.roles.ACLAuthority
-	e.visibility = visibility.NewRegistry(trackCommitTimestamp)
-	e.databaseFrozenXID = 3
-	cluster.locks = lock.New(e.catalog.Domain)
-	if err := cluster.locks.SetRoleDomain(&cluster.roleDomain, 1); err != nil {
+	cluster := &DatabaseCluster{}
+	e := &Engine{Mu: &cluster.Mu, RoleStore: &cluster.Roles, Cluster: cluster, Catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
+	e.Analysis = BindingHost{Engine: e}
+	e.Authority = AuthorityInputs{Domain: e.Catalog.Domain, Settings: &e.Settings, Storage: &e.Storage}
+	e.Mu.Lock()
+	e.Storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{})
+	e.Mu.Unlock()
+	e.Catalog.Principals, e.Catalog.ACLAuthority = &e.RoleStore.Domain, &e.RoleStore.ACLAuthority
+	e.Visibility = visibility.NewRegistry(trackCommitTimestamp)
+	e.DatabaseFrozenXID = 3
+	cluster.Locks = lock.New(e.Catalog.Domain)
+	if err := cluster.Locks.SetRoleDomain(&cluster.RoleDomain, 1); err != nil {
 		return nil, err
 	}
-	e.locks = cluster.locks
-	e.mu.Lock()
-	e.storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
-	e.mu.Unlock()
-	e.roles.Initialize()
-	e.settings = settings.NewRegistry(definitions, e.visibility.TracksCommitTimestamps())
+	e.Locks = cluster.Locks
+	e.Mu.Lock()
+	e.Storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
+	e.Mu.Unlock()
+	e.RoleStore.Initialize()
+	e.Settings = settings.NewRegistry(definitions, e.Visibility.TracksCommitTimestamps())
 	for _, p := range providers {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
@@ -167,7 +167,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.OperatorClassProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(role.ParameterProvider{Settings: &e.settings}); err != nil {
+	if err := e.RegisterCatalogProvider(role.ParameterProvider{Settings: &e.Settings}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(catalog.TablespaceProvider{}); err != nil {
@@ -189,23 +189,23 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	}
 	types := sqltype.Builtins()
 	// The seed sets thousands of entries, so it is one bulk load.
-	e.catalog.PublishLocked(catalog.NewState(1))
-	e.catalog.State.BeginBulkLoad(builtinCatalogCapacity(len(types)))
-	bootstrap := e.roles.Domain.Principal(authorization.BootstrapPrincipalID)
-	principals := e.roles.Published.Root.Read(authorization.PrincipalRef{})
-	catalog.InstallBuiltinNamespaces(e.catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
-	catalog.InstallBuiltinTypes(e.catalog.State, types, bootstrap)
-	catalog.InstallBuiltinCollations(e.catalog.State, bootstrap)
-	catalog.InstallBuiltinProcedures(e.catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap))
-	if err := e.catalog.InstallBuiltinLanguagesLocked(bootstrap); err != nil {
+	e.Catalog.PublishLocked(catalog.NewState(1))
+	e.Catalog.State.BeginBulkLoad(builtinCatalogCapacity(len(types)))
+	bootstrap := e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
+	principals := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{})
+	catalog.InstallBuiltinNamespaces(e.Catalog.State, principals.LookupRef("postgres"), principals.LookupRef("pg_database_owner"))
+	catalog.InstallBuiltinTypes(e.Catalog.State, types, bootstrap)
+	catalog.InstallBuiltinCollations(e.Catalog.State, bootstrap)
+	catalog.InstallBuiltinProcedures(e.Catalog.State, typedef.BuiltinConversionProcedures(bootstrap), routine.BuiltinProcedures(bootstrap), routine.NativeAccessMethodProcedures(bootstrap))
+	if err := e.Catalog.InstallBuiltinLanguagesLocked(bootstrap); err != nil {
 		return nil, err
 	}
-	catalog.InstallBuiltinTablespaces(e.catalog.State, bootstrap)
-	catalog.InstallBuiltinConversions(e.catalog.State, bootstrap)
-	catalog.InstallBuiltinOperators(e.catalog.State, routine.SeededOperatorNames(), routine.BuiltinOperatorDescriptors(bootstrap))
-	catalog.InstallBuiltinFamilies(e.catalog.State, bootstrap)
-	catalog.InstallBuiltinClasses(e.catalog.State, bootstrap)
-	e.catalog.ShareProcedureNamesLocked(builtinSeed)
+	catalog.InstallBuiltinTablespaces(e.Catalog.State, bootstrap)
+	catalog.InstallBuiltinConversions(e.Catalog.State, bootstrap)
+	catalog.InstallBuiltinOperators(e.Catalog.State, routine.SeededOperatorNames(), routine.BuiltinOperatorDescriptors(bootstrap))
+	catalog.InstallBuiltinFamilies(e.Catalog.State, bootstrap)
+	catalog.InstallBuiltinClasses(e.Catalog.State, bootstrap)
+	e.Catalog.ShareProcedureNamesLocked(builtinSeed)
 	e.initializeDatabase(database)
 	if err := e.installBuiltinDomainChecks(); err != nil {
 		return nil, err
@@ -213,20 +213,20 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.initializeCatalogSources(); err != nil {
 		return nil, err
 	}
-	if err := e.catalog.ValidateSeed(builtinSeed); err != nil {
+	if err := e.Catalog.ValidateSeed(builtinSeed); err != nil {
 		return nil, err
 	}
-	e.catalog.FinishSeedLocked(builtinSeed)
-	cluster.defaultTarget, cluster.targets, cluster.nextOID = e, map[string]*Engine{e.databaseName: e}, 16384
+	e.Catalog.FinishSeedLocked(builtinSeed)
+	cluster.DefaultTarget, cluster.Targets, cluster.NextOID = e, map[string]*Engine{e.DatabaseName: e}, 16384
 	return e, nil
 }
 func (e *Engine) CatalogRead() catalog.Read {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.catalog.Current()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return e.Catalog.Current()
 }
 
-func sqlError(code, message string) error {
+func SQLError(code, message string) error {
 	return &sqlstate.Error{
 		Severity: "ERROR", SeverityUnlocalized: "ERROR",
 		Code: code, Message: message,
@@ -241,9 +241,9 @@ func (e *Engine) Describe(op *session.Operation, stmt parser.Statement) (info St
 	return scope.Describe(stmt)
 }
 func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement) (StatementDescription, error) {
-	op := scope.op
-	scope.input.LockedDomainInput = scope
-	if err := e.validateOperation(op); err != nil {
+	op := scope.Op
+	scope.Input.LockedDomainInput = scope
+	if err := e.ValidateOperation(op); err != nil {
 		return StatementDescription{}, err
 	}
 	switch s := stmt.(type) {
@@ -260,8 +260,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.PrepareSQL, *parser.DeallocateSQL, *parser.Discard:
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:
-		if entry := payloadOf(op.Session).preparedSQL.entries[s.Name.Text]; entry != nil {
-			if !scope.rowSecurity && session.PreparableBody(entry.body) {
+		if entry := PayloadOf(op.Session).preparedSQL.entries[s.Name.Text]; entry != nil {
+			if !scope.RowSecurity && session.PreparableBody(entry.body) {
 				// Reuse the named statement's analyzed identities without changing
 				// its session definition or executing its argument expressions.
 				expected, parameters := scope.Expected, scope.initialParameters
@@ -281,7 +281,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if s.Move {
 			return StatementDescription{}, nil
 		}
-		if cursor := payloadOf(op.Session).cursors.entries[s.Name.Text]; cursor != nil {
+		if cursor := PayloadOf(op.Session).Cursors.Entries[s.Name.Text]; cursor != nil {
 			return StatementDescription{Results: cursor.schema}, nil
 		}
 		return StatementDescription{}, nil
@@ -310,31 +310,31 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return StatementDescription{}, nil
 	case *parser.Show:
-		e.mu.Lock()
-		defer e.mu.Unlock()
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
 		op.Session.Settings.Mu.Lock()
 		defer op.Session.Settings.Mu.Unlock()
-		typ, _ := e.catalog.Current().LookupType(sqltype.Text)
+		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
-		d, err := op.Session.Settings.LookupDefinition(e.settings, s.Name.Text, false)
+		d, err := op.Session.Settings.LookupDefinition(e.Settings, s.Name.Text, false)
 		if err != nil {
 			return StatementDescription{}, err
 		}
 		return StatementDescription{Results: settingColumns(typ, settings.DisplayName(d.Name))}, nil
 	case *parser.SettingCall:
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		binding, err := e.describeSettingCall(op.Ctx, s, &scope.input, op)
-		typ, _ := e.catalog.Current().LookupType(sqltype.Text)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		binding, err := e.describeSettingCall(op.Ctx, s, &scope.Input, op)
+		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
 		return StatementDescription{Parameters: binding.parameters, Results: columns}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := scope.refreshRelationGrantsLocked(e); err != nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
 		return StatementDescription{}, err
 	}
 	auth, err := scope.statementAuthorizationLocked(stmt)
@@ -356,24 +356,24 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := e.attachCTEViewTargetsLocked(scope, &b, false); err != nil {
 		return StatementDescription{}, err
 	}
-	if err := scope.validateQuerySources(b.QuerySources); err != nil {
+	if err := scope.ValidateQuerySources(b.QuerySources); err != nil {
 		return StatementDescription{}, err
 	}
-	if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, stmt, &b); err != nil {
+	if err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, auth, stmt, &b); err != nil {
 		return StatementDescription{}, err
 	}
 	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
 		program := view.RuleProgram{Count: -1, Returning: -1}
-		if _, err := (view.RuleRewriter{Owner: &e.catalog.Owner}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
+		if _, err := (view.RuleRewriter{Owner: &e.Catalog.Owner}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
 			return StatementDescription{}, err
 		}
 		for i := range program.Commands {
 			command := &program.Commands[i]
-			if err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, command.Auth, command.Syntax, &command.Binding); err != nil {
+			if err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, command.Auth, command.Syntax, &command.Binding); err != nil {
 				return StatementDescription{}, err
 			}
 		}
-		if err := view.CheckRowSecurityRuleProgram(scope.rowSecurity, auth.View, b, program); err != nil {
+		if err := view.CheckRowSecurityRuleProgram(scope.RowSecurity, auth.View, b, program); err != nil {
 			return StatementDescription{}, err
 		}
 		b.Dependencies = append(b.Dependencies, program.Events...)
@@ -383,7 +383,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			}
 			b.Dependencies = append(b.Dependencies, command.Binding.Dependencies...)
 		}
-	} else if err := view.CheckRowSecurityBinding(scope.rowSecurity, auth.View, b); err != nil {
+	} else if err := view.CheckRowSecurityBinding(scope.RowSecurity, auth.View, b); err != nil {
 		return StatementDescription{}, err
 	}
 	var results []catalog.Column
@@ -412,13 +412,13 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, types: b.Prepared.Types, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.SessionToken, planGeneration: op.Session.DiscardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), Temporals: b.Prepared.Temporals, types: b.Prepared.Types, Sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.SessionToken, planGeneration: op.Session.DiscardPlansGeneration}, nil
 }
 
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
-func describe(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, initial ...[]sqltype.Usage) (analyze.Binding, error) {
+func Describe(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, initial ...[]sqltype.Usage) (analyze.Binding, error) {
 	return describeWithRule(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, initial...)
 }
 
@@ -431,20 +431,20 @@ func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, au
 		return *scope.sqlRoutine.binding, nil
 	}
 	if scope.sqlRoutine.lexical != nil {
-		return analyze.DescribePL(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, &scope.queryLockAdmission, scope.sqlRoutine.lexical, scope.sqlRoutine.assignment)
+		return analyze.DescribePL(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, authorityOf(auth), scope.LockedRef, scope.Input, &scope.QueryLockAdmission, scope.sqlRoutine.lexical, scope.sqlRoutine.assignment)
 	}
 	if scope.sqlRoutine.definition != nil {
-		return analyze.DescribeRoutine(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.name, scope.sqlRoutine.inputCollation)
+		return analyze.DescribeRoutine(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, authorityOf(auth), scope.LockedRef, scope.Input, expectedOf(expected), &scope.QueryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.name, scope.sqlRoutine.inputCollation)
 	}
 	// Dynamic cursor USING is a closed positional frame, not a public
 	// parameter-inference request. Static PL queries returned above.
-	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, scope.sqlRoutine.cursor != nil, scope.initialParameters)
+	return analyze.Describe(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, authorityOf(auth), scope.LockedRef, scope.Input, expectedOf(expected), &scope.QueryLockAdmission, nil, scope.sqlRoutine.cursor != nil, scope.initialParameters)
 }
 
 // Resolution helpers run under e.mu, using the supplied coherent view.
 
-func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
-	ref, err := e.resolveRelationReference(auth, name, false)
+func (e *Engine) ResolveReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
+	ref, err := e.ResolveRelationReference(auth, name, false)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42P01" || diagnostic.Code == "42501") && len(name.Parts) > 0 {
 		// Analyzed relation names retain their raw identifier occurrence.
 		// Utility lookup owns its separate, intentionally unpositioned record.
@@ -459,8 +459,8 @@ func (e *Engine) resolveReference(auth AuthorizationView, name parser.ObjectName
 
 // Utility lookup checks a qualified namespace before the relation and reports
 // namespace denial without the position attached by DML analysis.
-func (e *Engine) resolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
-	if err := e.catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
+func (e *Engine) ResolveRelationReference(auth AuthorizationView, name parser.ObjectName, utility bool) (ids.ObjectRef, error) {
+	if err := e.Catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
 	return resolveRelationSnapshot(auth, name, utility)
@@ -471,15 +471,15 @@ func resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, uti
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation name")
 	}
 	if utility && len(name.Parts) == 2 {
-		ns := auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
+		ns := auth.DefinitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
 		if name.Parts[0].Text == "pg_temp" {
 			ns = temporaryNamespace(auth)
 		}
 		if ns == (ids.ObjectAddress{}) {
-			return ids.ObjectRef{}, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
+			return ids.ObjectRef{}, SQLError("3F000", fmt.Sprintf(`schema "%s" does not exist`, name.Parts[0].Text))
 		}
 	}
-	path, err := lookupNamespacesSnapshot(auth, name, analyze.RelationLookup)
+	path, err := LookupNamespacesSnapshot(auth, name, analyze.RelationLookup)
 	if err != nil {
 		if d, yes := err.(*sqlstate.Error); yes && utility {
 			copy := *d
@@ -488,35 +488,35 @@ func resolveRelationSnapshot(auth AuthorizationView, name parser.ObjectName, uti
 		}
 		return ids.ObjectRef{}, err
 	}
-	return resolveRelationPathSnapshot(auth, name, path)
+	return ResolveRelationPathSnapshot(auth, name, path)
 }
 
 // Namespace authority is decided by the caller's lookup policy. Object lookup,
 // diagnostics and own-TEMP admission remain identical for ordinary and VACUUM
 // consumers; maintenance never changes the data-access policy.
-func resolveRelationPathSnapshot(auth AuthorizationView, name parser.ObjectName, path analyze.NamespaceSelection) (ids.ObjectRef, error) {
+func ResolveRelationPathSnapshot(auth AuthorizationView, name parser.ObjectName, path analyze.NamespaceSelection) (ids.ObjectRef, error) {
 	relname := name.Parts[len(name.Parts)-1].Text
 	var a ids.ObjectAddress
 	var ok bool
 	for i := range path.Count() {
-		a = auth.definitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: path.At(i), Name: relname})
+		a = auth.DefinitionLookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: path.At(i), Name: relname})
 		ok = a != (ids.ObjectAddress{})
 		if ok {
 			break
 		}
 	}
 	if !ok {
-		return ids.ObjectRef{}, sqlError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(name)))
+		return ids.ObjectRef{}, SQLError("42P01", fmt.Sprintf(`relation "%s" does not exist`, catalog.ObjectNameText(name)))
 	}
 	descriptor, exists := auth.definitionDescriptor(a)
 	d, valid := descriptor.(*catalog.Relation)
 	if !exists || !valid {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid relation descriptor")
 	}
-	if auth.session != nil {
+	if auth.Session != nil {
 		namespace, _ := auth.definitionDescriptor(d.Namespace())
-		if ns, ok := namespace.(*catalog.Namespace); ok && ns.Temporary == auth.session.SessionToken {
-			auth.session.Transactions.AccessedTemporary = true
+		if ns, ok := namespace.(*catalog.Namespace); ok && ns.Temporary == auth.Session.SessionToken {
+			auth.Session.Transactions.AccessedTemporary = true
 		}
 	}
 	return auth.ref(a), nil

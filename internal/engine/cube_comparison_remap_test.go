@@ -336,20 +336,20 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 		defer done()
 		for _, text := range []string{"'1'::cube IN ('1'::cube,'2'::cube)", "'1'::cube NOT IN ('1'::cube,'2'::cube)"} {
 			raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
-			source.mu.Lock()
-			auth, failure := source.authorizationLocked(op)
+			source.Mu.Lock()
+			auth, failure := source.AuthorizationLocked(op)
 			if failure != nil {
-				source.mu.Unlock()
+				source.Mu.Unlock()
 				t.Fatal(failure)
 			}
-			b := newExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
+			b := NewExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			b.Params.NoParameters = true
 			bound, failure := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if failure == nil {
 				failure = b.CaptureViewLiterals(raw, bound, analyze.ViewTargetLiteral, 0)
 			}
-			source.mu.Unlock()
+			source.Mu.Unlock()
 			if failure != nil {
 				t.Fatal("actual membership capture", text, failure)
 			}
@@ -542,16 +542,16 @@ func TestCubeComparisonBindingWrittenProjection(t *testing.T) {
 	view := source.CatalogRead()
 	bind := func(text string) plan.SQLRoutineExpr {
 		raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
-		source.mu.Lock()
-		auth, err := source.authorizationLocked(op)
+		source.Mu.Lock()
+		auth, err := source.AuthorizationLocked(op)
 		var bound expr.Expr
 		if err == nil {
-			b := newExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
+			b := NewExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			b.Params.NoParameters = true
 			bound, err = b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		}
-		source.mu.Unlock()
+		source.Mu.Unlock()
 		if err != nil {
 			t.Fatal("actual routine call binding", text, err)
 		}

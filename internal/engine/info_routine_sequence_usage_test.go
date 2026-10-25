@@ -24,7 +24,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	a := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "sequence_a", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	b := *a
 	b.ObjectAddress.ObjectID++
@@ -39,7 +39,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 	callee := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 20310}, ObjectNamespace: f.schema, ObjectName: "callee", ObjectRevision: 1, Owner: f.owner}
 	state.SetDescriptor(callee.Address(), callee)
 	dependency := func(address ids.ObjectAddress) catalog.ExpressionDependency {
-		return catalog.ExpressionDependency{Ref: f.e.catalog.Domain.Ref(state.Epoch(), address), Revision: 1}
+		return catalog.ExpressionDependency{Ref: f.e.Catalog.Domain.Ref(state.Epoch(), address), Revision: 1}
 	}
 	program := func(deps ...catalog.ExpressionDependency) *stored.RoutineProgram {
 		return stored.NewRoutineProgram([]stored.RuleAction{stored.NewRuleAction(stored.RuleActionParts{Binding: analyze.Binding{Dependencies: deps}})})
@@ -52,15 +52,15 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 	// stand-in RoutineProgram implementation or a producer-specific edge list.
 	routine.SQLBody = program(dependency(a.Address()), dependency(a.Address()), dependency(b.Address()), dependency(ordinary.Address()), dependency(callee.Address()))
 	state.SetDescriptor(routine.Address(), &routine)
-	view := f.e.catalog.Read(state)
+	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoutineSequenceUsageOID})
 	input := func(v catalog.Read, a AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: engineCatalogRuntime{auth: a, database: "captured_database"}}
+		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
 	}
 	check := func(in pgcatalog.Input, names ...string) [][]sqltype.Value {
 		t.Helper()
-		captured, err := captureCatalogSourceRows(in, produce)
+		captured, err := CaptureCatalogSourceRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,7 +113,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 			copy := routine
 			copy.SQLBody = program(tc.deps...)
 			next.SetDescriptor(copy.Address(), &copy)
-			nextView := f.e.catalog.Read(next)
+			nextView := f.e.Catalog.Read(next)
 			nextAuth := auth
 			nextAuth.Recapture(nextView)
 			check(input(nextView, nextAuth), "sequence_a")
@@ -130,7 +130,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 	allowed := *a
 	allowed.Security.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{defaultUnitReaderEntry(f, authorization.UsagePrivilege|authorization.SelectPrivilege, 0)}}
 	granted.SetDescriptor(allowed.Address(), &allowed)
-	grantedView := f.e.catalog.Read(granted)
+	grantedView := f.e.Catalog.Read(granted)
 	grantedAuth := auth
 	grantedAuth.Recapture(grantedView)
 	check(input(grantedView, grantedAuth))
@@ -141,7 +141,7 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 	renamed.ObjectName = "renamed_a"
 	renamed.Owner = f.reader
 	changed.SetDescriptor(renamed.Address(), &renamed)
-	changedView := f.e.catalog.Read(changed)
+	changedView := f.e.Catalog.Read(changed)
 	changedAuth := auth
 	changedAuth.Recapture(changedView)
 	check(input(changedView, changedAuth), "sequence_b")
@@ -178,16 +178,16 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 		}
 	}
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = nextAuth.Roles },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { in.Ref = new(ids.Domain).Ref(view.Epoch(), source.Address()) },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
-		func(in *pgcatalog.Input) { a := auth; a.RoleRecord = nil; in.Runtime = engineCatalogRuntime{auth: a} },
+		func(in *pgcatalog.Input) { a := auth; a.RoleRecord = nil; in.Runtime = EngineCatalogRuntime{Auth: a} },
 		func(in *pgcatalog.Input) {
 			a := auth
-			a.State.CurrentUser = f.e.roles.Domain.Principal(99999)
-			in.Runtime = engineCatalogRuntime{auth: a}
+			a.State.CurrentUser = f.e.RoleStore.Domain.Principal(99999)
+			in.Runtime = EngineCatalogRuntime{Auth: a}
 		},
 	} {
 		in := input(view, auth)
@@ -238,14 +238,14 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 			}
 			bad.SetDescriptor(copy.Address(), &copy)
 		}
-		badView := f.e.catalog.Read(bad)
+		badView := f.e.Catalog.Read(bad)
 		badAuth := auth
 		badAuth.Recapture(badView)
 		if rows, err := produce(input(badView, badAuth)); rows != nil || err == nil {
 			t.Fatal("malformed metadata accepted", malformed, rows, err)
 		}
 	}
-	emptyView := f.e.catalog.Read(catalog.CloneState(f.e.catalog.State))
+	emptyView := f.e.Catalog.Read(catalog.CloneState(f.e.Catalog.State))
 	emptyAuth := auth
 	emptyAuth.Recapture(emptyView)
 	check(input(emptyView, emptyAuth))

@@ -15,7 +15,7 @@ import (
 func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
 	candidate, err := table.RenameInheritanceColumnPrecheck(auth.Catalog, root, column, destination, only)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	targets, auth, err := scope.acquireInheritanceDefinitions(root, !only)
@@ -25,14 +25,14 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 	if current := targets[0]; current != root {
 		candidate, err = table.RenameColumnCandidate(current, column, destination)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		root = current
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	e.mu.Unlock()
+	stage.AuthorizeLocked(auth, op.Session)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	selected := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, old := range targets {
@@ -47,15 +47,15 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 			return Result{}, err
 		}
 	}
-	if err := scope.acquireDefinitionProviders(stage); err != nil {
+	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return Result{}, err
 }
@@ -64,7 +64,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 	name := raw.Constraint.Text
 	recurse, err := table.RenameInheritanceConstraintPrecheck(auth.Catalog, root, name, kind, raw.Only)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	targets, auth, err := scope.acquireInheritanceDefinitions(root, recurse)
@@ -73,8 +73,8 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 	}
 	root = targets[0]
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	e.mu.Unlock()
+	stage.AuthorizeLocked(auth, op.Session)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	selected := make(map[ids.ObjectAddress]bool, len(targets))
 	for _, old := range targets {
@@ -91,10 +91,10 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return Result{}, err
 }
@@ -103,18 +103,18 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 // sole stage from the returned authentic authorization/catalog without a gap;
 // every error returns unlocked. AX waits always run outside Engine.mu.
 func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relation, recurse bool) ([]*catalog.Relation, AuthorizationView, error) {
-	e := scope.engine()
-	epoch := scope.lockedRef.Epoch
+	e := scope.Engine()
+	epoch := scope.LockedRef.Epoch
 	captured := map[ids.ObjectAddress]*catalog.Relation{root.Address(): root}
 	fail := func(err error) ([]*catalog.Relation, AuthorizationView, error) {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, AuthorizationView{}, err
 	}
 	for {
-		if err := scope.op.Context().Err(); err != nil {
+		if err := scope.Op.Context().Err(); err != nil {
 			return fail(err)
 		}
-		auth, err := e.authorizationLocked(scope.op)
+		auth, err := e.AuthorizationLocked(scope.Op)
 		if err != nil {
 			return fail(err)
 		}
@@ -140,7 +140,7 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relatio
 		}
 		var pending *catalog.Relation
 		for _, old := range targets {
-			ref := scope.lockedRef
+			ref := scope.LockedRef
 			ref.Address = old.Address()
 			if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 				return fail(err)
@@ -153,12 +153,12 @@ func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relatio
 			return targets, auth, nil
 		}
 		captured[pending.Address()] = pending
-		ref := scope.lockedRef
+		ref := scope.LockedRef
 		ref.Address = pending.Address()
-		e.mu.Unlock()
-		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+		e.Mu.Unlock()
+		if err := scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return nil, AuthorizationView{}, err
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 	}
 }

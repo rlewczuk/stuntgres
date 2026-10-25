@@ -51,8 +51,8 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		t.Fatal(err)
 	}
 	after := target.CatalogRead()
-	importedExt := target.catalog.State.MustExtension(target.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
-	imported := target.catalog.State.MustType(importedExt.Members[0])
+	importedExt := target.Catalog.State.MustExtension(target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
+	imported := target.Catalog.State.MustType(importedExt.Members[0])
 	if imported.SQLType == base.SQLType || imported.SQLType.ID() == base.SQLType.ID() {
 		t.Fatal("remint setup did not perturb cube identity")
 	}
@@ -73,7 +73,7 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		if next, ok := mapping[address]; ok {
 			address = next
 		}
-		return target.catalog.Domain.Ref(after.Epoch(), address)
+		return target.Catalog.Domain.Ref(after.Epoch(), address)
 	}
 	mapType := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == base.SQLType {
@@ -123,7 +123,7 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := plan.InstalledCubeExpr{Cube: kernel, Procedure: procedure, Ref: source.catalog.Domain.Ref(before.Epoch(), procedure.Address())}
+		node := plan.InstalledCubeExpr{Cube: kernel, Procedure: procedure, Ref: source.Catalog.Domain.Ref(before.Epoch(), procedure.Address())}
 		if err := stored.ValidateInstalledCube(node, before); err != nil {
 			t.Fatal(err)
 		}

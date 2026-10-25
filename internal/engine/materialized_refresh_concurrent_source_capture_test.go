@@ -25,24 +25,24 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
 	}
 	stmt := statements[0].(*parser.CreateQueryTable)
 	input, _ := op.Session.Settings.Presentation()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	bound, err := describe(context.Background(), e.analysisHost(op), stmt, auth, ids.ObjectRef{}, input, nil, nil)
+	bound, err := Describe(context.Background(), e.AnalysisHost(op), stmt, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	stage, d, skipped, err := e.prepareQueryTableLocked(op, auth, stmt, bound)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal("source outer stage", skipped, err)
 	}
 	d.Populated = true
-	if err := e.stageQueryTableRows(context.Background(), stage, d, refreshUnitRows(t, d, 3), ids.TxRef{}); err != nil {
+	if err := e.StageQueryTableRows(context.Background(), stage, d, refreshUnitRows(t, d, 3), ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -53,27 +53,27 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	e := New()
 	inner := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, inner, "inner_u", "i", "")
-	inner = e.catalog.State.MustRelation(inner.Address())
+	inner = e.Catalog.State.MustRelation(inner.Address())
 	gateStage, gate := queryCreateStage(t, e, "source_gate", 1)
 	queryCreatePublish(t, e, gateStage)
 	outer := concurrentSourceOuter(t, e)
 	index := materializedConcurrentUnitIndex(t, e, outer, "outer_u", "i", "")
-	outer = e.catalog.State.MustRelation(outer.Address())
-	innerStorage, gateStorage := e.storage.Relations[inner.Address()], e.storage.Relations[gate.Address()]
+	outer = e.Catalog.State.MustRelation(outer.Address())
+	innerStorage, gateStorage := e.Storage.Relations[inner.Address()], e.Storage.Relations[gate.Address()]
 	// A real end marker must affect visibility, rather than merely exercising
 	// preservation of a non-nil but empty root.
 	deleted := innerStorage.Versions[2]
 	innerStorage.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{
-		deleted.Row: {Version: deleted.Version, End: e.visibility.CommitSeq()},
+		deleted.Row: {Version: deleted.Version, End: e.Visibility.CommitSeq()},
 	}}
-	frontier := e.visibility.CommitSeq()
+	frontier := e.Visibility.CommitSeq()
 	innerVersions, gateVersions := innerStorage.Versions, gateStorage.Versions
 	innerEnds, gateEnds := innerStorage.Ends, gateStorage.Ends
 	holder := sessionStart(t, e, nil)
 	holderTx := transactionBegin(t, holder)
-	gateRef := e.catalog.Domain.Ref(e.catalog.State.Epoch(), gate.Address())
-	defer e.endLockOwner(holder.Transactions.Ticket)
-	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
+	gateRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), gate.Address())
+	defer e.EndLockOwner(holder.Transactions.Ticket)
+	if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -84,7 +84,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	joined := false
 	defer func() {
 		cancel()
-		e.endLockOwner(holder.Transactions.Ticket)
+		e.EndLockOwner(holder.Transactions.Ticket)
 		if !joined {
 			select {
 			case <-done:
@@ -99,14 +99,14 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	lockPending(t, e, 1)
 	assertSourceWait := func() {
 		t.Helper()
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: gateRef}]
 		waiting := entry != nil && len(entry.Pending) == 1 &&
-			entry.Pending[0].Ticket == scope.ticket && entry.Pending[0].Mode == lock.AccessShare &&
+			entry.Pending[0].Ticket == scope.LockTicket && entry.Pending[0].Mode == lock.AccessShare &&
 			entry.Holders[holder.Transactions.Ticket].Mode&lock.AccessExclusive != 0
-		innerRef := e.catalog.Domain.Ref(gateRef.Epoch, inner.Address())
+		innerRef := e.Catalog.Domain.Ref(gateRef.Epoch, inner.Address())
 		innerEntry := lockState.Resources[lock.Resource{ObjectRef: innerRef}]
-		granted := innerEntry != nil && innerEntry.Holders[scope.ticket].Mode&lock.AccessShare != 0
+		granted := innerEntry != nil && innerEntry.Holders[scope.LockTicket].Mode&lock.AccessShare != 0
 		if !waiting || !granted {
 			t.Fatal("not the actual gate AS wait with inner AS granted")
 		}
@@ -114,10 +114,10 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	assertSourceWait()
 	// The pending-request mutex observation synchronizes with the prewait
 	// manifest capture. The holder keeps the worker blocked during inspection.
-	snapshot := scope.materializedOrZero().SourceView
+	snapshot := scope.MaterializedOrZero().SourceView
 	assertManifest := func() {
 		t.Helper()
-		if scope.materializedOrZero().SourceView != snapshot || snapshot == nil || snapshot.Frontier != frontier || len(snapshot.Committed) != 2 {
+		if scope.MaterializedOrZero().SourceView != snapshot || snapshot == nil || snapshot.Frontier != frontier || len(snapshot.Committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
 		for address, stored := range map[ids.ObjectAddress]*storage.Relation{inner.Address(): innerStorage, gate.Address(): gateStorage} {
@@ -150,12 +150,12 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}
 	assertManifest()
 	inner = concurrentUnitReplace(t, e, inner, refreshUnitRows(t, inner, 1), true, true)
-	if e.storage.Relations[inner.Address()] == innerStorage || e.visibility.CommitSeq() <= frontier {
+	if e.Storage.Relations[inner.Address()] == innerStorage || e.Visibility.CommitSeq() <= frontier {
 		t.Fatal("peer did not publish a new committed source incarnation")
 	}
 	assertSourceWait()
 	assertManifest()
-	e.endLockOwner(holder.Transactions.Ticket)
+	e.EndLockOwner(holder.Transactions.Ticket)
 	select {
 	case err := <-done:
 		joined = true
@@ -169,21 +169,21 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	transactionEnd(t, holder, holderTx, false)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	stage.querySources = scope.materializedOrZero().Sources
+	stage.QuerySources = scope.MaterializedOrZero().Sources
 	stage.materialized().SourceView = snapshot
 	provider := stage.Base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}
-	stage.domainBases = []catalog.Descriptor{provider}
-	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
+	stage.DomainBases = []catalog.Descriptor{provider}
+	if err := e.stageMaterializedRows(context.Background(), stage, outer, e.Storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	stage.materialized().Replacement.Concurrent = true
 	changes := session.NewJournal()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.State, nil); err != nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := e.captureCatalogStageLocked(stage, changes, e.Catalog.State, nil); err != nil {
 		t.Fatal("actual retained capture", err)
 	}
 	sources := catalogFencesOf[materializedSourceFence](changes)
@@ -203,23 +203,23 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		}
 	}
 	clone := changes.Clone()
-	if err := e.catalogPreflightLocked(clone); err != nil {
+	if err := e.CatalogPreflightLocked(clone); err != nil {
 		t.Fatal("generated fence rejected compatible source", err)
 	}
 	// Even when the same MV has a source fence, an actual provider observation
 	// must retain strict predecessor authority; compatibility cannot replace it.
-	stage.domainBases = []catalog.Descriptor{provider, inner}
-	if err := e.captureCatalogStageLocked(stage, changes, e.catalog.State, nil); err != nil {
+	stage.DomainBases = []catalog.Descriptor{provider, inner}
+	if err := e.captureCatalogStageLocked(stage, changes, e.Catalog.State, nil); err != nil {
 		t.Fatal(err)
 	}
 	if changes.Originals[inner.Address()] != inner {
 		t.Fatal("provider/source overlap lost strict original")
 	}
 	for _, d := range []catalog.Descriptor{outer, index, provider, inner} {
-		original := e.catalog.State.Get(d.Address())
-		e.catalog.State.RemoveDescriptor(d.Address())
-		err := e.catalogPreflightLocked(changes)
-		e.catalog.State.SetDescriptor(d.Address(), original)
+		original := e.Catalog.State.Get(d.Address())
+		e.Catalog.State.RemoveDescriptor(d.Address())
+		err := e.CatalogPreflightLocked(changes)
+		e.Catalog.State.SetDescriptor(d.Address(), original)
 		if err == nil {
 			t.Fatal("source compatibility weakened strict original", d.Address())
 		}

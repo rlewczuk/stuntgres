@@ -17,16 +17,16 @@ import (
 // and its stable-column AUTO sequence dependencies before publication.
 func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.DropTable, count int) (Result, error) {
 	if count != 0 {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	if len(s.Names) == 0 || s.Mode != parser.DropRestrict && s.Mode != parser.DropCascade {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: invalid table drop")
 	}
-	refs, notices, err := table.DropTargets(ddlHost{e: e, op: op}, auth, s)
+	refs, notices, err := table.DropTargets(DDLHost{E: e, Op: op}, auth, s)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	temporary := true
@@ -39,7 +39,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 		}
 	}
 	if len(refs) == 0 {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		for _, notice := range notices {
 			op.EmitNotice(session.LevelNotice, notice)
 		}
@@ -48,38 +48,38 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 	// Ordinary roots need AX too; the partition closure helper below cannot
 	// supply this hold for nonpartitioned tables. Readmit the captured group
 	// after all waits, before constructing its one private candidate.
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
-		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+		if err := scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	auth, err = e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err = e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	for _, ref := range refs {
 		if auth.Catalog.Get(ref.Address) == nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
 	}
-	fresh, freshNotices, err := table.DropTargets(ddlHost{e: e, op: op}, auth, s)
+	fresh, freshNotices, err := table.DropTargets(DDLHost{E: e, Op: op}, auth, s)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	if len(fresh) != len(refs) {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	slices.SortFunc(fresh, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for i := range refs {
 		if fresh[i] != refs[i] {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
 	}
@@ -87,21 +87,21 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 	base := auth.Catalog
 	var changes *session.Journal
 	if temporary {
-		changes = scope.owner.Catalog.Clone()
+		changes = scope.Owner.Catalog.Clone()
 	}
 	stage := e.BeginCatalogStage(base)
-	stage.authorizeLocked(auth, op.Session)
-	path, err := referencePath(auth)
+	stage.AuthorizeLocked(auth, op.Session)
+	path, err := ReferencePath(auth)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	stage.dependencyPath = path
-	e.mu.Unlock()
+	stage.DependencyPath = path
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, ref := range refs {
-		if err := scope.acquirePartitionDropLocks(ref); err != nil {
+		if err := scope.AcquirePartitionDropLocks(ref); err != nil {
 			return Result{}, err
 		}
 		if err := stage.Remove(ref); err != nil {
@@ -112,10 +112,10 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 	for i, ref := range refs {
 		targets[i] = ref.Address
 	}
-	if err := scope.stageExpressionDependents(stage, targets, s.Mode, changes); err != nil {
+	if err := scope.StageExpressionDependents(stage, targets, s.Mode, changes); err != nil {
 		return Result{}, err
 	}
-	if err := scope.stageOwnedSequences(stage, targets, s.Mode, changes); err != nil {
+	if err := scope.StageOwnedSequences(stage, targets, s.Mode, changes); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
@@ -123,22 +123,22 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 		return Result{}, err
 	}
 	if temporary {
-		if err := e.stageCatalogOverlay(scope, stage, changes); err != nil {
+		if err := e.StageCatalogOverlay(scope, stage, changes); err != nil {
 			return Result{}, err
 		}
-		scope.owner.AccessedTemporary = true
-		view.EmitCascade(op, stage.dropCascadeNames)
+		scope.Owner.AccessedTemporary = true
+		view.EmitCascade(op, stage.DropCascadeNames)
 		for _, notice := range notices {
 			op.EmitNotice(session.LevelNotice, notice)
 		}
 		return Result{}, nil
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err != nil {
 		return Result{}, err
 	}
-	scope.completed = true
-	view.EmitCascade(op, append(stage.schemaCascadeNames, stage.dropCascadeNames...))
+	scope.Completed = true
+	view.EmitCascade(op, append(stage.SchemaCascadeNames, stage.DropCascadeNames...))
 	for _, notice := range notices {
 		op.EmitNotice(session.LevelNotice, notice)
 	}

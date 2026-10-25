@@ -43,18 +43,18 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			ref := roleTableRef(t, e, "public.network_inputs")
 			input, _ := reader.Session.Settings.Presentation()
 			raw := statement(t, "SELECT "+test.expression).(*parser.Select).Targets[0]
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(reader)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(reader)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
+			binder := NewExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 			bindTestTargetNamespace(binder)
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("actual network operator selection", err)
 			}
@@ -101,7 +101,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 							case "missing":
 								continue
 							case "foreign":
-								dependency.Ref = foreign.catalog.Domain.Ref(dependency.Ref.Epoch, dependency.Ref.Address)
+								dependency.Ref = foreign.Catalog.Domain.Ref(dependency.Ref.Epoch, dependency.Ref.Address)
 							case "stale":
 								dependency.Revision++
 							}

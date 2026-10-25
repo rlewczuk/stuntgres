@@ -69,11 +69,11 @@ func TestSavepointsLifecycle(t *testing.T) {
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			ticket := a.Transactions.Ticket
 			controlsRequire(t, a, "ROLLBACK TO s")
-			if a.Transactions.Ticket != ticket || len(e.locks.Inspect(ticket).Journals[ticket]) != 0 {
+			if a.Transactions.Ticket != ticket || len(e.Locks.Inspect(ticket).Journals[ticket]) != 0 {
 				t.Fatal("rollback did not release postmark contributions")
 			}
 			controlsAbort(t, a)
-			if a.Transactions.Ticket != ticket || len(e.locks.Inspect(ticket).Journals[ticket]) != 0 {
+			if a.Transactions.Ticket != ticket || len(e.Locks.Inspect(ticket).Journals[ticket]) != 0 {
 				t.Fatal("recoverable failure lost ticket or retained child contributions")
 			}
 			controlsRequire(t, a, "ROLLBACK TO s")
@@ -101,7 +101,7 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
 			controlsRequire(t, a, "BEGIN")
-			ref, command, frontier := a.Transactions.Ref, a.Transactions.Command, e.visibility.CommitSeq()
+			ref, command, frontier := a.Transactions.Ref, a.Transactions.Command, e.Visibility.CommitSeq()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, err := a.Acquire(ctx)
@@ -136,7 +136,7 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 					t.Fatal("canceled mark installed")
 				}
 			}
-			if a.Transactions.Ref != ref || a.Transactions.Command != command || e.visibility.CommitSeq() != frontier {
+			if a.Transactions.Ref != ref || a.Transactions.Command != command || e.Visibility.CommitSeq() != frontier {
 				t.Fatal("control advanced transaction identity/frontier")
 			}
 		})
@@ -201,11 +201,11 @@ func TestSavepointsOperationAuthority(t *testing.T) {
 	op.Done()
 	a.Transactions.Command = ids.CommandID(^uint64(0))
 	a.Transactions.Next = ids.TxID(^uint64(0))
-	e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+	e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 	for _, q := range []string{"ROLLBACK TO s", "RELEASE s", "SAVEPOINT s"} {
 		controlsRequire(t, a, q)
 	}
-	if a.Transactions.Command != ids.CommandID(^uint64(0)) || a.Transactions.Next != ids.TxID(^uint64(0)) || e.visibility.CommitSeq() != ids.CommitSeq(^uint64(0)) {
+	if a.Transactions.Command != ids.CommandID(^uint64(0)) || a.Transactions.Next != ids.TxID(^uint64(0)) || e.Visibility.CommitSeq() != ids.CommitSeq(^uint64(0)) {
 		t.Fatal("savepoint control advanced exhausted counters")
 	}
 	controlsRequire(t, a, "ROLLBACK")

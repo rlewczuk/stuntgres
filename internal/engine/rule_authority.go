@@ -27,16 +27,16 @@ func (v AuthorizationView) AsUser(principal authorization.PrincipalRef) view.Rul
 // holds Engine.mu.
 func (v AuthorizationView) StorageLocked(a ids.ObjectAddress) *storage.Relation {
 	var journal *session.Journal
-	if v.session != nil && v.session.Transactions != nil {
-		journal = v.session.Transactions.Catalog
+	if v.Session != nil && v.Session.Transactions != nil {
+		journal = v.Session.Transactions.Catalog
 	}
-	return session.PrivateStorage(v.inputs.storage, journal, a)
+	return session.PrivateStorage(v.inputs.Storage, journal, a)
 }
 
-// ruleAuthorizationOf recovers the full authorization view of a rule
+// RuleAuthorizationOf recovers the full authorization view of a rule
 // command. Every view.RuleAuthority is an AuthorizationView; anything else is a
 // programming error.
-func ruleAuthorizationOf(auth view.RuleAuthority) AuthorizationView {
+func RuleAuthorizationOf(auth view.RuleAuthority) AuthorizationView {
 	v, ok := auth.(AuthorizationView)
 	if !ok {
 		panic(fmt.Sprintf("stuntgres: rule authority %T is not an AuthorizationView", auth))

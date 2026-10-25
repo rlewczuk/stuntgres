@@ -25,7 +25,7 @@ func pgDependUnitCatalog(t *testing.T) (*Engine, catalog.Read, *sqltype.Descript
 		t.Fatal("missing int4")
 	}
 	state := *base.State()
-	return e, e.catalog.Read(&state), typ
+	return e, e.Catalog.Read(&state), typ
 }
 func pgDependUnitAddress(class, id ids.OID, sub int32) ids.ObjectAddress {
 	return ids.ObjectAddress{ClassID: class, ObjectID: id, SubID: sub}
@@ -70,8 +70,8 @@ func TestPGDependShape(t *testing.T) {
 	if err := (relationProvider).Validate(view, source); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.Domain.Ref(view.State().Epoch(), address)
-	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend)
+	ref := e.Catalog.Domain.Ref(view.State().Epoch(), address)
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGDepend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	tableAddress := pgDependUnitAddress(1259, 41001, 0)
 	column := tableAddress
 	column.SubID = 2
-	ref := e.catalog.Domain.Ref(view.State().Epoch(), column)
+	ref := e.Catalog.Domain.Ref(view.State().Epoch(), column)
 	variable := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Origin: ref}
 	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
 	constant := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}
@@ -100,7 +100,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	for _, d := range []*catalog.Relation{simple, expression, backing, standalone, sequence, identity} {
 		view.State().SetDescriptor(d.Address(), d)
 	}
-	got, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	got, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	}
 	pgDependUnitBag(t, got, want)
 	source := view.MustRelation(pgDependUnitAddress(1259, 2608, 0))
-	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ids.ObjectRef{}, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend)
+	captured, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ids.ObjectRef{}, Source: source, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGDepend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	if !stored.DependPinned(view, nil, pgDependUnitAddress(1247, 23, 0)) || !stored.DependPinned(view, nil, pgDependUnitAddress(2615, 11, 0)) || stored.DependPinned(view, nil, pgDependUnitAddress(2615, 2200, 0)) || stored.DependPinned(view, nil, pgDependUnitAddress(1247, 47003, 0)) {
 		t.Fatal("pin authorities")
 	}
-	got, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	got, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	}
 	assertEdges := func(view catalog.Read, present bool) {
 		t.Helper()
-		edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+		edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -250,7 +250,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	assertEdges(before, true)
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	if err := (ddlHost{stage: stage}).RemoveDomainCheck(domain, check.OID); err != nil {
+	if err := (DDLHost{CatalogStage: stage}).RemoveDomainCheck(domain, check.OID); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
@@ -262,7 +262,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	assertEdges(before, true)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if edges, err := pgcatalog.CollectDepend(ctx, before, engineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
+	if edges, err := pgcatalog.CollectDepend(ctx, before, EngineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal("canceled CHECK collection exposed partial rows", edges, err)
 	}
 }
@@ -273,10 +273,10 @@ func TestPGDependCanceledCapture(t *testing.T) {
 	source := catalog.MustRelation(pgDependUnitAddress(1259, 2608, 0))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if edges, err := pgcatalog.CollectDepend(ctx, catalog, engineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
+	if edges, err := pgcatalog.CollectDepend(ctx, catalog, EngineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal(edges, err)
 	}
-	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal(rows, err)
 	}
 }
@@ -299,11 +299,11 @@ func TestPGDependCancellationDuringWalk(t *testing.T) {
 	catalog := e.CatalogRead()
 	source := catalog.MustRelation(pgDependUnitAddress(1259, 2608, 0))
 	ctx := &pgDependUnitWalkContext{Context: context.Background(), remaining: 4}
-	if edges, err := pgcatalog.CollectDepend(ctx, catalog, engineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
+	if edges, err := pgcatalog.CollectDepend(ctx, catalog, EngineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal("partial collection published", edges, err)
 	}
 	ctx = &pgDependUnitWalkContext{Context: context.Background(), remaining: 4}
-	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("partial source published", rows, err)
 	}
 }

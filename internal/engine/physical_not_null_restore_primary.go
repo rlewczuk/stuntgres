@@ -14,16 +14,16 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *pars
 	if handled, err := table.DeferredPhysicalPrimaryShape(op, raw, pair); !handled || err != nil {
 		return nil, err
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if !partitionConstraintReplayImport(e, op, auth) || !pair.Holds(auth.RoleRecord, auth.Catalog) || created[pair.Ref.Address] != pair.Ref || pair.Ref.Epoch != auth.Catalog.Epoch() {
-		return nil, sqlError("0A000", table.RestorePhysicalNotNullBoundary)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if !PartitionConstraintReplayImport(e, op, auth) || !pair.Holds(auth.RoleRecord, auth.Catalog) || created[pair.Ref.Address] != pair.Ref || pair.Ref.Epoch != auth.Catalog.Epoch() {
+		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	ref, err := e.resolveRelationReference(auth, raw.Name, false)
+	ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return nil, err
 	}

@@ -13,11 +13,11 @@ import (
 )
 
 func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
-	base := e.catalog.State
-	if scope.owner.SequenceCatalog != nil {
-		base = scope.owner.SequenceCatalog
+	base := e.Catalog.State
+	if scope.Owner.SequenceCatalog != nil {
+		base = scope.Owner.SequenceCatalog
 	}
-	own := scope.owner.Catalog
+	own := scope.Owner.Catalog
 	namespace := func(address ids.ObjectAddress) catalog.Descriptor {
 		descriptor := base.Get(address)
 		if own != nil {
@@ -31,18 +31,18 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 	// context afresh, since held COPY input may mask a pending cancel.
 	rows, addresses, err := pgcatalog.CapturePGSequences(pgcatalog.PGSequencesInput{
 		Source: source,
-		Err:    func() error { return scope.op.Context().Err() },
+		Err:    func() error { return scope.Op.Context().Err() },
 		Visit: func(visit func(catalog.Descriptor) error) error {
 			return visitSequenceOverlay(base, own, nil, visit)
 		},
-		Namespace: namespace, Temporary: scope.op.Session.SessionToken, Roles: scope.inquiry.commentRoles,
+		Namespace: namespace, Temporary: scope.Op.Session.SessionToken, Roles: scope.Inquiry.commentRoles,
 	})
 	if err != nil {
 		return nil, err
 	}
-	provider := &exec.PGSequencesSource{Host: hostOf(scope)}
+	provider := &exec.PGSequencesSource{Host: HostOf(scope)}
 	for _, address := range addresses {
-		provider.Refs = append(provider.Refs, e.catalog.Domain.Ref(base.Epoch(), address))
+		provider.Refs = append(provider.Refs, e.Catalog.Domain.Ref(base.Epoch(), address))
 	}
 	return &exec.Source{Ref: ref, Anonymous: rows, PGSequences: provider}, nil
 }
@@ -54,33 +54,33 @@ func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRe
 		return err
 	}
 	s := h.scope()
-	if err := s.acquireSequence(ref, lock.RowExclusive, true); err != nil {
+	if err := s.AcquireSequence(ref, lock.RowExclusive, true); err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() {
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	auth, err := e.authorizationLocked(s.op)
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return err
 	}
-	auth.Catalog = e.privateCatalogLocked(s.owner.Catalog)
+	auth.Catalog = e.PrivateCatalogLocked(s.Owner.Catalog)
 	auth.Recapture(auth.Catalog)
 	relation, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || relation.RelationKind != catalog.SequenceRelation {
-		return sqlError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
+		return SQLError("XX000", fmt.Sprintf("could not open relation with OID %d", ref.Address.ObjectID))
 	}
 	rights, err := auth.Effective(ref, false)
 	if err != nil {
 		return err
 	}
-	generator := e.sequenceGeneratorLocked(s, ref.Address)
+	generator := e.SequenceGeneratorLocked(s, ref.Address)
 	if generator == nil {
 		return fmt.Errorf("stuntgres: sequence state missing")
 	}

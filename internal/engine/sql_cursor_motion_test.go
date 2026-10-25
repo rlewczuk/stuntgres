@@ -10,7 +10,7 @@ import (
 func TestSQLCursorScrollRetainedEOFAndMotion(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")
-	c := payloadOf(s).cursors.entries["c"]
+	c := PayloadOf(s).Cursors.Entries["c"]
 	first := cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
 	stage := c.stage
 	if stage == nil || stage.Closed || c.OrdinalPosition != 3 || !c.AtEnd || c.CurrentSource != nil {
@@ -24,7 +24,7 @@ func TestSQLCursorScrollRetainedEOFAndMotion(t *testing.T) {
 	}
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "CLOSE c")
-	if !stage.Closed || c.source != nil || c.authority.Expression != nil {
+	if !stage.Closed || c.Source != nil || c.authority.Expression != nil {
 		t.Fatal("close leaks retained tree", c)
 	}
 	if first.Count != 3 {
@@ -39,7 +39,7 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO unit_virtual_identity(i) VALUES(1),(2)")
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "DECLARE c SCROLL CURSOR FOR SELECT l.i,g.n+1 AS n FROM unit_rows AS l LEFT JOIN unit_virtual_identity AS g ON l.i=g.i ORDER BY l.i LIMIT 3 OFFSET 0")
-	c := payloadOf(s).cursors.entries["c"]
+	c := PayloadOf(s).Cursors.Entries["c"]
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1), int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2), int64(4)}})
 	stage := c.stage
@@ -73,9 +73,9 @@ func TestSQLCursorStoredViewFrontier(t *testing.T) {
 	sessionSQL(t, s, "CREATE VIEW unit_cached_view AS SELECT i FROM unit_rows ORDER BY i")
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "DECLARE c SCROLL CURSOR FOR SELECT i FROM unit_cached_view")
-	c := payloadOf(s).cursors.entries["c"]
+	c := PayloadOf(s).Cursors.Entries["c"]
 	move := sessionSQL(t, s, "MOVE NEXT FROM c")
-	source, stage := c.source, c.stage
+	source, stage := c.Source, c.stage
 	child := source.NestedStage
 	if move.Count != 1 || move.Rows != nil || child == nil || child.Position != 1 || source.FlatCount != 1 || len(source.Flat) != 1 {
 		t.Fatal("partial view demand did not retain exactly one occurrence", move, source, child)

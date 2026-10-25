@@ -16,11 +16,11 @@ import (
 
 func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	target := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20300}, Namespace: f.schema, Name: "runtime_target", Revision: 1, Owner: f.owner, Columns: sequence.Columns(f.e.CatalogRead())})
 	target.RelationKind = catalog.TableRelation
 	state.SetDescriptor(target.Address(), target)
-	ref := f.e.catalog.Domain.Ref(state.Epoch(), target.Address())
+	ref := f.e.Catalog.Domain.Ref(state.Epoch(), target.Address())
 	consumer := *target
 	consumer.ObjectAddress.ObjectID++
 	consumer.ObjectName = "runtime_consumer"
@@ -31,7 +31,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 		Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: 1}},
 	})
 	state.SetDescriptor(consumer.Address(), &consumer)
-	view := f.e.catalog.Read(state)
+	view := f.e.Catalog.Read(state)
 	copied := consumer
 	missing := consumer
 	missing.ObjectAddress.ObjectID++
@@ -44,7 +44,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	invalidState := catalog.CloneState(state)
 	invalidState.SetDescriptor(missing.Address(), &missing)
 	invalidState.SetDescriptor(typedNil.Address(), &typedNil)
-	invalidView := f.e.catalog.Read(invalidState)
+	invalidView := f.e.Catalog.Read(invalidState)
 
 	// Both snapshots have the same domain/epoch and valid reference targets.
 	// A consumer live only in the earlier snapshot must not borrow the newer
@@ -53,14 +53,14 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 	replacement := consumer
 	replacement.ObjectName = "runtime_replacement"
 	nextState.SetDescriptor(replacement.Address(), &replacement)
-	nextView := f.e.catalog.Read(nextState)
+	nextView := f.e.Catalog.Read(nextState)
 	if ref.Epoch != nextView.Epoch() || !stored.ViewReferenceValid(nextView, &consumer, ref) {
 		t.Fatal("borrowed-consumer fixture lacks a current-catalog-valid manifest")
 	}
 
 	// pg_depend calls this seam without an authorization capture. The explicit
 	// catalog, not runtime.auth.Catalog, owns the descriptor/definition frontier.
-	runtime := engineCatalogRuntime{}
+	runtime := EngineCatalogRuntime{}
 	for _, tc := range []struct {
 		name     string
 		view     catalog.Read
@@ -136,13 +136,13 @@ func TestCatalogSourceRuntimeViewReferencesRetainedTemporary(t *testing.T) {
 			if len(definition.Sources()) != 1 || definition.Sources()[0].Ref.Epoch != before.Epoch() {
 				t.Fatal("fixture lost the retained source manifest")
 			}
-			refs, err := (engineCatalogRuntime{}).ViewReferences(t.Context(), current, consumer)
+			refs, err := (EngineCatalogRuntime{}).ViewReferences(t.Context(), current, consumer)
 			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{target}) {
 				t.Fatal("retained TEMP definition lost direct references", refs, err)
 			}
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			if refs, err := (engineCatalogRuntime{}).ViewReferences(ctx, current, consumer); refs != nil || !errors.Is(err, context.Canceled) {
+			if refs, err := (EngineCatalogRuntime{}).ViewReferences(ctx, current, consumer); refs != nil || !errors.Is(err, context.Canceled) {
 				t.Fatal("retained TEMP cancellation exposed references", refs, err)
 			}
 		})

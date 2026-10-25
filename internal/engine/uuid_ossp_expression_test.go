@@ -244,7 +244,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(plan.InstalledUUIDOsspExpr)
 	captured, err := exec.ExpressionRoutineDescriptor(node)
-	if err != nil || captured != n.Procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.Ref.Domain() != e.catalog.Domain {
+	if err != nil || captured != n.Procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.Ref.Domain() != e.Catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.Dependencies)
@@ -285,7 +285,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 					case "revision":
 						deps[i].Revision++
 					case "foreign_ref":
-						deps[i].Ref = other.catalog.Domain.Ref(deps[i].Ref.Epoch, deps[i].Ref.Address)
+						deps[i].Ref = other.Catalog.Domain.Ref(deps[i].Ref.Epoch, deps[i].Ref.Address)
 					}
 				}
 			}
@@ -302,7 +302,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		},
 		func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 	} {
-		auth := *routineAuthorityView(&evaluation)
+		auth := *RoutineAuthorityView(&evaluation)
 		auth.Catalog = auth.Catalog.WithState(catalog.CloneState(auth.Catalog.State()))
 		bad := *captured
 		mutate(&bad)
@@ -347,7 +347,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		state.BindName(catalog.DescriptorNameKey(d), dest)
 	}
 	state.SetEpoch(state.Epoch() + 1)
-	view := e.catalog.Read(state)
+	view := e.Catalog.Read(state)
 	remap := func(ref ids.ObjectRef) ids.ObjectRef {
 		ref.Epoch = state.Epoch()
 		if dest, ok := mapping[ref.Address]; ok {
@@ -381,7 +381,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	foreignView := other.CatalogRead()
 	foreignNode, err := stored.RemapExpression(node, func(ref ids.ObjectRef) ids.ObjectRef {
-		ref = other.catalog.Domain.Ref(foreignView.Epoch(), ref.Address)
+		ref = other.Catalog.Domain.Ref(foreignView.Epoch(), ref.Address)
 		return ref
 	}, nil)
 	if err != nil {
@@ -441,12 +441,12 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if tc.sql != "" {
 			roleExecute(t, e, op, tc.sql)
 		}
-		auth, err := operationAuthorization(reader)
+		auth, err := OperationAuthorization(reader)
 		if err != nil {
 			t.Fatal(err)
 		}
 		current := auth.Catalog.MustProcedure(address)
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
+		ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address)
 		rights, err := auth.Effective(ref, false)
 		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !exec.SameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)

@@ -18,7 +18,7 @@ func TestBtreeIndexOwnerBeforeWriterWait(t *testing.T) {
 				sessionSQL(t, writer, "CREATE TABLE t(n INT)")
 				sessionSQL(t, writer, "CREATE USER reader")
 				ref := roleTableRef(t, e, "t")
-				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
+				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("reader")}, Privileges: authorization.SelectPrivilege | authorization.InsertPrivilege}}}); err != nil {
 					t.Fatal(err)
 				}
 				sessionSQL(t, reader, "SET ROLE reader")
@@ -49,7 +49,7 @@ func TestBtreeIndexOwnerBeforeWriterWait(t *testing.T) {
 				done := waitsCommandAsync(e, reader, ctx, query, false)
 				seenShare := false
 				for {
-					lockState := e.locks.Inspect()
+					lockState := e.Locks.Inspect()
 					for _, entry := range lockState.Resources {
 						for _, request := range entry.Pending {
 							if request.Mode == lock.Share {
@@ -68,7 +68,7 @@ func TestBtreeIndexOwnerBeforeWriterWait(t *testing.T) {
 						if err == nil {
 							t.Fatal("unauthorized/read-only build succeeded")
 						}
-						if len(e.storage.IndexRoots) != 0 {
+						if len(e.Storage.IndexRoots) != 0 {
 							t.Fatal("owner rejection published an index")
 						}
 						return

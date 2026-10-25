@@ -83,7 +83,7 @@ func TestTimestampSeriesHooks(t *testing.T) {
 	replacement := *later.State().MustType(address)
 	replacement.SQLType = next.Args[2].ResultUsage().Type
 	later.State().SetDescriptor(address, &replacement)
-	authority := *routineAuthorityView(&evaluation)
+	authority := *RoutineAuthorityView(&evaluation)
 	// Recapture the genuine paired catalog/role authority, not just its
 	// Catalog field: common access checks reject an unpaired snapshot first.
 	authority.View.Recapture(later)

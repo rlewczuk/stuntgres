@@ -60,7 +60,7 @@ func plUnitAssignQueryValue(t *testing.T, s *StatementScope, f *proc.PLFrame, pa
 		t.Fatal(err)
 	}
 	query := &parser.Select{Targets: []parser.Expr{statement.Expression}, Pos: statement.Expression.SourcePosition()}
-	return s.assignPLTarget(f, target, statement.Target, query, s.engine().CatalogRead(), plNoticeOrigin{})
+	return s.assignPLTarget(f, target, statement.Target, query, s.Engine().CatalogRead(), plNoticeOrigin{})
 }
 
 func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
@@ -101,12 +101,12 @@ func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
 			t.Fatal("success mutated old ancestor or source", output, err)
 		}
 		retained := f.Values[0]
-		evaluationContext, cancel := context.WithCancel(s.op.Ctx)
+		evaluationContext, cancel := context.WithCancel(s.Op.Ctx)
 		cancel()
-		previous := s.op.Ctx
-		s.op.Ctx = evaluationContext
+		previous := s.Op.Ctx
+		s.Op.Ctx = evaluationContext
 		_, err = plUnitAssignQueryValue(t, s, f, "a.items[1]", sqltype.String(text, "8"))
-		s.op.Ctx = previous
+		s.Op.Ctx = previous
 		if !errors.Is(err, context.Canceled) || f.Values[0] != retained {
 			t.Fatal("cancel published a candidate", err)
 		}
@@ -135,10 +135,10 @@ func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer s.Finish(nil)
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
-			s.routineAuth = auth
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
+			s.RoutineAuth = auth
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,7 +147,7 @@ func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
 			text, _ := read.LookupType(sqltype.Text)
 			source := sqltype.String(text, tc.initial)
 			if typ.BaseType().IsComposite() {
-				source, err = typ.BaseType().Input(s.op.Context(), tc.initial, -1)
+				source, err = typ.BaseType().Input(s.Op.Context(), tc.initial, -1)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -174,7 +174,7 @@ func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
 		read := e.CatalogRead()
 		array, _ := read.LookupType(1007)
 		integer, _ := read.LookupType(sqltype.Int4)
-		initial, err := array.Input(s.op.Context(), "{{1,2},{3,4}}", -1)
+		initial, err := array.Input(s.Op.Context(), "{{1,2},{3,4}}", -1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -213,12 +213,12 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	target := plUnitAssignmentTarget(t, "a.items[2]")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
-	b := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
+	b := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 	b.Query.Auth = &auth
 	bound, bindErr := b.BindAssignmentTarget(catalog.Column{Name: "a", Usage: shape.Usage()}, target.Steps, parser.Position{})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 	}
 	t.Run("local_composite_array_admission", func(t *testing.T) {
 		e, s := plUnitScope(t)
-		domainUnitPublish(t, e, domainUnitStage(t, e, s.op, "CREATE TYPE pa_unit_local AS (n integer)"))
+		domainUnitPublish(t, e, domainUnitStage(t, e, s.Op, "CREATE TYPE pa_unit_local AS (n integer)"))
 		read := e.CatalogRead()
 		integer, _ := read.LookupType(sqltype.Int4)
 		language, err := catalog.LookupLanguage(read, "plpgsql")
@@ -252,12 +252,12 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 				t.Fatal(err)
 			}
 			d := &catalog.Procedure{ObjectName: "local_array", RoutineKind: catalog.FunctionRoutine, Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "local_array", Source: source, Result: integer.Usage(), PLSyntax: raw}}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(s.op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(s.Op)
 			if err == nil {
-				err = e.compilePLRoutineLocked(s.op, auth, d)
+				err = e.CompilePLRoutineLocked(s.Op, auth, d)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if !tc.valid {
 				if err == nil {
 					t.Fatal("nonconcrete local annotation accepted")
@@ -317,16 +317,16 @@ func TestPLpgSQLAssignmentPlanningOrigin(t *testing.T) {
 		{"SELECT ARRAY['bad']::text[]", integer.Usage(), false},
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(s.op)
-			b := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(s.Op)
+			b := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 			b.Query.Auth = &auth
 			child, bindErr := b.Bind(statement(t, tc.sql).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			var node expr.Expr
 			if bindErr == nil {
 				node, bindErr = b.PLAssignmentExpression(child, tc.target)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -336,7 +336,7 @@ func TestPLpgSQLAssignmentPlanningOrigin(t *testing.T) {
 			if !tc.planning && exec.PlannedVolatility(node) != expr.Stable {
 				t.Fatal("array IO lost captured volatility")
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.output}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.Output}}
 			prepared, _, preflightErr := exec.PreflightCoercions(&evaluation, node)
 			var preflightPlanning *plan.PLAssignmentPlanningError
 			if tc.planning {
@@ -371,20 +371,20 @@ func TestPLpgSQLAssignmentPlanningOrigin(t *testing.T) {
 	}
 	t.Run("dynamic_local", func(t *testing.T) {
 		text, _ := read.LookupType(sqltype.Text)
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(s.op)
-		b := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(s.Op)
+		b := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 		b.Query.Auth = &auth
 		local := plan.PLLocalExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, Value: sqltype.String(text, "bad")}
 		node, bindErr := b.PLAssignmentExpression(local, integer.Usage())
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
 		if bindErr != nil {
 			t.Fatal(bindErr)
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.output}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.Output}}
 		_, _, preflightErr := exec.PreflightCoercions(&evaluation, node)
 		var preflightPlanning *plan.PLAssignmentPlanningError
 		if errors.As(preflightErr, &preflightPlanning) {
@@ -412,20 +412,20 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		"CREATE FUNCTION pa_origin_standard_dynamic(x text) RETURNS integer LANGUAGE SQL RETURN x::integer",
 	} {
 		raw := statement(t, definition).(*parser.CreateFunction)
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(s.op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(s.Op)
 		var stage *CatalogStage
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(ddlHost{e: e, op: s.op, stage: stage}, auth, raw, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(DDLHost{E: e, Op: s.Op, CatalogStage: stage}, auth, raw, sqltype.InputEnvironment{})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal("private routine fixture", err)
 		}
 		domainUnitPublish(t, e, stage)
 	}
-	domainUnitPublish(t, e, domainUnitStage(t, e, s.op, "CREATE DOMAIN pa_origin_domain AS integer CHECK(pa_origin_quoted()>0)"))
+	domainUnitPublish(t, e, domainUnitStage(t, e, s.Op, "CREATE DOMAIN pa_origin_domain AS integer CHECK(pa_origin_quoted()>0)"))
 	read := e.CatalogRead()
 	integer, _ := read.LookupType(sqltype.Int4)
 	frame := &proc.PLFrame{Program: &proc.PLProgram{}}
@@ -461,12 +461,12 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		t.Fatal("successful assignment query leaked state", value, err)
 	}
 
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
-	b := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
+	b := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 	b.Query.Auth = &auth
 	call, bindErr := b.Bind(statement(t, "SELECT pa_origin_quoted()").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +483,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 	if private == root || !originalCall || &private.Expressions[0] == &root.Expressions[0] || private.Schema()[0] != root.Schema()[0] || private.Expressions[0].ResultUsage() != call.ResultUsage() {
 		t.Fatal("borrowed origin mutated analyzed projection or Usage")
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.Output}}
 	for _, domain := range []bool{false, true} {
 		evaluation.DomainValueActive = domain
 		_, err := private.Expressions[0].Eval(&evaluation)
@@ -496,27 +496,27 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		t.Fatal("nested host invocation leaked caller demand")
 	}
 	t.Run("domain_preflight_barrier", func(t *testing.T) {
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(s.op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(s.Op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		previousAuth := s.routineAuth
-		s.routineAuth = auth
-		defer func() { s.routineAuth = previousAuth }()
-		b := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+		previousAuth := s.RoutineAuth
+		s.RoutineAuth = auth
+		defer func() { s.RoutineAuth = previousAuth }()
+		b := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 		b.Query.Auth = &auth
 		child, err := b.Bind(statement(t, "SELECT 1::pa_origin_domain").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		var node expr.Expr
 		if err == nil {
 			node, err = b.PLAssignmentExpression(child, integer.Usage())
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.output}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: b.Input, Output: s.Output}}
 		evaluation.Input.DomainChecks = &evaluation
 		prepared, _, err := exec.PreflightCoercions(&evaluation, node)
 		if err != nil {
@@ -548,7 +548,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 	read := e.CatalogRead()
 	array, _ := read.LookupType(1007)
 	text, _ := read.LookupType(sqltype.Text)
-	initial, err := array.Input(s.op.Context(), "{1,2}", -1)
+	initial, err := array.Input(s.Op.Context(), "{1,2}", -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -577,11 +577,11 @@ func plUnitAssignmentCardinality(t *testing.T) {
 	if err != nil {
 		t.Fatal("same-frame recovery", err)
 	}
-	output, err := array.Output(s.op.Context(), value)
+	output, err := array.Output(s.Op.Context(), value)
 	if err != nil || output != "{7,2}" {
 		t.Fatal("recovery did not use old datum", output, err)
 	}
-	output, err = array.Output(s.op.Context(), initial)
+	output, err = array.Output(s.Op.Context(), initial)
 	if err != nil || output != "{1,2}" {
 		t.Fatal("cardinality failure/recovery mutated source", output, err)
 	}
@@ -596,7 +596,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err = array.Output(s.op.Context(), value)
+	output, err = array.Output(s.Op.Context(), value)
 	if err != nil || output != "{NULL,2}" {
 		t.Fatal("actual NULL confused with empty result", output, err)
 	}
@@ -624,7 +624,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 	if err != nil {
 		t.Fatal("field recovery after empty datum", err)
 	}
-	output, err = array.Output(s.op.Context(), value.CompositeField(0))
+	output, err = array.Output(s.Op.Context(), value.CompositeField(0))
 	if err != nil || output != "{4}" || value.CompositeField(1) != row.CompositeField(1) {
 		t.Fatal("field recovery/source retention", output, err)
 	}
@@ -633,7 +633,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 		"CREATE DOMAIN pa_unit_card_root AS integer[] NOT NULL",
 		"CREATE DOMAIN pa_unit_card_element AS integer NOT NULL",
 	} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, s.op, ddl))
+		domainUnitPublish(t, e, domainUnitStage(t, e, s.Op, ddl))
 	}
 	read = e.CatalogRead()
 	rootDomain := domainUnitType(t, read, "pa_unit_card_root").SQLType

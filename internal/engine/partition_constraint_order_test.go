@@ -18,7 +18,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 	for _, insertion := range permutations {
 		t.Run(fmt.Sprint(insertion), func(t *testing.T) {
 			e := New()
-			state := catalog.CloneState(e.catalog.State)
+			state := catalog.CloneState(e.Catalog.State)
 			one := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49000}, ObjectName: "a"}
 			two := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 49001}, ObjectName: "a.b"}
 			state.SetDescriptor(one.Address(), one)
@@ -36,7 +36,7 @@ func TestPartitionDetachConstraintReplayComponentOrder(t *testing.T) {
 					state.BindName(catalog.DescriptorNameKey(d), d.Address())
 				}
 			}
-			view := e.catalog.Read(state)
+			view := e.Catalog.Read(state)
 			_, replay := partition.ConstraintDumpCatalog(control.Resolver{}, view)
 			// Exact ordinals, not just uniqueness, define canonical table allocation.
 			for i, index := range indexes {

@@ -21,7 +21,7 @@ func TestPartitionRoutingPublication(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			e, root, _, leaf, destination := partitionRoutingUnitEngine(t)
 			scope, b, source := partitionRoutingUnitScope(t, e, root, false)
-			old := e.storage.Relations[leaf.Address()].Versions[0]
+			old := e.Storage.Relations[leaf.Address()].Versions[0]
 			retained := source.View.Retain()
 			if retained == nil {
 				t.Fatal("missing original snapshot")
@@ -35,31 +35,31 @@ func TestPartitionRoutingPublication(t *testing.T) {
 				// The frozen candidate keeps version21, while the canonical Delete
 				// must end the actual latest same-RowID predecessor under its lock.
 				latest := old
-				latest.Version = e.storage.AllocateVersionLocked()
+				latest.Version = e.Storage.AllocateVersionLocked()
 				latest.Born = 2
-				e.storage.Relations[leaf.Address()].Versions = []storage.RowVersion{latest}
-				e.visibility.SetCommitSeqLocked(2)
+				e.Storage.Relations[leaf.Address()].Versions = []storage.RowVersion{latest}
+				e.Visibility.SetCommitSeqLocked(2)
 				old = latest
 			}
-			underlying, cancel := context.WithCancel(scope.op.Context())
+			underlying, cancel := context.WithCancel(scope.Op.Context())
 			defer cancel()
 			checkpoint := &rangePartitionPhaseContext{Context: underlying, target: "dml.ApplyValidated", effect: func() {
-				deletion := scope.stage.deletes[leaf.Address()]
+				deletion := scope.Stage.Deletes[leaf.Address()]
 				if deletion == nil || !deletion.Rows[old.Row].Moved {
 					t.Error("destination insertion preceded canonical source deletion")
 				}
 				if phase == "stale_destination_binding" {
-					e.mu.Lock()
-					e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
-					e.mu.Unlock()
+					e.Mu.Lock()
+					e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
+					e.Mu.Unlock()
 				} else {
 					cancel()
 				}
 			}}
 			if phase == "cancel_after_delete" || phase == "stale_destination_binding" {
-				scope.op.Ctx = checkpoint
+				scope.Op.Ctx = checkpoint
 			}
-			out, err := dml.ExecuteUpdate(scope.writeHost(), dml.UpdateInput{Context: scope.op.Context(), Binding: b, Source: source, Schema: "public"})
+			out, err := dml.ExecuteUpdate(scope.WriteHost(), dml.UpdateInput{Context: scope.Op.Context(), Binding: b, Source: source, Schema: "public"})
 			if phase == "cancel_after_delete" {
 				if !checkpoint.entered.Load() || !errors.Is(err, context.Canceled) || out.Count != 0 {
 					t.Fatal("cancellation missed actual post-delete checkpoint", out, err)
@@ -68,19 +68,19 @@ func TestPartitionRoutingPublication(t *testing.T) {
 				if err != nil || out.Count != 1 {
 					t.Fatal(out, err)
 				}
-				if phase == "stale_destination_binding" && (!checkpoint.entered.Load() || scope.UniqueBinding.Catalog != e.catalog.State) {
+				if phase == "stale_destination_binding" && (!checkpoint.entered.Load() || scope.UniqueBinding.Catalog != e.Catalog.State) {
 					t.Fatal("stale destination binding was not revalidated")
 				}
 				if phase == "same_leaf" {
-					if next := scope.stage.rows[leaf.Address()][0]; next.Row != old.Row || next.Version == old.Version {
+					if next := scope.Stage.Rows[leaf.Address()][0]; next.Row != old.Row || next.Version == old.Version {
 						t.Fatal("same-leaf UPDATE changed physical identity", next)
 					}
-					if scope.stage.deletes[leaf.Address()] != nil {
+					if scope.Stage.Deletes[leaf.Address()] != nil {
 						t.Fatal("same-leaf UPDATE staged movement")
 					}
 				} else {
-					deletion := scope.stage.deletes[leaf.Address()].Rows[old.Row]
-					next := scope.stage.rows[destination.Address()][0]
+					deletion := scope.Stage.Deletes[leaf.Address()].Rows[old.Row]
+					next := scope.Stage.Rows[destination.Address()][0]
 					if !deletion.Moved || deletion.Version != old.Version || next.Row == old.Row || next.Version == old.Version || next.Base != 0 {
 						t.Fatal("invalid movement lineage", deletion, next)
 					}
@@ -95,11 +95,11 @@ func TestPartitionRoutingPublication(t *testing.T) {
 				t.Fatal("Finish changed failure", finishErr, err)
 			}
 			if err != nil {
-				if len(e.storage.Relations[destination.Address()].Versions) != 0 || e.storage.Relations[leaf.Address()].Ends != nil {
+				if len(e.Storage.Relations[destination.Address()].Versions) != 0 || e.Storage.Relations[leaf.Address()].Ends != nil {
 					t.Fatal("failed stage published one side")
 				}
 			} else if phase != "same_leaf" {
-				store := e.storage.Relations[leaf.Address()]
+				store := e.Storage.Relations[leaf.Address()]
 				if end := store.Ends.Rows[old.Row]; !end.Moved || end.Version != old.Version || end.End == 0 {
 					t.Fatal("committed movement provenance lost", end)
 				}
@@ -124,12 +124,12 @@ func partitionRoutingPublicationCapturedDeletionAuthority(t *testing.T) {
 	scope, b, source := partitionRoutingUnitScope(t, e, root, false)
 	physical := dml.MutationPhysicalRow(source, 0, b)
 	captured := physical.Deletion()
-	if err := scope.writeHost().AcquireUpdateRow(physical.Leaf.Ref, captured.Row, lock.ForUpdate); err != nil {
+	if err := scope.WriteHost().AcquireUpdateRow(physical.Leaf.Ref, captured.Row, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
-	store := e.storage.Relations[leaf.Address()]
+	store := e.Storage.Relations[leaf.Address()]
 	latest := store.Versions[0]
-	latest.Version = e.storage.AllocateVersionLocked()
+	latest.Version = e.Storage.AllocateVersionLocked()
 	store.Versions = []storage.RowVersion{latest}
 	bad := captured
 	bad.Version = latest.Version
@@ -141,7 +141,7 @@ func partitionRoutingPublicationCapturedDeletionAuthority(t *testing.T) {
 	if deleted, err := scope.Writes().Delete(captured); err != nil || !deleted {
 		t.Fatal("captured predecessor was not refreshed canonically", deleted, err)
 	}
-	if staged := scope.stage.deletes[leaf.Address()].Rows[captured.Row]; staged.Version != latest.Version || !staged.Moved {
+	if staged := scope.Stage.Deletes[leaf.Address()].Rows[captured.Row]; staged.Version != latest.Version || !staged.Moved {
 		t.Fatal("latest movement end not staged", staged)
 	}
 	if err := scope.Finish(errors.New("discard authority probe")); err == nil {

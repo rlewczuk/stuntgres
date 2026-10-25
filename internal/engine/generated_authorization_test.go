@@ -34,15 +34,15 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *
 			parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}},
 		},
 	}}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(admin)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(admin)
 	if err == nil {
 		err = e.bindCreateGenerations(admin, auth, d, []analyze.ColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
 	}
 	if err == nil {
-		err = table.AssignDefinitionOIDs(ddlHost{e: e}, d)
+		err = table.AssignDefinitionOIDs(DDLHost{E: e}, d)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *
 	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: view.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	actor, actorDone := roleOperation(t, e, "generated_actor")
 	t.Cleanup(actorDone)
 	generatedAuthorizationGrant(t, e, admin, actor, ref, 1, authorization.InsertPrivilege|authorization.UpdatePrivilege)
@@ -116,13 +116,13 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			e, admin, actor, ref := generatedAuthorizationFixture(t)
 			// Bind through the normal caller path and consume exactly its manifests.
 			// Private generation dependencies must not become caller SELECT demands.
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(actor)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(actor)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = describe(context.Background(), e.analysisHost(actor), tc.stmt, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+				bound, err = Describe(context.Background(), e.AnalysisHost(actor), tc.stmt, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("binding", err)
 			}
@@ -153,7 +153,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 				}
 			}
 			check(auth, tc.denied)
-			ownerAuth, err := operationAuthorization(admin)
+			ownerAuth, err := OperationAuthorization(admin)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -161,7 +161,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			if tc.denied {
 				before := auth.Catalog.State()
 				generatedAuthorizationGrant(t, e, admin, actor, ref, tc.grantOn, tc.grant)
-				granted, err := operationAuthorization(actor)
+				granted, err := OperationAuthorization(actor)
 				if err != nil {
 					t.Fatal(err)
 				}

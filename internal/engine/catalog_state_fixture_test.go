@@ -20,12 +20,12 @@ func catalogStateFixture(epoch ids.CatalogEpoch, descriptors map[ids.ObjectAddre
 
 // ValidateObjectRef checks, under Engine.mu, that view and ref belong to e.
 func (e *Engine) ValidateObjectRef(view catalog.Read, ref ids.ObjectRef) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.catalog.ValidateObjectRefLocked(view, ref)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return e.Catalog.ValidateObjectRefLocked(view, ref)
 }
 
 // PublishCatalog publishes p outside any operation or statement.
 func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
-	return e.publishCatalog(nil, nil, p, token)
+	return e.PublishPreparedCatalog(nil, nil, p, token)
 }

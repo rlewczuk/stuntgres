@@ -119,14 +119,14 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 
 func TestRegtypeOIDAllocationSkipsTypeIdentities(t *testing.T) {
 	e := New()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.catalog.InstallOIDFrontierLocked(ids.OID(sqltype.Regtype))
-	id, err := e.catalog.AllocateOIDLocked()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	e.Catalog.InstallOIDFrontierLocked(ids.OID(sqltype.Regtype))
+	id, err := e.Catalog.AllocateOIDLocked()
 	if err != nil {
 		t.Fatal(err)
 	}
-	for address := range e.catalog.State.Descriptors() {
+	for address := range e.Catalog.State.Descriptors() {
 		if address.ObjectID == id {
 			t.Fatal("allocated published identity", address)
 		}

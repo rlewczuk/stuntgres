@@ -60,7 +60,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 		draws++
 		return sqltype.Integer(value.Type(), id+int64(draws*10))
 	}))
-	execution := exec.State{Source: sources, Input: scope.input, Output: scope.output}
+	execution := exec.State{Source: sources, Input: scope.Input, Output: scope.Output}
 	defer execution.ReleaseMemberships()
 	eval := execution.Evaluation(ctx)
 	typ := b.Relation.Columns[0].Usage.Type

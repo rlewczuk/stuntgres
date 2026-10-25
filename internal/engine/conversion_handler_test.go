@@ -23,11 +23,11 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	procedure := *candidate.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 4375})
 	procedure.Result = 25
 	candidate.SetDescriptor(procedure.Address(), &procedure)
-	auth.Recapture(e.catalog.Read(candidate))
+	auth.Recapture(e.Catalog.Read(candidate))
 	stage := e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err := typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != "encoding conversion function pg_catalog.utf8_to_iso8859_1 must return type integer" {
 		t.Fatal("actual return contract", err)
@@ -45,9 +45,9 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	_, auth = conversionUnitAuth(t, e)
 	create.Default, create.Destination = true, "LATIN2"
 	stage = e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err = typedef.StageCreateConversionLocked(ddlHost{e: e, op: op, stage: stage}, auth, create)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	e.Mu.Unlock()
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "XX000" || diagnostic.Message != `expected destination encoding "LATIN1", but got "LATIN2"` {
 		t.Fatal("real empty probe did not precede duplicate checks", err)
 	}
@@ -62,9 +62,9 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	cancel()
 	create.Name, create.Default, create.Destination = conversionUnitName("public", "canceled_probe"), false, "LATIN1"
 	stage = e.BeginCatalogStage(before)
-	e.mu.Lock()
-	err = typedef.StageCreateConversionLocked(ddlHost{e: e, op: canceled, stage: stage}, auth, create)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = typedef.StageCreateConversionLocked(DDLHost{E: e, Op: canceled, CatalogStage: stage}, auth, create)
+	e.Mu.Unlock()
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("real empty handler context entry", err)
 	}

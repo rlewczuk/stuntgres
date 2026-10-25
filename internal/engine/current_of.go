@@ -12,15 +12,15 @@ import (
 // The named cursor owns its retained execution. Mutations borrow only a physical
 // occurrence and then remap its stable RowID into their fresh command view.
 func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationRowIdentity, error) {
-	c := payloadOf(s.op.Session).cursors.entries[b.CurrentOf]
-	if c == nil || (!c.promoted && c.tx != s.txRef) {
+	c := PayloadOf(s.Op.Session).Cursors.Entries[b.CurrentOf]
+	if c == nil || (!c.promoted && c.tx != s.TxRef) {
 		return dml.MutationRowIdentity{}, missingSQLCursor(b.CurrentOf)
 	}
-	if c.epoch != s.txRef.Epoch() {
+	if c.epoch != s.TxRef.Epoch() {
 		return dml.MutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
 	if c.Place == exec.CursorFailed || c.root == nil {
-		return dml.MutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.CurrentOf))
+		return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.CurrentOf))
 	}
 	occurrence := -1
 	marked := false
@@ -34,24 +34,24 @@ func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationR
 				continue
 			}
 			if occurrence != -1 {
-				return dml.MutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" has multiple FOR UPDATE/SHARE references to table \"%s\"", b.CurrentOf, b.Relation.Name()))
+				return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" has multiple FOR UPDATE/SHARE references to table \"%s\"", b.CurrentOf, b.Relation.Name()))
 			}
 			occurrence = i
 		}
 	}
 	if marked {
 		if occurrence == -1 {
-			return dml.MutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" does not have a FOR UPDATE/SHARE reference to table \"%s\"", b.CurrentOf, b.Relation.Name()))
+			return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" does not have a FOR UPDATE/SHARE reference to table \"%s\"", b.CurrentOf, b.Relation.Name()))
 		}
 	} else {
-		scan := exec.CursorSimpleScan(c.root, c.source)
+		scan := exec.CursorSimpleScan(c.root, c.Source)
 		if scan == nil || scan.Ref != b.Ref {
-			return dml.MutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.CurrentOf, b.Relation.Name()))
+			return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.CurrentOf, b.Relation.Name()))
 		}
 		occurrence = scan.Occurrence
 	}
 	if c.Place != exec.CursorOn {
-		return dml.MutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not positioned on a row", b.CurrentOf))
+		return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" is not positioned on a row", b.CurrentOf))
 	}
 	if c.locks == nil || occurrence < 0 || occurrence >= len(c.locks.Leaves) {
 		return dml.MutationRowIdentity{}, ids.ErrCatalogReplaced

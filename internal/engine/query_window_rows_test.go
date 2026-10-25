@@ -291,7 +291,7 @@ func TestQueryWindowRowsFinishAtomicity(t *testing.T) {
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !scope.finished || scope.view != nil || scope.ticket != nil {
+	if !scope.Finished || scope.View != nil || scope.LockTicket != nil {
 		t.Fatal("statement resources survived Finish")
 	}
 	current := run(t, e, "SELECT n FROM d").Rows
@@ -317,14 +317,14 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	description, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.mu.Unlock()
+	description, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,12 +384,12 @@ func TestQueryWindowRowsColumnAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.rows_acl(id INT,k INT)")
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), table.Address())
-	reader := e.roles.Domain.Principal(1000000)
-	roles := cloneRoleFixture(e.roles.Published)
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), table.Address())
+	reader := e.RoleStore.Domain.Principal(1000000)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "rows_unit_reader"})
 
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	column := func(index int) ids.ObjectRef {
 		object := ref
 		object.Address.SubID = table.Attributes[index]
@@ -424,7 +424,7 @@ func TestQueryWindowRowsColumnAuthority(t *testing.T) {
 				grant(column(i), rights)
 			}
 			auth := catalogAuthorization(e, e.CatalogRead())
-			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+			b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			_, err := b.BindSelect(statement(t, tc.query).(*parser.Select), false)
 			if err != nil || len(b.Query.Sources) != 1 {

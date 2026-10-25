@@ -34,12 +34,12 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	}
 	for _, labels := range []string{"'ok','ok'", "'" + strings.Repeat("x", 64) + "'"} {
 		raw := statement(t, "CREATE TYPE public.failed AS ENUM ("+labels+")")
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err == nil {
-			err = typedef.StageCreateEnumLocked(ddlHost{e: e, op: op, stage: e.BeginCatalogStage(auth.Catalog)}, auth, raw.(*parser.CreateEnum))
+			err = typedef.StageCreateEnumLocked(DDLHost{E: e, Op: op, CatalogStage: e.BeginCatalogStage(auth.Catalog)}, auth, raw.(*parser.CreateEnum))
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || (diagnostic.Code != "23505" && diagnostic.Code != "42602") {
 			t.Fatal(err)
@@ -60,14 +60,14 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != previous {
 		t.Fatal("canceled publication", err)
 	}
-	e.mu.Lock()
-	reader := e.roles.Domain.Principal(e.roles.NextPrincipal())
-	e.roles.InstallPrincipalFrontierLocked(e.roles.NextPrincipal() + 1)
-	roles := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	reader := e.RoleStore.Domain.Principal(e.RoleStore.NextPrincipal())
+	e.RoleStore.InstallPrincipalFrontierLocked(e.RoleStore.NextPrincipal() + 1)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader"})
-	e.roles.PublishLocked(roles)
-	e.mu.Unlock()
+	e.RoleStore.PublishLocked(roles)
+	e.Mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.State.CurrentUser = reader
 	// Grant schema access through the authority fixture, without adding SQL GRANT.
@@ -82,10 +82,10 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	auth = catalogAuthorization(e, e.CatalogRead())
 	auth.State.CurrentUser = reader
 	dependent := statement(t, "CREATE DOMAIN public.consumer AS public.mood").(*parser.CreateDomain)
-	e.mu.Lock()
+	e.Mu.Lock()
 	consumer := e.BeginCatalogStage(auth.Catalog)
-	err = typedef.StageCreateDomainLocked(ddlHost{e: e, op: op, stage: consumer}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	err = typedef.StageCreateDomainLocked(DDLHost{E: e, Op: op, CatalogStage: consumer}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("PUBLIC USAGE did not admit distinct consumer", err)
 	}
@@ -103,10 +103,10 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	domainUnitPublish(t, e, revoke)
 	auth = catalogAuthorization(e, e.CatalogRead())
 	auth.State.CurrentUser = reader
-	e.mu.Lock()
+	e.Mu.Lock()
 	denied := e.BeginCatalogStage(auth.Catalog)
-	err = typedef.StageCreateDomainLocked(ddlHost{e: e, op: op, stage: denied}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	err = typedef.StageCreateDomainLocked(DDLHost{E: e, Op: op, CatalogStage: denied}, auth, dependent, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	e.Mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "permission denied for type mood")
 	if denied.DescriptorCount() != 0 {
 		t.Fatal("unauthorized dependent staged")

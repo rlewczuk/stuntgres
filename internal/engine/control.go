@@ -12,8 +12,8 @@ func (e *Engine) Reset(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	fresh := NewWithSettings(nil, e.databaseName, false)
-	if err := fresh.InstallForeignDefinitions(e.foreign.Definitions()); err != nil {
+	fresh := NewWithSettings(nil, e.DatabaseName, false)
+	if err := fresh.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
 		return err
 	}
 	_, err := e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
@@ -34,9 +34,9 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	capture, err := e.captureDumpLocked(ctx)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -54,6 +54,6 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	run := &restoreRun{stage: e.restoreStage()}
+	run := &restoreRun{stage: e.RestoreStage()}
 	return control.Restore(ctx, &restoreHost{target: e, run: run}, restoreHooks, run, src)
 }

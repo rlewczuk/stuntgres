@@ -19,7 +19,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(a INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(7)")
 	table := roleTableRef(t, e, "t")
-	store := e.storage.Relations[table.Address]
+	store := e.Storage.Relations[table.Address]
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "ALTER TABLE t ALTER a SET NOT NULL")
 	op := transactionOperation(t, s)
@@ -35,7 +35,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	s.Mu.Lock()
 	after := s.Authorization.Revision
 	s.Mu.Unlock()
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -54,8 +54,8 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	if !result.Committed {
 		t.Fatal("authorized metadata lost after actor mutation")
 	}
-	current := e.catalog.State.MustRelation(table.Address)
-	if current.Columns[0].Nullable || e.storage.Relations[table.Address] != store {
+	current := e.Catalog.State.MustRelation(table.Address)
+	if current.Columns[0].Nullable || e.Storage.Relations[table.Address] != store {
 		t.Fatal("metadata/storage publication changed")
 	}
 	op = transactionOperation(t, s)

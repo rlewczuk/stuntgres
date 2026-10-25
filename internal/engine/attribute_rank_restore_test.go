@@ -73,9 +73,9 @@ func TestAttributeRankRestoreSyntax(t *testing.T) {
 }
 
 func TestAttributeRankRestorePublication(t *testing.T) {
-	e := New().restoreStage()
+	e := New().RestoreStage()
 	base := e.CatalogRead()
-	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "rank_restore", ObjectRevision: 1, Owner: e.roles.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: testUsage(e, sqltype.ID(1007)), DeclaredDimensions: 2, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2, Dropped: map[int32]catalog.AttributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dimensions: 2, Dropped: true, Local: true, Facts: sqltype.PostgreSQLAttributeFacts{Length: -1, Alignment: "i", Storage: "x"}, Typmod: -1}}}, Index: map[string]int{"a": 0}}
+	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "rank_restore", ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: testUsage(e, sqltype.ID(1007)), DeclaredDimensions: 2, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2, Dropped: map[int32]catalog.AttributeMetadata{2: {Name: "........pg.dropped.2........", Number: 2, Dimensions: 2, Dropped: true, Local: true, Facts: sqltype.PostgreSQLAttributeFacts{Length: -1, Alignment: "i", Storage: "x"}, Typmod: -1}}}, Index: map[string]int{"a": 0}}
 	old.Columns = append(old.Columns, catalog.Column{Name: "scalar", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 3})
 	old.Attributes = append(old.Attributes, 3)
 	old.Index["scalar"] = 1
@@ -104,12 +104,12 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	ordinary := New()
 	foreign, closeForeign := roleOperation(t, ordinary, "postgres")
 	defer closeForeign()
-	beforeAuthority := e.catalog.State
-	if err := e.restoreAttributeRank(foreign, parse("a")); err == nil || e.catalog.State != beforeAuthority {
+	beforeAuthority := e.Catalog.State
+	if err := e.restoreAttributeRank(foreign, parse("a")); err == nil || e.Catalog.State != beforeAuthority {
 		t.Fatal("foreign operation admitted", err)
 	}
-	ordinaryState := ordinary.catalog.State
-	if err := ordinary.restoreAttributeRank(foreign, parse("a")); err == nil || ordinary.catalog.State != ordinaryState {
+	ordinaryState := ordinary.Catalog.State
+	if err := ordinary.restoreAttributeRank(foreign, parse("a")); err == nil || ordinary.Catalog.State != ordinaryState {
 		t.Fatal("ordinary engine admitted private repair", err)
 	}
 	if err := e.restoreAttributeRank(op, parse("a")); err != nil {
@@ -119,17 +119,17 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	if current.Columns[0].DeclaredDimensions != 3 || old.Columns[0].DeclaredDimensions != 2 || current.Revision() != old.Revision()+1 || current.Columns[0].Usage != old.Columns[0].Usage || current.Columns[0].Name != old.Columns[0].Name || len(current.ColumnMeta.Dropped) != 1 {
 		t.Fatal("rank repair changed authority or old root", old, current)
 	}
-	before := e.catalog.State
+	before := e.Catalog.State
 	for _, name := range []string{"b", "........pg.dropped.2........"} {
 		var diagnostic *sqlstate.Error
 		err := e.restoreAttributeRank(op, parse(name))
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.catalog.State != before {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.Catalog.State != before {
 			t.Fatal("missing/dropped repair published", name, err)
 		}
 	}
 	var diagnostic *sqlstate.Error
 	err = e.restoreAttributeRank(op, parse("scalar"))
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.catalog.State != before {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.Catalog.State != before {
 		t.Fatal("scalar rank repair published", err)
 	}
 }

@@ -68,9 +68,9 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 				for _, query := range []string{"CREATE TABLE p(a INT)", "CREATE TABLE c() INHERITS(p)", "CREATE UNIQUE INDEX original ON p(a)", "CREATE TABLE collision(x INT)", "INSERT INTO p VALUES(1)", "INSERT INTO c VALUES(2)"} {
 					ownershipUnitExec(t, e, query)
 				}
-				before := e.catalog.State
+				before := e.Catalog.State
 				parent, index := retiredUnitTable(t, e, "p"), retiredUnitTable(t, e, "original")
-				parentStore, indexRoot := e.storage.Relations[parent.Address()], e.storage.IndexRoots[index.Address()]
+				parentStore, indexRoot := e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[index.Address()]
 				waiter := sessionStart(t, e, nil)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -99,7 +99,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 					holder := sessionStart(t, e, nil)
 					tx := transactionBegin(t, holder)
 					ref := catalogRef(t, e, e.CatalogRead(), "c")
-					if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+					if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 						t.Fatal(err)
 					}
 					done := make(chan error, 1)
@@ -129,7 +129,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 						t.Fatal("provider notice/error ordering changed", notices, expected)
 					}
 				}
-				if e.catalog.State != before || e.storage.Relations[parent.Address()] != parentStore || e.storage.IndexRoots[index.Address()] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
+				if e.Catalog.State != before || e.Storage.Relations[parent.Address()] != parentStore || e.Storage.IndexRoots[index.Address()] != indexRoot || retiredUnitTable(t, e, "original") != index || retiredUnitTable(t, e, "p") != parent {
 					t.Fatal("failed/canceled prepared attachment published metadata or rows")
 				}
 				lockEmpty(t, e)

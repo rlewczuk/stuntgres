@@ -17,19 +17,19 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e := New()
 			s := sessionStart(t, e, nil)
-			before, frontier := e.catalog.State, e.visibility.CommitSeq()
-			original := e.catalog.Providers[ids.RelationClassID]
-			defer func() { e.catalog.Providers[ids.RelationClassID] = original }()
+			before, frontier := e.Catalog.State, e.Visibility.CommitSeq()
+			original := e.Catalog.Providers[ids.RelationClassID]
+			defer func() { e.Catalog.Providers[ids.RelationClassID] = original }()
 			calls := 0
-			e.catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate catalog.Read) {
+			e.Catalog.Providers[ids.RelationClassID] = alterSchemaCandidateProvider{original, func(candidate catalog.Read) {
 				calls++
-				if !e.mu.TryLock() {
+				if !e.Mu.TryLock() {
 					t.Error("catalog provider under Engine.mu")
 				} else {
-					if e.catalog.State != before || e.visibility.CommitSeq() != frontier {
+					if e.Catalog.State != before || e.Visibility.CommitSeq() != frontier {
 						t.Error("utility escaped before final publication")
 					}
-					e.mu.Unlock()
+					e.Mu.Unlock()
 				}
 				if !s.Mu.TryLock() {
 					t.Error("catalog provider under Session.mu")
@@ -61,9 +61,9 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			c := s.Transactions.Catalog
 			writes := s.Transactions.Writes
 			s.Transactions.Mu.Unlock()
-			e.mu.Lock()
-			private := e.privateCatalogLocked(c)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			private := e.PrivateCatalogLocked(c)
+			e.Mu.Unlock()
 			ns := private.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 			ct := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "ct"})
 			mv := private.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns, Name: "mv"})
@@ -83,7 +83,7 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 			if !absence {
 				t.Fatal("new-index committed source-absence fence omitted")
 			}
-			if e.catalog.State != before || e.visibility.CommitSeq() != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil {
+			if e.Catalog.State != before || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[ct] != nil || e.Storage.Relations[mv] != nil || e.Storage.Sequences[seq] != nil {
 				t.Fatal("initial data or generators published before end")
 			}
 			if commit {
@@ -99,18 +99,18 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 					t.Fatal(end)
 				}
 			}
-			e.catalog.Providers[ids.RelationClassID] = original
+			e.Catalog.Providers[ids.RelationClassID] = original
 			if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(5), int64(4)}}) {
 				t.Fatal("private initial rows and row-shape result", got)
 			}
 			if commit {
-				if e.visibility.CommitSeq() != frontier+1 || len(e.storage.Relations[ct].Versions) != 1 || len(e.storage.Relations[mv].Versions) != 1 || e.storage.Sequences[seq] == nil || len(e.storage.IndexRoots[idx].Entries) != 1 {
+				if e.Visibility.CommitSeq() != frontier+1 || len(e.Storage.Relations[ct].Versions) != 1 || len(e.Storage.Relations[mv].Versions) != 1 || e.Storage.Sequences[seq] == nil || len(e.Storage.IndexRoots[idx].Entries) != 1 {
 					t.Fatal("joint initial rows/shape/sequence/index installation")
 				}
 				transactionRows(t, s, "SELECT x FROM ct", 5)
 				transactionRows(t, s, "SELECT x FROM mv", 5)
 			} else {
-				if e.catalog.State != before || e.visibility.CommitSeq() != frontier || e.storage.Relations[ct] != nil || e.storage.Relations[mv] != nil || e.storage.Sequences[seq] != nil || e.storage.IndexRoots[idx] != nil {
+				if e.Catalog.State != before || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[ct] != nil || e.Storage.Relations[mv] != nil || e.Storage.Sequences[seq] != nil || e.Storage.IndexRoots[idx] != nil {
 					t.Fatal("initial table or provider result escaped rollback")
 				}
 			}

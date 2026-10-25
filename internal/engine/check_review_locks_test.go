@@ -32,7 +32,7 @@ func TestCheckReviewDependencyCreationGrant(t *testing.T) {
 				defer cancel()
 				waiting := lockAsync(e, b, ctx, create, false)
 				lockPending(t, e, 1)
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessShare && entry.Holders[a.Transactions.Ticket].Mode&lock.AccessExclusive != 0
 				if !queued {
@@ -73,7 +73,7 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	var once sync.Once
 	t.Cleanup(func() { once.Do(func() { close(release) }) })
 	var gated atomic.Bool
-	e.catalog.Providers[ids.RelationClassID] = alterDropProvider{e.catalog.Providers[ids.RelationClassID], func() {
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{e.Catalog.Providers[ids.RelationClassID], func() {
 		if gated.CompareAndSwap(false, true) {
 			close(entered)
 			<-release
@@ -87,7 +87,7 @@ func TestCheckReviewDependencyActualCreatePublicationHold(t *testing.T) {
 	}
 	dropping := lockAsync(e, b, context.Background(), "DROP SEQUENCE s CASCADE", false)
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	held := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.AccessExclusive
 	if held {

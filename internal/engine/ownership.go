@@ -15,24 +15,24 @@ import (
 
 func (e *Engine) ownershipStage(auth AuthorizationView, op *session.Operation) *CatalogStage {
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	return stage
 }
 func (e *Engine) publishOwnership(scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
-	if stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && stage.DefaultACLCount() == 0 && stage.roleCandidate == nil {
-		if err := e.validateOperation(scope.op); err != nil {
+	if stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && stage.DefaultACLCount() == 0 && stage.RoleCandidateRecord == nil {
+		if err := e.ValidateOperation(scope.Op); err != nil {
 			return Result{}, err
 		}
-		scope.completed = true
-		return Result{}, scope.op.Context().Err()
+		scope.Completed = true
+		return Result{}, scope.Op.Context().Err()
 	}
-	prepared, err := e.ValidateCatalogStage(scope.op.Context(), stage)
+	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return Result{}, err
 }
@@ -40,26 +40,26 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	if err := scope.validateLockedRelation(e); err != nil {
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	if err := scope.ValidateLockedRelation(e); err != nil {
 		return fail(err)
 	}
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return fail(err)
 	}
-	ref, err := e.resolveRelationReference(auth, name, true)
+	ref, err := e.ResolveRelationReference(auth, name, true)
 	if ifExists && table.RenameMissing(err) {
-		e.mu.Unlock()
-		scope.completed = true
-		scope.op.EmitNotice(session.LevelNotice, session.MissingRelation(name.Parts[len(name.Parts)-1].Text))
-		return Result{}, scope.op.Context().Err()
+		e.Mu.Unlock()
+		scope.Completed = true
+		scope.Op.EmitNotice(session.LevelNotice, session.MissingRelation(name.Parts[len(name.Parts)-1].Text))
+		return Result{}, scope.Op.Context().Err()
 	}
 	if err != nil {
 		return fail(err)
 	}
-	if ref != scope.lockedRef {
+	if ref != scope.LockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	old := auth.Catalog.MustRelation(ref.Address)
@@ -73,26 +73,26 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 		return fail(err)
 	}
 	if change.Object == nil {
-		e.mu.Unlock()
-		scope.completed = true
-		return Result{}, scope.op.Context().Err()
+		e.Mu.Unlock()
+		scope.Completed = true
+		return Result{}, scope.Op.Context().Err()
 	}
-	stage := e.ownershipStage(auth, scope.op)
+	stage := e.ownershipStage(auth, scope.Op)
 	err = role.StageOwnership(stage, old, change.Target)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil {
 		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{old.Address()}, nil) {
 			if a == old.Address() {
 				continue
 			}
-			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+			if err = scope.AcquireSequence(e.Catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	if err != nil {
 		e.DiscardCatalogStage(stage)
@@ -111,34 +111,34 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return fail(err)
 	}
-	change, err := role.PlanTypeOwnership(ddlHost{e: e, op: scope.op}, auth, s, name, identity)
+	change, err := role.PlanTypeOwnership(DDLHost{E: e, Op: scope.Op}, auth, s, name, identity)
 	if err != nil {
 		return fail(err)
 	}
 	if change.Object == nil {
-		e.mu.Unlock()
-		scope.completed = true
-		return Result{}, scope.op.Context().Err()
+		e.Mu.Unlock()
+		scope.Completed = true
+		return Result{}, scope.Op.Context().Err()
 	}
-	stage := e.ownershipStage(auth, scope.op)
+	stage := e.ownershipStage(auth, scope.Op)
 	err = role.StageOwnership(stage, change.Object, change.Target)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil {
 		for _, a := range access.OwnershipRelationLocks(stage.Base, []ids.ObjectAddress{change.Object.Address()}, nil) {
-			if err = scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+			if err = scope.AcquireSequence(e.Catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				break
 			}
 		}
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	if err != nil {
 		e.DiscardCatalogStage(stage)
@@ -150,9 +150,9 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
-	auth, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return fail(err)
 	}
@@ -161,20 +161,20 @@ func (e *Engine) executeDatabaseOwnership(scope *StatementScope, s *parser.Alter
 		return fail(err)
 	}
 	if change.Object == nil {
-		e.mu.Unlock()
-		scope.completed = true
-		return Result{}, scope.op.Context().Err()
+		e.Mu.Unlock()
+		scope.Completed = true
+		return Result{}, scope.Op.Context().Err()
 	}
-	stage := e.ownershipStage(auth, scope.op)
+	stage := e.ownershipStage(auth, scope.Op)
 	err = role.StageOwnership(stage, change.Object, change.Target)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	return e.publishOwnership(scope, stage)
 }

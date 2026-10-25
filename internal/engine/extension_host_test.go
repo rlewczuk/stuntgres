@@ -14,18 +14,18 @@ func TestExtensionHostRefusesDiscardedStage(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	host := &extensionHost{engine: e, stage: stage}
-	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "probe", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.Domain.Principal(10)}
+	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "probe", Version: "1.0", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.RoleStore.Domain.Principal(10)}
 	if host.Read().State() != before.State() {
 		t.Fatal("host does not read the stage base")
 	}
 	e.DiscardCatalogStage(stage)
-	e.mu.Lock()
+	e.Mu.Lock()
 	err := host.Create(ext)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("discarded stage accepted a descriptor")
 	}
-	if host.LookupName(catalog.DescriptorNameKey(ext)) != (ids.ObjectAddress{}) || e.catalog.State != before.State() {
+	if host.LookupName(catalog.DescriptorNameKey(ext)) != (ids.ObjectAddress{}) || e.Catalog.State != before.State() {
 		t.Fatal("refused descriptor reached the stage or the published catalog")
 	}
 }
@@ -39,9 +39,9 @@ func TestExtensionHostBeginStageHandsBackRootStage(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestExtensionHostBeginStageHandsBackRootStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if stage.Base.State() != auth.Catalog.State() || stage.extensionNamespace != namespace || stage.authSession != op.Session || stage.roleRevision != auth.RoleRecord.Revision {
+	if stage.Base.State() != auth.Catalog.State() || stage.ExtensionNamespace != namespace || stage.AuthSession != op.Session || stage.RoleRevision != auth.RoleRecord.Revision {
 		t.Fatal("begun stage does not carry the statement's catalog, authority and namespace")
 	}
 }

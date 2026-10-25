@@ -19,7 +19,7 @@ func TestIsnManifestRoles(t *testing.T) {
 		changed := *ext; changed.Members = append([]ids.ObjectAddress(nil), ext.Members...)
 		changed.Members[slots[0]], changed.Members[slots[1]] = changed.Members[slots[1]], changed.Members[slots[0]]
 		candidate.SetDescriptor(changed.Address(), &changed)
-		if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), &changed); err == nil { t.Fatal("swapped manifest roles accepted", slots) }
+		if err := extension.StockIsn.ValidateExtension(e.Catalog.Read(candidate), &changed); err == nil { t.Fatal("swapped manifest roles accepted", slots) }
 	}
 	for slot := range len(ext.Members) {
 		for _, missing := range []bool{false, true} {
@@ -32,7 +32,7 @@ func TestIsnManifestRoles(t *testing.T) {
 				changed.Members[slot] = changed.Members[(slot+1)%len(changed.Members)]
 			}
 			candidate.SetDescriptor(changed.Address(), &changed)
-			if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), &changed); err == nil {
+			if err := extension.StockIsn.ValidateExtension(e.Catalog.Read(candidate), &changed); err == nil {
 				t.Fatal("missing or duplicate manifest role accepted", slot, missing)
 			}
 		}
@@ -52,7 +52,7 @@ func TestIsnManifestRoles(t *testing.T) {
 		array := *candidate.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)})
 		array.SQLType = sqltype.LookupArray(array.SQLType.ID(), array.Name(), other.SQLType)
 		candidate.SetDescriptor(array.Address(), &array)
-		if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), ext); err == nil { t.Fatal("cross-family companion accepted") }
+		if err := extension.StockIsn.ValidateExtension(e.Catalog.Read(candidate), ext); err == nil { t.Fatal("cross-family companion accepted") }
 		for _, offset := range []int{1,2} {
 			codec := before.MustProcedure(ext.Members[slot+offset])
 			source := [...]string{"", "ean13_in", "ean13_out"}[offset]
@@ -68,7 +68,7 @@ func TestIsnManifestRoles(t *testing.T) {
 			proc := *candidate.MustProcedure(ext.Members[slot+offset])
 			proc.Display.Source = "foreign_symbol"
 			candidate.SetDescriptor(proc.Address(), &proc)
-			if err := extension.StockIsn.ValidateExtension(e.catalog.Read(candidate), ext); err == nil { t.Fatal("forged codec declaration accepted") }
+			if err := extension.StockIsn.ValidateExtension(e.Catalog.Read(candidate), ext); err == nil { t.Fatal("forged codec declaration accepted") }
 		}
 	}
 	if e.CatalogRead().State() != before.State() { t.Fatal("rejected role mutations changed catalog") }

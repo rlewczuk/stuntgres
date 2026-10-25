@@ -27,15 +27,15 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				sessionSQL(t, b, "INSERT INTO t VALUES(7)")
 				waiter := b.Transactions.Ticket
 				target := catalogRef(t, e, e.CatalogRead(), "t")
-				e.mu.Lock()
-				row := e.storage.Relations[target.Address].Versions[0].Row
-				e.mu.Unlock()
+				e.Mu.Lock()
+				row := e.Storage.Relations[target.Address].Versions[0].Row
+				e.Mu.Unlock()
 				resource := lock.Resource{ObjectRef: target, Row: row}
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				done := deleteAsync(t, b, ctx, "DELETE FROM t WHERE v<=2")
 				lockPending(t, e, 1)
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[resource]
 				var request *lock.Waiter
 				if entry != nil && len(entry.Pending) == 1 {
@@ -48,7 +48,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				// Finish compatible COMMENT before releasing the row holder.
 				// The pending request, not a start channel, proves this interleaving.
 				deleteAwait(t, deleteAsync(t, c, ctx, tc.comment), 0, nil)
-				lockState = e.locks.Inspect()
+				lockState = e.Locks.Inspect()
 				entry = lockState.Resources[resource]
 				stillQueued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Request == request.Request && !entry.Pending[0].Terminal
 				if !stillQueued {
@@ -99,11 +99,11 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 			ar := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(7)")
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
-			e.mu.Lock()
-			beforeDescriptor := e.catalog.State.Get(ref.Address)
-			beforeStorage := e.storage.Relations[ref.Address]
-			beforeEpoch := e.catalog.State.Epoch()
-			e.mu.Unlock()
+			e.Mu.Lock()
+			beforeDescriptor := e.Catalog.State.Get(ref.Address)
+			beforeStorage := e.Storage.Relations[ref.Address]
+			beforeEpoch := e.Catalog.State.Epoch()
+			e.Mu.Unlock()
 			aclRef := ref
 			if column {
 				aclRef.Address.SubID = 1
@@ -112,9 +112,9 @@ func TestDeleteCoreMetadataACLPublication(t *testing.T) {
 			if err := e.SetObjectACL(context.Background(), aclRef, acl); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			metadataOnly := e.catalog.State.Get(ref.Address) != beforeDescriptor && e.storage.Relations[ref.Address] == beforeStorage && e.catalog.State.Epoch() == beforeEpoch
-			e.mu.Unlock()
+			e.Mu.Lock()
+			metadataOnly := e.Catalog.State.Get(ref.Address) != beforeDescriptor && e.Storage.Relations[ref.Address] == beforeStorage && e.Catalog.State.Epoch() == beforeEpoch
+			e.Mu.Unlock()
 			if !metadataOnly {
 				t.Fatal("fixture did not publish metadata-only ACL descriptor replacement")
 			}

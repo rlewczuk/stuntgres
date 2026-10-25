@@ -23,25 +23,25 @@ func vacuumProgressCapture(t *testing.T, e *Engine, observer *session.Session) [
 			t.Error(err)
 		}
 	}()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ProgressVacuumOID}
 	source, ok := auth.Catalog.Relation(address)
 	if !ok {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal("unregistered real progress descriptor")
 	}
 	producer, ok := pgcatalog.ProducerFor(address.ObjectID)
 	if !ok {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal("unregistered progress producer")
 	}
-	rows, err := producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: engineCatalogRuntime{engine: e, auth: auth}})
-	e.mu.Unlock()
+	rows, err := producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.Catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: EngineCatalogRuntime{engine: e, Auth: auth}})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

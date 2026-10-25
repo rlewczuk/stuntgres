@@ -6,9 +6,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// disclosureEnv is auth as the environment of index validation: nil for a
+// DisclosureEnv is auth as the environment of index validation: nil for a
 // nil view or one the engine did not build, both of which are trusted publication.
-func disclosureEnv(auth *AuthorizationView) index.DisclosureEnv {
+func DisclosureEnv(auth *AuthorizationView) index.DisclosureEnv {
 	if auth == nil || !auth.live() {
 		return nil
 	}
@@ -19,5 +19,5 @@ func disclosureEnv(auth *AuthorizationView) index.DisclosureEnv {
 func (v *AuthorizationView) TypeDiagnosticNames(view access.View) (func(sqltype.ID) string, error) {
 	named := *v
 	named.View = view
-	return captureTypeDiagnosticName(named)
+	return CaptureTypeDiagnosticName(named)
 }

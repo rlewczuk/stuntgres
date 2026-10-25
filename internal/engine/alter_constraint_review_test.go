@@ -19,11 +19,11 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	sessionSQL(t, s, "ALTER TABLE t DROP z")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,1)")
 	old := alterConstraintDescriptor(t, e, "t")
-	before, store := e.catalog.State, e.storage.Relations[old.Address()]
+	before, store := e.Catalog.State, e.Storage.Relations[old.Address()]
 	backing := old.Constraints.Unique[0].Index
-	root := e.storage.IndexRoots[backing]
+	root := e.Storage.IndexRoots[backing]
 	op := alterConstraintOperation(t, s)
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,9 +64,9 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if added.Name != "t_a_key" || added.Index == backing || added.OID == old.Constraints.Unique[0].OID || stage.LookupName(key) != added.Index || !touched || observed != backing {
 		t.Fatal("effective generated name or replacement identity/fences lost", added)
 	}
-	e.mu.Lock()
-	err = e.evolveStageIndexesLocked(stage, old.Address(), nil)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.EvolveStageIndexesLocked(stage, old.Address(), nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.State != before || e.storage.Relations[old.Address()] != store || e.storage.IndexRoots[backing] != root || before.NameAddress(key) != backing || len(old.Constraints.Unique) != 1 {
+	if e.Catalog.State != before || e.Storage.Relations[old.Address()] != store || e.Storage.IndexRoots[backing] != root || before.NameAddress(key) != backing || len(old.Constraints.Unique) != 1 {
 		t.Fatal("private retirement/replacement changed live catalog or physical root")
 	}
 }
@@ -90,7 +90,7 @@ func TestAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, s, "ALTER TABLE t ADD CONSTRAINT nn NOT NULL a NOT VALID")
 	old := alterConstraintDescriptor(t, e, "t")
-	before, store := e.catalog.State, e.storage.Relations[old.Address()]
+	before, store := e.Catalog.State, e.Storage.Relations[old.Address()]
 	for _, query := range []string{
 		"ALTER TABLE t ALTER a SET NOT NULL,ADD PRIMARY KEY(a)",
 		"ALTER TABLE t ADD PRIMARY KEY(a),DROP CONSTRAINT nn",
@@ -113,7 +113,7 @@ func TestAlterAddConstraintPrimaryPrerequisite(t *testing.T) {
 	if err := table.VerifyAlterPrimaryPrerequisites(old, raw[0].(*parser.AlterTable).Actions); err != nil {
 		t.Fatal("new key was prematurely bound against original shape", err)
 	}
-	if e.catalog.State != before || e.storage.Relations[old.Address()] != store || alterConstraintDescriptor(t, e, "t") != old || !old.Constraints.NotNull[0].NotValid || len(old.Constraints.Unique) != 0 {
+	if e.Catalog.State != before || e.Storage.Relations[old.Address()] != store || alterConstraintDescriptor(t, e, "t") != old || !old.Constraints.NotNull[0].NotValid || len(old.Constraints.Unique) != 0 {
 		t.Fatal("preliminary admission changed immutable original catalog/storage")
 	}
 }
@@ -132,11 +132,11 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,1)")
 			sessionSQL(t, s, "INSERT INTO c VALUES(1)")
 			old, child := alterConstraintDescriptor(t, e, "t"), alterConstraintDescriptor(t, e, "c")
-			before, parentStore, childStore := e.catalog.State, e.storage.Relations[old.Address()], e.storage.Relations[child.Address()]
+			before, parentStore, childStore := e.Catalog.State, e.Storage.Relations[old.Address()], e.Storage.Relations[child.Address()]
 			ua, ub := old.Constraints.Unique[0].Index, old.Constraints.Unique[1].Index
-			uaRoot, ubRoot := e.storage.IndexRoots[ua], e.storage.IndexRoots[ub]
+			uaRoot, ubRoot := e.Storage.IndexRoots[ua], e.Storage.IndexRoots[ub]
 			op := alterConstraintOperation(t, s)
-			auth, err := operationAuthorization(op)
+			auth, err := OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,7 +155,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			}
 			// StartStatement serializes admission but does not attach a transaction
 			// incarnation/ticket. Real dependency-owner locks require the SQL gate.
-			if err := scope.gate(raw[0]); err != nil {
+			if err := scope.Gate(raw[0]); err != nil {
 				t.Fatal(err)
 			}
 			actions := raw[0].(*parser.AlterTable).Actions
@@ -197,7 +197,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			if !removedA || !removedB || removalA.Ref.Address != ua || removalB.Ref.Address != ub {
 				t.Fatal("actual selected backing retirement missing")
 			}
-			if e.catalog.State != before || e.storage.Relations[old.Address()] != parentStore || e.storage.Relations[child.Address()] != childStore || e.storage.IndexRoots[ua] != uaRoot || e.storage.IndexRoots[ub] != ubRoot || len(child.Constraints.ForeignKeys) != 1 {
+			if e.Catalog.State != before || e.Storage.Relations[old.Address()] != parentStore || e.Storage.Relations[child.Address()] != childStore || e.Storage.IndexRoots[ua] != uaRoot || e.Storage.IndexRoots[ub] != ubRoot || len(child.Constraints.ForeignKeys) != 1 {
 				t.Fatal("private mixed-mode traversal changed live catalog/storage/roots")
 			}
 		})

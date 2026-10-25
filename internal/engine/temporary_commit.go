@@ -15,14 +15,14 @@ import (
 // Prepare descriptor-owned actions only at an outer successful commit. The
 // transaction/savepoint roots remain untouched until the ordinary final install.
 func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes, *session.Journal, error) {
-	e.mu.Lock()
-	if ref.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if ref.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return nil, nil, nil, ids.ErrCatalogReplaced
 	}
-	base := e.privateCatalogLocked(c)
+	base := e.PrivateCatalogLocked(c)
 	if c == nil && op.Session.TemporaryNamespace == (ids.ObjectAddress{}) {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return writes, deletes, c, nil
 	}
 	var cleared, dropped []ids.ObjectAddress
@@ -39,13 +39,13 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 			dropped = append(dropped, a)
 			continue
 		}
-		store := e.privateStorageLocked(c, a)
+		store := e.PrivateStorageLocked(c, a)
 		if store != nil && (len(store.Versions) != 0 || len(writes[a]) != 0 || deletes[a] != nil) {
 			cleared = append(cleared, a)
 		}
 	}
 	if len(cleared) == 0 && len(dropped) == 0 {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return writes, deletes, c, nil
 	}
 	next := c.Clone()
@@ -53,7 +53,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 	for _, a := range cleared {
 		shape, exists := next.Storage[a]
 		if !exists {
-			store := e.storage.Relations[a]
+			store := e.Storage.Relations[a]
 			shape = session.StorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
 		}
 		shape.Replacement = &storage.Relation{}
@@ -64,7 +64,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 		delete(nextWrites, a)
 		delete(nextDeletes, a)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	for _, address := range cleared {
 		if err := index.TransportEmptyIndexStorage(op.Context(), base, next, nil, address, next.Storage[address].Replacement); err != nil {
 			return nil, nil, nil, err
@@ -97,25 +97,25 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 			return nil
 		}
 		for _, a := range dropped {
-			if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), a)); err != nil {
+			if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), a)); err != nil {
 				return nil, nil, nil, err
 			}
 		}
-		if err := stageExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project, ids.ObjectAddress{}); err != nil {
+		if err := StageExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project, ids.ObjectAddress{}); err != nil {
 			return nil, nil, nil, err
 		}
 		if err := stageOwnedExpressionDependencies(op.Context(), stage, dropped, parser.DropCascade, nil, next, project); err != nil {
 			return nil, nil, nil, err
 		}
-		e.mu.Lock()
-		err := e.evolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
+		e.Mu.Lock()
+		err := e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 		if err == nil {
 			for a := range stage.Descriptors() {
 				original, observed := next.Originals[a]
 				if !observed {
 					original = base.Get(a)
 				}
-				if e.catalog.State.Get(a) != original {
+				if e.Catalog.State.Get(a) != original {
 					err = catalog.Conflict{}
 					break
 				}
@@ -125,7 +125,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 				if !observed {
 					original = base.Get(a)
 				}
-				if e.catalog.State.Get(a) != original {
+				if e.Catalog.State.Get(a) != original {
 					err = catalog.Conflict{}
 					break
 				}
@@ -138,7 +138,7 @@ func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, wr
 				delete(nextDeletes, a)
 			}
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return nil, nil, nil, err
 		}

@@ -20,20 +20,20 @@ import (
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
 func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *catalog.Relation {
-	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: catalog.TableRelation, Index: map[string]int{}}
+	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: catalog.TableRelation, Index: map[string]int{}}
 	if len(parents) != 0 {
 		table.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parents...), Columns: map[int32]catalog.InheritedColumn{}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
 	}
 	return table
 }
 func inheritanceLifecycleInstall(e *Engine, tables ...*catalog.Relation) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.catalog.PublishLocked(catalog.CloneState(e.catalog.State))
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
 	for _, table := range tables {
-		e.catalog.State.SetDescriptor(table.Address(), table)
-		e.catalog.State.BindName(catalog.DescriptorNameKey(table), table.Address())
-		e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
+		e.Catalog.State.SetDescriptor(table.Address(), table)
+		e.Catalog.State.BindName(catalog.DescriptorNameKey(table), table.Address())
+		e.Storage.InstallRelationLocked(table.Address(), &storage.Relation{})
 	}
 }
 
@@ -49,10 +49,10 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), p.Address())); err != nil {
+	if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), p.Address())); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{p.Address()})
+	edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{p.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 	if !reflect.DeepEqual(addresses, []ids.ObjectAddress{left.Address(), leaf.Address(), right.Address()}) {
 		t.Fatal(addresses)
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
+	if err = StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
 		t.Fatal("RESTRICT accepted descendants")
 	} else {
 		var d *sqlstate.Error
@@ -71,10 +71,10 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if stage.RemovalCount() != 1 || e.catalog.State != base.State() {
+	if stage.RemovalCount() != 1 || e.Catalog.State != base.State() {
 		t.Fatal("RESTRICT changed catalog/closure")
 	}
-	if err = stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err = StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	for _, table := range []*catalog.Relation{p, left, right, leaf} {
@@ -87,7 +87,7 @@ func TestInheritanceGraphLifecycleDiamond(t *testing.T) {
 			t.Fatal("unrelated parent/sibling removed", table.Name())
 		}
 	}
-	if e.catalog.State != base.State() || leaf.Inheritance.Parents[2].Relation != other.Address() {
+	if e.Catalog.State != base.State() || leaf.Inheritance.Parents[2].Relation != other.Address() {
 		t.Fatal("source graph mutated")
 	}
 }
@@ -101,19 +101,19 @@ func TestInheritanceGraphLifecycleGroupAndCancel(t *testing.T) {
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	for _, table := range []*catalog.Relation{p, c} {
-		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), table.Address())); err != nil {
+		if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), table.Address())); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address(), c.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{p.Address(), c.Address()}, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := domainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.Address()}); !errors.Is(err, context.Canceled) {
+	if _, err := DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{p.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.State != base.State() || stage.RemovalCount() != 2 {
+	if e.Catalog.State != base.State() || stage.RemovalCount() != 2 {
 		t.Fatal("cancel published changes")
 	}
 }
@@ -124,7 +124,7 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	leaf := inheritanceLifecycleTable(e, 20002, "leaf", c.Address())
 	inheritanceLifecycleInstall(e, p, c, leaf)
-	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,11 +166,11 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				Columns: map[int32]catalog.InheritedColumn{1: {Origins: []catalog.InheritanceOrigin{{Parent: parent.Address(), Attribute: 1}}}},
 				Checks:  map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{},
 			}
-			e.mu.Lock()
-			e.catalogChangeLocked(changes, child.Address(), &child)
+			e.Mu.Lock()
+			e.CatalogChangeLocked(changes, child.Address(), &child)
 			childStore := &storage.Relation{}
 			changes.Storage[child.Address()] = session.StorageChange{Replacement: childStore, Relation: &child}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			one, err := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
 			if err != nil {
 				t.Fatal(err)
@@ -183,11 +183,11 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				parent.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{one}}},
 				child.Address():  {{Row: 2, Version: 2, Values: []sqltype.Value{two}}},
 			}
-			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.catalog.State.Epoch(), nil, 0), writes, nil, changes)
+			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, changes)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(writes[parent.Address()]) != 1 || len(writes[child.Address()]) != 1 || changes.Descriptors[parent.Address()] != parent || changes.Descriptors[child.Address()] != &child || e.catalog.State.Get(child.Address()) != nil {
+			if len(writes[parent.Address()]) != 1 || len(writes[child.Address()]) != 1 || changes.Descriptors[parent.Address()] != parent || changes.Descriptors[child.Address()] != &child || e.Catalog.State.Get(child.Address()) != nil {
 				t.Fatal("commit preparation changed prior private/global roots")
 			}
 			if len(nextWrites[parent.Address()]) != 0 {

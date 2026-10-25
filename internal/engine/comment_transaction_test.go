@@ -24,24 +24,24 @@ func TestCommentRoleInstallerDisposition(t *testing.T) {
 				s.Transactions.RetainedMessage = true
 				defer func() { s.Transactions.RetainedMessage = false }()
 			}
-			e.mu.Lock()
-			defer e.mu.Unlock()
-			base := e.roles.Published
+			e.Mu.Lock()
+			defer e.Mu.Unlock()
+			base := e.RoleStore.Published
 			next := &access.RoleRecord{Revision: base.Revision + 1, Root: base.Root}
 			e.installOperationRolesLocked(op, next)
 			if mode == "autocommit" {
-				if e.roles.Published != next || s.Transactions.Catalog != nil && s.Transactions.Catalog.Roles != nil {
+				if e.RoleStore.Published != next || s.Transactions.Catalog != nil && s.Transactions.Catalog.Roles != nil {
 					t.Fatal("autocommit did not publish exactly once")
 				}
 				return
 			}
-			if e.roles.Published != base || s.Transactions.Catalog == nil || s.Transactions.Catalog.Roles != next || s.Transactions.Catalog.RolesBase != base {
+			if e.RoleStore.Published != base || s.Transactions.Catalog == nil || s.Transactions.Catalog.Roles != next || s.Transactions.Catalog.RolesBase != base {
 				t.Fatal("private role installer leaked committed root or lost baseline")
 			}
 			retained := s.Transactions.Catalog
 			last := &access.RoleRecord{Revision: next.Revision + 1, Root: next.Root}
 			e.installOperationRolesLocked(op, last)
-			if e.roles.Published != base || retained.Roles != next || retained.RolesBase != base || s.Transactions.Catalog == retained || s.Transactions.Catalog.Roles != last || s.Transactions.Catalog.RolesBase != base {
+			if e.RoleStore.Published != base || retained.Roles != next || retained.RolesBase != base || s.Transactions.Catalog == retained || s.Transactions.Catalog.Roles != last || s.Transactions.Catalog.RolesBase != base {
 				t.Fatal("installer mutated retained journal or recaptured baseline")
 			}
 		})
@@ -58,7 +58,7 @@ func TestCommentRoleFailedFinish(t *testing.T) {
 			ref := transactionBegin(t, s)
 			sessionSQL(t, s, "COMMENT ON ROLE comment_finish_role IS 'earlier'")
 			sessionSQL(t, s, "SAVEPOINT earlier")
-			base := e.roles.Published
+			base := e.RoleStore.Published
 			before := s.Transactions.Catalog
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -91,7 +91,7 @@ func TestCommentRoleFailedFinish(t *testing.T) {
 				t.Fatal("lost/idempotent Finish error", finishErr)
 			}
 			op.Done()
-			if e.roles.Published != base || s.TransactionState() != session.TxAborted {
+			if e.RoleStore.Published != base || s.TransactionState() != session.TxAborted {
 				t.Fatal("failed completion leaked shared root or did not abort")
 			}
 			sessionSQL(t, s, "ROLLBACK TO earlier")

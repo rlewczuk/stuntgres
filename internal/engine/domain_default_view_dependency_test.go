@@ -29,7 +29,7 @@ func TestDomainDefaultViewSQLDependenciesInternal(t *testing.T) {
 	domain := domainUnitType(t, catalogView, "dd_view_domain")
 	stage := e.BeginCatalogStage(catalogView)
 	defer e.DiscardCatalogStage(stage)
-	provider := stageDropProvider(op.Context(), stage, nil, nil, nil)
+	provider := StageDropProvider(op.Context(), stage, nil, nil, nil)
 	for _, tc := range []struct {
 		name    string
 		passive bool
@@ -78,13 +78,13 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	}
 	defer scope.Finish(context.Canceled)
 	raw := statement(t, "ALTER TABLE public.dd_projection_source DROP COLUMN b CASCADE").(*parser.AlterTable)
-	if err := scope.gate(raw); err != nil {
+	if err := scope.Gate(raw); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.acquireSequence(sourceRef, lock.AccessExclusive, true); err != nil {
+	if err := scope.AcquireSequence(sourceRef, lock.AccessExclusive, true); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

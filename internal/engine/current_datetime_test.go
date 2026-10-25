@@ -114,7 +114,7 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	finish := func(scope *StatementScope, err error) {
 		t.Helper()
 		err = scope.Finish(err)
-		scope.op.Done()
+		scope.Op.Done()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -130,10 +130,10 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 		}
 	}
 	implicit := scopeFor()
-	if err := implicit.gate(&parser.Select{}); err != nil {
+	if err := implicit.Gate(&parser.Select{}); err != nil {
 		finish(implicit, err)
 	}
-	first := implicit.input.TransactionStart
+	first := implicit.Input.TransactionStart
 	assertClock(first)
 	finish(implicit, nil)
 	if !session.Transactions.Start.IsZero() {

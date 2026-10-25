@@ -17,9 +17,9 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		e := New()
 		run(t, e, "CREATE TABLE t(v INT)")
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		e.mu.Lock()
-		relation := e.catalog.State.MustRelation(ref.Address)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		relation := e.Catalog.State.MustRelation(ref.Address)
+		e.Mu.Unlock()
 		usage := relation.Columns[0].Usage
 		typ := usage.Type
 		calls := make([]int, count)

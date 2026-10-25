@@ -22,30 +22,30 @@ import (
 var _ dml.FinishHost = (*statementHost)(nil)
 
 func (h *statementHost) Staged() (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes) {
-	return h.stage.rows, h.stage.deletes
+	return h.Stage.Rows, h.Stage.Deletes
 }
 
 // foreignKeyChanges is the transaction catalog FK capture reads: the
 // statement's own during DDL, the owner's otherwise.
 func (s *StatementScope) foreignKeyChanges() *session.Journal {
-	if s.catalog != nil {
-		return s.catalog
+	if s.Catalog != nil {
+		return s.Catalog
 	}
-	return s.owner.Catalog
+	return s.Owner.Catalog
 }
 
 func (h *statementHost) ForeignKeyJobs() ([]dml.ForeignKeyJob, map[ids.ObjectRef]lock.Mode, dml.Authority, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	auth.Catalog = e.privateCatalogLocked(s.foreignKeyChanges())
+	auth.Catalog = e.PrivateCatalogLocked(s.foreignKeyChanges())
 	auth.Recapture(auth.Catalog)
-	rows, deletes := s.stage.rows, s.stage.deletes
+	rows, deletes := s.Stage.Rows, s.Stage.Deletes
 	if s.effectCommand != 0 {
 		rows = nil
 		deletes = nil
@@ -75,31 +75,31 @@ func (h *statementHost) ForeignKeyJobs() ([]dml.ForeignKeyJob, map[ids.ObjectRef
 
 func (h *statementHost) RecaptureAuthority(a dml.Authority) dml.Authority {
 	s := h.scope()
-	e := s.engine()
+	e := s.Engine()
 	auth := *foreignAuthorizationOf(a)
-	e.mu.Lock()
-	auth.Catalog = e.privateCatalogLocked(s.foreignKeyChanges())
+	e.Mu.Lock()
+	auth.Catalog = e.PrivateCatalogLocked(s.foreignKeyChanges())
 	auth.Recapture(auth.Catalog)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return &auth
 }
 
 func (h *statementHost) ForeignKeyAuthority() (dml.Authority, error) {
 	s := h.scope()
-	auth, err := operationAuthorization(s.op)
+	auth, err := OperationAuthorization(s.Op)
 	if err != nil {
 		return nil, err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth.Catalog = e.privateCatalogLocked(s.foreignKeyChanges())
+	e := s.Engine()
+	e.Mu.Lock()
+	auth.Catalog = e.PrivateCatalogLocked(s.foreignKeyChanges())
 	auth.Recapture(auth.Catalog)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	return &auth, nil
 }
 
 func (h *statementHost) ForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress) (table.ForeignKeyRows, error) {
-	return h.scope().captureForeignKeyRows(ref, idx)
+	return h.scope().CaptureForeignKeyRows(ref, idx)
 }
 
 // RetainedForeignKeyRows borrows both images under stable isolation: current
@@ -108,17 +108,17 @@ func (h *statementHost) ForeignKeyRows(ref ids.ObjectRef, idx ids.ObjectAddress)
 // values.
 func (h *statementHost) RetainedForeignKeyRows(ref ids.ObjectRef, current table.ForeignKeyRows) (table.ForeignKeyRows, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	var retained table.ForeignKeyRows
-	if s.owner.Isolation.Stable() && s.owner.SnapshotSet {
-		if root, exists := s.owner.Roots[ref.Address]; exists {
+	if s.Owner.Isolation.Stable() && s.Owner.SnapshotSet {
+		if root, exists := s.Owner.Roots[ref.Address]; exists {
 			if root.Storage != current.Storage {
 				return table.ForeignKeyRows{}, ids.ErrCatalogReplaced
 			}
 			retained = current
-			retained.Committed, retained.Ends, retained.Frontier = root.Versions, root.Ends, s.owner.Frontier
+			retained.Committed, retained.Ends, retained.Frontier = root.Versions, root.Ends, s.Owner.Frontier
 		}
 	}
 	return retained, nil
@@ -129,15 +129,15 @@ func (h *statementHost) RefreshForeignKeyRows(ref ids.ObjectRef, rows *table.For
 }
 
 func (h *statementHost) GrantForeignKey(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error {
-	return h.scope().foreignKeyGrant(ref, row, mode, stored)
+	return h.scope().ForeignKeyGrant(ref, row, mode, stored)
 }
 
 func (h *statementHost) RefreshForeignActionJob(job *dml.ForeignKeyJob) error {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return dml.RefreshForeignActionJob(e.privateCatalogLocked(s.owner.Catalog), job)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return dml.RefreshForeignActionJob(e.PrivateCatalogLocked(s.Owner.Catalog), job)
 }
 
 func (h *statementHost) AdmitForeignAction(ref ids.ObjectRef, job *dml.ForeignKeyJob, writable bool) error {
@@ -149,7 +149,7 @@ func (h *statementHost) ForeignActionRow(ref ids.ObjectRef, candidate storage.Ro
 }
 
 func (h *statementHost) DeleteForeignAction(ref ids.ObjectRef, old storage.RowVersion) error {
-	return h.stage.deleteForeignAction(ref, old)
+	return h.Stage.deleteForeignAction(ref, old)
 }
 
 // PlanForeignActionInput reads the statement's input environment, captures
@@ -158,13 +158,13 @@ func (h *statementHost) DeleteForeignAction(ref ids.ObjectRef, old storage.RowVe
 // and admits them. It works on a copy of a, as the plan always has.
 func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.ForeignKeyJob, plan *dml.ForeignActionPlan, action parser.ForeignKeyAction) error {
 	s := h.scope()
-	e := s.engine()
+	e := s.Engine()
 	auth := *foreignAuthorizationOf(a)
-	plan.Input = s.input
+	plan.Input = s.Input
 	if plan.DomainChecks {
-		e.mu.Lock()
-		name, err := captureTypeDiagnosticName(auth)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		name, err := CaptureTypeDiagnosticName(auth)
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
@@ -173,9 +173,9 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 	if action != parser.ForeignKeySetDefault {
 		return nil
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: auth.Catalog, Input: plan.Input, Output: s.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	b := analyze.Binding{Relation: job.Child}
-	analyze.BindInsertDefaults(&e.catalog.Owner, &b, auth.Catalog, parser.OverrideNone)
+	analyze.BindInsertDefaults(&e.Catalog.Owner, &b, auth.Catalog, parser.OverrideNone)
 	plan.Defaults = make([]expr.Expr, len(plan.Targets))
 	plan.DefaultOrigins = make([]analyze.DefaultOrigin, len(plan.Targets))
 	for i, slot := range plan.Targets {
@@ -186,10 +186,10 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 	}
 	// Retained defaults can themselves cast to a checked domain even when
 	// the action destination is an ordinary base type.
-	binder := analyze.Binder{Host: e.analysisHost(s.op), Ctx: s.op.Context(), Input: plan.Input, Query: analyze.QueryScopeState{Auth: &auth}}
-	e.mu.Lock()
+	binder := analyze.Binder{Host: e.AnalysisHost(s.Op), Ctx: s.Op.Context(), Input: plan.Input, Query: analyze.QueryScopeState{Auth: &auth}}
+	e.Mu.Lock()
 	err := binder.CaptureRetainedWriteInput(plan.Defaults, nil, nil)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -211,10 +211,10 @@ func (h *statementHost) PlanForeignActionInput(a dml.Authority, job *dml.Foreign
 }
 
 func (h *statementHost) SwapForeignActionAuthority(next dml.Authority) dml.Authority {
-	previous := h.foreignActionAuth
-	h.foreignActionAuth = nil
+	previous := h.ForeignActionAuth
+	h.ForeignActionAuth = nil
 	if next != nil {
-		h.foreignActionAuth = foreignAuthorizationOf(next)
+		h.ForeignActionAuth = foreignAuthorizationOf(next)
 	}
 	if previous == nil {
 		return nil

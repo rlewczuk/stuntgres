@@ -23,7 +23,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	value := aclUnitValue(t, e, "acl_render_a=r*/acl_render_b")
 	view := e.CatalogRead()
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
-	captured := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
+	captured := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles()}
 	text, err := (stored.ScalarRenderer{ACLOutput: captured}).SQL(context.Background(), view, literal)
 	if err != nil || text != "CAST('acl_render_a=r*/acl_render_b' AS ACLITEM)" {
 		t.Fatal("explicit construction authority", text, err)
@@ -61,11 +61,11 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 		t.Fatal("live CHECK provider validation", err)
 	}
 	role, _ := e.Roles().Lookup("acl_render_a")
-	e.mu.Lock()
-	next := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	next := cloneRoleFixture(e.RoleStore.Published)
 	retireFixtureRole(next, role.Ref)
-	e.roles.PublishLocked(next)
-	e.mu.Unlock()
+	e.RoleStore.PublishLocked(next)
+	e.Mu.Unlock()
 	if err := table.ValidateChecks(view, relation, make(map[string]bool)); err != nil {
 		t.Fatal("DROP invalidated stored CHECK datum", err)
 	}
@@ -73,13 +73,13 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if _, err := validation.SQL(context.Background(), view, literal); err != nil {
 		t.Fatal("stale structural validation", err)
 	}
-	ordinary := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
+	ordinary := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles()}
 	text, err = (stored.ScalarRenderer{ACLOutput: ordinary}).SQL(context.Background(), view, literal)
 	if err != nil || !strings.Contains(text, "20000=r*/acl_render_b") {
 		t.Fatal("ordinary stale presentation", text, err)
 	}
 	foreign := New()
-	foreignValue, err := sqltype.ACLItemValue(value.Type(), &foreign.roles.ACLAuthority, 20000, 20001, 2, 2)
+	foreignValue, err := sqltype.ACLItemValue(value.Type(), &foreign.RoleStore.ACLAuthority, 20000, 20001, 2, 2)
 	if err != nil {
 		t.Fatal(err)
 	}

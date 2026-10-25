@@ -68,13 +68,13 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer scope.Finish(context.Canceled)
-			e.mu.Lock()
+			e.Mu.Lock()
 			err = e.captureVisibilitySnapshotLocked(scope)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}
+			eval := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}}
 			got, err := bound.Eval(eval)
 			if err != nil {
 				t.Fatal(err)

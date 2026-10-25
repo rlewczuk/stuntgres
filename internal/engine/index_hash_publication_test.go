@@ -60,8 +60,8 @@ func TestHashIndexDerivedBatchFailureAndIndexSetFence(t *testing.T) {
 	}
 	run(t, e, "INSERT INTO t VALUES(3)")
 	stage := indexMaintenanceStage(t, e, "t", "hn", "hd")
-	for parent := range stage.indexesOrZero().Parents {
-		stage.indexes().Sets = map[ids.ObjectAddress]int{parent: 2}
+	for parent := range stage.IndexesOrZero().Parents {
+		stage.Indexes().Sets = map[ids.ObjectAddress]int{parent: 2}
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {

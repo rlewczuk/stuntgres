@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (h ddlHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectName, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
+func (h DDLHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectName, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
 	// Support-function identity lookup is an object-address utility, not an
 	// expression. Preserve the AST while using its namespace without a location.
 	if len(name.Parts) == 2 {
@@ -17,8 +17,8 @@ func (h ddlHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectName, s
 		parts[0].Pos = parser.Position{}
 		name.Parts = parts[:]
 	}
-	v := ddlAuthorityOf(a)
-	path, err := h.e.lookupNamespaces(v, name, analyze.FunctionLookup)
+	v := DDLAuthorityOf(a)
+	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return catalog.RoutineIdentity{}, 0, err
 	}
@@ -26,18 +26,18 @@ func (h ddlHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectName, s
 	return identity, count, nil
 }
 
-func (h ddlHost) CheckFamilyMemberDrop(auth ddl.Authority, target ids.ObjectAddress) error {
+func (h DDLHost) CheckFamilyMemberDrop(auth ddl.Authority, target ids.ObjectAddress) error {
 	if err := h.RecordDependencyPath(auth); err != nil {
 		return err
 	}
 	targets := []ids.ObjectAddress{target}
-	edges, err := domainDependencyClosure(h.op.Context(), h.stage, targets)
+	edges, err := DomainDependencyClosure(h.Op.Context(), h.CatalogStage, targets)
 	if err != nil {
 		return err
 	}
 	for _, edge := range edges {
 		if !edge.Automatic {
-			return domainRestrictError(h.stage, targets, edges, 1, target)
+			return domainRestrictError(h.CatalogStage, targets, edges, 1, target)
 		}
 	}
 	return nil

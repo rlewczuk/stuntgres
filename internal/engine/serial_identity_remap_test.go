@@ -23,8 +23,8 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			sessionSQL(t, b, `CREATE TEMP SEQUENCE kept START 30 CACHE 1`)
 			sequenceScalar(t, b, `SELECT nextval('kept')`, 30)
 			_, description := sequencePreparedDescription(t, dest, b, `SELECT nextval('kept')`)
-			temp := description.sequences.Constants[0].Ref.Address
-			original := source.catalog.State.MustRelation(roleTableRef(t, source, "portable.consumer").Address)
+			temp := description.Sequences.Constants[0].Ref.Address
+			original := source.Catalog.State.MustRelation(roleTableRef(t, source, "portable.consumer").Address)
 			leaf := serialLeaf(original.ColumnMeta.Defaults[1].Expression)
 			if leaf.Ref.Address != temp {
 				t.Fatal("fixture lacks actual identity provider collision", leaf.Ref.Address, temp)
@@ -40,12 +40,12 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			consumer := dest.catalog.State.MustRelation(roleTableRef(t, dest, "portable.consumer").Address)
+			consumer := dest.Catalog.State.MustRelation(roleTableRef(t, dest, "portable.consumer").Address)
 			current := serialLeaf(consumer.ColumnMeta.Defaults[1].Expression)
 			if current.Ref.Address == temp || !analyze.ClosedSequenceDefault(consumer.ColumnMeta.Defaults[1].Expression) {
 				t.Fatal("identity provider reference not remapped", current.Ref)
 			}
-			provider := dest.catalog.State.MustRelation(current.Ref.Address)
+			provider := dest.Catalog.State.MustRelation(current.Ref.Address)
 			if !provider.Sequence.Identity || current.Identity {
 				t.Fatal("ordinary default inherited identity privilege/width semantics")
 			}

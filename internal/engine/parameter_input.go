@@ -10,53 +10,53 @@ import (
 // invocation. The caller holds Engine.mu; the captured readers own immutable
 // catalog/role authority and actual codec input later runs without that mutex.
 func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types []sqltype.Usage) (err error) {
-	e, op := s.engine(), s.op
+	e, op := s.Engine(), s.Op
 	for _, usage := range types {
-		if sqltype.IsFTS(usage.Type.BaseType().ID()) && s.input.FTS == nil {
-			s.input.FTS = session.FTSInput{Op: op}
+		if sqltype.IsFTS(usage.Type.BaseType().ID()) && s.Input.FTS == nil {
+			s.Input.FTS = session.FTSInput{Op: op}
 		}
-		if usage.Type.ContainsRegclass() && s.input.Regclass == nil {
-			s.input.Regclass, err = captureRegclassInput(auth)
+		if usage.Type.ContainsRegclass() && s.Input.Regclass == nil {
+			s.Input.Regclass, err = captureRegclassInput(auth)
 			if err != nil {
 				return err
 			}
 		}
-		if (usage.Type.ContainsRegtype() || usage.Type.ContainsRegproc()) && s.input.Regtype == nil {
-			s.input.Regtype, err = captureRegtypeInput(auth, op)
+		if (usage.Type.ContainsRegtype() || usage.Type.ContainsRegproc()) && s.Input.Regtype == nil {
+			s.Input.Regtype, err = CaptureRegtypeInput(auth, op)
 			if err != nil {
 				return err
 			}
 		}
-		if usage.Type.ContainsRegrole() && s.input.Regrole == nil {
-			s.input.Regrole = regobj.RoleInput{Roles: auth.Roles}
+		if usage.Type.ContainsRegrole() && s.Input.Regrole == nil {
+			s.Input.Regrole = regobj.RoleInput{Roles: auth.Roles}
 		}
-		if usage.Type.ContainsOperatorAlias() && s.input.Operator == nil {
-			s.input.Operator, err = captureOperatorInput(auth, op)
+		if usage.Type.ContainsOperatorAlias() && s.Input.Operator == nil {
+			s.Input.Operator, err = captureOperatorInput(auth, op)
 			if err != nil {
 				return err
 			}
 		}
-		if usage.Type.ContainsRegproc() && s.input.Regproc == nil {
-			s.input.Regproc, err = captureRoutineInput(auth, s.input.Regtype.(regobj.TypeInput))
+		if usage.Type.ContainsRegproc() && s.Input.Regproc == nil {
+			s.Input.Regproc, err = CaptureRoutineInput(auth, s.Input.Regtype.(regobj.TypeInput))
 			if err != nil {
 				return err
 			}
 		}
-		if usage.Type.ContainsRegObject() && (s.input.Regcollation == nil || s.input.Regnamespace == nil) {
+		if usage.Type.ContainsRegObject() && (s.Input.Regcollation == nil || s.Input.Regnamespace == nil) {
 			input, e := captureRegObjectInput(auth)
 			if e != nil {
 				return e
 			}
-			s.input.Regcollation, s.input.Regnamespace = input, input
+			s.Input.Regcollation, s.Input.Regnamespace = input, input
 		}
-		if usage.Type.ContainsRegTS() && s.input.RegTS == nil {
-			s.input.RegTS, err = captureRegTSInput(auth)
+		if usage.Type.ContainsRegTS() && s.Input.RegTS == nil {
+			s.Input.RegTS, err = CaptureRegTSInput(auth)
 			if err != nil {
 				return err
 			}
 		}
-		if usage.Type.ContainsACLItem() && s.input.ACLItem == nil {
-			s.input.ACLItem = e.captureACLItemInput(auth, op)
+		if usage.Type.ContainsACLItem() && s.Input.ACLItem == nil {
+			s.Input.ACLItem = e.CaptureACLItemInput(auth, op)
 		}
 	}
 	return nil
@@ -68,21 +68,21 @@ func (s *StatementScope) prepareProtocolUtilityInput(types []sqltype.Usage) erro
 	if len(types) == 0 {
 		return nil
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {
 		err = s.captureFormalInputLocked(auth, types)
 	}
 	if err == nil {
-		err = captureEnumOperationInput(auth, &s.input)
+		err = captureEnumOperationInput(auth, &s.Input)
 	}
 	if err == nil {
-		s.domains.inputCatalog = auth.Catalog
+		s.Domains.InputCatalog = auth.Catalog
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err == nil {
-		s.input.LockedDomainInput, s.input.DomainChecks = s, s
+		s.Input.LockedDomainInput, s.Input.DomainChecks = s, s
 	}
 	return err
 }

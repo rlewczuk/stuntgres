@@ -35,7 +35,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.Relations[ref.Address].Versions[0]
+			original := e.Storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=20 WHERE id=1")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -51,7 +51,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 					finishedScope, err = e.StartStatement(op)
 					if err == nil {
 						defer func() {
-							if !finishedScope.finished {
+							if !finishedScope.Finished {
 								finishedScope.Finish(errors.New("abandoned DELETE USING contender"))
 							}
 						}()
@@ -64,7 +64,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			}()
 			await := deleteUsingJoin(t, cancel, done)
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
 			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForUpdate && entry.Holders[holder.Transactions.Ticket].Mode == lock.ForNoKeyUpdate
 			if !queued {
@@ -86,7 +86,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 			if got.err != nil || got.result.Count != 1 || !reflect.DeepEqual(rows, want) {
 				t.Fatal("first recheck rejected/later pair must remain eligible", got, want)
 			}
-			if finishedScope == nil || len(finishedScope.querySources) != 0 {
+			if finishedScope == nil || len(finishedScope.QuerySources) != 0 {
 				t.Fatal("admission leaked")
 			}
 			if testExport(original.Values[1]) != int64(10) {
@@ -129,7 +129,7 @@ func TestDeleteUsingContentionOutcomes(t *testing.T) {
 			lockPending(t, e, 1)
 			if phase == "cancel_source" {
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 				admitted := entry != nil && len(entry.Holders) >= 1
 				if !admitted {

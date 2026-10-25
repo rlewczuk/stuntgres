@@ -36,7 +36,7 @@ func TestAnalysisHostMapsBoundExpressions(t *testing.T) {
 		l, ok := node.(plan.LiteralExpr)
 		return ok && reflect.DeepEqual(l, one)
 	}
-	host := e.analysisHost(nil)
+	host := e.AnalysisHost(nil)
 
 	mapped, err := host.MapBoundExpression(view, nil, row, false, func(node expr.Expr) (expr.Expr, bool, error) {
 		if isOne(node) {
@@ -102,7 +102,7 @@ func TestAnalysisHostMapsBoundQueryExpressions(t *testing.T) {
 		}
 		return node, false, nil
 	}
-	host := e.analysisHost(nil)
+	host := e.AnalysisHost(nil)
 
 	var seen []plan.Node
 	mapped, changed, err := host.MapBoundQueryExpression(view, row, func(root plan.Node) (plan.Node, error) {

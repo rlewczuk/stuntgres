@@ -16,35 +16,35 @@ import (
 // admission. The partial definition and lexical manifests are statement-local;
 // neither held handles nor the Host cache authority or wait under Engine.mu.
 func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
-	e.mu.Lock()
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	e.Mu.Lock()
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
+	auth, err := e.StatementAuthorizationLocked(scope.Op, stmt)
 	if err != nil {
 		return fail(err)
 	}
-	host := ddlHost{e: e, op: scope.op}
-	definition, err := view.BeginRule(host, auth, stmt, scope.lockedRef)
+	host := DDLHost{E: e, Op: scope.Op}
+	definition, err := view.BeginRule(host, auth, stmt, scope.LockedRef)
 	if err != nil {
 		return fail(err)
 	}
 	// Fresh catalog/provider views must retain the epoch that authorized the
 	// partial definition, including BeginRule's event ownership decision.
 	authRevision, roleRevision := auth.Revision, auth.RoleRecord.Revision
-	event := scope.mutationTarget
+	event := scope.MutationTarget
 	if creation, ok := stmt.(*parser.CreateRule); ok {
-		lexical, err := e.admissionNameReference(auth, creation.Table)
+		lexical, err := e.AdmissionNameReference(auth, creation.Table)
 		if err != nil {
 			return fail(err)
 		}
 		// The spelling observation is independent of the granted event identity.
 		// Later name validation may reject a shadow, but must never retarget it.
-		event.admittedTargetName, event.admittedTargetLexical = creation.Table, lexical
-		scope.mutationTarget = event
+		event.AdmittedTargetName, event.AdmittedTargetLexical = creation.Table, lexical
+		scope.MutationTarget = event
 	}
-	targets := []mutationTarget{event}
+	targets := []MutationTarget{event}
 	var admissions []analyze.LockAdmission
 	var consumed []exec.Leaf
 	retain := func(source exec.Leaf) {
@@ -59,7 +59,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	// the last action. Restore individual manifests: query-local indices and
 	// ordering cannot be merged into another action's admission.
 	fence := func() error {
-		fresh, err := e.statementAuthorizationLocked(scope.op, stmt)
+		fresh, err := e.StatementAuthorizationLocked(scope.Op, stmt)
 		if err != nil {
 			return err
 		}
@@ -67,32 +67,32 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			return fmt.Errorf("stuntgres: authorization changed before publication")
 		}
 		auth = fresh
-		if scope.txRef.Epoch() != e.catalog.State.Epoch() {
+		if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		currentAdmission := scope.queryLockAdmission
+		currentAdmission := scope.QueryLockAdmission
 		defer func() {
-			scope.mutationTarget = event
-			scope.queryLockAdmission = currentAdmission
+			scope.MutationTarget = event
+			scope.QueryLockAdmission = currentAdmission
 		}()
 		for _, target := range targets {
-			scope.mutationTarget = target
-			if err := scope.validateAdmissionNamesLocked(e, auth); err != nil {
+			scope.MutationTarget = target
+			if err := scope.ValidateAdmissionNamesLocked(e, auth); err != nil {
 				return err
 			}
 		}
 		for _, admission := range admissions {
-			scope.queryLockAdmission = admission
-			if err := scope.validateAdmissionNamesLocked(e, auth); err != nil {
+			scope.QueryLockAdmission = admission
+			if err := scope.ValidateAdmissionNamesLocked(e, auth); err != nil {
 				return err
 			}
 		}
 		for _, source := range consumed {
-			current, err := currentQuerySourceLocked(e, auth.Catalog, scope.owner.Catalog, source)
+			current, err := CurrentQuerySourceLocked(e, auth.Catalog, scope.Owner.Catalog, source)
 			if err != nil {
 				return err
 			}
-			if preparedDefinitionStamp(current, scope.op.Session) != preparedDefinitionStamp(source.Relation, scope.op.Session) {
+			if PreparedDefinitionStamp(current, scope.Op.Session) != PreparedDefinitionStamp(source.Relation, scope.Op.Session) {
 				return ids.ErrCatalogReplaced
 			}
 		}
@@ -101,10 +101,10 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	// Called locked, returns locked. Capture actual bound dependencies before
 	// waiting so a later grant cannot silently retarget an already frozen part.
 	holdBinding := func(b analyze.Binding) error {
-		refs := view.DefinitionReferences(b, event.lockedRef, scope.querySources)
+		refs := view.DefinitionReferences(b, event.LockedRef, scope.QuerySources)
 		for _, source := range b.QuerySources {
-			present, held := false, source.Ref == event.lockedRef
-			for _, admitted := range scope.querySources {
+			present, held := false, source.Ref == event.LockedRef
+			for _, admitted := range scope.QuerySources {
 				if admitted.Ref == source.Ref {
 					held = true
 					if admitted.Relation == source.Relation && admitted.Storage == source.Storage && admitted.Only == source.Only {
@@ -122,7 +122,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				refs = append(refs, source.Ref)
 			}
 			if !present {
-				scope.querySources = append(scope.querySources, source)
+				scope.QuerySources = append(scope.QuerySources, source)
 			}
 			retain(source)
 		}
@@ -131,15 +131,15 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if !ok {
 				return ids.ErrCatalogReplaced
 			}
-			retain(exec.Leaf{Ref: ref, Relation: d, Storage: e.privateStorageLocked(scope.owner.Catalog, ref.Address)})
+			retain(exec.Leaf{Ref: ref, Relation: d, Storage: e.PrivateStorageLocked(scope.Owner.Catalog, ref.Address)})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		err := scope.acquireBoundViewRelations(refs)
 		var providers []exec.Leaf
 		if err == nil {
-			providers, err = scope.acquireViewSources(true)
+			providers, err = scope.AcquireViewSources(true)
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		for _, source := range providers {
 			retain(source)
 		}
@@ -149,7 +149,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		return fence()
 	}
 	if creation, ok := stmt.(*parser.CreateRule); ok {
-		condition, err := definition.BindCondition(host, auth, scope.input)
+		condition, err := definition.BindCondition(host, auth, scope.Input)
 		if err != nil {
 			return fail(err)
 		}
@@ -161,7 +161,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if source.Table == nil {
 				continue
 			}
-			lexical, err := e.admissionNameReference(auth, source.Table.Name)
+			lexical, err := e.AdmissionNameReference(auth, source.Table.Name)
 			if err != nil {
 				return fail(err)
 			}
@@ -173,33 +173,33 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		if len(qualification.TableQueries) != 0 {
 			admissions = append(admissions, qualification)
 		}
-		retain(exec.Leaf{Ref: event.lockedRef, Relation: event.lockedDescriptor.(*catalog.Relation), Storage: e.privateStorageLocked(scope.owner.Catalog, event.lockedRef.Address)})
+		retain(exec.Leaf{Ref: event.LockedRef, Relation: event.LockedDescriptor.(*catalog.Relation), Storage: e.PrivateStorageLocked(scope.Owner.Catalog, event.LockedRef.Address)})
 		if err := holdBinding(condition); err != nil {
 			return fail(err)
 		}
 		for ordinal, action := range creation.Actions {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			err := parser.VisitMutationTargets(action, func(command parser.Statement) error {
-				scope.mutationTarget = mutationTarget{}
-				defer func() { scope.mutationTarget = event }()
+				scope.MutationTarget = MutationTarget{}
+				defer func() { scope.MutationTarget = event }()
 				if err := scope.acquireRelationTarget(command, stmt, true, false); err != nil {
 					return err
 				}
-				targets = append(targets, scope.mutationTarget)
-				e.mu.Lock()
-				scope.querySources = append(scope.querySources, exec.Leaf{Ref: scope.lockedRef, Relation: scope.lockedDescriptor.(*catalog.Relation), Only: table.SourceOnly(command), Storage: e.privateStorageLocked(scope.owner.Catalog, scope.lockedRef.Address)})
-				e.mu.Unlock()
+				targets = append(targets, scope.MutationTarget)
+				e.Mu.Lock()
+				scope.QuerySources = append(scope.QuerySources, exec.Leaf{Ref: scope.LockedRef, Relation: scope.LockedDescriptor.(*catalog.Relation), Only: table.SourceOnly(command), Storage: e.PrivateStorageLocked(scope.Owner.Catalog, scope.LockedRef.Address)})
+				e.Mu.Unlock()
 				return nil
 			})
 			if err == nil {
-				err = scope.acquireQueryRelations(action, stmt, true)
-				admissions = append(admissions, scope.queryLockAdmission)
+				err = scope.AcquireQueryRelations(action, stmt, true)
+				admissions = append(admissions, scope.QueryLockAdmission)
 			}
 			var providers []exec.Leaf
 			if err == nil {
-				providers, err = scope.acquireViewSources(true)
+				providers, err = scope.AcquireViewSources(true)
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			for _, source := range providers {
 				retain(source)
 			}
@@ -209,13 +209,13 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if err := fence(); err != nil {
 				return fail(err)
 			}
-			binding, err := definition.BindAction(host, auth, ordinal, scope.input)
+			binding, err := definition.BindAction(host, auth, ordinal, scope.Input)
 			if err != nil {
 				return fail(err)
 			}
 			// Preserve every grant-time provider consumed by this action,
 			// including typed targets and nested modifiers absent from leaves.
-			for _, source := range scope.querySources {
+			for _, source := range scope.QuerySources {
 				retain(source)
 			}
 			if err := holdBinding(binding); err != nil {
@@ -252,26 +252,26 @@ func (e *Engine) publishRelationChangeLocked(scope *StatementScope, auth Authori
 		return e.finishPolicyNoticeLocked(scope, change.Skip)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.Session)
-	stage.triggerReplacement = change.Replacement
-	stage.querySources = append(stage.querySources, change.Sources...)
-	e.mu.Unlock()
+	stage.AuthorizeLocked(auth, scope.Op.Session)
+	stage.TriggerReplacement = change.Replacement
+	stage.QuerySources = append(stage.QuerySources, change.Sources...)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	err := stage.Replace(change.Next)
 	if err == nil {
 		var prepared *PreparedCatalogPublication
-		prepared, err = e.ValidateCatalogStage(scope.op.Context(), stage)
+		prepared, err = e.ValidateCatalogStage(scope.Op.Context(), stage)
 		if err == nil {
-			_, err = e.publishCatalogOperation(scope.op, scope, prepared, PublicationToken{Epoch: change.Ref.Epoch})
+			_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: change.Ref.Epoch})
 		}
 	}
 	if err != nil {
 		return Result{}, err
 	}
-	scope.completed = true
+	scope.Completed = true
 	return Result{}, nil
 }

@@ -20,12 +20,12 @@ func discardUnitScope(t *testing.T, session *session.Session, ctx context.Contex
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := engineOf(session).StartStatement(op)
+	scope, err := EngineOf(session).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
 	}
-	if err := scope.gate(&parser.Discard{Category: category}); err != nil {
+	if err := scope.Gate(&parser.Discard{Category: category}); err != nil {
 		scope.Finish(err)
 		op.Done()
 		t.Fatal(err)
@@ -49,40 +49,40 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			e := New()
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
-			memory := payloadOf(a).sequences.DemandLocked(address)
+			memory := PayloadOf(a).Sequences.DemandLocked(address)
 			memory.SetLocked(7, true)
-			payloadOf(b).sequences.DemandLocked(address).SetLocked(8, true)
-			payloadOf(a).sequences.RecordLastLocked(address)
-			payloadOf(b).sequences.RecordLastLocked(address)
+			PayloadOf(b).Sequences.DemandLocked(address).SetLocked(8, true)
+			PayloadOf(a).Sequences.RecordLastLocked(address)
+			PayloadOf(b).Sequences.RecordLastLocked(address)
 			entry := &sqlPreparedStatement{body: &parser.Select{}}
-			payloadOf(a).preparedSQL.entries["p"], payloadOf(b).preparedSQL.entries["p"] = entry, entry
+			PayloadOf(a).preparedSQL.entries["p"], PayloadOf(b).preparedSQL.entries["p"] = entry, entry
 			var tx ids.TxRef
 			if category != parser.DiscardAll {
 				tx = transactionBegin(t, a)
 			}
 			cursor := &sqlCursor{root: &plan.ProjectNode{}, authority: &exec.Authority{}}
 			cursor.tx = tx
-			payloadOf(a).cursors.entries["c"] = cursor
-			resources, serial, ticket, catalog, roles := a.Resources, a.Serial, a.Advisory.Ticket, e.catalog.State, e.roles.Published
+			PayloadOf(a).Cursors.Entries["c"] = cursor
+			resources, serial, ticket, catalog, roles := a.Resources, a.Serial, a.Advisory.Ticket, e.Catalog.State, e.RoleStore.Published
 			discardUnitApply(t, a, category)
 			if a.Resources != resources || a.Serial != serial || a.Advisory.Ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
-			if e.catalog.State != catalog || e.roles.Published != roles || payloadOf(b).preparedSQL.entries["p"] != entry || !currvalIs(payloadOf(b).sequences.Memory(address), 8) || payloadOf(b).sequences.Last() != address || b.DiscardPlansGeneration != 0 {
+			if e.Catalog.State != catalog || e.RoleStore.Published != roles || PayloadOf(b).preparedSQL.entries["p"] != entry || !currvalIs(PayloadOf(b).Sequences.Memory(address), 8) || PayloadOf(b).Sequences.Last() != address || b.DiscardPlansGeneration != 0 {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {
-				if len(payloadOf(a).preparedSQL.entries) != 0 || len(payloadOf(a).cursors.entries) != 0 || cursor.root != nil || cursor.authority.Host != nil {
+				if len(PayloadOf(a).preparedSQL.entries) != 0 || len(PayloadOf(a).Cursors.Entries) != 0 || cursor.root != nil || cursor.authority.Host != nil {
 					t.Fatal("ALL did not dispose actual registries")
 				}
-			} else if payloadOf(a).preparedSQL.entries["p"] != entry || payloadOf(a).cursors.entries["c"] != cursor || cursor.root == nil {
+			} else if PayloadOf(a).preparedSQL.entries["p"] != entry || PayloadOf(a).Cursors.Entries["c"] != cursor || cursor.root == nil {
 				t.Fatal("subset deallocated definitions/cursors")
 			}
 			if category == parser.DiscardPlans {
-				if payloadOf(a).sequences.Memory(address) != memory || payloadOf(a).sequences.Last() != address {
+				if PayloadOf(a).Sequences.Memory(address) != memory || PayloadOf(a).Sequences.Last() != address {
 					t.Fatal("PLANS lost sequence memory")
 				}
-			} else if payloadOf(a).sequences.Len() != 0 || payloadOf(a).sequences.Last() != (ids.ObjectAddress{}) {
+			} else if PayloadOf(a).Sequences.Len() != 0 || PayloadOf(a).Sequences.Last() != (ids.ObjectAddress{}) {
 				t.Fatal("sequence memories retained")
 			}
 			if category != parser.DiscardAll {
@@ -98,7 +98,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 			t.Run(map[bool]string{true: "cancel-before", false: "cancel-after"}[before], func(t *testing.T) {
 				s := sessionStart(t, New(), nil)
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
-				payloadOf(s).sequences.DemandLocked(address).SetLocked(7, true)
+				PayloadOf(s).Sequences.DemandLocked(address).SetLocked(7, true)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, scope := discardUnitScope(t, s, ctx, category)
@@ -108,14 +108,14 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 				}
 				result, err := scope.executeDiscard(&parser.Discard{Category: category}, 0)
 				if before {
-					if !errors.Is(err, context.Canceled) || scope.completed || s.DiscardPlansGeneration != 0 || payloadOf(s).sequences.Memory(address) == nil {
+					if !errors.Is(err, context.Canceled) || scope.Completed || s.DiscardPlansGeneration != 0 || PayloadOf(s).Sequences.Memory(address) == nil {
 						t.Fatal("canceled preflight installed effects", err)
 					}
 					if err := scope.Finish(err); !errors.Is(err, context.Canceled) {
 						t.Fatal(err)
 					}
 				} else {
-					if err != nil || result.Count != 0 || result.Rows != nil || !scope.completed || !scope.sessionCompleted {
+					if err != nil || result.Count != 0 || result.Rows != nil || !scope.Completed || !scope.sessionCompleted {
 						t.Fatal(result, err)
 					}
 					cancel()
@@ -133,7 +133,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 		e := New()
 		s := sessionStart(t, e, nil)
 		sessionSQL(t, s, "CREATE TEMP TABLE discard_cancel(v int)")
-		catalog := e.catalog.State
+		catalog := e.Catalog.State
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		op, scope := discardUnitScope(t, s, ctx, parser.DiscardTemp)
@@ -144,7 +144,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 		cancel()
-		if err := scope.Finish(nil); !errors.Is(err, context.Canceled) || e.catalog.State != catalog {
+		if err := scope.Finish(nil); !errors.Is(err, context.Canceled) || e.Catalog.State != catalog {
 			t.Fatal("canceled TEMP partially published", err)
 		}
 	})
@@ -183,11 +183,11 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE discard_signature_capture(v int)")
 		sessionSQL(t, s, "CREATE SEQUENCE discard_signature_seq")
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT *,TIMESTAMP 'now',nextval('discard_signature_seq'),'integer'::regtype FROM discard_signature_capture")
-		if len(d.temporals) == 0 || d.sequences == nil || d.regtypes == nil {
+		if len(d.Temporals) == 0 || d.Sequences == nil || d.regtypes == nil {
 			t.Fatal("missing real capture groups")
 		}
 		before := d
-		sequenceBefore, regtypeBefore := *d.sequences, *d.regtypes
+		sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
 		sessionSQL(t, s, "ALTER TABLE discard_signature_capture ADD COLUMN other text")
 		discardUnitApply(t, s, parser.DiscardPlans)
 		for range 2 {
@@ -200,7 +200,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "0A000" || err.Error() != "stuntgres: cached plan must not change result type" {
 				t.Fatal("changed signature admitted", err)
 			}
-			if d.planOwner != before.planOwner || d.planGeneration != before.planGeneration || &d.temporals[0] != &before.temporals[0] || !reflect.DeepEqual(d.Results, before.Results) || !reflect.DeepEqual(*d.sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
+			if d.planOwner != before.planOwner || d.planGeneration != before.planGeneration || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(d.Results, before.Results) || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
 				t.Fatal("signature rejection published capture group or stamp")
 			}
 		}
@@ -211,7 +211,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		sessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now',nextval('discard_retired_seq'),'integer'::regtype")
 		before := d
-		sequenceBefore, regtypeBefore := *d.sequences, *d.regtypes
+		sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
 		if err := e.Reset(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -226,7 +226,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("DISCARD rescued retired sequence provenance", err)
 			}
-			if d.planOwner != before.planOwner || d.planGeneration != before.planGeneration || &d.temporals[0] != &before.temporals[0] || !reflect.DeepEqual(*d.sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
+			if d.planOwner != before.planOwner || d.planGeneration != before.planGeneration || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
 				t.Fatal("replacement rejection published capture group or stamp")
 			}
 		}
@@ -237,13 +237,13 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	// only fixture construction, not a duplicate public response witness.
 	sessionSQL(t, s, "CREATE SEQUENCE discard_capture_seq")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('discard_capture_seq'),'integer'::regtype")
-	if len(d.temporals) < 2 || d.sequences == nil || d.regtypes == nil || d.planOwner != s.SessionToken {
+	if len(d.Temporals) < 2 || d.Sequences == nil || d.regtypes == nil || d.planOwner != s.SessionToken {
 		t.Fatal("missing complete private capture fixture")
 	}
 	original := d
-	sequenceCell, regtypeCell := d.sequences, d.regtypes
+	sequenceCell, regtypeCell := d.Sequences, d.regtypes
 	discardUnitApply(t, s, parser.DiscardPlans)
-	if d.planGeneration != original.planGeneration || &d.temporals[0] != &original.temporals[0] {
+	if d.planGeneration != original.planGeneration || &d.Temporals[0] != &original.Temporals[0] {
 		t.Fatal("discard eagerly mutated descriptions")
 	}
 	result, err := sequencePreparedExecute(e, s, ast, &d)
@@ -251,7 +251,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if d.planGeneration != s.DiscardPlansGeneration || d.planOwner != s.SessionToken || d.sequences != sequenceCell || d.regtypes != regtypeCell || &d.temporals[0] == &original.temporals[0] {
+	if d.planGeneration != s.DiscardPlansGeneration || d.planOwner != s.SessionToken || d.Sequences != sequenceCell || d.regtypes != regtypeCell || &d.Temporals[0] == &original.Temporals[0] {
 		t.Fatal("capture groups not lazily refreshed together")
 	}
 	if err := checkStatementSignature(original, d); err != nil {
@@ -263,7 +263,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if &d.temporals[0] != &stable.temporals[0] || d.sequences != stable.sequences || d.regtypes != stable.regtypes {
+	if &d.Temporals[0] != &stable.Temporals[0] || d.Sequences != stable.Sequences || d.regtypes != stable.regtypes {
 		t.Fatal("unchanged generation allocated capture state")
 	}
 	// A genuine missing dependency fails reanalysis before publishing any stamp
@@ -271,16 +271,16 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	sessionSQL(t, s, "DROP SEQUENCE discard_capture_seq")
 	discardUnitApply(t, s, parser.DiscardPlans)
 	before := d
-	sequenceBefore, regtypeBefore := *d.sequences, *d.regtypes
+	sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
 	_, err = sequencePreparedExecute(e, s, ast, &d)
-	if err == nil || d.planGeneration != before.planGeneration || &d.temporals[0] != &before.temporals[0] || !reflect.DeepEqual(*d.sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
+	if err == nil || d.planGeneration != before.planGeneration || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
 		t.Fatal("failed group published captures", err)
 	}
 	s.DiscardPlansGeneration = ^uint64(0)
-	payloadOf(s).preparedSQL.entries["p"] = &sqlPreparedStatement{body: ast, description: d}
+	PayloadOf(s).preparedSQL.entries["p"] = &sqlPreparedStatement{body: ast, description: d}
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
 	_, err = scope.executeDiscard(&parser.Discard{Category: parser.DiscardAll}, 0)
-	if err == nil || payloadOf(s).preparedSQL.entries["p"] == nil || scope.completed {
+	if err == nil || PayloadOf(s).preparedSQL.entries["p"] == nil || scope.Completed {
 		t.Fatal("generation exhaustion installed effects", err)
 	}
 	scope.Finish(err)
@@ -294,7 +294,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO discard_overlay VALUES(7)")
 	namespace := s.TemporaryNamespace
 	var relation *catalog.Relation
-	for _, d := range e.catalog.State.Descriptors() {
+	for _, d := range e.Catalog.State.Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok && r.Name() == "discard_overlay" {
 			relation = r
 		}
@@ -302,10 +302,10 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 	if relation == nil {
 		t.Fatal("missing actual relation fixture")
 	}
-	storage := e.storage.Relations[relation.Address()]
+	storage := e.Storage.Relations[relation.Address()]
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "CREATE TEMP TABLE discard_private(v int)")
-	private := e.privateCatalogLocked(s.Transactions.Catalog)
+	private := e.PrivateCatalogLocked(s.Transactions.Catalog)
 	var privateAddress ids.ObjectAddress
 	for a, d := range private.Descriptors() {
 		if d.Name() == "discard_private" {
@@ -319,13 +319,13 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	if scope.completed || scope.sessionCompleted || scope.catalog == nil || !scope.projectedRoots {
+	if scope.Completed || scope.sessionCompleted || scope.Catalog == nil || !scope.projectedRoots {
 		t.Fatal("TEMP bypasses private publication")
 	}
-	if scope.catalog.Originals[relation.Address()] != relation || scope.catalog.Descriptors[relation.Address()] != nil || e.storage.Relations[relation.Address()] != storage {
+	if scope.Catalog.Originals[relation.Address()] != relation || scope.Catalog.Descriptors[relation.Address()] != nil || e.Storage.Relations[relation.Address()] != storage {
 		t.Fatal("TEMP uses live undo instead of catalog original fence")
 	}
-	if original, present := scope.catalog.Originals[privateAddress]; !present || original != nil {
+	if original, present := scope.Catalog.Originals[privateAddress]; !present || original != nil {
 		t.Fatal("new private TEMP target lost committed absence fence")
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -333,11 +333,11 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if e.catalog.State.Get(relation.Address()) != relation || s.Transactions.Catalog == nil || s.TemporaryNamespace != namespace {
+	if e.Catalog.State.Get(relation.Address()) != relation || s.Transactions.Catalog == nil || s.TemporaryNamespace != namespace {
 		t.Fatal("private deletion leaked to shared catalog or retired namespace")
 	}
 	sessionSQL(t, s, "ROLLBACK")
-	if e.catalog.State.Get(relation.Address()) != relation || e.storage.Relations[relation.Address()] != storage || s.Transactions.Catalog != nil {
+	if e.Catalog.State.Get(relation.Address()) != relation || e.Storage.Relations[relation.Address()] != storage || s.Transactions.Catalog != nil {
 		t.Fatal("rollback failed to release private deletion")
 	}
 	t.Run("CollationDependentProjection", func(t *testing.T) {
@@ -348,7 +348,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		sessionSQL(t, s, `INSERT INTO discard_survivor VALUES(7,'a')`)
 		namespace := s.TemporaryNamespace
 		var survivor *catalog.Relation
-		for _, d := range e.catalog.State.Descriptors() {
+		for _, d := range e.Catalog.State.Descriptors() {
 			if r, ok := d.(*catalog.Relation); ok && r.Name() == "discard_survivor" {
 				survivor = r
 			}
@@ -356,16 +356,16 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		if survivor == nil {
 			t.Fatal("missing durable dependent fixture")
 		}
-		durableRows := e.storage.Relations[survivor.Address()].Versions
+		durableRows := e.Storage.Relations[survivor.Address()].Versions
 		discardUnitApply(t, s, parser.DiscardTemp)
-		next := e.catalog.State.MustRelation(survivor.Address())
-		if next == survivor || len(next.Columns) != 1 || len(e.storage.Relations[survivor.Address()].Versions[0].Values) != 1 || len(durableRows[0].Values) != 2 {
+		next := e.Catalog.State.MustRelation(survivor.Address())
+		if next == survivor || len(next.Columns) != 1 || len(e.Storage.Relations[survivor.Address()].Versions[0].Values) != 1 || len(durableRows[0].Values) != 2 {
 			t.Fatal("CASCADE failed provider-owned durable projection or mutated old rows")
 		}
-		if e.catalog.State.Get(namespace) == nil || s.TemporaryNamespace != namespace {
+		if e.Catalog.State.Get(namespace) == nil || s.TemporaryNamespace != namespace {
 			t.Fatal("SQL TEMP retired its namespace")
 		}
-		for _, d := range e.catalog.State.Descriptors() {
+		for _, d := range e.Catalog.State.Descriptors() {
 			if d.Namespace() == namespace {
 				t.Fatal("owned TEMP collation child survived", d.Name())
 			}
@@ -382,7 +382,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				sessionSQL(t, s, "CREATE INDEX discard_private_index ON discard_private_survivor(v)")
 				var survivor *catalog.Relation
 				var providerAddress, indexAddress ids.ObjectAddress
-				for a, d := range e.catalog.State.Descriptors() {
+				for a, d := range e.Catalog.State.Descriptors() {
 					switch d.Name() {
 					case "discard_private_survivor":
 						// The associated composite type has the same name; it must
@@ -396,11 +396,11 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 						indexAddress = a
 					}
 				}
-				provider, index := e.catalog.State.Get(providerAddress), e.catalog.State.Get(indexAddress)
+				provider, index := e.Catalog.State.Get(providerAddress), e.Catalog.State.Get(indexAddress)
 				if survivor == nil || provider == nil || index == nil {
 					t.Fatal("missing real dependent closure fixture")
 				}
-				namespace, storage := s.TemporaryNamespace, e.storage.Relations[survivor.Address()]
+				namespace, storage := s.TemporaryNamespace, e.Storage.Relations[survivor.Address()]
 				sessionSQL(t, s, "BEGIN")
 				if boundary == "savepoint" {
 					sessionSQL(t, s, "SAVEPOINT original")
@@ -412,7 +412,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					op.Done()
 					t.Fatal(err)
 				}
-				if scope.completed || scope.sessionCompleted || !scope.projectedRoots || scope.catalog.Originals[survivor.Address()] != survivor || scope.catalog.Originals[providerAddress] != provider || scope.catalog.Originals[indexAddress] != index {
+				if scope.Completed || scope.sessionCompleted || !scope.projectedRoots || scope.Catalog.Originals[survivor.Address()] != survivor || scope.Catalog.Originals[providerAddress] != provider || scope.Catalog.Originals[indexAddress] != index {
 					scope.Finish(errors.New("invalid projection"))
 					op.Done()
 					t.Fatal("private projection lost original descriptor fences")
@@ -422,9 +422,9 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					t.Fatal(err)
 				}
 				op.Done()
-				private := e.privateCatalogLocked(s.Transactions.Catalog)
+				private := e.PrivateCatalogLocked(s.Transactions.Catalog)
 				projected := private.MustRelation(survivor.Address())
-				if projected == survivor || len(projected.Columns) != 1 || private.Get(providerAddress) != nil || private.Get(indexAddress) != nil || e.catalog.State.Get(survivor.Address()) != survivor || e.storage.Relations[survivor.Address()] != storage || len(storage.Versions[0].Values) != 2 {
+				if projected == survivor || len(projected.Columns) != 1 || private.Get(providerAddress) != nil || private.Get(indexAddress) != nil || e.Catalog.State.Get(survivor.Address()) != survivor || e.Storage.Relations[survivor.Address()] != storage || len(storage.Versions[0].Values) != 2 {
 					t.Fatal("private projection leaked into committed descriptor/data or missed closure")
 				}
 				switch boundary {
@@ -437,13 +437,13 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					sessionSQL(t, s, "COMMIT")
 				}
 				if boundary == "commit" {
-					if len(e.catalog.State.MustRelation(survivor.Address()).Columns) != 1 || len(e.storage.Relations[survivor.Address()].Versions[0].Values) != 1 || e.catalog.State.Get(providerAddress) != nil || e.catalog.State.Get(indexAddress) != nil {
+					if len(e.Catalog.State.MustRelation(survivor.Address()).Columns) != 1 || len(e.Storage.Relations[survivor.Address()].Versions[0].Values) != 1 || e.Catalog.State.Get(providerAddress) != nil || e.Catalog.State.Get(indexAddress) != nil {
 						t.Fatal("commit lost projected durable consumer or retained provider/index")
 					}
-				} else if e.catalog.State.Get(survivor.Address()) != survivor || e.catalog.State.Get(providerAddress) != provider || e.catalog.State.Get(indexAddress) != index || e.storage.Relations[survivor.Address()] != storage || len(storage.Versions[0].Values) != 2 {
+				} else if e.Catalog.State.Get(survivor.Address()) != survivor || e.Catalog.State.Get(providerAddress) != provider || e.Catalog.State.Get(indexAddress) != index || e.Storage.Relations[survivor.Address()] != storage || len(storage.Versions[0].Values) != 2 {
 					t.Fatal("rollback did not restore exact durable descriptor/data/provider/index")
 				}
-				if s.TemporaryNamespace != namespace || e.catalog.State.Get(namespace) == nil {
+				if s.TemporaryNamespace != namespace || e.Catalog.State.Get(namespace) == nil {
 					t.Fatal("projection retired TEMP namespace")
 				}
 			})
@@ -461,14 +461,14 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				rows := sessionSQL(t, s, "FETCH ALL FROM c")
 				rows.Rows.Close()
 			}
-			cursor := payloadOf(s).cursors.entries["c"]
+			cursor := PayloadOf(s).Cursors.Entries["c"]
 			if cursor.root == nil || len(cursor.leaves) == 0 {
 				t.Fatal("missing actual retained source manifest")
 			}
-			catalog, namespace := e.catalog.State, s.TemporaryNamespace
+			catalog, namespace := e.Catalog.State, s.TemporaryNamespace
 			op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
 			_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardTemp}, 0)
-			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.catalog != nil || scope.projectedRoots || e.catalog.State != catalog || s.TemporaryNamespace != namespace || cursor.root == nil {
+			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.Catalog != nil || scope.projectedRoots || e.Catalog.State != catalog || s.TemporaryNamespace != namespace || cursor.root == nil {
 				scope.Finish(err)
 				op.Done()
 				t.Fatal("live cursor preflight installed effects or lost source", err)
@@ -522,7 +522,7 @@ func TestDiscardConfiguredReset(t *testing.T) {
 	s.Authorization.Revision = ^uint64(0)
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
 	_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardAll}, 0)
-	if err == nil || !reflect.DeepEqual(before, s.Authorization.State) || scope.completed {
+	if err == nil || !reflect.DeepEqual(before, s.Authorization.State) || scope.Completed {
 		t.Fatal("revision exhaustion installed effects", err)
 	}
 	scope.Finish(err)

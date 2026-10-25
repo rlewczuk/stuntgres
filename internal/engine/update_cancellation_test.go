@@ -30,24 +30,24 @@ func updateBoundSource(t *testing.T, e *Engine, s *session.Session, ctx context.
 	}
 	fail := func(err error) { scope.Finish(err); op.Done(); t.Fatal(err) }
 	ast := statement(t, q)
-	if err = scope.gate(ast); err != nil {
+	if err = scope.Gate(ast); err != nil {
 		fail(err)
 	}
-	if err = scope.acquireRelation(ast, true); err != nil {
+	if err = scope.AcquireRelation(ast, true); err != nil {
 		fail(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	var view *visibility.View
 	if err == nil {
-		b, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
-		scope.routineAuth, scope.routineDependencies = auth, b.Dependencies
+		b, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		scope.RoutineAuth, scope.RoutineDependencies = auth, b.Dependencies
 	}
 	if err == nil {
-		view, err = scope.acquireDataViewLocked(e, b.Ref)
+		view, err = scope.AcquireDataViewLocked(e, b.Ref)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		fail(err)
 	}
@@ -68,7 +68,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2)")
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
-				saved := e.storage.Relations[ref.Address].Versions
+				saved := e.Storage.Relations[ref.Address].Versions
 				var tx ids.TxRef
 				if explicit {
 					tx = transactionBegin(t, a)

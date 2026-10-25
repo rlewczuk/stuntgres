@@ -7,25 +7,25 @@ import (
 
 // materialized returns the materialized slot, allocating it on first use.
 func (s *CatalogStage) materialized() *view.MaterializedStage {
-	if s.materializedSlot == nil {
-		s.materializedSlot = new(view.MaterializedStage)
+	if s.MaterializedSlot == nil {
+		s.MaterializedSlot = new(view.MaterializedStage)
 	}
-	return s.materializedSlot
+	return s.MaterializedSlot
 }
 
-// materializedOrZero reads the materialized slot; a nil slot reads as zero.
-func (s *CatalogStage) materializedOrZero() view.MaterializedStage {
-	if s.materializedSlot == nil {
+// MaterializedOrZero reads the materialized slot; a nil slot reads as zero.
+func (s *CatalogStage) MaterializedOrZero() view.MaterializedStage {
+	if s.MaterializedSlot == nil {
 		return view.MaterializedStage{}
 	}
-	return *s.materializedSlot
+	return *s.MaterializedSlot
 }
 
 // storagePublication names the stage's private stores for storage and index
 // publication: initial tables, heap replacements and the refreshed store.
 func (s *CatalogStage) storagePublication() storage.Publication {
-	p := storage.Publication{Initial: s.initialTables, Shapes: s.rowShapes}
-	if r := s.materializedOrZero().Replacement; r != nil {
+	p := storage.Publication{Initial: s.initialTables, Shapes: s.RowShapes}
+	if r := s.MaterializedOrZero().Replacement; r != nil {
 		p.Refreshed, p.Refresh = r.Original.Address(), r.Storage
 	}
 	return p

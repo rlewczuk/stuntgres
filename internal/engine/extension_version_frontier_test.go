@@ -18,10 +18,10 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			capture := func() *StatementScope {
-				s := &StatementScope{op: op, owner: op.Session.Transactions}
-				e.mu.Lock()
-				err := e.captureCommentSnapshotLocked(s)
-				e.mu.Unlock()
+				s := &StatementScope{Op: op, Owner: op.Session.Transactions}
+				e.Mu.Lock()
+				err := e.CaptureCommentSnapshotLocked(s)
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -29,8 +29,8 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 			}
 			open := func(s *StatementScope, oid ids.OID) *exec.Source {
 				_, ref := availableUnitSource(e, oid)
-				e.mu.Lock()
-				source, err := e.openRelationSourceLocked(s, ref, e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+				e.Mu.Lock()
+				source, err := e.openRelationSourceLocked(s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -52,7 +52,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 					sources[oid] = open(old, oid)
 				}
 			}
-			if !reflect.DeepEqual(retained, sources[first].Anonymous) || old.inquiry.commentCatalog.MustExtension(ext.Address()) != ext || fresh.inquiry.commentCatalog.MustExtension(ext.Address()).Version != "1.2" {
+			if !reflect.DeepEqual(retained, sources[first].Anonymous) || old.Inquiry.CommentCatalog.MustExtension(ext.Address()) != ext || fresh.Inquiry.CommentCatalog.MustExtension(ext.Address()).Version != "1.2" {
 				t.Fatal("old frontier mutated during update")
 			}
 			assert := func(source *exec.Source, oid ids.OID, version string) {

@@ -28,20 +28,20 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT $1,v,NULL FROM t WHERE v=$2 ORDER BY id")
-	ref, err := e.resolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
+	ref, err := e.ResolveReference(auth, ast.(*parser.Select).From.(*parser.TableReference).Name)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.mu.Unlock()
+	b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		t.Fatal(project.Schema())
 	}
 	column := project.Expressions[1].(plan.ColumnExpr)
-	if column.Origin.Domain() != e.catalog.Domain || column.Origin.Address.SubID != 2 || column.Slot != 1 || column.Scope == 0 || column.Frame == 0 || column.SourcePosition().Character != 11 {
+	if column.Origin.Domain() != e.Catalog.Domain || column.Origin.Address.SubID != 2 || column.Slot != 1 || column.Scope == 0 || column.Frame == 0 || column.SourcePosition().Character != 11 {
 		t.Fatal(column)
 	}
 	if !column.Properties().RowDependent || column.Properties().ParameterDependent || column.Properties().Volatility != expr.Immutable || !project.Expressions[0].Properties().ParameterDependent {
@@ -62,7 +62,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	}
 	refs := map[ids.ObjectRef]bool{}
 	for _, d := range b.Dependencies {
-		if refs[d.Ref] || d.Ref.Domain() != e.catalog.Domain || d.Revision == 0 {
+		if refs[d.Ref] || d.Ref.Domain() != e.Catalog.Domain || d.Revision == 0 {
 			t.Fatal(d)
 		}
 		refs[d.Ref] = true
@@ -196,7 +196,7 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 	reader, _ := e.Roles().Lookup("reader")
 	column := ref
 	column.Address.SubID = 2
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
@@ -210,13 +210,13 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 		}
 		r.Rows.Close()
 	}
-	before := e.catalog.State
+	before := e.Catalog.State
 	for _, q := range []string{"SELECT id FROM secret", "SELECT 7 FROM secret WHERE f", "SELECT 7 FROM secret ORDER BY id", "SELECT v FROM secret WHERE id=1", "SELECT id+v FROM secret", "SELECT v+1 FROM secret WHERE id+1=2"} {
 		if _, err := e.Describe(op, statement(t, q)); err != nil {
 			t.Fatal("ACL moved into Prepare", err)
 		}
 		roleError(t, e, op, q, "42501", "permission denied for table secret", "")
-		if e.catalog.State != before {
+		if e.Catalog.State != before {
 			t.Fatal("denial mutated catalog")
 		}
 	}

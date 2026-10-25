@@ -23,7 +23,7 @@ func definitionEndpoint(d catalog.Descriptor) bool {
 	return false
 }
 
-func definitionAddressOrder(a, b ids.ObjectAddress) int {
+func DefinitionAddressOrder(a, b ids.ObjectAddress) int {
 	if n := cmp.Compare(a.ClassID, b.ClassID); n != 0 {
 		return n
 	}
@@ -46,20 +46,20 @@ func (s *StatementScope) acquireDefinitionDependencyLocks(stage *CatalogStage) e
 			return err
 		}
 	}
-	slices.SortFunc(addresses, definitionAddressOrder)
+	slices.SortFunc(addresses, DefinitionAddressOrder)
 	for _, a := range addresses {
-		ref := s.engine().catalog.Domain.Ref(stage.Base.Epoch(), a)
-		if err := s.acquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+		ref := s.Engine().Catalog.Domain.Ref(stage.Base.Epoch(), a)
+		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 			return err
 		}
 	}
 	if len(addresses) == 0 {
 		return nil
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	current, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	current, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (s *StatementScope) acquireDefinitionDependencyLocks(stage *CatalogStage) e
 			case ids.OperatorFamilyClassID:
 				kind = "operator family"
 			}
-			return sqlError("42704", "referenced "+kind+" was concurrently dropped")
+			return SQLError("42704", "referenced "+kind+" was concurrently dropped")
 		}
 		if actual != stage.Base.Get(a) {
 			return catalog.Conflict{}
@@ -95,22 +95,22 @@ func (s *StatementScope) admitDefinitionRetirement(stage *CatalogStage, stmt par
 	default:
 		return stage, nil
 	}
-	if len(stage.domainTargets) == 0 {
+	if len(stage.DomainTargets) == 0 {
 		return stage, nil
 	}
 	var scratch [4]ids.ObjectAddress
-	addresses := append(scratch[:0], stage.domainTargets...)
-	slices.SortFunc(addresses, definitionAddressOrder)
-	e := s.engine()
+	addresses := append(scratch[:0], stage.DomainTargets...)
+	slices.SortFunc(addresses, DefinitionAddressOrder)
+	e := s.Engine()
 	for _, a := range addresses {
-		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), a)
-		if err := s.acquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), a)
+		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 			return stage, err
 		}
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	current, err := e.authorizationLocked(s.op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	current, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return stage, err
 	}
@@ -122,7 +122,7 @@ func (s *StatementScope) admitDefinitionRetirement(stage *CatalogStage, stmt par
 			return stage, ids.ErrCatalogReplaced
 		}
 	}
-	fresh, err := e.stageSchemaLocked(s.op, stmt, input, s.output)
+	fresh, err := e.stageSchemaLocked(s.Op, stmt, input, s.Output)
 	if err != nil {
 		return stage, err
 	}

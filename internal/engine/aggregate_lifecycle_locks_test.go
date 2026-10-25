@@ -30,9 +30,9 @@ func TestAggregateLifecycleViewLocks(t *testing.T) {
 			roleExecute(t, e, op, "BEGIN")
 			defer roleExecute(t, e, op, "ROLLBACK")
 			roleExecute(t, e, op, query)
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -51,7 +51,7 @@ func TestAggregateLifecycleViewLocks(t *testing.T) {
 			}
 			// Inspect the actual transaction's retained procedure grant, including
 			// TEMP overlay publication. Unreferenced routines add no lock.
-			locks := e.locks.Inspect()
+			locks := e.Locks.Inspect()
 			entry := locks.Resources[lock.Resource{ObjectRef: selected}]
 			if entry == nil || entry.Holders[op.Session.Transactions.Ticket].Mode&lock.AccessShare == 0 {
 				t.Fatal("checked aggregate dependency lacks transaction AccessShare lock", selected)

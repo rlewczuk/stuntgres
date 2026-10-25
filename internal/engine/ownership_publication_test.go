@@ -16,7 +16,7 @@ import (
 func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *catalog.Namespace) {
 	t.Helper()
 	e, owner, source, target, reader := ownershipUnitRoles()
-	setFixtureEdges(e.roles.Published, append(fixtureEdges(e.roles.Published), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
+	setFixtureEdges(e.RoleStore.Published, append(fixtureEdges(e.RoleStore.Published), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 200000}, ObjectName: "ownership_guard", ObjectRevision: 1, Owner: owner, ACL: authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{objectACLUnitEntry(owner, source, authorization.UsagePrivilege, authorization.UsagePrivilege), objectACLUnitEntry(source, reader, authorization.UsagePrivilege, 0)}}}
 	setup := e.BeginCatalogStage(e.CatalogRead())
 	if err := setup.Create(ns); err != nil {
@@ -24,23 +24,23 @@ func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *catalog.Names
 	}
 	ownershipUnitPublish(t, e, setup)
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.roleRevision = e.roles.Published.Revision
-	if err := role.StageOwnedCleanup(context.Background(), stage, e.roles.PublishedRead(&e.catalog.Owner, stage.Base), e.roles.Published, map[authorization.PrincipalRef]bool{source: true}); err != nil {
+	stage.RoleRevision = e.RoleStore.Published.Revision
+	if err := role.StageOwnedCleanup(context.Background(), stage, e.RoleStore.PublishedRead(&e.Catalog.Owner, stage.Base), e.RoleStore.Published, map[authorization.PrincipalRef]bool{source: true}); err != nil {
 		t.Fatal(err)
 	}
-	if stage.roleCandidate == nil || stage.Get(ns.Address()) == nil {
+	if stage.RoleCandidateRecord == nil || stage.Get(ns.Address()) == nil {
 		t.Fatal("fixture lacks both private candidates")
 	}
 	return e, stage, ns
 }
 func TestRoleOwnershipPublicationAtomicCleanup(t *testing.T) {
 	e, stage, ns := ownershipCleanupStage(t)
-	oldState, oldRoles := e.catalog.State, e.roles.Published
+	oldState, oldRoles := e.Catalog.State, e.RoleStore.Published
 	oldEdges := append([]authorization.Membership(nil), fixtureEdges(oldRoles)...)
 	oldACL := append([]authorization.ACLEntry(nil), ns.ACL.Entries...)
 	ownershipUnitPublish(t, e, stage)
-	current := e.catalog.State.MustNamespace(ns.Address())
-	if e.catalog.State == oldState || e.roles.Published != stage.roleCandidate || len(current.ACL.Entries) != 0 || len(fixtureEdges(e.roles.Published)) != len(oldEdges)-1 {
+	current := e.Catalog.State.MustNamespace(ns.Address())
+	if e.Catalog.State == oldState || e.RoleStore.Published != stage.RoleCandidateRecord || len(current.ACL.Entries) != 0 || len(fixtureEdges(e.RoleStore.Published)) != len(oldEdges)-1 {
 		t.Fatal("catalog and membership did not commit together")
 	}
 	if !reflect.DeepEqual(fixtureEdges(oldRoles), oldEdges) || !reflect.DeepEqual(ns.ACL.Entries, oldACL) || oldState.Get(ns.Address()) != ns {
@@ -60,11 +60,11 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 				done = cleanup
-				auth, err := operationAuthorization(op)
+				auth, err := OperationAuthorization(op)
 				if err != nil {
 					t.Fatal(err)
 				}
-				stage.authorizeLocked(auth, op.Session)
+				stage.AuthorizeLocked(auth, op.Session)
 			}
 			if done != nil {
 				defer done()
@@ -77,9 +77,9 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "role":
-				next := *e.roles.Published
+				next := *e.RoleStore.Published
 				next.Revision++
-				e.roles.PublishLocked(&next)
+				e.RoleStore.PublishLocked(&next)
 			case "catalog":
 				replacement := *ns
 				replacement.ObjectRevision++
@@ -89,16 +89,16 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				}
 				ownershipUnitPublish(t, e, other)
 			case "database":
-				replacement := *e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
-				replacement.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
+				replacement := *e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
+				replacement.Owner = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("ownership_target")
 				replacement.ObjectRevision++
 				other := e.BeginCatalogStage(e.CatalogRead())
 				if err := other.Replace(&replacement); err != nil {
 					t.Fatal(err)
 				}
-				roles, epoch := e.roles.Published, e.catalog.State.Epoch()
+				roles, epoch := e.RoleStore.Published, e.Catalog.State.Epoch()
 				ownershipUnitPublish(t, e, other)
-				if e.roles.Published != roles || e.catalog.State.Epoch() != epoch {
+				if e.RoleStore.Published != roles || e.Catalog.State.Epoch() != epoch {
 					t.Fatal("database-only publication changed role authority or epoch")
 				}
 			case "reset":
@@ -106,29 +106,29 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "session":
-				stage.authSession.Mu.Lock()
-				stage.authSession.Authorization.Revision++
-				stage.authSession.Mu.Unlock()
+				stage.AuthSession.Mu.Lock()
+				stage.AuthSession.Authorization.Revision++
+				stage.AuthSession.Mu.Unlock()
 			case "namespace-headroom":
-				next := catalog.CloneState(e.catalog.State)
+				next := catalog.CloneState(e.Catalog.State)
 				next.SetNamespaceGeneration(^uint64(0))
-				e.catalog.PublishLocked(next)
+				e.Catalog.PublishLocked(next)
 			case "role-headroom":
-				next := *e.roles.Published
+				next := *e.RoleStore.Published
 				next.Revision = ^uint64(0)
-				e.roles.PublishLocked(&next)
+				e.RoleStore.PublishLocked(&next)
 			case "invalid-member":
-				next := *stage.roleCandidate
+				next := *stage.RoleCandidateRecord
 				edges := fixtureEdges(&next)
 				edges[0].Set = !edges[0].Set
 				setFixtureEdges(&next, edges)
-				stage.roleCandidate = &next
+				stage.RoleCandidateRecord = &next
 			}
-			state, roles := e.catalog.State, e.roles.Published
+			state, roles := e.Catalog.State, e.RoleStore.Published
 			if _, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("stale/exhausted publication succeeded")
 			}
-			if e.catalog.State != state || e.roles.Published != roles {
+			if e.Catalog.State != state || e.RoleStore.Published != roles {
 				t.Fatal("failure partially installed catalog or membership")
 			}
 			if name == "cancel" && !errors.Is(err, context.Canceled) {
@@ -154,8 +154,8 @@ type ownershipInstallContext struct {
 
 func (c *ownershipInstallContext) Err() error {
 	if c.armed {
-		if c.e.mu.TryLock() {
-			c.e.mu.Unlock()
+		if c.e.Mu.TryLock() {
+			c.e.Mu.Unlock()
 		} else {
 			c.once.Do(func() { close(c.entered); <-c.release })
 		}
@@ -171,7 +171,7 @@ func TestRoleOwnershipPublicationFinalInstallCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, roles := e.catalog.State, e.roles.Published
+	state, roles := e.Catalog.State, e.RoleStore.Published
 	ctx.armed = true
 	result := make(chan error, 1)
 	go func() { _, err := e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); result <- err }()
@@ -195,7 +195,7 @@ func TestRoleOwnershipPublicationFinalInstallCancellation(t *testing.T) {
 	case <-timer.C:
 		t.Fatal("canceled publisher did not finish")
 	}
-	if e.catalog.State != state || e.roles.Published != roles {
+	if e.Catalog.State != state || e.RoleStore.Published != roles {
 		t.Fatal("final-install cancellation partially published")
 	}
 }
@@ -205,7 +205,7 @@ type ownershipCountingWriter struct{ calls int }
 func (w *ownershipCountingWriter) Write(p []byte) (int, error) { w.calls++; return len(p), nil }
 func TestRoleOwnershipNamespaceACLPrewriterGuard(t *testing.T) {
 	e, _, _ := ownershipCleanupStage(t)
-	state, roles := e.catalog.State, e.roles.Published
+	state, roles := e.Catalog.State, e.RoleStore.Published
 	writer := &ownershipCountingWriter{}
 	err := e.Dump(context.Background(), writer)
 	if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit namespace ACL" || writer.calls != 0 {
@@ -215,7 +215,7 @@ func TestRoleOwnershipNamespaceACLPrewriterGuard(t *testing.T) {
 	if errors.As(err, &sql) {
 		t.Fatal("ordinary control error became SQL diagnostic", err)
 	}
-	if e.catalog.State != state || e.roles.Published != roles {
+	if e.Catalog.State != state || e.RoleStore.Published != roles {
 		t.Fatal("failed Dump mutated state")
 	}
 }
@@ -229,7 +229,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	// An independent physical session changes real membership after candidate
 	// validation. The delayed publisher must retain that change, not overwrite it.
 	_, grantErr := testExecute(e, context.Background(), statement(t, "GRANT ownership_target TO ownership_reader"), nil)
-	state, roles, store := e.catalog.State, e.roles.Published, e.storage.Relations[address]
+	state, roles, store := e.Catalog.State, e.RoleStore.Published, e.Storage.Relations[address]
 	close(release)
 	select {
 	case err = <-result:
@@ -267,7 +267,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	if grantErr != nil {
 		t.Fatal(grantErr)
 	}
-	if e.catalog.State != state || e.roles.Published != roles || e.storage.Relations[address] != store || state.MustRelation(address).Owner == target {
+	if e.Catalog.State != state || e.RoleStore.Published != roles || e.Storage.Relations[address] != store || state.MustRelation(address).Owner == target {
 		t.Fatal("stale publication erased membership or changed table")
 	}
 }

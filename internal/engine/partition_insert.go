@@ -12,15 +12,15 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	read := partition.CaptureCatalog(auth.Catalog, s.PartitionRelations)
 	target = read.MustRelation(target.Address())
 	state, err := partition.CaptureInsertLocked(read, auth.View, auth, target, func() error {
-		if s.output.RegTS != nil {
+		if s.Output.RegTS != nil {
 			return nil
 		}
-		return e.captureCommentSnapshotLocked(s)
+		return e.CaptureCommentSnapshotLocked(s)
 	}, func(leaf *catalog.Relation) error {
-		if err := e.captureCheckCommentSnapshotLocked(s, leaf); err != nil {
+		if err := e.CaptureCheckCommentSnapshotLocked(s, leaf); err != nil {
 			return err
 		}
-		return e.captureCheckVisibilitySnapshotLocked(s, leaf)
+		return e.CaptureCheckVisibilitySnapshotLocked(s, leaf)
 	})
 	if err != nil {
 		return err

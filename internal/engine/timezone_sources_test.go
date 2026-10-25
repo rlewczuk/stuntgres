@@ -25,7 +25,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 		{12005, []string{"name", "abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Text, sqltype.Interval, sqltype.Bool}},
 		{12004, []string{"abbrev", "utc_offset", "is_dst"}, []sqltype.ID{sqltype.Text, sqltype.Interval, sqltype.Bool}},
 	} {
-		d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
+		d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
 		if !d.VirtualView || d.View != nil || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != 11 || len(d.Columns) != len(tc.names) {
 			t.Fatal(d)
 		}
@@ -61,8 +61,8 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 
 func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	e := New()
-	d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12005})
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12005})
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 	boundary := time.Date(2024, 3, 10, 7, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
 		instant time.Time
@@ -73,7 +73,7 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 		{boundary, -14400000000, true},
 	} {
 		input := sqltype.InputEnvironment{TransactionStart: tc.instant}
-		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{input: input}}, captureTimezoneSource)
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{input: input}}, captureTimezoneSource)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +105,7 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{input: sqltype.InputEnvironment{}}}, captureTimezoneSource); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: EngineCatalogRuntime{input: sqltype.InputEnvironment{}}}, captureTimezoneSource); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(source, err)
 	}
 }
@@ -120,7 +120,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.gate(&parser.Select{}); err != nil {
+	if err := scope.Gate(&parser.Select{}); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
@@ -138,9 +138,9 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 			{12005, "America/New_York", -18000000000},
 			{12004, "IST", 7200000000},
 		} {
-			d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
-			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
-			e.mu.Lock()
+			d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
+			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
+			e.Mu.Lock()
 			rows, err := e.openRelationSourceLocked(scope, ref, d.Owner, plan.RowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)

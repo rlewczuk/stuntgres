@@ -53,9 +53,9 @@ func finishRestoreComparisonContext(r *restoreRun, _ context.Context, _ *session
 // Engine.mu, checks USAGE on the bound namespace with nothing held, then
 // checks the definitions stmt published.
 func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt parser.Statement, check control.ComparisonCheck) error {
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}

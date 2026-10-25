@@ -17,7 +17,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10),(2,20)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.Relations[ref.Address].Versions[0]
+			original := e.Storage.Relations[ref.Address].Versions[0]
 			sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
 			frontier := worker.Transactions.Frontier
@@ -70,7 +70,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			sessionSQL(t, peer, "CREATE TABLE t(id INT,v INT)")
 			sessionSQL(t, peer, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			row := e.storage.Relations[ref.Address].Versions[0].Row
+			row := e.Storage.Relations[ref.Address].Versions[0].Row
 			sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			transactionRows(t, worker, "SELECT v FROM t", 10)
 			tx := transactionBegin(t, holder)

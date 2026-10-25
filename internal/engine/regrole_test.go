@@ -58,17 +58,17 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	}
 	rows := exec.NewFinalRows([]catalog.Column{{Name: "r", Usage: d.Usage()}}, 1)
 	defer rows.Close()
-	output := regobj.RoleOutput{Owner: &e.catalog.Owner, Roles: old}
+	output := regobj.RoleOutput{Owner: &e.Catalog.Owner, Roles: old}
 	if err := regobj.CaptureRoleOutputValue(rows, output, array); err != nil {
 		t.Fatal(err)
 	}
 	role, _ := old.Lookup("unit_role")
-	e.mu.Lock()
-	next := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	next := cloneRoleFixture(e.RoleStore.Published)
 	retireFixtureRole(next, role.Ref)
-	putFixtureRole(next, authorization.RoleDescriptor{Ref: e.roles.Domain.Principal(30000), Name: "unit_role", Inherit: true, ConnectionLimit: -1})
-	e.roles.PublishLocked(next)
-	e.mu.Unlock()
+	putFixtureRole(next, authorization.RoleDescriptor{Ref: e.RoleStore.Domain.Principal(30000), Name: "unit_role", Inherit: true, ConnectionLimit: -1})
+	e.RoleStore.PublishLocked(next)
+	e.Mu.Unlock()
 	if id, err := input.ResolveRegrole(context.Background(), "unit_role"); err != nil || id != 20000 {
 		t.Fatal("old immutable input", id, err)
 	}
@@ -79,7 +79,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if text, err := rows.FormatRegrole(20000); err != nil || text != "unit_role" {
 		t.Fatal("retained output", text, err)
 	}
-	current := regobj.RoleOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
+	current := regobj.RoleOutput{Owner: &e.Catalog.Owner, Roles: e.Roles()}
 	for _, tc := range []struct {
 		id   uint32
 		text string
@@ -92,7 +92,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if text, err := current.FormatRegrole(30000); err != nil || text != `"unit_role"` {
 		t.Fatal("forced quoting", text, err)
 	}
-	foreign := regobj.RoleOutput{Owner: &New().catalog.Owner, Roles: old}
+	foreign := regobj.RoleOutput{Owner: &New().Catalog.Owner, Roles: old}
 	if _, err := foreign.FormatRegrole(20000); err == nil {
 		t.Fatal("foreign output authority admitted")
 	}
@@ -102,7 +102,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: &e.catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
+	description := &StatementDescription{Temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: &e.Catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.InputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {
@@ -122,8 +122,8 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if _, err := (stored.ScalarRenderer{CommentSnapshot: &snapshot}).SQL(context.Background(), e.CatalogRead(), runtime); err != nil || !snapshot {
 		t.Fatal("stored runtime input omitted statement snapshot demand", snapshot, err)
 	}
-	scope := &StatementScope{input: sqltype.InputEnvironment{Regrole: fresh}}
-	resolved, err := runtime.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}})
+	scope := &StatementScope{Input: sqltype.InputEnvironment{Regrole: fresh}}
+	resolved, err := runtime.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}})
 	if err != nil {
 		t.Fatal("stored runtime input propagation", err)
 	}

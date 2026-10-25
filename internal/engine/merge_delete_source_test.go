@@ -34,7 +34,7 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 			}
 			premature := false
 			cursor.beforeClose = func() {
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				for resource, entry := range lockState.Resources {
 					if resource.ObjectRef == b.Ref && resource.Row != 0 && (len(entry.Holders) != 0 || len(entry.Pending) != 0) {
 						premature = true
@@ -44,8 +44,8 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 					cancel()
 				}
 			}
-			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := dml.AssembleMergeRows(scope.writeHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
+			state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
 			want := primary
 			if phase == "close" {
 				want = cleanup
@@ -53,7 +53,7 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 			if phase == "cancelAtClose" {
 				want = context.Canceled
 			}
-			if !errors.Is(err, want) || rows != nil || cursor.closed != 1 || len(scope.stage.rows) != 0 || len(scope.stage.deletes) != 0 || premature {
+			if !errors.Is(err, want) || rows != nil || cursor.closed != 1 || len(scope.Stage.Rows) != 0 || len(scope.Stage.Deletes) != 0 || premature {
 				scope.Finish(err)
 				t.Fatal("source failure escaped into deletion", err, cursor.closed, premature)
 			}

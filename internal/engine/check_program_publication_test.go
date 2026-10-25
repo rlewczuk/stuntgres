@@ -42,18 +42,18 @@ func TestCheckProgramPublicationCurrentAuthority(t *testing.T) {
 					t.Fatal("Execute", result, err)
 				}
 				sequence := catalogRef(t, e, e.CatalogRead(), "check_publication_steps")
-				e.mu.Lock()
-				generator := e.storage.Sequences[sequence.Address]
+				e.Mu.Lock()
+				generator := e.Storage.Sequences[sequence.Address]
 				before := *generator
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if before.Last != 1 || !before.Called {
 					t.Fatal("Execute did not evaluate genuine truth once", before)
 				}
 				roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.json_array_length(json) FROM check_publication_reader")
 				nullCountUnitDiagnostic(t, scope.Finish(nil), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
-				e.mu.Lock()
+				e.Mu.Lock()
 				after := *generator
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if after != before {
 					t.Fatal("Finish replayed CHECK truth", before, after)
 				}
@@ -74,9 +74,9 @@ func TestCheckProgramPublicationCurrentAuthority(t *testing.T) {
 				if r := sessionSQL(t, reader.Session, "INSERT INTO public.check_publication_rows VALUES(7,'[1]')"); r.Count != 1 {
 					t.Fatal(r)
 				}
-				e.mu.Lock()
+				e.Mu.Lock()
 				last := generator.Last
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if last != 2 {
 					t.Fatal("fresh retry truth", last)
 				}

@@ -18,13 +18,13 @@ import (
 func domainUnitTable(t *testing.T, e *Engine, op *session.Operation, q string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, q).(*parser.CreateTable)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,10 +60,10 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 3, Values: []sqltype.Value{keep, value, sqltype.Null(chain.SQLType), tail}}}}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), source)
-	e.visibility.SetCommitSeqLocked(3)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), source)
+	e.Visibility.SetCommitSeqLocked(3)
+	e.Mu.Unlock()
 	retained := e.CatalogRead()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -74,14 +74,14 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if err = scope.gate(statement(t, "DROP DOMAIN public.a CASCADE")); err != nil {
+	if err = scope.Gate(statement(t, "DROP DOMAIN public.a CASCADE")); err != nil {
 		t.Fatal(err)
 	}
 	restrict := domainUnitStage(t, e, op, "DROP DOMAIN public.a RESTRICT")
 	before := e.CatalogRead().State()
 	err = scope.stageDomainDependents(restrict, parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop type a because other objects depend on it")
-	if e.CatalogRead().State() != before || e.storage.Relations[table.Address()] != source {
+	if e.CatalogRead().State() != before || e.Storage.Relations[table.Address()] != source {
 		t.Fatal("RESTRICT changed roots")
 	}
 	cascade := domainUnitStage(t, e, op, "DROP DOMAIN public.a CASCADE")
@@ -91,7 +91,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	domainUnitPublish(t, e, cascade)
 	current := e.CatalogRead()
 	next := current.MustRelation(table.Address())
-	store := e.storage.Relations[table.Address()]
+	store := e.Storage.Relations[table.Address()]
 	if _, ok := current.Descriptor(a.Address()); ok {
 		t.Fatal("root domain retained")
 	}
@@ -178,7 +178,7 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 		t.Fatal("definition allocation does not follow attribute defaults then CHECK", first, second, check)
 	}
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.a RESTRICT")
-	dependencies, err := domainDependencyClosure(context.Background(), stage, stage.domainTargets)
+	dependencies, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -61,21 +61,21 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	}
 	unrelated := catalogRef(t, e, e.CatalogRead(), "unrelated")
 	var widenErr error
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var binding analyze.Binding
 	if err == nil {
-		binding, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		binding, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = e.captureQuerySourcesLocked(scope, binding.QuerySources, false)
+		source, err = e.CaptureQuerySourcesLocked(scope, binding.QuerySources, false)
 	}
-	frontier := e.visibility.CommitSeq()
+	frontier := e.Visibility.CommitSeq()
 	if err == nil {
-		_, widenErr = scope.acquireDataViewLocked(e, unrelated)
+		_, widenErr = scope.AcquireDataViewLocked(e, unrelated)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestQueryJoinsSecondLeafLockAndCancellation(t *testing.T) {
 			lockPending(t, e, 1)
 			aref := catalogRef(t, e, e.CatalogRead(), "a")
 			bref := catalogRef(t, e, e.CatalogRead(), "b")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			first := lockState.Resources[lock.Resource{ObjectRef: aref}]
 			second := lockState.Resources[lock.Resource{ObjectRef: bref}]
 			admitted := first != nil && len(first.Holders) == 1 && second != nil && len(second.Pending) == 1
@@ -159,7 +159,7 @@ func TestQueryJoinsSelfLockAndInsertDestination(t *testing.T) {
 	tx := transactionBegin(t, s)
 	transactionRows(t, s, "SELECT count(*) FROM a AS x CROSS JOIN a AS y", 4)
 	ref := catalogRef(t, e, e.CatalogRead(), "a")
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	ok := len(lockState.Resources) == 1 && entry != nil && len(entry.Holders) == 1 && len(entry.Pending) == 0
 	if !ok {
@@ -190,21 +190,21 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(context.Canceled)
 		}
 	}()
 	if _, err = scope.Describe(statement(t, "SELECT a.k FROM a JOIN b USING(k)")); err != nil {
 		t.Fatal(err)
 	}
-	if len(scope.querySources) != 2 || scope.querySources[1].Ref != old {
-		t.Fatal(scope.querySources, old)
+	if len(scope.QuerySources) != 2 || scope.QuerySources[1].Ref != old {
+		t.Fatal(scope.QuerySources, old)
 	}
-	grant := scope.querySources[1]
+	grant := scope.QuerySources[1]
 	if err = scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(scope.querySources) != 0 {
+	if len(scope.QuerySources) != 0 {
 		t.Fatal("finished scope retained admission metadata")
 	}
 	if err := e.Reset(context.Background()); err != nil {
@@ -213,9 +213,9 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	// The explicit statement still authorizes logical consumption of captured
 	// immutable rows, but neither it nor the separate finished statement's grant
 	// can authorize the old physical identity in the replacement catalog.
-	e.mu.Lock()
-	_, err = currentQuerySourceLocked(e, e.catalog.Current(), nil, grant)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	_, err = CurrentQuerySourceLocked(e, e.Catalog.Current(), nil, grant)
+	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(old, err)
 	}
@@ -305,7 +305,7 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			defer cancel()
 			done := lockAsync(e, reader, ctx, "SELECT * FROM a CROSS JOIN b", false)
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: prior}]
 			priorHeld := entry != nil && entry.Holders[readerTicket].Mode&lock.AccessShare != 0
 			first := lockState.Resources[lock.Resource{ObjectRef: left}]
@@ -315,7 +315,7 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			}
 			cancel()
 			lockAwait(t, done, context.Canceled)
-			lockState = e.locks.Inspect()
+			lockState = e.Locks.Inspect()
 			entry = lockState.Resources[lock.Resource{ObjectRef: prior}]
 			priorHeld = entry != nil && entry.Holders[readerTicket].Mode&lock.AccessShare != 0
 			other := lockState.Resources[lock.Resource{ObjectRef: right}]
@@ -356,7 +356,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 					sessionSQL(t, holder, q)
 				}
 				role, _ := e.Roles().Lookup("waiting_join_reader")
-				grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+				grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 				left := roleTableRef(t, e, "a")
 				grant := func(name string, rights authorization.Privileges) {
 					t.Helper()
@@ -385,7 +385,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				}
 				tx := transactionBegin(t, holder)
 				sessionSQL(t, holder, "LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
-				old := e.catalog.State.Get(left.Address)
+				old := e.Catalog.State.Get(left.Address)
 				done := make(chan error, 1)
 				var result Result
 				var capturedScope *StatementScope
@@ -406,7 +406,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 					scope.Expected = expected
 					result, err = scope.Execute(ast, 0, nil)
 					// Observe admission metadata before Finish clears grants.
-					capturedSources = append([]exec.Leaf(nil), scope.querySources...)
+					capturedSources = append([]exec.Leaf(nil), scope.QuerySources...)
 					err = scope.Finish(err)
 					if result.Rows != nil {
 						result.Rows.Close()
@@ -435,7 +435,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				} else if err != nil || result.Count != 1 || (result.Rows != nil) == inserting {
 					t.Fatal(result, err)
 				}
-				if capturedScope == nil || len(capturedSources) != 2 || capturedSources[0].Relation == old || capturedSources[0].Relation.Comment != "join wait metadata" || len(capturedScope.querySources) != 0 {
+				if capturedScope == nil || len(capturedSources) != 2 || capturedSources[0].Relation == old || capturedSources[0].Relation.Comment != "join wait metadata" || len(capturedScope.QuerySources) != 0 {
 					t.Fatal("earlier grant metadata was not refreshed or cleanup retained grants", capturedSources, capturedScope)
 				}
 				wantCount := int64(0)
@@ -512,21 +512,21 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 				finish(err)
 				t.Fatal(err)
 			}
-			if scope.ownDeletes[unrelated.Address] == nil || len(scope.ownWrites[unrelated.Address]) == 0 {
+			if scope.OwnDeletes[unrelated.Address] == nil || len(scope.OwnWrites[unrelated.Address]) == 0 {
 				finish(nil)
 				t.Fatal("private-root exclusion witness was vacuous")
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+				bound, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 			}
 			var source *exec.Source
 			if err == nil {
-				source, err = e.captureQuerySourcesLocked(scope, bound.QuerySources, false)
+				source, err = e.CaptureQuerySourcesLocked(scope, bound.QuerySources, false)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err == nil {
 				err = exec.SelectQuerySources(op.Ctx, source)
 			}

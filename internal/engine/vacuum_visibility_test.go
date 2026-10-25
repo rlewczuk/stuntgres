@@ -15,9 +15,9 @@ import (
 func vacuumStore(t *testing.T, e *Engine, name string) (ids.ObjectRef, *storage.Relation) {
 	t.Helper()
 	ref := catalogRef(t, e, e.CatalogRead(), name)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	store := e.storage.Relations[ref.Address]
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	store := e.Storage.Relations[ref.Address]
 	if store == nil {
 		t.Fatal("missing store", name)
 	}
@@ -40,7 +40,7 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 		}
 	}
 	indexRef := catalogRef(t, e, e.CatalogRead(), "subject_ix")
-	oldIndex := e.storage.IndexRoots[indexRef.Address]
+	oldIndex := e.Storage.IndexRoots[indexRef.Address]
 	if len(oldIndex.Entries) != 3 {
 		t.Fatal("pre-delete index must own all three entries", oldIndex.Entries)
 	}
@@ -65,7 +65,7 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 	sessionSQL(t, writer, "DELETE FROM subject WHERE id<3")
 	ends := store.Ends
 	endEntries := maps.Clone(ends.Rows)
-	deletedIndex := e.storage.IndexRoots[indexRef.Address]
+	deletedIndex := e.Storage.IndexRoots[indexRef.Address]
 	if deletedIndex == oldIndex || len(deletedIndex.Entries) != 1 || deletedIndex.Entries[0].Row != old[2].Row || deletedIndex.Entries[0].Version != old[2].Version || deletedIndex.Entries[0].Position != 2 {
 		t.Fatal("DELETE must publish a distinct one-live-key root without changing old slots", deletedIndex.Entries)
 	}
@@ -98,7 +98,7 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 		}
 	}
 	sessionSQL(t, writer, "VACUUM (FREEZE) subject")
-	if e.storage.Relations[ref.Address] != store || len(store.Versions) != 3 || store.Ends != ends || store.Maintenance.Live != 1 || store.Maintenance.Dead != 2 {
+	if e.Storage.Relations[ref.Address] != store || len(store.Versions) != 3 || store.Ends != ends || store.Maintenance.Live != 1 || store.Maintenance.Dead != 2 {
 		t.Fatal("snapshot-gated current root", store)
 	}
 	assertRetained("snapshot-gated freeze")
@@ -114,7 +114,7 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 		t.Fatal("quiescent pass did not retire exact dead heads", store)
 	}
 	assertRetained("quiescent compaction")
-	currentIndex := e.storage.IndexRoots[indexRef.Address]
+	currentIndex := e.Storage.IndexRoots[indexRef.Address]
 	if currentIndex == deletedIndex || len(currentIndex.Entries) != 1 || currentIndex.Entries[0].Position != 0 || currentIndex.Entries[0].Row != old[2].Row || currentIndex.Entries[0].Version != old[2].Version {
 		t.Fatal("current index was not remapped independently", currentIndex.Entries)
 	}
@@ -125,9 +125,9 @@ func TestVacuumSnapshotSafety(t *testing.T) {
 		t.Fatal("detached result ownership lost")
 	}
 	root, generation := store.Versions, store.Generation
-	rowFrontier, versionFrontier := e.storage.RowFrontier(), e.storage.VersionFrontier()
+	rowFrontier, versionFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
 	sessionSQL(t, writer, "VACUUM subject")
-	if !storage.SameVersionRoot(root, store.Versions) || generation != store.Generation || rowFrontier != e.storage.RowFrontier() || versionFrontier != e.storage.VersionFrontier() {
+	if !storage.SameVersionRoot(root, store.Versions) || generation != store.Generation || rowFrontier != e.Storage.RowFrontier() || versionFrontier != e.Storage.VersionFrontier() {
 		t.Fatal("no-change pass reallocated roots/identities")
 	}
 	assertRetained("unchanged repeat")
@@ -166,9 +166,9 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	for _, name := range []string{"provenance", "provenance_ctas", "provenance_mv"} {
 		_, store := vacuumStore(t, e, name)
 		row := store.Versions[0]
-		e.mu.Lock()
-		state, known, err := e.visibility.TransactionStatusLocked(row.InsertFullXID)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		state, known, err := e.Visibility.TransactionStatusLocked(row.InsertFullXID)
+		e.Mu.Unlock()
 		if row.InsertFullXID < 3 || row.Frozen || row.ImportFrozen || err != nil || !known || state != "committed" {
 			t.Fatal("birth not actual canonical publisher", name, row, state, err)
 		}
@@ -176,7 +176,7 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	_, store := vacuumStore(t, e, "provenance")
 	before := store.Versions[0]
 	sessionSQL(t, s, "ALTER TABLE provenance ADD COLUMN note INT DEFAULT 7")
-	if store = e.storage.Relations[catalogRef(t, e, e.CatalogRead(), "provenance").Address]; store.Versions[0].InsertFullXID != before.InsertFullXID {
+	if store = e.Storage.Relations[catalogRef(t, e, e.CatalogRead(), "provenance").Address]; store.Versions[0].InsertFullXID != before.InsertFullXID {
 		t.Fatal("projection changed insertion identity")
 	}
 	sessionSQL(t, s, "UPDATE provenance SET id=2")
@@ -186,21 +186,21 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "INSERT INTO provenance(id) VALUES(3)")
 	sessionSQL(t, s, "PREPARE TRANSACTION 'vacuum_provenance'")
-	e.mu.Lock()
-	publisher := e.visibility.FullXIDLocked(e.prepared.Lookup("vacuum_provenance").Ref)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	publisher := e.Visibility.FullXIDLocked(e.prepared.Lookup("vacuum_provenance").Ref)
+	e.Mu.Unlock()
 	sessionSQL(t, s, "COMMIT PREPARED 'vacuum_provenance'")
 	if store.Versions[1].InsertFullXID != publisher {
 		t.Fatal("prepared commit lost detached publisher")
 	}
 	// Distinct domains deliberately disagree: CommitSeq10000, writer order700,
 	// canonical active90, committed insertion identities80 and95.
-	e.mu.Lock()
-	self := e.catalog.Domain.Tx(s.SessionToken, 999, e.catalog.State.Epoch(), s.Transactions, 999)
-	e.visibility.SetLastAssignedXIDLocked(99)
-	e.visibility.Entries[self] = visibility.Entry{XID: 700, FullXID: 90, AssignedXID: 90}
-	cutoff, err := e.visibility.VacuumCutoffLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	self := e.Catalog.Domain.Tx(s.SessionToken, 999, e.Catalog.State.Epoch(), s.Transactions, 999)
+	e.Visibility.SetLastAssignedXIDLocked(99)
+	e.Visibility.Entries[self] = visibility.Entry{XID: 700, FullXID: 90, AssignedXID: 90}
+	cutoff, err := e.Visibility.VacuumCutoffLocked()
+	e.Mu.Unlock()
 	if err != nil || cutoff != 90 {
 		t.Fatal(cutoff, err)
 	}
@@ -218,9 +218,9 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	if err != nil || next != 0x100000003 {
 		t.Fatal("canonical wrap cutoff", next, err)
 	}
-	e.mu.Lock()
-	delete(e.visibility.Entries, self)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	delete(e.Visibility.Entries, self)
+	e.Mu.Unlock()
 }
 
 func TestVacuumImportHorizons(t *testing.T) {
@@ -236,7 +236,7 @@ func TestVacuumImportHorizons(t *testing.T) {
 	if len(store.Versions) != 1 || !store.Versions[0].Frozen || !store.Versions[0].ImportFrozen || store.Versions[0].InsertFullXID != 0 || store.Maintenance.FrozenXID < 3 {
 		t.Fatal("foreign XIDs crossed target universe", store)
 	}
-	before := source.storage.Relations[catalogRef(t, source, source.CatalogRead(), "imported").Address].Versions[1]
+	before := source.Storage.Relations[catalogRef(t, source, source.CatalogRead(), "imported").Address].Versions[1]
 	if _, err := source.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -250,14 +250,14 @@ func TestVacuumImportHorizons(t *testing.T) {
 	bound := unselected.Maintenance.FrozenXID
 	sessionSQL(t, ts, "INSERT INTO imported VALUES(3)")
 	sessionSQL(t, ts, "VACUUM (FREEZE) imported")
-	if target.databaseFrozenXID > bound {
+	if target.DatabaseFrozenXID > bound {
 		t.Fatal("database bound passed unselected relation")
 	}
-	db := target.databaseFrozenXID
+	db := target.DatabaseFrozenXID
 	root := store.Versions
 	count := store.Maintenance.VacuumCount
 	sessionSQL(t, ts, "VACUUM (ONLY_DATABASE_STATS)")
-	if !storage.SameVersionRoot(root, store.Versions) || store.Maintenance.VacuumCount != count || target.databaseFrozenXID != db {
+	if !storage.SameVersionRoot(root, store.Versions) || store.Maintenance.VacuumCount != count || target.DatabaseFrozenXID != db {
 		t.Fatal("ONLY database stats did main work")
 	}
 	sessionSQL(t, ts, "DROP TABLE imported")
@@ -282,7 +282,7 @@ func TestVacuumImportHorizons(t *testing.T) {
 	if err := target.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(target.storage.Relations) != 0 {
+	if len(target.Storage.Relations) != 0 {
 		t.Fatal("Reset retained obsolete relation maintenance")
 	}
 	if err := target.Restore(context.Background(), strings.NewReader("CREATE TABLE restored(id INT); INSERT INTO restored VALUES(1),(3);")); err != nil {

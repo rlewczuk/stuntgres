@@ -12,9 +12,9 @@ import (
 func notificationAwaitWait(t *testing.T, s *session.Session, ctx context.Context) {
 	t.Helper()
 	for ctx.Err() == nil {
-		engineOf(s).mu.Lock()
-		waiting := payloadOf(s).notifications.Wake != nil
-		engineOf(s).mu.Unlock()
+		EngineOf(s).Mu.Lock()
+		waiting := PayloadOf(s).notifications.Wake != nil
+		EngineOf(s).Mu.Unlock()
 		if waiting {
 			return
 		}
@@ -45,7 +45,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 			}
 			defer blocker.Done()
 			done := make(chan error, 1)
-			go func() { _, err := engineOf(receiver).WaitForNotification(op); op.Done(); done <- err }()
+			go func() { _, err := EngineOf(receiver).WaitForNotification(op); op.Done(); done <- err }()
 			notificationAwaitWait(t, receiver, ctx)
 			receiver.RequestEnd(reason)
 			select {
@@ -65,9 +65,9 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 			if err := receiver.WaitEnd(ctx); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			retired := payloadOf(receiver).notifications.Ended && payloadOf(receiver).notifications.State == nil && e.notifications[receiver.SessionToken] == nil
-			e.mu.Unlock()
+			e.Mu.Lock()
+			retired := PayloadOf(receiver).notifications.Ended && PayloadOf(receiver).notifications.State == nil && e.notifications[receiver.SessionToken] == nil
+			e.Mu.Unlock()
 			if !retired {
 				t.Fatal("physical recipient state retained")
 			}
@@ -99,9 +99,9 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 		if err := s.Detach(handle, session.CleanClose); err != nil {
 			t.Fatal("repeat detach", err)
 		}
-		e.mu.Lock()
-		retired := payloadOf(s).notifications.Ended && payloadOf(s).notifications.State == nil && e.notifications[s.SessionToken] == nil
-		e.mu.Unlock()
+		e.Mu.Lock()
+		retired := PayloadOf(s).notifications.Ended && PayloadOf(s).notifications.State == nil && e.notifications[s.SessionToken] == nil
+		e.Mu.Unlock()
 		if !retired {
 			t.Fatal("detach retained queue/registration")
 		}
@@ -122,11 +122,11 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := payloadOf(receiver).notifications.State
+	original := PayloadOf(receiver).notifications.State
 	cancel()
-	got, err := engineOf(receiver).WaitForNotification(op)
+	got, err := EngineOf(receiver).WaitForNotification(op)
 	op.Done()
-	if !errors.Is(err, context.Canceled) || got != (session.Notification{}) || payloadOf(receiver).notifications.State != original {
+	if !errors.Is(err, context.Canceled) || got != (session.Notification{}) || PayloadOf(receiver).notifications.State != original {
 		t.Fatal("cancellation consumed ready data", got, err)
 	}
 	if got := notificationUnitReceive(t, receiver); got.Payload != "retained" {
@@ -147,7 +147,7 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 	}
 	out := make(chan outcome, 2)
 	go func() {
-		event, err := engineOf(receiver).WaitForNotification(activity)
+		event, err := EngineOf(receiver).WaitForNotification(activity)
 		activity.Done()
 		out <- outcome{event, err}
 	}()
@@ -170,7 +170,7 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		go func() {
-			event, err := engineOf(receiver).WaitForNotification(activity)
+			event, err := EngineOf(receiver).WaitForNotification(activity)
 			activity.Done()
 			out <- outcome{event, err}
 		}()
@@ -190,9 +190,9 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 	if !seen["one"] || !seen["two"] {
 		t.Fatal("lost queue batch", seen)
 	}
-	e.mu.Lock()
-	queue := payloadOf(receiver).notifications.State.Ready
-	e.mu.Unlock()
+	e.Mu.Lock()
+	queue := PayloadOf(receiver).notifications.State.Ready
+	e.Mu.Unlock()
 	if queue.Front != nil || queue.Back != nil || queue.Offset != 0 {
 		t.Fatal("consumed links retained a batch")
 	}
@@ -209,10 +209,10 @@ func TestNotificationBatchOwnership(t *testing.T) {
 		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "second"},
 	}
 	transactionEnd(t, sender, ref, true)
-	e.mu.Lock()
-	left, right := payloadOf(a).notifications.State.Ready.Back, payloadOf(b).notifications.State.Ready.Back
+	e.Mu.Lock()
+	left, right := PayloadOf(a).notifications.State.Ready.Back, PayloadOf(b).notifications.State.Ready.Back
 	shared := left != nil && right != nil && left != right && &left.Batch[0] == &right.Batch[0]
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if !shared {
 		t.Fatal("publication failed shared-payload/private-link ownership")
 	}

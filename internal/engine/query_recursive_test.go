@@ -272,9 +272,9 @@ func recursiveUnitBind(t *testing.T, text string) (*Engine, *plan.Query, error) 
 	}
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(binderOperation(b))
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(binderOperation(b))
+	e.Mu.Unlock()
 	if err != nil {
 		return e, nil, err
 	}

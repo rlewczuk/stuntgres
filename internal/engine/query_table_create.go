@@ -27,7 +27,7 @@ import (
 // Source analysis and parameter import precede this destination-only phase.
 // Engine.mu is held. A skipped destination never enters executor admission.
 func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
-	ns, err := e.creationNamespace(auth, s.Name)
+	ns, err := e.CreationNamespace(auth, s.Name)
 	if err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "0A000" {
 			err = ddl.CreationError(err, s.Name)
@@ -44,15 +44,15 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 			op.ExistingRelationNotice(name)
 			return nil, nil, true, nil
 		}
-		return nil, nil, false, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+		return nil, nil, false, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
 	if err = auth.CheckCreate(ns); err != nil {
 		return nil, nil, false, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.creationName = s.Name
-	stage.authorizeLocked(auth, op.Session)
-	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+	stage.CreationName = s.Name
+	stage.AuthorizeLocked(auth, op.Session)
+	available, err := e.DisplaceAssociatedArrayLocked(stage, ns.Address, name)
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -63,43 +63,43 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 	if err != nil {
 		return nil, nil, false, err
 	}
-	stage.domainBases = append(stage.domainBases, bases...)
+	stage.DomainBases = append(stage.DomainBases, bases...)
 	// Source definitions and namespace lookup authority must still be current at
 	// publication, including for NO DATA. Stored data has no dependency on them.
 	for _, leaf := range b.QuerySources {
-		stage.querySources = append(stage.querySources, leaf.Relation)
+		stage.QuerySources = append(stage.QuerySources, leaf.Relation)
 		if descriptor := auth.Catalog.Get(leaf.Relation.Namespace()); descriptor != nil {
-			stage.querySources = append(stage.querySources, descriptor)
+			stage.QuerySources = append(stage.QuerySources, descriptor)
 		}
 	}
 	owner := auth.State.CurrentUser
-	if s.Form == parser.CreateMaterializedView && operationReplayOrZero(op).tableDestination {
-		directive, err := e.authorizationLocked(op)
+	if s.Form == parser.CreateMaterializedView && OperationReplayOrZero(op).TableDestination {
+		directive, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return nil, nil, false, err
 		}
 		owner = directive.State.CurrentUser
 	}
-	d, err := table.NewRelation(ddlHost{e: e}, ns.Address, name, owner, columns, names)
+	d, err := table.NewRelation(DDLHost{E: e}, ns.Address, name, owner, columns, names)
 	if err != nil {
 		return nil, nil, false, err
 	}
 	if s.Form == parser.CreateMaterializedView {
-		definition, err := view.FreezeDefinition(ddlHost{e: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
+		definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), s.Query, b, false, false, 0, catalog.MaterializedViewRelation, false)
 		if err != nil {
 			return nil, nil, false, err
 		}
 		d.RelationKind, d.View, d.Populated = catalog.MaterializedViewRelation, stored.ViewPayload(definition), !s.NoData
 	}
 	d.Security.ACL = stage.CreationACL(owner, ns.Address, authorization.DefaultTables)
-	if err = e.stageRowTypeLocked(stage, d); err != nil {
+	if err = e.StageRowTypeLocked(stage, d); err != nil {
 		return nil, nil, false, err
 	}
 	if err = stage.Create(d); err != nil {
 		return nil, nil, false, err
 	}
 	if stage.OldNameCount() != 0 {
-		if err = e.reownStagedTypeGenerationsLocked(stage); err != nil {
+		if err = e.ReownStagedTypeGenerationsLocked(stage); err != nil {
 			return nil, nil, false, err
 		}
 		d = stage.Get(d.Address()).(*catalog.Relation)
@@ -109,22 +109,22 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 
 // Rows have already been finalized, typed and detached from query scratch. Only
 // this private stage owns them; identity gaps are allowed if publication fails.
-func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d *catalog.Relation, rows [][]sqltype.Value, ref ids.TxRef) error {
+func (e *Engine) StageQueryTableRows(ctx context.Context, stage *CatalogStage, d *catalog.Relation, rows [][]sqltype.Value, ref ids.TxRef) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if stage == nil || d == nil || stage.owner != e || stage.invalid != nil || stage.lifecycle != catalogOpen || stage.Get(d.Address()) != d || stage.Base.Get(d.Address()) != nil || stage.initialTables != nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if stage == nil || d == nil || stage.Owner != e || stage.Invalid != nil || stage.Lifecycle != CatalogOpen || stage.Get(d.Address()) != d || stage.Base.Get(d.Address()) != nil || stage.initialTables != nil {
 		return errors.New("stuntgres: invalid initial table stage")
 	}
-	if stage.Base.Epoch() != e.catalog.State.Epoch() {
+	if stage.Base.Epoch() != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	// A demanded producer can enroll reads even when every row is filtered out.
 	// NO DATA and existing-target skips never attach a producer transaction.
 	if len(rows) == 0 {
-		stage.initialTx = ref
+		stage.InitialTx = ref
 		return nil
 	}
 	for _, row := range rows {
@@ -138,18 +138,18 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 			}
 		}
 	}
-	versions, err := e.storage.AllocateRowVersionsLocked(rows, nil)
+	versions, err := e.Storage.AllocateRowVersionsLocked(rows, nil)
 	if err != nil {
 		return err
 	}
 	stage.initialTables = map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: versions}}
-	stage.initialTx = ref
+	stage.InitialTx = ref
 	return nil
 }
 
 func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) error {
-	op := scope.op
-	if err := scope.acquireDefinitionProviders(stage); err != nil {
+	op := scope.Op
+	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return err
 	}
 	if scope.foreignTablesOrZero().owner != nil {
@@ -160,13 +160,13 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
 		if scope.cteInvocation != nil {
-			err = e.stageCatalogOverlay(scope, stage, scope.owner.Catalog.Clone())
+			err = e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
 		} else {
-			_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 		}
 	}
 	if err == nil && scope.cteInvocation == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return err
 }
@@ -174,9 +174,9 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 // The common SELECT pipeline has already planned and admitted this producer.
 // Engine.mu is held on entry; every outcome releases it. The caller owns discard.
 func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b analyze.Binding, root plan.Node, parameters []sqltype.Value, stage *CatalogStage, d *catalog.Relation) (Result, error) {
-	ctx := scope.op.Context()
-	source, err := e.captureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
-	e.mu.Unlock()
+	ctx := scope.Op.Context()
+	source, err := e.CaptureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
@@ -191,7 +191,7 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 	if err != nil {
 		return Result{}, err
 	}
-	if err = e.stageQueryTableRows(ctx, stage, d, rows, scope.txRef); err != nil {
+	if err = e.StageQueryTableRows(ctx, stage, d, rows, scope.TxRef); err != nil {
 		return Result{}, err
 	}
 	if err = e.publishQueryTable(scope, stage); err != nil {

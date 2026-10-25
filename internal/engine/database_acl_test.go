@@ -41,8 +41,8 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 		next := *db
 		next.ACL = tc.acl
 		candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
-		catalog := e.catalog.Read(candidate)
-		roles := cloneRoleFixture(e.roles.Published)
+		catalog := e.Catalog.Read(candidate)
+		roles := cloneRoleFixture(e.RoleStore.Published)
 		bootstrap := fixtureRole(roles, owner)
 		bootstrap.Superuser = false
 		putFixtureRole(roles, bootstrap)
@@ -50,7 +50,7 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 			ref  authorization.PrincipalRef
 			want authorization.Privileges
 		}{{owner, tc.ownerRights}, {reader, tc.readerRights}} {
-			rights, err := access.DatabaseRights(context.Background(), catalog, e.roles.Read(&e.catalog.Owner, catalog, roles), item.ref)
+			rights, err := access.DatabaseRights(context.Background(), catalog, e.RoleStore.Read(&e.Catalog.Owner, catalog, roles), item.ref)
 			if err != nil || rights != item.want {
 				t.Fatal("NULL/empty/legacy policy", item.ref, rights, item.want, err)
 			}
@@ -65,16 +65,16 @@ func TestDatabaseACLBaselineTransitions(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rights, err := access.DatabaseRights(ctx, base, e.roles.PublishedRead(&e.catalog.Owner, base), owner); rights != 0 || !errors.Is(err, context.Canceled) {
+	if rights, err := access.DatabaseRights(ctx, base, e.RoleStore.PublishedRead(&e.Catalog.Owner, base), owner); rights != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatal("superuser must not bypass cancellation", rights, err)
 	}
 }
 
 func TestDatabaseACLDelegationCancellation(t *testing.T) {
 	e, owner, source, target, _ := ownershipUnitRoles()
-	db := e.catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
+	db := e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
 	baseline := authorization.MaterializeDatabaseACL(db.ACL, db.Owner)
-	roles := e.roles.PublishedRead(&e.catalog.Owner, e.CatalogRead())
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.CatalogRead())
 	delegated, _, err := authorization.ChangeObjectACL(context.Background(), roles, baseline, owner, owner, []authorization.ACLGrantee{{Role: source}}, authorization.DatabasePrivileges, true, false, false, false)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	next := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	next.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
 	candidate.SetDescriptor(catalog.CurrentDatabaseAddress, &next)
-	fresh := catalogAuthorization(e, e.catalog.Read(candidate))
+	fresh := catalogAuthorization(e, e.Catalog.Read(candidate))
 	fresh.State.CurrentUser = reader
 	if rights, err := fresh.View.OwnTemporaryPrivileges(fresh); err != nil || rights != authorization.UsagePrivilege {
 		t.Fatal("revoked own namespace keeps USAGE only", rights, err)
@@ -132,7 +132,7 @@ func TestDatabaseTemporaryCapturedRights(t *testing.T) {
 	if _, err := access.DatabaseRights(ctx, fresh.Catalog, fresh.Roles, reader); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	foreign := New().roles.Domain.Principal(reader.ID())
+	foreign := New().RoleStore.Domain.Principal(reader.ID())
 	if _, err := access.DatabaseRights(context.Background(), fresh.Catalog, fresh.Roles, foreign); err == nil {
 		t.Fatal("foreign principal accepted")
 	}
@@ -146,22 +146,22 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	e.mu.Lock()
+	e.Mu.Lock()
 	databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true})
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	auth.State.CurrentUser = reader
-	base, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
+	base, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
 	changes := s.Transactions.Catalog.Clone()
-	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)
-	e.mu.Unlock()
+	ref, err := e.RelationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)
+	e.Mu.Unlock()
 	if err == nil || ref != (ids.ObjectRef{}) {
 		t.Fatal("lazy TEMP denial allocated namespace", ref, err)
 	}
-	if e.catalog.State != base || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || len(changes.Descriptors) != 0 || len(changes.Names) != 0 || s.TemporaryNamespace != (ids.ObjectAddress{}) {
+	if e.Catalog.State != base || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || len(changes.Descriptors) != 0 || len(changes.Names) != 0 || s.TemporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("TEMP denial consumed catalog identity or staged objects")
 	}
 }

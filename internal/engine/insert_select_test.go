@@ -138,9 +138,9 @@ func insertSelectEvaluationFixture(t *testing.T, sql string) (analyze.Binding, *
 	t.Helper()
 	e, q, source := queryCoreFixture(t, sql)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	e.mu.Lock()
-	relation := e.catalog.State.MustRelation(ref.Address)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	relation := e.Catalog.State.MustRelation(ref.Address)
+	e.Mu.Unlock()
 	return analyze.Binding{Query: q, Relation: relation, Ref: ref, Targets: []int{0}}, source
 }
 func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
@@ -262,7 +262,7 @@ func TestInsertSelectSourceLockIdentity(t *testing.T) {
 		done := lockAsync(e, worker, ctx, "INSERT INTO t SELECT i FROM s", false)
 		lockPending(t, e, 1)
 		target := catalogRef(t, e, e.CatalogRead(), "t")
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: target}]
 		held := false
 		if entry != nil {
@@ -301,7 +301,7 @@ func TestInsertSelectIndependentACL(t *testing.T) {
 	target := roleTableRef(t, e, "t")
 	source := roleTableRef(t, e, "s")
 	worker, _ := e.Roles().Lookup("worker")
-	grantor := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	grantor := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	grant := func(ref ids.ObjectRef, mask authorization.Privileges) {
 		t.Helper()
 		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: worker.Ref}, Privileges: mask}}}); err != nil {

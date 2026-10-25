@@ -14,14 +14,14 @@ import (
 func TestPgClassCatalogACLRecheck(t *testing.T) {
 	e := New()
 	d := pgClassUnitSource(t, e)
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	role := roleAttributeCreate(t, e, admin, "class_metadata_reader", true, parser.RoleOptions{})
 	reader, readerDone := roleOperation(t, e, role.Name)
 	defer readerDone()
 	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
-	retained, err := operationAuthorization(reader)
+	retained, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := operationAuthorization(reader)
+	denied, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := operationAuthorization(reader)
+	restored, err := OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}

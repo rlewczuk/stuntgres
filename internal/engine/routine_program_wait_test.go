@@ -54,10 +54,10 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				done, cancel := uniqueAsyncUnit(t, reader.Session, "INSERT INTO public.programme_target VALUES(7,1)")
 				lockPending(t, e, 1)
 				sequence := catalogRef(t, e, e.CatalogRead(), "programme_steps")
-				e.mu.Lock()
-				generator := e.storage.Sequences[sequence.Address]
+				e.Mu.Lock()
+				generator := e.Storage.Sequences[sequence.Address]
 				before := *generator
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if before.Last != 2 || !before.Called {
 					t.Fatal("real candidate CHECK did not execute once before wait", before)
 				}
@@ -100,9 +100,9 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("actual unique waiter failed to join")
 				}
-				e.mu.Lock()
+				e.Mu.Lock()
 				after := *generator
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if after != before {
 					t.Fatal("readmission replayed actual volatile CHECK truth", before, after)
 				}
@@ -120,9 +120,9 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				if result := sessionSQL(t, reader.Session, "INSERT INTO public.programme_target VALUES(7,1)"); result.Count != 1 {
 					t.Fatal("fresh regrant retry", result)
 				}
-				e.mu.Lock()
+				e.Mu.Lock()
 				last := generator.Last
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if last != 3 {
 					t.Fatal("regrant retry did not execute exactly one fresh CHECK", fmt.Sprint(last))
 				}
@@ -183,10 +183,10 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			defer cancel()
 			routinePendingUniqueIndex(t, e, firstIndex, reader.Session)
 			sequence := catalogRef(t, e, e.CatalogRead(), "second_wait_steps")
-			e.mu.Lock()
-			generator := e.storage.Sequences[sequence.Address]
+			e.Mu.Lock()
+			generator := e.Storage.Sequences[sequence.Address]
 			before := generator.Last
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if before != 3 {
 				t.Fatal("candidate CHECK did not execute exactly once before first wait", before)
 			}
@@ -208,9 +208,9 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("second real waiter did not join")
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			after := generator.Last
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if after != before {
 				t.Fatal("rebind/readmission replayed volatile CHECK truth", before, after)
 			}
@@ -225,9 +225,9 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			if result := sessionSQL(t, reader.Session, "INSERT INTO public.second_wait_rows VALUES(7,9,1)"); result.Count != 1 {
 				t.Fatal("fresh second-wait regrant retry", result)
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			last := generator.Last
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if last != 4 {
 				t.Fatal("fresh retry did not execute exactly one new CHECK", last)
 			}
@@ -239,7 +239,7 @@ func routinePendingUniqueIndex(t *testing.T, e *Engine, index ids.ObjectRef, wor
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		lockState := e.locks.Inspect()
+		lockState := e.Locks.Inspect()
 		found := false
 		for resource, entry := range lockState.Resources {
 			if resource.ObjectRef != index {

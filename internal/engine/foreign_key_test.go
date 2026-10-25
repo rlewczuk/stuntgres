@@ -23,14 +23,14 @@ func foreignKeyLockFixture(t *testing.T) (*Engine, *session.Session, *session.Se
 	sessionSQL(t, c, "CREATE TABLE c(pid INT REFERENCES p)")
 	sessionSQL(t, c, "INSERT INTO p VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "p")
-	e.mu.Lock()
-	row := e.storage.Relations[ref.Address].Versions[0].Row
-	e.mu.Unlock()
+	e.Mu.Lock()
+	row := e.Storage.Relations[ref.Address].Versions[0].Row
+	e.Mu.Unlock()
 	return e, a, b, c, ref, row
 }
 func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, ticket *lock.Ticket, want lock.Mode) {
 	t.Helper()
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
 	var actual lock.Mode
 	if entry != nil {
@@ -43,7 +43,7 @@ func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowI
 func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, holder *lock.Ticket, want lock.Mode) {
 	t.Helper()
 	rowLockQueued(t, e, holder, want)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
 	found := false
 	if entry != nil {
@@ -198,9 +198,9 @@ func TestForeignKeyQueuedCancellationAndReplacement(t *testing.T) {
 func TestForeignKeySavepointGrantRestoration(t *testing.T) {
 	e, a, _, c, ref, row := foreignKeyLockFixture(t)
 	sessionSQL(t, c, "INSERT INTO p VALUES(2,20)")
-	e.mu.Lock()
-	second := e.storage.Relations[ref.Address].Versions[1].Row
-	e.mu.Unlock()
+	e.Mu.Lock()
+	second := e.Storage.Relations[ref.Address].Versions[1].Row
+	e.Mu.Unlock()
 	tx := transactionBegin(t, a)
 	defer transactionEnd(t, a, tx, false)
 	sessionSQL(t, a, "INSERT INTO c VALUES(1)")
@@ -256,7 +256,7 @@ func TestForeignKeyDefinitionAuthority(t *testing.T) {
 		}
 		copy.SQLIndex = &definition
 		state.SetDescriptor(index.Address(), &copy)
-		if err := table.ValidateForeignKeys(e.catalog.Read(state), child, map[string]bool{}); err == nil {
+		if err := table.ValidateForeignKeys(e.Catalog.Read(state), child, map[string]bool{}); err == nil {
 			t.Fatal("invalid selected index authority", phase)
 		}
 	}
@@ -354,7 +354,7 @@ func TestForeignKeyCreationIdentityAfterWait(t *testing.T) {
 		}
 	}()
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	found := false
 	if entry != nil {

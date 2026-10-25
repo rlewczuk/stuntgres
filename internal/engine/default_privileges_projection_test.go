@@ -20,7 +20,7 @@ func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth Authorizatio
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureTablePrivileges)
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: EngineCatalogRuntime{Auth: auth, temporary: catalogSourceTemporaryOwner(auth), Database: "unit_database"}}, captureTablePrivileges)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func defaultUnitSortRows(rows [][]string) {
 
 func TestDefaultPrivilegesProjection(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	ownerSelect := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.owner}, Privileges: authorization.SelectPrivilege}
 	publicInsert := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.InsertPrivilege}
 	memberUpdate := authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.member}, Privileges: authorization.UpdatePrivilege}
@@ -80,10 +80,10 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 		}
 		state.SetDescriptor(d.Address(), d)
 	}
-	view := f.e.catalog.Read(state)
-	f.e.mu.Lock()
-	auth, err := f.e.authorizationLocked(f.op)
-	f.e.mu.Unlock()
+	view := f.e.Catalog.Read(state)
+	f.e.Mu.Lock()
+	auth, err := f.e.AuthorizationLocked(f.op)
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	putFixtureRole(actor, renamed)
 
 	auth.RoleRecord = actor
-	auth.Recapture(f.e.catalog.Read(changed))
+	auth.Recapture(f.e.Catalog.Read(changed))
 	auth.State.CurrentUser = f.reader
 	_, fresh := defaultUnitProjection(t, auth.Catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}
@@ -187,8 +187,8 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	ref := f.e.catalog.Domain.Ref(view.Epoch(), source.Address())
-	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: engineCatalogRuntime{auth: AuthorizationView{}, temporary: catalogSourceTemporaryOwner(AuthorizationView{}), database: "unit_database"}}, captureTablePrivileges)
+	ref := f.e.Catalog.Domain.Ref(view.Epoch(), source.Address())
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: EngineCatalogRuntime{Auth: AuthorizationView{}, temporary: catalogSourceTemporaryOwner(AuthorizationView{}), Database: "unit_database"}}, captureTablePrivileges)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)
 	}

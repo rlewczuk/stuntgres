@@ -19,8 +19,8 @@ func pruningSelection(t *testing.T, e *Engine, query string, parameters []sqltyp
 	filter := project.Child.(*plan.FilterNode)
 	state := &exec.State{Source: source, Frame: project.Frame, Parameters: parameters}
 	evaluation := state.Evaluation(context.Background())
-	if scope := scopeOf(source.LiveHost()); scope != nil {
-		evaluation.Input = scope.input
+	if scope := ScopeOf(source.LiveHost()); scope != nil {
+		evaluation.Input = scope.Input
 	}
 	if source.BranchPruner == nil {
 		t.Fatal("missing captured branch proof authority")

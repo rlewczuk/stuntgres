@@ -43,23 +43,23 @@ func TestCitextComparisonProviderConflicts(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			before := e.catalog.State
-			e.mu.Lock()
+			before := e.Catalog.State
+			e.Mu.Lock()
 			err := func() error {
-				auth, err := e.authorizationLocked(op)
+				auth, err := e.AuthorizationLocked(op)
 				if err != nil {
 					return err
 				}
 				stage := e.BeginCatalogStage(auth.Catalog)
 				defer e.DiscardCatalogStage(stage)
 				ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-				stage.authorizeLocked(auth, op.Session)
-				stage.extensionNamespace = ns
-				oid, err := e.catalog.AllocateOIDLocked()
+				stage.AuthorizeLocked(auth, op.Session)
+				stage.ExtensionNamespace = ns
+				oid, err := e.Catalog.AllocateOIDLocked()
 				if err != nil {
 					return err
 				}
-				rev, err := e.catalog.RevisionLocked()
+				rev, err := e.Catalog.RevisionLocked()
 				if err != nil {
 					return err
 				}
@@ -70,9 +70,9 @@ func TestCitextComparisonProviderConflicts(t *testing.T) {
 				host := &extensionHost{engine: e, auth: auth, stage: stage}
 				return extension.StockCitext.Stage(citextConflictStage{Stage: host, name: name, owner: auth.State.CurrentUser}, ext, ext.Owner)
 			}()
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			var diagnostic *sqlstate.Error
-			if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || e.catalog.State != before {
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || e.Catalog.State != before {
 				t.Fatal("comparison conflict published a prefix", err)
 			}
 		})

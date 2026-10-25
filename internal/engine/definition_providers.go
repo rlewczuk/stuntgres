@@ -15,41 +15,41 @@ import (
 // Persistent definition holds use the incumbent ticket and replacement fence.
 // Admission occurs outside Engine.mu; after a wait identities are opened anew,
 // never retargeted by name or evaluated to establish a dependency.
-func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
+func (s *StatementScope) AcquireDefinitionProviders(stage *CatalogStage) error {
 	if err := s.acquireForeignKeyDefinitionProviders(stage); err != nil {
 		return err
 	}
-	requests, retained, err := stage.tableSlot.DefinitionProviders(stage.Base, stage, stage.Descriptors(), stage.owner.catalog.Domain)
+	requests, retained, err := stage.tableSlot.DefinitionProviders(stage.Base, stage, stage.Descriptors(), stage.Owner.Catalog.Domain)
 	if err != nil {
 		return err
 	}
-	e := s.engine()
+	e := s.Engine()
 	for _, request := range requests {
 		ref := request.Ref
-		if err := s.acquireSequence(ref, request.Mode, true); err != nil {
+		if err := s.AcquireSequence(ref, request.Mode, true); err != nil {
 			return err
 		}
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(s.op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(s.Op)
 		if err == nil {
 			provider, ok := auth.Catalog.Relation(ref.Address)
 			original, existed := stage.Base.Relation(ref.Address)
 			if !ok && existed {
 				// The provider existed when the definition was analyzed and was
 				// dropped while this statement waited for it (PostgreSQL 18.6).
-				err = sqlError("42704", "referenced relation was concurrently dropped")
-			} else if !ok || !existed || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || provider.RelationKind != original.RelationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
+				err = SQLError("42704", "referenced relation was concurrently dropped")
+			} else if !ok || !existed || ref.Domain() != e.Catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || provider.RelationKind != original.RelationKind || retained[ref.Address] != nil && provider != retained[ref.Address] {
 				err = fmt.Errorf("stuntgres: definition provider disappeared before publication")
 			}
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return err
 		}
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(s.op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return err
 	}
@@ -61,24 +61,24 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 // resolving the original names again or repeating conditional notices.
 func (s *StatementScope) acquireRoutineRetirementRoots(stage *CatalogStage) error {
 	var scratch [8]ids.ObjectAddress
-	addresses := append(scratch[:0], stage.domainTargets...)
+	addresses := append(scratch[:0], stage.DomainTargets...)
 	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
 	for _, address := range addresses {
-		if err := s.acquireCatalogResource(lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}, lock.AccessExclusive); err != nil {
+		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}, lock.AccessExclusive); err != nil {
 			return err
 		}
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.schemaAuthorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.schemaAuthorizationLocked(s.Op)
 	if err != nil {
 		return err
 	}
 	if auth.Catalog.Epoch() != stage.Base.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	if auth.Revision != stage.authRevision || auth.RoleRecord.Revision != stage.roleRevision {
+	if auth.Revision != stage.AuthRevision || auth.RoleRecord.Revision != stage.RoleRevision {
 		return catalog.Conflict{}
 	}
 	for _, address := range addresses {
@@ -87,7 +87,7 @@ func (s *StatementScope) acquireRoutineRetirementRoots(stage *CatalogStage) erro
 		}
 	}
 	stage.Candidate = catalog.NewCandidate(auth.Catalog)
-	stage.authorizeLocked(auth, s.op.Session)
+	stage.AuthorizeLocked(auth, s.Op.Session)
 	return nil
 }
 
@@ -103,7 +103,7 @@ func (s *StatementScope) acquireRoutineRetirements(stage *CatalogStage) error {
 	}
 	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
 	for _, address := range addresses {
-		if err := s.acquireCatalogResource(lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}, lock.AccessExclusive); err != nil {
+		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}, lock.AccessExclusive); err != nil {
 			return err
 		}
 	}
@@ -113,7 +113,7 @@ func (s *StatementScope) acquireRoutineRetirements(stage *CatalogStage) error {
 // Consume the canonical checked manifests, never quoted source or opened
 // producers. Sources are stage read inputs; descriptors/programs remain the
 // sole executable authority and the journal captures their ordinary fences.
-func (s *StatementScope) acquireRoutineDefinitionProviders(stage *CatalogStage) error {
+func (s *StatementScope) AcquireRoutineDefinitionProviders(stage *CatalogStage) error {
 	var scratch [8]catalog.Descriptor
 	sources := scratch[:0]
 	add := func(address ids.ObjectAddress) bool {
@@ -164,7 +164,7 @@ func (s *StatementScope) acquireRoutineDefinitionProviders(stage *CatalogStage) 
 	for _, source := range sources {
 		address := source.Address()
 		if address.ClassID == ids.ProcedureClassID || address.ClassID == ids.RelationClassID {
-			if err := s.acquireCatalogResource(lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}, lock.AccessShare); err != nil {
+			if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: stage.Base.Domain().Ref(stage.Base.Epoch(), address)}, lock.AccessShare); err != nil {
 				return err
 			}
 		}
@@ -172,9 +172,9 @@ func (s *StatementScope) acquireRoutineDefinitionProviders(stage *CatalogStage) 
 	if len(sources) == 0 {
 		return nil
 	}
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil && auth.Catalog.Epoch() != stage.Base.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
@@ -184,17 +184,17 @@ func (s *StatementScope) acquireRoutineDefinitionProviders(stage *CatalogStage) 
 		}
 		current := auth.Catalog.Get(source.Address())
 		if current == nil && source.Address().ClassID == ids.ProcedureClassID {
-			err = sqlError("42704", "referenced function was concurrently dropped")
+			err = SQLError("42704", "referenced function was concurrently dropped")
 		} else if current == nil && source.Address().ClassID == ids.RelationClassID {
-			err = sqlError("42704", "referenced relation was concurrently dropped")
+			err = SQLError("42704", "referenced relation was concurrently dropped")
 		} else if current != source {
 			err = catalog.Conflict{}
 		}
 	}
-	if err == nil && (auth.Revision != stage.authRevision || auth.RoleRecord.Revision != stage.roleRevision) {
+	if err == nil && (auth.Revision != stage.AuthRevision || auth.RoleRecord.Revision != stage.RoleRevision) {
 		err = catalog.Conflict{}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}

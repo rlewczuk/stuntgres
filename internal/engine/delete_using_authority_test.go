@@ -74,7 +74,7 @@ func TestDeleteUsingRejectedPairsDoNotAllocatePerPair(t *testing.T) {
 		}
 		return testing.AllocsPerRun(20, func() {
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), q)
-			r, err := dml.ExecuteDelete(scope.writeHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
+			r, err := dml.ExecuteDelete(scope.WriteHost(), dml.DeleteInput{Binding: b, Source: target, Inputs: inputs})
 			if r.Rows != nil {
 				defer r.Rows.Close()
 			}
@@ -108,23 +108,23 @@ func TestDeleteUsingReferenceKindDoesNotConferSourceLocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			scope.Finish(errors.New("abandoned DELETE reference-kind fixture"))
 		}
 	})
 	ref := catalogRef(t, e, e.CatalogRead(), "seq")
-	e.mu.Lock()
-	relation := e.catalog.State.MustRelation(ref.Address)
-	err = e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation, DeleteReference: true}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	relation := e.Catalog.State.MustRelation(ref.Address)
+	err = e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation, DeleteReference: true}})
+	e.Mu.Unlock()
 	waitsDiagnostic(t, err, "42809", `cannot lock rows in sequence "seq"`)
-	if scope.queryLocks != nil {
+	if scope.QueryLockContext != nil {
 		t.Fatal("reference-kind rejection created tuple-lock authority")
 	}
-	e.mu.Lock()
-	err = e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation}})
-	e.mu.Unlock()
-	if err != nil || scope.queryLocks != nil {
+	e.Mu.Lock()
+	err = e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: ref, Relation: relation}})
+	e.Mu.Unlock()
+	if err != nil || scope.QueryLockContext != nil {
 		t.Fatal("DELETE kind policy leaked into ordinary source reads", err)
 	}
 	if err := scope.Finish(nil); err != nil {

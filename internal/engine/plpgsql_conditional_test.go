@@ -53,12 +53,12 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 				t.Fatal(err)
 			}
 			d := &catalog.Procedure{ObjectName: "conditional_frame", Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "conditional_frame", Source: tc.source, Result: integer.Usage(), PLSyntax: raw}}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(s.op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(s.Op)
 			if err == nil {
-				err = e.compilePLRoutineLocked(s.op, auth, d)
+				err = e.CompilePLRoutineLocked(s.Op, auth, d)
 			}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -67,9 +67,9 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 			f := proc.NewPLFrame(d.SQL.PL, d.SQL, input, sqltype.CollationRef{})
 			defer f.Close()
 			if tc.cancel {
-				ctx, cancel := context.WithCancel(s.op.Ctx)
+				ctx, cancel := context.WithCancel(s.Op.Ctx)
 				defer cancel()
-				s.op.Ctx = conditionalFrameCancel{Context: ctx, cancel: cancel, frame: f}
+				s.Op.Ctx = conditionalFrameCancel{Context: ctx, cancel: cancel, frame: f}
 			}
 			value, flow, err := s.newPLRun(d, f, read).Block(d.SQL.PL.Root)
 			if tc.cancel {
@@ -113,11 +113,11 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 		}
 		frame := &proc.PLFrame{Program: &proc.PLProgram{SearchCount: 1}, Searches: []proc.PLSearch{{Value: sqltype.Null(varchar), Usage: usage}}}
 		raw := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: proc.PLSearchName(0)}}}}
-		e.mu.Lock()
-		binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
+		e.Mu.Lock()
+		binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, nil)
 		binder.PL = frame
 		node, err := binder.Column(raw)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -130,7 +130,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 		if _, err := local.Eval(nil); err == nil {
 			t.Fatal("private local bypassed the missing-context evaluation guard")
 		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: e.CatalogRead(), Input: binder.Input, Output: s.output}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Host: HostOf(s), Catalog: e.CatalogRead(), Input: binder.Input, Output: s.Output}}
 		before, err := local.Eval(&evaluation)
 		if err != nil || before.Type() != varchar || !before.IsNull() || local.ResultUsage() != usage {
 			t.Fatalf("captured search before frame close: value=%#v usage=%#v err=%v", before, local.ResultUsage(), err)
@@ -144,9 +144,9 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 		if err != nil || value.Type() != varchar || !value.IsNull() || local.ResultUsage() != usage {
 			t.Fatalf("captured search after frame close: value=%#v usage=%#v err=%v", value, local.ResultUsage(), err)
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		_, err = binder.Column(raw)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err == nil {
 			t.Fatal("inactive private binding admitted")
 		}
@@ -155,9 +155,9 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 			{{Text: "\x00case:1"}},
 			{{Text: "ordinary"}, {Text: proc.PLSearchName(0)}},
 		} {
-			e.mu.Lock()
+			e.Mu.Lock()
 			_, err := binder.Column(parser.ColumnExpr{Name: parser.ObjectName{Parts: parts}})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err == nil {
 				t.Fatal("noncanonical or qualified private binding admitted", parts)
 			}

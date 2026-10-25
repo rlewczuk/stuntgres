@@ -30,9 +30,9 @@ func operatorUnitDefinition(name, function string) *parser.CreateOperator {
 func operatorUnitStage(t *testing.T, e *Engine, op *session.Operation, auth AuthorizationView, s *parser.CreateOperator) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err := routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, s)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := routine.StageCreateOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, s)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,9 +84,9 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	bad := operatorUnitDefinition("#?#", "int4pl")
 	bad.Options = append(bad.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#@#")})
 	stage = e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err := routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, bad)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := routine.StageCreateOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, bad)
+	e.Mu.Unlock()
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "42P13" || d.Message != "only boolean operators can have negators" {
 		t.Fatal(err)
@@ -99,11 +99,11 @@ func TestUserOperatorCatalogValidation(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	stage := e.BeginCatalogStage(view)
-	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Owner: e.roles.Domain.Principal(10), Function: 177, Result: 23}
+	d := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Owner: e.RoleStore.Domain.Principal(10), Function: 177, Result: 23}
 	if err := stage.Create(d); err != nil {
 		t.Fatal(err)
 	}
-	candidate := e.stageRead(stage)
+	candidate := e.StageRead(stage)
 	if err := (routine.OperatorProvider{}).Validate(candidate, d); err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestUserOperatorCatalogLookupOnlySeedValidation(t *testing.T) {
 	if err := stage.Create(&custom); err != nil {
 		t.Fatal(err)
 	}
-	if err := (routine.OperatorProvider{}).Validate(e.stageRead(stage), &custom); err == nil {
+	if err := (routine.OperatorProvider{}).Validate(e.StageRead(stage), &custom); err == nil {
 		t.Fatal("lookup-only identity accepted as a custom implementation")
 	}
 }
@@ -357,7 +357,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		t.Fatal(id, err)
 	}
 	stage := e.BeginCatalogStage(view)
-	source := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Result: 23, Function: 177, Owner: e.roles.Domain.Principal(10)}
+	source := &catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: 90000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, ObjectName: "#~#", Left: 23, Right: 23, Result: 23, Function: 177, Owner: e.RoleStore.Domain.Principal(10)}
 	destination := *source
 	destination.ObjectAddress.ObjectID = 90001
 	destination.ObjectName = "#/#"
@@ -369,7 +369,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	original := e.catalog.Domain.Ref(view.Epoch(), source.Address())
+	original := e.Catalog.Domain.Ref(view.Epoch(), source.Address())
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	integer, _ := view.LookupType(sqltype.Int4)
 	two, _ := sqltype.Integer(integer, 2)
@@ -391,7 +391,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		}
 		operatorCount, routineCount := 0, 0
 		for _, ref := range manifest {
-			if ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
+			if ref.Domain() != e.Catalog.Domain || ref.Epoch != view.Epoch() {
 				t.Fatal("foreign stored lifetime", ref)
 			}
 			if ref.Address == operator {
@@ -407,7 +407,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		_, auth := conversionUnitAuth(t, e)
 		auth.Recapture(view)
 		recipe := exec.Context{EvalAdmission: exec.EvalAdmission{RoutineRecipe: true, RoutineReferences: manifest}}
-		if err := exec.CheckRecipeRoutineDescriptor(&recipe, routineAccessOf(auth), nil, routine); err != nil {
+		if err := exec.CheckRecipeRoutineDescriptor(&recipe, RoutineAccessOf(auth), nil, routine); err != nil {
 			t.Fatal("stored provider admission", err)
 		}
 	}
@@ -513,7 +513,7 @@ func TestUserOperatorCatalogPublicationFences(t *testing.T) {
 	e.DiscardCatalogStage(stage)
 	stage = e.BeginCatalogStage(before)
 	foreign := *unowned
-	foreign.Owner = New().roles.Domain.Principal(10)
+	foreign.Owner = New().RoleStore.Domain.Principal(10)
 	if err = stage.Create(&foreign); err != nil {
 		t.Fatal(err)
 	}
@@ -540,9 +540,9 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	}
 	base := auth.Catalog.State()
 	stage = e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err := routine.StageCreateOperator(ddlHost{e: e, op: op, stage: stage}, auth, create)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := routine.StageCreateOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "operator #=# already exists" {
 		t.Fatal("duplicate must fail before catalog publication", err)
@@ -551,9 +551,9 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 		t.Fatal("duplicate changed the published catalog")
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
-	e.mu.Lock()
-	err = routine.StageAlterOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: []parser.OperatorOption{{Name: "hashes", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: "true"}}})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = routine.StageAlterOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: []parser.OperatorOption{{Name: "hashes", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: "true"}}})
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("exact ALTER lookup", err)
 	}
@@ -564,11 +564,11 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 		t.Fatal("ALTER must preserve identity and immutable predecessor", altered, d)
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
-	if err := routine.StageDropOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature}}); err != nil {
+	if err := routine.StageDropOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature}}); err != nil {
 		t.Fatal("exact DROP lookup", err)
 	}
-	if len(stage.domainTargets) != 1 || stage.domainTargets[0] != d.Address() {
-		t.Fatal("DROP selected the wrong identity", stage.domainTargets)
+	if len(stage.DomainTargets) != 1 || stage.DomainTargets[0] != d.Address() {
+		t.Fatal("DROP selected the wrong identity", stage.DomainTargets)
 	}
 }
 
@@ -627,13 +627,13 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 		return parser.OperatorSignature{Name: operatorUnitName("public", name), Left: parser.TypeName{Name: "int4"}, Right: parser.TypeName{Name: "int4"}}
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
-	if err := routine.StageDropOperator(ddlHost{e: e, op: op, stage: stage}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature("#!#"), signature("#~#"), signature("#!#")}}); err != nil {
+	if err := routine.StageDropOperator(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature("#!#"), signature("#~#"), signature("#!#")}}); err != nil {
 		t.Fatal(err)
 	}
-	if len(stage.domainTargets) != 2 {
-		t.Fatal("DROP roots not deduplicated", stage.domainTargets)
+	if len(stage.DomainTargets) != 2 {
+		t.Fatal("DROP roots not deduplicated", stage.DomainTargets)
 	}
-	if err := stageExpressionDependencies(context.Background(), stage, stage.domainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := StageExpressionDependencies(context.Background(), stage, stage.DomainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal("links are not dependency blockers", err)
 	}
 	collationUnitPublish(t, e, stage)

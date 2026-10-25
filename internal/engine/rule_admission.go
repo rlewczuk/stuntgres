@@ -15,7 +15,7 @@ import (
 
 // Enter with Engine.mu held. Success retains it; failure releases it. This
 // acquires the original ticket's locks, not data views or command effects.
-func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *view.RuleProgram) ([]ids.ObjectRef, error) {
+func (e *Engine) AdmitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *view.RuleProgram) ([]ids.ObjectRef, error) {
 	commands, events := program.Commands, program.Events
 	var seen map[*plan.CTEDefinition]bool
 	expanded := false
@@ -30,8 +30,8 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			seen[definition] = true
 			mutation, _ := analyze.MutationBinding(definition)
-			if err := analyze.CheckBinding(ruleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
-				e.mu.Unlock()
+			if err := analyze.CheckBinding(RuleAuthorizationOf(rewrite.Caller), *mutation, definition.Statement); err != nil {
+				e.Mu.Unlock()
 				return nil, err
 			}
 			if _, selectOnly := rewrite.Command.Syntax.(*parser.Select); selectOnly {
@@ -68,7 +68,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 				refs = append(refs, physical.Ref)
 			}
 		}
-		commandAuth := ruleAuthorizationOf(command.Auth)
+		commandAuth := RuleAuthorizationOf(command.Auth)
 		collectAuth := commandAuth
 		collectAuth.Recapture(scope.inheritanceRead(commandAuth.Catalog))
 		principal := func(leaf exec.Leaf) authorization.PrincipalRef {
@@ -86,9 +86,9 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			collectAuth.State.CurrentUser = invoker
 			var err error
-			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.Binding.QuerySources[start:end], queryRefs, scope.op.Session.SessionToken, plan.RowMark{})
+			queryRefs, err = e.QueryTableRefsLocked(collectAuth, invoker, command.Binding.QuerySources[start:end], queryRefs, scope.Op.Session.SessionToken, plan.RowMark{})
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				return nil, err
 			}
 			start = end
@@ -103,39 +103,39 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 		}
 	}
-	e.mu.Unlock()
-	policy := lock.Policy{TimeoutSlot: &scope.op.LockWait, Timeout: scope.op.LockTimeout, StatementDeadline: scope.op.StatementDeadline, Source: scope.op.SourceContext}
+	e.Mu.Unlock()
+	policy := lock.Policy{TimeoutSlot: &scope.Op.LockWait, Timeout: scope.Op.LockTimeout, StatementDeadline: scope.Op.StatementDeadline, Source: scope.Op.SourceContext}
 	for _, requested := range requests {
-		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: requested.ref}, requested.mode, policy)
+		request, err := e.Locks.StartAcquire(scope.Op.Context(), scope.LockTicket, lock.Resource{ObjectRef: requested.ref}, requested.mode, policy)
 		if request != nil {
-			if scope.replacementRead {
-				e.replacementMu.RUnlock()
-				scope.replacementRead = false
+			if scope.ReplacementRead {
+				e.ReplacementMu.RUnlock()
+				scope.ReplacementRead = false
 			}
 			err = request.Wait()
 		}
 		if err != nil {
 			return nil, err
 		}
-		if scope.implicit && !scope.replacementRead {
-			e.replacementMu.RLock()
-			scope.replacementRead = true
+		if scope.implicit && !scope.ReplacementRead {
+			e.ReplacementMu.RLock()
+			scope.ReplacementRead = true
 		}
 	}
-	e.mu.Lock()
-	if err := scope.refreshRelationGrantsLocked(e); err != nil {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
+		e.Mu.Unlock()
 		return nil, err
 	}
-	fresh, err := e.statementAuthorizationLocked(scope.op, statement)
+	fresh, err := e.StatementAuthorizationLocked(scope.Op, statement)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return nil, err
 	}
 	for _, event := range events {
 		current, ok := fresh.Catalog.Find(event.Ref.Address)
 		if !ok || event.Ref.Epoch != fresh.Catalog.Epoch() || current.Revision() != event.Revision {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
@@ -147,19 +147,19 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			program.Commands[i].Auth = current
 		}
 		if err := current.Roles.ValidatePrincipal(principal); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil, err
 		}
 		commands[i].Auth = current
-		if err := view.CheckRowSecurityBinding(scope.rowSecurity, current.View, commands[i].Binding); err != nil {
-			e.mu.Unlock()
+		if err := view.CheckRowSecurityBinding(scope.RowSecurity, current.View, commands[i].Binding); err != nil {
+			e.Mu.Unlock()
 			return nil, err
 		}
 	}
 	for i := range commands {
-		current := ruleAuthorizationOf(commands[i].Auth)
+		current := RuleAuthorizationOf(commands[i].Auth)
 		if err := analyze.CheckBinding(current, commands[i].Binding, commands[i].Syntax); err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return nil, err
 		}
 	}

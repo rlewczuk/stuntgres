@@ -19,47 +19,47 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var path []ids.ObjectAddress
 	if err == nil {
-		scope.routineAuth = auth
-		path, err = referencePath(auth)
+		scope.RoutineAuth = auth
+		path, err = ReferencePath(auth)
 	}
 	var typ *catalog.Type
 	var source *catalog.Relation
 	if err == nil {
 		var ref ids.ObjectRef
-		ref, err = e.resolveRelationReference(auth, s.Name, true)
+		ref, err = e.ResolveRelationReference(auth, s.Name, true)
 		if err == nil {
 			source = auth.Catalog.MustRelation(ref.Address)
 			if source.RelationKind != catalog.CompositeRelation {
-				err = sqlError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.Name()))
+				err = SQLError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.Name()))
 			} else {
 				typ = auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 			}
 		}
 	}
 	if err == nil {
-		err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), OwnerOnly: true})
+		err = auth.Check(access.Requirement{Object: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), OwnerOnly: true})
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
 	// Source metadata mutations share exact type authority with identity/drop.
 	// Keep type -> real backing relation -> typed closure order on every route.
-	if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()), lock.TypeExclusive, true); err != nil {
+	if err := scope.AcquireSequence(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()), lock.TypeExclusive, true); err != nil {
 		return Result{}, err
 	}
-	if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), lock.AccessExclusive, true); err != nil {
+	if err := scope.AcquireSequence(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), lock.AccessExclusive, true); err != nil {
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	stage.authorizeLocked(auth, op.Session)
-	stage.dependencyPath = path
-	stage.domainBases = append(stage.domainBases, typ)
+	stage.AuthorizeLocked(auth, op.Session)
+	stage.DependencyPath = path
+	stage.DomainBases = append(stage.DomainBases, typ)
 	stage.typedState().Source = typ.Address()
 	stage.typedState().Observed = table.TypedClosure(auth.Catalog, typ.Address())
 	targets := table.TypedPropagationOrder(auth.Catalog, typ.Address())
@@ -69,7 +69,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			restrict = restrict || action.Mode != parser.DropCascade
 		}
 		if restrict {
-			diagnostic := sqlError("2BP01", fmt.Sprintf(`cannot alter type "%s" because it is the type of a typed table`, source.Name())).(*sqlstate.Error)
+			diagnostic := SQLError("2BP01", fmt.Sprintf(`cannot alter type "%s" because it is the type of a typed table`, source.Name())).(*sqlstate.Error)
 			diagnostic.Hint = "Use ALTER ... CASCADE to alter the typed tables too."
 			return Result{}, diagnostic
 		}
@@ -78,27 +78,27 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	// independently parent-before-child for multiple-parent inheritance.
 	addresses := typedef.TypedSortedAddresses(targets)
 	for _, address := range addresses {
-		if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
+		if err := scope.AcquireSequence(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
-	e.mu.Lock()
-	currentAuth, admissionErr := e.authorizationLocked(op)
+	e.Mu.Lock()
+	currentAuth, admissionErr := e.AuthorizationLocked(op)
 	if admissionErr == nil {
 		current := currentAuth.Catalog
-		if current.Epoch() != auth.Catalog.Epoch() || current.Get(source.Address()) != source || current.Get(typ.Address()) != typ || typ.OwningRelation != source.Address() || !table.TypedObservationValid(stage.typed, current) {
+		if current.Epoch() != auth.Catalog.Epoch() || current.Get(source.Address()) != source || current.Get(typ.Address()) != typ || typ.OwningRelation != source.Address() || !table.TypedObservationValid(stage.Typed, current) {
 			admissionErr = catalog.Conflict{}
 		}
 	}
 	if admissionErr == nil {
-		admissionErr = currentAuth.Check(access.Requirement{Object: e.catalog.Domain.Ref(currentAuth.Catalog.Epoch(), source.Address()), OwnerOnly: true})
+		admissionErr = currentAuth.Check(access.Requirement{Object: e.Catalog.Domain.Ref(currentAuth.Catalog.Epoch(), source.Address()), OwnerOnly: true})
 	}
 	if admissionErr == nil {
 		auth = currentAuth
-		stage.authorizeLocked(auth, op.Session)
-		scope.routineAuth = auth
+		stage.AuthorizeLocked(auth, op.Session)
+		scope.RoutineAuth = auth
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if admissionErr != nil {
 		return Result{}, admissionErr
 	}
@@ -112,7 +112,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 		}
 		ownersChecked = true
 		for _, address := range addresses {
-			if err := auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), OwnerOnly: true}); err != nil {
+			if err := auth.Check(access.Requirement{Object: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address), OwnerOnly: true}); err != nil {
 				return err
 			}
 		}
@@ -169,11 +169,11 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			continue
 		}
 		usage := sourceMutation.next.Columns[slot].Usage
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
 			return Result{}, err
 		}
-		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
+		stage.DomainBases = append(stage.DomainBases, auth.Catalog.Get(ref.Address))
 	}
 	if err := checkOwners(); err != nil {
 		return Result{}, err
@@ -196,7 +196,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 		var actions []typedef.TypedColumnAction
 		var renames map[int32]string
 		var graph *catalog.TableInheritance
-		view := e.stageRead(stage)
+		view := e.StageRead(stage)
 		tbl = view.MustRelation(tbl.Address())
 		if tbl.OfType == typ.Address() {
 			actions, renames = typedef.TypedShapeActions(source, sourceMutation.next, tbl, forced[source.Address()])
@@ -248,20 +248,20 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 			return Result{}, err
 		}
 	}
-	if err := scope.acquireDefinitionProviders(stage); err != nil {
+	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
-		view.EmitCascade(op, stage.dropCascadeNames)
-		scope.completed = true
+		view.EmitCascade(op, stage.DropCascadeNames)
+		scope.Completed = true
 	}
 	return Result{}, err
 }

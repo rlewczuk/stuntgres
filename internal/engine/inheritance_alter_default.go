@@ -18,15 +18,15 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *sessio
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	e.mu.Unlock()
+	stage.AuthorizeLocked(auth, op.Session)
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, old := range targets {
-		ref := scope.lockedRef
+		ref := scope.LockedRef
 		ref.Address = old.Address()
-		e.mu.Lock()
-		current := e.privateCatalogLocked(scope.owner.Catalog)
-		fresh, err := e.statementAuthorizationLocked(op, raw)
+		e.Mu.Lock()
+		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
+		fresh, err := e.StatementAuthorizationLocked(op, raw)
 		if err == nil && current.Get(old.Address()) != old {
 			err = ids.ErrCatalogReplaced
 		}
@@ -42,34 +42,34 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *sessio
 			definition, err = e.cookAlterDefaultLocked(scope, op, auth, old, childSlot, raw.Expression)
 		}
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
 		next, err := table.InheritanceDefaultCandidate(old, childSlot, definition)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, err
 		}
-		store := e.privateStorageLocked(scope.owner.Catalog, old.Address())
+		store := e.PrivateStorageLocked(scope.Owner.Catalog, old.Address())
 		if store == nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			return Result{}, ids.ErrCatalogReplaced
 		}
 		length, generation, ends := len(store.Versions), store.Generation, store.Ends
-		e.mu.Unlock()
-		if err := stage.alterRelation(op.Context(), ref, next, store, store, length, generation, ends); err != nil {
+		e.Mu.Unlock()
+		if err := stage.AlterRelation(op.Context(), ref, next, store, store, length, generation, ends); err != nil {
 			return Result{}, err
 		}
 	}
-	if err := scope.acquireDefinitionProviders(stage); err != nil {
+	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		return Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
-		scope.completed = true
+		scope.Completed = true
 	}
 	return Result{}, err
 }

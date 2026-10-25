@@ -60,7 +60,7 @@ func TestTimestampSeriesRoutineAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					found = true
-					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
+					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.Catalog.Domain {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -108,7 +108,7 @@ func TestTimestampSeriesRoutineAuthority(t *testing.T) {
 				}
 			}
 			probe := evaluation
-			foreignAuth := *routineAuthorityView(&foreign)
+			foreignAuth := *RoutineAuthorityView(&foreign)
 			probe.RoutineAuthority = &foreignAuth
 			if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
@@ -129,7 +129,7 @@ func TestTimestampSeriesRoutineAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, remapped, false, false); err == nil {
 				t.Fatal("foreign retag manufactured original authority")
 			}
-			changed := *routineAuthorityView(&evaluation)
+			changed := *RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false

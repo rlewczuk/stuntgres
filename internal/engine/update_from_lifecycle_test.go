@@ -62,7 +62,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			rowWait := false
 			for resource, entry := range lockState.Resources {
 				if resource.ObjectRef == ref && resource.Row != 0 && len(entry.Pending) == 1 {
@@ -174,7 +174,7 @@ func TestUpdateFromQueuedSourceAdmissionAndCancellation(t *testing.T) {
 			tref := catalogRef(t, e, e.CatalogRead(), "t")
 			sref := catalogRef(t, e, e.CatalogRead(), "s")
 			rref := catalogRef(t, e, e.CatalogRead(), "r")
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			te := lockState.Resources[lock.Resource{ObjectRef: tref}]
 			se := lockState.Resources[lock.Resource{ObjectRef: sref}]
 			re := lockState.Resources[lock.Resource{ObjectRef: rref}]

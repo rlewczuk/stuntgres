@@ -77,7 +77,7 @@ func TestPrimaryKeyAttachmentValidation(t *testing.T) {
 func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	e, _, parent, idx := primaryKeyUnitFixture(t)
 	view := e.CatalogRead()
-	ref := e.catalog.Domain.Ref(view.Epoch(), idx.Address())
+	ref := e.Catalog.Domain.Ref(view.Epoch(), idx.Address())
 	metadata, names, err := index.ProjectIndexMetadata(context.Background(), view, ref)
 	if err != nil || !metadata.IndIsUnique || !metadata.IndIsPrimary || !metadata.IndImmediate || !metadata.IndIsValid || !metadata.IndIsReady || !metadata.IndIsLive || metadata.IndNullsNotDistinct || metadata.IndIsExclusion || metadata.IndRelID != parent.Address().ObjectID || metadata.IndexRelID != idx.Address().ObjectID || metadata.IndNKeyAtts != 2 || metadata.IndNatts != 2 || !reflect.DeepEqual(metadata.IndKey, []int16{1, 2}) {
 		t.Fatal(metadata, err)
@@ -88,7 +88,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if rendered, err := (stored.Deparser{View: view}).UniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,11 +19,11 @@ func (s *StatementScope) finishForeignOwner(owner *exec.ForeignScanOwner, primar
 	if owner == nil {
 		return primary
 	}
-	if s.replacementRead {
-		s.engine().replacementMu.RUnlock()
-		s.replacementRead = false
+	if s.ReplacementRead {
+		s.Engine().ReplacementMu.RUnlock()
+		s.ReplacementRead = false
 	}
-	cleanup := owner.Finish(s.op.Context())
+	cleanup := owner.Finish(s.Op.Context())
 	if primary != nil {
 		return primary
 	}

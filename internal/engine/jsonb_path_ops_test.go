@@ -60,16 +60,16 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 				operator.Commutator != 0 || operator.Negator != 0 || operator.Hash || operator.Merge {
 				t.Fatal("incomplete released operator declaration", operator)
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(binderOperation(b))
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(binderOperation(b))
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
+			if err := exec.AdmitRoutineDescriptor(RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 				t.Fatal("actual admission", err)
 			}
-			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), nil, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(RoutineAccessOf(auth), nil, captured, nil); err == nil {
 				t.Fatal("missing dependency repaired")
 			}
 			stale := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -78,7 +78,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 					stale[i].Revision++
 				}
 			}
-			if err := exec.AdmitRoutineDescriptor(routineAccessOf(auth), stale, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(RoutineAccessOf(auth), stale, captured, nil); err == nil {
 				t.Fatal("stale declaration admitted")
 			}
 			// Reuse the actual routine through the existing custom-operator seam.

@@ -27,17 +27,17 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	reader, readerDone := roleOperation(t, e, "body_lifetime_reader")
 	defer readerDone()
 	input, _ := reader.Session.Settings.Presentation()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(reader)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(reader)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	binder := newExpressionBinder(context.Background(), e, input, reader, nil)
+	binder := NewExpressionBinder(context.Background(), e, input, reader, nil)
 	binder.Query.Auth = &auth
 	binder.Query.Namespace = &analyze.QueryNamespace{}
 	node, err := binder.Bind(parser.FunctionExpr{Name: preparedBoundaryName("bit_length"), Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "abc"}}}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,9 +67,9 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	roleExecute(t, other, otherAdmin, "CREATE ROLE body_lifetime_reader LOGIN")
 	otherReader, otherReaderDone := roleOperation(t, other, "body_lifetime_reader")
 	defer otherReaderDone()
-	other.mu.Lock()
-	foreign, captureErr := other.authorizationLocked(otherReader)
-	other.mu.Unlock()
+	other.Mu.Lock()
+	foreign, captureErr := other.AuthorizationLocked(otherReader)
+	other.Mu.Unlock()
 	if captureErr != nil {
 		t.Fatal(captureErr)
 	}
@@ -123,9 +123,9 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	authority := func(e *Engine) AuthorizationView {
 		op, done := roleOperation(t, e, "postgres")
 		defer done()
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,7 +145,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	sourceOwner, sourceRevision := sourceCall.Owner, sourceCall.Revision()
 	target := New()
 	retired := target.CatalogRead()
-	retiredRef := target.catalog.Domain.Ref(retired.Epoch(), sourceCall.Address())
+	retiredRef := target.Catalog.Domain.Ref(retired.Epoch(), sourceCall.Address())
 	change, err := target.ReplaceCatalog(ctx, source, before)
 	if err != nil || !change.Replacement {
 		t.Fatal("replace genuine stored catalog", change, err)
@@ -160,12 +160,12 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 	targetAuth := authority(target)
 	imported := capture(target)
 	for i, item := range imported {
-		if item.consumer == original[i].consumer || item.consumer.Owner != target.roles.Domain.Principal(item.consumer.Owner.ID()) {
+		if item.consumer == original[i].consumer || item.consumer.Owner != target.RoleStore.Domain.Principal(item.consumer.Owner.ID()) {
 			t.Fatal("stored consumer retained source ownership", i)
 		}
 		call, err := exec.ExpressionRoutineDescriptor(item.node)
 		if err != nil || call == nil || call.Address() != sourceCall.Address() || call == sourceCall ||
-			call.Owner != target.roles.Domain.Principal(call.Owner.ID()) || call.Revision() == 0 {
+			call.Owner != target.RoleStore.Domain.Principal(call.Owner.ID()) || call.Revision() == 0 {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
 		}
 		evaluation := exec.Context{
@@ -192,7 +192,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			var selected ids.ObjectRef
 			if i == 0 {
 				for _, ref := range item.refs {
-					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
+					if ref.Domain() != target.Catalog.Domain || ref.Epoch != current.Epoch() {
 						t.Fatal("DEFAULT manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {
@@ -206,7 +206,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 				probe.RoutineChecks = []catalog.ExpressionDependency{}
 				for _, dependency := range item.checks {
 					ref := dependency.Ref
-					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
+					if ref.Domain() != target.Catalog.Domain || ref.Epoch != current.Epoch() {
 						t.Fatal("view manifest retained source/old-epoch ref", ref)
 					}
 					if ref.Address == address {
@@ -319,18 +319,18 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.expression, func(t *testing.T) {
 			raw := statement(t, "SELECT "+test.expression).(*parser.Select).Targets[0]
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(reader)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(reader)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
+			binder := NewExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 			bindTestTargetNamespace(binder)
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("actual provider selection", err)
 			}

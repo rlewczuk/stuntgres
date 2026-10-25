@@ -22,11 +22,11 @@ func ddlHostName(parts ...string) parser.ObjectName {
 func TestDDLHostCreationNamespaceRecapturesCopy(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := ddlHost{e: e, op: op, stage: stage}
+	h := DDLHost{E: e, Op: op, CatalogStage: stage}
 	ref, next, err := h.CreationNamespace(auth, ddlHostName("pg_temp", "seam"))
 	if err != nil {
 		t.Fatal(err)
@@ -34,11 +34,11 @@ func TestDDLHostCreationNamespaceRecapturesCopy(t *testing.T) {
 	if stage.DescriptorCount() == 0 {
 		t.Fatal("pg_temp creation staged no namespace")
 	}
-	if _, ok := auth.Catalog.Namespace(ref.Address); ok || auth.stagedTemporary != (ids.ObjectAddress{}) {
+	if _, ok := auth.Catalog.Namespace(ref.Address); ok || auth.StagedTemporary != (ids.ObjectAddress{}) {
 		t.Fatal("the argument authority was recaptured")
 	}
-	recaptured := ddlAuthorityOf(next)
-	if ns, ok := recaptured.Catalog.Namespace(ref.Address); !ok || ns.Temporary == (ids.SessionToken{}) || recaptured.stagedTemporary != ref.Address {
+	recaptured := DDLAuthorityOf(next)
+	if ns, ok := recaptured.Catalog.Namespace(ref.Address); !ok || ns.Temporary == (ids.SessionToken{}) || recaptured.StagedTemporary != ref.Address {
 		t.Fatal("the returned authority does not read the staged namespace", ok)
 	}
 }
@@ -46,11 +46,11 @@ func TestDDLHostCreationNamespaceRecapturesCopy(t *testing.T) {
 func TestDDLHostStageKeepsLifecycle(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.DiscardCatalogStage(stage)
-	h := ddlHost{e: e, op: op, stage: stage}
+	h := DDLHost{E: e, Op: op, CatalogStage: stage}
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "closed", ObjectRevision: 1, Owner: auth.State.CurrentUser}
 	if err := h.Stage().Create(ns); err == nil {
 		t.Fatal("a discarded stage accepted a descriptor")
@@ -66,15 +66,15 @@ func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := ddlHost{e: e, op: op, stage: stage}
+	h := DDLHost{E: e, Op: op, CatalogStage: stage}
 	name := ddlHostName("seam")
 	results := map[ids.OID][]ids.ObjectAddress{}
 	for class, kind := range map[ids.OID]analyze.LookupKind{ids.TypeClassID: analyze.TypeLookup, ids.ConversionClassID: analyze.ConversionLookup, ids.OperatorClassID: analyze.OperatorLookup, ids.ProcedureClassID: analyze.FunctionLookup} {
@@ -108,17 +108,17 @@ func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 func TestDDLHostRecaptureLeavesArgument(t *testing.T) {
 	e := New()
 	op, auth := conversionUnitAuth(t, e)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := ddlHost{e: e, op: op, stage: stage}
+	h := DDLHost{E: e, Op: op, CatalogStage: stage}
 	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90000}, ObjectName: "recaptured", ObjectRevision: 1, Owner: auth.State.CurrentUser}
 	if err := h.Stage().Create(ns); err != nil {
 		t.Fatal(err)
 	}
 	base := auth.Catalog
-	next := ddlAuthorityOf(h.Recapture(auth, h.StageRead()))
+	next := DDLAuthorityOf(h.Recapture(auth, h.StageRead()))
 	if _, ok := next.Catalog.Namespace(ns.Address()); !ok || next.PairedCatalog != next.Catalog {
 		t.Fatal("the returned authority does not read the stage")
 	}

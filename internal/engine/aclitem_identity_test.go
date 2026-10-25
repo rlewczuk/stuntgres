@@ -17,15 +17,15 @@ import (
 )
 
 func aclUnitRoles(e *Engine, names ...string) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	next := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	next := cloneRoleFixture(e.RoleStore.Published)
 	for i, name := range names {
-		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.roles.Domain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
+		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.RoleStore.Domain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
 	}
-	e.roles.PublishLocked(next)
-	if nextID := uint64(20000 + len(names)); e.roles.NextPrincipal() < nextID {
-		e.roles.InstallPrincipalFrontierLocked(nextID)
+	e.RoleStore.PublishLocked(next)
+	if nextID := uint64(20000 + len(names)); e.RoleStore.NextPrincipal() < nextID {
+		e.RoleStore.InstallPrincipalFrontierLocked(nextID)
 	}
 }
 func aclUnitType(t *testing.T, e *Engine, id sqltype.ID) *sqltype.Descriptor {
@@ -39,7 +39,7 @@ func aclUnitType(t *testing.T, e *Engine, id sqltype.ID) *sqltype.Descriptor {
 func aclUnitValue(t *testing.T, e *Engine, text string) sqltype.Value {
 	t.Helper()
 	d := aclUnitType(t, e, sqltype.ACLItem)
-	v, err := d.InputWithEnvironment(context.Background(), text, -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{View: access.View{Roles: e.Roles()}}, nil)})
+	v, err := d.InputWithEnvironment(context.Background(), text, -1, sqltype.InputEnvironment{ACLItem: e.CaptureACLItemInput(AuthorizationView{View: access.View{Roles: e.Roles()}}, nil)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,20 +65,20 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	rows := exec.NewFinalRows([]catalog.Column{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
 	rows.Values = []sqltype.Value{value, arrayValue}
 	defer rows.Close()
-	output := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: oldRoles}
+	output := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: oldRoles}
 	for _, v := range rows.Values {
 		if err := regobj.CaptureACLItemOutputValue(rows, output, v); err != nil {
 			t.Fatal(err)
 		}
 	}
 	a, _ := oldRoles.Lookup("acl_unit_a")
-	e.mu.Lock()
-	next := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	next := cloneRoleFixture(e.RoleStore.Published)
 	a.Name = "acl_unit_renamed"
 	putFixtureRole(next, a)
-	e.roles.PublishLocked(next)
-	e.mu.Unlock()
-	fresh := regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: e.Roles()}
+	e.RoleStore.PublishLocked(next)
+	e.Mu.Unlock()
+	fresh := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: fresh})
 	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
 		t.Fatal("new spelling", text, err)
@@ -86,7 +86,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if original, ok := oldRoles.Lookup("acl_unit_a"); !ok || original.Ref != a.Ref {
 		t.Fatal("rename mutated old role root")
 	}
-	expected := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), catalogOwner: &e.catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
+	expected := &StatementDescription{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), catalogOwner: &e.Catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
 	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	captured, err := reused.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(value, captured) {
@@ -96,7 +96,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
 		t.Fatal("prepared current output", text, err)
 	}
-	if _, err := d.InputWithEnvironment(context.Background(), "acl_unit_a=r/acl_unit_b", -1, sqltype.InputEnvironment{ACLItem: e.captureACLItemInput(AuthorizationView{View: access.View{Roles: e.Roles()}}, nil)}); err == nil {
+	if _, err := d.InputWithEnvironment(context.Background(), "acl_unit_a=r/acl_unit_b", -1, sqltype.InputEnvironment{ACLItem: e.CaptureACLItemInput(AuthorizationView{View: access.View{Roles: e.Roles()}}, nil)}); err == nil {
 		t.Fatal("fresh bind adopted renamed source spelling")
 	}
 	retained := make([]sqltype.Value, 2)
@@ -120,21 +120,21 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		bootstrapEngine := New()
 		typeACL := aclUnitType(t, bootstrapEngine, sqltype.ACLItem)
 		old := bootstrapEngine.Roles()
-		value, err := typeACL.InputWithEnvironment(context.Background(), "=r", -1, sqltype.InputEnvironment{ACLItem: bootstrapEngine.captureACLItemInput(AuthorizationView{View: access.View{Roles: old}}, nil)})
+		value, err := typeACL.InputWithEnvironment(context.Background(), "=r", -1, sqltype.InputEnvironment{ACLItem: bootstrapEngine.CaptureACLItemInput(AuthorizationView{View: access.View{Roles: old}}, nil)})
 		if err != nil {
 			t.Fatal(err)
 		}
-		role, err := old.Descriptor(bootstrapEngine.roles.Domain.Principal(10))
+		role, err := old.Descriptor(bootstrapEngine.RoleStore.Domain.Principal(10))
 		if err != nil {
 			t.Fatal(err)
 		}
-		bootstrapEngine.mu.Lock()
-		next := cloneRoleFixture(bootstrapEngine.roles.Published)
+		bootstrapEngine.Mu.Lock()
+		next := cloneRoleFixture(bootstrapEngine.RoleStore.Published)
 		role.Name = "acl_unit_bootstrap"
 		putFixtureRole(next, role)
-		bootstrapEngine.roles.PublishLocked(next)
-		bootstrapEngine.mu.Unlock()
-		output := regobj.ACLItemOutput{Owner: &bootstrapEngine.catalog.Owner, Roles: bootstrapEngine.Roles()}
+		bootstrapEngine.RoleStore.PublishLocked(next)
+		bootstrapEngine.Mu.Unlock()
+		output := regobj.ACLItemOutput{Owner: &bootstrapEngine.Catalog.Owner, Roles: bootstrapEngine.Roles()}
 		text, err := typeACL.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: output})
 		if err != nil || text != "=r/acl_unit_bootstrap" {
 			t.Fatal("default grantor followed a name rather than identity10", text, err)

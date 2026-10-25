@@ -13,27 +13,27 @@ import (
 // population state. Only Restore and materialized population write it, so
 // ordinary statements keep a nil slot.
 type restoreReplay struct {
-	stagingEffects         bool // Entire private Restore operation, including nested execution.
-	tableDestination       bool
-	insertAuthority        bool
-	commentAuthority       bool
-	largeObjectAuthority   bool                       // Only exact generated private-stage byte replay.
-	materializedPopulation bool                       // Operation-local execution path, never session settings.
-	materializedOwner      authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
-	defaultReplay          bool
-	sqlBodies              bool // Isolated Restore validator deferral, never a session setting.
-	partitionAttach        bool
-	partitionCheck         *catalog.Relation           // Exact leased private-import physical CHECK target.
-	partitionUsingIndex    *partition.UsingIndexReplay // Exact leased private-import physical target/index.
-	partitionUnique        *partition.UniqueReplay     // Exact private virtual definition/subtree lease.
-	domainReplay           *domainReplayCapture        // Exact private native INSERT's immutable captured cells.
-	domainDefault          *domainDefaultReplayCapture // Paired CREATE only; no ordinary SQL authority.
+	StagingEffects         bool // Entire private Restore operation, including nested execution.
+	TableDestination       bool
+	InsertAuthority        bool
+	CommentAuthority       bool
+	LargeObjectAuthority   bool                       // Only exact generated private-stage byte replay.
+	MaterializedPopulation bool                       // Operation-local execution path, never session settings.
+	MaterializedOwner      authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
+	DefaultReplay          bool
+	SQLBodies              bool // Isolated Restore validator deferral, never a session setting.
+	PartitionAttach        bool
+	PartitionCheck         *catalog.Relation           // Exact leased private-import physical CHECK target.
+	PartitionUsingIndex    *partition.UsingIndexReplay // Exact leased private-import physical target/index.
+	PartitionUnique        *partition.UniqueReplay     // Exact private virtual definition/subtree lease.
+	DomainReplay           *DomainReplayCapture        // Exact private native INSERT's immutable captured cells.
+	DomainDefault          *DomainDefaultReplayCapture // Paired CREATE only; no ordinary SQL authority.
 }
 
 func (*restoreReplay) ReplaySlot() {}
 
-// operationReplay returns op's replay state, allocating it on first use.
-func operationReplay(op *session.Operation) *restoreReplay {
+// OperationReplay returns op's replay state, allocating it on first use.
+func OperationReplay(op *session.Operation) *restoreReplay {
 	r, _ := op.ReplaySlot.(*restoreReplay)
 	if r == nil {
 		r = new(restoreReplay)
@@ -42,19 +42,19 @@ func operationReplay(op *session.Operation) *restoreReplay {
 	return r
 }
 
-// operationReplayOrZero reads op's replay state; a nil slot reads as zero.
-func operationReplayOrZero(op *session.Operation) restoreReplay {
+// OperationReplayOrZero reads op's replay state; a nil slot reads as zero.
+func OperationReplayOrZero(op *session.Operation) restoreReplay {
 	if r, _ := op.ReplaySlot.(*restoreReplay); r != nil {
 		return *r
 	}
 	return restoreReplay{}
 }
 
-// checkRestoreEffect guards an actual non-retractable capability, not function
+// CheckRestoreEffect guards an actual non-retractable capability, not function
 // names, volatility or statement-local reconstruction authority.
-func checkRestoreEffect(op *session.Operation) error {
-	if op != nil && operationReplayOrZero(op).stagingEffects {
-		return sqlError("0A000", "restore cannot stage non-retractable effects")
+func CheckRestoreEffect(op *session.Operation) error {
+	if op != nil && OperationReplayOrZero(op).StagingEffects {
+		return SQLError("0A000", "restore cannot stage non-retractable effects")
 	}
 	return nil
 }
@@ -64,15 +64,15 @@ func checkRestoreEffect(op *session.Operation) error {
 // partitionAttach and commentAuthority after execution; tableDestination
 // and insertAuthority stay set until the next statement's prepare.
 func prepareRestoreReplayFlags(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
-	replay := operationReplay(op)
-	replay.tableDestination = restoreTableDestination(stmt)
-	_, replay.insertAuthority = stmt.(*parser.Insert)
-	_, replay.commentAuthority = stmt.(*parser.Comment)
-	_, replay.defaultReplay = stmt.(*parser.AlterTableDefault)
-	_, replay.partitionAttach = stmt.(*parser.AlterTableAttachPartition)
-	replay.largeObjectAuthority = false
+	replay := OperationReplay(op)
+	replay.TableDestination = restoreTableDestination(stmt)
+	_, replay.InsertAuthority = stmt.(*parser.Insert)
+	_, replay.CommentAuthority = stmt.(*parser.Comment)
+	_, replay.DefaultReplay = stmt.(*parser.AlterTableDefault)
+	_, replay.PartitionAttach = stmt.(*parser.AlterTableAttachPartition)
+	replay.LargeObjectAuthority = false
 	if selected, ok := stmt.(*parser.Select); ok {
-		replay.largeObjectAuthority = largeobject.RestoresBytes(selected)
+		replay.LargeObjectAuthority = largeobject.RestoresBytes(selected)
 	}
 	return nil
 }

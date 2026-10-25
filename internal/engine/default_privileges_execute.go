@@ -16,48 +16,48 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 	}
 	var scratch [8]defaultPrivilegeClaim
 	claims := scratch[:0]
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(scope.op)
-	publishedRoles := e.roles.Published
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(scope.Op)
+	publishedRoles := e.RoleStore.Published
 	var updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord
 	if err == nil {
-		updates, err = role.DefaultPrivilegesPlan(scope.op.Context(), auth.View, statement)
+		updates, err = role.DefaultPrivilegesPlan(scope.Op.Context(), auth.View, statement)
 	}
 	if err == nil {
 		// Capture honest committed predecessors in the planning window, not
 		// after releasing Engine.mu and accidentally adopting a peer's update.
 		for key := range updates {
-			claims = append(claims, defaultPrivilegeClaim{key: key, original: e.catalog.State.DefaultACL(key)})
+			claims = append(claims, defaultPrivilegeClaim{key: key, original: e.Catalog.State.DefaultACL(key)})
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
 	}
 	if len(updates) == 0 {
-		return Result{}, scope.op.Context().Err()
+		return Result{}, scope.Op.Context().Err()
 	}
 	if err = scope.admitDefaultPrivileges(claims); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	fresh, err := e.authorizationLocked(scope.op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	fresh, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.RoleStore.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
 	for _, claim := range claims {
-		if e.catalog.State.DefaultACL(claim.key) != claim.original {
+		if e.Catalog.State.DefaultACL(claim.key) != claim.original {
 			return Result{}, catalog.Conflict{}
 		}
 	}
 	result, err := e.stageDefaultPrivilegesLocked(scope, fresh, updates, publishedRoles)
-	if err == nil && scope.catalogAuthority != nil {
-		scope.catalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
-		scope.catalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
+	if err == nil && scope.CatalogAuthority != nil {
+		scope.CatalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
+		scope.CatalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
 	}
 	return result, err
 }
@@ -72,7 +72,7 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 		if old := auth.Catalog.State().DefaultACL(key); old != nil {
 			record.OID = old.OID
 		} else {
-			oid, err := e.catalog.AllocateOIDLocked()
+			oid, err := e.Catalog.AllocateOIDLocked()
 			if err != nil {
 				return Result{}, err
 			}
@@ -81,50 +81,50 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 	}
 	candidate := *auth.Catalog.State()
 	candidate.OverlayDefaultACLs(auth.Catalog.State(), updates)
-	candidateCatalog := e.catalog.Read(&candidate)
-	candidateRoles := e.roles.Read(&e.catalog.Owner, candidateCatalog, auth.RoleRecord)
+	candidateCatalog := e.Catalog.Read(&candidate)
+	candidateRoles := e.RoleStore.Read(&e.Catalog.Owner, candidateCatalog, auth.RoleRecord)
 	if err := catalog.ValidateDefaultACLs(candidateRoles, candidateCatalog); err != nil {
 		return Result{}, err
 	}
 	if auth.RoleRecord.Revision == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
-	if _, err := e.roles.RevisionCandidateLocked(); err != nil {
+	if _, err := e.RoleStore.RevisionCandidateLocked(); err != nil {
 		return Result{}, err
 	}
-	changes := scope.owner.Catalog.Clone()
+	changes := scope.Owner.Catalog.Clone()
 	for key, record := range updates {
 		e.defaultACLChangeLocked(changes, key, record)
 	}
 	if changes.RolesBase == nil {
-		changes.RolesBase = e.roles.Published
+		changes.RolesBase = e.RoleStore.Published
 	}
 	changes.Roles = auth.RoleRecord.Advance()
-	if err := scope.acquireJournalRoleDependenciesLocked(changes); err != nil {
+	if err := scope.AcquireJournalRoleDependenciesLocked(changes); err != nil {
 		return Result{}, err
 	}
-	fresh, err := e.authorizationLocked(scope.op)
+	fresh, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return Result{}, err
 	}
-	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.roles.Published.SameAuthority(publishedRoles) {
+	if fresh.Revision != auth.Revision || !fresh.RoleRecord.SameAuthority(auth.RoleRecord) || !e.RoleStore.Published.SameAuthority(publishedRoles) {
 		return Result{}, catalog.Conflict{}
 	}
-	if err := e.catalogPreflightLocked(changes); err != nil {
+	if err := e.CatalogPreflightLocked(changes); err != nil {
 		return Result{}, err
 	}
-	if err := scope.op.Context().Err(); err != nil {
+	if err := scope.Op.Context().Err(); err != nil {
 		return Result{}, err
 	}
 	if err := e.reserveMixedACLRevisionLocked(changes); err != nil {
 		return Result{}, err
 	}
-	if err := e.assignTransactionXIDLocked(scope.txRef); err != nil {
+	if err := e.AssignTransactionXIDLocked(scope.TxRef); err != nil {
 		return Result{}, err
 	}
-	scope.catalog = changes
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
-	scope.catalogAuthority.ACLRoles = auth.RoleRecord
-	scope.catalogAuthority.ACLPublishedRoles = publishedRoles
+	scope.Catalog = changes
+	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
+	scope.CatalogAuthority.ACLRoles = auth.RoleRecord
+	scope.CatalogAuthority.ACLPublishedRoles = publishedRoles
 	return Result{}, nil
 }

@@ -25,8 +25,8 @@ type pruningProviderContext struct {
 }
 
 func (c *pruningProviderContext) Err() error {
-	if c.engine.mu.TryLock() {
-		c.engine.mu.Unlock()
+	if c.engine.Mu.TryLock() {
+		c.engine.Mu.Unlock()
 	} else {
 		c.locked = true
 	}
@@ -72,8 +72,8 @@ func TestPartitionPruningSafety(t *testing.T) {
 			}
 			project := query.Root.(*plan.ProjectNode)
 			state := &exec.State{Source: source, Frame: project.Frame}
-			if scope := scopeOf(source.LiveHost()); scope != nil {
-				state.Input, state.Output = scope.input, scope.output
+			if scope := ScopeOf(source.LiveHost()); scope != nil {
+				state.Input, state.Output = scope.Input, scope.Output
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

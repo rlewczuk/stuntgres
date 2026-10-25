@@ -107,9 +107,9 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *session.Session, *session.
 	preparedUnitStatement(t, e, origin, &parser.Update{Name: name, Assignments: []parser.UpdateAssignment{{Target: parser.Identifier{Text: "v"}, Value: preparedBoundaryInteger(3)}}, Where: parser.OperatorExpr{Name: preparedBoundaryName("="), Args: []parser.Expr{parser.ColumnExpr{Name: preparedBoundaryName("v")}, preparedBoundaryInteger(1)}}})
 	preparedUnitStatement(t, e, origin, &parser.Insert{Name: name, Rows: [][]parser.Expr{{preparedBoundaryInteger(7)}}})
 	preparedUnitStatement(t, e, origin, &parser.CreateSequence{Name: preparedBoundaryName("prepared_boundary_sequence"), Options: []parser.SequenceOption{{Name: "start", Value: 41}}})
-	e.mu.Lock()
-	beforeVisibility := e.visibility.Entries[origin.Transactions.Ref]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	beforeVisibility := e.Visibility.Entries[origin.Transactions.Ref]
+	e.Mu.Unlock()
 	if !beforeVisibility.Snapshot || beforeVisibility.XID == 0 {
 		t.Fatal("real modifying Serializable owner did not advertise visibility")
 	}
@@ -117,12 +117,12 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *session.Session, *session.
 		t.Fatal(err)
 	}
 	entry := e.prepared.Lookup("boundary")
-	if entry == nil || len(entry.Writes) == 0 || len(entry.Deletes) == 0 || entry.Catalog == nil || len(entry.Catalog.Storage) == 0 || len(entry.Catalog.Generators) == 0 || e.visibility.Serializable.Nodes[entry.Ref] == nil || len(e.locks.Inspect(entry.Ticket).Journals[entry.Ticket]) == 0 {
+	if entry == nil || len(entry.Writes) == 0 || len(entry.Deletes) == 0 || entry.Catalog == nil || len(entry.Catalog.Storage) == 0 || len(entry.Catalog.Generators) == 0 || e.Visibility.Serializable.Nodes[entry.Ref] == nil || len(e.Locks.Inspect(entry.Ticket).Journals[entry.Ticket]) == 0 {
 		t.Fatal("fixture did not retain populated row/delete/catalog/generator/SSI/lock roots")
 	}
-	e.mu.Lock()
-	preparedVisibility, retainedVisibility := e.visibility.Entries[entry.Ref]
-	e.mu.Unlock()
+	e.Mu.Lock()
+	preparedVisibility, retainedVisibility := e.Visibility.Entries[entry.Ref]
+	e.Mu.Unlock()
 	if !retainedVisibility || preparedVisibility.XID != beforeVisibility.XID || preparedVisibility.Snapshot || preparedVisibility.Xmin != 0 || preparedVisibility.SafeBuilder {
 		t.Fatal("PREPARE must drop reader snapshot but retain detached writer visibility", preparedVisibility)
 	}
@@ -131,7 +131,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *session.Session, *session.
 		parent = address
 	}
 	_, update := preparedBoundaryUpdate(t, entry, parent)
-	predecessor, _, found := storage.RowByID(e.storage.Relations[parent].Versions, update.Row, -1)
+	predecessor, _, found := storage.RowByID(e.Storage.Relations[parent].Versions, update.Row, -1)
 	if !found || predecessor.Version != update.Base || update.Born != 0 {
 		t.Fatal("fixture did not retain the genuine live UPDATE base/version")
 	}
@@ -165,20 +165,20 @@ type preparedBoundarySnapshot struct {
 }
 
 func preparedBoundaryCapture(e *Engine, entry *session.PreparedTransaction) preparedBoundarySnapshot {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	lockState := e.locks.Inspect(entry.Ticket)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	lockState := e.Locks.Inspect(entry.Ticket)
 	s := preparedBoundarySnapshot{
-		catalog: e.catalog.State, descriptors: maps.Collect(e.catalog.State.Descriptors()), names: maps.Collect(e.catalog.State.Names()),
-		counters:        [10]uint64{uint64(e.catalog.State.Epoch()), e.catalog.State.NamespaceGeneration(), uint64(e.catalog.NextOID()), uint64(e.catalog.NextRevision()), e.storage.RowFrontier(), e.storage.VersionFrontier(), uint64(e.visibility.CommitSeq()), uint64(e.visibility.DiagnosticTx()), e.visibility.SerializableOrder(), e.roles.NextPrincipal()},
-		storagePointers: maps.Clone(e.storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
-		generators: maps.Clone(e.storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
-		indexes: maps.Clone(e.storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
+		catalog: e.Catalog.State, descriptors: maps.Collect(e.Catalog.State.Descriptors()), names: maps.Collect(e.Catalog.State.Names()),
+		counters:        [10]uint64{uint64(e.Catalog.State.Epoch()), e.Catalog.State.NamespaceGeneration(), uint64(e.Catalog.NextOID()), uint64(e.Catalog.NextRevision()), e.Storage.RowFrontier(), e.Storage.VersionFrontier(), uint64(e.Visibility.CommitSeq()), uint64(e.Visibility.DiagnosticTx()), e.Visibility.SerializableOrder(), e.RoleStore.NextPrincipal()},
+		storagePointers: maps.Clone(e.Storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
+		generators: maps.Clone(e.Storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
+		indexes: maps.Clone(e.Storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
 		registry: maps.Collect(e.prepared.All()), entries: map[string]session.PreparedTransaction{},
-		ssi: map[ids.TxRef]visibility.SerializableTx{}, creators: maps.Clone(e.visibility.Serializable.Creators),
+		ssi: map[ids.TxRef]visibility.SerializableTx{}, creators: maps.Clone(e.Visibility.Serializable.Creators),
 		owners: lockState.Owners, resources: lockState.Journals[entry.Ticket], locks: map[lock.Resource]lock.ResourceState{},
 	}
-	for address, store := range e.storage.Relations {
+	for address, store := range e.Storage.Relations {
 		value := *store
 		value.Versions = slices.Clone(store.Versions)
 		for i := range value.Versions {
@@ -186,10 +186,10 @@ func preparedBoundaryCapture(e *Engine, entry *session.PreparedTransaction) prep
 		}
 		s.storage[address] = value
 	}
-	for address, generator := range e.storage.Sequences {
+	for address, generator := range e.Storage.Sequences {
 		s.generatorValues[address] = *generator
 	}
-	for address, root := range e.storage.IndexRoots {
+	for address, root := range e.Storage.IndexRoots {
 		values := slices.Clone(root.Entries)
 		for i := range values {
 			values[i].Keys = slices.Clone(values[i].Keys)
@@ -226,7 +226,7 @@ func preparedBoundaryCapture(e *Engine, entry *session.PreparedTransaction) prep
 		}
 		s.entries[gid] = value
 	}
-	for ref, node := range e.visibility.Serializable.Nodes {
+	for ref, node := range e.Visibility.Serializable.Nodes {
 		value := *node
 		value.Reads = maps.Clone(node.Reads)
 		value.Writes = maps.Clone(node.Writes)
@@ -306,7 +306,7 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *session.
 		derived.Execution = &preparedBoundaryExpression{Expr: derived.Execution, barrier: func() {
 			// Assert the blocking callback is outside every metadata mutex, including
 			// the detached origin and finishing attachment. Never wait under a lock.
-			for _, lock := range []*sync.Mutex{e.mu, &origin.Mu, &origin.Transactions.Mu, &finisher.Mu, &finisher.Transactions.Mu} {
+			for _, lock := range []*sync.Mutex{e.Mu, &origin.Mu, &origin.Transactions.Mu, &finisher.Mu, &finisher.Transactions.Mu} {
 				if !lock.TryLock() {
 					t.Error("publication expression executed under metadata mutex")
 					close(arrived)
@@ -314,7 +314,7 @@ func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *session.
 				}
 				lock.Unlock()
 			}
-			if e.locks.MutexHeld() {
+			if e.Locks.MutexHeld() {
 				t.Error("publication expression executed under the lock manager mutex")
 				close(arrived)
 				return
@@ -335,13 +335,13 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 			finisher, competitor := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			arrived, release := preparedBoundaryBarrier(t, e, origin, finisher, entry)
 			if veto == "counter" {
-				e.mu.Lock()
-				e.visibility.SetCommitSeqLocked(ids.CommitSeq(math.MaxUint64))
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Visibility.SetCommitSeqLocked(ids.CommitSeq(math.MaxUint64))
+				e.Mu.Unlock()
 			}
 			before := preparedBoundaryCapture(e, entry)
 			updatePosition, originalUpdate := preparedBoundaryUpdate(t, entry, parent)
-			originalHead := &e.storage.Relations[parent].Versions[0]
+			originalHead := &e.Storage.Relations[parent].Versions[0]
 			originalTicket := entry.Ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			op, err := finisher.Acquire(ctx)
@@ -382,13 +382,13 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 				t.Fatal("final veto", failure)
 			}
 			preparedBoundaryUnchanged(t, e, entry, before)
-			if !reflect.DeepEqual(entry.Writes[parent][updatePosition], originalUpdate) || &e.storage.Relations[parent].Versions[0] != originalHead || entry.Ticket != originalTicket || e.locks.TransactionTicket(entry.Ref) != originalTicket {
+			if !reflect.DeepEqual(entry.Writes[parent][updatePosition], originalUpdate) || &e.Storage.Relations[parent].Versions[0] != originalHead || entry.Ticket != originalTicket || e.Locks.TransactionTicket(entry.Ref) != originalTicket {
 				t.Fatal("failed completion changed retained UPDATE/base/version, committed head or original ticket")
 			}
 			if veto == "counter" {
-				e.mu.Lock()
-				e.visibility.SetCommitSeqLocked(entry.Frontier)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Visibility.SetCommitSeqLocked(entry.Frontier)
+				e.Mu.Unlock()
 			}
 			if err := preparedUnitControl(t, e, finisher, parser.KindCommitPrepared, "boundary"); err != nil {
 				t.Fatal("retry", err)
@@ -407,17 +407,17 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 func preparedBoundaryPublished(t *testing.T, e *Engine, entry *session.PreparedTransaction, parent ids.ObjectAddress) {
 	t.Helper()
 	heap := accessMethodHeapOperationsUnit(t, e.CatalogRead())
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.prepared.Lookup(entry.GID) != nil || e.visibility.CommitSeq() != entry.Frontier+1 {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if e.prepared.Lookup(entry.GID) != nil || e.Visibility.CommitSeq() != entry.Frontier+1 {
 		t.Fatal("completion did not publish exactly once")
 	}
-	relation := e.catalog.State.MustRelation(parent)
+	relation := e.Catalog.State.MustRelation(parent)
 	if len(relation.Columns) != 1 || relation.Columns[0].Name != "v" {
 		t.Fatal("catalogue shape did not publish")
 	}
-	store := e.storage.Relations[parent]
-	selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil, heap)
+	store := e.Storage.Relations[parent]
+	selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.Visibility.CommitSeq(), store.Ends, nil, heap)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,16 +433,16 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *session.PreparedT
 		}
 		if i == 0 {
 			_, update := preparedBoundaryUpdate(t, entry, parent)
-			if row.Row != update.Row || row.Version != update.Version || row.Base != 0 || row.Born != e.visibility.CommitSeq() {
+			if row.Row != update.Row || row.Version != update.Version || row.Base != 0 || row.Born != e.Visibility.CommitSeq() {
 				t.Fatal("surviving UPDATE did not publish its retained identity exactly once")
 			}
 		}
 	}
 	found := false
-	for address, descriptor := range e.catalog.State.Descriptors() {
+	for address, descriptor := range e.Catalog.State.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
-			root := e.storage.IndexRoots[address]
+			root := e.Storage.IndexRoots[address]
 			if root == nil || len(root.Entries) != 2 {
 				t.Fatal("coupled UPDATE/insert index root did not publish")
 			}
@@ -459,11 +459,11 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *session.PreparedT
 		t.Fatal("substantive index disappeared")
 	}
 	for address, generator := range entry.Catalog.Generators {
-		if e.storage.Sequences[address] != generator || generator.Last != 41 || generator.Called {
+		if e.Storage.Sequences[address] != generator || generator.Last != 41 || generator.Called {
 			t.Fatal("private generator did not transfer unchanged")
 		}
 	}
-	lockState := e.locks.Inspect(entry.Ticket)
+	lockState := e.Locks.Inspect(entry.Ticket)
 	if lockState.Owners[entry.Ref] != nil || len(lockState.Journals[entry.Ticket]) != 0 {
 		t.Fatal("original physical ticket was not released")
 	}
@@ -566,22 +566,22 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 			t.Fatal("winner SET commit / loser whole SET rollback / SET LOCAL undo", i, value, expected)
 		}
 	}
-	if e.locks.TransactionTicket(refs[loser.owner]) != nil || len(e.locks.Inspect(tickets[loser.owner]).Journals[tickets[loser.owner]]) != 0 || e.locks.TransactionTicket(refs[winner.owner]) != entry.Ticket {
+	if e.Locks.TransactionTicket(refs[loser.owner]) != nil || len(e.Locks.Inspect(tickets[loser.owner]).Journals[tickets[loser.owner]]) != 0 || e.Locks.TransactionTicket(refs[winner.owner]) != entry.Ticket {
 		t.Fatal("loser released winner or retained its own holds")
 	}
-	if node := e.visibility.Serializable.Nodes[refs[loser.owner]]; node != nil && (!node.Aborted || !node.Ended || node.Prepared) {
+	if node := e.Visibility.Serializable.Nodes[refs[loser.owner]]; node != nil && (!node.Aborted || !node.Ended || node.Prepared) {
 		t.Fatal("loser SSI incarnation survived")
 	}
 	if err := preparedUnitControl(t, e, owners[loser.owner], parser.KindCommitPrepared, "race"); err != nil {
 		t.Fatal(err)
 	}
-	if e.locks.TransactionTicket(refs[winner.owner]) != nil {
+	if e.Locks.TransactionTicket(refs[winner.owner]) != nil {
 		t.Fatal("winner resources survived outcome")
 	}
 	heap := accessMethodHeapOperationsUnit(t, e.CatalogRead())
 	for address := range entry.Writes {
-		store := e.storage.Relations[address]
-		selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil, heap)
+		store := e.Storage.Relations[address]
+		selected, err := exec.SelectQuerySource(context.Background(), &exec.Source{Committed: store.Versions}, e.Visibility.CommitSeq(), store.Ends, nil, heap)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -596,12 +596,12 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 		}
 	}
 	for address, generator := range entry.Catalog.Generators {
-		if e.storage.Sequences[address] != generator {
+		if e.Storage.Sequences[address] != generator {
 			t.Fatal("winner generator did not publish")
 		}
 	}
 	losingName := []string{"gid_first", "gid_second"}[loser.owner]
-	for _, descriptor := range e.catalog.State.Descriptors() {
+	for _, descriptor := range e.Catalog.State.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok && relation.Name() == losingName {
 			t.Fatal("losing GID catalogue/generator survived")
 		}
@@ -614,7 +614,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	waiterRef := transactionBegin(t, waiter)
 	var resource lock.Resource
 	found := false
-	for held := range e.locks.Inspect(entry.Ticket).Journals[entry.Ticket] {
+	for held := range e.Locks.Inspect(entry.Ticket).Journals[entry.Ticket] {
 		if held.Row == 0 && held.Key() == nil && held.Address == parent {
 			resource, found = held, true
 			break
@@ -625,7 +625,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 	}
 	waitContext, cancelWaiter := context.WithCancel(context.Background())
 	defer cancelWaiter()
-	request, err := e.locks.StartAcquire(waitContext, waiter.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{})
+	request, err := e.Locks.StartAcquire(waitContext, waiter.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("waiter was not queued behind prepared table hold", err)
 	}
@@ -687,11 +687,11 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	e, _, entry, parent := preparedBoundaryFixture(t)
 	peer := sessionStart(t, e, nil)
 	before := preparedBoundaryCapture(e, entry)
-	original := e.storage.Relations[parent]
-	store := e.privateStorageLocked(entry.Catalog, parent)
+	original := e.Storage.Relations[parent]
+	store := e.PrivateStorageLocked(entry.Catalog, parent)
 	publication := index.RowPublication{
 		Address: parent, Store: store, Original: original,
-		OriginalRelation: e.catalog.State.MustRelation(parent),
+		OriginalRelation: e.Catalog.State.MustRelation(parent),
 		Relation:         entry.Catalog.Cached.MustRelation(parent),
 		Root:             store.Versions, Writes: entry.Writes[parent], Ends: store.Ends,
 		Deletion: entry.Deletes[parent], Generation: store.Generation, SingleSlot: -1,
@@ -701,38 +701,38 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if !found || predecessor.Version != update.Base || !visibility.LiveVersion(predecessor, entry.Frontier, publication.Ends, nil) {
 		t.Fatal("structural fixture omitted a live genuine UPDATE predecessor")
 	}
-	if err := index.PrepareRowPublication(&publication, e.catalog.Domain, entry.Ref, false); err != nil {
+	if err := index.PrepareRowPublication(&publication, e.Catalog.Domain, entry.Ref, false); err != nil {
 		t.Fatal(err)
 	}
 	if publication.Next != nil || publication.NextEnds != nil || publication.Slots != nil || publication.SingleSlot != -1 {
 		t.Fatal("validation-only PREPARE materialized installable row/deletion/slot roots")
 	}
-	stores := index.CaptureIndexStores(e.storage.Relations, e.catalog.State)
+	stores := index.CaptureIndexStores(e.Storage.Relations, e.Catalog.State)
 	rebuild := map[ids.ObjectAddress]bool{}
 	for address, change := range entry.Catalog.Storage {
 		stores[address], rebuild[address] = change.Replacement, true
 	}
-	roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.State, entry.Catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []index.RowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, entry.Catalog.Cached.State(), stores, e.Storage.IndexRoots, rebuild, nil, []index.RowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only PREPARE materialized installable index map/root", roots, err)
 	}
 	preparedBoundaryUnchanged(t, e, entry, before)
 	materialized := publication
-	if err := index.PrepareRowPublication(&materialized, e.catalog.Domain, entry.Ref, true); err != nil {
+	if err := index.PrepareRowPublication(&materialized, e.Catalog.Domain, entry.Ref, true); err != nil {
 		t.Fatal(err)
 	}
 	if materialized.Next == nil || materialized.NextEnds == nil || len(materialized.Slots) != len(publication.Writes) || materialized.Slots[updatePosition] != predecessorSlot || &materialized.Next[0] == &publication.Root[0] {
 		t.Fatal("completion omitted separate UPDATE replacement heads/deletion/slot installation roots")
 	}
-	roots, err = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.catalog.State, entry.Catalog.Cached.State(), stores, e.storage.IndexRoots, rebuild, nil, []index.RowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, entry.Catalog.Cached.State(), stores, e.Storage.IndexRoots, rebuild, nil, []index.RowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || len(roots) == 0 {
 		t.Fatal("completion omitted substantive index installation roots", err)
 	}
 	invalid := publication
 	invalid.Writes = slices.Clone(publication.Writes)
 	invalid.Writes[0].Born = 1
-	validationError := index.PrepareRowPublication(&invalid, e.catalog.Domain, entry.Ref, false)
-	installationError := index.PrepareRowPublication(&invalid, e.catalog.Domain, entry.Ref, true)
+	validationError := index.PrepareRowPublication(&invalid, e.Catalog.Domain, entry.Ref, false)
+	installationError := index.PrepareRowPublication(&invalid, e.Catalog.Domain, entry.Ref, true)
 	if validationError == nil || validationError.Error() != "stuntgres: invalid private row version" || installationError == nil || installationError.Error() != "stuntgres: invalid private row version" {
 		t.Fatal("phase switch weakened canonical predecessor validation", validationError, installationError)
 	}
@@ -745,7 +745,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 			} else {
 				stale.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{update.Row: {Version: update.Base, End: entry.Frontier}}}
 			}
-			err := index.PrepareRowPublication(&stale, e.catalog.Domain, entry.Ref, materialize)
+			err := index.PrepareRowPublication(&stale, e.Catalog.Domain, entry.Ref, materialize)
 			if err == nil || err.Error() != "stuntgres: stale update predecessor" {
 				t.Fatal("phase switch failed to reject stale UPDATE predecessor", staleKind, materialize, err)
 			}

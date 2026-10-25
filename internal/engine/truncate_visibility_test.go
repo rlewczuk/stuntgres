@@ -38,7 +38,7 @@ func TestTruncateSnapshots(t *testing.T) {
 			frontier := reader.Transactions.Frontier
 			captured := reader.Transactions.Roots[p.Address]
 			qRoot := reader.Transactions.Roots[q.Address]
-			if captured.Storage != e.storage.Relations[p.Address] || len(captured.Versions) != 2 {
+			if captured.Storage != e.Storage.Relations[p.Address] || len(captured.Versions) != 2 {
 				t.Fatal("stable snapshot did not capture untouched relation")
 			}
 			switch kind {
@@ -54,7 +54,7 @@ func TestTruncateSnapshots(t *testing.T) {
 			}
 			if kind == "truncate" {
 				transactionRows(t, reader, "SELECT id FROM p")
-				live := e.storage.Relations[p.Address]
+				live := e.Storage.Relations[p.Address]
 				if !captured.Storage.SameTruncateLineage(live) || len(live.Versions) != 1 || live.Versions[0].Born <= frontier {
 					t.Fatal("fresh incarnation did not retain ordinary birth frontier filtering")
 				}
@@ -83,7 +83,7 @@ func TestTruncateSnapshotsInherited(t *testing.T) {
 	sessionSQL(t, writer, "TRUNCATE ONLY c")
 	sessionSQL(t, writer, "INSERT INTO c VALUES(9)")
 	transactionRows(t, reader, "SELECT id FROM p ORDER BY id", 1, 2)
-	if !oldChild.Storage.SameTruncateLineage(e.storage.Relations[child.Address]) || reader.Transactions.Frontier != frontier || reader.Transactions.Roots[p.Address].Storage != oldParent.Storage || !storage.SameVersionRoot(reader.Transactions.Roots[p.Address].Versions, oldParent.Versions) || reader.Transactions.Roots[child.Address].Storage != oldChild.Storage {
+	if !oldChild.Storage.SameTruncateLineage(e.Storage.Relations[child.Address]) || reader.Transactions.Frontier != frontier || reader.Transactions.Roots[p.Address].Storage != oldParent.Storage || !storage.SameVersionRoot(reader.Transactions.Roots[p.Address].Versions, oldParent.Versions) || reader.Transactions.Roots[child.Address].Storage != oldChild.Storage {
 		t.Fatal("inherited SELECT replaced the original snapshot authority")
 	}
 	sessionSQL(t, reader, "INSERT INTO c VALUES(4)")
@@ -93,7 +93,7 @@ func TestTruncateSnapshotsInherited(t *testing.T) {
 }
 func TestTruncateBuffers(t *testing.T) {
 	e, s, p, _ := truncateUnitFixture(t)
-	old := e.storage.Relations[p.Address]
+	old := e.Storage.Relations[p.Address]
 	root, ends := old.Versions, old.Ends
 	result := sessionSQL(t, s, "SELECT id FROM p ORDER BY id")
 	t.Cleanup(func() { result.Rows.Close() })
@@ -101,7 +101,7 @@ func TestTruncateBuffers(t *testing.T) {
 	schema := rows.Schema()
 	count := rows.Count
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	if e.storage.Relations[p.Address] == old || !storage.SameVersionRoot(old.Versions, root) || old.Ends != ends || rows.Count != count || !reflect.DeepEqual(rows.Schema(), schema) {
+	if e.Storage.Relations[p.Address] == old || !storage.SameVersionRoot(old.Versions, root) || old.Ends != ends || rows.Count != count || !reflect.DeepEqual(rows.Schema(), schema) {
 		t.Fatal("generation swap damaged retained eager buffer/codec")
 	}
 	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}}) {
@@ -114,13 +114,13 @@ func TestTruncateActivity(t *testing.T) {
 		tx := transactionBegin(t, s)
 		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id FROM p ORDER BY id")
 		transactionRows(t, s, "FETCH ALL FROM c", 1, 2)
-		cursor := payloadOf(s).cursors.entries["c"]
+		cursor := PayloadOf(s).Cursors.Entries["c"]
 		if cursor.root == nil || cursor.Place != exec.CursorAfter || len(cursor.leaves) == 0 {
 			t.Fatal("fixture did not retain exhausted real producer")
 		}
 		sessionSQL(t, s, "SAVEPOINT recover")
 		truncateUnitError(t, e, s, "TRUNCATE p", "55006")
-		if len(e.storage.Relations[p.Address].Versions) != 2 || cursor.root == nil {
+		if len(e.Storage.Relations[p.Address].Versions) != 2 || cursor.root == nil {
 			t.Fatal("activity rejection retired producer/storage")
 		}
 		sessionSQL(t, s, "ROLLBACK TO recover")
@@ -134,7 +134,7 @@ func TestTruncateActivity(t *testing.T) {
 		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id/(id-id) FROM p")
 		sessionSQL(t, s, "SAVEPOINT before_fetch")
 		truncateUnitError(t, e, s, "FETCH ALL FROM c", "22012")
-		cursor := payloadOf(s).cursors.entries["c"]
+		cursor := PayloadOf(s).Cursors.Entries["c"]
 		if cursor.Place != exec.CursorFailed || cursor.root != nil || cursor.leaves != nil {
 			t.Fatal("failed portal retained producer references")
 		}
@@ -147,7 +147,7 @@ func TestTruncateActivity(t *testing.T) {
 		tx := transactionBegin(t, s)
 		sessionSQL(t, s, "DECLARE c CURSOR WITH HOLD FOR SELECT id FROM p ORDER BY id")
 		transactionEnd(t, s, tx, true)
-		cursor := payloadOf(s).cursors.entries["c"]
+		cursor := PayloadOf(s).Cursors.Entries["c"]
 		if !cursor.promoted || cursor.root != nil || len(cursor.leaves) != 0 || cursor.count != 2 {
 			t.Fatal("HOLD fixture is not a detached real typed buffer")
 		}
@@ -158,7 +158,7 @@ func TestTruncateActivity(t *testing.T) {
 }
 func TestTruncateGenerationExhaustion(t *testing.T) {
 	e, s, p, q := truncateUnitFixture(t)
-	oldP, oldQ := e.storage.Relations[p.Address], e.storage.Relations[q.Address]
+	oldP, oldQ := e.Storage.Relations[p.Address], e.Storage.Relations[q.Address]
 	generation := oldQ.Generation
 	oldQ.Generation = ^uint64(0)
 	defer func() { oldQ.Generation = generation }()
@@ -168,7 +168,7 @@ func TestTruncateGenerationExhaustion(t *testing.T) {
 	}
 	defer op.Done()
 	_, err = e.Execute(op, truncateUnitAST("p", "q"), 0, nil)
-	if err == nil || err.Error() != "stuntgres: storage generation exhausted" || e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || oldP.TruncateLineage != nil || oldQ.TruncateLineage != nil {
+	if err == nil || err.Error() != "stuntgres: storage generation exhausted" || e.Storage.Relations[p.Address] != oldP || e.Storage.Relations[q.Address] != oldQ || oldP.TruncateLineage != nil || oldQ.TruncateLineage != nil {
 		t.Fatal("generation exhaustion partially replaced targets", err)
 	}
 }
@@ -189,7 +189,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { result.Rows.Close() })
-	data := scope.view.Data()
+	data := scope.View.Data()
 	if data.Generations == nil || !data.NeedsBirthFilterAt(p.Address) || data.NeedsBirthFilterAt(q.Address) || data.Frontier != frontier || len(data.Committed[p.Address]) != 1 || data.Ends[p.Address] != nil || data.Deleted[p.Address] != nil || len(data.Own[p.Address]) != 0 {
 		t.Fatal("mixed capture lost per-relation birth provenance or fixture acquired deletion/replacement roots")
 	}
@@ -198,7 +198,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		filter bool
 		count  int
 	}{{p, true, 0}, {q, false, 1}} {
-		source, err := exec.CapturePrefix(scope.view, test.ref)
+		source, err := exec.CapturePrefix(scope.View, test.ref)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -230,7 +230,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { ownResult.Rows.Close() })
-	ownData := ownScope.view.Data()
+	ownData := ownScope.View.Data()
 	if ownData.Generations != nil || !ownData.SingleNeedsBirthFilter || ownData.Frontier != frontier || ownData.Ends[p.Address] != nil || ownData.Deleted[p.Address] != nil || len(ownData.Own[p.Address]) != 1 || ownData.Own[p.Address][0].Base != 0 {
 		t.Fatal("single capture/own-insert birth-filter fixture")
 	}

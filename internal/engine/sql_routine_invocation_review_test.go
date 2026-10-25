@@ -21,10 +21,10 @@ func TestSQLRoutineClosedFormalBoundary(t *testing.T) {
 	}
 	defer done()
 	integer := testUsage(e, sqltype.Int4)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	for _, count := range []int{0, 1, 2} {
-		b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
+		b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 		b.Params.ClosedRoutineFormals = true
 		inputs := make([]sqltype.Usage, count)
 		for i := range inputs {
@@ -49,7 +49,7 @@ func TestSQLRoutineClosedFormalBoundary(t *testing.T) {
 		}
 	}
 	// Ordinary prepared input inference is deliberately still open.
-	b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
+	b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 	if _, err := b.Bind(parser.ParameterExpr{Number: 1}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: integer}); err != nil {
 		t.Fatal(err)
 	}

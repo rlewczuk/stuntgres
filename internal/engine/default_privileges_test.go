@@ -29,9 +29,9 @@ func TestDefaultPrivilegesBaselines(t *testing.T) {
 	composite.ObjectName = "standalone"
 	composite.RowType = 0
 	composite.RelationKind = catalog.CompositeRelation
-	f.e.mu.Lock()
-	err := f.e.stageRowTypeLocked(stage, &composite)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	err := f.e.StageRowTypeLocked(stage, &composite)
+	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,16 +48,16 @@ func TestDefaultPrivilegesStorage(t *testing.T) {
 	for _, class := range []string{"tables", "sequences", "functions", "types", "schemas", "large objects"} {
 		f.grant(t, class, "all", nil)
 	}
-	if f.e.catalog.State.DefaultACLCount() != 6 || old.State().DefaultACLCount() != 0 {
+	if f.e.Catalog.State.DefaultACLCount() != 6 || old.State().DefaultACLCount() != 0 {
 		t.Fatal("six stored classes/source immutability")
 	}
-	first := f.e.catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultRoutines})
+	first := f.e.Catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultRoutines})
 	alias := defaultUnitStatement("routines", "all", []string{"default_owner"}, nil, []string{"default_reader"})
 	alias.Revoke = true
 	if err := f.apply(alias); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.State.DefaultACLCount() != 5 || first == nil || len(first.ACL.Entries) != 3 {
+	if f.e.Catalog.State.DefaultACLCount() != 5 || first == nil || len(first.ACL.Entries) != 3 {
 		t.Fatal("routine alias/source mutation")
 	}
 	empty := defaultUnitStatement("large objects", "all", []string{"default_owner"}, nil, []string{"default_owner"})
@@ -71,7 +71,7 @@ func TestDefaultPrivilegesStorage(t *testing.T) {
 	if err := f.apply(empty); err != nil {
 		t.Fatal(err)
 	}
-	record := f.e.catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultLargeObjects})
+	record := f.e.Catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultLargeObjects})
 	if record == nil || !record.ACL.Explicit || len(record.ACL.Entries) != 0 {
 		t.Fatal("stored empty lost", record)
 	}
@@ -96,10 +96,10 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 	if err := f.apply(current); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.member, Class: authorization.DefaultSequences}) == nil || f.e.catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}) != nil {
+	if f.e.Catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.member, Class: authorization.DefaultSequences}) == nil || f.e.Catalog.State.DefaultACL(catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultSequences}) != nil {
 		t.Fatal("omitted creator not current")
 	}
-	roles := cloneRoleFixture(f.e.roles.Published)
+	roles := cloneRoleFixture(f.e.RoleStore.Published)
 	edges := fixtureEdges(roles)
 	for i := range edges {
 		if edges[i].Member == f.member && edges[i].Role == f.owner {
@@ -108,7 +108,7 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 		}
 	}
 	setFixtureEdges(roles, edges)
-	f.e.roles.PublishLocked(roles)
+	f.e.RoleStore.PublishLocked(roles)
 	err := f.apply(defaultUnitStatement("types", "usage", []string{"default_owner"}, nil, []string{"default_reader"}))
 	defaultUnitDiagnostic(t, err, "42501", "permission denied to change default privileges")
 	f.actor(f.owner)

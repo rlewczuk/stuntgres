@@ -22,9 +22,9 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 				t.Run(mutation, func(t *testing.T) {
 					s := cursorUnitSetup(t)
 					sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR WITH HOLD FOR SELECT abs(i) FROM unit_rows")
-					c := payloadOf(s).cursors.entries["c"]
+					c := PayloadOf(s).Cursors.Entries["c"]
 					root, catalog, actor := c.root, c.routineAuth.Catalog.State(), c.routineAuth.State.CurrentUser
-					if c.routineAuth.inputs != &engineOf(s).authority || catalog == nil || c.authority.Host != nil {
+					if c.routineAuth.inputs != &EngineOf(s).Authority || catalog == nil || c.authority.Host != nil {
 						t.Fatal("DECLARE did not detach its original routine authority")
 					}
 					original := slices.Clone(c.routineDependencies)
@@ -47,7 +47,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					case "missing":
 						c.routineDependencies = append(c.routineDependencies[:selected], c.routineDependencies[selected+1:]...)
 					case "foreign":
-						c.routineDependencies[selected].Ref = New().catalog.Domain.Ref(c.routineDependencies[selected].Ref.Epoch, c.routineDependencies[selected].Ref.Address)
+						c.routineDependencies[selected].Ref = New().Catalog.Domain.Ref(c.routineDependencies[selected].Ref.Epoch, c.routineDependencies[selected].Ref.Address)
 					case "epoch":
 						c.routineDependencies[selected].Ref.Epoch++
 					case "revision":
@@ -59,7 +59,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					}
 					result, err := cursorUnitExecute(t, s, context.Background(), query)
 					if mutation != "intact" && mutation != "relation_metadata" {
-						if err == nil || result.Rows != nil || result.Count != 0 || c.source != nil || c.routineAuth.live() {
+						if err == nil || result.Rows != nil || result.Count != 0 || c.Source != nil || c.routineAuth.live() {
 							t.Fatal("invalid original manifest survived producer admission", result, err)
 						}
 						return

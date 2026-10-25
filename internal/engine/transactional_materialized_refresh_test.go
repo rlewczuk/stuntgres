@@ -22,15 +22,15 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 				source := catalogRef(t, e, e.CatalogRead(), "txj_source")
 				u := catalogRef(t, e, e.CatalogRead(), "txj_u")
 				second := catalogRef(t, e, e.CatalogRead(), "txj_second")
-				uroot, sroot := e.storage.IndexRoots[u.Address], e.storage.IndexRoots[second.Address]
-				root, ends, generation, facts, base, frontier := old.Versions, old.Ends, old.Generation, old.Maintenance, e.catalog.State, e.visibility.CommitSeq()
+				uroot, sroot := e.Storage.IndexRoots[u.Address], e.Storage.IndexRoots[second.Address]
+				root, ends, generation, facts, base, frontier := old.Versions, old.Ends, old.Generation, old.Maintenance, e.Catalog.State, e.Visibility.CommitSeq()
 				sessionSQL(t, s, "BEGIN")
 				defer sessionSQL(t, s, "ROLLBACK")
 				sessionSQL(t, s, "INSERT INTO txj_source VALUES(2)")
 				sessionSQL(t, s, "REFRESH MATERIALIZED VIEW CONCURRENTLY txj_mv")
 				first := s.Transactions.Catalog.Storage[ref.Address]
-				firstU := index.EffectiveRoot(e.storage.IndexRoots, s.Transactions.Catalog, u.Address)
-				firstSecond := index.EffectiveRoot(e.storage.IndexRoots, s.Transactions.Catalog, second.Address)
+				firstU := index.EffectiveRoot(e.Storage.IndexRoots, s.Transactions.Catalog, u.Address)
+				firstSecond := index.EffectiveRoot(e.Storage.IndexRoots, s.Transactions.Catalog, second.Address)
 				if first.Original != old || first.Replacement == nil || len(first.Replacement.Versions) != 2 || firstU == uroot || firstSecond == sroot || len(firstU.Entries) != 2 || len(firstSecond.Entries) != 2 {
 					t.Fatal("missing private replacement/index roots", first)
 				}
@@ -47,7 +47,7 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 				if latest.Original != old || latest.Replacement == first.Replacement || len(latest.Replacement.Versions) != 2 || !latest.MaterializedConcurrent || latest.MaterializedContinuous == mixed {
 					t.Fatal("first predecessor/latest-only lineage", latest)
 				}
-				if e.catalog.State != base || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != old || e.storage.IndexRoots[u.Address] != uroot || e.storage.IndexRoots[second.Address] != sroot || !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends || old.Generation != generation || old.Maintenance != facts {
+				if e.Catalog.State != base || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[ref.Address] != old || e.Storage.IndexRoots[u.Address] != uroot || e.Storage.IndexRoots[second.Address] != sroot || !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends || old.Generation != generation || old.Maintenance != facts {
 					t.Fatal("private refresh mutated committed roots/facts")
 				}
 				for _, replacement := range []*storage.Relation{first.Replacement, latest.Replacement} {
@@ -74,17 +74,17 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 				}
 				sessionSQL(t, s, "ROLLBACK TO kept")
 				restored := s.Transactions.Catalog.Storage[ref.Address]
-				if restored.Replacement != first.Replacement || restored.Original != old || !restored.MaterializedContinuous || index.EffectiveRoot(e.storage.IndexRoots, s.Transactions.Catalog, u.Address) != firstU || index.EffectiveRoot(e.storage.IndexRoots, s.Transactions.Catalog, second.Address) != firstSecond {
+				if restored.Replacement != first.Replacement || restored.Original != old || !restored.MaterializedContinuous || index.EffectiveRoot(e.Storage.IndexRoots, s.Transactions.Catalog, u.Address) != firstU || index.EffectiveRoot(e.Storage.IndexRoots, s.Transactions.Catalog, second.Address) != firstSecond {
 					t.Fatal("savepoint lost exact private roots")
 				}
 				sessionSQL(t, s, "ROLLBACK TO kept")
 				sessionSQL(t, s, "RELEASE kept")
 				sessionSQL(t, peer, "INSERT INTO txj_unrelated VALUES(9)")
-				peerFrontier := e.visibility.CommitSeq()
+				peerFrontier := e.Visibility.CommitSeq()
 				if commit {
 					sessionSQL(t, s, "COMMIT")
-					fresh := e.storage.Relations[ref.Address]
-					if fresh != first.Replacement || e.visibility.CommitSeq() != peerFrontier+1 || len(e.storage.Relations[source.Address].Versions) != 2 || len(e.storage.IndexRoots[u.Address].Entries) != 2 || len(e.storage.IndexRoots[second.Address].Entries) != 2 {
+					fresh := e.Storage.Relations[ref.Address]
+					if fresh != first.Replacement || e.Visibility.CommitSeq() != peerFrontier+1 || len(e.Storage.Relations[source.Address].Versions) != 2 || len(e.Storage.IndexRoots[u.Address].Entries) != 2 || len(e.Storage.IndexRoots[second.Address].Entries) != 2 {
 						t.Fatal("incomplete combined publication")
 					}
 					for _, row := range fresh.Versions {
@@ -94,12 +94,12 @@ func TestTransactionalMaterializedRefreshJournal(t *testing.T) {
 					}
 				} else {
 					sessionSQL(t, s, "ROLLBACK")
-					if e.storage.Relations[ref.Address] != old || e.storage.IndexRoots[u.Address] != uroot || e.storage.IndexRoots[second.Address] != sroot || len(e.storage.Relations[source.Address].Versions) != 1 {
+					if e.Storage.Relations[ref.Address] != old || e.Storage.IndexRoots[u.Address] != uroot || e.Storage.IndexRoots[second.Address] != sroot || len(e.Storage.Relations[source.Address].Versions) != 1 {
 						t.Fatal("rollback leaked private roots")
 					}
 				}
 				unrelated := catalogRef(t, e, e.CatalogRead(), "txj_unrelated")
-				if len(e.storage.Relations[unrelated.Address].Versions) != 1 {
+				if len(e.Storage.Relations[unrelated.Address].Versions) != 1 {
 					t.Fatal("lost unrelated commit")
 				}
 				if !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends || old.Generation != generation || old.Maintenance != facts {

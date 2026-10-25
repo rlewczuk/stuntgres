@@ -14,12 +14,12 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	if s.Kind != "database" || len(s.Relations) == 0 || len(s.Schemas) != 0 {
-		return Result{}, sqlError("0A000", "statement is not supported")
+		return Result{}, SQLError("0A000", "statement is not supported")
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	op := scope.op
-	v, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	op := scope.Op
+	v, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return Result{}, err
 	}
@@ -27,7 +27,7 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 	for i := range s.Relations {
 		statement := *s
 		statement.Relations = s.Relations[i : i+1]
-		next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, &statement, e.catalog.RevisionLocked)
+		next, warnings, err := role.PlanDatabaseGrant(op.Context(), v.View, &statement, e.Catalog.RevisionLocked)
 		for _, warning := range warnings {
 			op.EmitNotice(session.LevelWarning, warning)
 		}
@@ -38,14 +38,14 @@ func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGra
 			continue
 		}
 		if changes == nil {
-			changes = scope.owner.Catalog.Clone()
+			changes = scope.Owner.Catalog.Clone()
 		}
-		e.catalogChangeLocked(changes, next.Address(), next)
+		e.CatalogChangeLocked(changes, next.Address(), next)
 	}
 	if changes == nil {
 		return Result{}, nil
 	}
-	scope.catalog = changes
-	scope.catalogAuthority = v.catalogAuthorityLocked(ids.ObjectRef{Address: v.Owner.DatabaseAddress()}, e.catalog.State.Get(v.Owner.DatabaseAddress()))
+	scope.Catalog = changes
+	scope.CatalogAuthority = v.CatalogAuthorityLocked(ids.ObjectRef{Address: v.Owner.DatabaseAddress()}, e.Catalog.State.Get(v.Owner.DatabaseAddress()))
 	return Result{}, nil
 }

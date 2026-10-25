@@ -20,20 +20,20 @@ import (
 func domainUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) *CatalogStage {
 	t.Helper()
 	ast := statement(t, q)
-	e.mu.Lock()
+	e.Mu.Lock()
 	var stage *CatalogStage
 	var err error
 	if enum, ok := ast.(*parser.CreateEnum); ok {
 		var auth AuthorizationView
-		auth, err = e.authorizationLocked(op)
+		auth, err = e.AuthorizationLocked(op)
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			err = typedef.StageCreateEnumLocked(ddlHost{e: e, op: op, stage: stage}, auth, enum)
+			err = typedef.StageCreateEnumLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, enum)
 		}
 	} else {
 		stage, err = e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(q, err)
 	}
@@ -90,9 +90,9 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	}
 	before := e.CatalogRead().State()
 	duplicate := statement(t, "CREATE DOMAIN public.amount AS missing_base")
-	e.mu.Lock()
+	e.Mu.Lock()
 	_, err := e.stageSchemaLocked(op, duplicate, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	domainUnitDiagnostic(t, err, "42710", `type "amount" already exists`)
 	if e.CatalogRead().State() != before {
 		t.Fatal("failed CREATE published")
@@ -138,8 +138,8 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal("base authorization generation lost", err)
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
-	drop.domainTargets = []ids.ObjectAddress{a.Address()}
-	if err = drop.removeObject(e.catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
+	drop.DomainTargets = []ids.ObjectAddress{a.Address()}
+	if err = drop.removeObject(e.Catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)
@@ -147,13 +147,13 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	rawTable := statement(t, "CREATE TABLE public.concurrent(v public.a)").(*parser.CreateTable)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	table := e.BeginCatalogStage(auth.Catalog)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, table, rawTable, a.Namespace(), auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, table, rawTable, a.Namespace(), auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,17 +180,17 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))
 	a := domainUnitType(t, e.CatalogRead(), "a")
-	e.mu.Lock()
-	reader := e.roles.Domain.Principal(e.roles.NextPrincipal())
-	e.roles.InstallPrincipalFrontierLocked(e.roles.NextPrincipal() + 1)
-	roles := cloneRoleFixture(e.roles.Published)
+	e.Mu.Lock()
+	reader := e.RoleStore.Domain.Principal(e.RoleStore.NextPrincipal())
+	e.RoleStore.InstallPrincipalFrontierLocked(e.RoleStore.NextPrincipal() + 1)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 
 	putFixtureRole(roles, authorization.RoleDescriptor{Ref: reader, Name: "reader"})
-	e.roles.PublishLocked(roles)
-	e.mu.Unlock()
+	e.RoleStore.PublishLocked(roles)
+	e.Mu.Unlock()
 	auth := catalogAuthorization(e, e.CatalogRead())
 	auth.State.CurrentUser = reader
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a.Address())
+	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), a.Address())
 	if err := auth.CanUse(ref); err != nil {
 		t.Fatal("default PUBLIC USAGE", err)
 	}
@@ -213,10 +213,10 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 		auth.State.CurrentUser = reader
 		before := e.CatalogRead().State()
 		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
-		e.mu.Lock()
+		e.Mu.Lock()
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err := typedef.StageCreateDomainLocked(ddlHost{e: e, op: op, stage: stage}, auth, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-		e.mu.Unlock()
+		err := typedef.StageCreateDomainLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		e.Mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
 		if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
 			t.Fatal("denied base published")
@@ -243,9 +243,9 @@ func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 		q := tc.query
 		raw := statement(t, q)
 		before := e.CatalogRead().State()
-		e.mu.Lock()
+		e.Mu.Lock()
 		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		domainUnitDiagnostic(t, err, "42601", tc.message)
 		if e.CatalogRead().State() != before {
 			t.Fatal("invalid declaration published", q)
@@ -259,7 +259,7 @@ func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 	auth := catalogAuthorization(e, e.CatalogRead())
 	var dependencies []access.RoleDependency
 	access.DescriptorRoleDependencies(d, d.Owner, &dependencies)
-	if len(dependencies) == 0 || (ddlHost{e: e}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
+	if len(dependencies) == 0 || (DDLHost{E: e}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}
 }
@@ -289,9 +289,9 @@ func TestDomainUniqueASTRejectedWithoutPublication(t *testing.T) {
 			// Preserve the real nested source position, but move the outer
 			// position to another real token to catch incorrect outer provenance.
 			ast.Constraints[0].Pos = ast.Pos
-			e.mu.Lock()
+			e.Mu.Lock()
 			_, err := e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			domainUnitDiagnostic(t, err, "42601", "unique constraints not possible for domains")
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Position != "49" {

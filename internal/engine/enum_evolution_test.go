@@ -48,29 +48,29 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','q')"))
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		err = e.schemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
 	ref := catalogRef(t, e, e.CatalogRead(), "affected")
 	other := catalogRef(t, e, e.CatalogRead(), "untouched")
-	oldCatalog := e.catalog.State
+	oldCatalog := e.Catalog.State
 	oldRelation := oldCatalog.MustRelation(ref.Address)
 	value, _ := mood.SQLType.Input(context.Background(), "q", -1)
 	oldStore := &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 3, KeyChangedAt: 2, Values: []sqltype.Value{value}}}, Generation: 4}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(ref.Address, oldStore)
-	e.mu.Unlock()
-	otherStore := e.storage.Relations[other.Address]
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(ref.Address, oldStore)
+	e.Mu.Unlock()
+	otherStore := e.Storage.Relations[other.Address]
 	members := mood.SQLType.EnumMembers()
 	members[1].Label = "end"
 	members = append(members, sqltype.EnumMember{ID: 100000, Label: "last", SortOrder: 3})
@@ -85,20 +85,20 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	err = e.reownStagedTypeGenerationsLocked(stage)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = e.ReownStagedTypeGenerationsLocked(stage)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	shape := stage.rowShapes[ref.Address]
+	shape := stage.RowShapes[ref.Address]
 	row := shape.Replacement.Versions[0]
 	oldID, _ := value.EnumMemberID()
 	newID, _ := row.Values[0].EnumMemberID()
 	if oldID != newID || row.Row != 7 || row.Version != 11 || row.Born != 3 || row.KeyChangedAt != 2 || !reflect.DeepEqual(oldRelation.Attributes, stage.Get(ref.Address).(*catalog.Relation).Attributes) {
 		t.Fatal("row/column/member identity rewritten")
 	}
-	if stage.rowShapes[other.Address].Replacement != nil || e.storage.Relations[other.Address] != otherStore {
+	if stage.RowShapes[other.Address].Replacement != nil || e.Storage.Relations[other.Address] != otherStore {
 		t.Fatal("unaffected store copied")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -107,7 +107,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.catalog.State != oldCatalog || e.storage.Relations[ref.Address] != oldStore {
+	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.Catalog.State != oldCatalog || e.Storage.Relations[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
 	if text, err := mood.SQLType.Output(context.Background(), oldStore.Versions[0].Values[0]); err != nil || text != "q" {
@@ -150,7 +150,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	}
 	importing := catalog.NewState(0)
 	importing.SetScalarImports(imports)
-	view := New().catalog.Read(importing)
+	view := New().Catalog.Read(importing)
 	literal := plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: v}
 	rebound, changed, err := stored.RetagTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {

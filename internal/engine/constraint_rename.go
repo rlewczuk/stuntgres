@@ -14,24 +14,24 @@ import (
 // metadata-only: the existing overlay and Finish own publication of the group.
 // Engine.mu is held on entry and released on every return.
 func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
+	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
-	ref, err := e.resolveRelationReference(auth, raw.Name, true)
+	ref, err := e.ResolveRelationReference(auth, raw.Name, true)
 	if raw.IfExists && table.RenameMissing(err) {
 		return e.renameRelationLocked(scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, false, count)
 	}
 	if err != nil {
 		return fail(err)
 	}
-	if ref != scope.lockedRef {
+	if ref != scope.LockedRef {
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if err := auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return fail(err)
 	}
-	parent := scope.lockedDescriptor.(*catalog.Relation)
+	parent := scope.LockedDescriptor.(*catalog.Relation)
 	kind, backing, err := table.RenameConstraintKind(parent, raw.Constraint.Text)
 	if err != nil {
 		return fail(err)
@@ -40,40 +40,40 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	err = table.StageRenameConstraint(stage, auth.Catalog, parent, raw, kind, backing)
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		return fail(err)
 	}
-	changes := scope.owner.Catalog.Clone()
-	grantCatalog := e.catalog.State
-	scope.catalogAuthority = auth.catalogAuthorityLocked(ref, grantCatalog.Get(ref.Address))
-	e.mu.Unlock()
+	changes := scope.Owner.Catalog.Clone()
+	grantCatalog := e.Catalog.State
+	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, grantCatalog.Get(ref.Address))
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		return Result{}, err
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.State.Epoch() {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if ref.Epoch != e.Catalog.State.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	// Check all originals before transferring any member. Earlier overlay originals
 	// remain intact across repeated renames and savepoint rollback.
 	for a := range stage.Descriptors() {
-		if e.catalog.State.Get(a) != grantCatalog.Get(a) {
+		if e.Catalog.State.Get(a) != grantCatalog.Get(a) {
 			return Result{}, catalog.Conflict{}
 		}
 	}
 	for k := range stage.Touched() {
-		if e.catalog.State.NameAddress(k) != grantCatalog.NameAddress(k) {
+		if e.Catalog.State.NameAddress(k) != grantCatalog.NameAddress(k) {
 			return Result{}, catalog.Conflict{}
 		}
 	}
 	for a, d := range stage.Descriptors() {
-		e.catalogChangeLocked(changes, a, d)
+		e.CatalogChangeLocked(changes, a, d)
 	}
-	scope.catalog = changes
+	scope.Catalog = changes
 	return Result{}, nil
 }

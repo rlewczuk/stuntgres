@@ -20,13 +20,13 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 	t.Helper()
 	e := New()
 	base := e.CatalogRead()
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	usage := testUsage(e, sqltype.Int4)
 	mint := func() ids.OID {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		oid, err := e.catalog.AllocateOIDLocked()
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,7 +36,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	indexAddress := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: mint()}
 	primary := catalog.UniqueConstraint{OID: 20000, Name: "c_key", Attributes: []int32{1, 2}, Primary: true, Index: indexAddress, IsLocal: true}
-	history := catalog.RetiredInheritanceOrigin{Parent: e.catalog.Domain.Ref(base.Epoch(), parent.Address()), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
+	history := catalog.RetiredInheritanceOrigin{Parent: e.Catalog.Domain.Ref(base.Epoch(), parent.Address()), Attribute: 1, Column: "a", Name: "nn", Constraint: 20001, Lifetime: uint64(base.Epoch()), Own: 20002}
 	old := &catalog.Relation{ObjectAddress: address, ObjectNamespace: namespace, ObjectName: "c", Owner: owner, ObjectRevision: 1, RelationKind: catalog.TableRelation, History: catalog.PublicationHistory{HasIndexes: true}, Columns: []catalog.Column{{Name: "a", Usage: usage, Nullable: false, NullabilityKnown: true}, {Name: "b", Usage: usage, Nullable: false, NullabilityKnown: true}}, Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{OID: 20002, Name: "nn", Attribute: 1}, {OID: 20003, Name: "b_nn", Attribute: 2}}, Unique: []catalog.UniqueConstraint{primary}}, Inheritance: &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address()), Columns: map[int32]catalog.InheritedColumn{1: {Local: true}, 2: {Local: true}}, NotNull: map[int32]catalog.InheritedConstraint{1: {Retired: []catalog.RetiredInheritanceOrigin{history}}, 2: {Local: true}}}}
 	index := &catalog.Relation{ObjectAddress: indexAddress, ObjectNamespace: namespace, ObjectName: "c_key", Owner: owner, ObjectRevision: 1, RelationKind: catalog.IndexRelation, Columns: slices.Clone(old.Columns), Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "b": 1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, SQLIndex: &catalog.IndexDefinition{Method: catalog.BtreeMethod, MethodOID: 403, Parent: address, Keys: []catalog.IndexKey{{Attribute: 1}, {Attribute: 2}}, Unique: true, Ready: true, Valid: true, Live: true, Constraint: index.UniqueBacking(&primary)}}
 	parent.History.HasSubclasses = true
@@ -48,7 +48,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 			t.Fatal(err)
 		}
 	}
-	view := e.stageRead(created)
+	view := e.StageRead(created)
 	if err := table.ValidateRetiredInheritance(view, old, old.Inheritance.NotNull[1], old.Constraints.NotNull[0].OID, false); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 	if err := stage.Replace(clean); err != nil {
 		t.Fatal(err)
 	}
-	if err := table.ValidatePhysicalNotNull(e.stageRead(stage), clean, table.PhysicalOrdinaryNotNull(clean)); err != nil {
+	if err := table.ValidatePhysicalNotNull(e.StageRead(stage), clean, table.PhysicalOrdinaryNotNull(clean)); err != nil {
 		t.Fatal(err)
 	}
 	return e, stage, old, clean
@@ -74,7 +74,7 @@ func physicalNotNullFixture(t *testing.T) (*Engine, *CatalogStage, *catalog.Rela
 
 func TestPhysicalNotNullCauseAndCurrentSupport(t *testing.T) {
 	e, stage, old, clean := physicalNotNullFixture(t)
-	view := e.stageRead(stage)
+	view := e.StageRead(stage)
 	proof := clean.Constraints.PhysicalNotNull[1]
 	if proof.Cause.Self != proof.Cause || proof.Cause.RemovedNN != old.Constraints.NotNull[0].OID || proof.Cause.Primary != old.Constraints.Unique[0].OID || proof.Cause.Index != old.Constraints.Unique[0].Index || proof.Cause.Origin != proof.Cause.Ref || proof.Cause.Usage != old.Columns[0].Usage || len(proof.Support.Keys) != 2 {
 		t.Fatal("issuer guessed or truncated actual source identities/Usage")
@@ -142,12 +142,12 @@ func TestPhysicalNotNullRetirementAndSupersession(t *testing.T) {
 	if kept.Cause != proof.Cause || kept.Support != nil || kept.Retired != proof.Support || retired.Columns[0].Nullable {
 		t.Fatal("actual key retirement cleared flag or retained live provider authority")
 	}
-	if err := table.ValidatePhysicalNotNull(e.stageRead(stage), &retired, table.PhysicalOrdinaryNotNull(&retired)); err != nil {
+	if err := table.ValidatePhysicalNotNull(e.StageRead(stage), &retired, table.PhysicalOrdinaryNotNull(&retired)); err != nil {
 		t.Fatal(err)
 	}
 	forged := retired
 	forged.Constraints.Unique = clean.Constraints.Unique
-	if err := table.ValidatePhysicalNotNull(e.stageRead(stage), &forged, table.PhysicalOrdinaryNotNull(&forged)); err == nil {
+	if err := table.ValidatePhysicalNotNull(e.StageRead(stage), &forged, table.PhysicalOrdinaryNotNull(&forged)); err == nil {
 		t.Fatal("archived key rebound as a live provider")
 	}
 	ordinary := *clean
@@ -168,13 +168,13 @@ func TestPhysicalNotNullRetirementAndSupersession(t *testing.T) {
 
 func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	e, source, _, clean := physicalNotNullFixture(t)
-	base := e.stageRead(source)
+	base := e.StageRead(source)
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	e.mu.Lock()
-	indexOID, indexErr := e.catalog.AllocateOIDLocked()
-	constraintOID, constraintErr := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	indexOID, indexErr := e.Catalog.AllocateOIDLocked()
+	constraintOID, constraintErr := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if indexErr != nil || constraintErr != nil {
 		t.Fatal(indexErr, constraintErr)
 	}
@@ -193,7 +193,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	definition := *oldIndex.SQLIndex
 	definition.Constraint = index.UniqueBacking(&next.Constraints.Unique[0])
 	idx.SQLIndex = &definition
-	if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), oldIndex.Address())); err != nil {
+	if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), oldIndex.Address())); err != nil {
 		t.Fatal(err)
 	}
 	if err := stage.Create(&idx); err != nil {
@@ -210,7 +210,7 @@ func TestPhysicalNotNullRebuiltCompositeUsage(t *testing.T) {
 	if proof.Cause != clean.Constraints.PhysicalNotNull[1].Cause || proof.Support.Constraint != constraintOID || proof.Support.Index != idx.Address() || proof.Support.Keys[1].Usage != next.Columns[1].Usage || proof.Support.Keys[0].Usage != next.Columns[0].Usage {
 		t.Fatal("real group replacement lost immutable origin or full composite current Usage")
 	}
-	if err := table.ValidatePhysicalNotNull(e.stageRead(stage), rebuilt, table.PhysicalOrdinaryNotNull(rebuilt)); err != nil {
+	if err := table.ValidatePhysicalNotNull(e.StageRead(stage), rebuilt, table.PhysicalOrdinaryNotNull(rebuilt)); err != nil {
 		t.Fatal(err)
 	}
 	if clean.Constraints.PhysicalNotNull[1].Support.Constraint == constraintOID || clean.Columns[1].Usage == next.Columns[1].Usage {
@@ -230,12 +230,12 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	if err := stage.Replace(&local); err != nil {
 		t.Fatal(err)
 	}
-	if err := table.ValidateInheritance(e.stageRead(stage), &local); err != nil {
+	if err := table.ValidateInheritance(e.StageRead(stage), &local); err != nil {
 		t.Fatal(err)
 	}
 	before := local.Constraints.NotNull[0]
 	archive := provenance.Retired[0]
-	rebuilt, err := table.RebuildAlterNotNulls(ddlHost{e: e, stage: stage}, &local, []index.ColumnTransformation{{Attribute: 1}})
+	rebuilt, err := table.RebuildAlterNotNulls(DDLHost{E: e, CatalogStage: stage}, &local, []index.ColumnTransformation{{Attribute: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	if !current.Local || current.Count() != len(provenance.Origins) || len(current.Retired) != 0 || local.Inheritance.NotNull[1].Retired[0] != archive {
 		t.Fatal("fresh NN inherited destroyed historical contributions or mutated the old archive")
 	}
-	if err := table.ValidateInheritance(e.stageRead(stage), rebuilt); err != nil {
+	if err := table.ValidateInheritance(e.StageRead(stage), rebuilt); err != nil {
 		t.Fatal(err)
 	}
 	forged := *rebuilt

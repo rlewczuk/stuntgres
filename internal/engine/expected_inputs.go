@@ -16,12 +16,12 @@ func expectedOf(d *StatementDescription) analyze.Expected {
 		Results:          d.Results,
 		CatalogOwner:     d.catalogOwner,
 		CatalogEpoch:     d.catalogEpoch,
-		Temporals:        d.temporals,
+		Temporals:        d.Temporals,
 		RefreshTemporals: d.refreshTemporals,
 		PlanOwner:        d.planOwner,
 		PlanGeneration:   d.planGeneration,
 		Types:            d.types,
-		Sequences:        d.sequences,
+		Sequences:        d.Sequences,
 	}
 	if d.regtypes != nil {
 		e.Regtypes = d.regtypes.Constants

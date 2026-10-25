@@ -29,17 +29,17 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	defer done()
 	ast := statement(t, "UPDATE t SET i=int4($1::text),n=i WHERE i=int4($1::text)")
 	original := func() *analyze.UpdateBinding {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			t.Fatal(err)
 		}
-		ref, err := e.resolveReference(auth, ast.(*parser.Update).Name)
+		ref, err := e.ResolveReference(auth, ast.(*parser.Update).Name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -166,10 +166,10 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 			defer cancel()
 			var restore func()
 			ctx.visit = func() {
-				if scope.view != nil {
+				if scope.View != nil {
 					t.Error("UPDATE captured source before preflight/current ACL")
 				}
-				if scope.lockedRef.Domain() != e.catalog.Domain || scope.lockedDescriptor == nil {
+				if scope.LockedRef.Domain() != e.Catalog.Domain || scope.LockedDescriptor == nil {
 					t.Error("lost exact locked relation")
 				}
 				switch mode {
@@ -178,15 +178,15 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					op.Session.Authorization.State.CurrentUser = actor.Ref
 					op.Session.Mu.Unlock()
 				case "storage":
-					address := scope.lockedRef.Address
-					original := e.storage.Relations[address]
+					address := scope.LockedRef.Address
+					original := e.Storage.Relations[address]
 					replacement := *original
-					e.storage.InstallRelationLocked(address, &replacement)
-					restore = func() { e.storage.InstallRelationLocked(address, original) }
+					e.Storage.InstallRelationLocked(address, &replacement)
+					restore = func() { e.Storage.InstallRelationLocked(address, original) }
 				case "attribute", "type", "width", "comment", "acl":
-					address := scope.lockedRef.Address
-					original := e.catalog.State.Get(address)
-					replacement := *scope.lockedDescriptor.(*catalog.Relation)
+					address := scope.LockedRef.Address
+					original := e.Catalog.State.Get(address)
+					replacement := *scope.LockedDescriptor.(*catalog.Relation)
 					replacement.ObjectRevision++
 					switch mode {
 					case "attribute":
@@ -203,12 +203,12 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					case "acl":
 						replacement.Security.ACL = authorization.ACLValue{Explicit: true}
 					}
-					e.catalog.State.SetDescriptor(address, &replacement)
-					restore = func() { e.catalog.State.SetDescriptor(address, original) }
+					e.Catalog.State.SetDescriptor(address, &replacement)
+					restore = func() { e.Catalog.State.SetDescriptor(address, original) }
 				case "epoch":
-					original := e.catalog.State.Epoch()
-					e.catalog.State.SetEpoch(e.catalog.State.Epoch() + 1)
-					restore = func() { e.catalog.State.SetEpoch(original) }
+					original := e.Catalog.State.Epoch()
+					e.Catalog.State.SetEpoch(e.Catalog.State.Epoch() + 1)
+					restore = func() { e.Catalog.State.SetEpoch(original) }
 				case "deadline":
 					ctx.Context = deadline
 				case "teardown":
@@ -226,9 +226,9 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 			})
 			ctx.armed = false
 			if restore != nil && mode != "comment" && mode != "acl" {
-				e.mu.Lock()
+				e.Mu.Lock()
 				restore()
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
 			if !ctx.entered {
 				t.Error("preflight never entered")
@@ -253,21 +253,21 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					t.Error(result, executeErr)
 				}
 			}
-			if mode != "success" && mode != "comment" && mode != "acl" && (result.Count != 0 || result.Rows != nil || scope.view != nil) {
+			if mode != "success" && mode != "comment" && mode != "acl" && (result.Count != 0 || result.Rows != nil || scope.View != nil) {
 				t.Error("failure acquired source/result", result)
 			}
-			address := scope.lockedRef.Address
+			address := scope.LockedRef.Address
 			if err := scope.Finish(executeErr); err != executeErr {
 				t.Error("Finish changed failure", err, executeErr)
 			}
 			if mode == "comment" || mode == "acl" {
-				store := e.storage.Relations[address]
+				store := e.Storage.Relations[address]
 				if store == nil || len(store.Versions) != 1 || testExport(store.Versions[0].Values[0]) != int64(42) {
 					t.Error("compatible metadata lost publication")
 				}
 			}
 			lockEmpty(t, e)
-			if scope.view != nil || scope.lockedDescriptor != nil || scope.ticket != nil || !scope.finished {
+			if scope.View != nil || scope.LockedDescriptor != nil || scope.LockTicket != nil || !scope.Finished {
 				t.Error("statement pins/holds survived Finish")
 			}
 		})

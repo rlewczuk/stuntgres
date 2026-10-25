@@ -16,13 +16,13 @@ import (
 func captureSchemaDropUnit(t *testing.T, e *Engine, op *session.Operation, stmt *parser.DropSchema) ddl.SchemaDropManifest {
 	t.Helper()
 	manifest, err := func() (ddl.SchemaDropManifest, error) {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return ddl.SchemaDropManifest{}, err
 		}
-		return ddl.CaptureSchemaDrop(ddlHost{e: e, op: op}, auth, stmt)
+		return ddl.CaptureSchemaDrop(DDLHost{E: e, Op: op}, auth, stmt)
 	}()
 	if err != nil {
 		t.Fatal(err)
@@ -31,8 +31,8 @@ func captureSchemaDropUnit(t *testing.T, e *Engine, op *session.Operation, stmt 
 }
 
 func constructSchemaDropUnit(e *Engine, op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*CatalogStage, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	return e.stageSchemaDropLocked(op, stmt, manifest)
 }
 
@@ -81,7 +81,7 @@ func TestTransactionalSchemaDropManifest(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "foreign_domain":
-				manifest.Domain = New().catalog.Domain
+				manifest.Domain = New().Catalog.Domain
 			case "canceled":
 				ctx, cancel := context.WithCancel(op.Context())
 				cancel()
@@ -126,7 +126,7 @@ func TestTransactionalSchemaDropManifest(t *testing.T) {
 			}
 			if change == "unrelated" {
 				other := schemaRef(t, e, "manifest_unrelated")
-				if stage.Removed(other.Address) || e.stageRead(stage).Get(other.Address) != before.Get(other.Address) {
+				if stage.Removed(other.Address) || e.StageRead(stage).Get(other.Address) != before.Get(other.Address) {
 					t.Fatal("unrelated namespace was removed or rebound")
 				}
 			}

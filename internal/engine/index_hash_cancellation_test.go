@@ -47,8 +47,8 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 		t.Fatal("missing real filter")
 	}
 	state := &exec.State{Source: source, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := scopeOf(source.LiveHost()); scope != nil {
-		state.Input, state.Output = scope.input, scope.output
+	if scope := ScopeOf(source.LiveHost()); scope != nil {
+		state.Input, state.Output = scope.Input, scope.Output
 	}
 	view, data := source.View, source.View.Data()
 	rows, visible := hashCancellationRows(source.Committed), append([]int(nil), source.Visible...)
@@ -57,7 +57,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	before := indexMaintenanceCapture(e)
 	unchanged := func() {
 		indexMaintenanceUnchanged(t, e, before)
-		if source.View != view || source.View.Data() != data || &source.Committed[0] != first || !reflect.DeepEqual(source.Committed, rows) || !reflect.DeepEqual(source.Visible, visible) || len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != root || !reflect.DeepEqual(root.Buckets, buckets) || e.storage.IndexRoots[index.Address()].Hash != root {
+		if source.View != view || source.View.Data() != data || &source.Committed[0] != first || !reflect.DeepEqual(source.Committed, rows) || !reflect.DeepEqual(source.Visible, visible) || len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != root || !reflect.DeepEqual(root.Buckets, buckets) || e.Storage.IndexRoots[index.Address()].Hash != root {
 			t.Fatal("canceled lookup changed retained source/root authority")
 		}
 	}
@@ -161,8 +161,8 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 		run(t, e, q)
 	}
 	idx, old := hashRoot(t, e, "hn")
-	parent := e.catalog.State.MustRelation(idx.SQLIndex.Parent)
-	store := e.storage.Relations[parent.Address()]
+	parent := e.Catalog.State.MustRelation(idx.SQLIndex.Parent)
+	store := e.Storage.Relations[parent.Address()]
 	writer := sessionStart(t, e, nil)
 	ref := transactionBegin(t, writer)
 	active := true
@@ -181,19 +181,19 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	}
 	before := indexMaintenanceCapture(e)
 	rows, buckets := hashCancellationRows(store.Versions), hashCancellationBuckets(old)
-	generation, ends, frontier := store.Generation, store.Ends, e.visibility.CommitSeq()
+	generation, ends, frontier := store.Generation, store.Ends, e.Visibility.CommitSeq()
 
 	// Dry preparation uses the same real private batch and slot/end owner as
 	// publication. Its final pre-return poll follows touched-bucket copying;
 	// cancel at the immediately preceding bucket-entry poll in the real owner.
 	p := index.RowPublication{Address: parent.Address(), Store: store, Original: store, OriginalRelation: parent, Relation: parent, Root: store.Versions, Writes: writes[parent.Address()], Ends: store.Ends, Deletion: deletes[parent.Address()], Generation: store.Generation, SingleSlot: -1}
-	if err := index.PrepareRowPublication(&p, e.catalog.Domain, ref, true); err != nil {
+	if err := index.PrepareRowPublication(&p, e.Catalog.Domain, ref, true); err != nil {
 		t.Fatal(err)
 	}
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := index.MergeHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, idx, e.storage.IndexRoots[idx.Address()], &p, false, true)
+	candidate, err := index.MergeHashIndexRoot(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: counting}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, parent, idx, e.Storage.IndexRoots[idx.Address()], &p, false, true)
 	if err != nil || candidate == nil || candidate.Hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.Hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}
@@ -216,7 +216,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 		t.Fatal("owner did not cancel inside real hash merge", err, during.checks.Load(), during.at)
 	}
 	indexMaintenanceUnchanged(t, e, before)
-	if store.Generation != generation || store.Ends != ends || e.visibility.CommitSeq() != frontier || !reflect.DeepEqual(store.Versions, rows) || !reflect.DeepEqual(old.Buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
+	if store.Generation != generation || store.Ends != ends || e.Visibility.CommitSeq() != frontier || !reflect.DeepEqual(store.Versions, rows) || !reflect.DeepEqual(old.Buckets, buckets) || !reflect.DeepEqual(hashKeys(t, old), []string{"1", "2", "2", "3"}) {
 		t.Fatal("canceled merge published rows/endings or mutated predecessor buckets")
 	}
 	transactionEnd(t, writer, ref, false)

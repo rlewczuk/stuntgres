@@ -17,7 +17,7 @@ func TestTableLikeIndexClone(t *testing.T) {
 	run(t, e, `CREATE INDEX covering ON src(b COLLATE "C" text_pattern_ops DESC NULLS LAST) INCLUDE(a)`)
 	run(t, e, "CREATE INDEX derived ON src((a+1))")
 	run(t, e, "CREATE INDEX hashed ON src USING hash(a)")
-	sourceRoots := e.storage.IndexRoots
+	sourceRoots := e.Storage.IndexRoots
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(head BOOL,lead TEXT,LIKE src INCLUDING INDEXES)")
@@ -76,12 +76,12 @@ func TestTableLikeIndexClone(t *testing.T) {
 	}
 	for _, descriptor := range stage.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
-		if ok && index.SQLIndex != nil && e.storage.IndexRoots[index.Address()] == nil {
+		if ok && index.SQLIndex != nil && e.Storage.IndexRoots[index.Address()] == nil {
 			t.Fatal("new index has no actual published root", index.Name())
 		}
 		if ok && index.SQLIndex != nil {
 			for address, root := range sourceRoots {
-				if e.storage.IndexRoots[address] != root || e.storage.IndexRoots[index.Address()] == root {
+				if e.Storage.IndexRoots[address] != root || e.Storage.IndexRoots[index.Address()] == root {
 					t.Fatal("copied index reused or changed a source root", index.Name())
 				}
 			}
@@ -96,10 +96,10 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 	run(t, e, "CREATE INDEX dropping_source ON src(a)")
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	candidate := catalog.CloneState(auth.Catalog.State())
@@ -115,12 +115,12 @@ func TestTableLikeInvalidIndexDescriptors(t *testing.T) {
 		copy.SQLIndex = &definition
 		candidate.SetDescriptor(ref.Address, &copy)
 	}
-	auth.Catalog = e.catalog.Read(candidate)
+	auth.Catalog = e.Catalog.Read(candidate)
 	auth.Recapture(auth.Catalog)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	syntax := statement(t, "CREATE TABLE clone(LIKE src INCLUDING INDEXES)").(*parser.CreateTable)
-	err = e.schemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
-	e.mu.Unlock()
+	err = e.SchemaTableLocked(op, auth, stage, syntax, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

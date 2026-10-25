@@ -33,7 +33,7 @@ func infoCharacterDataUnitCatalog(t *testing.T, e *Engine, view catalog.Read) *c
 	if !ok || array.Element() != d.SQLType || array.Concrete() || array.Usage().Valid() || d.Array != 13245 {
 		t.Fatal("lookup-only companion backlink", array)
 	}
-	if err := e.catalog.Providers[ids.TypeClassID].Validate(view, d); err != nil {
+	if err := e.Catalog.Providers[ids.TypeClassID].Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if err := catalog.ValidateDefinitionOIDs(view); err != nil {
@@ -76,10 +76,10 @@ func TestInfoCharacterDataBuiltinBaseRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("actual base-generation replacement did not rebind", changed, err)
 	}
-	if err := stored.ReownExpressions(source.catalog.Read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(source.Catalog.Read(next), next, nil, true, nil); err != nil {
 		t.Fatal(err)
 	}
-	mapped := infoCharacterDataUnitCatalog(t, source, source.catalog.Read(next))
+	mapped := infoCharacterDataUnitCatalog(t, source, source.Catalog.Read(next))
 	if mapped == original || mapped.SQLType == original.SQLType || mapped.SQLType.DomainBase().Type != base.SQLType || mapped.SQLType.DomainBase().Type == originalBase.Type {
 		t.Fatal("changed base did not rebuild domain authority")
 	}
@@ -110,10 +110,10 @@ func TestInfoCharacterDataLogicalDescriptions(t *testing.T) {
 	check("SELECT v FROM public.character_data_description WHERE FALSE")
 	// Private storage fixture: binding must retain the logical nullable domain
 	// even when every stored physical datum is NULL.
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}})
-	e.visibility.SetCommitSeqLocked(1)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}})
+	e.Visibility.SetCommitSeqLocked(1)
+	e.Mu.Unlock()
 	check("SELECT v FROM public.character_data_description")
 	check("SELECT NULL::information_schema.character_data AS v")
 }

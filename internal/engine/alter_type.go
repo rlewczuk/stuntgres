@@ -27,11 +27,11 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Oper
 		attribute := original.Attributes[slot]
 		if identity, exists := original.ColumnMeta.Identities[attribute]; exists {
 			if stage == nil {
-				if scope.inheritance.alter != nil {
-					stage = scope.inheritance.alter.stage
+				if scope.Inheritance.Alter != nil {
+					stage = scope.Inheritance.Alter.Stage
 				} else {
 					stage = e.BeginCatalogStage(auth.Catalog)
-					stage.authorizeLocked(auth, op.Session)
+					stage.AuthorizeLocked(auth, op.Session)
 				}
 			}
 			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.Sequence, prepared[index].Usage); err != nil {
@@ -47,19 +47,19 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Oper
 // Engine.mu. suppliedUsage is used only by typed propagation of an already
 // resolved type.
 func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (table.AlterTypePreparation, error) {
-	return table.PrepareAlterType(alterHost{ddlHost{e: e, op: op}, scope}, auth, original, ref, a, suppliedUsage)
+	return table.PrepareAlterType(alterHost{DDLHost{E: e, Op: op}, scope}, auth, original, ref, a, suppliedUsage)
 }
 
 // alterTypeCandidate runs the TYPE candidate under Engine.mu; stage, when
 // begun, supplies the staged dependent views.
 func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return table.AlterTypeCandidate(alterHost{ddlHost{e: e, op: op, stage: stage}, scope}, auth, original, next, ref, a, prepared)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return table.AlterTypeCandidate(alterHost{DDLHost{E: e, Op: op, CatalogStage: stage}, scope}, auth, original, next, ref, a, prepared)
 }
 
 // alterRowEvaluation is the statement's evaluation template for ALTER row
 // fills, rewrites and scans; read is the catalog local lowering admits against.
 func alterRowEvaluation(scope *StatementScope, op *session.Operation, read catalog.Read) exec.Context {
-	return exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	return exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 }

@@ -21,7 +21,7 @@ func identityMultiGrant(t *testing.T, e *Engine, owner *lock.Ticket, tuple lock.
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	request, err := e.locks.StartAcquire(ctx, owner, tuple.Resource, mode, lock.Policy{})
+	request, err := e.Locks.StartAcquire(ctx, owner, tuple.Resource, mode, lock.Policy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,13 +33,13 @@ func identityMultiGrant(t *testing.T, e *Engine, owner *lock.Ticket, tuple lock.
 }
 func identityMultiEmit(t *testing.T, e *Engine, owner *lock.Ticket, tuple lock.MultiTuple, mode lock.MultiMode) {
 	t.Helper()
-	if err := e.locks.PhysicalEvents(owner, []lock.MultiEvent{{Tuple: tuple, Mode: mode}}); err != nil {
+	if err := e.Locks.PhysicalEvents(owner, []lock.MultiEvent{{Tuple: tuple, Mode: mode}}); err != nil {
 		t.Fatal(err)
 	}
 }
 func identityMultiWant(t *testing.T, e *Engine, id uint32, want ...string) {
 	t.Helper()
-	members, err := e.locks.MultiXactMembers(e.catalog.Domain, nil, id)
+	members, err := e.Locks.MultiXactMembers(e.Catalog.Domain, nil, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func identityMultiWant(t *testing.T, e *Engine, id uint32, want ...string) {
 	}
 	if len(members) != 0 {
 		members[0].XID = 0
-		again, err := e.locks.MultiXactMembers(e.catalog.Domain, nil, id)
+		again, err := e.Locks.MultiXactMembers(e.Catalog.Domain, nil, id)
 		if err != nil || again[0].XID == 0 {
 			t.Fatal("borrowed mutable history", err)
 		}
@@ -75,29 +75,29 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 		tuple := identityMultiUnitTuple(e, 1)
 		identityMultiGrant(t, e, a, tuple, lock.ForKeyShare)
 		identityMultiEmit(t, e, a, tuple, lock.MultiKeyShare)
-		if e.locks.NextMultiXact(e.catalog.Domain) != 1 {
+		if e.Locks.NextMultiXact(e.Catalog.Domain) != 1 {
 			t.Fatal("first locker fabricated multi")
 		}
 		identityMultiGrant(t, e, b, tuple, lock.ForShare)
 		identityMultiEmit(t, e, b, tuple, lock.MultiShare)
 		identityMultiWant(t, e, 1, "3/keysh", "4/sh")
 		identityMultiEmit(t, e, b, tuple, lock.MultiShare)
-		if e.locks.NextMultiXact(e.catalog.Domain) != 2 {
+		if e.Locks.NextMultiXact(e.Catalog.Domain) != 2 {
 			t.Fatal("exact-pair reentry allocated")
 		}
 		transactionEnd(t, bs, b.Ref(), false)
 		identityMultiEmit(t, e, a, tuple, lock.MultiKeyShare)
-		if e.locks.NextMultiXact(e.catalog.Domain) != 2 {
+		if e.Locks.NextMultiXact(e.Catalog.Domain) != 2 {
 			t.Fatal("exact-pair reentry pruned finished member")
 		}
 		identityMultiWant(t, e, 1, "3/keysh", "4/sh")
 		identityMultiGrant(t, e, c, tuple, lock.ForShare)
 		identityMultiEmit(t, e, c, tuple, lock.MultiShare)
 		identityMultiWant(t, e, 2, "3/keysh", "5/sh")
-		e.mu.Lock()
+		e.Mu.Lock()
 		e.endSerializableLocked(c.Ref(), false)
-		e.mu.Unlock()
-		e.endLockOwner(c)
+		e.Mu.Unlock()
+		e.EndLockOwner(c)
 		identityMultiGrant(t, e, a, tuple, lock.ForUpdate)
 		identityMultiEmit(t, e, a, tuple, lock.MultiUpdateLock)
 		identityMultiWant(t, e, 3, "3/keysh", "3/forupd")
@@ -105,10 +105,10 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 		identityMultiWant(t, e, 4, "3/keysh", "3/forupd", "3/upd")
 		identityMultiWant(t, e, 1, "3/keysh", "4/sh")
 		identityMultiWant(t, e, 3, "3/keysh", "3/forupd")
-		e.mu.Lock()
+		e.Mu.Lock()
 		e.endSerializableLocked(a.Ref(), false)
-		e.mu.Unlock()
-		e.endLockOwner(a)
+		e.Mu.Unlock()
+		e.EndLockOwner(a)
 		identityMultiWant(t, e, 4, "3/keysh", "3/forupd", "3/upd")
 	})
 	for _, committed := range []bool{false, true} {
@@ -137,8 +137,8 @@ func TestTransactionIdentityMultiHistory(t *testing.T) {
 			identityMultiWant(t, e, 1, "3/keysh", "4/nokeyupd")
 			if committed {
 				identityMultiGrant(t, e, c, tuple, lock.ForNoKeyUpdate)
-				before := e.locks.NextMultiXact(e.catalog.Domain)
-				if err := e.locks.PhysicalEvents(c, []lock.MultiEvent{{Tuple: tuple, Mode: lock.MultiNoKeyAction}}); err == nil || e.locks.NextMultiXact(e.catalog.Domain) != before {
+				before := e.Locks.NextMultiXact(e.Catalog.Domain)
+				if err := e.Locks.PhysicalEvents(c, []lock.MultiEvent{{Tuple: tuple, Mode: lock.MultiNoKeyAction}}); err == nil || e.Locks.NextMultiXact(e.Catalog.Domain) != before {
 					t.Fatal("two updaters admitted or partially published", err)
 				}
 				identityMultiWant(t, e, 2, "3/keysh", "4/nokeyupd", "5/sh")
@@ -157,7 +157,7 @@ func TestTransactionIdentityGrantActions(t *testing.T) {
 	identityMultiGrant(t, e, a, first, lock.ForKeyShare)
 	identityMultiEmit(t, e, a, first, lock.MultiKeyShare)
 	identityMultiGrant(t, e, b, first, lock.ForNoKeyUpdate)
-	if e.locks.NextMultiXact(e.catalog.Domain) != 1 || e.locks.Inspect().MultiHistory[e.catalog.Domain] != 0 {
+	if e.Locks.NextMultiXact(e.Catalog.Domain) != 1 || e.Locks.Inspect().MultiHistory[e.Catalog.Domain] != 0 {
 		t.Fatal("candidate grant fabricated a physical event")
 	}
 	identityMultiEmit(t, e, b, first, lock.MultiNoKeyLock)
@@ -170,36 +170,36 @@ func TestTransactionIdentityGrantActions(t *testing.T) {
 	_, waiter := blockingUnitOwner(t, e)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	request, err := e.locks.StartAcquire(ctx, waiter, first.Resource, lock.ForNoKeyUpdate, lock.Policy{})
+	request, err := e.Locks.StartAcquire(ctx, waiter, first.Resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("missing actual wait", request, err)
 	}
-	if waiter.AssignedPublicXID() != 0 || e.locks.NextMultiXact(e.catalog.Domain) != 3 {
+	if waiter.AssignedPublicXID() != 0 || e.Locks.NextMultiXact(e.Catalog.Domain) != 3 {
 		t.Fatal("queued request assigned/published membership")
 	}
 	cancel()
 	if err := request.Wait(); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancel actual wait", err)
 	}
-	if e.locks.NextMultiXact(e.catalog.Domain) != 3 || waiter.AssignedPublicXID() != 0 {
+	if e.Locks.NextMultiXact(e.Catalog.Domain) != 3 || waiter.AssignedPublicXID() != 0 {
 		t.Fatal("canceled request published membership")
 	}
 	third := identityMultiUnitTuple(e, 3)
 	identityMultiGrant(t, e, a, third, lock.ForKeyShare)
 	identityMultiEmit(t, e, a, third, lock.MultiKeyShare)
 	identityMultiGrant(t, e, b, third, lock.ForShare)
-	before := e.locks.NextMultiXact(e.catalog.Domain)
+	before := e.Locks.NextMultiXact(e.Catalog.Domain)
 	bad := third
 	bad.Version = 0
-	if err := e.locks.PhysicalEvents(b, []lock.MultiEvent{{Tuple: third, Mode: lock.MultiShare}, {Tuple: bad, Mode: lock.MultiShare}}); err == nil || e.locks.NextMultiXact(e.catalog.Domain) != before || e.locks.Inspect().MultiRows[third].ID != 0 {
+	if err := e.Locks.PhysicalEvents(b, []lock.MultiEvent{{Tuple: third, Mode: lock.MultiShare}, {Tuple: bad, Mode: lock.MultiShare}}); err == nil || e.Locks.NextMultiXact(e.Catalog.Domain) != before || e.Locks.Inspect().MultiRows[third].ID != 0 {
 		t.Fatal("batch preflight published a prefix", err)
 	}
 	for _, change := range []func(*lock.MultiTuple){func(k *lock.MultiTuple) { k.Row = 0 }, func(k *lock.MultiTuple) { k.Kind = lock.AdvisoryBigintResource }, func(k *lock.MultiTuple) { k.Epoch++ }, func(k *lock.MultiTuple) {
-		k.ObjectRef = New().catalog.Domain.Ref(k.ObjectRef.Epoch, k.ObjectRef.Address)
+		k.ObjectRef = New().Catalog.Domain.Ref(k.ObjectRef.Epoch, k.ObjectRef.Address)
 	}} {
 		bad := third
 		change(&bad)
-		if err := e.locks.PhysicalEvents(b, []lock.MultiEvent{{Tuple: bad, Mode: lock.MultiShare}}); err == nil || e.locks.NextMultiXact(e.catalog.Domain) != before {
+		if err := e.Locks.PhysicalEvents(b, []lock.MultiEvent{{Tuple: bad, Mode: lock.MultiShare}}); err == nil || e.Locks.NextMultiXact(e.Catalog.Domain) != before {
 			t.Fatal("ineligible physical event", err)
 		}
 	}
@@ -223,17 +223,17 @@ func TestTransactionIdentitySavepoint(t *testing.T) {
 	identityMultiEmit(t, e, a, first, lock.MultiKeyShare)
 	identityMultiGrant(t, e, b, first, lock.ForNoKeyUpdate)
 	identityMultiEmit(t, e, b, first, lock.MultiNoKeyLock)
-	checkpoint := e.locks.Checkpoint(b)
+	checkpoint := e.Locks.Checkpoint(b)
 	identityMultiGrant(t, e, a, second, lock.ForKeyShare)
 	identityMultiEmit(t, e, a, second, lock.MultiKeyShare)
 	identityMultiGrant(t, e, b, second, lock.ForNoKeyUpdate)
 	identityMultiEmit(t, e, b, second, lock.MultiNoKeyLock)
 	// Same set is cached by the actual expanding backend, independently of tuple.
-	if e.locks.NextMultiXact(e.catalog.Domain) != 2 {
+	if e.Locks.NextMultiXact(e.Catalog.Domain) != 2 {
 		t.Fatal("owner-local cache allocated again")
 	}
-	e.locks.Restore(b, checkpoint)
-	if b.AssignedPublicXID() != 4 || e.locks.Inspect(b).Contributions[b][first] != (1<<lock.MultiNoKeyLock) || e.locks.Inspect(b).Contributions[b][second] != 0 {
+	e.Locks.Restore(b, checkpoint)
+	if b.AssignedPublicXID() != 4 || e.Locks.Inspect(b).Contributions[b][first] != (1<<lock.MultiNoKeyLock) || e.Locks.Inspect(b).Contributions[b][second] != 0 {
 		t.Fatal("savepoint lost identity or restored provenance from grant bits")
 	}
 	identityMultiWant(t, e, 1, "3/keysh", "4/fornokeyupd")
@@ -244,11 +244,11 @@ func TestTransactionIdentitySavepoint(t *testing.T) {
 	third := identityMultiUnitTuple(e, 3)
 	identityMultiGrant(t, e, a, third, lock.ForKeyShare)
 	identityMultiEmit(t, e, a, third, lock.MultiKeyShare)
-	original := e.locks.Checkpoint(a)
+	original := e.Locks.Checkpoint(a)
 	identityMultiGrant(t, e, a, third, lock.ForUpdate)
 	identityMultiEmit(t, e, a, third, lock.MultiUpdateLock)
-	e.locks.Restore(a, original)
-	if e.locks.Inspect(a).Contributions[a][third] != (1<<lock.MultiKeyShare) || len(e.locks.Inspect().MultiRows[third].Members) != 1 || e.locks.Inspect().MultiRows[third].Members[0].Mode != lock.MultiKeyShare {
+	e.Locks.Restore(a, original)
+	if e.Locks.Inspect(a).Contributions[a][third] != (1<<lock.MultiKeyShare) || len(e.Locks.Inspect().MultiRows[third].Members) != 1 || e.Locks.Inspect().MultiRows[third].Members[0].Mode != lock.MultiKeyShare {
 		t.Fatal("singleton upgrade rollback lost captured physical provenance")
 	}
 }

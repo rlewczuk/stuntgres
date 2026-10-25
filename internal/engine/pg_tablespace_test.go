@@ -17,11 +17,11 @@ import (
 func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*catalog.Relation, *exec.Source) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1213}
-	d, ok := e.catalog.State.Relation(address)
+	d, ok := e.Catalog.State.Relation(address)
 	if !ok {
 		t.Fatal("missing pg_tablespace")
 	}
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), address)
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	source, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.Roles(), ref, d)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	e := New()
 	d, source := pgTablespaceUnitCapture(t, e)
 	pgTablespaceUnitRows(t, source)
-	if d.Owner != e.roles.Domain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !pgcatalog.SummaryTable(1213) {
+	if d.Owner != e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID) || d.RowType == 0 || d.RelationKind != catalog.CatalogRelation || d.VirtualView || !pgcatalog.SummaryTable(1213) {
 		t.Fatal("catalog identity", d)
 	}
 	if !reflect.DeepEqual(d.Attributes, []int32{1, 2, 3, 4, 5}) || d.ColumnMeta.HighWater != 5 {
@@ -89,21 +89,21 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("public readonly ACL", d.Security.ACL)
 	}
-	row := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
+	row := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})
 	if row.OwningRelation != d.Address() || row.Owner != d.Owner {
 		t.Fatal("row identity link", row)
 	}
-	array := e.catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
+	array := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(row.Array)})
 	if array.OwningRelation != d.Address() || array.Owner != d.Owner {
 		t.Fatal("array identity link", array)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.Ref, Source: d, Owner: &e.catalog.Owner, Runtime: engineCatalogRuntime{engine: e}}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
+	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.Ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
-	if e.catalog.State != state || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision {
+	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision {
 		t.Fatal("capture mutated state")
 	}
 }
@@ -111,12 +111,12 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	e := New()
 	_, retained := pgTablespaceUnitCapture(t, e)
-	initial := e.roles.Domain.Principal(authorization.BootstrapPrincipalID)
-	roles := cloneRoleFixture(e.roles.Published)
+	initial := e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
+	roles := cloneRoleFixture(e.RoleStore.Published)
 	r := fixtureRole(roles, initial)
 	r.Name = "renamed_initial"
 	putFixtureRole(roles, r)
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	d, renamed := pgTablespaceUnitCapture(t, e)
 	if d.Owner != initial {
 		t.Fatal("role rename changed canonical source owner", d.Owner)
@@ -124,22 +124,22 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	pgTablespaceUnitRows(t, renamed)
 	// Reset imports a fresh postgres-owned catalog. A renamed target without
 	// that source owner must reject replacement, not bypass name provenance.
-	state, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
+	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
 	if err := e.Reset(context.Background()); err == nil {
 		t.Fatal("Reset bypassed missing replacement-owner provenance")
 	}
-	if e.catalog.State != state || e.roles.Published != roles || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision {
+	if e.Catalog.State != state || e.RoleStore.Published != roles || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision {
 		t.Fatal("rejected replacement changed target authority")
 	}
 	pgTablespaceUnitRows(t, retained)
 	// A source with matching renamed provenance can genuinely replace it.
 	source := New()
-	sourceInitial := source.roles.Domain.Principal(authorization.BootstrapPrincipalID)
-	sourceRoles := cloneRoleFixture(source.roles.Published)
+	sourceInitial := source.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID)
+	sourceRoles := cloneRoleFixture(source.RoleStore.Published)
 	sourceRole := fixtureRole(sourceRoles, sourceInitial)
 	sourceRole.Name = r.Name
 	putFixtureRole(sourceRoles, sourceRole)
-	source.roles.PublishLocked(sourceRoles)
+	source.RoleStore.PublishLocked(sourceRoles)
 	if _, err := e.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -149,11 +149,11 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	}
 	pgTablespaceUnitRows(t, renamed)
 	// Restore the target name required by Reset's fresh source provenance.
-	roles = cloneRoleFixture(e.roles.Published)
+	roles = cloneRoleFixture(e.RoleStore.Published)
 	r = fixtureRole(roles, initial)
 	r.Name = "postgres"
 	putFixtureRole(roles, r)
-	e.roles.PublishLocked(roles)
+	e.RoleStore.PublishLocked(roles)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}

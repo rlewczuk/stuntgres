@@ -50,7 +50,7 @@ func TestPgrowlocksEligibility(t *testing.T) {
 		tuple := identityMultiUnitTuple(e, 1)
 		identityMultiGrant(t, e, a, tuple, lock.ForUpdate)
 		identityMultiEmit(t, e, a, tuple, lock.MultiUpdateLock)
-		if err := e.locks.PhysicalEvents(a, []lock.MultiEvent{{Tuple: tuple, Mode: lock.MultiNoKeyAction, Successor: 2}}); err != nil {
+		if err := e.Locks.PhysicalEvents(a, []lock.MultiEvent{{Tuple: tuple, Mode: lock.MultiNoKeyAction, Successor: 2}}); err != nil {
 			t.Fatal(err)
 		}
 		rows := pgrowlocksUnitCapture(t, e, observer, tuple, false)
@@ -66,13 +66,13 @@ func TestPgrowlocksEligibility(t *testing.T) {
 		if len(inherited) != 1 || inherited[0].Multi || inherited[0].Members[0].Mode != lock.MultiKeyShare {
 			t.Fatal("inherited singleton physical header", inherited)
 		}
-		checkpoint := e.locks.Checkpoint(a)
+		checkpoint := e.Locks.Checkpoint(a)
 		identityMultiEmit(t, e, a, successor, lock.MultiShare)
 		relocked := pgrowlocksUnitCapture(t, e, a, successor, true)
 		if len(relocked) != 1 || relocked[0].Members[0].Mode != lock.MultiShare {
 			t.Fatal("new grant failed to replace inherited singleton header", relocked)
 		}
-		e.locks.Restore(a, checkpoint)
+		e.Locks.Restore(a, checkpoint)
 		restored := pgrowlocksUnitCapture(t, e, a, successor, true)
 		if len(restored) != 1 || restored[0].Members[0].Mode != lock.MultiKeyShare {
 			t.Fatal("contribution rollback lost inherited header", restored)
@@ -120,17 +120,17 @@ func TestPgrowlocksEligibility(t *testing.T) {
 		identityMultiEmit(t, e, a, tuple, lock.MultiKeyShare)
 		identityMultiGrant(t, e, b, tuple, lock.ForKeyShare)
 		identityMultiEmit(t, e, b, tuple, lock.MultiKeyShare)
-		saved := e.locks.Checkpoint(b)
+		saved := e.Locks.Checkpoint(b)
 		identityMultiGrant(t, e, b, tuple, lock.ForNoKeyUpdate)
 		identityMultiEmit(t, e, b, tuple, lock.MultiNoKeyAction)
-		e.locks.Restore(b, saved)
+		e.Locks.Restore(b, saved)
 		rows := pgrowlocksUnitCapture(t, e, b, tuple, false)
 		if len(rows) != 1 || !rows[0].Multi || len(rows[0].Members) != 3 || rows[0].Members[2].Mode != lock.MultiNoKeyAction {
 			t.Fatal("immutable raw action versus effective provenance", rows)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if rows, err := e.locks.Pgrowlocks(ctx, b, []lock.PgrowlocksTuple{{Tuple: tuple}}); err == nil || rows != nil {
+		if rows, err := e.Locks.Pgrowlocks(ctx, b, []lock.PgrowlocksTuple{{Tuple: tuple}}); err == nil || rows != nil {
 			t.Fatal("canceled capture", rows, err)
 		}
 	})

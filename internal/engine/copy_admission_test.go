@@ -119,7 +119,7 @@ func copyOwnerReservation(t *testing.T, format copyfmt.Format) {
 				close(reader.release)
 				t.Fatal("COPY failed before reader barrier", err)
 			}
-			before := scope.txRef
+			before := scope.TxRef
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			waiter, err := sess.Acquire(ctx)
@@ -168,7 +168,7 @@ func copyOwnerReservation(t *testing.T, format copyfmt.Format) {
 			sess.Transactions.Mu.Lock()
 			ref, command := sess.Transactions.Ref, sess.Transactions.Command
 			sess.Transactions.Mu.Unlock()
-			if ref != before || command != scope.command {
+			if ref != before || command != scope.CommandID {
 				t.Fatal("waiter mutated reserved owner")
 			}
 			close(reader.release)
@@ -176,9 +176,9 @@ func copyOwnerReservation(t *testing.T, format copyfmt.Format) {
 			if err := <-copyDone; err != nil {
 				t.Fatal(err)
 			}
-			scope.owner.Admission.Lock()
-			reserved := scope.owner.CopyLease != nil
-			scope.owner.Admission.Unlock()
+			scope.Owner.Admission.Lock()
+			reserved := scope.Owner.CopyLease != nil
+			scope.Owner.Admission.Unlock()
 			if reserved {
 				t.Fatal("reservation leaked")
 			}
@@ -244,7 +244,7 @@ func copyReplacement(t *testing.T, format copyfmt.Format) {
 			if err := <-done; !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("COPY rebound replacement", err)
 			}
-			if scope.stage.rows != nil || scope.owner.CopyLease != nil {
+			if scope.Stage.Rows != nil || scope.Owner.CopyLease != nil {
 				t.Fatal("replacement retained COPY stage/reservation")
 			}
 			deleteReplacementAdmissionEmpty(t, e)
@@ -309,7 +309,7 @@ func TestCopyTextPanicCleanup(t *testing.T) {
 		}()
 		_, _ = scope.Copy(copyUnitSyntax(), reader, nil)
 	}()
-	if scope.owner.CopyLease != nil || scope.stage.rows != nil {
+	if scope.Owner.CopyLease != nil || scope.Stage.Rows != nil {
 		t.Fatal("panic leaked reservation/private rows")
 	}
 	deleteReplacementAdmissionEmpty(t, e)
@@ -318,7 +318,7 @@ func TestCopyTextCopiedReservation(t *testing.T) {
 	_, _, op, scope := copyUnitStart(t, false)
 	defer op.Done()
 	defer scope.Finish(errors.New("cleanup"))
-	if err := scope.gate(copyUnitSyntax()); err != nil {
+	if err := scope.Gate(copyUnitSyntax()); err != nil {
 		t.Fatal(err)
 	}
 	if err := scope.reserveCopy(); err != nil {
@@ -326,7 +326,7 @@ func TestCopyTextCopiedReservation(t *testing.T) {
 	}
 	copied := *scope
 	copied.releaseCopyReservation()
-	if scope.owner.CopyLease != &scope.lease {
+	if scope.Owner.CopyLease != &scope.lease {
 		t.Fatal("copied scope released reservation")
 	}
 	if _, err := copied.copyIO(func() (int, error) { t.Fatal("copied scope invoked I/O"); return 0, nil }); err == nil {
@@ -364,7 +364,7 @@ func copyFinalCancellationVeto(t *testing.T, csv bool) {
 	if rows.Count != 0 {
 		t.Fatal("canceled COPY published rows", rows.Count)
 	}
-	if scope.stage.rows != nil || scope.owner.CopyLease != nil {
+	if scope.Stage.Rows != nil || scope.Owner.CopyLease != nil {
 		t.Fatal("final cancellation leaked COPY stage")
 	}
 }
@@ -395,7 +395,7 @@ func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 				close(reader.release)
 				t.Fatal("COPY did not enter I/O", err)
 			}
-			before := scope.txRef
+			before := scope.TxRef
 			waiter := transactionOperation(t, sess)
 			defer waiter.Done()
 			waiting := &copyWaitContext{Context: waiter.Ctx, entered: make(chan struct{})}
@@ -427,7 +427,7 @@ func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 			sess.Transactions.Mu.Lock()
 			ref, command := sess.Transactions.Ref, sess.Transactions.Command
 			sess.Transactions.Mu.Unlock()
-			if ref != before || command != scope.command {
+			if ref != before || command != scope.CommandID {
 				t.Fatal("waiting command changed reserved owner")
 			}
 			close(reader.release)
@@ -520,7 +520,7 @@ func TestCopyTextOutputReplacement(t *testing.T) {
 			if err = <-done; !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("output rebound replaced catalog", err)
 			}
-			if scope.owner.CopyLease != nil {
+			if scope.Owner.CopyLease != nil {
 				t.Fatal("output replacement reservation leaked")
 			}
 			deleteReplacementAdmissionEmpty(t, e)
@@ -601,7 +601,7 @@ func copyTimeoutTest(t *testing.T, csv bool) {
 			if *record != want {
 				t.Fatalf("timeout diagnostic: %#v", record)
 			}
-			if scope.owner.CopyLease != nil || scope.stage.rows != nil {
+			if scope.Owner.CopyLease != nil || scope.Stage.Rows != nil {
 				t.Fatal("timeout leaked COPY reservation/stage")
 			}
 			if setting == "transaction_timeout" {

@@ -9,15 +9,15 @@ import (
 )
 
 func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
-	e := s.engine()
+	e := s.Engine()
 	var sources []*exec.ForeignQuerySource
 	for _, selected := range s.truncateOrZero().Relations {
 		if selected.Relation.RelationKind != catalog.ForeignRelation {
 			continue
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		source, err := e.captureForeignSourceLocked(s, selected.Ref, selected.Relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -27,7 +27,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 	// Admit every participant before any selected server is truncated.
 	for i := range groups {
 		g := &groups[i]
-		tx, err := s.enlistForeign(s.op.Context(), g.Source.Wrapper, g.Source.Request, true)
+		tx, err := s.enlistForeign(s.Op.Context(), g.Source.Wrapper, g.Source.Request, true)
 		if err != nil {
 			return nil, err
 		}
@@ -38,7 +38,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]fdw.TruncateGroup, error) {
 func (s *StatementScope) executeForeignTruncate(groups []fdw.TruncateGroup) error {
 	s.foreignUnlocked()
 	for _, g := range groups {
-		if err := g.Source.Wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.op.Context(), g.Request); err != nil {
+		if err := g.Source.Wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.Op.Context(), g.Request); err != nil {
 			return exec.ForeignCallbackError(err)
 		}
 	}

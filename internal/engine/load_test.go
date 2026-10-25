@@ -53,12 +53,12 @@ func TestLoadValidation(t *testing.T) {
 		if tc.ordinary {
 			op = reader
 		}
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err == nil {
 			err = ddl.Load(op.Context(), auth.View, &parser.Load{Filename: tc.filename})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		loadUnitDiagnostic(t, err, tc.code, tc.message)
 	}
 }
@@ -76,11 +76,11 @@ func TestLoadExecutorNoPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		state, roles, oid, revision, principal := e.catalog.State, e.roles.Published, e.catalog.NextOID(), e.catalog.NextRevision(), e.roles.NextPrincipal()
+		state, roles, oid, revision, principal := e.Catalog.State, e.RoleStore.Published, e.Catalog.NextOID(), e.Catalog.NextRevision(), e.RoleStore.NextPrincipal()
 		identity, authorizationRevision := op.RoleState(), op.Session.Authorization.Revision
 		unchanged := func() {
 			t.Helper()
-			if e.catalog.State != state || e.catalog.State.Epoch() != state.Epoch() || e.roles.Published != roles || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.roles.NextPrincipal() != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision {
+			if e.Catalog.State != state || e.Catalog.State.Epoch() != state.Epoch() || e.RoleStore.Published != roles || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.RoleStore.NextPrincipal() != principal || op.RoleState() != identity || op.Session.Authorization.Revision != authorizationRevision {
 				t.Fatal("LOAD published catalog/role/allocator/identity changes")
 			}
 		}

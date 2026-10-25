@@ -15,14 +15,14 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	if len(records) == 0 {
 		return nil
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.importTargets == nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if e.ImportTargets == nil {
 		return fmt.Errorf("stuntgres: invalid extension owner import authority")
 	}
-	candidate := catalog.CloneState(e.catalog.State)
-	view := e.catalog.Read(candidate)
-	roles := e.roles.PublishedRead(&e.catalog.Owner, view)
+	candidate := catalog.CloneState(e.Catalog.State)
+	view := e.Catalog.Read(candidate)
+	roles := e.RoleStore.PublishedRead(&e.Catalog.Owner, view)
 	ownersChanged, err := extension.ImportOwners(ctx, view, roles, records)
 	if err != nil {
 		return err
@@ -33,9 +33,9 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	// Owner/ACL changes replace provider generations even when all SQL types are
 	// unchanged. Refresh stored CHECK/view/policy/default captures through the
 	// ordinary catalog expression remapper, not its type-only rename fast path.
-	if err := stored.ReownExpressions(e.catalog.Read(candidate), candidate, nil, false, nil); err != nil {
+	if err := stored.ReownExpressions(e.Catalog.Read(candidate), candidate, nil, false, nil); err != nil {
 		return err
 	}
-	e.catalog.PublishLocked(candidate)
+	e.Catalog.PublishLocked(candidate)
 	return nil
 }

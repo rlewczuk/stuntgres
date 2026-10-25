@@ -15,7 +15,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	child := inheritanceUnitRelation(e, "c", 22001, "a")
 	child.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}
-	e.catalog.PublishLocked(inheritanceUnitView(e, parent).State())
+	e.Catalog.PublishLocked(inheritanceUnitView(e, parent).State())
 	holderOp, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()
 	holder, err := e.StartStatement(holderOp)
@@ -23,11 +23,11 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer holder.Finish(errors.New("discard unit holder"))
-	if err := holder.gate(&parser.CreateTable{}); err != nil {
+	if err := holder.Gate(&parser.CreateTable{}); err != nil {
 		t.Fatal(err)
 	}
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.Address())
-	if err := holder.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.Address())
+	if err := holder.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 		t.Fatal(err)
 	}
 	session := sessionStart(t, e, nil)
@@ -43,24 +43,24 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("discard unit creator"))
-	if err := scope.gate(&parser.CreateTable{}); err != nil {
+	if err := scope.Gate(&parser.CreateTable{}); err != nil {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.UpdateDescriptor(child)
 	stage.table().CaptureLikeSource(parent)
 	completed := make(chan error, 1)
-	go func() { completed <- scope.acquireDefinitionProviders(stage) }()
+	go func() { completed <- scope.AcquireDefinitionProviders(stage) }()
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-	exact := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ShareUpdateExclusive && entry.Pending[0].Ticket == scope.ticket
+	exact := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ShareUpdateExclusive && entry.Pending[0].Ticket == scope.LockTicket
 	cancel()
 	lockAwait(t, completed, context.Canceled)
 	if !exact {
 		t.Fatal("parent admission did not queue exact SUE")
 	}
-	if e.catalog.State.Get(child.Address()) != nil || stage.tableOrZero().LikeSources[0] != parent {
+	if e.Catalog.State.Get(child.Address()) != nil || stage.tableOrZero().LikeSources[0] != parent {
 		t.Fatal("canceled admission published or changed parent capture")
 	}
 }
@@ -82,11 +82,11 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	before := e.catalog.State
+	before := e.Catalog.State
 	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.State != before {
+	if e.Catalog.State != before {
 		t.Fatal("canceled validation changed catalog")
 	}
 }

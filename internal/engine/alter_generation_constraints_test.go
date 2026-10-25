@@ -88,11 +88,11 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 				execute(&parser.CreateIndex{Name: parser.Identifier{Text: "g_predicate"}, Table: alterGenerationName("g"), Method: "btree", Unique: true, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "k"}}}, Predicate: alterGenerationOperator("<", alterGenerationColumn("b"), alterGenerationLiteral(3))})
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "g")
-			old := e.catalog.State.MustRelation(ref.Address)
-			store := e.storage.Relations[ref.Address]
-			catalog := e.catalog.State
-			roots := maps.Clone(e.storage.IndexRoots)
-			rowID, versionID, commit := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.CommitSeq()
+			old := e.Catalog.State.MustRelation(ref.Address)
+			store := e.Storage.Relations[ref.Address]
+			catalog := e.Catalog.State
+			roots := maps.Clone(e.Storage.IndexRoots)
+			rowID, versionID, commit := e.Storage.RowFrontier(), e.Storage.VersionFrontier(), e.Visibility.CommitSeq()
 			generation, ends := store.Generation, store.Ends
 			values := make([][]sqltype.Value, len(store.Versions))
 			for i, row := range store.Versions {
@@ -103,7 +103,7 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer scope.Finish(errors.New("constraint unit cleanup"))
-			writes, deletes := maps.Clone(scope.owner.Writes), maps.Clone(scope.owner.Deletes)
+			writes, deletes := maps.Clone(scope.Owner.Writes), maps.Clone(scope.Owner.Deletes)
 			expr := alterGenerationLiteral(2)
 			code := "23505"
 			switch kind {
@@ -133,14 +133,14 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.Code != code {
 				t.Fatal("constraint rewrite accepted/incorrect failure", kind, err)
 			}
-			if e.catalog.State != catalog || e.catalog.State.Get(ref.Address) != old || e.storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.storage.RowFrontier() != rowID || e.storage.VersionFrontier() != versionID || e.visibility.CommitSeq() != commit || scope.owner.Catalog != nil || !reflect.DeepEqual(scope.owner.Writes, writes) || !reflect.DeepEqual(scope.owner.Deletes, deletes) {
+			if e.Catalog.State != catalog || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != store || store.Generation != generation || store.Ends != ends || e.Storage.RowFrontier() != rowID || e.Storage.VersionFrontier() != versionID || e.Visibility.CommitSeq() != commit || scope.Owner.Catalog != nil || !reflect.DeepEqual(scope.Owner.Writes, writes) || !reflect.DeepEqual(scope.Owner.Deletes, deletes) {
 				t.Fatal("constraint failure leaked private/installed roots/counters")
 			}
-			if len(e.storage.IndexRoots) != len(roots) {
+			if len(e.Storage.IndexRoots) != len(roots) {
 				t.Fatal("index inventory changed")
 			}
 			for address, root := range roots {
-				if e.storage.IndexRoots[address] != root {
+				if e.Storage.IndexRoots[address] != root {
 					t.Fatal("index/FK root changed", address)
 				}
 			}
@@ -149,7 +149,7 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 					t.Fatal("source row changed")
 				}
 			}
-			if !scope.finished {
+			if !scope.Finished {
 				if err := scope.Finish(err); err == nil {
 					t.Fatal("failed statement committed")
 				}

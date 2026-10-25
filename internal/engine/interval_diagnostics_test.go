@@ -13,7 +13,7 @@ import (
 func TestIntervalLiteralOverflowPosition(t *testing.T) {
 	e := New()
 	d, _ := e.CatalogRead().LookupType(sqltype.Interval)
-	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "2147483648 days", Pos: parser.Position{Offset: 22, Character: 23}}}
 	_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment})
 	var got *sqlstate.Error

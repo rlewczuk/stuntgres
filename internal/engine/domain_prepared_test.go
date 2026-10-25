@@ -89,14 +89,14 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if err := scope.selectPreparedAnalysis(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(op)
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				t.Fatal(err)
 			}
 			analysis, err := e.preparedAnalysisLocked(scope, auth, analyze.Binding{Prepared: first.Prepared})
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -113,9 +113,9 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			}
 			valid := func() bool {
 				t.Helper()
-				e.mu.Lock()
-				defer e.mu.Unlock()
-				auth, err := e.authorizationLocked(op)
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
+				auth, err := e.AuthorizationLocked(op)
 				if err != nil {
 					t.Fatal(err)
 				}

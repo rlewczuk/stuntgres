@@ -62,7 +62,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	cancel()
 	err = e.completePrepared(canceled, "move", true)
 	canceled.Done()
-	if !errors.Is(err, context.Canceled) || entry.Claimed || e.prepared.Lookup("move") != entry || e.locks.TransactionTicket(ref) != ticket {
+	if !errors.Is(err, context.Canceled) || entry.Claimed || e.prepared.Lookup("move") != entry || e.Locks.TransactionTicket(ref) != ticket {
 		t.Fatal(err, "cancellation consumed entry or ticket")
 	}
 	origin.RequestEnd(session.CleanClose)
@@ -72,7 +72,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if e.prepared.Lookup("move") != entry || entry.Ticket != ticket {
 		t.Fatal("origin exit consumed registry")
 	}
-	if e.locks.TransactionTicket(ref) != ticket {
+	if e.Locks.TransactionTicket(ref) != ticket {
 		t.Fatal("physical origin exit released prepared lock journal")
 	}
 	if err := preparedUnitControl(t, e, peer, parser.KindCommitPrepared, "move"); err != nil {
@@ -81,7 +81,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if e.prepared.Len() != 0 {
 		t.Fatal("completed entry retained")
 	}
-	if e.locks.TransactionTicket(ref) != nil {
+	if e.Locks.TransactionTicket(ref) != nil {
 		t.Fatal("completion retained original lock journal")
 	}
 }
@@ -108,24 +108,24 @@ func TestPreparedSerializableOutcomeAndPivot(t *testing.T) {
 	in := serializableUnitNode(t, e, false)
 	pivot := serializableUnitNode(t, e, false)
 	out := serializableUnitNode(t, e, false)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := e.visibility.SerializableEdgeLocked(in, in, pivot); err != nil {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := e.Visibility.SerializableEdgeLocked(in, in, pivot); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.visibility.SerializableEdgeLocked(pivot, pivot, out); err != nil {
+	if err := e.Visibility.SerializableEdgeLocked(pivot, pivot, out); err != nil {
 		t.Fatal(err)
 	}
-	e.visibility.SerializablePreparedLocked(pivot.Ref)
+	e.Visibility.SerializablePreparedLocked(pivot.Ref)
 	if pivot.Committed || pivot.Ended || !pivot.Finalized || !pivot.Prepared {
 		t.Fatal("prepare resolved actual outcome")
 	}
-	serializableUnitDiagnostic(t, e.visibility.SerializablePrecommitLocked(out.Ref), "Canceled on commit attempt with conflict in from prepared pivot.")
+	serializableUnitDiagnostic(t, e.Visibility.SerializablePrecommitLocked(out.Ref), "Canceled on commit attempt with conflict in from prepared pivot.")
 	if pivot.Doomed {
 		t.Fatal("prepared pivot selected as victim")
 	}
 	order := pivot.Order
-	e.visibility.SerializableCommittedLocked(pivot.Ref, e.visibility.CommitSeq())
+	e.Visibility.SerializableCommittedLocked(pivot.Ref, e.Visibility.CommitSeq())
 	if !pivot.Committed || pivot.Order != order {
 		t.Fatal("completion reordered finalized transaction")
 	}
@@ -134,26 +134,26 @@ func TestPreparedSerializableOutcomeAndPivot(t *testing.T) {
 func TestPreparedSerializableOverlapUsesActualOutcome(t *testing.T) {
 	e := New()
 	writer := serializableUnitNode(t, e, false)
-	e.mu.Lock()
+	e.Mu.Lock()
 	writer.DidWrite = true
-	e.visibility.SerializablePreparedLocked(writer.Ref)
+	e.Visibility.SerializablePreparedLocked(writer.Ref)
 	prepareOrder := writer.Order
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	reader := serializableUnitNode(t, e, false)
-	e.mu.Lock()
+	e.Mu.Lock()
 	if !visibility.SerializableOverlap(writer, reader) {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal("snapshot acquired during prepared interval lost overlap")
 	}
-	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
+	e.Visibility.SerializableCommittedLocked(writer.Ref, e.Visibility.CommitSeq())
 	if writer.Order != prepareOrder || writer.CommitOrder <= reader.SnapshotOrder || !visibility.SerializableOverlap(writer, reader) {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal("actual completion erased prepared-interval overlap or prepare order")
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	later := serializableUnitNode(t, e, false)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	if visibility.SerializableOverlap(writer, later) {
 		t.Fatal("postcommit snapshot still overlapped finished writer")
 	}

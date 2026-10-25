@@ -52,9 +52,9 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		src.Rules = stored.RulesPayload([]stored.Rule{stored.NewRule(stored.RuleParts{OID: 900101, Name: "redirect", Event: "INSERT", Instead: true, Actions: []stored.RuleAction{action}})})
 		defer func() { src.Rules = nil }()
 		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
-		e.mu.Lock()
-		err := view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, &parser.Select{}, &parent)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, auth, &parser.Select{}, &parent)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -241,9 +241,9 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		err = view.NormalizeRuleCTEsLocked(&e.catalog.Owner, auth, action.Syntax(), &result)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err = view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, auth, action.Syntax(), &result)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -16,13 +16,13 @@ import (
 // Capture only metadata while locked. Planning, source admission, conversion,
 // restart and teardown all run from internal demand after the mutex is released.
 func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation, invoker authorization.PrincipalRef, uses []int, mark plan.RowMark) (*exec.Source, error) {
-	if err := checkRestoreEffect(scope.op); err != nil {
+	if err := CheckRestoreEffect(scope.Op); err != nil {
 		return nil, err
 	}
 	if mark.Mode != 0 {
-		return nil, sqlError("0A000", "foreign row locking is unsupported in embedded mode")
+		return nil, SQLError("0A000", "foreign row locking is unsupported in embedded mode")
 	}
-	auth, err := e.authorizationLocked(scope.op)
+	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if err != nil {
 		return nil, err
 	}
-	importer, exporter, ok := e.foreign.Codecs()
+	importer, exporter, ok := e.Foreign.Codecs()
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}

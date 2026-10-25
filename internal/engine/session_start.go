@@ -30,19 +30,19 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if e.databaseNameError != nil {
-		return nil, e.databaseNameError
+	if e.DatabaseNameError != nil {
+		return nil, e.DatabaseNameError
 	}
 	if start.ID == 0 && !private {
 		return nil, errors.New("stuntgres: zero session identity")
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	authenticated := start.Authenticated
 	if authenticated == (authorization.PrincipalRef{}) {
-		authenticated = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+		authenticated = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	}
-	roleDescriptor, authErr := e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()).Descriptor(authenticated)
-	e.mu.Unlock()
+	roleDescriptor, authErr := e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()).Descriptor(authenticated)
+	e.Mu.Unlock()
 	if authErr != nil {
 		return nil, authErr
 	}
@@ -50,13 +50,13 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		return nil, role.LoginError(roleDescriptor.Name)
 	}
 	// One allocation holds the session, its root payload and the owner extension.
-	allocation := &sessionAllocation{session: session.Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}}
+	allocation := &sessionAllocation{session: session.Session{Host: (*sessionHost)(e), SessionToken: e.Catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}}
 	s, payload := &allocation.session, &allocation.payload
 	s.Payload = payload
 	if private {
-		s.SessionToken = e.catalog.Domain.PrivateSession(s)
+		s.SessionToken = e.Catalog.Domain.PrivateSession(s)
 	}
-	s.DatabaseName = e.databaseName
+	s.DatabaseName = e.DatabaseName
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(ctx, true)
 	auth := &session.AuthorizationState{Session: s, State: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, Revision: 1}
@@ -68,7 +68,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	_, err := op.Attach(session.Settings, owner)
 	if err == nil {
 		s.Settings = owner
-		err = owner.Initialize(op.Context(), e.settings.Definitions(), e.settings.Order(), start.Defaults)
+		err = owner.Initialize(op.Context(), e.Settings.Definitions(), e.Settings.Order(), start.Defaults)
 		if err == nil {
 			owner.Mu.Lock()
 			s.Mu.Lock()
@@ -98,24 +98,24 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	if err == nil {
 		var ticket *lock.Ticket
 		if session.TokenAttached(s.SessionToken) {
-			ticket, err = e.locks.RegisterSession(s.SessionToken)
+			ticket, err = e.Locks.RegisterSession(s.SessionToken)
 		} else {
 			err = errors.New("stuntgres: invalid advisory session")
 		}
 		if err == nil {
-			s.Advisory.Ticket, s.Advisory.Locks = ticket, e.locks
+			s.Advisory.Ticket, s.Advisory.Locks = ticket, e.Locks
 			_, err = op.Attach(session.AdvisorySession, &s.Advisory)
 			if err != nil {
-				e.endLockOwner(ticket)
+				e.EndLockOwner(ticket)
 				s.Advisory.Ticket = nil
 			}
 		}
 	}
 	if err == nil {
-		cursors := &cursorRegistry{entries: make(map[string]*sqlCursor), token: s.SessionToken}
+		cursors := &cursorRegistry{Entries: make(map[string]*sqlCursor), token: s.SessionToken}
 		_, err = op.Attach(session.Cursors, cursors)
 		if err == nil {
-			payload.cursors = cursors
+			payload.Cursors = cursors
 		}
 	}
 	if err == nil {
@@ -125,18 +125,18 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 			payload.preparedSQL = prepared
 		}
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	if err == nil {
-		roleDescriptor, err = e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()).Descriptor(authenticated)
+		roleDescriptor, err = e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()).Descriptor(authenticated)
 		if err == nil && !roleDescriptor.Login {
 			err = role.LoginError(roleDescriptor.Name)
 		}
 		if err == nil && resetRole != (authorization.PrincipalRef{}) {
-			err = authorization.ValidateInitialRole(e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Current()), authenticated, resetRole)
+			err = authorization.ValidateInitialRole(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Current()), authenticated, resetRole)
 		}
 		if err == nil && !private {
-			view := e.catalog.Current()
-			err = access.CheckDatabaseConnect(ctx, view, e.roles.PublishedRead(&e.catalog.Owner, view), authenticated)
+			view := e.Catalog.Current()
+			err = access.CheckDatabaseConnect(ctx, view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), authenticated)
 		}
 	}
 	s.Mu.Lock()
@@ -165,7 +165,7 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		e.sessionMu.Unlock()
 	}
 	s.Mu.Unlock()
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		s.RequestEnd(session.InitFailure)
 	}
@@ -176,6 +176,6 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 	return s, nil
 }
 
-func (e *Engine) validateOperation(op *session.Operation) error {
-	return session.ValidateOperation(domainOf(e), op)
+func (e *Engine) ValidateOperation(op *session.Operation) error {
+	return session.ValidateOperation(DomainOf(e), op)
 }

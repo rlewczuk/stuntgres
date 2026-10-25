@@ -114,11 +114,11 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if disclosure == "columns" && composite {
 		grant(2, authorization.SelectPrivilege)
 	}
-	auth, err := operationAuthorization(owner)
+	auth, err := OperationAuthorization(owner)
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := e.catalog.State.MustRelation(ref.Address)
+	parent := e.Catalog.State.MustRelation(ref.Address)
 	idx, _ := btreeRoot(t, e, "public.ui_index")
 	if !idx.SQLIndex.Unique || idx.SQLIndex.NullsNotDistinct != nnd || len(idx.SQLIndex.Keys) != count {
 		t.Fatal("invalid unique fixture")
@@ -133,7 +133,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if err := index.ValidateIndexDefinition(e.CatalogRead(), idx); err != nil {
 		t.Fatal(err)
 	}
-	f := &uniquePublicationFixture{e: e, parent: parent, index: idx, ref: ref, auth: auth, keys: count, catalog: e.catalog.State, descriptors: maps.Collect(e.catalog.State.Descriptors()), names: maps.Collect(e.catalog.State.Names()), roles: e.roles.Published, stores: maps.Clone(e.storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.storage.RowFrontier(), nextVersion: e.storage.VersionFrontier(), frontier: e.visibility.CommitSeq()}
+	f := &uniquePublicationFixture{e: e, parent: parent, index: idx, ref: ref, auth: auth, keys: count, catalog: e.Catalog.State, descriptors: maps.Collect(e.Catalog.State.Descriptors()), names: maps.Collect(e.Catalog.State.Names()), roles: e.RoleStore.Published, stores: maps.Clone(e.Storage.Relations), storeSnapshots: make(map[ids.ObjectAddress]storage.Relation), roots: maps.Clone(e.Storage.IndexRoots), entries: make(map[ids.ObjectAddress][]storage.IndexEntry), nextRow: e.Storage.RowFrontier(), nextVersion: e.Storage.VersionFrontier(), frontier: e.Visibility.CommitSeq()}
 	for address, store := range f.stores {
 		f.storeSnapshots[address] = uniquePublicationStore(store)
 	}
@@ -167,19 +167,19 @@ func (f *uniquePublicationFixture) row(t *testing.T, offset int, a, b string) st
 
 func (f *uniquePublicationFixture) unchanged(t *testing.T) {
 	t.Helper()
-	if f.e.catalog.State != f.catalog || f.e.roles.Published != f.roles || f.e.storage.RowFrontier() != f.nextRow || f.e.storage.VersionFrontier() != f.nextVersion || f.e.visibility.CommitSeq() != f.frontier || len(f.e.storage.IndexRoots) != len(f.roots) || len(f.e.storage.Relations) != len(f.stores) {
+	if f.e.Catalog.State != f.catalog || f.e.RoleStore.Published != f.roles || f.e.Storage.RowFrontier() != f.nextRow || f.e.Storage.VersionFrontier() != f.nextVersion || f.e.Visibility.CommitSeq() != f.frontier || len(f.e.Storage.IndexRoots) != len(f.roots) || len(f.e.Storage.Relations) != len(f.stores) {
 		t.Fatal("package preparation changed live publication state")
 	}
 	if !maps.Equal(maps.Collect(f.catalog.Descriptors()), f.descriptors) || !maps.Equal(maps.Collect(f.catalog.Names()), f.names) {
 		t.Fatal("retained catalog membership mutated")
 	}
 	for address, root := range f.roots {
-		if f.e.storage.IndexRoots[address] != root || !reflect.DeepEqual(root.Entries, f.entries[address]) {
+		if f.e.Storage.IndexRoots[address] != root || !reflect.DeepEqual(root.Entries, f.entries[address]) {
 			t.Fatal("retained root mutated", address)
 		}
 	}
 	for address, store := range f.stores {
-		if f.e.storage.Relations[address] != store || !reflect.DeepEqual(*store, f.storeSnapshots[address]) {
+		if f.e.Storage.Relations[address] != store || !reflect.DeepEqual(*store, f.storeSnapshots[address]) {
 			t.Fatal("retained store mutated", address)
 		}
 	}
@@ -196,12 +196,12 @@ func (f *uniquePublicationFixture) prepare(t *testing.T, ctx context.Context, st
 	if deletion != nil {
 		beforeDeletes = maps.Clone(deletion.Rows)
 	}
-	stores := index.CaptureIndexStores(f.e.storage.Relations, f.catalog)
+	stores := index.CaptureIndexStores(f.e.Storage.Relations, f.catalog)
 	stores[f.parent.Address()] = store
 	parents := map[ids.ObjectAddress]bool{f.parent.Address(): rebuild}
 	publication := index.RowPublication{Address: f.parent.Address(), Relation: f.parent, OriginalRelation: f.parent, Original: f.stores[f.parent.Address()], Store: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation, Writes: writes, Deletion: deletion, SingleSlot: -1}
 	if materialize {
-		if err := index.PrepareRowPublication(&publication, f.e.catalog.Domain, f.e.catalog.Domain.Tx(ids.SessionToken{}, 0, f.catalog.Epoch(), nil, 0), true); err != nil {
+		if err := index.PrepareRowPublication(&publication, f.e.Catalog.Domain, f.e.Catalog.Domain.Tx(ids.SessionToken{}, 0, f.catalog.Epoch(), nil, 0), true); err != nil {
 			t.Fatal(err)
 		}
 	}

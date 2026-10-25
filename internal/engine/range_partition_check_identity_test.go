@@ -25,7 +25,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		t.Fatal("cooked row origin was not reowned")
 	}
 	original := child.Constraints.Check[0].Expression
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,9 +39,9 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		definition := *child
 		definition.Constraints.Check = nil
 		syntax := statement(t, "CREATE TABLE leaf(k INT,CONSTRAINT actual CHECK("+test.expression+"))").(*parser.CreateTable)
-		e.mu.Lock()
-		err := table.BindChecks(ddlHost{e: e, op: op}, auth, &definition, table.CreateCheckSyntax(syntax), sqltype.InputEnvironment{}, false, nil)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		err := table.BindChecks(DDLHost{E: e, Op: op}, auth, &definition, table.CreateCheckSyntax(syntax), sqltype.InputEnvironment{}, false, nil)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(test, err)
 		}
@@ -55,7 +55,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	binder := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	implicit := plan.CoercionExpr{Info: binder.Info(original.ResultUsage(), original.SourcePosition(), original.Properties()), Child: original, Plan: coercionPlan, Mode: sqltype.Implicit}
 	explicit := implicit
 	explicit.Mode = sqltype.Explicit

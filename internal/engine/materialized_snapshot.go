@@ -25,17 +25,17 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 	}
 	input, _ := op.Session.Settings.Presentation()
 	input.ExactSnapshot = true
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
 		var bootstrap authorization.RoleDescriptor
 		bootstrap, err = auth.Roles.Descriptor(auth.State.Authenticated)
-		if err == nil && (!bootstrap.Superuser || e.importTargets == nil) {
+		if err == nil && (!bootstrap.Superuser || e.ImportTargets == nil) {
 			err = fmt.Errorf("stuntgres: invalid materialized view import authority")
 		}
 		auth.State.CurrentUser = bootstrap.Ref
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
@@ -53,12 +53,12 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 		if !record.Populated && record.Rows != "" {
 			return fmt.Errorf("stuntgres: unpopulated snapshot contains rows")
 		}
-		e.mu.Lock()
-		namespace := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema})
-		address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name})
-		d, ok := e.catalog.State.Relation(address)
+		e.Mu.Lock()
+		namespace := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: record.Schema})
+		address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: record.Name})
+		d, ok := e.Catalog.State.Relation(address)
 		valid := ok && d.RelationKind == catalog.MaterializedViewRelation && !d.Populated && !seen[address]
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if !valid {
 			return fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)
 		}
@@ -89,31 +89,31 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 		}
 		imports = append(imports, imported{d, rows, record.Populated})
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	next := catalog.CloneState(e.catalog.State)
+	next := catalog.CloneState(e.Catalog.State)
 	for _, item := range imports {
-		versions, err := e.storage.AllocateRowVersionsLocked(item.rows, nil)
+		versions, err := e.Storage.AllocateRowVersionsLocked(item.rows, nil)
 		if err != nil {
 			return err
 		}
 		for i := range versions {
-			versions[i].Born = e.visibility.CommitSeq()
+			versions[i].Born = e.Visibility.CommitSeq()
 			versions[i].Frozen, versions[i].ImportFrozen = true, true
 		}
 		d := *item.descriptor
-		d.ObjectRevision, err = e.catalog.RevisionLocked()
+		d.ObjectRevision, err = e.Catalog.RevisionLocked()
 		if err != nil {
 			return err
 		}
 		d.Populated = item.populated
 		next.SetDescriptor(d.Address(), &d)
-		e.storage.InstallRelationLocked(d.Address(), &storage.Relation{Versions: versions})
+		e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{Versions: versions})
 	}
-	e.catalog.PublishLocked(next)
+	e.Catalog.PublishLocked(next)
 	return nil
 }
 
@@ -131,25 +131,25 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.
 			rows = nil
 		}
 	}()
-	if err = scope.gate(s); err != nil {
+	if err = scope.Gate(s); err != nil {
 		return nil, err
 	}
-	scope.input = input
-	scope.routineAuth = auth
+	scope.Input = input
+	scope.RoutineAuth = auth
 	if replay != nil {
 		capture, captureErr := e.captureDomainReplay(scope, s, *replay, auth, d)
 		if captureErr != nil {
 			return nil, captureErr
 		}
-		if operationReplayOrZero(op).domainReplay != nil {
+		if OperationReplayOrZero(op).DomainReplay != nil {
 			return nil, fmt.Errorf("stuntgres: nested native replay transport")
 		}
-		operationReplay(op).domainReplay = capture
-		defer func() { operationReplay(op).domainReplay = nil }()
+		OperationReplay(op).DomainReplay = capture
+		defer func() { OperationReplay(op).DomainReplay = nil }()
 	}
-	e.mu.Lock()
-	b, err := describe(ctx, e.analysisHost(op), s, auth, e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, nil, nil)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	b, err := Describe(ctx, e.AnalysisHost(op), s, auth, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +157,8 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.
 	if err != nil {
 		return nil, err
 	}
-	scope.routineDependencies = b.Dependencies
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
+	scope.RoutineDependencies = b.Dependencies
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: environment, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 	evaluation.Input.DomainChecks = &evaluation
 	return view.EvaluateMaterializedSnapshotRows(&evaluation, &b, d, s)
 }

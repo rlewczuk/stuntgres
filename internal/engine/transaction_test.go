@@ -30,7 +30,7 @@ func transactionBegin(t *testing.T, s *session.Session) ids.TxRef {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	ref, err := engineOf(s).Begin(op, session.TxOptions{})
+	ref, err := EngineOf(s).Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,9 +43,9 @@ func transactionEnd(t *testing.T, s *session.Session, ref ids.TxRef, commit bool
 	var r EndResult
 	var err error
 	if commit {
-		r, err = engineOf(s).Commit(op, ref)
+		r, err = EngineOf(s).Commit(op, ref)
 	} else {
-		r, err = engineOf(s).Rollback(op, ref)
+		r, err = EngineOf(s).Rollback(op, ref)
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -92,12 +92,12 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	if own.Count != 2 || empty.Count != 0 {
 		t.Fatal("retained result widened")
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	var versions []storage.RowVersion
-	for _, store := range e.storage.Relations {
+	for _, store := range e.Storage.Relations {
 		versions = append(versions, store.Versions...)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	seen := map[ids.RowID]bool{}
 	for _, v := range versions {
 		if v.Row == 0 || v.Version == 0 || v.Born == 0 || seen[v.Row] {
@@ -258,7 +258,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, session.TxOptions{}); err == nil {
 		t.Fatal("nested begin")
 	}
-	for _, bad := range []ids.TxRef{{}, New().catalog.Domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.catalog.Domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
+	for _, bad := range []ids.TxRef{{}, New().Catalog.Domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.Catalog.Domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
 		if _, err := e.Commit(op, bad); err == nil {
 			t.Fatal("foreign ref")
 		}
@@ -308,15 +308,15 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 		t.Fatal("command wrapped")
 	}
 	transactionEnd(t, a, ref, false)
-	e.storage.SetFrontierLocked(^uint64(0), e.storage.VersionFrontier())
+	e.Storage.SetFrontierLocked(^uint64(0), e.Storage.VersionFrontier())
 	_, err = e.Execute(op, statement(t, "INSERT INTO t VALUES(1)"), 0, nil)
 	if err == nil {
 		t.Fatal("row identity wrapped")
 	}
-	e.storage.SetFrontierLocked(0, e.storage.VersionFrontier())
+	e.Storage.SetFrontierLocked(0, e.Storage.VersionFrontier())
 	ref = transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+	e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 	_, err = e.Commit(op, ref)
 	if err == nil || a.TransactionState() != session.TxIdle {
 		t.Fatal("commit frontier wrapped")
@@ -367,7 +367,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				catalogRef(t, e, e.CatalogRead(), "t").Address,
 				catalogRef(t, e, e.CatalogRead(), "u").Address,
 			}
-			stores := [2]*storage.Relation{e.storage.Relations[addresses[0]], e.storage.Relations[addresses[1]]}
+			stores := [2]*storage.Relation{e.Storage.Relations[addresses[0]], e.Storage.Relations[addresses[1]]}
 			roots := [2][]storage.RowVersion{stores[0].Versions, stores[1].Versions}
 			records := [2][]storage.RowVersion{}
 			for i, root := range roots {
@@ -378,9 +378,9 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			}
 			spare := roots[0][len(roots[0]):cap(roots[0])]
 			suffix := append([]storage.RowVersion(nil), spare...)
-			frontier := e.visibility.CommitSeq()
-			retainedFrontier, retainedEpoch := frontier, e.catalog.State.Epoch()
-			retainedCatalog := e.catalog.State
+			frontier := e.Visibility.CommitSeq()
+			retainedFrontier, retainedEpoch := frontier, e.Catalog.State.Epoch()
+			retainedCatalog := e.Catalog.State
 			ref := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
@@ -420,9 +420,9 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				started := make(chan struct{})
 				go func() {
 					close(started)
-					e.mu.Lock()
+					e.Mu.Lock()
 					counts := [2]int{len(stores[0].Versions), len(stores[1].Versions)}
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					observed <- counts
 				}()
 				<-started
@@ -449,17 +449,17 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			case "epoch_before":
 				// Isolate epoch rejection from replacement's own storage/frontier
 				// effects; the mixed roots remain installed as the no-write witness.
-				e.mu.Lock()
-				next := *e.catalog.State
+				e.Mu.Lock()
+				next := *e.Catalog.State
 				next.SetEpoch(next.Epoch() + 1)
-				e.catalog.PublishLocked(&next)
-				e.mu.Unlock()
+				e.Catalog.PublishLocked(&next)
+				e.Mu.Unlock()
 				outcome, err = e.Commit(op, ref)
 			case "counter_before":
-				e.mu.Lock()
-				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
-				frontier = e.visibility.CommitSeq()
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				frontier = e.Visibility.CommitSeq()
+				e.Mu.Unlock()
 				outcome, err = e.Commit(op, ref)
 			case "ref_before":
 				stale := ref
@@ -470,8 +470,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			}
 			published := boundary == "success" || boundary == "cancel_after"
 			if published {
-				if err != nil || !outcome.Committed || e.visibility.CommitSeq() != frontier+1 {
-					t.Fatal("complete publication must advance exactly one frontier", outcome, err, e.visibility.CommitSeq(), frontier)
+				if err != nil || !outcome.Committed || e.Visibility.CommitSeq() != frontier+1 {
+					t.Fatal("complete publication must advance exactly one frontier", outcome, err, e.Visibility.CommitSeq(), frontier)
 				}
 			} else {
 				want := map[string]error{
@@ -481,8 +481,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 					"counter_before":  errors.New("stuntgres: commit sequence exhausted"),
 					"ref_before":      errors.New("stuntgres: stale transaction reference"),
 				}[boundary]
-				if err == nil || (!errors.Is(err, want) && err.Error() != want.Error()) || outcome.Committed || e.visibility.CommitSeq() != frontier {
-					t.Fatal("rejection changed committed frontier or outcome", outcome, err, e.visibility.CommitSeq(), frontier)
+				if err == nil || (!errors.Is(err, want) && err.Error() != want.Error()) || outcome.Committed || e.Visibility.CommitSeq() != frontier {
+					t.Fatal("rejection changed committed frontier or outcome", outcome, err, e.Visibility.CommitSeq(), frontier)
 				}
 				if !reflect.DeepEqual(spare, suffix) {
 					t.Fatal("rejected publication wrote unpublished spare suffix")
@@ -494,7 +494,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if published {
 					wantLen++
 				}
-				if e.storage.Relations[addresses[i]] != stores[i] || len(current) != wantLen {
+				if e.Storage.Relations[addresses[i]] != stores[i] || len(current) != wantLen {
 					t.Fatalf("relation %d storage/visible length changed unexpectedly", i)
 				}
 				sameRoot := &current[0] == &root[0]

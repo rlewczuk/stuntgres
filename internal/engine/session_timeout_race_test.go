@@ -29,14 +29,14 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 				op.Cancel(nil)
 				select {
 				case <-workerDone:
-					if !scope.finished {
+					if !scope.Finished {
 						scope.Finish(context.Canceled)
 					}
 				case <-time.After(5 * time.Second):
 					t.Error("racing request failed bounded join")
 				}
 			})
-			timeoutPendingRequest(t, engineOf(s), op)
+			timeoutPendingRequest(t, EngineOf(s), op)
 			peer := timeoutPendingOperation(t, holder)
 			peerRef := holder.Transactions.Ref
 			start, callbacksDone := make(chan struct{}), make(chan struct{})
@@ -55,7 +55,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			go func() {
 				defer callbacks.Done()
 				<-start
-				_, err := engineOf(holder).Rollback(peer, peerRef)
+				_, err := EngineOf(holder).Rollback(peer, peerRef)
 				released <- err
 			}()
 			go func() { callbacks.Wait(); close(callbacksDone) }()
@@ -102,7 +102,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 
 func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	s, holder, _, _ := timeoutPendingFixture(t, false)
-	manager := engineOf(s).locks
+	manager := EngineOf(s).Locks
 	ticket := holder.Transactions.Ticket
 	var resource lock.Resource
 	for ref := range manager.Inspect().Journals[ticket] {

@@ -131,7 +131,7 @@ func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *table.Res
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE history_reader LOGIN")
-	e := source.restoreStage()
+	e := source.RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	// p.b is rank 1, occupying the archived source's old rank with another name.
@@ -150,7 +150,7 @@ func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *table.Res
 	refs := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, name := range []string{"c", "d", "f"} {
 		r := retiredUnitTable(t, e, name)
-		refs[r.Address()] = e.catalog.Domain.Ref(e.CatalogRead().Epoch(), r.Address())
+		refs[r.Address()] = e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), r.Address())
 	}
 	table.CaptureHistoricalFacts(e.CatalogRead(), refs, a.Facts)
 	return e, op, a
@@ -164,10 +164,10 @@ func retiredAuthorityEqual(a, b *table.RestoredHistoryAuthority) bool {
 	})
 }
 func retiredResourceCounts(e *Engine) [7]int {
-	e.mu.Lock()
-	counts := [7]int{len(e.visibility.Entries), e.indexWaits.CountLocked(), e.exclusions.CountLocked()}
-	e.mu.Unlock()
-	lockState := e.locks.Inspect()
+	e.Mu.Lock()
+	counts := [7]int{len(e.Visibility.Entries), e.IndexWaits.CountLocked(), e.Exclusions.CountLocked()}
+	e.Mu.Unlock()
+	lockState := e.Locks.Inspect()
 	counts[3] = len(lockState.Owners)
 	counts[4] = len(lockState.Sessions)
 	counts[5] = len(lockState.Resources)
@@ -176,14 +176,14 @@ func retiredResourceCounts(e *Engine) [7]int {
 }
 func retiredReject(t *testing.T, e *Engine, op *session.Operation, q string, a *table.RestoredHistoryAuthority) {
 	t.Helper()
-	before := e.catalog.State
-	stores := maps.Clone(e.storage.Relations)
+	before := e.Catalog.State
+	stores := maps.Clone(e.Storage.Relations)
 	capture := retiredAuthorityClone(a)
 	resources := retiredResourceCounts(e)
 	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err == nil {
 		t.Fatal("forged repair gained authority", q)
 	}
-	if e.catalog.State != before || !reflect.DeepEqual(stores, e.storage.Relations) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
+	if e.Catalog.State != before || !reflect.DeepEqual(stores, e.Storage.Relations) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
 		t.Fatal("rejected repair changed catalog/store/authority/resources")
 	}
 }
@@ -194,7 +194,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	old := retiredUnitTable(t, e, "c")
 	oid := old.Constraints.NotNull[0].OID
 	for name, mutate := range map[string]func(*table.RestoredHistoricalFact){
-		"epoch": func(f *table.RestoredHistoricalFact) { f.Ref.Epoch++ }, "owner": func(f *table.RestoredHistoricalFact) { f.Ref = New().catalog.Domain.Ref(f.Ref.Epoch, f.Ref.Address) },
+		"epoch": func(f *table.RestoredHistoricalFact) { f.Ref.Epoch++ }, "owner": func(f *table.RestoredHistoricalFact) { f.Ref = New().Catalog.Domain.Ref(f.Ref.Epoch, f.Ref.Address) },
 		"oid": func(f *table.RestoredHistoricalFact) { f.OID++ }, "name": func(f *table.RestoredHistoricalFact) { f.Name = "wrong" },
 		"kind": func(f *table.RestoredHistoricalFact) { f.Check = true }, "key": func(f *table.RestoredHistoricalFact) { f.Attributes = []int32{1} },
 		"validity": func(f *table.RestoredHistoricalFact) { f.NotValid = true }, "noinherit": func(f *table.RestoredHistoricalFact) { f.NoInherit = true },
@@ -224,10 +224,10 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	} {
 		retiredReject(t, e, op, bad, a)
 	}
-	targets := e.importTargets
-	e.importTargets = nil
+	targets := e.ImportTargets
+	e.ImportTargets = nil
 	retiredReject(t, e, op, q, a)
-	e.importTargets = targets
+	e.ImportTargets = targets
 	foreign := New()
 	other, done := roleOperation(t, foreign, "postgres")
 	defer done()
@@ -245,7 +245,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, e, op, "CREATE TEMP TABLE history_temp() INHERITS(public.p,public.q)")
 	temp := retiredUnitTable(t, e, "history_temp")
-	tempRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), temp.Address())
+	tempRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), temp.Address())
 	tempFacts := make(map[ids.OID]table.RestoredHistoricalFact)
 	table.CaptureHistoricalRelation(e.CatalogRead(), tempRef, tempFacts)
 	if len(tempFacts) != 0 {
@@ -259,8 +259,8 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	tempSQL := strings.ReplaceAll(q, "public.c", "pg_temp.history_temp")
 	retiredReject(t, e, op, tempSQL, badTemp)
 	// The public executor still cannot borrow the private exact-import authority.
-	beforePublic := e.catalog.State
-	if _, err := e.Execute(op, retiredRaw(t, q), 0, nil); err == nil || e.catalog.State != beforePublic {
+	beforePublic := e.Catalog.State
+	if _, err := e.Execute(op, retiredRaw(t, q), 0, nil); err == nil || e.Catalog.State != beforePublic {
 		t.Fatal("public catalog UPDATE gained historical repair authority", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -270,8 +270,8 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	}
 	defer cancelDone()
 	cancel()
-	before := e.catalog.State
-	if err := e.restoreRetiredConstraint(canceled, retiredRaw(t, q), a); !errors.Is(err, context.Canceled) || e.catalog.State != before {
+	before := e.Catalog.State
+	if err := e.restoreRetiredConstraint(canceled, retiredRaw(t, q), a); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
 		t.Fatal("canceled importer repair published", err)
 	}
 	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err != nil {
@@ -351,8 +351,8 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	if err := e.Dump(context.Background(), &dump); err != nil {
 		t.Fatal(err)
 	}
-	before := e.catalog.State
-	stores := maps.Clone(e.storage.Relations)
+	before := e.Catalog.State
+	stores := maps.Clone(e.Storage.Relations)
 	rows := make(map[ids.ObjectAddress][]storage.RowVersion)
 	resources := retiredResourceCounts(e)
 	for address, store := range stores {
@@ -366,7 +366,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 			if err := e.Restore(context.Background(), strings.NewReader(stream)); err == nil {
 				t.Fatal("late invalid import succeeded")
 			}
-			if e.catalog.State != before || !reflect.DeepEqual(stores, e.storage.Relations) || retiredResourceCounts(e) != resources {
+			if e.Catalog.State != before || !reflect.DeepEqual(stores, e.Storage.Relations) || retiredResourceCounts(e) != resources {
 				t.Fatal("failed import replaced original catalog/store/resources")
 			}
 			for address, store := range stores {
@@ -378,7 +378,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.Restore(ctx, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) || e.catalog.State != before || retiredResourceCounts(e) != resources {
+	if err := e.Restore(ctx, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) || e.Catalog.State != before || retiredResourceCounts(e) != resources {
 		t.Fatal("canceled actual history stream replaced catalog/resources", err)
 	}
 	// Every actual redump/import receives fresh archival namespace authority, while
@@ -406,7 +406,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	roleExecute(t, e, op, "ALTER TABLE ONLY d ADD CONSTRAINT d_pk PRIMARY KEY(a)")
 	d := retiredUnitTable(t, e, "d")
 	oid := d.Constraints.NotNull[0].OID
-	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	table.CaptureHistoricalRelation(e.CatalogRead(), ref, a.Facts)
 	before := a.Facts[oid]
 	q := retiredRepairSQL("d", "nn", "n", false, before.Local, before.Count, retiredRow("n", "0:7", "77"))

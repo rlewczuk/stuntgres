@@ -30,7 +30,7 @@ func TestBuiltinCatalogValidatesForEveryEngineConfiguration(t *testing.T) {
 		{nil, strings.Repeat("d", 80), false},
 	} {
 		e := NewWithSettings(config.definitions, config.database, config.commitTimes)
-		if err := e.catalog.ValidateDescriptors(e.catalog.State.Descriptors()); err != nil {
+		if err := e.Catalog.ValidateDescriptors(e.Catalog.State.Descriptors()); err != nil {
 			t.Fatalf("database %q: %v", config.database, err)
 		}
 	}
@@ -39,7 +39,7 @@ func TestBuiltinCatalogValidatesForEveryEngineConfiguration(t *testing.T) {
 func TestBuiltinProcedureNamesMatchSeed(t *testing.T) {
 	for range 2 {
 		e := New()
-		got, want := e.catalog.State.ProcedureNames(), catalog.RebuildProcedureNames(e.catalog.State.Descriptors())
+		got, want := e.Catalog.State.ProcedureNames(), catalog.RebuildProcedureNames(e.Catalog.State.Descriptors())
 		if len(got.Buckets) != len(want.Buckets) || !maps.Equal(got.DynamicNames, want.DynamicNames) {
 			t.Fatalf("procedure index has %d buckets, seed has %d", len(got.Buckets), len(want.Buckets))
 		}
@@ -55,8 +55,8 @@ func TestBuiltinProcedureNamesMatchSeed(t *testing.T) {
 // must copy it, so concurrent engines never observe each other's changes.
 func TestBuiltinProcedureNamesCopyOnEdit(t *testing.T) {
 	engines := []*Engine{New(), New()}
-	shared := engines[0].catalog.State.ProcedureNames()
-	if engines[1].catalog.State.ProcedureNames() != shared {
+	shared := engines[0].Catalog.State.ProcedureNames()
+	if engines[1].Catalog.State.ProcedureNames() != shared {
 		t.Fatal("precondition: engines do not share the seeded procedure index")
 	}
 	public := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
@@ -68,9 +68,9 @@ func TestBuiltinProcedureNamesCopyOnEdit(t *testing.T) {
 	}
 	createdAddresses := make([]ids.ObjectAddress, len(engines))
 	for i, e := range engines {
-		e.mu.Lock()
-		oid, err := e.catalog.AllocateOIDLocked()
-		e.mu.Unlock()
+		e.Mu.Lock()
+		oid, err := e.Catalog.AllocateOIDLocked()
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,10 +137,10 @@ func TestBuiltinSeedNamesMatchUnsharedSeed(t *testing.T) {
 		{[]settings.Definition{setting}, "seed_names", true},
 		{nil, strings.Repeat("n", 80), false},
 	} {
-		shared := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).catalog.State.Names())
+		shared := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).Catalog.State.Names())
 		saved := builtinSeed
 		builtinSeed = &catalog.SeedShare{}
-		own := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).catalog.State.Names())
+		own := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).Catalog.State.Names())
 		builtinSeed = saved
 		if !maps.Equal(shared, own) {
 			t.Fatalf("database %q: shared seed has %d names, own seed %d", config.database, len(shared), len(own))

@@ -48,7 +48,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			}
 			view := e.CatalogRead()
 			d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
-			ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
+			ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
 			roles := e.Roles()
 			protected := &catalog.Relation{ObjectName: "provider_target", Owner: reader, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}}
 			check := func(sess *session.Session, value, reset, provenance string) {
@@ -56,8 +56,8 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if got, ok := sess.Setting("row_security"); !ok || got != value {
 					t.Fatal("effective setting", got, ok, value)
 				}
-				rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: sess.Settings, registry: e.settings}}, capturePGSettings)
-				if err != nil || len(rows.Anonymous) != len(e.settings.Order()) {
+				rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{settings: sess.Settings, registry: e.Settings}}, capturePGSettings)
+				if err != nil || len(rows.Anonymous) != len(e.Settings.Order()) {
 					t.Fatal(rows, err)
 				}
 				row := settingsMetadataRow(t, rows.Anonymous, "row_security")
@@ -71,7 +71,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 					t.Fatal("invented file provenance")
 				}
 				scope := newStatementScope(&session.Operation{Session: sess}, &session.TransactionOwner{}, time.Time{})
-				err = access.RowSecuritySettingGuard(scope.rowSecurity, roles, protected, reader)
+				err = access.RowSecuritySettingGuard(scope.RowSecurity, roles, protected, reader)
 				var want error
 				if value == "off" {
 					want = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: `query would be affected by row-level security policy for table "provider_target"`, Hint: "To disable the policy for the table's owner, use ALTER TABLE NO FORCE ROW LEVEL SECURITY."}
@@ -96,7 +96,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				if _, err := e.applySetting(op, s.Settings, e.settings.Definitions()["row_security"], input, local); err != nil {
+				if _, err := e.applySetting(op, s.Settings, e.Settings.Definitions()["row_security"], input, local); err != nil {
 					t.Fatal(err)
 				}
 			}

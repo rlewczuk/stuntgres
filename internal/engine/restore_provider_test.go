@@ -54,7 +54,7 @@ func TestRestoreForeignProviderUsesDestinationRegistration(t *testing.T) {
 	next.UnbindName(catalog.DescriptorNameKey(original))
 	next.SetDescriptor(imported.Address(), &imported)
 	next.BindName(catalog.DescriptorNameKey(&imported), imported.Address())
-	if err := fdw.RebindReplacementProviders(target.CatalogRead().WithState(current), target.foreign, next); err != nil {
+	if err := fdw.RebindReplacementProviders(target.CatalogRead().WithState(current), target.Foreign, next); err != nil {
 		t.Fatal(err)
 	}
 	rebound := next.MustProcedure(imported.Address())
@@ -63,7 +63,7 @@ func TestRestoreForeignProviderUsesDestinationRegistration(t *testing.T) {
 	}
 	// Retained TEMP consumers compare the immutable declaration token exactly.
 	// Rebinding an already-destination candidate must not mint another token.
-	if err := fdw.RebindReplacementProviders(target.CatalogRead().WithState(current), target.foreign, next); err != nil {
+	if err := fdw.RebindReplacementProviders(target.CatalogRead().WithState(current), target.Foreign, next); err != nil {
 		t.Fatal(err)
 	}
 	if next.MustProcedure(imported.Address()) != rebound {
@@ -83,7 +83,7 @@ func TestRestoreForeignProviderUsesDestinationRegistration(t *testing.T) {
 	current.RemoveDescriptor(destination.Address())
 	current.UnbindName(catalog.DescriptorNameKey(&renamedDestination))
 	next.SetDescriptor(imported.Address(), &imported)
-	if err := fdw.RebindReplacementProviders(target.CatalogRead().WithState(current), target.foreign, next); err != nil {
+	if err := fdw.RebindReplacementProviders(target.CatalogRead().WithState(current), target.Foreign, next); err != nil {
 		t.Fatal("dropped declaration prevented registration reseed", err)
 	}
 	if sourceCalls != 0 || targetCalls != 1 {
@@ -121,7 +121,7 @@ func TestRestoreForeignProviderRejectsMissingAndWrongCapability(t *testing.T) {
 		malformed := *original
 		change(&malformed)
 		next.SetDescriptor(malformed.Address(), &malformed)
-		if err := fdw.RebindReplacementProviders(target.CatalogRead(), target.foreign, next); err == nil {
+		if err := fdw.RebindReplacementProviders(target.CatalogRead(), target.Foreign, next); err == nil {
 			t.Fatal("incompatible foreign capability accepted", malformed)
 		}
 		if next.MustProcedure(malformed.Address()) != &malformed {

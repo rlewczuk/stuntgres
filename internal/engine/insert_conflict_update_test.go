@@ -28,27 +28,27 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q 
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if !scope.finished {
+		if !scope.Finished {
 			_ = scope.Finish(errors.New("unit rollback"))
 		}
 		op.Done()
 	})
 	stmt := statement(t, q)
-	if err := scope.gate(stmt); err != nil {
+	if err := scope.Gate(stmt); err != nil {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = describe(op.Context(), e.analysisHost(op), stmt, auth, ref, scope.input, nil, nil)
+		b, err = Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
 	if err := conflict.SelectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	if err != nil || testExport(values[1]) != int64(3) || testExport(old[1]) != int64(1) {
 		t.Fatal("target/excluded slots and immutable RHS", values, old, err)
 	}
-	unique, err := dml.BindUniqueWrite(scope.writeHost(), b.Ref)
+	unique, err := dml.BindUniqueWrite(scope.WriteHost(), b.Ref)
 	if err != nil || !reflect.DeepEqual(unique.KeySlots, []int{0}) {
 		t.Fatal("installed simple/nonpartial FK-key bitmap", unique, err)
 	}
@@ -95,15 +95,15 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if len(statements) != 1 {
 			return analyze.Binding{}, fmt.Errorf("parse %q: expected one statement, got %d", q, len(statements))
 		}
-		e.mu.Lock()
-		defer e.mu.Unlock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		defer e.Mu.Unlock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return analyze.Binding{}, err
 		}
-		bound, err := describe(op.Context(), e.analysisHost(op), statements[0], auth, b.Ref, scope.input, nil, nil)
+		bound, err := Describe(op.Context(), e.AnalysisHost(op), statements[0], auth, b.Ref, scope.Input, nil, nil)
 		if err == nil {
-			scope.routineAuth, scope.routineDependencies = auth, bound.Dependencies
+			scope.RoutineAuth, scope.RoutineDependencies = auth, bound.Dependencies
 		}
 		return bound, err
 	}
@@ -121,7 +121,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal("SET precedes WHERE, with shared parameter captures", tc, err)
 		}
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Parameters: []sqltype.Value{integer(1)}, Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Parameters: []sqltype.Value{integer(1)}, Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for _, tc := range []struct {
 		name, query string
 		error       bool
@@ -228,7 +228,7 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 			sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			old := e.storage.Relations[ref.Address].Versions[0]
+			old := e.Storage.Relations[ref.Address].Versions[0]
 			op, err := s.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -245,7 +245,7 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 				want = 1
 			}
 			transactionRows(t, s, "SELECT v FROM t", want)
-			head := e.storage.Relations[ref.Address].Versions[0]
+			head := e.Storage.Relations[ref.Address].Versions[0]
 			if head.Row != old.Row || (tc.count == 0 && head.Version != old.Version) || testExport(old.Values[1]) != int64(10) {
 				t.Fatal("false filtering or failure replaced original identity", head, old)
 			}
@@ -257,9 +257,9 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
-	original := e.storage.Relations[ref.Address].Versions[0]
+	original := e.Storage.Relations[ref.Address].Versions[0]
 	r := sessionSQL(t, s, "INSERT INTO t VALUES(1,0),(1,11) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE excluded.v>0")
-	if r.Count != 1 || e.storage.Relations[ref.Address].Versions[0].Row != original.Row {
+	if r.Count != 1 || e.Storage.Relations[ref.Address].Versions[0].Row != original.Row {
 		t.Fatal("false then true identity", r)
 	}
 	for _, q := range []string{
@@ -277,7 +277,7 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 			t.Fatal("actual affected RowID cardinality", q, result, err)
 		}
 		transactionRows(t, s, "SELECT v FROM t", 11)
-		if e.storage.Relations[ref.Address].Versions[0].Row != original.Row {
+		if e.Storage.Relations[ref.Address].Versions[0].Row != original.Row {
 			t.Fatal("identity changed on failure")
 		}
 	}
@@ -286,7 +286,7 @@ func TestInsertConflictUpdateDuplicateIdentity(t *testing.T) {
 		t.Fatal("same source key can admit a genuinely different RowID after key move", moved)
 	}
 	transactionRows(t, s, "SELECT v FROM t ORDER BY k", 2, 1)
-	if e.storage.Relations[ref.Address].Versions[0].Row != original.Row {
+	if e.Storage.Relations[ref.Address].Versions[0].Row != original.Row {
 		t.Fatal("moved target lost stable identity")
 	}
 	lockEmpty(t, e)
@@ -319,9 +319,9 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		if failure == "primary_and_close" {
 			cursor.closeError = secondary
 		}
-		rows, err := dml.AssembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope.writeHost(), true, nil, nil)
-		if !errors.Is(err, injected) || rows.Values != nil || cursor.closes != 1 || len(scope.stage.rows[b.Ref.Address]) == 0 {
-			t.Fatal("cursor failure after actual mixed-stage prefix", rows, err, cursor.closes, scope.stage.rows)
+		rows, err := dml.AssembleInsertRows(scope.Op.Context(), b, cursor, -1, "public", scope.Input, scope.Output, scope.WriteHost(), true, nil, nil)
+		if !errors.Is(err, injected) || rows.Values != nil || cursor.closes != 1 || len(scope.Stage.Rows[b.Ref.Address]) == 0 {
+			t.Fatal("cursor failure after actual mixed-stage prefix", rows, err, cursor.closes, scope.Stage.Rows)
 		}
 		consumed, affected := 1, 1
 		if failure == "close" {
@@ -333,7 +333,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		if finishErr := scope.Finish(err); !errors.Is(finishErr, injected) {
 			t.Fatal("primary veto lost", finishErr)
 		}
-		scope.op.Done()
+		scope.Op.Done()
 		transactionRows(t, observer, "SELECT v FROM t", 10)
 		lockEmpty(t, e)
 	}

@@ -42,14 +42,14 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		if err != nil {
 			return Result{}, err
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		stage, err = e.stageSchemaDropLocked(op, drop, manifest)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 	} else if create, ok := stmt.(*parser.CreateCollation); ok {
 		var plan typedef.CollationCreatePlan
-		e.mu.Lock()
+		e.Mu.Lock()
 		stage, plan, err = e.prepareCollationCreateLocked(op, create)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil || !plan.NeedsCatalogLock() {
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
@@ -61,18 +61,18 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
-		e.mu.Lock()
+		e.Mu.Lock()
 		stage, err = e.completeCollationCreateLocked(op, stage, &plan)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil {
 			op.Notices = op.Notices[:noticeMark]
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
 	} else {
-		e.mu.Lock()
-		stage, err = e.stageSchemaLocked(op, stmt, input, scope.output)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		stage, err = e.stageSchemaLocked(op, stmt, input, scope.Output)
+		e.Mu.Unlock()
 	}
 	if err != nil || stage == nil {
 		return Result{}, err
@@ -91,7 +91,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	if _, domain := stmt.(*parser.CreateDomain); domain {
 		for address, descriptor := range stage.Descriptors() {
 			if typ, ok := descriptor.(*catalog.Type); ok && typ.SQLType.IsDomain() && stage.Base.Get(address) == nil {
-				created = e.catalog.Domain.Ref(stage.Base.Epoch(), address)
+				created = e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
 				break
 			}
 		}
@@ -106,9 +106,9 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	case *parser.AlterDomain, *parser.AlterType:
 		// The identity stager records its exact source before companion
 		// displacement. Identity authority has no scalar heap resource.
-		source := stage.domainBases[0]
-		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), source.Address())
-		if err := scope.acquireSequence(ref, lock.TypeExclusive, true); err != nil {
+		source := stage.DomainBases[0]
+		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), source.Address())
+		if err := scope.AcquireSequence(ref, lock.TypeExclusive, true); err != nil {
 			return Result{}, err
 		}
 		// Composite RENAME owns its actual backing relation, just as the
@@ -118,13 +118,13 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 			typ := source.(*catalog.Type)
 			if typ.SQLType.IsComposite() {
 				backing = typ.OwningRelation
-				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, backing), lock.AccessExclusive, true); err != nil {
+				if err := scope.AcquireSequence(e.Catalog.Domain.Ref(ref.Epoch, backing), lock.AccessExclusive, true); err != nil {
 					return Result{}, err
 				}
 			}
 		}
-		e.mu.Lock()
-		current, admissionErr := e.authorizationLocked(op)
+		e.Mu.Lock()
+		current, admissionErr := e.AuthorizationLocked(op)
 		if admissionErr == nil && (current.Catalog.Epoch() != ref.Epoch || current.Catalog.Get(ref.Address) != source) {
 			admissionErr = ids.ErrCatalogReplaced
 		}
@@ -134,7 +134,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		if admissionErr == nil {
 			admissionErr = current.Check(access.Requirement{Object: ref, OwnerOnly: true})
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if admissionErr != nil {
 			return Result{}, admissionErr
 		}
@@ -198,42 +198,42 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		return 0
 	})
 	for _, address := range removedRelations {
-		ref := e.catalog.Domain.Ref(stage.Base.Epoch(), address)
-		if err := scope.acquireSequence(ref, lock.AccessExclusive, true); err != nil {
+		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
+		if err := scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
 			return Result{}, err
 		}
 	}
-	if err := scope.stageExpressionDependents(stage, removedRelations, parser.DropCascade, nil); err != nil {
+	if err := scope.StageExpressionDependents(stage, removedRelations, parser.DropCascade, nil); err != nil {
 		return Result{}, err
 	}
 	if err = scope.stageDomainDependents(stage, domainMode); err != nil {
 		return Result{}, err
 	}
-	if err := scope.stageOwnedSequences(stage, removedRelations, parser.DropCascade, nil); err != nil {
+	if err := scope.StageOwnedSequences(stage, removedRelations, parser.DropCascade, nil); err != nil {
 		return Result{}, err
 	}
-	stage.schemaCascadeNames = append(stage.schemaCascadeNames, stage.dropCascadeNames...)
+	stage.SchemaCascadeNames = append(stage.SchemaCascadeNames, stage.DropCascadeNames...)
 	for a := range stage.Removals() {
 		if r, ok := stage.Base.Relation(a); ok && r.RelationKind == catalog.SequenceRelation {
-			if err := scope.acquireSequence(e.catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
+			if err := scope.AcquireSequence(e.Catalog.Domain.Ref(stage.Base.Epoch(), a), lock.AccessExclusive, true); err != nil {
 				return Result{}, err
 			}
 		}
 	}
 	if _, ok := stmt.(*parser.CreateSchema); ok {
-		if err := scope.acquireDefinitionProviders(stage); err != nil {
+		if err := scope.AcquireDefinitionProviders(stage); err != nil {
 			return Result{}, err
 		}
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if creation, ok := stmt.(*parser.CreateSchema); ok && creation.IfNotExists && err != nil {
 		skipped, failure := scope.skipConcurrentSchema(stage, creation, err)
 		if skipped {
@@ -248,7 +248,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 			}
 		}
 		if cascade {
-			details := stage.schemaCascadeNames
+			details := stage.SchemaCascadeNames
 			if len(details) > 0 {
 				message := details[0]
 				detail := ""
@@ -263,7 +263,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	if err != nil {
 		return Result{}, err
 	}
-	return Result{created: created}, nil
+	return Result{Created: created}, nil
 }
 
 // Preparation owns the normal candidate, including any newly materialized TEMP
@@ -274,8 +274,8 @@ func (e *Engine) prepareCollationCreateLocked(op *session.Operation, stmt *parse
 		return nil, typedef.CollationCreatePlan{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	plan, err := typedef.PrepareCreateCollationLocked(ddlHost{e: e, op: op, stage: stage}, auth, stmt)
+	stage.AuthorizeLocked(auth, op.Session)
+	plan, err := typedef.PrepareCreateCollationLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, stmt)
 	return stage, plan, err
 }
 
@@ -298,8 +298,8 @@ func (e *Engine) completeCollationCreateLocked(op *session.Operation, prepared *
 		}
 		e.DiscardCatalogStage(prepared)
 	}
-	stage.authorizeLocked(auth, op.Session)
-	host := ddlHost{e: e, op: op, stage: stage}
+	stage.AuthorizeLocked(auth, op.Session)
+	host := DDLHost{E: e, Op: op, CatalogStage: stage}
 	err = typedef.StagePreparedCollationLocked(host, auth, plan)
 	return stage, err
 }
@@ -307,7 +307,7 @@ func (e *Engine) completeCollationCreateLocked(op *session.Operation, prepared *
 // schemaAuthorizationLocked supplies the same current authority and early
 // context/actor gates to both ordinary schema staging and admitted schema DROP.
 func (e *Engine) schemaAuthorizationLocked(op *session.Operation) (AuthorizationView, error) {
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return AuthorizationView{}, err
 	}
@@ -328,8 +328,8 @@ func (e *Engine) stageSchemaDropLocked(op *session.Operation, stmt *parser.DropS
 		return nil, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	if staged, err := ddl.StageDropSchema(ddlHost{e: e, op: op, stage: stage}, auth, stmt, manifest); err != nil || !staged {
+	stage.AuthorizeLocked(auth, op.Session)
+	if staged, err := ddl.StageDropSchema(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, stmt, manifest); err != nil || !staged {
 		return nil, err
 	}
 	return stage, nil
@@ -341,8 +341,8 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		return nil, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	host := ddlHost{e: e, op: op, stage: stage}
+	stage.AuthorizeLocked(auth, op.Session)
+	host := DDLHost{E: e, Op: op, CatalogStage: stage}
 	switch s := stmt.(type) {
 	case *parser.CreateAccessMethod:
 		if err = index.StageCreateAccessMethod(host, auth, s); err != nil {

@@ -582,9 +582,9 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			e.mu.Lock()
-			auth, err := e.authorizationLocked(binderOperation(b))
-			e.mu.Unlock()
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(binderOperation(b))
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -757,14 +757,14 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	// The implicit C/POSIX conflict is rejected, never turned into a successful
 	// result with fabricated collation authority.
 	raw := statement(t, "SELECT mode() WITHIN GROUP(ORDER BY COALESCE(v,w)) FROM os_unit_authority").(*parser.Select)
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	b := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Query.Auth = &auth
 	if err == nil {
 		_, err = b.BindSelect(raw, false)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P21" || diagnostic.Message != `collation mismatch between implicit collations "C" and "POSIX"` || diagnostic.Hint != "You can choose the collation by applying the COLLATE clause to one or both expressions." {
 		t.Fatal("implicit conflict authority", err)

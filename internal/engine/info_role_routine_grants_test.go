@@ -21,18 +21,18 @@ type roleRoutineGrantsFixture struct {
 func newRoleRoutineGrantsFixture(t *testing.T) roleRoutineGrantsFixture {
 	t.Helper()
 	f := newDefaultUnitFixture(t)
-	state := catalog.CloneState(f.e.catalog.State)
+	state := catalog.CloneState(f.e.Catalog.State)
 	routine := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 20522}, ObjectNamespace: f.schema, ObjectName: "rrg_unit", ObjectRevision: 1, Owner: f.owner, RoutineKind: catalog.FunctionRoutine, ACL: authorization.ACLValue{Explicit: true}}
 	state.SetDescriptor(routine.Address(), routine)
 	return roleRoutineGrantsFixture{f: f, state: state, routine: routine, sourceOID: pgcatalog.InfoRoleRoutineGrantsOID}
 }
 func (f roleRoutineGrantsFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
 	t.Helper()
-	view := f.f.e.catalog.Read(state)
+	view := f.f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: f.sourceOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 func roleRoutineGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -40,7 +40,7 @@ func roleRoutineGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing routine ACL producer", in.Source.Name())
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func testRoutinePrivilegesMetadata(t *testing.T, f roleRoutineGrantsFixture, row
 	t.Helper()
 	// An empty ACL on the authored routine alone does not empty the PUBLIC
 	// view: represented builtins also have real default EXECUTE origins.
-	for _, descriptor := range f.f.e.catalog.Read(f.state).Descriptors() {
+	for _, descriptor := range f.f.e.Catalog.Read(f.state).Descriptors() {
 		if routine, ok := descriptor.(*catalog.Procedure); ok {
 			empty := *routine
 			empty.ACL = authorization.ACLValue{Explicit: true}

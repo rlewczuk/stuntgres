@@ -27,8 +27,8 @@ type batchPublicationContext struct {
 }
 
 func (c *batchPublicationContext) Err() error {
-	if c.e.mu.TryLock() {
-		c.e.mu.Unlock()
+	if c.e.Mu.TryLock() {
+		c.e.Mu.Unlock()
 		return c.Context.Err()
 	}
 	if c.s.Mu.TryLock() {
@@ -52,7 +52,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(v INT)")
 			table := catalogRef(t, e, e.CatalogRead(), "t")
-			store := e.storage.Relations[table.Address]
+			store := e.Storage.Relations[table.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			m := batchUnitStart(t, s, ctx)
@@ -65,7 +65,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer result.Rows.Close()
-			state, frontier := e.catalog.State, e.visibility.CommitSeq()
+			state, frontier := e.Catalog.State, e.Visibility.CommitSeq()
 			switch boundary {
 			case "cancel_before", "cancel_after":
 				barrier := &batchPublicationContext{Context: m.op.Ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -84,7 +84,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("final publication boundary not reached")
 				}
-				if e.catalog.State != state || e.visibility.CommitSeq() != frontier || len(store.Versions) != 0 {
+				if e.Catalog.State != state || e.Visibility.CommitSeq() != frontier || len(store.Versions) != 0 {
 					t.Fatal("prefix escaped before publication")
 				}
 				if boundary == "cancel_before" {
@@ -98,18 +98,18 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 				}
 				<-done
 			case "epoch_before":
-				e.mu.Lock()
-				next := *e.catalog.State
+				e.Mu.Lock()
+				next := *e.Catalog.State
 				next.SetEpoch(next.Epoch() + 1)
-				e.catalog.PublishLocked(&next)
-				state = e.catalog.State
-				e.mu.Unlock()
+				e.Catalog.PublishLocked(&next)
+				state = e.Catalog.State
+				e.Mu.Unlock()
 				err = m.end(nil)
 			case "counter_before":
-				e.mu.Lock()
-				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
-				frontier = e.visibility.CommitSeq()
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
+				frontier = e.Visibility.CommitSeq()
+				e.Mu.Unlock()
 				err = m.end(nil)
 			case "ref_before":
 				stale := s.Transactions.Ref
@@ -134,11 +134,11 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			}
 			committed := boundary == "success" || boundary == "cancel_after"
 			if committed {
-				if err != nil || e.visibility.CommitSeq() != frontier+1 || len(store.Versions) != 1 {
+				if err != nil || e.Visibility.CommitSeq() != frontier+1 || len(store.Versions) != 1 {
 					t.Fatal("complete publication lost", err)
 				}
 			} else {
-				if err == nil || e.visibility.CommitSeq() != frontier || len(store.Versions) != 0 || e.catalog.State != state {
+				if err == nil || e.Visibility.CommitSeq() != frontier || len(store.Versions) != 0 || e.Catalog.State != state {
 					t.Fatal("rejected publication changed roots", err)
 				}
 				if boundary == "cancel_before" && !errors.Is(err, context.Canceled) {
@@ -174,7 +174,7 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 				sessionSQL(t, s, "CREATE ROLE pending LOGIN")
 			}
 			table := roleTableRef(t, e, "t")
-			state, store := e.catalog.State, e.storage.Relations[table.Address]
+			state, store := e.Catalog.State, e.Storage.Relations[table.Address]
 			identity, peerIdentity := s.Authorization.State, peer.Authorization.State
 			m := batchUnitStart(t, s, context.Background())
 			defer m.end(context.Canceled)
@@ -194,7 +194,7 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 			}
 			pending := c.Descriptors[table.Address]
 			pendingRef := c.Roles.Root.Read(authorization.PrincipalRef{}).LookupRef("pending")
-			if pending == nil || pendingRef == (authorization.PrincipalRef{}) || e.catalog.State != state {
+			if pending == nil || pendingRef == (authorization.PrincipalRef{}) || e.Catalog.State != state {
 				t.Fatal("private ACL/role candidate missing or published early")
 			}
 			owner, acl, _ := access.DescriptorACL(pending)
@@ -209,7 +209,7 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 			}
 			transactionRows(t, peer, "SELECT v FROM t")
 			sessionSQL(t, peer, "CREATE ROLE peer LOGIN")
-			roles, frontier := e.roles.Published, e.visibility.CommitSeq()
+			roles, frontier := e.RoleStore.Published, e.Visibility.CommitSeq()
 			peerRole, exists := e.Roles().Lookup("peer")
 			if !exists {
 				t.Fatal("committed peer role missing")
@@ -217,7 +217,7 @@ func TestDriverBatchRoleACLPublicationKeepsPeerRoot(t *testing.T) {
 			if err := m.end(nil); err != nil {
 				t.Fatal("compatible completed ACL publication rejected", err)
 			}
-			if e.catalog.State == state || e.catalog.State.Get(table.Address) != pending || e.storage.Relations[table.Address] != store || e.visibility.CommitSeq() != frontier+1 {
+			if e.Catalog.State == state || e.Catalog.State.Get(table.Address) != pending || e.Storage.Relations[table.Address] != store || e.Visibility.CommitSeq() != frontier+1 {
 				t.Fatal("ACL and rows did not publish exactly once on the retained providers")
 			}
 			if got, exists := e.Roles().Find(peerRole.Ref); !exists || got != peerRole {

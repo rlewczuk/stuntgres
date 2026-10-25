@@ -32,7 +32,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				expected = &description
 			}
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			original := e.storage.Relations[ref.Address].Versions[0]
+			original := e.Storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=20 WHERE id=1")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -68,7 +68,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				done <- o
 			}()
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
 			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.Transactions.Ticket].Mode == lock.ForNoKeyUpdate
 			if !queued {
@@ -88,10 +88,10 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 			if got.err != nil || got.count != 1 || !reflect.DeepEqual(got.rows, want) {
 				t.Fatal("success-only suppression/frozen eligibility", got, want)
 			}
-			if got.scope == nil || len(got.scope.querySources) != 0 {
+			if got.scope == nil || len(got.scope.QuerySources) != 0 {
 				t.Fatal("statement source admission leaked")
 			}
-			store := e.storage.Relations[ref.Address]
+			store := e.Storage.Relations[ref.Address]
 			if len(store.Versions) != 1 || store.Versions[0].Row != original.Row || store.Versions[0].Version == original.Version || testExport(original.Values[1]) != int64(10) {
 				t.Fatal("physical target identity or captured predecessor changed", store.Versions, original)
 			}

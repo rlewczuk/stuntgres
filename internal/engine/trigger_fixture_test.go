@@ -35,15 +35,15 @@ func triggerUnitFixtureContext(t *testing.T, ctx context.Context, source string)
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9500001}, ObjectNamespace: namespace, ObjectName: "trigger_unit_table", ObjectRevision: 1, RelationKind: catalog.TableRelation, Owner: owner, RowType: shape.ID(), Attributes: []int32{1, 2}, Index: map[string]int{"id": 0, "v": 1}, Columns: []catalog.Column{{Name: "id", Usage: integer.Usage(), Nullable: true}, {Name: "v", Usage: integer.Usage(), Nullable: true}}}
 	relation.ColumnMeta.HighWater = 2
 	rowtype := &catalog.Type{SQLType: shape, ObjectNamespace: namespace, ObjectRevision: 1, Owner: owner, OwningRelation: relation.Address()}
-	e.mu.Lock()
-	next := catalog.CloneState(e.catalog.State)
+	e.Mu.Lock()
+	next := catalog.CloneState(e.Catalog.State)
 	next.SetDescriptor(relation.Address(), relation)
 	next.BindName(catalog.DescriptorNameKey(relation), relation.Address())
 	next.SetDescriptor(rowtype.Address(), rowtype)
 	next.BindName(catalog.DescriptorNameKey(rowtype), rowtype.Address())
-	e.catalog.PublishLocked(next)
-	e.storage.Relations[relation.Address()] = &storage.Relation{Generation: 1}
-	e.mu.Unlock()
+	e.Catalog.PublishLocked(next)
+	e.Storage.Relations[relation.Address()] = &storage.Relation{Generation: 1}
+	e.Mu.Unlock()
 	op, done, err := testOperation(e, ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -73,11 +73,11 @@ func triggerUnitInstall(t *testing.T, e *Engine, relation *catalog.Relation, def
 	t.Helper()
 	copy := *relation
 	copy.Triggers = stored.TriggersPayload(definitions)
-	e.mu.Lock()
-	next := catalog.CloneState(e.catalog.State)
+	e.Mu.Lock()
+	next := catalog.CloneState(e.Catalog.State)
 	next.SetDescriptor(copy.Address(), &copy)
-	e.catalog.PublishLocked(next)
-	e.mu.Unlock()
+	e.Catalog.PublishLocked(next)
+	e.Mu.Unlock()
 	return &copy
 }
 
@@ -106,14 +106,14 @@ func triggerUnitProcedure(t *testing.T, e *Engine, s *StatementScope, name strin
 	if err := d.SQL.SetFormals(nil); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {
-		err = e.compilePLRoutineLocked(s.op, auth, d)
-		s.routineAuth = auth
+		err = e.CompilePLRoutineLocked(s.Op, auth, d)
+		s.RoutineAuth = auth
 	}
 	if err == nil {
-		next := catalog.CloneState(e.catalog.State)
+		next := catalog.CloneState(e.Catalog.State)
 		// Direct fixture publication must maintain the same overload-candidate
 		// index as catalog candidate application, not only exact name lookup.
 		index := catalog.ProcedureIndexEdit{Index: next.ProcedureNames()}
@@ -121,9 +121,9 @@ func triggerUnitProcedure(t *testing.T, e *Engine, s *StatementScope, name strin
 		next.SetProcedureNames(index.Index)
 		next.SetDescriptor(d.Address(), d)
 		next.BindName(catalog.DescriptorNameKey(d), d.Address())
-		e.catalog.PublishLocked(next)
+		e.Catalog.PublishLocked(next)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

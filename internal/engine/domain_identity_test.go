@@ -37,10 +37,10 @@ func TestDomainIdentityStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 3, Values: []sqltype.Value{value, inherited}}}}
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(table.Address(), original)
-	e.visibility.SetCommitSeqLocked(3)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(table.Address(), original)
+	e.Visibility.SetCommitSeqLocked(3)
+	e.Mu.Unlock()
 	checkOID := old.DomainChecks[0].OID
 	for _, q := range []string{"ALTER DOMAIN public.d RENAME TO renamed", "ALTER DOMAIN public.renamed SET SCHEMA moved"} {
 		stage := domainUnitStage(t, e, op, q)
@@ -59,7 +59,7 @@ func TestDomainIdentityStage(t *testing.T) {
 		t.Fatal("current reciprocal/base generation stale")
 	}
 	carrier := current.MustRelation(table.Address())
-	store := e.storage.Relations[table.Address()]
+	store := e.Storage.Relations[table.Address()]
 	if carrier.Columns[0].Usage.Type != next.SQLType || carrier.Revision() != table.Revision() || store == original || store.Versions[0].Values[0].Type() != next.SQLType || store.Versions[0].Values[1].Type() != current.MustType(child.Address()).SQLType {
 		t.Fatal("physical/catalog reownership missed or executable revision changed")
 	}
@@ -108,7 +108,7 @@ func TestDomainIdentityDropStage(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if err := scope.gate(statement(t, "DROP DOMAIN public.winner")); err != nil {
+	if err := scope.Gate(statement(t, "DROP DOMAIN public.winner")); err != nil {
 		t.Fatal(err)
 	}
 	if err := scope.stageDomainDependents(drop, parser.DropRestrict); err != nil {

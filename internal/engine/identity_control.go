@@ -9,13 +9,13 @@ import (
 // Restore admits only the parameter-free configuration of an existing internal
 // sequence. It is reconstruction in the isolated engine, not ALTER history.
 func (e *Engine) validateRestoreIdentityConfiguration(op *session.Operation, syntax *parser.AlterSequence) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return err
 	}
-	ref, err := e.resolveRelationReference(auth, syntax.Name, false)
+	ref, err := e.ResolveRelationReference(auth, syntax.Name, false)
 	if err != nil {
 		return err
 	}

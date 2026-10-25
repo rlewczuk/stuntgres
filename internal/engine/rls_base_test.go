@@ -24,13 +24,13 @@ func TestRLSBaseDecision(t *testing.T) {
 	for _, q := range []string{"CREATE ROLE rls_unit_owner", "CREATE ROLE rls_unit_reader", "CREATE ROLE rls_unit_bypass BYPASSRLS", "CREATE ROLE rls_unit_member", "GRANT rls_unit_bypass TO rls_unit_member", "GRANT rls_unit_owner TO rls_unit_reader WITH INHERIT TRUE"} {
 		roleExecute(t, e, op, q)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner, reader, bypass, member := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_owner"), e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_reader"), e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_bypass"), e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_member")
+	owner, reader, bypass, member := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_owner"), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_reader"), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_bypass"), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_unit_member")
 	using, err := policyUnitBind(t, e, op, d, "TRUE")
 	if err != nil {
 		t.Fatal(err)
@@ -91,20 +91,20 @@ func TestRLSBaseDecision(t *testing.T) {
 		if _, err := scope.Describe(ast); err != nil {
 			t.Fatal(err)
 		}
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		b, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
 		ref := b.QuerySources[0].Ref
-		dataView, err := scope.acquireDataViewLocked(e, ref)
-		e.mu.Unlock()
+		dataView, err := scope.AcquireDataViewLocked(e, ref)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,15 +134,15 @@ func TestRLSBaseDecision(t *testing.T) {
 func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	e, op, done, d := policyUnitFixture(t)
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
-	noOpScope := &StatementScope{op: op}
-	e.mu.Lock()
+	noOpScope := &StatementScope{Op: op}
+	e.Mu.Lock()
 	if _, err := e.stageRowSecurityFlagsLocked(noOpScope, op, auth, d, d); err != nil {
 		t.Fatal(err)
 	}
@@ -152,21 +152,21 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	exhausted := *d
 	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	exhaustedNext := access.RowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
-	exhaustedScope := &StatementScope{op: op, owner: &session.TransactionOwner{}}
-	e.mu.Lock()
+	exhaustedScope := &StatementScope{Op: op, Owner: &session.TransactionOwner{}}
+	e.Mu.Lock()
 	if _, err := e.stageRowSecurityFlagsLocked(exhaustedScope, op, auth, &exhausted, exhaustedNext); err == nil || err.Error() != "stuntgres: definition revision exhausted" {
 		t.Fatal("revision exhaustion", err)
 	}
-	if e.CatalogRead().State() != retained.State() || exhaustedScope.catalog != nil {
+	if e.CatalogRead().State() != retained.State() || exhaustedScope.Catalog != nil {
 		t.Fatal("revision exhaustion staged or published changes")
 	}
 	expression, err := policyUnitBind(t, e, op, d, "id>0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestRLSBaseControls(t *testing.T) {
 		next.Security.RLSEnabled, next.Security.RLSForced = state.enabled, state.forced
 		catalog := catalog.CloneState(base.State())
 		catalog.SetDescriptor(d.Address(), &next)
-		groups, err := stored.RowSecurityDumpGroups(context.Background(), e.catalog.Read(catalog), e.roles.PublishedRead(&e.catalog.Owner, e.catalog.Read(catalog)))
+		groups, err := stored.RowSecurityDumpGroups(context.Background(), e.Catalog.Read(catalog), e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(catalog)))
 		if err != nil {
 			t.Fatal(err)
 		}

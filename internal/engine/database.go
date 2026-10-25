@@ -9,16 +9,16 @@ import (
 )
 
 func (e *Engine) initializeDatabase(name string) {
-	typ, _ := e.catalog.Current().LookupType(sqltype.Name)
+	typ, _ := e.Catalog.Current().LookupType(sqltype.Name)
 	value, err := typ.Input(context.Background(), name, -1)
 	// Opaque host keys may be invalid NAME inputs. Preserve connector creation;
 	// reject physical session admission with the original typed input error.
-	e.databaseName, e.databaseNameError = name, err
+	e.DatabaseName, e.DatabaseNameError = name, err
 	if err == nil {
-		e.databaseName, _ = value.Text()
+		e.DatabaseName, _ = value.Text()
 	}
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	db := &catalog.Database{ObjectAddress: e.catalog.DatabaseAddress(), ObjectRevision: 1, ObjectName: e.databaseName, Owner: owner, FrozenXID: 3}
-	e.catalog.State.SetDescriptor(db.Address(), db)
-	e.catalog.State.BindName(catalog.DescriptorNameKey(db), db.Address())
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	db := &catalog.Database{ObjectAddress: e.Catalog.DatabaseAddress(), ObjectRevision: 1, ObjectName: e.DatabaseName, Owner: owner, FrozenXID: 3}
+	e.Catalog.State.SetDescriptor(db.Address(), db)
+	e.Catalog.State.BindName(catalog.DescriptorNameKey(db), db.Address())
 }

@@ -38,7 +38,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		roles := e.Roles()
 		project := func(d *catalog.Relation, want bool) {
 			t.Helper()
-			row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: roles, Owner: &e.catalog.Owner, Source: source, Runtime: engineCatalogRuntime{engine: e}}, d)
+			row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Source: source, Runtime: EngineCatalogRuntime{engine: e}}, d)
 			if err != nil {
 				t.Fatal(d.Name(), err)
 			}
@@ -69,7 +69,7 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		}
 		// Ordinary descriptors must not acquire compatibility facts merely
 		// because their implementation/source kind resembles a table.
-		ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, ObjectName: "unindexed", RelationKind: catalog.TableRelation, Owner: e.roles.Domain.Principal(10)}
+		ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200555}, ObjectName: "unindexed", RelationKind: catalog.TableRelation, Owner: e.RoleStore.Domain.Principal(10)}
 		project(ordinary, false)
 	}
 	check()

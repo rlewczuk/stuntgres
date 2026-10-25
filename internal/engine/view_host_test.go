@@ -16,13 +16,13 @@ func TestViewHostSeam(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE displaced(id INTEGER)")
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var h view.Host = ddlHost{e: e, op: op}
+	var h view.Host = DDLHost{E: e, Op: op}
 	if got := h.TemporaryOwner(auth); got != op.Session.SessionToken || got == (ids.SessionToken{}) {
 		t.Fatalf("TemporaryOwner = %v, want the session token %v", got, op.Session.SessionToken)
 	}
@@ -33,7 +33,7 @@ func TestViewHostSeam(t *testing.T) {
 
 	clean := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(clean)
-	var sh view.StageHost = ddlHost{e: e, op: op, stage: clean}
+	var sh view.StageHost = DDLHost{E: e, Op: op, CatalogStage: clean}
 	if err := sh.ReownDisplacedTypes(); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestViewHostSeam(t *testing.T) {
 
 	displaced := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(displaced)
-	sh = ddlHost{e: e, op: op, stage: displaced}
+	sh = DDLHost{E: e, Op: op, CatalogStage: displaced}
 	available, err := sh.DisplaceAssociatedArray(public, "_displaced")
 	if err != nil || !available {
 		t.Fatalf("DisplaceAssociatedArray = %v, %v; want the array displaced", available, err)

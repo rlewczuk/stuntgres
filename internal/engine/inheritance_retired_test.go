@@ -133,8 +133,8 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	c := retiredUnitTable(t, e, "c")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	state := &inheritanceAlterState{stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Events: map[ids.ObjectAddress][]table.InheritanceAlterEvent{}}}
-	scope := &StatementScope{inheritance: inheritanceScope{alter: state}}
+	state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Events: map[ids.ObjectAddress][]table.InheritanceAlterEvent{}}}
+	scope := &StatementScope{Inheritance: inheritanceScope{Alter: state}}
 	next := *p
 	next.Columns = slices.Clone(p.Columns[1:])
 	next.Attributes = slices.Clone(p.Attributes[1:])
@@ -171,7 +171,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	for name, mutate := range map[string]func(*catalog.RetiredInheritanceOrigin){
 		"own": func(h *catalog.RetiredInheritanceOrigin) { h.Own++ }, "kind": func(h *catalog.RetiredInheritanceOrigin) { h.Check = true },
 		"epoch": func(h *catalog.RetiredInheritanceOrigin) { h.Parent.Epoch++ }, "foreign_owner": func(h *catalog.RetiredInheritanceOrigin) {
-			h.Parent = New().catalog.Domain.Ref(h.Parent.Epoch, h.Parent.Address)
+			h.Parent = New().Catalog.Domain.Ref(h.Parent.Epoch, h.Parent.Address)
 		},
 		"rank": func(h *catalog.RetiredInheritanceOrigin) { h.Attribute = 2 }, "zero_lifetime": func(h *catalog.RetiredInheritanceOrigin) { h.Lifetime = 0 },
 		"namespace": func(h *catalog.RetiredInheritanceOrigin) { h.Archive = 1 }, "column": func(h *catalog.RetiredInheritanceOrigin) { h.Column = "" },

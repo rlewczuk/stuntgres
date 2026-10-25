@@ -18,11 +18,11 @@ import (
 // rebuildPrimaryKeyTypeLocked rebuilds the unique backings and then the NOT
 // NULL constraints of an ALTER COLUMN TYPE, in the ALTER TABLE order.
 func rebuildPrimaryKeyTypeLocked(e *Engine, stage *CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
-	next, err := index.RebuildAlterUniques(ddlHost{e: e, stage: stage}, parent, transformations)
+	next, err := index.RebuildAlterUniques(DDLHost{E: e, CatalogStage: stage}, parent, transformations)
 	if err != nil {
 		return nil, err
 	}
-	return table.RebuildAlterNotNulls(ddlHost{e: e, stage: stage}, next, transformations)
+	return table.RebuildAlterNotNulls(DDLHost{E: e, CatalogStage: stage}, next, transformations)
 }
 
 func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
@@ -32,9 +32,9 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	candidate := *parent
 	candidate.Columns = slices.Clone(parent.Columns)
 	candidate.Columns[0].Usage = indexClausesTypes()[sqltype.Int8].Usage()
-	e.mu.Lock()
+	e.Mu.Lock()
 	next, err := rebuildPrimaryKeyTypeLocked(e, stage, &candidate, []index.ColumnTransformation{{Attribute: parent.Attributes[0]}})
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 	if next.Address() != parent.Address() || !rebuilt.Primary || rebuilt.Name != old.Name || rebuilt.OID == old.OID || rebuilt.Index == old.Index || next.Constraints.NotNull[0].OID == parent.Constraints.NotNull[0].OID || rebuilt.OID >= next.Constraints.NotNull[0].OID || next.Constraints.NotNull[1] != parent.Constraints.NotNull[1] {
 		t.Fatal("affected p/index/n remint and order", parent, next)
 	}
-	private := e.stageRead(stage)
+	private := e.StageRead(stage)
 	backing := private.MustRelation(rebuilt.Index)
 	if backing.SQLIndex.Constraint == nil || !backing.SQLIndex.Constraint.Primary || backing.SQLIndex.Constraint.OID != rebuilt.OID || backing.SQLIndex.Constraint.Index != backing.Address() || backing.Columns[0].Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(backing)
@@ -54,9 +54,9 @@ func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
 		t.Fatal("candidate changed retained source/savepoint state")
 	}
 	for _, transformations := range [][]index.ColumnTransformation{nil, {{Attribute: parent.Attributes[2]}}} {
-		e.mu.Lock()
+		e.Mu.Lock()
 		unchanged, err := rebuildPrimaryKeyTypeLocked(e, e.BeginCatalogStage(base), parent, transformations)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if err != nil || unchanged != parent {
 			t.Fatal("unaffected candidate must not remint", unchanged, err)
 		}
@@ -87,7 +87,7 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := primaryKeyUnitRelation(t, e, "pk")
-	sourceRoot := e.storage.IndexRoots[source.Address()]
+	sourceRoot := e.Storage.IndexRoots[source.Address()]
 	ddl := &parser.CreateTable{Name: primaryKeyUnitName("clone"), Elements: []parser.TableElement{
 		{Column: &parser.Column{Name: "lead", TypeName: parser.TypeName{Name: "boolean"}}},
 		{Like: &parser.TableLike{Name: primaryKeyUnitName("t"), Options: []parser.LikeOption{{Name: "indexes", Including: true}, {Name: "comments", Including: true}}}},
@@ -103,11 +103,11 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 		t.Fatal("copied PK is not an explicit UNIQUE dedup candidate", clone.Constraints.Unique)
 	}
 	c := clone.Constraints.Unique[0]
-	copied := e.catalog.State.MustRelation(c.Index)
+	copied := e.Catalog.State.MustRelation(c.Index)
 	if c.OID == parent.Constraints.Unique[0].OID || c.Index == source.Address() || copied.Comment != "native descriptor comment" || copied.SQLIndex.Keys[1].Class != class || !copied.SQLIndex.Keys[1].ExplicitClass || copied.SQLIndex.Keys[0].Attribute != 2 || copied.SQLIndex.Keys[1].Attribute != 3 || copied.SQLIndex.Parent != clone.Address() || !copied.SQLIndex.Constraint.Primary {
 		t.Fatal("LIKE lost real provider/comment/attachment", copied)
 	}
-	if e.storage.IndexRoots[c.Index] == sourceRoot || len(e.storage.IndexRoots[c.Index].Entries) != 0 || len(sourceRoot.Entries) != 2 || index.Comment != "" || index.SQLIndex.Keys[1].ExplicitClass {
+	if e.Storage.IndexRoots[c.Index] == sourceRoot || len(e.Storage.IndexRoots[c.Index].Entries) != 0 || len(sourceRoot.Entries) != 2 || index.Comment != "" || index.SQLIndex.Keys[1].ExplicitClass {
 		t.Fatal("LIKE transplanted root or mutated retained source")
 	}
 	bound, err := analyze.BindCreateUniques(ddl, clone.Index, []analyze.LikeInput{{Source: parent, Offset: 1, Options: analyze.LikeIndexes | analyze.LikeComments}}, e.CatalogRead())
@@ -119,16 +119,16 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 func TestPrimaryKeyCreateGroupFailureFence(t *testing.T) {
 	e, owner, parent, index := primaryKeyUnitFixture(t)
 	withPublicSchemaUnitOwner(t, e, "pk_owner", func() {
-		before, store, root := e.catalog.State, e.storage.Relations[parent.Address()], e.storage.IndexRoots[index.Address()]
+		before, store, root := e.Catalog.State, e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[index.Address()]
 		result, err := e.Execute(owner, primaryKeyUnitCreate("other", "pk"), 0, nil)
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P07", Message: `relation "pk" already exists`})
-		if result.Count != 0 || result.Rows != nil || e.catalog.State != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root {
+		if result.Count != 0 || result.Rows != nil || e.Catalog.State != before || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[index.Address()] != root {
 			t.Fatal("backing-name conflict partly published CREATE group", result)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		result, err = testExecute(e, ctx, primaryKeyUnitCreate("canceled", "canceled_pkey"), nil)
-		if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || e.catalog.State != before || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root {
+		if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || e.Catalog.State != before || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[index.Address()] != root {
 			t.Fatal("canceled CREATE partly published group", result, err)
 		}
 		lockEmpty(t, e)

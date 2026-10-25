@@ -13,20 +13,20 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 	if len(original.Constraints.Exclusion)+len(parent.Constraints.Exclusion) == 0 {
 		return nil
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.Op.Context(), Input: s.Input, Output: s.Output, Host: HostOf(s), Catalog: view}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	entries, err := index.ExclusionShapeEntries(&evaluation, parent, view, writes, deletes)
 	if err != nil {
 		return err
 	}
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if view.Epoch() != e.catalog.State.Epoch() {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if view.Epoch() != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	s.beginExclusionProjectionLocked(e)
-	p := e.exclusions.ProjectionLocked(s.ticket)
+	s.BeginExclusionProjectionLocked(e)
+	p := e.Exclusions.ProjectionLocked(s.LockTicket)
 	p.ReplaceShape(original, parent, entries, writes, deletes)
-	s.installExclusionProjectionLocked(e, p)
+	s.InstallExclusionProjectionLocked(e, p)
 	return nil
 }

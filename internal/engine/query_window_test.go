@@ -189,7 +189,7 @@ func TestQueryWindowColumnAuthority(t *testing.T) {
 	}
 	column := ref
 	column.Address.SubID = 1
-	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
+	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	if err := e.SetObjectACL(context.Background(), column, grant); err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestQueryWindowInsertFinishVeto(t *testing.T) {
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !scope.finished || scope.view != nil || scope.ticket != nil {
+	if !scope.Finished || scope.View != nil || scope.LockTicket != nil {
 		t.Fatal("statement resources survived Finish")
 	}
 	current := run(t, e, "SELECT n FROM d").Rows
@@ -475,8 +475,8 @@ func TestQueryWindowReview3SignatureAnalysisNoRegistration(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.Clause.AggregateClause = "SELECT"
-			e.mu.Lock()
-			defer e.mu.Unlock()
+			e.Mu.Lock()
+			defer e.Mu.Unlock()
 			if _, err := b.Bind(seed, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
@@ -518,8 +518,8 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.Clause.AggregateClause = "SELECT"
 			b.Query.Frame = 1
-			e.mu.Lock()
-			defer e.mu.Unlock()
+			e.Mu.Lock()
+			defer e.Mu.Unlock()
 			for _, sql := range []string{"SELECT count(*)", "SELECT row_number() OVER ()"} {
 				if _, err := b.Bind(statement(t, sql).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 					t.Fatal(err)

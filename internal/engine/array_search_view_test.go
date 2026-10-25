@@ -154,7 +154,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		if mapped, ok := mapping[address]; ok {
 			address = mapped
 		}
-		return targetEngine.catalog.Domain.Ref(targetView.Epoch(), address)
+		return targetEngine.Catalog.Domain.Ref(targetView.Epoch(), address)
 	}
 	routineRemap := stored.NewRoutineRemap(targetView, mapping, types, replacementProcedurePolicyFixture(sourceEngine, targetEngine), false)
 	mapped, err := stored.RemapView(targetView, original, mapping, identity, types, collation, routineRemap.Procedure)

@@ -18,29 +18,29 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 	if s.Action == "import" {
 		return e.executeForeignImport(scope, s)
 	}
-	op := scope.op
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	op := scope.Op
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
+	stage.AuthorizeLocked(auth, op.Session)
 	jobs, roots, err := e.stageForeignLocked(scope, auth, stage, s)
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		return Result{}, err
 	}
 	if len(roots) != 0 {
-		if err := scope.stageExpressionDependents(stage, roots, s.Mode, nil); err != nil {
+		if err := scope.StageExpressionDependents(stage, roots, s.Mode, nil); err != nil {
 			return Result{}, err
 		}
 	}
-	if scope.replacementRead {
-		e.replacementMu.RUnlock()
-		scope.replacementRead = false
+	if scope.ReplacementRead {
+		e.ReplacementMu.RUnlock()
+		scope.ReplacementRead = false
 	}
 	if err := fdw.RunValidations(op.Context(), jobs); err != nil {
 		return Result{}, err
@@ -49,12 +49,12 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 	if err != nil {
 		return Result{}, err
 	}
-	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	return Result{}, err
 }
 
 // stageForeignLocked stages WRAPPER, SERVER, USER MAPPING and CREATE or
 // DROP FOREIGN TABLE through fdw.StageDDL on the statement's ddlHost.
 func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, s *parser.ForeignDDL) ([]fdw.Validation, []ids.ObjectAddress, error) {
-	return fdw.StageDDL(ddlHost{e: e, op: scope.op, stage: stage}, auth, s, scope.input)
+	return fdw.StageDDL(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, s, scope.Input)
 }

@@ -21,43 +21,43 @@ type pendingPartitionDefinition struct {
 }
 
 func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*pendingPartitionDefinition, error) {
-	op := scope.op
+	op := scope.Op
 	if err := partition.RejectForeignKeys(syntax); err != nil {
 		return nil, err
 	}
 	for _, observed := range scope.PartitionRelations {
-		stage.domainBases = append(stage.domainBases, observed)
+		stage.DomainBases = append(stage.DomainBases, observed)
 	}
 	var parent *catalog.Relation
 	if syntax.PartitionOf != nil {
-		parentAuth, err := e.partitionParentAuthorization(op, auth, syntax)
+		parentAuth, err := e.PartitionParentAuthorization(op, auth, syntax)
 		if err != nil {
 			return nil, err
 		}
-		ref, err := e.resolveRelationReference(parentAuth, syntax.PartitionOf.Name, true)
+		ref, err := e.ResolveRelationReference(parentAuth, syntax.PartitionOf.Name, true)
 		if err != nil {
 			return nil, err
 		}
 		parent = auth.Catalog.MustRelation(ref.Address)
-		if ref != scope.lockedRef || parent != scope.lockedDescriptor {
+		if ref != scope.LockedRef || parent != scope.LockedDescriptor {
 			return nil, ids.ErrCatalogReplaced
 		}
 		if err = parentAuth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return nil, err
 		}
 	}
-	definition, err := partition.StageCreate(ddlHost{e: e, op: op, stage: stage}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.input, scope.foreignKeysOrZero().KeyTargets)
+	definition, err := partition.StageCreate(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, scope.foreignKeysOrZero().KeyTargets)
 	if err != nil {
 		return nil, err
 	}
 	pending := &pendingPartitionDefinition{Definition: *definition, stage: stage, auth: auth}
 	if parent != nil && !pending.Bound.DefaultBound && parent.Partition.DefaultChild != (ids.ObjectAddress{}) {
 		for _, ref := range pending.DefaultLeaves {
-			storage := e.privateStorageLocked(scope.owner.Catalog, ref.Address)
+			storage := e.PrivateStorageLocked(scope.Owner.Catalog, ref.Address)
 			if storage == nil {
 				return nil, ids.ErrCatalogReplaced
 			}
-			stage.storageReads = append(stage.storageReads, session.NewStorageReadFence(ref.Address, storage))
+			stage.StorageReads = append(stage.StorageReads, session.NewStorageReadFence(ref.Address, storage))
 		}
 		// Constraint validation must include writers completed before the
 		// hierarchy lock grant, without advancing the active utility pair.
@@ -79,16 +79,16 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if p.Parent == nil {
 		return partition.CheckSupported(&p.Definition)
 	}
-	ctx := scope.op.Context()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
+	ctx := scope.Op.Context()
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: scope.Input, Output: scope.Output}}
 	if !p.Bound.DefaultBound {
 		if err := partition.EvaluateBounds(ctx, &p.Definition, partitionBoundBinder{scope: scope, pending: p}, &evaluation); err != nil {
 			return err
 		}
-		if err := partition.ValidateBounds(ctx, scope.input, &p.Definition); err != nil {
+		if err := partition.ValidateBounds(ctx, scope.Input, &p.Definition); err != nil {
 			return err
 		}
-		if err := partition.CheckOverlap(ctx, scope.input, p.stage.Base, &p.Definition); err != nil {
+		if err := partition.CheckOverlap(ctx, scope.Input, p.stage.Base, &p.Definition); err != nil {
 			return err
 		}
 		if err := partition.CheckSupported(&p.Definition); err != nil {
@@ -109,8 +109,8 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if err := p.stage.Replace(parent); err != nil {
 		return err
 	}
-	e := scope.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return partition.StageIndexChildren(ddlHost{e: e, op: scope.op, stage: p.stage}, p.Parent, p.Child.Address(), false)
+	e := scope.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return partition.StageIndexChildren(DDLHost{E: e, Op: scope.Op, CatalogStage: p.stage}, p.Parent, p.Child.Address(), false)
 }

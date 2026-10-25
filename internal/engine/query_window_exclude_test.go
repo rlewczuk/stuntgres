@@ -282,7 +282,7 @@ func TestQueryWindowExcludeFinishAtomicity(t *testing.T) {
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if !scope.finished || scope.view != nil || scope.ticket != nil {
+	if !scope.Finished || scope.View != nil || scope.LockTicket != nil {
 		t.Fatal("statement resources survived Finish")
 	}
 	current := run(t, e, "SELECT n FROM d").Rows
@@ -336,7 +336,7 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	binder := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	project := query.Root.(*plan.ProjectNode)
 	window := project.Child.(*plan.WindowNode)
 	binder.Grouping.WindowCalls = append([]plan.WindowCall(nil), window.Calls...)
@@ -387,14 +387,14 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	description, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.mu.Unlock()
+	description, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

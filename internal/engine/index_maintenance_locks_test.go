@@ -65,13 +65,13 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	a, b := roleTableRef(t, e, "a"), roleTableRef(t, e, "b")
 	ai, ai2, bi := roleTableRef(t, e, "ai"), roleTableRef(t, e, "ai2"), roleTableRef(t, e, "bi")
 	tx := transactionBegin(t, holder)
-	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: b}, lock.AccessShare); err != nil {
+	if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: b}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	before := indexMaintenanceCapture(e)
 	cancel, await := indexMaintenanceAsync(t, e, utility, "DROP INDEX bi,ai2,ai,ai CASCADE")
 	lockPending(t, e, 1)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	pending := lockState.Resources[lock.Resource{ObjectRef: b}].Pending[0]
 	first := lockState.Resources[lock.Resource{ObjectRef: a}]
 	ordered := pending.Mode == lock.AccessExclusive && first != nil && first.Holders[pending.Ticket].Mode == lock.AccessExclusive
@@ -89,7 +89,7 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	transactionEnd(t, holder, tx, false)
 	lockEmpty(t, e)
 	sessionSQL(t, utility, "DROP INDEX bi,ai2,ai,ai CASCADE")
-	if len(e.storage.IndexRoots) != 0 {
+	if len(e.Storage.IndexRoots) != 0 {
 		t.Fatal("deduplicated multi-parent drop left roots")
 	}
 	lockEmpty(t, e)
@@ -117,12 +117,12 @@ func TestIndexMaintenanceExactLockModes(t *testing.T) {
 			ref := roleTableRef(t, e, c.resource)
 			sibling := roleTableRef(t, e, "sibling")
 			tx := transactionBegin(t, holder)
-			if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, c.held); err != nil {
+			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, c.held); err != nil {
 				t.Fatal(err)
 			}
 			cancel, await := indexMaintenanceAsync(t, e, utility, c.q)
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
+			lockState := e.Locks.Inspect()
 			request := lockState.Resources[lock.Resource{ObjectRef: ref}].Pending[0]
 			correct := request.Mode == c.want
 			if c.parent {
@@ -158,8 +158,8 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 			sessionSQL(t, writer, "INSERT INTO t VALUES(2),(2)")
 			_, await := indexMaintenanceAsync(t, e, utility, "REINDEX INDEX ix")
 			lockPending(t, e, 1)
-			lockState := e.locks.Inspect()
-			parent := e.catalog.Domain.Ref(tx.Epoch(), index.SQLIndex.Parent)
+			lockState := e.Locks.Inspect()
+			parent := e.Catalog.Domain.Ref(tx.Epoch(), index.SQLIndex.Parent)
 			request := lockState.Resources[lock.Resource{ObjectRef: parent}].Pending[0]
 			share := request.Mode == lock.Share
 			if !share {
@@ -174,7 +174,7 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 			} else {
 				btreeWantKeys(t, e, "ix", "1")
 			}
-			if e.storage.IndexRoots[index.Address()] == old {
+			if e.Storage.IndexRoots[index.Address()] == old {
 				t.Fatal("waited rebuild reused predecessor")
 			}
 			if got := btreeKeys(t, old); len(got) != 1 || got[0] != "1" {
@@ -198,17 +198,17 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if remove {
-		if err := stage.Remove(e.catalog.Domain.Ref(base.Epoch(), old.Address())); err != nil {
+		if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), old.Address())); err != nil {
 			t.Fatal(err)
 		}
 	}
-	e.mu.Lock()
-	oid, err := e.catalog.AllocateOIDLocked()
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
 	var revision ids.DefinitionRevision
 	if err == nil {
-		revision, err = e.catalog.RevisionLocked()
+		revision, err = e.Catalog.RevisionLocked()
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestIndexMaintenanceMaintainRevokedDuringWait(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.catalog.State.MustRelation(table.Address).Owner
+	owner := e.Catalog.State.MustRelation(table.Address).Owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
@@ -317,12 +317,12 @@ func TestIndexMaintenancePrivilegeAdmission(t *testing.T) {
 		sessionSQL(t, admin, q)
 	}
 	table := roleTableRef(t, e, "t")
-	owner := e.catalog.State.MustRelation(table.Address).Owner
+	owner := e.Catalog.State.MustRelation(table.Address).Owner
 	user, ok := e.Roles().Lookup("maintainer")
 	if !ok {
 		t.Fatal("missing role fixture")
 	}
-	namespace := e.catalog.Domain.Ref(e.catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	namespace := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -393,14 +393,14 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
-			if e.storage.IndexRoots[index.Address()] != oldRoot {
+			if e.Storage.IndexRoots[index.Address()] != oldRoot {
 				t.Fatal("compatible fixture revision rebuilt a root")
 			}
 			transactionEnd(t, writer, tx, false)
 			if err := await(); err != nil {
 				t.Fatal("same-incarnation compatible revision was rejected", err)
 			}
-			if e.catalog.State.Get(ref.Address) != &next || e.storage.IndexRoots[index.Address()] == oldRoot {
+			if e.Catalog.State.Get(ref.Address) != &next || e.Storage.IndexRoots[index.Address()] == oldRoot {
 				t.Fatal("grant did not retain the current descriptor and publish a real fresh root")
 			}
 			btreeWantKeys(t, e, "ix", "1", "2")

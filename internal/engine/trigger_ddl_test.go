@@ -23,8 +23,8 @@ import (
 func triggerDDLExtensionUnit(t *testing.T) (*Engine, *StatementScope, *catalog.Relation, *catalog.Procedure, *catalog.Extension) {
 	t.Helper()
 	e, s, _, relation, function := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
-	stage := extensionUnitStage(t, e, s.op)
-	extensionUnitPublish(t, e, s.op, stage)
+	stage := extensionUnitStage(t, e, s.Op)
+	extensionUnitPublish(t, e, s.Op, stage)
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	return e, s, relation, function, e.CatalogRead().MustExtension(address)
 }
@@ -54,12 +54,12 @@ func TestTriggerDDLRenameIdentity(t *testing.T) {
 	q.OID++
 	other = triggerDDLPartsUnit(t, q)
 	relation = triggerUnitInstall(t, e, relation, other, definition)
-	store := e.storage.Relations[relation.Address()]
+	store := e.Storage.Relations[relation.Address()]
 	if err := s.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
 	stmt := &parser.AlterTrigger{Name: parser.Identifier{Text: "z"}, Table: parser.ObjectName{Parts: []parser.Identifier{{Text: relation.Name()}}}, Action: "rename", Target: parser.Identifier{Text: "0new"}}
-	if err := extensionUnitExecute(t, e, s.op, stmt); err != nil {
+	if err := extensionUnitExecute(t, e, s.Op, stmt); err != nil {
 		t.Fatal(err)
 	}
 	next := e.CatalogRead().MustRelation(relation.Address())
@@ -69,16 +69,16 @@ func TestTriggerDDLRenameIdentity(t *testing.T) {
 	}
 	parts := got[0].Parts()
 	parts.Name = p.Name
-	if !reflect.DeepEqual(parts, p) || stored.TriggersOf(relation)[1].Name() != "z" || next.Revision() == relation.Revision() || e.storage.Relations[relation.Address()] != store {
+	if !reflect.DeepEqual(parts, p) || stored.TriggersOf(relation)[1].Name() != "z" || next.Revision() == relation.Revision() || e.Storage.Relations[relation.Address()] != store {
 		t.Fatal("rename changed definition, source or storage identity")
 	}
 	stmt.Target.Text = "a"
 	stmt.Name.Text = "0new"
-	before := e.catalog.State
-	if err := extensionUnitExecute(t, e, s.op, stmt); err == nil {
+	before := e.Catalog.State
+	if err := extensionUnitExecute(t, e, s.Op, stmt); err == nil {
 		t.Fatal("collision accepted")
 	}
-	if e.catalog.State != before {
+	if e.Catalog.State != before {
 		t.Fatal("collision published")
 	}
 }
@@ -141,7 +141,7 @@ func TestTriggerDDLPartitionIdentity(t *testing.T) {
 	occupant.Parent = ids.ObjectAddress{}
 	occupant.ParentRevision = 0
 	triggerUnitInstall(t, e, high, stored.TriggersOf(high)[0], triggerDDLPartsUnit(t, occupant))
-	before := e.catalog.State
+	before := e.Catalog.State
 	p = stored.TriggersOf(root)[0].Parts()
 	p.Name = "taken"
 	copy = *root
@@ -155,7 +155,7 @@ func TestTriggerDDLPartitionIdentity(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(context.Background(), failed); err == nil {
 		t.Fatal("child collision accepted")
 	}
-	if e.catalog.State != before {
+	if e.Catalog.State != before {
 		t.Fatal("collision changed roots")
 	}
 }
@@ -172,10 +172,10 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 			copy.Triggers = stored.TriggersPayload([]stored.Trigger{triggerDDLPartsUnit(t, p)})
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
-			stage.querySources = []catalog.Descriptor{ext}
-			stage.authSession = s.op.Session
-			stage.authRevision = s.op.Session.Authorization.Revision
-			stage.roleRevision = e.roles.Published.Revision
+			stage.QuerySources = []catalog.Descriptor{ext}
+			stage.AuthSession = s.Op.Session
+			stage.AuthRevision = s.Op.Session.Authorization.Revision
+			stage.RoleRevision = e.RoleStore.Published.Revision
 			if err := stage.Replace(&copy); err != nil {
 				t.Fatal(err)
 			}
@@ -189,13 +189,13 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 			case "source":
 				next := *ext
 				next.ObjectRevision++
-				e.catalog.State.SetDescriptor(ext.Address(), &next)
+				e.Catalog.State.SetDescriptor(ext.Address(), &next)
 			case "cancel":
 				cancel()
 			case "authorization":
-				s.op.Session.Authorization.Revision++
+				s.Op.Session.Authorization.Revision++
 			case "role":
-				e.roles.Published.Revision++
+				e.RoleStore.Published.Revision++
 			}
 			token := PublicationToken{Epoch: stage.Base.Epoch()}
 			if reason == "epoch" {
@@ -209,7 +209,7 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, old := range []*catalog.Relation{root, low, high} {
-				if e.catalog.State.Get(old.Address()) != old {
+				if e.Catalog.State.Get(old.Address()) != old {
 					t.Fatal("failed stage changed relation", old.Name())
 				}
 			}
@@ -243,7 +243,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	if err := bad.Triggers.Validate(read, &bad); err == nil {
 		t.Fatal("missing extension accepted")
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), read, engineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), read, EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(read)
 	defer e.DiscardCatalogStage(stage)
-	_, err = domainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{ext.Address()})
+	_, err = DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{ext.Address()})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
 		t.Fatal("clone-only extension retirement bypassed partition owner", err)
@@ -273,7 +273,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	root = triggerUnitInstall(t, e, root, triggerDDLPartsUnit(t, parent))
 	allowed := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(allowed)
-	closure, err := domainDependencyClosure(context.Background(), allowed, []ids.ObjectAddress{ext.Address()})
+	closure, err := DomainDependencyClosure(context.Background(), allowed, []ids.ObjectAddress{ext.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,11 +282,11 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	}
 	// Exercise application and validation, not just discovery: automatic x
 	// edges have no visible RESTRICT label but must prune attached payloads.
-	rootStore, lowStore := e.storage.Relations[root.Address()], e.storage.Relations[low.Address()]
+	rootStore, lowStore := e.Storage.Relations[root.Address()], e.Storage.Relations[low.Address()]
 	if err := allowed.Remove(allowed.Base.Owner().Domain.Ref(allowed.Base.Epoch(), ext.Address())); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageExpressionDependencies(context.Background(), allowed, []ids.ObjectAddress{ext.Address()}, parser.DropRestrict, nil, nil, nil, ext.Address()); err != nil {
+	if err := StageExpressionDependencies(context.Background(), allowed, []ids.ObjectAddress{ext.Address()}, parser.DropRestrict, nil, nil, nil, ext.Address()); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, allowed)
@@ -299,7 +299,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 			t.Fatal("automatic extension retirement retained clone", address)
 		}
 	}
-	if !root.HasTriggers() || !low.HasTriggers() || e.storage.Relations[root.Address()] != rootStore || e.storage.Relations[low.Address()] != lowStore {
+	if !root.HasTriggers() || !low.HasTriggers() || e.Storage.Relations[root.Address()] != rootStore || e.Storage.Relations[low.Address()] != lowStore {
 		t.Fatal("retirement mutated source payloads or storage")
 	}
 	for _, bad := range []ids.ObjectAddress{{ClassID: ids.ProcedureClassID, ObjectID: ext.Address().ObjectID}, {ClassID: ids.ExtensionClassID, ObjectID: ext.Address().ObjectID, SubID: 1}} {
@@ -317,14 +317,14 @@ func TestTriggerDDLExtensionRemap(t *testing.T) {
 	relation = triggerUnitInstall(t, e, relation, triggerDDLPartsUnit(t, p))
 	destination, s, _, target, targetFunction := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
 	// Displace the genuine installed extension rather than fabricating a provider.
-	destination.mu.Lock()
-	_, err := destination.catalog.AllocateOIDLocked()
-	destination.mu.Unlock()
+	destination.Mu.Lock()
+	_, err := destination.Catalog.AllocateOIDLocked()
+	destination.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	install := extensionUnitStage(t, destination, s.op)
-	extensionUnitPublish(t, destination, s.op, install)
+	install := extensionUnitStage(t, destination, s.Op)
+	extensionUnitPublish(t, destination, s.Op, install)
 	read := destination.CatalogRead()
 	next := read.MustExtension(read.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 	if next.Address() == ext.Address() {

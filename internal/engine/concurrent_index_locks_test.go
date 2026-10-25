@@ -36,23 +36,23 @@ func TestConcurrentIndexU2OrdinaryShareThenWriterQueue(t *testing.T) {
 	lockPending(t, e, 1)
 	_, insert := indexMaintenanceAsync(t, e, c, "INSERT INTO t VALUES(3)")
 	lockPending(t, e, 2)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	exact := len(entry.Pending) == 2 && entry.Pending[0].Mode == lock.Share && entry.Pending[0].Ticket.Ref().Session() == b.SessionToken && entry.Pending[1].Mode == lock.RowExclusive && entry.Pending[1].Ticket.Ref().Session() == c.SessionToken && entry.Holders[a.Transactions.Ticket].Mode&lock.RowExclusive != 0
 	if !exact {
 		t.Fatal("ordinary Share build did not precede and block later RX request")
 	}
-	e.mu.Lock()
-	namespace := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
-	_, exists := e.catalog.State.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ix"})
-	e.mu.Unlock()
+	e.Mu.Lock()
+	namespace := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+	_, exists := e.Catalog.State.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "ix"})
+	e.Mu.Unlock()
 	if exists {
 		t.Fatal("ordinary blocked build published a descriptor")
 	}
 	sessionSQL(t, d, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	rows := sessionSQL(t, d, "SELECT n FROM t ORDER BY n")
 	rows.Rows.Close()
-	lockState = e.locks.Inspect()
+	lockState = e.Locks.Inspect()
 	entry = lockState.Resources[lock.Resource{ObjectRef: ref}]
 	compatible := entry.Holders[d.Transactions.Ticket].Mode&lock.AccessShare != 0 && len(entry.Pending) == 2
 	if !compatible {
@@ -85,13 +85,13 @@ func TestConcurrentIndexU2CapturedWriterCohortAndTopLevelOutcome(t *testing.T) {
 	owner := a.Transactions.Ticket
 	_, await := indexMaintenanceAsync(t, e, b, "CREATE INDEX CONCURRENTLY ix ON t(n)")
 	wait := concurrentUnitCompletion(t, e, owner, b)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	parentEntry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 	actual := parentEntry.Holders[wait.Ticket()].Mode&lock.ShareUpdateExclusive != 0 && parentEntry.Holders[wait.Ticket()].Mode&lock.Share == 0 && len(parentEntry.Pending) == 0
 	if !actual {
 		t.Fatal("concurrent builder used a queued parent Share acquisition")
 	}
-	cohort, err := e.locks.IndexWriters(wait.Ticket(), ref)
+	cohort, err := e.Locks.IndexWriters(wait.Ticket(), ref)
 	if err != nil || len(cohort) != 1 || cohort[0] != owner {
 		t.Fatal(cohort, err)
 	}
@@ -101,8 +101,8 @@ func TestConcurrentIndexU2CapturedWriterCohortAndTopLevelOutcome(t *testing.T) {
 		t.Fatal("later writer mutated captured cohort")
 	}
 	// Removing all relation contributions must not discharge completion ownership.
-	e.locks.Restore(owner, nil)
-	lockState = e.locks.Inspect()
+	e.Locks.Restore(owner, nil)
+	lockState = e.Locks.Inspect()
 	stillWaiting := !wait.Terminal() && lockState.Resources[wait.Resource()].Holders[owner].Mode == lock.TransactionCompletion
 	if !stillWaiting {
 		t.Fatal("savepoint/contribution release impersonated transaction outcome")
@@ -126,19 +126,19 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(n INT)")
 	ta, tb := transactionBegin(t, a), transactionBegin(t, b)
 	ref := roleTableRef(t, e, "t")
-	if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive); err != nil {
+	if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.locks.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
+	if err := e.Locks.Acquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.ShareUpdateExclusive); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	completion, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, lock.CompletionOf(a.Transactions.Ticket), lock.TransactionCompletion, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
+	completion, err := e.Locks.StartAcquire(ctx, b.Transactions.Ticket, lock.CompletionOf(a.Transactions.Ticket), lock.TransactionCompletion, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
 	if err != nil || completion == nil {
 		t.Fatal(completion, err)
 	}
-	exclusive, err := e.locks.StartAcquire(ctx, a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, lock.Policy{})
+	exclusive, err := e.Locks.StartAcquire(ctx, a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, lock.Policy{})
 	if err != nil || exclusive == nil {
 		t.Fatal(exclusive, err)
 	}
@@ -153,7 +153,7 @@ func TestConcurrentIndexU2CompletionHardMixedDeadlock(t *testing.T) {
 	if !reflect.DeepEqual(*diagnostic, want) || (diagnostic.Detail != first+"\n"+second && diagnostic.Detail != second+"\n"+first) {
 		t.Fatal(diagnostic)
 	}
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	hardSurvives := !completion.Terminal() && lockState.Resources[completion.Resource()].Holders[a.Transactions.Ticket].Mode == lock.TransactionCompletion
 	if !hardSurvives {
 		t.Fatal("hard completion edge was removed or reordered as a soft relation queue")
@@ -182,7 +182,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 			if mode == "statement_deadline" {
 				policy.StatementDeadline = time.Now().Add(-time.Second)
 			}
-			request, err := e.locks.StartAcquire(ctx, waiter, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
+			request, err := e.Locks.StartAcquire(ctx, waiter, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
 			if mode == "statement_deadline" {
 				var diagnostic *sqlstate.Error
 				if request != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "57014" {
@@ -210,11 +210,11 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 					}
 					cancel()
 					// An ended exact owner is immediately complete; no new virtual authority.
-					next, err := e.locks.StartAcquire(context.Background(), waiter, lock.CompletionOf(owner), lock.TransactionCompletion, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
+					next, err := e.Locks.StartAcquire(context.Background(), waiter, lock.CompletionOf(owner), lock.TransactionCompletion, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
 					if next != nil || err != nil {
 						t.Fatal(next, err)
 					}
-					lockState := e.locks.Inspect(waiter)
+					lockState := e.Locks.Inspect(waiter)
 					_, retained := lockState.Journals[waiter][lock.CompletionOf(owner)]
 					terminal := request.Terminal() && request.Err() == nil
 					if retained || !terminal {
@@ -234,9 +234,9 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 			}
 			transactionEnd(t, b, tb, false)
 			lockEmpty(t, e)
-			e.mu.Lock()
-			registry := len(e.visibility.Entries)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			registry := len(e.Visibility.Entries)
+			e.Mu.Unlock()
 			if registry != 0 {
 				t.Fatal("terminal visibility registry leak")
 			}

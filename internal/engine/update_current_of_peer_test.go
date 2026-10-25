@@ -42,14 +42,14 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 			sessionSQL(t, owner, "BEGIN")
 			sessionSQL(t, owner, "DECLARE c CURSOR FOR SELECT id FROM t WHERE id=1 FOR NO KEY UPDATE")
 			cursorUnitBatch(t, owner, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
-			c := payloadOf(owner).cursors.entries["c"]
+			c := PayloadOf(owner).Cursors.Entries["c"]
 			source, index, root := c.CurrentSource, c.CurrentIndex, c.root
 			original := exec.CursorOccurrenceVersion(source, index, 0, c.locks)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			committed := func() storage.RowVersion {
-				e.mu.Lock()
-				defer e.mu.Unlock()
-				for _, row := range e.storage.Relations[ref.Address].Versions {
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
+				for _, row := range e.Storage.Relations[ref.Address].Versions {
 					if row.Row == original.Row {
 						return row
 					}
@@ -105,10 +105,10 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				}
 			}()
 			update := statement(t, "UPDATE t SET v=v||'-peer' WHERE id=1")
-			if err := scope.gate(update); err != nil {
+			if err := scope.Gate(update); err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.acquireRelation(update, true); err != nil {
+			if err := scope.AcquireRelation(update, true); err != nil {
 				t.Fatal(err)
 			}
 			if err := scope.snapshotPhase(update); err != nil {
@@ -124,12 +124,12 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				})
 			}
 			if lane == "blocked_peer" {
-				ticket := scope.owner.Ticket
+				ticket := scope.Owner.Ticket
 				ownerTicket := owner.Transactions.Ticket
 				workerDone = make(chan struct{})
 				go func() { defer close(workerDone); execute() }()
 				lockPending(t, e, 1)
-				state := e.locks.Inspect()
+				state := e.Locks.Inspect()
 				entry := state.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
 				if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Ticket != ticket || entry.Pending[0].Mode != lock.ForNoKeyUpdate || entry.Holders[ownerTicket].Mode&lock.ForNoKeyUpdate == 0 {
 					t.Fatal("missing exact peer RowID/ticket/mode and conflicting positioned owner grant")
@@ -146,11 +146,11 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 			if lane == "snapshot_gap" {
 				// No target view has been acquired since snapshotPhase. Publication must
 				// not erase the original candidate from that selected command frontier.
-				view, err := scope.AcquireDataView(scope.lockedRef)
+				view, err := scope.AcquireDataView(scope.LockedRef)
 				if err != nil {
 					t.Fatal(err)
 				}
-				captured, err := exec.CaptureSource(ctx, view, scope.lockedRef)
+				captured, err := exec.CaptureSource(ctx, view, scope.LockedRef)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -192,7 +192,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				t.Fatal("peer UPDATE must complete once", result.Count, executeErr)
 			}
 			staged := 0
-			for _, rows := range scope.stage.rows {
+			for _, rows := range scope.Stage.Rows {
 				for _, row := range rows {
 					if row.Row == original.Row {
 						staged++
@@ -202,7 +202,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 					}
 				}
 			}
-			if !scope.stage.replacing || staged != 1 {
+			if !scope.Stage.replacing || staged != 1 {
 				t.Fatal("missing single real private replacement", staged)
 			}
 			if got := committed(); got.Version != successor.Version || testExport(got.Values[1]) != "owner" {

@@ -45,7 +45,7 @@ func (s *StatementScope) newPLRun(d *catalog.Procedure, f *proc.PLFrame, read ca
 	return &inv.run
 }
 
-func (h *plHost) Context() context.Context { return h.s.op.Context() }
+func (h *plHost) Context() context.Context { return h.s.Op.Context() }
 
 func (h *plHost) Identity() string { return h.s.plRoutineDiagnosticIdentity(h.read, h.d) }
 
@@ -54,10 +54,10 @@ func (h *plHost) LookupType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 }
 
 func (h *plHost) TypeName(typ *sqltype.Descriptor) string {
-	e := h.s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	binder := newExpressionBinder(h.s.op.Context(), e, h.s.input, h.s.op, nil)
+	e := h.s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	binder := NewExpressionBinder(h.s.Op.Context(), e, h.s.Input, h.s.Op, nil)
 	return binder.DiagnosticTypeName(typ)
 }
 
@@ -67,9 +67,9 @@ func (h *plHost) Evaluate(f *proc.PLFrame, q *parser.Select, at proc.PLOrigin) (
 }
 
 func (h *plHost) Convert(v sqltype.Value, target sqltype.Usage, at proc.PLOrigin) (sqltype.Value, error) {
-	noticeStart := len(h.s.op.Notices)
+	noticeStart := len(h.s.Op.Notices)
 	v, err := h.s.convertPLValue(v, target)
-	if at.Action != "" && noticeStart != len(h.s.op.Notices) {
+	if at.Action != "" && noticeStart != len(h.s.Op.Notices) {
 		h.s.appendPLNoticeContext(noticeStart, h.s.plNoticeOrigin(h.run.Frame, at.Position, at.Action))
 	}
 	return v, err
@@ -91,17 +91,17 @@ func (h *plHost) TargetUsage(f *proc.PLFrame, target proc.PLTarget) (sqltype.Usa
 		}
 		usage = current.Type().Usage()
 	}
-	e := h.s.engine()
+	e := h.s.Engine()
 	if leaf := analyze.TargetUsage(usage, target.Steps); leaf.Valid() {
 		return leaf, nil
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(h.s.op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(h.s.Op)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	binder := newExpressionBinder(h.s.op.Context(), e, h.s.input, h.s.op, nil)
+	binder := NewExpressionBinder(h.s.Op.Context(), e, h.s.Input, h.s.Op, nil)
 	binder.PL, binder.Query.Auth = f, &auth
 	bound, err := binder.BindAssignmentTarget(catalog.Column{Name: f.Program.Variables[target.Slot].Name, Usage: usage}, target.Steps, parser.Position{})
 	if err != nil {
@@ -111,7 +111,7 @@ func (h *plHost) TargetUsage(f *proc.PLFrame, target proc.PLTarget) (sqltype.Usa
 }
 
 func (h *plHost) AssignValue(f *proc.PLFrame, target proc.PLTarget, value sqltype.Value, at proc.PLOrigin) (err error) {
-	noticeStart := len(h.s.op.Notices)
+	noticeStart := len(h.s.Op.Notices)
 	defer func() { h.s.appendPLNoticeContext(noticeStart, h.s.plNoticeOrigin(f, at.Position, at.Action)) }()
 	candidate, err := h.s.preparePLTargetValue(h.run, f, target, value, f.Values[target.Slot], h.read)
 	if err == nil {

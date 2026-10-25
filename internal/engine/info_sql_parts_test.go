@@ -24,7 +24,7 @@ func sqlPartsAuthorityInput(t *testing.T, auth AuthorizationView) pgcatalog.Inpu
 	t.Helper()
 	view := auth.Catalog
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSQLPartsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 
 func sqlPartsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -33,7 +33,7 @@ func sqlPartsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing sql_parts producer")
 	}
-	captured, err := captureCatalogSourceRows(in, produce)
+	captured, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,25 +148,25 @@ func TestInfoSQLPartsCapture(t *testing.T) {
 		}
 	}
 	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &foreign.catalog.Owner },
+		func(in *pgcatalog.Input) { in.Owner = &foreign.Catalog.Owner },
 		func(in *pgcatalog.Input) { in.Roles = foreign.Roles() },
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { in.Catalog = catalog.Read{} },
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { copied := *in.Source; in.Source = &copied },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.RoleRecord = nil
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.State.CurrentUser = authorization.PrincipalRef{}
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engineCatalogRuntime)
-			r.auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
+			r := in.Runtime.(EngineCatalogRuntime)
+			r.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = r
 		},
 	} {
@@ -206,7 +206,7 @@ func TestInfoSQLPartsCapture(t *testing.T) {
 			}
 		}
 		bad.SetDescriptor(copy.Address(), &copy)
-		assertInvalid(malformed, sqlPartsUnitInput(t, f, f.e.catalog.Read(bad)))
+		assertInvalid(malformed, sqlPartsUnitInput(t, f, f.e.Catalog.Read(bad)))
 	}
 	sqlPartsUnitRows(t, in)
 }
@@ -236,7 +236,7 @@ func TestInfoSQLPartsCatalogACLRecheck(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	e := f.e
 	d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSQLPartsOID})
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 	admin, done := roleOperation(t, e, "postgres")
 	defer done()
 	role := roleAttributeCreate(t, e, admin, "sql_parts_reader", true, parser.RoleOptions{})
@@ -245,7 +245,7 @@ func TestInfoSQLPartsCatalogACLRecheck(t *testing.T) {
 	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
 	authority := func() AuthorizationView {
 		t.Helper()
-		auth, err := operationAuthorization(reader)
+		auth, err := OperationAuthorization(reader)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -253,7 +253,7 @@ func TestInfoSQLPartsCatalogACLRecheck(t *testing.T) {
 	}
 	denied := authority()
 	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for table sql_parts")
-	adminAuth, err := operationAuthorization(admin)
+	adminAuth, err := OperationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestInfoSQLPartsCatalogACLRecheck(t *testing.T) {
 	}
 	sqlPartsUnitRows(t, sqlPartsAuthorityInput(t, adminAuth))
 	namespace := denied.Catalog.MustNamespace(d.Namespace())
-	nsRef := e.catalog.Domain.Ref(denied.Catalog.Epoch(), namespace.Address())
+	nsRef := e.Catalog.Domain.Ref(denied.Catalog.Epoch(), namespace.Address())
 	if err := denied.CanUse(nsRef); err != nil {
 		t.Fatal("independent PUBLIC schema USAGE", err)
 	}

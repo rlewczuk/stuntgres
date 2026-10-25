@@ -30,7 +30,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "g")
-	old := e.catalog.State.MustRelation(ref.Address)
+	old := e.Catalog.State.MustRelation(ref.Address)
 	capture := func() *exec.Source {
 		t.Helper()
 		scope, err := e.StartStatement(admin)
@@ -38,7 +38,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer scope.Finish(errors.New("capture cleanup"))
-		if err := scope.gate(&parser.Select{}); err != nil {
+		if err := scope.Gate(&parser.Select{}); err != nil {
 			t.Fatal(err)
 		}
 		view, err := scope.AcquireDataView(ref)
@@ -130,9 +130,9 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	roleExecute(t, e, op, "REVOKE EXECUTE ON FUNCTION pg_catalog.json_array_length(json) FROM PUBLIC")
 	reader, done := roleOperation(t, e, "virtual_admission_reader")
 	defer done()
-	e.mu.Lock()
-	readerAuthority, err := e.authorizationLocked(reader)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	readerAuthority, err := e.AuthorizationLocked(reader)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

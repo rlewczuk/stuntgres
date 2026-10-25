@@ -16,7 +16,7 @@ import (
 
 func cursorPromotedUnit(t *testing.T, s *StatementScope, name, column string, first int64) *sqlCursor {
 	t.Helper()
-	integer, ok := s.engine().CatalogRead().LookupType(sqltype.Int4)
+	integer, ok := s.Engine().CatalogRead().LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("missing integer")
 	}
@@ -28,8 +28,8 @@ func cursorPromotedUnit(t *testing.T, s *StatementScope, name, column string, fi
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &sqlCursor{epoch: s.txRef.Epoch(), promoted: true, hold: true, scroll: true, schema: []catalog.Column{{Name: column, Usage: integer.Usage()}}, values: []sqltype.Value{one, two}, count: 2}
-	payloadOf(s.op.Session).cursors.entries[name] = c
+	c := &sqlCursor{epoch: s.TxRef.Epoch(), promoted: true, hold: true, scroll: true, schema: []catalog.Column{{Name: column, Usage: integer.Usage()}}, values: []sqltype.Value{one, two}, count: 2}
+	PayloadOf(s.Op.Session).Cursors.Entries[name] = c
 	return c
 }
 
@@ -40,14 +40,14 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 				t.Run(fmt.Sprintf("promoted_flags/%t/%t/%t", completed, sessionCompleted, move), func(t *testing.T) {
 					_, s := cursorUnitScope(t)
 					c := cursorPromotedUnit(t, s, "held", "i", 7)
-					s.completed, s.sessionCompleted = completed, sessionCompleted
+					s.Completed, s.sessionCompleted = completed, sessionCompleted
 					motion := &parser.FetchCursor{Name: parser.Identifier{Text: "held"}, Count: 1, Move: move}
 					result, err := s.fetchCursor(motion)
 					if err != nil {
 						t.Fatal(err)
 					}
-					if result.Count != 1 || c.OrdinalPosition != 1 || s.completed != completed || s.sessionCompleted != sessionCompleted {
-						t.Fatal("lower held motion completed its parent", result.Count, c.OrdinalPosition, s.completed, s.sessionCompleted)
+					if result.Count != 1 || c.OrdinalPosition != 1 || s.Completed != completed || s.sessionCompleted != sessionCompleted {
+						t.Fatal("lower held motion completed its parent", result.Count, c.OrdinalPosition, s.Completed, s.sessionCompleted)
 					}
 					if move {
 						if result.Rows != nil {
@@ -72,7 +72,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 					if result.Rows != nil {
 						defer result.Rows.Close()
 					}
-					if result.Count != 1 || !s.completed || !s.sessionCompleted {
+					if result.Count != 1 || !s.Completed || !s.sessionCompleted {
 						t.Fatal("SQL held wrapper lost completion", result.Count)
 					}
 				})
@@ -99,13 +99,13 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		if n, err := row.CompositeField(0).Integer(); err != nil || n != 7 {
 			t.Fatal(n, err)
 		}
-		payloadOf(s.op.Session).cursors.entries["original"] = other
+		PayloadOf(s.Op.Session).Cursors.Entries["original"] = other
 		_, err := s.fetchCursorPortal(original, motion)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "34000" || original.OrdinalPosition != 1 || other.OrdinalPosition != 0 {
 			t.Fatal("same-name replacement redirected retained portal", err)
 		}
-		payloadOf(s.op.Session).cursors.entries["original"] = original
+		PayloadOf(s.Op.Session).Cursors.Entries["original"] = original
 	})
 	for _, assignment := range []string{"'missing'", "NULL", "'other'"} {
 		t.Run("loop_retains/"+assignment, func(t *testing.T) {
@@ -121,7 +121,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 			if n, err := value.Integer(); err != nil || n != 60 {
 				t.Fatal(n, err)
 			}
-			if payloadOf(s.op.Session).cursors.entries["owned_identity"] != nil || other.OrdinalPosition != 0 {
+			if PayloadOf(s.Op.Session).Cursors.Entries["owned_identity"] != nil || other.OrdinalPosition != 0 {
 				t.Fatal("loop leaked original or moved another portal")
 			}
 		})
@@ -133,34 +133,34 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		calls := 0
 		c.stage = &exec.Stage{Finish: func() error {
 			calls++
-			if c.pinned || payloadOf(s.op.Session).cursors.entries["pinned"] != nil {
+			if c.pinned || PayloadOf(s.Op.Session).Cursors.Entries["pinned"] != nil {
 				t.Error("cleanup before unpin/detach")
 			}
-			if !e.mu.TryLock() {
+			if !e.Mu.TryLock() {
 				t.Error("cleanup under engine mutex")
 			} else {
-				e.mu.Unlock()
+				e.Mu.Unlock()
 			}
-			if !s.owner.Mu.TryLock() {
+			if !s.Owner.Mu.TryLock() {
 				t.Error("cleanup under transaction mutex")
 			} else {
-				s.owner.Mu.Unlock()
+				s.Owner.Mu.Unlock()
 			}
-			if !s.op.Session.Mu.TryLock() {
+			if !s.Op.Session.Mu.TryLock() {
 				t.Error("cleanup under session mutex")
 			} else {
-				s.op.Session.Mu.Unlock()
+				s.Op.Session.Mu.Unlock()
 			}
 			return nil
 		}}
-		priorReplacement := s.replacementRead
+		priorReplacement := s.ReplacementRead
 		for _, all := range []bool{false, true} {
 			_, err := s.closeCursor(&parser.CloseCursor{Name: parser.Identifier{Text: "pinned"}, All: all})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "24000" || diagnostic.Message != "cannot drop pinned portal \"pinned\"" {
 				t.Fatal(err)
 			}
-			if payloadOf(s.op.Session).cursors.entries["pinned"] != c || !c.pinned || calls != 0 || s.replacementRead != priorReplacement {
+			if PayloadOf(s.Op.Session).Cursors.Entries["pinned"] != c || !c.pinned || calls != 0 || s.ReplacementRead != priorReplacement {
 				t.Fatal("rejected drop changed owner state")
 			}
 		}
@@ -171,7 +171,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		if !c.pinned || c.OrdinalPosition != 1 {
 			t.Fatal("movement changed protection")
 		}
-		if err := disposeSQLCursors(context.Background(), payloadOf(s.op.Session).cursors.clear()); err != nil {
+		if err := disposeSQLCursors(context.Background(), PayloadOf(s.Op.Session).Cursors.clear()); err != nil {
 			t.Fatal(err)
 		}
 		if err := c.dispose(context.Background()); err != nil {
@@ -191,7 +191,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "24000" {
 			t.Fatal(err)
 		}
-		if payloadOf(s.op.Session).cursors.entries["owned_pin"] != nil || s.completed || s.sessionCompleted {
+		if PayloadOf(s.Op.Session).Cursors.Entries["owned_pin"] != nil || s.Completed || s.sessionCompleted {
 			t.Fatal("pinned loop error retained portal/completed parent")
 		}
 	})

@@ -17,10 +17,10 @@ import (
 // errors. It never waits.
 func (h *statementHost) LatestRow(r dml.RowRequest) (dml.LatestRow, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := s.validateLockedRelation(e); err != nil {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if err := s.ValidateLockedRelation(e); err != nil {
 		return dml.LatestRow{}, err
 	}
 	switch r.Kind {
@@ -46,31 +46,31 @@ func (h *statementHost) LatestRow(r dml.RowRequest) (dml.LatestRow, error) {
 // dml readers. Caller holds Engine.mu.
 func (s *StatementScope) latestRowSourceLocked(e *Engine, address ids.ObjectAddress) dml.LatestRowSource {
 	return dml.LatestRowSource{
-		Store:      e.privateStorageLocked(s.owner.Catalog, address),
-		OwnWrites:  s.ownWrites[address],
-		OwnDeletes: s.ownDeletes[address],
-		CommitSeq:  e.visibility.CommitSeq(),
-		Stable:     s.owner.Isolation.Stable(),
-		Frontier:   s.owner.Frontier,
+		Store:      e.PrivateStorageLocked(s.Owner.Catalog, address),
+		OwnWrites:  s.OwnWrites[address],
+		OwnDeletes: s.OwnDeletes[address],
+		CommitSeq:  e.Visibility.CommitSeq(),
+		Stable:     s.Owner.Isolation.Stable(),
+		Frontier:   s.Owner.Frontier,
 	}
 }
 
 // latestEpochsCurrentLocked reports whether both the request's and the
 // transaction's catalog epochs are current, as UPDATE and MERGE need.
 func (s *StatementScope) latestEpochsCurrentLocked(e *Engine, r dml.RowRequest) bool {
-	return r.Ref.Epoch == e.catalog.State.Epoch() && s.txRef.Epoch() == e.catalog.State.Epoch()
+	return r.Ref.Epoch == e.Catalog.State.Epoch() && s.TxRef.Epoch() == e.Catalog.State.Epoch()
 }
 
 // Committed hits retain their provider's exact physical hint. Private overlays
 // are keyed by RowID, with this command's replacement ahead of prior writes.
 func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowRequest) (dml.LatestRow, error) {
 	ref := r.Ref
-	if ref.Epoch != e.catalog.State.Epoch() {
+	if ref.Epoch != e.Catalog.State.Epoch() {
 		return dml.LatestRow{}, ids.ErrCatalogReplaced
 	}
-	catalog := e.privateCatalogLocked(s.owner.Catalog)
+	catalog := e.PrivateCatalogLocked(s.Owner.Catalog)
 	parent, ok := catalog.Relation(ref.Address)
-	store := e.privateStorageLocked(s.owner.Catalog, ref.Address)
+	store := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address)
 	if !ok || store == nil || !index.SameRelationRowShape(r.Parent, parent) {
 		return dml.LatestRow{}, ids.ErrCatalogReplaced
 	}
@@ -93,18 +93,18 @@ func (s *StatementScope) latestConflictUpdateRowLocked(e *Engine, r dml.RowReque
 		row, _, found = storage.RowByID(store.Versions, r.Row, r.Hint)
 	} else {
 		if slot, ok := s.InsertConflict.AffectedRows[r.Row]; ok {
-			row, found = s.stage.rows[ref.Address][slot], true
+			row, found = s.Stage.Rows[ref.Address][slot], true
 		}
 		if !found {
-			row, found = dml.InsertOwnRow(s.writeHost(), ref, r.Row)
+			row, found = dml.InsertOwnRow(s.WriteHost(), ref, r.Row)
 		}
 	}
 	if !found {
 		return dml.LatestRow{}, errors.New("stuntgres: invalid conflict update predecessor")
 	}
-	if err := visibility.RepeatableConflict(s.owner.Isolation.Stable(), s.owner.Frontier, row, store.Ends); err != nil {
+	if err := visibility.RepeatableConflict(s.Owner.Isolation.Stable(), s.Owner.Frontier, row, store.Ends); err != nil {
 		return dml.LatestRow{}, err
 	}
-	live := visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]) && !index.UniqueRowDeleted(row.Row, s.stage.deletes[ref.Address])
+	live := visibility.LiveVersion(row, e.Visibility.CommitSeq(), store.Ends, s.OwnDeletes[ref.Address]) && !index.UniqueRowDeleted(row.Row, s.Stage.Deletes[ref.Address])
 	return dml.LatestRow{Version: row, Live: live, Parent: parent, Schema: namespace.Name()}, nil
 }

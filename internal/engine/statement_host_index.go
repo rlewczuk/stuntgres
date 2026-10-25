@@ -18,20 +18,20 @@ import (
 // claim and exclusion loops call the concrete methods, never the interface.
 var _ index.WriteHost = (*statementHost)(nil)
 
-// writeHost is the statement's index write host.
-func (s *StatementScope) writeHost() *statementHost { return (*statementHost)(s) }
+// WriteHost is the statement's index write host.
+func (s *StatementScope) WriteHost() *statementHost { return (*statementHost)(s) }
 
 // Admission owns private overlays for this statement; committed immutable roots
 // are recaptured only after each key grant, including after peer outcome waits.
 func (h *statementHost) UniqueParent(ref ids.ObjectRef) (*catalog.Relation, catalog.Read, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() || ref.Epoch != s.TxRef.Epoch() {
 		return nil, catalog.Read{}, ids.ErrCatalogReplaced
 	}
-	view := e.privateCatalogLocked(s.owner.Catalog)
+	view := e.PrivateCatalogLocked(s.Owner.Catalog)
 	parent, ok := view.Relation(ref.Address)
 	if !ok {
 		return nil, catalog.Read{}, errors.New("stuntgres: invalid unique parent")
@@ -41,19 +41,19 @@ func (h *statementHost) UniqueParent(ref ids.ObjectRef) (*catalog.Relation, cata
 
 func (h *statementHost) BindingAuthority(b *index.UniqueWriteBinding, view catalog.Read) (bool, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	if e.privateCatalogLocked(s.owner.Catalog).State() != view.State() {
-		e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	if e.PrivateCatalogLocked(s.Owner.Catalog).State() != view.State() {
+		e.Mu.Unlock()
 		return true, nil
 	}
 	auth, captureErr := s.writeAuthorizationLocked(e)
 	if captureErr == nil {
 		auth.Catalog = view
 		auth.Recapture(view)
-		b.TypeName, captureErr = captureTypeDiagnosticName(auth)
+		b.TypeName, captureErr = CaptureTypeDiagnosticName(auth)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if captureErr != nil {
 		return false, captureErr
 	}
@@ -62,27 +62,27 @@ func (h *statementHost) BindingAuthority(b *index.UniqueWriteBinding, view catal
 
 func (h *statementHost) ClaimUniqueKey(ref ids.ObjectRef, bound *index.UniqueBoundKey, key []sqltype.Value) error {
 	s := h.scope()
-	e := s.engine()
-	resource, unpin, err := e.pinUniqueKey(s.op.Context(), s.ticket, ref, bound.Ordering, bound.Grouping, key)
+	e := s.Engine()
+	resource, unpin, err := e.pinUniqueKey(s.Op.Context(), s.LockTicket, ref, bound.Ordering, bound.Grouping, key)
 	if err != nil {
 		return err
 	}
 	defer unpin()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, lock.UniqueClaim, policy)
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, resource, lock.UniqueClaim, policy)
 	if request != nil {
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
 	if err != nil {
 		return err
 	}
-	if s.implicit && !s.replacementRead {
-		e.replacementMu.RLock()
-		s.replacementRead = true
+	if s.implicit && !s.ReplacementRead {
+		e.ReplacementMu.RLock()
+		s.ReplacementRead = true
 	}
 	if request != nil {
 		return s.readmitProgramsAfterWait()
@@ -92,13 +92,13 @@ func (h *statementHost) ClaimUniqueKey(ref ids.ObjectRef, bound *index.UniqueBou
 
 func (h *statementHost) WaitTransaction(owner *lock.Ticket, purpose lock.CompletionPurpose) error {
 	s := h.scope()
-	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext, CompletionPurpose: purpose}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
+	e := s.Engine()
+	policy := lock.Policy{TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext, CompletionPurpose: purpose}
+	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
 	if request != nil {
-		if s.replacementRead {
-			e.replacementMu.RUnlock()
-			s.replacementRead = false
+		if s.ReplacementRead {
+			e.ReplacementMu.RUnlock()
+			s.ReplacementRead = false
 		}
 		err = request.Wait()
 	}
@@ -112,22 +112,22 @@ func (h *statementHost) WaitTransaction(owner *lock.Ticket, purpose lock.Complet
 // window.
 func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWriteBinding, idx *catalog.Relation, heads bool) (index.UniqueProbe, error) {
 	s := h.scope()
-	e := s.engine()
+	e := s.Engine()
 	parent := b.Parent
-	e.mu.Lock()
-	if ref.Epoch != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if ref.Epoch != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
-	current := e.privateCatalogLocked(s.owner.Catalog)
+	current := e.PrivateCatalogLocked(s.Owner.Catalog)
 	if current.State() != b.Catalog {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return index.UniqueProbe{Stale: true}, nil
 	}
 	currentParent, parentOK := current.Relation(ref.Address)
 	currentIndex, indexOK := current.Relation(idx.Address())
 	if !parentOK || !indexOK || currentParent.Revision() != parent.Revision() || !index.SameRelationRowShape(parent, currentParent) || currentIndex.Revision() != idx.Revision() || !index.SameIndexKeySemantics(idx, currentIndex) {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return index.UniqueProbe{}, ids.ErrCatalogReplaced
 	}
 	parent, idx = currentParent, currentIndex
@@ -135,14 +135,14 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 	auth.Catalog = current
 	auth.Recapture(auth.Catalog)
 	namespace, _ := current.Namespace(parent.Namespace())
-	root := index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx.Address())
+	root := index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx.Address())
 	var versions []storage.RowVersion
 	if heads {
-		if stored := e.privateStorageLocked(s.owner.Catalog, ref.Address); stored != nil {
+		if stored := e.PrivateStorageLocked(s.Owner.Catalog, ref.Address); stored != nil {
 			versions = stored.Versions
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return index.UniqueProbe{}, err
 	}
@@ -154,26 +154,26 @@ func (h *statementHost) CaptureUniqueProbe(ref ids.ObjectRef, b *index.UniqueWri
 
 func (h *statementHost) ExistingIndexRoot(idx *catalog.Relation) (*storage.IndexRoot, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	current := e.privateCatalogLocked(s.owner.Catalog)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	current := e.PrivateCatalogLocked(s.Owner.Catalog)
 	currentIndex, ok := current.Relation(idx.Address())
 	if !ok || !index.SameIndexKeySemantics(idx, currentIndex) {
 		return nil, ids.ErrCatalogReplaced
 	}
-	return index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx.Address()), nil
+	return index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx.Address()), nil
 }
 
 // CaptureExclusionScan captures the scan and its write authority in one
 // window.
 func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueWriteBinding, idx *catalog.Relation) (index.ExclusionScan, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	view := e.privateCatalogLocked(s.owner.Catalog)
-	if ref.Epoch != e.catalog.State.Epoch() || view.State() != b.Catalog {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	view := e.PrivateCatalogLocked(s.Owner.Catalog)
+	if ref.Epoch != e.Catalog.State.Epoch() || view.State() != b.Catalog {
 		return index.ExclusionScan{}, ids.ErrCatalogReplaced
 	}
 	auth, err := s.writeAuthorizationLocked(e)
@@ -185,38 +185,38 @@ func (h *statementHost) CaptureExclusionScan(ref ids.ObjectRef, b *index.UniqueW
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	root := index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx.Address())
+	root := index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx.Address())
 	ns, ok := view.Namespace(b.Parent.Namespace())
 	if !ok {
 		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion namespace")
 	}
-	store := e.privateStorageLocked(s.owner.Catalog, b.Parent.Address())
+	store := e.PrivateStorageLocked(s.Owner.Catalog, b.Parent.Address())
 	if store == nil {
 		return index.ExclusionScan{}, fmt.Errorf("stuntgres: missing exclusion row storage")
 	}
-	generation, pending := e.exclusions.ScanLocked()
+	generation, pending := e.Exclusions.ScanLocked()
 	return index.ExclusionScan{Generation: generation, Root: root, Pending: pending, View: view, Schema: ns.Name(), Parent: b.Parent.Address(), Store: store, StoreGeneration: store.Generation, Versions: store.Versions, Ends: store.Ends, Authority: auth.View}, nil
 }
 
 func (h *statementHost) ExclusionScanCurrent(scan index.ExclusionScan, idx ids.ObjectAddress) bool {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	root := index.EffectiveRoot(e.storage.IndexRoots, s.owner.Catalog, idx)
-	store := e.privateStorageLocked(s.owner.Catalog, scan.Parent)
-	return e.exclusions.CurrentLocked(scan.Generation) && scan.View.State() == e.privateCatalogLocked(s.owner.Catalog).State() && scan.Root == root && store == scan.Store && store.Generation == scan.StoreGeneration && len(store.Versions) == len(scan.Versions) && store.Ends == scan.Ends
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	root := index.EffectiveRoot(e.Storage.IndexRoots, s.Owner.Catalog, idx)
+	store := e.PrivateStorageLocked(s.Owner.Catalog, scan.Parent)
+	return e.Exclusions.CurrentLocked(scan.Generation) && scan.View.State() == e.PrivateCatalogLocked(s.Owner.Catalog).State() && scan.Root == root && store == scan.Store && store.Generation == scan.StoreGeneration && len(store.Versions) == len(scan.Versions) && store.Ends == scan.Ends
 }
 
 func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State, proposal index.WriteCandidate, edit index.ExclusionEdit) (storage.RowVersion, error) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if ref.Epoch != e.catalog.State.Epoch() || e.privateCatalogLocked(s.owner.Catalog).State() != state {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if ref.Epoch != e.Catalog.State.Epoch() || e.PrivateCatalogLocked(s.Owner.Catalog).State() != state {
 		return storage.RowVersion{}, ids.ErrCatalogReplaced
 	}
-	s.beginExclusionProjectionLocked(e)
+	s.BeginExclusionProjectionLocked(e)
 	row, err := s.exclusionCandidateLocked(e, &proposal, edit.Excluded, state)
 	if err != nil {
 		return storage.RowVersion{}, err
@@ -225,9 +225,9 @@ func (h *statementHost) PublishExclusion(ref ids.ObjectRef, state *catalog.State
 	if edit.Precheck {
 		row.IndexOutputs = proposal.Precheck
 	}
-	p := e.exclusions.ProjectionLocked(s.ticket)
+	p := e.Exclusions.ProjectionLocked(s.LockTicket)
 	edit.Apply(p, ref.Address, row)
-	s.installExclusionProjectionLocked(e, p)
+	s.InstallExclusionProjectionLocked(e, p)
 	return row, nil
 }
 
@@ -236,20 +236,20 @@ func (h *statementHost) DiscardExclusion(version ids.VersionID) {
 		return
 	}
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	p := e.exclusions.ProjectionLocked(s.ticket)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	p := e.Exclusions.ProjectionLocked(s.LockTicket)
 	p.DiscardVersion(version)
-	s.installExclusionProjectionLocked(e, p)
+	s.InstallExclusionProjectionLocked(e, p)
 }
 
 func (h *statementHost) OwnExclusionKeys(idx ids.ObjectAddress, version ids.VersionID) []sqltype.Value {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	projection := e.exclusions.OwnLocked(s.ticket)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	projection := e.Exclusions.OwnLocked(s.LockTicket)
 	if projection == nil {
 		return nil
 	}
@@ -263,20 +263,20 @@ func (h *statementHost) OwnExclusionKeys(idx ids.ObjectAddress, version ids.Vers
 
 func (h *statementHost) AdmitExclusion(idx ids.ObjectAddress, version ids.VersionID) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	projected := e.exclusions.ProjectionLocked(s.ticket)
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	projected := e.Exclusions.ProjectionLocked(s.LockTicket)
 	projected.Admit(idx, version)
-	s.installExclusionProjectionLocked(e, projected)
+	s.InstallExclusionProjectionLocked(e, projected)
 }
 
 // EndExclusionRow takes Engine.mu for the projection edit of
 // projectExclusionDeletionLocked.
 func (h *statementHost) EndExclusionRow(ref ids.ObjectRef, row ids.RowID, version ids.VersionID) {
 	s := h.scope()
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	s.projectExclusionDeletionLocked(e, visibility.DeleteCandidate{Ref: ref, Row: row, Version: version})
 }

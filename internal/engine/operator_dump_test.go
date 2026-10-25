@@ -25,14 +25,14 @@ func TestUserOperatorDumpPartitionInterleaving(t *testing.T) {
 		op.ObjectRevision = 1
 		op.Left = 23
 		op.Right = 23
-		op.Owner = e.roles.Domain.Principal(10)
+		op.Owner = e.RoleStore.Domain.Principal(10)
 		op.Function = 65
 		op.Result = 16
 		if err := stage.Create(op); err != nil {
 			t.Fatal(err)
 		}
 	}
-	view := e.stageRead(stage)
+	view := e.StageRead(stage)
 	x, y := ids.OID(90002), ids.OID(90004)
 	graph := dump.Graph{
 		{OID: a}: nil,

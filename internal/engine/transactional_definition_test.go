@@ -23,7 +23,7 @@ func definitionUnitStage(t *testing.T, e *Engine, owner *session.Session, q stri
 	}
 	defer op.Done()
 	ast := statement(t, q)
-	if err = scope.gate(ast); err != nil {
+	if err = scope.Gate(ast); err != nil {
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("discard definition unit scope"))
@@ -44,9 +44,9 @@ func definitionUnitGraph(t *testing.T, e *Engine, owner *session.Session) {
 }
 
 func definitionUnitRead(e *Engine, owner *session.Session) catalog.Read {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.privateCatalogLocked(owner.Transactions.Catalog)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	return e.PrivateCatalogLocked(owner.Transactions.Catalog)
 }
 
 func definitionUnitClass(t *testing.T, v catalog.Read) (*catalog.OperatorClass, sqltype.IndexClass) {
@@ -92,11 +92,11 @@ func TestTransactionalDefinitionPrivateProviders(t *testing.T) {
 	changed := *member
 	changed.Function = 181
 	changed.ObjectRevision++
-	e.mu.Lock()
+	e.Mu.Lock()
 	next := owner.Transactions.Catalog.Clone()
-	e.catalogChangeLocked(next, changed.Address(), &changed)
+	e.CatalogChangeLocked(next, changed.Address(), &changed)
 	owner.Transactions.Catalog = next
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	current := definitionUnitRead(e, owner)
 	_, freshClass := definitionUnitClass(t, current)
 	fresh, err := routine.BindClassSupport(current, freshClass)
@@ -128,11 +128,11 @@ func TestTransactionalDefinitionPrivateProviders(t *testing.T) {
 		t.Fatal("private replacement mutated capture")
 	}
 	// Removing the actual selected support cannot fall back to integer's builtin.
-	e.mu.Lock()
+	e.Mu.Lock()
 	missing := next.Clone()
-	e.catalogChangeLocked(missing, member.Address(), nil)
+	e.CatalogChangeLocked(missing, member.Address(), nil)
 	owner.Transactions.Catalog = missing
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if _, err := routine.BindClassSupport(definitionUnitRead(e, owner), freshClass); err == nil {
 		t.Fatal("missing private support silently fell back")
 	}
@@ -140,11 +140,11 @@ func TestTransactionalDefinitionPrivateProviders(t *testing.T) {
 	metadata := changed
 	metadata.Function = 3130
 	metadata.ObjectRevision++
-	e.mu.Lock()
+	e.Mu.Lock()
 	notCallable := next.Clone()
-	e.catalogChangeLocked(notCallable, metadata.Address(), &metadata)
+	e.CatalogChangeLocked(notCallable, metadata.Address(), &metadata)
 	owner.Transactions.Catalog = notCallable
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if _, err := routine.BindClassSupport(definitionUnitRead(e, owner), freshClass); err == nil {
 		t.Fatal("physical optional metadata became callable support")
 	}
@@ -268,12 +268,12 @@ func definitionUnitResolution(t *testing.T, e *Engine, owner *session.Session) {
 	renamed := *operator
 	renamed.ObjectRevision++
 	renamed.ObjectName = "##"
-	e.mu.Lock()
+	e.Mu.Lock()
 	journal := owner.Transactions.Catalog.Clone()
-	e.catalogChangeLocked(journal, changed.Address(), &changed)
-	e.catalogChangeLocked(journal, renamed.Address(), &renamed)
+	e.CatalogChangeLocked(journal, changed.Address(), &changed)
+	e.CatalogChangeLocked(journal, renamed.Address(), &renamed)
 	owner.Transactions.Catalog = journal
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	private := definitionUnitRead(e, owner)
 	if err := (catalog.CastProvider{}).Validate(private, &changed); err != nil {
 		t.Fatal("invalid private cast fixture", err)

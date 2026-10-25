@@ -24,7 +24,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 					sessionSQL(t, s, q)
 				}
 			}
-			entry := e.catalog.State
+			entry := e.Catalog.State
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			message := batchUnitStart(t, s, ctx)
@@ -47,12 +47,12 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			if len(typedef.DomainJournalOf(changes.Domain).ValidationFences()) != 1 || len(typedef.DomainJournalOf(changes.Clone().Domain).ValidationFences()) != 1 || typedef.DomainJournalOf(changes.Clone().Domain).ValidationFences()[0] != typedef.DomainJournalOf(changes.Domain).ValidationFences()[0] {
 				t.Fatal("immutable validation observation lost during clone")
 			}
-			view := e.privateCatalogLocked(changes)
+			view := e.PrivateCatalogLocked(changes)
 			table := catalogRef(t, e, view, "stored")
 			domain := domainUnitType(t, view, "d")
 			sequence := catalogRef(t, e, view, "calls")
-			if e.storage.Sequences[sequence.Address].Last != 2 || domain.DomainChecks[0].NotValid || e.catalog.State != entry {
-				t.Fatal("selected truth count or private publication", e.storage.Sequences[sequence.Address].Last)
+			if e.Storage.Sequences[sequence.Address].Last != 2 || domain.DomainChecks[0].NotValid || e.Catalog.State != entry {
+				t.Fatal("selected truth count or private publication", e.Storage.Sequences[sequence.Address].Last)
 			}
 			if kind == "private_create" && (changes.Originals[domain.Address()] != nil || changes.Storage[table.Address].Original != nil) {
 				t.Fatal("private creation lacks honest committed absence")
@@ -92,7 +92,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				}
 				done()
 			case "root", "length", "generation", "ends":
-				store := *e.storage.Relations[table.Address]
+				store := *e.Storage.Relations[table.Address]
 				switch kind {
 				case "length":
 					store.Versions = append(append([]storage.RowVersion(nil), store.Versions...), storage.RowVersion{Row: 200, Version: 200})
@@ -101,12 +101,12 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				case "ends":
 					store.Ends = &storage.DeletionRoot{}
 				}
-				e.mu.Lock()
-				e.storage.InstallRelationLocked(table.Address, &store)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Storage.InstallRelationLocked(table.Address, &store)
+				e.Mu.Unlock()
 				fail = true
 			}
-			before, stores, roots, frontier := e.catalog.State, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots), e.visibility.CommitSeq()
+			before, stores, roots, frontier := e.Catalog.State, maps.Clone(e.Storage.Relations), maps.Clone(e.Storage.IndexRoots), e.Visibility.CommitSeq()
 			var err error
 			if kind == "cancel_before" || kind == "cancel_after" {
 				barrier := &batchPublicationContext{Context: message.op.Ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
@@ -155,14 +155,14 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				err = message.end(nil)
 			}
 			if fail {
-				if err == nil || e.catalog.State != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) || e.visibility.CommitSeq() != frontier {
+				if err == nil || e.Catalog.State != before || !maps.Equal(e.Storage.Relations, stores) || !maps.Equal(e.Storage.IndexRoots, roots) || e.Visibility.CommitSeq() != frontier {
 					t.Fatal("message veto installed partial roots", err)
 				}
 				if kind == "cancel_before" && !errors.Is(err, context.Canceled) {
 					t.Fatal("cancellation primary", err)
 				}
 			} else {
-				if err != nil || e.catalog.State == before {
+				if err != nil || e.Catalog.State == before {
 					t.Fatal("message failed to publish", err)
 				}
 				current := domainUnitType(t, e.CatalogRead(), "d")
@@ -173,11 +173,11 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				} else if len(current.DomainChecks) != 1 || current.DomainChecks[0].NotValid {
 					t.Fatal("message lost certified flag")
 				}
-				if len(e.storage.Relations[table.Address].Versions) != 2 {
+				if len(e.Storage.Relations[table.Address].Versions) != 2 {
 					t.Fatal("message did not publish old plus own rows")
 				}
 			}
-			if e.storage.Sequences[sequence.Address].Last != expectedTruth {
+			if e.Storage.Sequences[sequence.Address].Last != expectedTruth {
 				t.Fatal("outer publication replayed selected truth")
 			}
 		})
@@ -237,7 +237,7 @@ func domainAlterOwnedIndexOutputs(t *testing.T, explicit bool) {
 			parent := catalogRef(t, e, e.CatalogRead(), "stored").Address
 			idx := catalogRef(t, e, e.CatalogRead(), "checked_idx").Address
 			sequence := catalogRef(t, e, e.CatalogRead(), "calls").Address
-			oldIndex := e.catalog.State.MustRelation(idx)
+			oldIndex := e.Catalog.State.MustRelation(idx)
 			original := s.Transactions.Writes[parent][0]
 			output, ok := original.IndexOutputs[idx]
 			// Only actual executable conversions need frozen producer outputs;
@@ -246,11 +246,11 @@ func domainAlterOwnedIndexOutputs(t *testing.T, explicit bool) {
 			if executable && (!ok || !output.Member || !index.OutputMatches(output, oldIndex)) {
 				t.Fatal("SQL producer lost executable key/predicate output")
 			}
-			if e.storage.Sequences[sequence].Last != 2 {
+			if e.Storage.Sequences[sequence].Last != 2 {
 				t.Fatal("setup CHECK event count")
 			}
 			step("ALTER DOMAIN public.d ADD CONSTRAINT never_replay CHECK(FALSE) NOT VALID")
-			view := e.privateCatalogLocked(s.Transactions.Catalog)
+			view := e.PrivateCatalogLocked(s.Transactions.Catalog)
 			currentIndex := view.MustRelation(idx)
 			pending := s.Transactions.Writes[parent]
 			if len(pending) != 1 || pending[0].Row != original.Row || pending[0].Version != original.Version {
@@ -265,15 +265,15 @@ func domainAlterOwnedIndexOutputs(t *testing.T, explicit bool) {
 					t.Fatal("retained producer output mutated")
 				}
 			}
-			if e.storage.Sequences[sequence].Last != 2 {
+			if e.Storage.Sequences[sequence].Last != 2 {
 				t.Fatal("metadata truth replay")
 			}
 			finish()
-			if e.storage.Sequences[sequence].Last != 2 {
+			if e.Storage.Sequences[sequence].Last != 2 {
 				t.Fatal("owner publication replayed CHECK truth")
 			}
 			transactionRows(t, s, "SELECT v::integer AS v FROM public.stored ORDER BY v", 1, 2)
-			root := e.storage.IndexRoots[idx]
+			root := e.Storage.IndexRoots[idx]
 			entries := len(root.Entries)
 			if root.Hash != nil {
 				entries = 0

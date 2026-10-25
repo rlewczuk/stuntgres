@@ -22,162 +22,162 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// bindingHost is the root adapter behind analyze.Host. Binders also run
+// BindingHost is the root adapter behind analyze.Host. Binders also run
 // without a StatementScope (DDL, defaults, checks, index expressions,
 // generated columns, Restore), so it holds the engine and the operation
 // rather than a scope. A nil op means no definition reader, no notices, no
 // plan owner and no Restore replay, as before the seam.
-type bindingHost struct {
-	engine *Engine
-	op     *session.Operation
+type BindingHost struct {
+	Engine *Engine
+	Op     *session.Operation
 }
 
-var _ analyze.Host = (*bindingHost)(nil)
+var _ analyze.Host = (*BindingHost)(nil)
 
-func (*bindingHost) AnalysisSlot() {}
+func (*BindingHost) AnalysisSlot() {}
 
-// analysisHost returns the binding host for op. A session operation carries
+// AnalysisHost returns the binding host for op. A session operation carries
 // its own host, allocated with it (sessionHost.NewOperation), and the engine one for
 // binding without an operation (bootstrap), so binding allocates no host;
 // copied operations get a fresh host.
-func (e *Engine) analysisHost(op *session.Operation) *bindingHost {
+func (e *Engine) AnalysisHost(op *session.Operation) *BindingHost {
 	if op != nil {
-		if h, _ := op.Analysis.(*bindingHost); h != nil && h.op == op && h.engine == e {
+		if h, _ := op.Analysis.(*BindingHost); h != nil && h.Op == op && h.Engine == e {
 			return h
 		}
 	}
-	if op == nil && e.analysis.engine == e {
-		return &e.analysis
+	if op == nil && e.Analysis.Engine == e {
+		return &e.Analysis
 	}
-	return &bindingHost{engine: e, op: op}
+	return &BindingHost{Engine: e, Op: op}
 }
 
 // MapBoundExpression rewrites node with leaf through the retag walker,
 // keeping every type and query node; it reads only its arguments.
-func (h *bindingHost) MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
+func (h *BindingHost) MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
 	next, _, err := stored.MapExpressionReader(view, reader, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) { return root, nil }, nil, substituteSources, leaf)
 	return next, err
 }
 
 // MapBoundQueryExpression rewrites node through the retag walker with
 // identity types, mapping subquery roots with queryMapper.
-func (h *bindingHost) MapBoundQueryExpression(view catalog.Read, node expr.Expr, queryMapper func(plan.Node) (plan.Node, error), leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
+func (h *BindingHost) MapBoundQueryExpression(view catalog.Read, node expr.Expr, queryMapper func(plan.Node) (plan.Node, error), leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
 	return stored.MapExpression(view, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, queryMapper, nil, leaf)
 }
 
 // ValidateViewReadGraph checks the stored views leaves read against view.
-func (h *bindingHost) ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error {
+func (h *BindingHost) ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error {
 	_, err := stored.ValidateViewReadGraph(view, leaves)
 	return err
 }
 
-func (h *bindingHost) CheckPrivilege(auth analyze.Authority, req access.Requirement) error {
+func (h *BindingHost) CheckPrivilege(auth analyze.Authority, req access.Requirement) error {
 	return h.view(auth).Check(req)
 }
 
-func (h *bindingHost) CanUse(auth analyze.Authority, ref ids.ObjectRef) error {
+func (h *BindingHost) CanUse(auth analyze.Authority, ref ids.ObjectRef) error {
 	return h.view(auth).CanUse(ref)
 }
 
-func (h *bindingHost) StagedTemporary(auth analyze.Authority) ids.ObjectAddress {
+func (h *BindingHost) StagedTemporary(auth analyze.Authority) ids.ObjectAddress {
 	base, _ := authorityBase(auth)
-	return base.stagedTemporary
+	return base.StagedTemporary
 }
 
-func (h *bindingHost) Roles(auth analyze.Authority) authorization.Read {
+func (h *BindingHost) Roles(auth analyze.Authority) authorization.Read {
 	base, _ := authorityBase(auth)
 	return base.Roles
 }
 
 // DefinitionStamp is the provider stamp of d as auth's session sees it.
-func (h *bindingHost) DefinitionStamp(auth analyze.Authority, d catalog.Descriptor) ids.DefinitionRevision {
+func (h *BindingHost) DefinitionStamp(auth analyze.Authority, d catalog.Descriptor) ids.DefinitionRevision {
 	base, _ := authorityBase(auth)
-	return preparedDefinitionStamp(d, base.session)
+	return PreparedDefinitionStamp(d, base.Session)
 }
 
-func (h *bindingHost) AuthorizationStorage(auth analyze.Authority, address ids.ObjectAddress) *storage.Relation {
+func (h *BindingHost) AuthorizationStorage(auth analyze.Authority, address ids.ObjectAddress) *storage.Relation {
 	return h.view(auth).StorageLocked(address)
 }
 
-func (h *bindingHost) AdmittedReference(auth analyze.Authority, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error) {
-	return h.engine.admittedReference(h.view(auth), name, ref)
+func (h *BindingHost) AdmittedReference(auth analyze.Authority, name parser.ObjectName, ref ids.ObjectRef) (ids.ObjectRef, error) {
+	return h.Engine.admittedReference(h.view(auth), name, ref)
 }
 
-func (h *bindingHost) ResolveReference(auth analyze.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
-	return h.engine.resolveReference(h.view(auth), name)
+func (h *BindingHost) ResolveReference(auth analyze.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
+	return h.Engine.ResolveReference(h.view(auth), name)
 }
 
-func (h *bindingHost) CatalogOwner() *catalog.Owner { return &h.engine.catalog.Owner }
+func (h *BindingHost) CatalogOwner() *catalog.Owner { return &h.Engine.Catalog.Owner }
 
-func (h *bindingHost) CurrentCatalog() catalog.Read {
-	return h.engine.catalog.Current()
+func (h *BindingHost) CurrentCatalog() catalog.Read {
+	return h.Engine.Catalog.Current()
 }
 
-func (h *bindingHost) LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
-	return h.engine.lookupNamespaces(h.view(auth), name, kind)
+func (h *BindingHost) LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
+	return h.Engine.lookupNamespaces(h.view(auth), name, kind)
 }
 
-func (h *bindingHost) LookupNamespacesSnapshot(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
-	return lookupNamespacesSnapshot(h.view(auth), name, kind)
+func (h *BindingHost) LookupNamespacesSnapshot(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
+	return LookupNamespacesSnapshot(h.view(auth), name, kind)
 }
 
-func (h *bindingHost) LookupPath(auth analyze.Authority, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
-	return lookupPath(h.view(auth), kind)
+func (h *BindingHost) LookupPath(auth analyze.Authority, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
+	return LookupPath(h.view(auth), kind)
 }
 
-func (h *bindingHost) ReferencePath(auth analyze.Authority) ([]ids.ObjectAddress, error) {
-	return referencePath(h.view(auth))
+func (h *BindingHost) ReferencePath(auth analyze.Authority) ([]ids.ObjectAddress, error) {
+	return ReferencePath(h.view(auth))
 }
 
-func (h *bindingHost) Regclass(auth analyze.Authority, text string) (ids.ObjectRef, error) {
-	return h.engine.regclassLocked(h.view(auth), text)
+func (h *BindingHost) Regclass(auth analyze.Authority, text string) (ids.ObjectRef, error) {
+	return h.Engine.regclassLocked(h.view(auth), text)
 }
 
-func (h *bindingHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
-	return h.engine.lookupCollation(raw, h.op)
+func (h *BindingHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
+	return h.Engine.lookupCollation(raw, h.Op)
 }
 
-func (h *bindingHost) LookupIndexClass(auth analyze.Authority, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
-	return h.engine.lookupIndexClass(h.view(auth), raw, method)
+func (h *BindingHost) LookupIndexClass(auth analyze.Authority, raw parser.ObjectName, method catalog.IndexMethod) (sqltype.IndexClass, error) {
+	return h.Engine.lookupIndexClass(h.view(auth), raw, method)
 }
 
-func (h *bindingHost) NamedType(auth analyze.Authority, name parser.ObjectName) (*catalog.Type, error) {
-	return h.engine.namedType(h.view(auth), name)
+func (h *BindingHost) NamedType(auth analyze.Authority, name parser.ObjectName) (*catalog.Type, error) {
+	return h.Engine.namedType(h.view(auth), name)
 }
 
-func (h *bindingHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
-	return h.engine.resolveType(raw, h.op)
+func (h *BindingHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
+	return h.Engine.resolveType(raw, h.Op)
 }
 
-func (h *bindingHost) ResolveAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error) {
-	return h.engine.resolveAnnotationType(raw, h.op, unknownNull)
+func (h *BindingHost) ResolveAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error) {
+	return h.Engine.resolveAnnotationType(raw, h.Op, unknownNull)
 }
 
-func (h *bindingHost) ResolveStringAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error) {
-	return h.engine.resolveStringAnnotationType(raw, h.op, unknownNull)
+func (h *BindingHost) ResolveStringAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error) {
+	return h.Engine.resolveStringAnnotationType(raw, h.Op, unknownNull)
 }
 
-func (h *bindingHost) ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
-	return h.engine.resolveAnnotationTypeInput(raw, h.op, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput)
+func (h *BindingHost) ResolveAnnotationTypeInput(raw parser.TypeName, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
+	return h.Engine.resolveAnnotationTypeInput(raw, h.Op, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput)
 }
 
-func (h *bindingHost) ResolveTableColumnType(raw parser.TypeName) (sqltype.Usage, error) {
-	return h.engine.resolveTableColumnType(raw, h.op)
+func (h *BindingHost) ResolveTableColumnType(raw parser.TypeName) (sqltype.Usage, error) {
+	return h.Engine.resolveTableColumnType(raw, h.Op)
 }
 
-func (h *bindingHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
-	return h.engine.resolveColumnCollation(u, raw, h.op)
+func (h *BindingHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
+	return h.Engine.resolveColumnCollation(u, raw, h.Op)
 }
 
-func (h *bindingHost) CaptureElementInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
-	return h.engine.captureElementInput(h.view(auth), h.op, input)
+func (h *BindingHost) CaptureElementInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
+	return h.Engine.CaptureElementInput(h.view(auth), h.Op, input)
 }
 
-func (h *bindingHost) CaptureRegTSInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
+func (h *BindingHost) CaptureRegTSInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
 	if input.RegTS != nil {
 		return nil
 	}
-	resolver, err := captureRegTSInput(h.view(auth))
+	resolver, err := CaptureRegTSInput(h.view(auth))
 	if err == nil {
 		input.RegTS = resolver
 	}
@@ -188,8 +188,8 @@ func (h *bindingHost) CaptureRegTSInput(auth analyze.Authority, input *sqltype.I
 // under a fresh capture and returns the namespaces it qualified and the
 // providers it resolved. Capture errors come back as they are; resolution
 // errors carry the literal's position.
-func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Authority, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error) {
-	input, err := captureOperatorInput(h.view(auth), h.op)
+func (h *BindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Authority, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error) {
+	input, err := captureOperatorInput(h.view(auth), h.Op)
 	if err != nil {
 		return 0, nil, nil, err
 	}
@@ -211,8 +211,8 @@ func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth analyze.Auth
 // ResolveRegtypeText resolves one uncaptured regtype literal under a fresh
 // capture and returns the namespaces it qualified. Capture errors come back as
 // they are; resolution errors carry the literal's position.
-func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth analyze.Authority, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error) {
-	input, err := captureRegtypeInput(h.view(auth), h.op)
+func (h *BindingHost) ResolveRegtypeText(ctx context.Context, auth analyze.Authority, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error) {
+	input, err := CaptureRegtypeInput(h.view(auth), h.Op)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -224,67 +224,67 @@ func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth analyze.Autho
 	return id, qualified, nil
 }
 
-func (h *bindingHost) CaptureTypeDiagnosticInput(auth analyze.Authority, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
-	return h.engine.captureTypeDiagnosticInput(h.view(auth), h.op, input, typ)
+func (h *BindingHost) CaptureTypeDiagnosticInput(auth analyze.Authority, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
+	return h.Engine.CaptureTypeDiagnosticInput(h.view(auth), h.Op, input, typ)
 }
 
-func (h *bindingHost) CaptureTypeDiagnosticName(auth analyze.Authority) (func(sqltype.ID) string, error) {
-	return captureTypeDiagnosticName(h.view(auth))
+func (h *BindingHost) CaptureTypeDiagnosticName(auth analyze.Authority) (func(sqltype.ID) string, error) {
+	return CaptureTypeDiagnosticName(h.view(auth))
 }
 
-func (h *bindingHost) CaptureEnumOperationInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
+func (h *BindingHost) CaptureEnumOperationInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
 	return captureEnumOperationInput(h.view(auth), input)
 }
 
-func (h *bindingHost) CaptureEnumOperationSafety(input *sqltype.InputEnvironment) {
-	captureEnumOperationSafety(h.op, input)
+func (h *BindingHost) CaptureEnumOperationSafety(input *sqltype.InputEnvironment) {
+	CaptureEnumOperationSafety(h.Op, input)
 }
 
-func (h *bindingHost) FTSInput() sqltype.FTSInputNotices { return session.FTSInput{Op: h.op} }
+func (h *BindingHost) FTSInput() sqltype.FTSInputNotices { return session.FTSInput{Op: h.Op} }
 
-func (h *bindingHost) StoredViewVolatile(auth analyze.Authority, root plan.Node) (bool, error) {
+func (h *BindingHost) StoredViewVolatile(auth analyze.Authority, root plan.Node) (bool, error) {
 	return stored.ViewVolatile(auth.ReadCatalog(), root)
 }
 
-func (h *bindingHost) CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element, parserInput func() error, diagnostic func(*sqltype.Descriptor) error) error {
+func (h *BindingHost) CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element, parserInput func() error, diagnostic func(*sqltype.Descriptor) error) error {
 	return stored.CaptureRetainedInput(auth.ReadCatalog(), stored.ViewOf(relation), element, parserInput, diagnostic)
 }
 
-func (h *bindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {
-	if h.op == nil {
+func (h *BindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {
+	if h.Op == nil {
 		return ids.SessionToken{}, 0, false
 	}
-	return h.op.Session.SessionToken, h.op.Session.DiscardPlansGeneration, true
+	return h.Op.Session.SessionToken, h.Op.Session.DiscardPlansGeneration, true
 }
 
-func (h *bindingHost) EmitWarning(diagnostic sqlstate.Error) {
-	if h.op != nil {
-		h.op.EmitNotice(session.LevelWarning, diagnostic)
+func (h *BindingHost) EmitWarning(diagnostic sqlstate.Error) {
+	if h.Op != nil {
+		h.Op.EmitNotice(session.LevelWarning, diagnostic)
 	}
 }
 
-func (h *bindingHost) EmitNotice(diagnostic sqlstate.Error) {
-	if h.op != nil {
-		h.op.EmitNotice(session.LevelNotice, diagnostic)
+func (h *BindingHost) EmitNotice(diagnostic sqlstate.Error) {
+	if h.Op != nil {
+		h.Op.EmitNotice(session.LevelNotice, diagnostic)
 	}
 }
 
-func (h *bindingHost) ReplayInsertAuthority() bool {
-	return h.op != nil && operationReplayOrZero(h.op).insertAuthority
+func (h *BindingHost) ReplayInsertAuthority() bool {
+	return h.Op != nil && OperationReplayOrZero(h.Op).InsertAuthority
 }
 
-func (h *bindingHost) ReplayConstructorCall(raw parser.FunctionExpr) bool {
+func (h *BindingHost) ReplayConstructorCall(raw parser.FunctionExpr) bool {
 	return h.ReplayInsertAuthority() && !dump.RestoreFunctionRecipe(raw) && catalog.RestoreRangeConstructorEligible(h.CurrentCatalog(), raw)
 }
 
-func (h *bindingHost) ReplayDomainCell(b *analyze.Binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
-	return capturedDomainReplayCell(b, h.op, s, row, column)
+func (h *BindingHost) ReplayDomainCell(b *analyze.Binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
+	return capturedDomainReplayCell(b, h.Op, s, row, column)
 }
 
 // DecodeDomainLiteral decodes a domain-constrained literal through the
 // statement scope's locked domain input. auth is the binder's stored
 // authority, or nil for the operation's current authority.
-func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Authority, read catalog.Read, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
+func (h *BindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Authority, read catalog.Read, typ *sqltype.Descriptor, text string, typmod int32, input sqltype.InputEnvironment) (sqltype.Value, error) {
 	owner, ok := input.LockedDomainInput.(*StatementScope)
 	if !ok {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing locked domain literal input boundary")
@@ -294,36 +294,36 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Auth
 		authority = h.view(auth)
 	} else {
 		var err error
-		authority, err = h.engine.authorizationLocked(h.op)
+		authority, err = h.Engine.AuthorizationLocked(h.Op)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 	}
-	if owner.routineAuth.live() && owner.foreignActionAuth == nil {
-		authority.State.CurrentUser = owner.routineAuth.State.CurrentUser
+	if owner.RoutineAuth.live() && owner.ForeignActionAuth == nil {
+		authority.State.CurrentUser = owner.RoutineAuth.State.CurrentUser
 		if err := authority.Roles.ValidatePrincipal(authority.State.CurrentUser); err != nil {
 			return sqltype.Value{}, err
 		}
-	} else if !owner.routineAuth.live() {
-		owner.routineAuth = authority
+	} else if !owner.RoutineAuth.live() {
+		owner.RoutineAuth = authority
 	}
-	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(owner), Catalog: read, Input: input, Output: owner.output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(owner), Catalog: read, Input: input, Output: owner.Output}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &authority}}
 	input.DomainChecks = &eval
 	return owner.DecodeLockedDomainInput(ctx, typ, text, typmod, input)
 }
 
 // IndexExpressionBinder builds a nested binder over an index's parent
 // relation under the operation's current context.
-func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth analyze.Authority, parent *catalog.Relation) *analyze.Binder {
-	return h.engine.indexExpressionBinder(h.op, input, h.view(auth), parent)
+func (h *BindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth analyze.Authority, parent *catalog.Relation) *analyze.Binder {
+	return h.Engine.indexExpressionBinder(h.Op, input, h.view(auth), parent)
 }
 
-func (h *bindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	return view.BindViewWrite(&h.engine.catalog.Owner, h.view(auth).Catalog, b, stmt, consumed...)
+func (h *BindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
+	return view.BindViewWrite(&h.Engine.Catalog.Owner, h.view(auth).Catalog, b, stmt, consumed...)
 }
 
-// newExpressionBinder is the root construction point: it binds through the
+// NewExpressionBinder is the root construction point: it binds through the
 // engine's host for op.
-func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *session.Operation, expected *StatementDescription) *analyze.Binder {
-	return analyze.NewBinder(ctx, e.analysisHost(op), input, expectedOf(expected))
+func NewExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *session.Operation, expected *StatementDescription) *analyze.Binder {
+	return analyze.NewBinder(ctx, e.AnalysisHost(op), input, expectedOf(expected))
 }

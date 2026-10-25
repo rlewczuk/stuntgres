@@ -23,21 +23,21 @@ import (
 func domainValueUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) (*CatalogStage, typedef.DomainEdit) {
 	t.Helper()
 	raw := statement(t, q).(*parser.AlterDomain)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, _, err := typedef.ResolveAlterDomainLocked(ddlHost{e: e, op: op}, auth, raw.Name)
+	d, _, err := typedef.ResolveAlterDomainLocked(DDLHost{E: e, Op: op}, auth, raw.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	stage.domainAlterState().Ctx = op.Context()
-	stage.domainBases = append(stage.domainBases, d)
-	edit, err := typedef.StageAlterDomainLocked(ddlHost{e: e, op: op, stage: stage}, auth, d, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	stage.AuthorizeLocked(auth, op.Session)
+	stage.DomainAlterState().Ctx = op.Context()
+	stage.DomainBases = append(stage.DomainBases, d)
+	edit, err := typedef.StageAlterDomainLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, d, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		t.Fatal(err)
@@ -159,13 +159,13 @@ func TestDomainAlterNotNullMetadataInternal(t *testing.T) {
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.only_nn AS integer NOT NULL"))
 	nn := domainUnitType(t, e.CatalogRead(), "only_nn")
-	candidate := catalog.CloneState(e.catalog.State)
+	candidate := catalog.CloneState(e.Catalog.State)
 	collision := *nn
 	record = *nn.DomainNotNull
 	record.OID = d.DomainNotNull.OID
 	collision.DomainNotNull = &record
 	candidate.SetDescriptor(nn.Address(), &collision)
-	view := e.catalog.Read(candidate)
+	view := e.Catalog.Read(candidate)
 	if err := catalog.ValidateDefinitionOIDs(view); err == nil {
 		t.Fatal("definition collision accepted")
 	}
@@ -218,7 +218,7 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 					if edit.Validation != typedef.DomainValidateNulls {
 						t.Fatal("missing NULL-only validation")
 					}
-					s.domainAlterState().Validation = domainAlterUnitFence(t, e, e.CatalogRead(), old.Address())
+					s.DomainAlterState().Validation = domainAlterUnitFence(t, e, e.CatalogRead(), old.Address())
 				} else if edit.Validation != typedef.DomainValidateNone {
 					t.Fatal("unexpected historical validation")
 				}
@@ -232,33 +232,33 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 				case "late_use":
 					domainUnitTable(t, e, op, "CREATE TABLE public.late(v public.d)")
 				case "stale_domain", "owner":
-					state := catalog.CloneState(e.catalog.State)
+					state := catalog.CloneState(e.Catalog.State)
 					copy := *old
 					copy.ObjectRevision++
 					if kind == "owner" {
 						aclUnitRoles(e, "domain_nn_owner")
-						copy.Owner = e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("domain_nn_owner")
+						copy.Owner = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("domain_nn_owner")
 					}
 					state.SetDescriptor(old.Address(), &copy)
-					e.catalog.PublishLocked(state)
+					e.Catalog.PublishLocked(state)
 				case "provider":
 					address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int4)}
-					s.domainBases = append(s.domainBases, e.catalog.State.Get(address))
-					state := catalog.CloneState(e.catalog.State)
+					s.DomainBases = append(s.DomainBases, e.Catalog.State.Get(address))
+					state := catalog.CloneState(e.Catalog.State)
 					copy := *state.MustType(address)
 					copy.ObjectRevision++
 					state.SetDescriptor(address, &copy)
-					e.catalog.PublishLocked(state)
+					e.Catalog.PublishLocked(state)
 				case "epoch":
-					state := catalog.CloneState(e.catalog.State)
+					state := catalog.CloneState(e.Catalog.State)
 					state.SetEpoch(state.Epoch() + 1)
-					e.catalog.PublishLocked(state)
+					e.Catalog.PublishLocked(state)
 				case "cancel":
 					ctx, cancel := context.WithCancel(context.Background())
 					cancel()
 					prepared.ctx = ctx
 				case "root", "length", "generation", "ends":
-					copy := *e.storage.Relations[table.Address()]
+					copy := *e.Storage.Relations[table.Address()]
 					switch kind {
 					case "length":
 						copy.Versions = append(slices.Clone(copy.Versions), storage.RowVersion{Row: 1, Version: 1})
@@ -267,20 +267,20 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 					case "ends":
 						copy.Ends = &storage.DeletionRoot{}
 					}
-					e.mu.Lock()
-					e.storage.InstallRelationLocked(table.Address(), &copy)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					e.Storage.InstallRelationLocked(table.Address(), &copy)
+					e.Mu.Unlock()
 				}
-				before := e.catalog.State
-				stores := maps.Clone(e.storage.Relations)
-				roots := maps.Clone(e.storage.IndexRoots)
+				before := e.Catalog.State
+				stores := maps.Clone(e.Storage.Relations)
+				roots := maps.Clone(e.Storage.IndexRoots)
 				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: s.Base.Epoch()})
 				if kind == "success" || kind == "unrelated" {
 					if err != nil || domainUnitType(t, e.CatalogRead(), "d") == old {
 						t.Fatal("action not published", err)
 					}
 				} else {
-					if err == nil || e.catalog.State != before || !maps.Equal(stores, e.storage.Relations) || !maps.Equal(roots, e.storage.IndexRoots) {
+					if err == nil || e.Catalog.State != before || !maps.Equal(stores, e.Storage.Relations) || !maps.Equal(roots, e.Storage.IndexRoots) {
 						t.Fatal("veto partially published", err)
 					}
 					if kind == "cancel" && !errors.Is(err, context.Canceled) {
@@ -298,16 +298,16 @@ func TestDomainAlterDefaultReplayInternal(t *testing.T) {
 	defer done()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.p AS integer DEFAULT 7"))
 	raw := statement(t, "CREATE DOMAIN public.p AS integer DEFAULT 7").(*parser.CreateDomain)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	d := domainUnitType(t, auth.Catalog, "p")
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := ddlHost{e: e, op: op, stage: stage}
+	h := DDLHost{E: e, Op: op, CatalogStage: stage}
 	record := typedef.DomainDefaultSnapshot{Schema: "public", Domain: "p", Own: true, Usage: &typedef.DomainDefaultUsage{Type: []string{"pg_catalog", "int4"}, Typmod: -1}}
 	u, err := typedef.SnapshotUsage(h, auth, record)
 	if err != nil || u != d.SQLType.DomainBase() {
@@ -323,11 +323,11 @@ func TestDomainAlterDefaultReplayInternal(t *testing.T) {
 		t.Fatal("unresolved identity accepted")
 	}
 	record.Usage.Type = []string{"pg_catalog", "int4"}
-	operationReplay(op).domainDefault = &domainDefaultReplayCapture{Statement: raw, Record: record}
-	defer func() { operationReplay(op).domainDefault = nil }()
+	OperationReplay(op).DomainDefault = &DomainDefaultReplayCapture{Statement: raw, Record: record}
+	defer func() { OperationReplay(op).DomainDefault = nil }()
 	copy := *d
 	handled, err := h.bindRestoredDomainDefault(auth, &copy, raw.Constraints[0].Default, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	if !handled || err == nil || copy.DomainDefault != d.DomainDefault || e.catalog.State != auth.Catalog.State() {
+	if !handled || err == nil || copy.DomainDefault != d.DomainDefault || e.Catalog.State != auth.Catalog.State() {
 		t.Fatal("ordinary engine gained snapshot import authority", handled, err)
 	}
 }

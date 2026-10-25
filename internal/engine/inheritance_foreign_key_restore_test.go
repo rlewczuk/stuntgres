@@ -102,12 +102,12 @@ func inheritedForeignKeyImportFixture(t *testing.T) (*Engine, *session.Operation
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE fk_receipt_owner")
-	e := source.restoreStage()
+	e := source.RestoreStage()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	created := make(map[ids.ObjectAddress]ids.ObjectRef)
 	for _, sql := range []string{"CREATE TABLE public.p(a INT)", "CREATE TABLE public.c(k INT UNIQUE) INHERITS(public.p)", "CREATE TABLE public.other(k INT UNIQUE)"} {
-		ref := roleExecute(t, e, op, sql).created
+		ref := roleExecute(t, e, op, sql).Created
 		if ref == (ids.ObjectRef{}) {
 			t.Fatal("fixture did not capture a genuine creation")
 		}
@@ -127,11 +127,11 @@ func TestRestoreInheritedForeignKeyBoundary(t *testing.T) {
 	} {
 		t.Run(trial, func(t *testing.T) {
 			e, op, created := inheritedForeignKeyImportFixture(t)
-			before := e.catalog.State
+			before := e.Catalog.State
 			raw := statement(t, trial).(*parser.AlterTable)
 			_, admitted, err := e.captureInheritedForeignKey(op, raw, created)
 			state(t, err, "0A000")
-			if admitted || e.catalog.State != before {
+			if admitted || e.Catalog.State != before {
 				t.Fatal("unpaired public/general valid FK import gained authority", admitted, err)
 			}
 		})
@@ -142,10 +142,10 @@ func TestRestoreInheritedForeignKeyBoundary(t *testing.T) {
 		e, op, created := inheritedForeignKeyImportFixture(t)
 		raw := statement(t, canonical).(*parser.AlterTable)
 		raw.IfExists = true
-		before := e.catalog.State
+		before := e.Catalog.State
 		_, admitted, err := e.captureInheritedForeignKey(op, raw, created)
 		state(t, err, "0A000")
-		if admitted || e.catalog.State != before {
+		if admitted || e.Catalog.State != before {
 			t.Fatal("IF EXISTS gained import authority", admitted, err)
 		}
 	})
@@ -184,8 +184,8 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 				t.Fatal("genuine source/target/provider preparation rejected", admitted, err)
 			}
 			roleExecute(t, e, op, mutation)
-			before := e.catalog.State
-			if err := e.bindRestoredForeignKeys(context.Background(), op, []table.RestoredForeignKeys{pending}); !errors.Is(err, ids.ErrCatalogReplaced) || e.catalog.State != before {
+			before := e.Catalog.State
+			if err := e.bindRestoredForeignKeys(context.Background(), op, []table.RestoredForeignKeys{pending}); !errors.Is(err, ids.ErrCatalogReplaced) || e.Catalog.State != before {
 				t.Fatal("stale source/key/provider receipt rebound or published", err)
 			}
 		})
@@ -199,8 +199,8 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		before := e.catalog.State
-		if err := e.bindRestoredForeignKeys(ctx, op, []table.RestoredForeignKeys{pending}); !errors.Is(err, context.Canceled) || e.catalog.State != before {
+		before := e.Catalog.State
+		if err := e.bindRestoredForeignKeys(ctx, op, []table.RestoredForeignKeys{pending}); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
 			t.Fatal("canceled post-data validation published staged metadata", err)
 		}
 	})
@@ -211,9 +211,9 @@ func TestRestoreInheritedForeignKeyAtomicity(t *testing.T) {
 	ownershipUnitExec(t, e, "CREATE ROLE fk_receipt_owner")
 	run(t, e, "CREATE TABLE sentinel(a INT)")
 	run(t, e, "INSERT INTO sentinel VALUES(91)")
-	before, oid, revision := e.catalog.State, e.catalog.NextOID(), e.catalog.NextRevision()
+	before, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
 	sentinel := roleTableRef(t, e, "sentinel")
-	storage := e.storage.Relations[sentinel.Address]
+	storage := e.Storage.Relations[sentinel.Address]
 	const declarations = "CREATE TABLE public.support(k INT UNIQUE);CREATE TABLE public.p(a INT,CONSTRAINT ordinary_fk FOREIGN KEY(a) REFERENCES public.support(k));CREATE TABLE public.c(k INT UNIQUE) INHERITS(public.p);INSERT INTO public.support VALUES(2);INSERT INTO public.p VALUES(2);INSERT INTO public.c(a,k) VALUES(NULL,1);"
 	const foreign = "ALTER TABLE ONLY public.p ADD CONSTRAINT forward_fk FOREIGN KEY(a) REFERENCES public.c(k);"
 	err := e.Restore(context.Background(), strings.NewReader(declarations+foreign))
@@ -234,7 +234,7 @@ func TestRestoreInheritedForeignKeyAtomicity(t *testing.T) {
 	if err := e.Restore(ctx, strings.NewReader(declarations+foreign)); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.catalog.State != before || e.catalog.NextOID() != oid || e.catalog.NextRevision() != revision || e.storage.Relations[sentinel.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT a FROM sentinel")), [][]driver.Value{{int64(91)}}) {
+	if e.Catalog.State != before || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Storage.Relations[sentinel.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT a FROM sentinel")), [][]driver.Value{{int64(91)}}) {
 		t.Fatal("failed/canceled isolated FK replay changed the published target")
 	}
 }

@@ -72,7 +72,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if err != nil || rebound.ResultUsage() != node.ResultUsage() || rebound.Properties().Volatility != expr.Volatile {
 					t.Fatal("deparse rebinding", rebound, err)
 				}
-				lockState := e.locks.Inspect()
+				lockState := e.Locks.Inspect()
 				effects := len(lockState.Resources)
 				if effects != 0 {
 					t.Fatal("binding/deparse acquired a hold", effects)
@@ -266,7 +266,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		rawStatement := statement(t, "SELECT pg_advisory_lock(42)")
-		if err = scope.gate(rawStatement); err != nil {
+		if err = scope.Gate(rawStatement); err != nil {
 			_ = scope.Finish(err)
 			op.Done()
 			t.Fatal(err)
@@ -278,13 +278,13 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		v, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: hostOf(scope)}})
+		v, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope)}})
 		finish := scope.Finish(err)
 		op.Done()
-		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Database: e.catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {
+		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {
 			t.Fatal("actual VOID grant", v, err, finish)
 		}
-		if err = e.locks.UnlockAdvisoryAll(s.Advisory.Ticket); err != nil {
+		if err = e.Locks.UnlockAdvisoryAll(s.Advisory.Ticket); err != nil {
 			t.Fatal(err)
 		}
 	})

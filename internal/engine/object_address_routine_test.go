@@ -61,7 +61,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					found = true
-					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
+					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.Catalog.Domain {
 						t.Fatal("original canonical dependency", dependency)
 					}
 				}
@@ -104,7 +104,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			probe := evaluation
-			foreignAuth := *routineAuthorityView(&foreign)
+			foreignAuth := *RoutineAuthorityView(&foreign)
 			probe.RoutineAuthority = &foreignAuth
 			if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("foreign original descriptor admitted")
@@ -124,7 +124,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			}
 			// A catalog-local replacement with an incompatible declaration is
 			// not rescued by an equal numeric address either.
-			changed := *routineAuthorityView(&evaluation)
+			changed := *RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
@@ -165,11 +165,11 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				text = "SELECT f.* FROM strict_null_rows,LATERAL " + tc.expression + " WITH ORDINALITY AS f"
 			}
 			raw := statement(t, text).(*parser.Select)
-			e.mu.Lock()
-			binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			binder.Query.Auth = routineAuthorityView(&evaluation)
+			e.Mu.Lock()
+			binder := NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+			binder.Query.Auth = RoutineAuthorityView(&evaluation)
 			query, err := binder.BindSelect(raw, false)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("actual source binding", err)
 			}
@@ -268,9 +268,9 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				t.Fatal("intact original manifest", err)
 			}
 			sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
-			e.mu.Lock()
-			called := e.storage.Sequences[sequence.Address].Called
-			e.mu.Unlock()
+			e.Mu.Lock()
+			called := e.Storage.Sequences[sequence.Address].Called
+			e.Mu.Unlock()
 			if called {
 				t.Fatal("planning/admission replayed volatile child")
 			}
@@ -363,11 +363,11 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			t.Fatal("pruned domain-literal sibling lost typed NULL", value, err)
 		}
 		raw := statement(t, "SELECT * FROM "+text+" WITH ORDINALITY").(*parser.Select)
-		e.mu.Lock()
-		sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-		sourceBinder.Query.Auth = routineAuthorityView(&evaluation)
+		e.Mu.Lock()
+		sourceBinder := NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+		sourceBinder.Query.Auth = RoutineAuthorityView(&evaluation)
 		query, bindErr := sourceBinder.BindSelect(raw, false)
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		if bindErr != nil {
 			t.Fatal("literal-sibling source binding", bindErr)
 		}
@@ -402,11 +402,11 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		nullCountUnitDiagnostic(t, err, want)
 		for _, suffix := range []string{"", " WHERE FALSE"} {
 			raw := statement(t, "SELECT * FROM "+text+suffix).(*parser.Select)
-			e.mu.Lock()
-			sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-			sourceBinder.Query.Auth = routineAuthorityView(&evaluation)
+			e.Mu.Lock()
+			sourceBinder := NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+			sourceBinder.Query.Auth = RoutineAuthorityView(&evaluation)
 			query, bindErr := sourceBinder.BindSelect(raw, false)
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			if bindErr != nil {
 				t.Fatal("source child-error binding", bindErr)
 			}
@@ -493,11 +493,11 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				}
 				raw := statement(t, text).(*parser.Select)
 				_, _, evaluation := strictNullUnitBind(t, e, op, scope, "1")
-				e.mu.Lock()
-				binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
-				binder.Query.Auth = routineAuthorityView(&evaluation)
+				e.Mu.Lock()
+				binder := NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+				binder.Query.Auth = RoutineAuthorityView(&evaluation)
 				query, err := binder.BindSelect(raw, false)
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal("actual source/target binding", err)
 				}
@@ -520,9 +520,9 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 					t.Fatal("pruning erased original manifest")
 				}
 				sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
-				e.mu.Lock()
-				called := e.storage.Sequences[sequence.Address].Called
-				e.mu.Unlock()
+				e.Mu.Lock()
+				called := e.Storage.Sequences[sequence.Address].Called
+				e.Mu.Unlock()
 				if called {
 					t.Fatal("source-demand proof evaluated volatile data")
 				}

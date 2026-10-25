@@ -17,7 +17,7 @@ func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update)
 	if err = op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := operationAuthorization(op)
+	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -26,26 +26,26 @@ func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update)
 		return err
 	}
 	if !actor.Superuser {
-		return sqlError("42501", "permission denied for table pg_attribute")
+		return SQLError("42501", "permission denied for table pg_attribute")
 	}
-	e.mu.Lock()
-	if e.importTargets == nil || auth.Owner != &e.catalog.Owner || auth.session != op.Session || auth.RoleRecord != e.roles.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.State || auth.Catalog.Epoch() != e.catalog.State.Epoch() {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	if e.ImportTargets == nil || auth.Owner != &e.Catalog.Owner || auth.Session != op.Session || auth.RoleRecord != e.RoleStore.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.Catalog.Domain || auth.Catalog.State() != e.Catalog.State || auth.Catalog.Epoch() != e.Catalog.State.Epoch() {
+		e.Mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
 	}
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 	if err != nil || !bootstrap.Superuser {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
 	}
-	ref, err := e.resolveRelationReference(auth, name, false)
+	ref, err := e.ResolveRelationReference(auth, name, false)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	next, err := table.AttributeRankCandidate(auth.Catalog, ref, column, rank)
 	if err != nil || next == nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		return err
 	}
 	return e.publishRestoreRepairLocked(op, auth, next, ref.Epoch)

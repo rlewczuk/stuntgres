@@ -45,7 +45,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		scope := foreignActionUnitScope(t, e, sess, "INSERT INTO relevant VALUES(1,NULL),(2,1)")
 		ref := catalogRef(t, e, e.CatalogRead(), "relevant")
 		events := scope.foreignActionsOrZero().Transitions
-		rows := scope.stage.rows[ref.Address]
+		rows := scope.Stage.Rows[ref.Address]
 		if len(events) != 2 || len(rows) != 2 {
 			t.Fatal("relevant accepted insert events missing", events, rows)
 		}
@@ -122,14 +122,14 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90002}
 		root := storage.RowVersion{Row: 1, Version: 1}
 		child := storage.RowVersion{Row: 1, Version: 2}
-		s.stage.rows = map[ids.ObjectAddress][]storage.RowVersion{a: {child}}
+		s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{a: {child}}
 		s.foreignActionsSlot = &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: root, Command: 0}, {Relation: a, Old: root, Next: child, Command: 2}}}
 		s.effectCommand = 2
 		if err := s.completeCommandEffects(false, true); err != nil {
 			t.Fatal(err)
 		}
 		events := s.foreignActionsSlot.Transitions
-		if events[0].Checked || events[0].ActionsDone || !events[1].Checked || !events[1].ActionsDone || s.stage.rows[a][0].Version != 2 {
+		if events[0].Checked || events[0].ActionsDone || !events[1].Checked || !events[1].ActionsDone || s.Stage.Rows[a][0].Version != 2 {
 			t.Fatal("command ownership was a global suffix/RowID filter", events)
 		}
 		s.effectCommand = 0
@@ -142,7 +142,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 	})
 	t.Run("failed_acceptance_has_no_event", func(t *testing.T) {
 		_, s := plExceptionUnitScope(t)
-		accepted, _, err := s.writeHost().AppendAcceptedInsert(ids.ObjectRef{}, index.WriteCandidate{})
+		accepted, _, err := s.WriteHost().AppendAcceptedInsert(ids.ObjectRef{}, index.WriteCandidate{})
 		if accepted || err == nil || len(s.foreignActionsOrZero().Transitions) != 0 {
 			t.Fatal("failed stage admission queued an effect", accepted, err)
 		}
@@ -159,7 +159,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			sessionSQL(t, sess, "CREATE TABLE auxiliary(id INT)")
 			scope := foreignActionUnitScope(t, e, sess, "INSERT INTO node VALUES(1,2)")
 			ref := catalogRef(t, e, e.CatalogRead(), "node")
-			pending := scope.stage.rows[ref.Address][0]
+			pending := scope.Stage.Rows[ref.Address][0]
 			integer := pending.Values[0].Type()
 			three, err := sqltype.Integer(integer, 3)
 			if err != nil {
@@ -172,13 +172,13 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 				values = []sqltype.Value{three}
 			}
 			child := storage.RowVersion{Row: 90002, Version: 90002, Values: values}
-			scope.stage.rows[relation] = append(scope.stage.rows[relation], child)
+			scope.Stage.Rows[relation] = append(scope.Stage.Rows[relation], child)
 			scope.foreignActions().Transitions = append(scope.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: relation, Next: child, Command: 2})
 			scope.effectCommand = 2
 			if err := scope.completeCommandEffects(false, true); err != nil {
 				t.Fatal("child checked incomplete outer producer", err)
 			}
-			if scope.foreignActionsSlot.Transitions[0].Checked || len(scope.writeHost().PrivateRows(ref.Address).Staged) < 1 {
+			if scope.foreignActionsSlot.Transitions[0].Checked || len(scope.WriteHost().PrivateRows(ref.Address).Staged) < 1 {
 				t.Fatal("child hid/consumed outer visibility or obligation")
 			}
 			scope.effectCommand = 0
@@ -202,17 +202,17 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			sessionSQL(t, sess, q)
 		}
 		scope := foreignActionUnitScope(t, e, sess, "UPDATE p SET id=2")
-		auth, err := scope.writeHost().ForeignKeyAuthority()
+		auth, err := scope.WriteHost().ForeignKeyAuthority()
 		if err != nil {
 			t.Fatal(err)
 		}
-		previous := scope.writeHost().SwapForeignActionAuthority(auth)
-		defer scope.writeHost().SwapForeignActionAuthority(previous)
+		previous := scope.WriteHost().SwapForeignActionAuthority(auth)
+		defer scope.WriteHost().SwapForeignActionAuthority(previous)
 		scope.foreignActionsSlot.Settling = true
 		if err := scope.completeCommandEffects(false, false); err != nil {
 			t.Fatal(err)
 		}
-		if !scope.foreignActionsSlot.Settling || scope.foreignActionAuth != foreignAuthorizationOf(auth) {
+		if !scope.foreignActionsSlot.Settling || scope.ForeignActionAuth != foreignAuthorizationOf(auth) {
 			t.Fatal("reentrant settlement lost authority/Settling")
 		}
 		scope.foreignActionsSlot.Settling = false
@@ -229,11 +229,11 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		if len(diamond) != 2 || diamond[0].Next.Version != diamond[1].Old.Version || diamond[0].Old.Row != diamond[1].Old.Row {
 			t.Fatal("same-row causal transitions collapsed", diamond)
 		}
-		count, frontier := len(scope.foreignActionsSlot.Transitions), e.storage.VersionFrontier()
+		count, frontier := len(scope.foreignActionsSlot.Transitions), e.Storage.VersionFrontier()
 		if err := scope.completeCommandEffects(false, false); err != nil {
 			t.Fatal(err)
 		}
-		if len(scope.foreignActionsSlot.Transitions) != count || e.storage.VersionFrontier() != frontier {
+		if len(scope.foreignActionsSlot.Transitions) != count || e.Storage.VersionFrontier() != frontier {
 			t.Fatal("root replayed completed cascade")
 		}
 		mark, err := scope.beginPLException()

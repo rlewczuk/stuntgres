@@ -23,8 +23,8 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		sessionSQL(t, s, "INSERT INTO t VALUES(9,0),(1,10)")
 		sessionSQL(t, s, "DELETE FROM t WHERE k=9")
 		op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,2) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
-		scope.owner.Isolation = isolation
-		scope.owner.Frontier = e.visibility.CommitSeq()
+		scope.Owner.Isolation = isolation
+		scope.Owner.Frontier = e.Visibility.CommitSeq()
 		integer := func(n int64) sqltype.Value {
 			v, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 			if err != nil {
@@ -33,19 +33,19 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 			return v
 		}
 		proposal := []sqltype.Value{integer(1), integer(2)}
-		hit, err := dml.ProbeUniqueRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
-		entry := e.storage.IndexRoots[scope.InsertConflict.Selected[0]].Entries[0]
-		store := e.storage.Relations[b.Ref.Address]
+		hit, err := dml.ProbeUniqueRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
+		entry := e.Storage.IndexRoots[scope.InsertConflict.Selected[0]].Entries[0]
+		store := e.Storage.Relations[b.Ref.Address]
 		if err != nil || !hit.Committed || entry.Position != 1 || hit.Position != 1 || hit.Row.Row != entry.Row || hit.Row.Version != entry.Version || &hit.Row.Values[0] != &store.Versions[1].Values[0] {
 			t.Fatal("provider physical hint after real tombstone, without copying", isolation, hit, entry, err)
 		}
 		old := hit.Row
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if admitted, err := dml.AdmitInsertRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		if admitted, err := dml.AdmitInsertRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, index.WriteBatch{}, &evaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
-		stage := scope.stage.rows[b.Ref.Address]
-		replacement, err := dml.ProbeUniqueRow(scope.writeHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
+		stage := scope.Stage.Rows[b.Ref.Address]
+		replacement, err := dml.ProbeUniqueRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: proposal}, nil, index.WriteBatch{}, scope.InsertConflict, index.ProbeRuntime)
 		if err != nil || replacement.Committed || len(stage) != 1 || replacement.Row.Row != old.Row || replacement.Row.Version != stage[0].Version || replacement.Row.Base != old.Version || replacement.Row.Version == old.Version || testExport(old.Values[1]) != int64(10) {
 			t.Fatal("current-command replacement overlay/provenance", replacement, stage, old, err)
 		}
@@ -62,15 +62,15 @@ func TestInsertConflictUpdateIdentity(t *testing.T) {
 		prior := s.Transactions.Writes[b.Ref.Address][0]
 		op2, scope2, b2 := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,4) ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		nextProposal := []sqltype.Value{integer(1), integer(4)}
-		own, err := dml.ProbeUniqueRow(scope2.writeHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.InsertConflict, index.ProbeRuntime)
+		own, err := dml.ProbeUniqueRow(scope2.WriteHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, nil, index.WriteBatch{}, scope2.InsertConflict, index.ProbeRuntime)
 		if err != nil || own.Committed || own.Row.Row != prior.Row || own.Row.Version != prior.Version || len(scope2.InsertConflict.AffectedRows) != 0 {
 			t.Fatal("prior-own origin not current command", own, prior, err)
 		}
-		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op2.Context(), Input: scope2.input, Output: scope2.output, Host: hostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		if admitted, err := dml.AdmitInsertRow(scope2.writeHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, index.WriteBatch{}, &nextEvaluation); admitted || err != nil {
+		nextEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op2.Context(), Input: scope2.Input, Output: scope2.Output, Host: HostOf(scope2)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		if admitted, err := dml.AdmitInsertRow(scope2.WriteHost(), b2.Ref, &index.WriteCandidate{Values: nextProposal}, index.WriteBatch{}, &nextEvaluation); admitted || err != nil {
 			t.Fatal(admitted, err)
 		}
-		changed := scope2.stage.rows[b2.Ref.Address][0]
+		changed := scope2.Stage.Rows[b2.Ref.Address][0]
 		if changed.Row != prior.Row || changed.Base != prior.Base || changed.Version == prior.Version || testExport(prior.Values[1]) != int64(3) {
 			t.Fatal("original committed base through private predecessor", changed, prior)
 		}
@@ -119,34 +119,34 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			if err != nil || result.Count != 1 || result.Rows != nil {
 				t.Fatal(result, err)
 			}
-			if scope.lockedRef != ref || scope.lockedIdentityOnly ||
-				(scope.lockedStorage != nil) != mode.storage ||
-				(mode.storage && scope.lockedStorage != e.storage.Relations[ref.Address]) {
-				t.Fatal("exact target fence", scope.lockedRef, scope.lockedStorage, mode.storage)
+			if scope.LockedRef != ref || scope.lockedIdentityOnly ||
+				(scope.LockedStorage != nil) != mode.storage ||
+				(mode.storage && scope.LockedStorage != e.Storage.Relations[ref.Address]) {
+				t.Fatal("exact target fence", scope.LockedRef, scope.LockedStorage, mode.storage)
 			}
 			check := func(name string, mutate func(), want error) {
 				t.Helper()
-				e.mu.Lock()
-				catalog, storage := e.catalog.State, e.storage.Relations[ref.Address]
+				e.Mu.Lock()
+				catalog, storage := e.Catalog.State, e.Storage.Relations[ref.Address]
 				defer func() {
-					e.catalog.PublishLocked(catalog)
-					e.storage.InstallRelationLocked(ref.Address, storage)
-					e.mu.Unlock()
+					e.Catalog.PublishLocked(catalog)
+					e.Storage.InstallRelationLocked(ref.Address, storage)
+					e.Mu.Unlock()
 				}()
 				mutate()
-				if err := scope.validateLockedRelation(e); !errors.Is(err, want) {
+				if err := scope.ValidateLockedRelation(e); !errors.Is(err, want) {
 					t.Fatalf("%s: got %v, want %v", name, err, want)
 				}
 			}
 			replacement := func(shapeChange bool) {
-				catalog := catalog.CloneState(e.catalog.State)
+				catalog := catalog.CloneState(e.Catalog.State)
 				relation := *catalog.MustRelation(ref.Address)
 				if shapeChange {
 					relation.Columns = relation.Columns[:1]
 					relation.Attributes = relation.Attributes[:1]
 				}
 				catalog.SetDescriptor(ref.Address, &relation)
-				e.catalog.PublishLocked(catalog)
+				e.Catalog.PublishLocked(catalog)
 			}
 			// AuthorizationAfterWait supplies the real SQL REVOKE witness.
 			// Here distinguish its shape-preserving descriptor replacement
@@ -159,14 +159,14 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			check("row shape replacement", func() { replacement(true) }, ids.ErrCatalogReplaced)
 			if mode.storage {
 				check("storage replacement", func() {
-					storage := *e.storage.Relations[ref.Address]
-					e.storage.InstallRelationLocked(ref.Address, &storage)
+					storage := *e.Storage.Relations[ref.Address]
+					e.Storage.InstallRelationLocked(ref.Address, &storage)
 				}, ids.ErrCatalogReplaced)
 			}
 			check("catalog epoch replacement", func() {
-				catalog := catalog.CloneState(e.catalog.State)
+				catalog := catalog.CloneState(e.Catalog.State)
 				catalog.SetEpoch(catalog.Epoch() + 1)
-				e.catalog.PublishLocked(catalog)
+				e.Catalog.PublishLocked(catalog)
 			}, ids.ErrCatalogReplaced)
 			if err := scope.Finish(rollback); err != rollback {
 				t.Fatal(err)
@@ -185,7 +185,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 		sessionSQL(t, s, "INSERT INTO t VALUES(1,10),(3,30)")
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		before := append([]storage.RowVersion(nil), e.storage.Relations[ref.Address].Versions...)
+		before := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
 		tx := transactionBegin(t, s)
 		sessionSQL(t, s, "INSERT INTO t VALUES(4,40)")
 		ctx, cancel := context.WithCancel(context.Background())
@@ -201,13 +201,13 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 			t.Fatal(err)
 		}
 		result, err := scope.Execute(statement(t, "INSERT INTO t VALUES(2,20),(1,11),(3,31) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE t.k<>3"), 0, nil)
-		if err != nil || result.Count != 2 || result.Rows != nil || len(scope.stage.rows[ref.Address]) != 2 || !scope.stage.replacing || scope.InsertConflict.Affected != 2 {
+		if err != nil || result.Count != 2 || result.Rows != nil || len(scope.Stage.Rows[ref.Address]) != 2 || !scope.Stage.replacing || scope.InsertConflict.Affected != 2 {
 			scope.Finish(errors.New("bad mixed stage"))
 			cancel()
 			op.Done()
-			t.Fatal(result, err, scope.stage.rows)
+			t.Fatal(result, err, scope.Stage.Rows)
 		}
-		stage := scope.stage.rows[ref.Address]
+		stage := scope.Stage.Rows[ref.Address]
 		if stage[0].Row == before[0].Row || stage[0].Base != 0 || stage[1].Row != before[0].Row || stage[1].Base != before[0].Version || stage[1].Version == before[0].Version {
 			scope.Finish(errors.New("bad identity"))
 			cancel()
@@ -248,7 +248,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 			sessionSQL(t, holder, "CREATE TABLE t(k INT UNIQUE,v INT)")
 			sessionSQL(t, holder, "INSERT INTO t VALUES(1,10)")
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			old := e.storage.Relations[ref.Address].Versions[0]
+			old := e.Storage.Relations[ref.Address].Versions[0]
 			tx := transactionBegin(t, worker)
 			sessionSQL(t, worker, "SET TRANSACTION ISOLATION LEVEL "+level)
 			transactionRows(t, worker, "SELECT v FROM t", 10)

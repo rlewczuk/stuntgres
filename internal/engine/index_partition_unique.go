@@ -9,5 +9,5 @@ import (
 // stagePartitionIndexChildren serves the partitioned UNIQUE replay executor.
 // The caller holds Engine.mu.
 func (e *Engine) stagePartitionIndexChildren(op *session.Operation, stage *CatalogStage, table, idx *catalog.Relation, allowIncompleteVirtual bool) error {
-	return index.StagePartitionIndexChildren(ddlHost{e: e, op: op, stage: stage}, table, idx, allowIncompleteVirtual)
+	return index.StagePartitionIndexChildren(DDLHost{E: e, Op: op, CatalogStage: stage}, table, idx, allowIncompleteVirtual)
 }

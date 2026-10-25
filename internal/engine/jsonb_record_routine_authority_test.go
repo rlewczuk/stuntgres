@@ -116,7 +116,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
+					if dependency.Ref.Domain() != e.Catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original ref/epoch/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -145,9 +145,9 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 				sourceBinder.Clause.AggregateClause = "FROM"
 				sourceBinder.Query.Namespace = &analyze.QueryNamespace{}
-				e.mu.Lock()
+				e.Mu.Lock()
 				source, sourceErr := sourceBinder.BindFunctionSource(raw)
-				e.mu.Unlock()
+				e.Mu.Unlock()
 				if sourceErr != nil {
 					t.Fatal("actual FROM binding", sourceErr)
 				}
@@ -199,7 +199,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 						case "revision":
 							copied[i].Revision++
 						case "foreign_ref":
-							copied[i].Ref = other.catalog.Domain.Ref(copied[i].Ref.Epoch, copied[i].Ref.Address)
+							copied[i].Ref = other.Catalog.Domain.Ref(copied[i].Ref.Epoch, copied[i].Ref.Address)
 						}
 					}
 				}
@@ -238,7 +238,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("retag manufactured destination manifest")
 				}
 			}
-			changed := *routineAuthorityView(&evaluation)
+			changed := *RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict
@@ -357,7 +357,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 		"jsonb_populate_record_valid(NULL::strict_null_rows,NULL::jsonb)",
 	} {
 		node, _, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		scope.routineAuth = *routineAuthorityView(&evaluation)
+		scope.RoutineAuth = *RoutineAuthorityView(&evaluation)
 		evaluation.RoutineAuthority = nil
 		if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 			t.Fatal("live owning scope", err)
@@ -375,9 +375,9 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 
 func eMustJSONBRoutineAuthority(t *testing.T, e *Engine, op *session.Operation) *AuthorizationView {
 	t.Helper()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,7 +410,7 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 	e, op, scope := jsonbRecordRoutineUnitFixture(t)
 	other := New()
-	foreignOwner := other.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	foreignOwner := other.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	readerOp, readerDone := roleOperation(t, e, "jsonb_authority_reader")
 	defer readerDone()
 	ownerOp, ownerDone := roleOperation(t, e, "jsonb_authority_owner")
@@ -430,7 +430,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		original := append([]catalog.ExpressionDependency(nil), binder.Dependencies...)
 		base := e.CatalogRead()
 		// Reusing a live, same-domain principal is a genuine owner-COW.
-		target := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
+		target := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_owner")
 		stage := e.BeginCatalogStage(base)
 		if err := role.StageOwnership(stage, captured, target); err != nil {
 			t.Fatal(err)
@@ -476,7 +476,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		found := false
 		for _, dep := range freshBinder.Dependencies {
 			if dep.Ref.Address == current.Address() {
-				found = dep.Revision == current.Revision() && dep.Ref.Domain() == e.catalog.Domain
+				found = dep.Revision == current.Revision() && dep.Ref.Domain() == e.Catalog.Domain
 			}
 		}
 		if !found {
@@ -545,7 +545,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 	e, op, scope := jsonbRecordRoutineUnitFixture(t)
 	readerOp, readerDone := roleOperation(t, e, "jsonb_authority_reader")
 	defer readerDone()
-	reader := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_reader")
+	reader := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("jsonb_authority_reader")
 	for _, expression := range []string{
 		"jsonb_populate_record(NULL::strict_null_rows,NULL::jsonb)",
 		"jsonb_populate_recordset(NULL::strict_null_rows,NULL::jsonb)",

@@ -16,7 +16,7 @@ import (
 func TestInfoRoleUsageGrantsDefaultDeparse(t *testing.T) {
 	e := New()
 	read := e.CatalogRead()
-	scope := &StatementScope{inquiry: inquirySnapshot{commentCatalog: read, deparseAuth: catalogAuthorization(e, read), deparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
+	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: read, deparseAuth: catalogAuthorization(e, read), DeparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
 	text, ok := read.LookupType(sqltype.Text)
 	if !ok {
 		t.Fatal("missing text")

@@ -16,9 +16,9 @@ func TestVacuumF4FutureRelationDatabaseHorizon(t *testing.T) {
 		t.Run(map[bool]string{false: "ordinary", true: "cross_wrap"}[wrap], func(t *testing.T) {
 			e := New()
 			if wrap {
-				e.mu.Lock()
-				e.visibility.SetLastAssignedXIDLocked(0xfffffffe)
-				e.mu.Unlock()
+				e.Mu.Lock()
+				e.Visibility.SetLastAssignedXIDLocked(0xfffffffe)
+				e.Mu.Unlock()
 			}
 			older, creator := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			sessionSQL(t, older, "BEGIN ISOLATION LEVEL READ COMMITTED")
@@ -30,22 +30,22 @@ func TestVacuumF4FutureRelationDatabaseHorizon(t *testing.T) {
 			if err := inquiry.Rows.Close(); err != nil {
 				t.Fatal(err)
 			}
-			e.mu.Lock()
-			assigned := e.visibility.FullXIDLocked(older.Transactions.Ref)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			assigned := e.Visibility.FullXIDLocked(older.Transactions.Ref)
+			e.Mu.Unlock()
 			if assigned < 3 {
 				t.Fatal("inquiry did not assign a canonical publisher", assigned)
 			}
 			// No heap exists yet to hide the database calculation's seed.
 			sessionSQL(t, creator, "VACUUM (ONLY_DATABASE_STATS)")
-			if db := e.databaseFrozenXID; db < 3 || db > assigned {
+			if db := e.DatabaseFrozenXID; db < 3 || db > assigned {
 				t.Errorf("before CREATE database bound %d passed active publisher %d", db, assigned)
 			}
 			sessionSQL(t, creator, "CREATE TABLE future_birth(id INT)")
 			_, store := vacuumStore(t, e, "future_birth")
 			check := func(phase string) {
 				t.Helper()
-				f, db := store.Maintenance.FrozenXID, e.databaseFrozenXID
+				f, db := store.Maintenance.FrozenXID, e.DatabaseFrozenXID
 				if f < 3 || f > assigned {
 					t.Errorf("%s relation bound %d passed older publisher %d", phase, f, assigned)
 				}
@@ -58,9 +58,9 @@ func TestVacuumF4FutureRelationDatabaseHorizon(t *testing.T) {
 			}
 			check("after CREATE before birth")
 			sessionSQL(t, older, "INSERT INTO future_birth VALUES(7)")
-			e.mu.Lock()
-			stillAssigned := e.visibility.FullXIDLocked(older.Transactions.Ref)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			stillAssigned := e.Visibility.FullXIDLocked(older.Transactions.Ref)
+			e.Mu.Unlock()
 			if stillAssigned != assigned {
 				t.Fatal("transaction changed actual publisher", assigned, stillAssigned)
 			}
@@ -76,7 +76,7 @@ func TestVacuumF4FutureRelationDatabaseHorizon(t *testing.T) {
 			transactionRows(t, creator, "SELECT id FROM future_birth", 7).Close()
 			sessionSQL(t, creator, "VACUUM (FREEZE) future_birth")
 			transactionRows(t, creator, "SELECT id FROM future_birth", 7).Close()
-			if store.Maintenance.VacuumCount != 1 || len(e.vacuumProgress) != 0 {
+			if store.Maintenance.VacuumCount != 1 || len(e.VacuumProgress) != 0 {
 				t.Fatal("post-proof real maintenance did not complete", store.Maintenance)
 			}
 		})
@@ -108,7 +108,7 @@ func TestVacuumF5SelectionNoticeOrder(t *testing.T) {
 					sessionSQL(t, actor, "CREATE TABLE notice_partition(id INT) PARTITION BY RANGE(id)")
 					transactionBegin(t, holder)
 					defer sessionSQL(t, holder, "ROLLBACK")
-					if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: lockedRef}, lock.AccessExclusive); err != nil {
+					if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: lockedRef}, lock.AccessExclusive); err != nil {
 						t.Fatal(err)
 					}
 					selection := sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: kind.message}
@@ -134,10 +134,10 @@ func TestVacuumF5SelectionNoticeOrder(t *testing.T) {
 					if !reflect.DeepEqual(notices, want) {
 						t.Errorf("ordered full diagnostics got %#v want %#v", notices, want)
 					}
-					if denied.Maintenance != deniedFacts || locked.Maintenance != lockedFacts || !storage.SameVersionRoot(deniedRoot, denied.Versions) || !storage.SameVersionRoot(lockedRoot, locked.Versions) || denied.Ends != deniedEnds || locked.Ends != lockedEnds || len(e.vacuumProgress) != 0 {
+					if denied.Maintenance != deniedFacts || locked.Maintenance != lockedFacts || !storage.SameVersionRoot(deniedRoot, denied.Versions) || !storage.SameVersionRoot(lockedRoot, locked.Versions) || denied.Ends != deniedEnds || locked.Ends != lockedEnds || len(e.VacuumProgress) != 0 {
 						t.Error("mixed skips changed roots/statistics/progress")
 					}
-					if entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: lockedRef}]; entry == nil || len(entry.Pending) != 0 {
+					if entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: lockedRef}]; entry == nil || len(entry.Pending) != 0 {
 						t.Error("selection left a queued request", entry)
 					}
 					failed := transactionOperation(t, actor)

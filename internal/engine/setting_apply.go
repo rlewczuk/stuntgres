@@ -31,13 +31,13 @@ func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStor
 		}
 		value, notice = &v, parseNotice
 	}
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	owner.Mu.Lock()
 	defer owner.Mu.Unlock()
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
-	return owner.ApplyLocked(op, domainOf(e), e.settings, d, value, notice, local)
+	return owner.ApplyLocked(op, DomainOf(e), e.Settings, d, value, notice, local)
 }
 
 func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
@@ -66,35 +66,35 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 	default:
 		return Result{}, errors.New("stuntgres: invalid setting statement")
 	}
-	e.mu.Lock()
+	e.Mu.Lock()
 	owner.Mu.Lock()
 	op.Session.Mu.Lock()
 	locked := true
-	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.Mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()
 		}
 	}()
-	if err := owner.AdmitLocked(domainOf(e), op); err != nil {
+	if err := owner.AdmitLocked(DomainOf(e), op); err != nil {
 		return Result{}, err
 	}
-	typ, _ := e.catalog.Current().LookupType(sqltype.Text)
+	typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 	if all {
 		if write {
 			if err := op.Ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			owner.ResetAllLocked(e.settings)
+			owner.ResetAllLocked(e.Settings)
 			return Result{}, nil
 		}
-		rows, err := owner.ShowAllRowsLocked(op.Ctx, e.settings, typ)
+		rows, err := owner.ShowAllRowsLocked(op.Ctx, e.Settings, typ)
 		if err != nil {
 			return Result{}, err
 		}
 		return anonymousResult(settingColumns(typ, "name", "setting", "description"), rows, 0)
 	}
-	d, err := owner.LookupDefinition(e.settings, name, write)
+	d, err := owner.LookupDefinition(e.Settings, name, write)
 	if err != nil {
 		return Result{}, err
 	}

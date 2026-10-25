@@ -40,19 +40,19 @@ func TestInheritanceMaintAdmission(t *testing.T) {
 			e, p, c := inheritanceMaintPublished(t, !attach)
 			holder := inheritanceAlterAXHolder(t, e, p)
 			command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE c "+action+" p")
-			if len(command.scope.inheritance.relationships) != 1 {
+			if len(command.scope.Inheritance.Relationships) != 1 {
 				t.Fatal("parent occurrence was not captured before child admission")
 			}
-			childRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
-			parentRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-			if entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: childRef}]; entry == nil || entry.Holders[command.scope.ticket].Mode&lock.AccessExclusive == 0 {
+			childRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())
+			parentRef := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
+			if entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: childRef}]; entry == nil || entry.Holders[command.scope.LockTicket].Mode&lock.AccessExclusive == 0 {
 				t.Fatal("child lacks actual AX grant")
 			}
 			before := e.CatalogRead()
 			done := make(chan error, 1)
 			joined := false
 			go func() {
-				done <- command.scope.admitInheritanceRelationship(&command.scope.inheritance.relationships[0])
+				done <- command.scope.admitInheritanceRelationship(&command.scope.Inheritance.Relationships[0])
 			}()
 			t.Cleanup(func() {
 				command.cancel()
@@ -66,8 +66,8 @@ func TestInheritanceMaintAdmission(t *testing.T) {
 				}
 			})
 			lockPending(t, e, 1)
-			entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: parentRef}]
-			if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Ticket != command.scope.ticket || entry.Pending[0].Mode != mode {
+			entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: parentRef}]
+			if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Ticket != command.scope.LockTicket || entry.Pending[0].Mode != mode {
 				t.Fatal("wrong actual parent request", entry)
 			}
 			command.cancel()
@@ -94,16 +94,16 @@ func TestInheritanceMaintAdmission(t *testing.T) {
 func TestInheritanceMaintPublication(t *testing.T) {
 	e, p, c := inheritanceMaintPublished(t, false)
 	command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE c INHERIT p")
-	if err := command.scope.admitInheritanceRelationship(&command.scope.inheritance.relationships[0]); err != nil {
+	if err := command.scope.admitInheritanceRelationship(&command.scope.Inheritance.Relationships[0]); err != nil {
 		t.Fatal(err)
 	}
 	before := e.CatalogRead()
-	originalStore := e.storage.Relations[c.Address()]
+	originalStore := e.Storage.Relations[c.Address()]
 	if err := command.run(); err != nil {
 		t.Fatal(err)
 	}
-	candidate, ok := command.scope.catalog.Descriptors[c.Address()].(*catalog.Relation)
-	if !ok || !candidate.Inheritance.HasParent(p.Address()) || e.CatalogRead().State() != before.State() || e.storage.Relations[c.Address()] != originalStore {
+	candidate, ok := command.scope.Catalog.Descriptors[c.Address()].(*catalog.Relation)
+	if !ok || !candidate.Inheritance.HasParent(p.Address()) || e.CatalogRead().State() != before.State() || e.Storage.Relations[c.Address()] != originalStore {
 		t.Fatal("candidate did not stay private and storage-preserving")
 	}
 	// A genuine catalog replacement while the unpublished candidate exists must
@@ -121,7 +121,7 @@ func TestInheritanceMaintPublication(t *testing.T) {
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("late endpoint replacement escaped Finish fence", err)
 	}
-	if e.CatalogRead().State() != stable.State() || e.CatalogRead().Get(c.Address()) != c || e.storage.Relations[c.Address()] != originalStore {
+	if e.CatalogRead().State() != stable.State() || e.CatalogRead().Get(c.Address()) != c || e.Storage.Relations[c.Address()] != originalStore {
 		t.Fatal("late veto published candidate edge/storage")
 	}
 	lockEmpty(t, e)
@@ -140,7 +140,7 @@ func TestInheritanceMaintEndpointReplacement(t *testing.T) {
 			done := make(chan error, 1)
 			joined := false
 			go func() {
-				done <- command.scope.admitInheritanceRelationship(&command.scope.inheritance.relationships[0])
+				done <- command.scope.admitInheritanceRelationship(&command.scope.Inheritance.Relationships[0])
 			}()
 			t.Cleanup(func() {
 				command.cancel()
@@ -236,12 +236,12 @@ func TestInheritanceMaintReviewAbsentEndpoint(t *testing.T) {
 	}
 	t.Cleanup(func() { scope.Finish(context.Canceled) })
 	raw := statement(t, "ALTER TABLE c INHERIT appeared").(*parser.AlterTable)
-	if err := scope.gate(raw); err != nil {
+	if err := scope.Gate(raw); err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
 	joined := false
-	go func() { done <- scope.acquireRelation(raw, true) }()
+	go func() { done <- scope.AcquireRelation(raw, true) }()
 	t.Cleanup(func() {
 		cancel()
 		holder.Finish(nil)
@@ -254,7 +254,7 @@ func TestInheritanceMaintReviewAbsentEndpoint(t *testing.T) {
 		}
 	})
 	lockPending(t, e, 1)
-	if len(scope.inheritance.relationships) != 1 || scope.inheritance.relationships[0].lexical.Domain() != nil || scope.inheritance.relationships[0].deferred == nil || scope.inheritance.relationships[0].admitted {
+	if len(scope.Inheritance.Relationships) != 1 || scope.Inheritance.Relationships[0].Lexical.Domain() != nil || scope.Inheritance.Relationships[0].Deferred == nil || scope.Inheritance.Relationships[0].Admitted {
 		t.Fatal("missing endpoint was not retained as a deferred absent observation")
 	}
 	stage, _ := queryCreateStage(t, e, "appeared", 1)
@@ -270,7 +270,7 @@ func TestInheritanceMaintReviewAbsentEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal("parent semantics escaped into child admission", err)
 	}
-	err = scope.admitInheritanceRelationship(&scope.inheritance.relationships[0])
+	err = scope.admitInheritanceRelationship(&scope.Inheritance.Relationships[0])
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("initially absent spelling retargeted after real AX wait", err)
 	}
@@ -309,7 +309,7 @@ func TestInheritanceMaintReviewMarkerAdmission(t *testing.T) {
 		}
 	})
 	lockPending(t, e, 1)
-	if command.scope.inheritance.alter == nil || command.scope.inheritance.alter.stage.Base.Get(parent.Address()) != parent {
+	if command.scope.Inheritance.Alter == nil || command.scope.Inheritance.Alter.Stage.Base.Get(parent.Address()) != parent {
 		t.Fatal("parent wait did not occur inside the actual older-base stage")
 	}
 	siblingStage, sibling := queryCreateStage(t, e, "first_child", 1)

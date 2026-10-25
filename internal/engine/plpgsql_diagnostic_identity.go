@@ -14,16 +14,16 @@ import (
 // The caller holds Engine.mu; path changes alone do not invalidate a signature.
 func (e *Engine) retainPLDiagnosticIdentityLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure) (string, error) {
 	if d.Address().ObjectID == 0 {
-		return formatPLDiagnosticIdentity(auth.Catalog, auth.definition, nil, d), nil
+		return formatPLDiagnosticIdentity(auth.Catalog, auth.Definition, nil, d), nil
 	}
-	payload := payloadOf(op.Session)
+	payload := PayloadOf(op.Session)
 	retained := payload.sqlRoutines[d.Address()]
 	if retained.plProcedure == d && retained.plDiagnostic != "" {
 		return retained.plDiagnostic, nil
 	}
-	path, err := referencePath(auth)
+	path, err := ReferencePath(auth)
 	if err != nil { return "", err }
-	identity := formatPLDiagnosticIdentity(auth.Catalog, auth.definition, path, d)
+	identity := formatPLDiagnosticIdentity(auth.Catalog, auth.Definition, path, d)
 	retained.plProcedure, retained.plDiagnostic = d, identity
 	if payload.sqlRoutines == nil { payload.sqlRoutines = make(map[ids.ObjectAddress]sqlRoutineAnalysis) }
 	payload.sqlRoutines[d.Address()] = retained
@@ -32,16 +32,16 @@ func (e *Engine) retainPLDiagnosticIdentityLocked(op *session.Operation, auth Au
 
 func (s *StatementScope) plDiagnosticIdentityFor(d *catalog.Procedure, read catalog.Read) (string, error) {
 	if d.Address().ObjectID == 0 { return formatPLDiagnosticIdentity(read, nil, nil, d), nil }
-	e := s.engine()
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if retained := payloadOf(s.op.Session).sqlRoutines[d.Address()]; retained.plProcedure == d && retained.plDiagnostic != "" {
+	e := s.Engine()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	if retained := PayloadOf(s.Op.Session).sqlRoutines[d.Address()]; retained.plProcedure == d && retained.plDiagnostic != "" {
 		return retained.plDiagnostic, nil
 	}
 	auth, err := s.routineAuthorizationLocked()
 	if err != nil { return "", err }
 	auth.Recapture(read)
-	return e.retainPLDiagnosticIdentityLocked(s.op, auth, d)
+	return e.retainPLDiagnosticIdentityLocked(s.Op, auth, d)
 }
 
 func formatPLDiagnosticIdentity(read catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d *catalog.Procedure) string {

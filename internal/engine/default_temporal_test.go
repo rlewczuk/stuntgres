@@ -20,15 +20,15 @@ func TestDefaultTemporalConstructorAndRestoreCapture(t *testing.T) {
 	}
 	defer done()
 	a := sqltype.InputEnvironment{TransactionStart: time.Date(2020, 2, 3, 4, 5, 6, 0, time.UTC)}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	err = e.schemaTableLocked(op, auth, stage, statement(t, `CREATE TABLE captured(ts TIMESTAMP DEFAULT 'now',tm TIME DEFAULT 'now')`).(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, a, nil)
-	e.mu.Unlock()
+	err = e.SchemaTableLocked(op, auth, stage, statement(t, `CREATE TABLE captured(ts TIMESTAMP DEFAULT 'now',tm TIME DEFAULT 'now')`).(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, a, nil)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}

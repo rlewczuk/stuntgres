@@ -20,7 +20,7 @@ func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 	if r == nil {
 		return false
 	}
-	for _, c := range r.entries {
+	for _, c := range r.Entries {
 		if c.hold && !c.promoted && c.tx == ref && c.Place != exec.CursorFailed {
 			return true
 		}
@@ -31,7 +31,7 @@ func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 // Admission is already held; the transaction/engine/session mutexes are not.
 // Ordinary commits avoid scope allocation and presentation capture entirely.
 func (e *Engine) holdPrecommit(op *session.Operation, owner *session.TransactionOwner, start time.Time, settlement *StatementScope) error {
-	if !payloadOf(op.Session).cursors.hasCurrentHold(owner.Ref) {
+	if !PayloadOf(op.Session).Cursors.hasCurrentHold(owner.Ref) {
 		return nil
 	}
 	if start.IsZero() {
@@ -51,28 +51,28 @@ func (e *Engine) holdPrecommit(op *session.Operation, owner *session.Transaction
 		scope.foreignTablesSlot.clearStatements()
 		settlement.setForeignHoldPromotions(scope.foreignTablesOrZero().holdPromotions)
 		scope.foreignTablesSlot.clearHoldPromotions()
-		scope.routineAuth = AuthorizationView{}
-		scope.routineDependencies = nil
+		scope.RoutineAuth = AuthorizationView{}
+		scope.RoutineDependencies = nil
 		scope.routinePrograms = nil
 		scope.checkPrograms = nil
-		scope.domains.endAdmission()
+		scope.Domains.endAdmission()
 		scope.partitionsSlot.DropPrograms()
-		scope.finished = true
+		scope.Finished = true
 	}()
 	return scope.materializeHeldCursors()
 }
 
 func (s *StatementScope) materializeHeldCursors() error {
-	r := payloadOf(s.op.Session).cursors
-	if !r.hasCurrentHold(s.txRef) {
+	r := PayloadOf(s.Op.Session).Cursors
+	if !r.hasCurrentHold(s.TxRef) {
 		return nil
 	}
 	// Keep one bounded precommit visitation vector, not a second registry or
 	// repeated map scans. Declaration ordinal is native's deterministic order;
 	// tests assert promotion independently of PostgreSQL's hash traversal order.
-	cursors := make([]*sqlCursor, 0, len(r.entries))
-	for _, c := range r.entries {
-		if c.hold && !c.promoted && c.tx == s.txRef && c.Place != exec.CursorFailed {
+	cursors := make([]*sqlCursor, 0, len(r.Entries))
+	for _, c := range r.Entries {
+		if c.hold && !c.promoted && c.tx == s.TxRef && c.Place != exec.CursorFailed {
 			cursors = append(cursors, c)
 		}
 	}
@@ -85,7 +85,7 @@ func (s *StatementScope) materializeHeldCursors() error {
 		}
 		return 0
 	})
-	defer func() { s.querySources, s.queryLocks = nil, nil }()
+	defer func() { s.QuerySources, s.QueryLockContext = nil, nil }()
 	// Reuse the visitation vector as the exact successful-promotion list.
 	// A failed current promotion is disposed by materializeHeldCursor itself.
 	promotions := cursors[:0]
@@ -105,17 +105,17 @@ func (s *StatementScope) materializeHeldCursors() error {
 func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	// A live portal continues its initialized executor. Current catalog identity
 	// and original lifetimes still fence it; ACL edits do not reinitialize it.
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {
-		err = s.validateLockedRelation(e)
+		err = s.ValidateLockedRelation(e)
 	}
 	if err == nil && !s.protocolOrZero().resume {
 		err = analyze.CheckQuerySources(auth, c.leaves)
 	}
 	if err == nil {
-		err = s.captureIdentityLocked(auth)
+		err = s.CaptureIdentityLocked(auth)
 	}
 	if err == nil {
 		for _, dependency := range c.routineDependencies {
@@ -143,14 +143,14 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 			}
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
 	if err := s.readmitPreparedPrograms(auth); err != nil {
 		return err
 	}
-	evaluation := c.state.Evaluation(s.op.Context())
+	evaluation := c.state.Evaluation(s.Op.Context())
 	return view.ValidateQueryJoinExecution(&evaluation, c.root, auth.Catalog, 0)
 }
 
@@ -158,9 +158,9 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	if c.stage != nil {
 		return nil
 	}
-	c.authority.Expression = &exec.CursorExpressionData{Identity: s.identity, StatementStart: s.statementStart}
+	c.authority.Expression = &exec.CursorExpressionData{Identity: s.Identity, StatementStart: s.statementStart}
 	c.state.Retain = c.scroll
-	stage, err := exec.OpenQueryProjectStage(s.op.Context(), &c.state, c.root)
+	stage, err := exec.OpenQueryProjectStage(s.Op.Context(), &c.state, c.root)
 	if err != nil {
 		return err
 	}
@@ -169,18 +169,18 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 }
 
 func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
-	if c.epoch != s.txRef.Epoch() {
+	if c.epoch != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	c.admit(s)
 	authority := c.authority
 	defer func() {
-		s.routineAuth = AuthorizationView{}
-		s.routineDependencies = nil
+		s.RoutineAuth = AuthorizationView{}
+		s.RoutineDependencies = nil
 		authority.Host = nil
 		if err != nil {
 			c.Place = exec.CursorFailed
-			_ = c.dispose(s.op.Context())
+			_ = c.dispose(s.Op.Context())
 		}
 	}()
 	if err = s.authorizeSQLCursor(c); err != nil {
@@ -209,7 +209,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 			start := len(values)
 			values = slices.Grow(values, width)
 			values = values[:start+width]
-			present, pullErr := c.stage.Next(s.op.Context(), values[start:])
+			present, pullErr := c.stage.Next(s.Op.Context(), values[start:])
 			if pullErr != nil {
 				return pullErr
 			}
@@ -225,7 +225,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	if err = s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
-	if err = c.releaseProducer(s.op.Context()); err != nil {
+	if err = c.releaseProducer(s.Op.Context()); err != nil {
 		return err
 	}
 	c.values, c.count, c.storeOffset = values, count, offset
@@ -239,34 +239,34 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 // Live producer output retains DECLARE interpretation. Exported output instead
 // uses the ordinary current-catalog capture seam at each stored FETCH.
 func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog catalog.Read) error {
-	e := s.engine()
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(s.op)
+	e := s.Engine()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(s.Op)
 	var path []ids.ObjectAddress
 	if err == nil {
-		path, err = referencePath(auth)
+		path, err = ReferencePath(auth)
 	}
 	var collationPath []ids.ObjectAddress
 	if err == nil {
 		for _, value := range rows.Values {
 			if !value.IsNull() && value.Type().ContainsRegcollation() {
-				collationPath, err = lookupPath(auth, analyze.CollationLookup)
+				collationPath, err = LookupPath(auth, analyze.CollationLookup)
 				break
 			}
 		}
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		return err
 	}
 	for _, value := range rows.Values {
-		if err := regobj.CaptureRoleOutputValue(rows, regobj.RoleOutput{Owner: &e.catalog.Owner, Roles: auth.Roles, QuoteAll: rows.Output.QuoteAllIdentifiers}, value); err != nil {
+		if err := regobj.CaptureRoleOutputValue(rows, regobj.RoleOutput{Owner: &e.Catalog.Owner, Roles: auth.Roles, QuoteAll: rows.Output.QuoteAllIdentifiers}, value); err != nil {
 			return err
 		}
 		if err := regobj.CaptureObjectOutputValue(rows, catalog, collationPath, value); err != nil {
 			return err
 		}
-		if err := regobj.CaptureACLItemOutputValue(rows, regobj.ACLItemOutput{Owner: &e.catalog.Owner, Roles: auth.Roles}, value); err != nil {
+		if err := regobj.CaptureACLItemOutputValue(rows, regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: auth.Roles}, value); err != nil {
 			return err
 		}
 		if err := regobj.CaptureClassOutputValue(rows, catalog, path, value); err != nil {
@@ -280,20 +280,20 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 	defer func() {
 		if err != nil {
 			c.Place = exec.CursorFailed
-			_ = c.dispose(s.op.Context())
+			_ = c.dispose(s.Op.Context())
 		}
 	}()
 	var rows *exec.FinalRows
 	if !fetch.Move {
 		rows = exec.NewFinalRows(c.schema, 0)
-		rows.Output = s.output
+		rows.Output = s.Output
 	}
 	moved, err := c.Move(fetch, rows, c.motionInput(s))
 	if err != nil {
 		return Result{}, err
 	}
 	if rows != nil {
-		if err = s.engine().captureRegclassOutput(s.op, rows); err != nil {
+		if err = s.Engine().captureRegclassOutput(s.Op, rows); err != nil {
 			return Result{}, err
 		}
 	}

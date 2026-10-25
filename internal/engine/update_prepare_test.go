@@ -15,7 +15,7 @@ func TestUpdateCorePrepareNoRowLocks(t *testing.T) {
 	sessionSQL(t, a, "UPDATE t SET v=2")
 	done := lockAsync(e, b, context.Background(), "UPDATE t SET v=v", true)
 	lockAwait(t, done, nil)
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	for resource, entry := range lockState.Resources {
 		if resource.Row != 0 {
 			for owner := range entry.Holders {

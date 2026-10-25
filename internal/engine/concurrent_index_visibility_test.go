@@ -28,12 +28,12 @@ func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *session.Session) (*
 	}
 	t.Cleanup(func() {
 		cancel()
-		if !scope.finished {
+		if !scope.Finished {
 			scope.Finish(context.Canceled)
 		}
 		op.Done()
 	})
-	if err := scope.gate(statement(t, "SELECT 1")); err != nil {
+	if err := scope.Gate(statement(t, "SELECT 1")); err != nil {
 		t.Fatal(err)
 	}
 	return scope, op, cancel
@@ -72,46 +72,46 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	writer, reader, rc := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 	sessionSQL(t, writer, "CREATE TABLE t(n INT)")
 	sessionSQL(t, writer, "INSERT INTO t VALUES(1)")
-	e.mu.Lock()
-	counter, frontier := e.visibility.VisibilityXID(), e.visibility.CommitSeq()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	counter, frontier := e.Visibility.VisibilityXID(), e.Visibility.CommitSeq()
+	e.Mu.Unlock()
 	sessionSQL(t, writer, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	sessionSQL(t, rc, "BEGIN ISOLATION LEVEL READ COMMITTED")
-	e.mu.Lock()
-	bare := e.visibility.VisibilityXID() == counter
-	for ref, v := range e.visibility.Entries {
+	e.Mu.Lock()
+	bare := e.Visibility.VisibilityXID() == counter
+	for ref, v := range e.Visibility.Entries {
 		bare = bare && v.XID == 0 && v.Xmin == 0 && v.AssignedXID == 0 && !v.Snapshot && !v.SafeBuilder && v.Ticket != nil && v.Ticket.Ref() == ref
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if !bare {
 		t.Fatal("BEGIN fabricated visibility XID or advertised snapshot")
 	}
 	stable := sessionSQL(t, reader, "SELECT n FROM t ORDER BY n")
 	stable.Rows.Close()
 	transient := sessionSQL(t, rc, "SELECT n FROM t ORDER BY n")
-	e.mu.Lock()
-	v, held := e.visibility.Entries[reader.Transactions.Ref]
-	rcState, rcAssociated := e.visibility.Entries[rc.Transactions.Ref]
+	e.Mu.Lock()
+	v, held := e.Visibility.Entries[reader.Transactions.Ref]
+	rcState, rcAssociated := e.Visibility.Entries[rc.Transactions.Ref]
 	rcHeld := rcState.Snapshot || rcState.Xmin != 0 || rcState.XID != 0 || rcState.AssignedXID != 0 || rcState.SafeBuilder
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if !held || !v.Snapshot || v.XID != 0 || v.Xmin != counter+1 || rcHeld || !rcAssociated || rcState.Ticket != rc.Transactions.Ticket {
 		t.Fatal("stable/RC eager result snapshot ownership", v, rcHeld)
 	}
 	// An uncommitted real write advances global XID, not the committed row frontier.
 	sessionSQL(t, writer, "INSERT INTO t VALUES(2)")
-	e.mu.Lock()
-	w := e.visibility.Entries[writer.Transactions.Ref]
-	sameFrontier := e.visibility.CommitSeq() == frontier
+	e.Mu.Lock()
+	w := e.Visibility.Entries[writer.Transactions.Ref]
+	sameFrontier := e.Visibility.CommitSeq() == frontier
 	advanced := w.XID > counter
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if !sameFrontier || !advanced || w.Snapshot {
 		t.Fatal("write/global-XID/RC-frontier separation", w)
 	}
 	other := New()
-	other.mu.Lock()
-	_, foreignErr := other.visibilitySnapshotLocked(reader.Transactions.Ref, false)
-	other.mu.Unlock()
+	other.Mu.Lock()
+	_, foreignErr := other.VisibilitySnapshotLocked(reader.Transactions.Ref, false)
+	other.Mu.Unlock()
 	if foreignErr == nil {
 		t.Fatal("other engine accepted snapshot owner")
 	}
@@ -119,10 +119,10 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	sessionSQL(t, writer, "ROLLBACK")
 	sessionSQL(t, reader, "ROLLBACK")
 	sessionSQL(t, rc, "ROLLBACK")
-	e.mu.Lock()
-	remaining := len(e.visibility.Entries)
-	after := e.visibility.VisibilityXID()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	remaining := len(e.Visibility.Entries)
+	after := e.Visibility.VisibilityXID()
+	e.Mu.Unlock()
 	if remaining != 0 || after <= counter {
 		t.Fatal("rollback leaked registry or rewound global XID")
 	}
@@ -139,15 +139,15 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	sessionSQL(t, writer, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, bare, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	scope, op, cancel := concurrentUnitSnapshotScope(t, e, builder)
-	e.mu.Lock()
-	frontier := e.visibility.CommitSeq()
-	if err := e.visibilityWriteLocked(scope.txRef); err != nil {
-		e.mu.Unlock()
+	e.Mu.Lock()
+	frontier := e.Visibility.CommitSeq()
+	if err := e.VisibilityWriteLocked(scope.TxRef); err != nil {
+		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	boundary, err := e.visibilitySnapshotLocked(scope.txRef, true)
-	builderVisibility := e.visibility.Entries[scope.txRef]
-	e.mu.Unlock()
+	boundary, err := e.VisibilitySnapshotLocked(scope.TxRef, true)
+	builderVisibility := e.Visibility.Entries[scope.TxRef]
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,27 +156,27 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	sessionSQL(t, late, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	rows := sessionSQL(t, late, "SELECT n FROM u")
 	rows.Rows.Close()
-	e.mu.Lock()
-	snapshot := e.visibility.Entries[late.Transactions.Ref]
-	equalFrontier := e.visibility.CommitSeq() == frontier
-	e.mu.Unlock()
+	e.Mu.Lock()
+	snapshot := e.Visibility.Entries[late.Transactions.Ref]
+	equalFrontier := e.Visibility.CommitSeq() == frontier
+	e.Mu.Unlock()
 	if !snapshot.Snapshot || snapshot.Xmin > boundary || !equalFrontier {
 		t.Fatal("late equal-frontier snapshot was not actually endangered", snapshot, boundary)
 	}
 	await := concurrentUnitOlderWait(t, scope, boundary, cancel)
 	concurrentUnitCompletion(t, e, late.Transactions.Ticket, builder)
-	e.mu.Lock()
-	self, associated := e.visibility.Entries[scope.txRef]
-	mirroredXID := scope.ticket.AssignedPublicXID()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	self, associated := e.Visibility.Entries[scope.TxRef]
+	mirroredXID := scope.LockTicket.AssignedPublicXID()
+	e.Mu.Unlock()
 	// Phase reset withdraws all ordering/snapshot advertisement, not the
 	// registered ticket's canonical assignment association.
-	wantSelf := visibility.Entry{AssignedXID: builderVisibility.AssignedXID, FullXID: builderVisibility.FullXID, Ticket: scope.ticket}
-	if !associated || builderVisibility.Ticket != scope.ticket || self != wantSelf || mirroredXID != wantSelf.AssignedXID {
+	wantSelf := visibility.Entry{AssignedXID: builderVisibility.AssignedXID, FullXID: builderVisibility.FullXID, Ticket: scope.LockTicket}
+	if !associated || builderVisibility.Ticket != scope.LockTicket || self != wantSelf || mirroredXID != wantSelf.AssignedXID {
 		t.Fatal("builder retained phase advertisement or lost canonical ticket association during older wait", self, wantSelf, mirroredXID)
 	}
 	sessionSQL(t, writer, "ROLLBACK")
-	lockState := e.locks.Inspect()
+	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.CompletionOf(late.Transactions.Ticket)]
 	pending := entry != nil && len(entry.Pending) == 1
 	if !pending {
@@ -201,18 +201,18 @@ func TestConcurrentIndexU3GenuinelyNewerXminNotCommitSeq(t *testing.T) {
 	sessionSQL(t, writer, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, writer, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, writer, "INSERT INTO t VALUES(2)")
-	e.mu.Lock()
-	boundary := e.visibility.Entries[writer.Transactions.Ref].XID
-	frontier := e.visibility.CommitSeq()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	boundary := e.Visibility.Entries[writer.Transactions.Ref].XID
+	frontier := e.Visibility.CommitSeq()
+	e.Mu.Unlock()
 	sessionSQL(t, writer, "ROLLBACK")
 	sessionSQL(t, newer, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	rows := sessionSQL(t, newer, "SELECT n FROM t")
 	rows.Rows.Close()
-	e.mu.Lock()
-	v := e.visibility.Entries[newer.Transactions.Ref]
-	equalFrontier := frontier == e.visibility.CommitSeq()
-	e.mu.Unlock()
+	e.Mu.Lock()
+	v := e.Visibility.Entries[newer.Transactions.Ref]
+	equalFrontier := frontier == e.Visibility.CommitSeq()
+	e.Mu.Unlock()
 	if v.Xmin <= boundary || !equalFrontier {
 		t.Fatal("newer xmin incorrectly tied to CommitSeq", v, boundary)
 	}
@@ -247,9 +247,9 @@ func TestConcurrentIndexU3SafeBuilderClassification(t *testing.T) {
 			}
 			sessionSQL(t, owner, "BEGIN ISOLATION LEVEL READ COMMITTED")
 			scope, op, cancel := concurrentUnitSnapshotScope(t, e, builder)
-			e.mu.Lock()
-			xmin, err := e.visibilitySnapshotLocked(owner.Transactions.Ref, safe)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			xmin, err := e.VisibilitySnapshotLocked(owner.Transactions.Ref, safe)
+			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -280,20 +280,20 @@ func TestConcurrentIndexU3ResetClearsRegistryNotCounter(t *testing.T) {
 	sessionSQL(t, s, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	rows := sessionSQL(t, s, "SELECT n FROM t")
 	rows.Rows.Close()
-	e.mu.Lock()
-	counter := e.visibility.VisibilityXID()
-	had := len(e.visibility.Entries) > 0
-	e.mu.Unlock()
+	e.Mu.Lock()
+	counter := e.Visibility.VisibilityXID()
+	had := len(e.Visibility.Entries) > 0
+	e.Mu.Unlock()
 	if !had {
 		t.Fatal("no real stable snapshot before reset")
 	}
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	e.mu.Lock()
-	empty := len(e.visibility.Entries) == 0
-	unchanged := e.visibility.VisibilityXID() == counter
-	e.mu.Unlock()
+	e.Mu.Lock()
+	empty := len(e.Visibility.Entries) == 0
+	unchanged := e.Visibility.VisibilityXID() == counter
+	e.Mu.Unlock()
 	if !empty || !unchanged {
 		t.Fatal("epoch replacement retained owners or rewound global chronology")
 	}

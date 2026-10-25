@@ -69,18 +69,18 @@ func TestSnapshotStatementRetention(t *testing.T) {
 			e := New()
 			stage, relation := queryCreateStage(t, e, "snapshot_rows", 1)
 			queryCreatePublish(t, e, stage)
-			e.mu.Lock()
-			e.visibility.SetCommitSeqLocked(10)
-			rows := e.storage.Relations[relation.Address()]
+			e.Mu.Lock()
+			e.Visibility.SetCommitSeqLocked(10)
+			rows := e.Storage.Relations[relation.Address()]
 			rows.Versions = []storage.RowVersion{{Row: 1, Version: 1, Born: 10}}
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			_, peer := blockingUnitOwner(t, e)
 			_, bumper := blockingUnitOwner(t, e)
 			pgLocksUnitAssign(t, e, peer)
 			pgLocksUnitAssign(t, e, bumper)
-			e.mu.Lock()
-			e.visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
-			e.mu.Unlock()
+			e.Mu.Lock()
+			e.Visibility.EndTransactionIdentityLocked(bumper.Ref(), true)
+			e.Mu.Unlock()
 			observer, _ := blockingUnitOwner(t, e)
 			observer.Transactions.Mu.Lock()
 			observer.Transactions.Isolation = isolation
@@ -98,11 +98,11 @@ func TestSnapshotStatementRetention(t *testing.T) {
 			} else if analysis != nil || scope.currentSnapshot != nil || observer.Transactions.SnapshotSet {
 				t.Fatal("RC analysis retained execution authority")
 			}
-			e.mu.Lock()
+			e.Mu.Lock()
 			rows.Versions = append(rows.Versions, storage.RowVersion{Row: 2, Version: 2, Born: 11})
-			e.visibility.AdvanceCommitSeqLocked()
-			e.visibility.EndTransactionIdentityLocked(peer.Ref(), true)
-			e.mu.Unlock()
+			e.Visibility.AdvanceCommitSeqLocked()
+			e.Visibility.EndTransactionIdentityLocked(peer.Ref(), true)
+			e.Mu.Unlock()
 			if err := scope.snapshotDataPhase(); err != nil {
 				t.Fatal(err)
 			}
@@ -118,7 +118,7 @@ func TestSnapshotStatementRetention(t *testing.T) {
 			if saved == nil || saved.Visible(id) == isolation.Stable() || scope.snapshotFrontier != wantFrontier {
 				t.Fatal("execution public/tuple frontier mismatch", saved, scope.snapshotFrontier)
 			}
-			ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), relation.Address())
+			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), relation.Address())
 			snapshotUnitRows(t, scope, ref, wantRows)
 			if err := scope.snapshotDataPhase(); err != nil || scope.currentSnapshot != saved || scope.snapshotFrontier != wantFrontier {
 				t.Fatal("command snapshot refreshed", err)

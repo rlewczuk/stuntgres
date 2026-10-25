@@ -31,15 +31,15 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	stage := f.e.BeginCatalogStage(base)
 	stage.ObserveDefault(key)
 	stage.SetDefaultACL(key, nil)
-	staged := f.e.stageRead(stage)
+	staged := f.e.StageRead(stage)
 	if staged.State().DefaultACL(key) != nil || base.State().DefaultACL(key) != record {
 		t.Fatal("default-only stage lost tombstone")
 	}
 	changes := session.NewJournal()
-	f.e.mu.Lock()
-	changes.RecordCandidateDefaults(f.e.catalog.State, &stage.Candidate)
-	private := f.e.privateCatalogLocked(changes)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	changes.RecordCandidateDefaults(f.e.Catalog.State, &stage.Candidate)
+	private := f.e.PrivateCatalogLocked(changes)
+	f.e.Mu.Unlock()
 	if private.State().DefaultACL(key) != nil || changes.DefaultOriginals[key] != record {
 		t.Fatal("default-only private overlay")
 	}
@@ -51,10 +51,10 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 		t.Fatal("cloned sparse maps aliased source")
 	}
 	// A cached descriptor-empty overlay must invalidate when defaults change.
-	f.e.mu.Lock()
+	f.e.Mu.Lock()
 	f.e.defaultACLChangeLocked(changes, key, record)
-	fresh := f.e.privateCatalogLocked(changes)
-	f.e.mu.Unlock()
+	fresh := f.e.PrivateCatalogLocked(changes)
+	f.e.Mu.Unlock()
 	if fresh.State().DefaultACL(key) != record || private.State().DefaultACL(key) != nil {
 		t.Fatal("cached default-only read not refreshed immutably")
 	}
@@ -62,7 +62,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 
 func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	committedCatalog, committedRoles := f.e.catalog.State, f.e.roles.Published
+	committedCatalog, committedRoles := f.e.Catalog.State, f.e.RoleStore.Published
 	scope, err := f.e.StartStatement(f.op)
 	if err != nil {
 		t.Fatal(err)
@@ -77,20 +77,20 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 	changes := f.op.Session.Transactions.Catalog
-	f.e.mu.Lock()
-	private := f.e.privateCatalogLocked(changes)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	private := f.e.PrivateCatalogLocked(changes)
+	f.e.Mu.Unlock()
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
-	if f.e.catalog.State != committedCatalog || f.e.roles.Published != committedRoles || private.State().DefaultACL(key) == nil || changes.Roles == nil || changes.RolesBase != committedRoles {
+	if f.e.Catalog.State != committedCatalog || f.e.RoleStore.Published != committedRoles || private.State().DefaultACL(key) == nil || changes.Roles == nil || changes.RolesBase != committedRoles {
 		t.Fatal("retained utility leaked or lost private state")
 	}
 	stage := f.e.BeginCatalogStage(private)
 	table := defaultUnitTable(t, f, stage, "retained", f.owner)
-	f.e.mu.Lock()
+	f.e.Mu.Lock()
 	f.e.stageCatalogChangesLocked(stage, changes)
-	combined := f.e.privateCatalogLocked(changes)
-	err = f.e.catalogPreflightLocked(changes)
-	f.e.mu.Unlock()
+	combined := f.e.PrivateCatalogLocked(changes)
+	err = f.e.CatalogPreflightLocked(changes)
+	f.e.Mu.Unlock()
 	if err != nil || combined.Get(table.Address()) != table || authorization.ACLRights(table.Security.ACL, f.owner, []authorization.PrincipalRef{f.reader}, authorization.SelectPrivilege, false)&authorization.SelectPrivilege != authorization.SelectPrivilege {
 		t.Fatal("later retained creation missed default", err)
 	}
@@ -107,25 +107,25 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	// Reject through the actual owning message admission; detached reads retain
 	// their earlier private result without installing either committed root.
 	defaultUnitDiagnostic(t, message.scope.FinishMessage(err), "42704", `role "missing" does not exist`)
-	if f.op.Session.Transactions.Catalog != nil || f.op.Session.Transactions.RetainedMessage || f.e.catalog.State != committedCatalog || f.e.roles.Published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
+	if f.op.Session.Transactions.Catalog != nil || f.op.Session.Transactions.RetainedMessage || f.e.Catalog.State != committedCatalog || f.e.RoleStore.Published != committedRoles || combined.Get(table.Address()) != table || private.State().DefaultACL(key) == nil {
 		t.Fatal("retained failure changed committed or retained snapshots")
 	}
 }
 
 func TestTransactionalPrivilegesCreation(t *testing.T) {
 	f := newDefaultUnitFixture(t)
-	committed, roles := f.e.catalog.State, f.e.roles.Published
+	committed, roles := f.e.Catalog.State, f.e.RoleStore.Published
 	if _, err := f.e.Begin(f.op, session.TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	f.grant(t, "tables", "select", nil)
 	changes := f.op.Session.Transactions.Catalog
-	if changes == nil || changes.Roles == nil || changes.RolesBase != roles || f.e.catalog.State != committed || f.e.roles.Published != roles {
+	if changes == nil || changes.Roles == nil || changes.RolesBase != roles || f.e.Catalog.State != committed || f.e.RoleStore.Published != roles {
 		t.Fatal("private default directive leaked or lost its paired roles")
 	}
-	f.e.mu.Lock()
-	private := f.e.privateCatalogLocked(changes)
-	f.e.mu.Unlock()
+	f.e.Mu.Lock()
+	private := f.e.PrivateCatalogLocked(changes)
+	f.e.Mu.Unlock()
 	stage := f.e.BeginCatalogStage(private)
 	own := defaultUnitTable(t, f, stage, "private_creator", f.owner)
 	other := defaultUnitTable(t, f, stage, "different_creator", f.member)
@@ -137,9 +137,9 @@ func TestTransactionalPrivilegesCreation(t *testing.T) {
 	}
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	merged := changes.Clone()
-	f.e.mu.Lock()
+	f.e.Mu.Lock()
 	f.e.stageCatalogChangesLocked(stage, merged)
-	f.e.mu.Unlock()
+	f.e.Mu.Unlock()
 	if _, observed := merged.DefaultReads[key]; observed {
 		t.Fatal("private policy recorded as a committed journal predecessor")
 	}
@@ -149,7 +149,7 @@ func TestTransactionalPrivilegesCreation(t *testing.T) {
 	if err := f.apply(revoke); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(saved, own.Security.ACL) || f.e.catalog.State != committed || f.e.roles.Published != roles {
+	if !reflect.DeepEqual(saved, own.Security.ACL) || f.e.Catalog.State != committed || f.e.RoleStore.Published != roles {
 		t.Fatal("later private directive rewrote an earlier object or committed root")
 	}
 }
@@ -184,12 +184,12 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 			t.Fatal("creator not owner dependency", dep)
 		}
 	}
-	removed := cloneRoleFixture(f.e.roles.Published)
+	removed := cloneRoleFixture(f.e.RoleStore.Published)
 	retireFixtureRole(removed, f.reader)
 	changes := session.NewJournal()
 	changes.Roles = removed
 	changes.RetiredRoles = map[authorization.PrincipalRef]struct{}{f.reader: {}}
-	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.State); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := f.e.roleRetirementPreflightLocked(changes, f.e.Catalog.State); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("late default recipient retirement", err)
 	}
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
@@ -201,16 +201,16 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if f.e.catalog.State.DefaultACLCount() != 0 || access.DefaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, nil) {
+	if f.e.Catalog.State.DefaultACLCount() != 0 || access.DefaultRoleDependencies(f.e.CatalogRead(), f.e.Roles(), f.reader, nil) {
 		t.Fatal("baseline reversal retained default dependencies")
 	}
 	if !access.DescriptorRoleDependencies(table, f.reader, nil) {
 		t.Fatal("default reversal erased materialized dependency")
 	}
-	if err := f.e.roleRetirementPreflightLocked(changes, f.e.catalog.State); err != nil {
+	if err := f.e.roleRetirementPreflightLocked(changes, f.e.Catalog.State); err != nil {
 		t.Fatal("reversed default still blocked retirement", err)
 	}
-	candidate := catalog.CloneState(f.e.catalog.State)
+	candidate := catalog.CloneState(f.e.Catalog.State)
 	candidate.SetDescriptor(table.Address(), table)
 	if err := f.e.roleRetirementPreflightLocked(changes, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("materialized dependency omitted from final retirement", err)
@@ -243,7 +243,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if err := defaultUnitPublish(t, f.e, stage); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.State.DefaultACL(scoped) != record {
+	if f.e.Catalog.State.DefaultACL(scoped) != record {
 		t.Fatal("rename lost identity-bound scoped policy")
 	}
 	var dependencies []access.RoleDependency
@@ -259,7 +259,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	}
 	before := f.e.CatalogRead()
 	drop := f.e.BeginCatalogStage(before)
-	ref := f.e.catalog.Domain.Ref(before.Epoch(), f.schema)
+	ref := f.e.Catalog.Domain.Ref(before.Epoch(), f.schema)
 	if err := drop.removeObject(ref, true); err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +271,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	if err := defaultUnitPublish(t, f.e, drop); err != nil {
 		t.Fatal(err)
 	}
-	if f.e.catalog.State.DefaultACL(scoped) != nil || f.e.catalog.State.DefaultACL(global) == nil || old.State().DefaultACL(scoped) != record {
+	if f.e.Catalog.State.DefaultACL(scoped) != nil || f.e.Catalog.State.DefaultACL(global) == nil || old.State().DefaultACL(scoped) != record {
 		t.Fatal("schema drop/global/source semantics")
 	}
 	fresh := f.e.BeginCatalogStage(f.e.CatalogRead())

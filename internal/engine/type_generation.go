@@ -13,8 +13,8 @@ import (
 
 // Engine.mu is held. Reuse replacement's copy-on-change type/expression/value
 // reownership without changing OIDs, object references, or old catalog roots.
-func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
-	view := e.stageRead(stage)
+func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
+	view := e.StageRead(stage)
 	next := view.State()
 	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
 		return err
@@ -43,7 +43,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if err := stored.ReownScalarTypes(next, nil, nil); err != nil {
 		return err
 	}
-	if err := stored.ReownExpressions(e.catalog.Read(next), next, nil, true, nil); err != nil {
+	if err := stored.ReownExpressions(e.Catalog.Read(next), next, nil, true, nil); err != nil {
 		return err
 	}
 	// ALTER changes executable domain recipes, unlike mere retained-value
@@ -89,8 +89,8 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 				columnsChanged = columnsChanged || old.Columns[i].Usage.Type != column.Usage.Type
 			}
 			if columnsChanged {
-				store := e.stageStorageLocked(stage, address)
-				if shape, ok := stage.rowShapes[address]; ok {
+				store := e.StageStorageLocked(stage, address)
+				if shape, ok := stage.RowShapes[address]; ok {
 					store = shape.Replacement
 				}
 				if store != nil {
@@ -105,8 +105,8 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			if index, ok := descriptor.(*catalog.Relation); ok && index.SQLIndex != nil {
 				parent := index.SQLIndex.Parent
 				if stores[parent] == nil {
-					store := e.stageStorageLocked(stage, parent)
-					if shape, ok := stage.rowShapes[parent]; ok {
+					store := e.StageStorageLocked(stage, parent)
+					if shape, ok := stage.RowShapes[parent]; ok {
 						store = shape.Replacement
 					}
 					if store != nil {
@@ -120,7 +120,7 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 		}
 		if stage.Base.Get(address) == nil {
 			stage.UpdateDescriptor(descriptor)
-		} else if err := stage.replaceDescriptor(descriptor, false, false); err != nil {
+		} else if err := stage.ReplaceDescriptor(descriptor, false, false); err != nil {
 			return err
 		}
 	}
@@ -135,17 +135,17 @@ func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 			return err
 		}
 	}
-	if stage.rowShapes == nil {
-		stage.rowShapes = make(map[ids.ObjectAddress]storage.RowShape)
+	if stage.RowShapes == nil {
+		stage.RowShapes = make(map[ids.ObjectAddress]storage.RowShape)
 	}
 	for address, replacement := range stores {
-		if shape, ok := stage.rowShapes[address]; ok {
+		if shape, ok := stage.RowShapes[address]; ok {
 			shape.Replacement = replacement
-			stage.rowShapes[address] = shape
+			stage.RowShapes[address] = shape
 			continue
 		}
-		original := e.stageStorageLocked(stage, address)
-		stage.rowShapes[address] = storage.RowShape{Original: original, Root: original.Versions, Replacement: replacement, ObservedLength: len(original.Versions), ObservedEnds: original.Ends, Generation: original.Generation}
+		original := e.StageStorageLocked(stage, address)
+		stage.RowShapes[address] = storage.RowShape{Original: original, Root: original.Versions, Replacement: replacement, ObservedLength: len(original.Versions), ObservedEnds: original.Ends, Generation: original.Generation}
 	}
 	return nil
 }

@@ -45,7 +45,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref = catalogRef(t, e, e.CatalogRead(), "g2")
-	auth, err := operationAuthorization(admin)
+	auth, err := OperationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("candidate-only unit"))
-	old := e.catalog.State.MustRelation(ref.Address)
+	old := e.Catalog.State.MustRelation(ref.Address)
 	original := old.ColumnMeta.Generations[2]
 	retained := auth.Catalog
 	unaffected := old.ColumnMeta.Generations[3]
@@ -62,9 +62,9 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	if err != nil || attribute != 2 || next == old || next.ColumnMeta.Generations[2].OID != 0 || next.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
 		t.Fatal(next, attribute, err)
 	}
-	e.mu.Lock()
-	err = table.AssignDefinitionOIDs(ddlHost{e: e}, next)
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err = table.AssignDefinitionOIDs(DDLHost{E: e}, next)
+	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	if err != nil || same != dropped || same.Revision() != dropped.Revision() {
 		t.Fatal("no-op changed descriptor", err)
 	}
-	if e.catalog.State.Get(ref.Address) != old {
+	if e.Catalog.State.Get(ref.Address) != old {
 		t.Fatal("candidate published early")
 	}
 }
@@ -140,8 +140,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	own.Born = 0
 	insert := row(5, 6)
 	insert.Born = 0
-	scope.ownWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {own, insert}}
-	scope.ownDeletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{old.Address(): {Rows: map[ids.RowID]visibility.DeleteCandidate{4: {Row: 4, Version: 4}}}}
+	scope.OwnWrites = map[ids.ObjectAddress][]storage.RowVersion{old.Address(): {own, insert}}
+	scope.OwnDeletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{old.Address(): {Rows: map[ids.RowID]visibility.DeleteCandidate{4: {Row: 4, Version: 4}}}}
 	transform := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *exec.Context) (sqltype.Value, error) {
 		if len(ec.Row) != 3 || ec.Row[0] != integer(1) {
 			t.Fatal("TYPE lost old row", ec.Row)
@@ -149,8 +149,8 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 		return integer(31), nil
 	}}
 	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "c"}, Value: integer(5)}}
-	ownWrites, ownDeletes := scope.columnProjectionRoots(old.Address())
-	replacement, writes, deletes, err := table.RewriteTypeRows(alterRowEvaluation(scope, scope.op, scope.routineAuth.Catalog), &old, &next, store, 2, ownWrites, ownDeletes, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
+	replacement, writes, deletes, err := table.RewriteTypeRows(alterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), &old, &next, store, 2, ownWrites, ownDeletes, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(writes) != 2 || deletes != nil || replacement.Generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}
@@ -167,7 +167,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 			t.Fatal("source changed", r)
 		}
 	}
-	if scope.ownWrites[old.Address()][0].Base != 3 || scope.ownWrites[old.Address()][0].Values[1] != integer(2) {
+	if scope.OwnWrites[old.Address()][0].Base != 3 || scope.OwnWrites[old.Address()][0].Values[1] != integer(2) {
 		t.Fatal("own source changed")
 	}
 }
@@ -190,10 +190,10 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 	calls := 0
 	expression := queryProbeExpression{Info: expr.Info{Usage: u}, eval: func(ec *exec.Context) (sqltype.Value, error) {
 		calls++
-		if !e.mu.TryLock() {
+		if !e.Mu.TryLock() {
 			t.Fatal("generation evaluation held Engine.mu")
 		}
-		e.mu.Unlock()
+		e.Mu.Unlock()
 		cancel()
 		return value, nil
 	}}
@@ -204,8 +204,8 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	ownWrites, ownDeletes := scope.columnProjectionRoots(old.Address())
-	replacement, writes, deletes, err := table.RewriteTypeRows(alterRowEvaluation(scope, op, scope.routineAuth.Catalog), &old, &next, store, 1, ownWrites, ownDeletes, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
+	replacement, writes, deletes, err := table.RewriteTypeRows(alterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), &old, &next, store, 1, ownWrites, ownDeletes, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.Generation != 7 || len(store.Versions[0].Values) != 2 || store.Versions[0].Values[1] != value {
 		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
 	}

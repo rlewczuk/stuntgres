@@ -103,8 +103,8 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			e.mu.Lock()
-			defer e.mu.Unlock()
+			e.Mu.Lock()
+			defer e.Mu.Unlock()
 			text := b.Type(sqltype.Text)
 			for _, collation := range []struct {
 				name string
@@ -139,10 +139,10 @@ func TestStringCaseCollatedTypedParameterDiagnostic(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{integer.Usage()}}}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
-	established := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, binderOperation(b), nil)
+	established := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, binderOperation(b), nil)
 	established.Params.Parameters[1] = integer.Usage()
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	raw := parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}},
 		Args: []parser.Expr{parser.CollateExpr{

@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
+func (provider *DropProvider) viewDependents(targets []ids.ObjectAddress, mode parser.DropMode, foreign ...table.DomainDependency) error {
 	edges := view.DependentViews(provider, targets)
 	expanded := targets
 	if len(edges) != 0 {
@@ -40,12 +40,12 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		return table.ForeignKeyDependents(provider, foreign)
 	}
 	if mode == parser.DropRestrict {
-		labels := view.DependentLabelsWithPolicies(provider.base, targets, checks, edges, defaults, provider.path, policies, foreign...)
-		multipleDeletion := provider.scope != nil && provider.scope.inheritance.alter != nil
+		labels := view.DependentLabelsWithPolicies(provider.Base, targets, checks, edges, defaults, provider.SearchPath, policies, foreign...)
+		multipleDeletion := provider.Scope != nil && provider.Scope.Inheritance.Alter != nil
 		if multipleDeletion && len(targets) == 1 && targets[0].ClassID == ids.RelationClassID && targets[0].SubID != 0 {
-			multipleDeletion = provider.scope.inheritance.alter.ColumnDropMultiple(provider.base, targets[0])
+			multipleDeletion = provider.Scope.Inheritance.Alter.ColumnDropMultiple(provider.Base, targets[0])
 		}
-		return view.DependentsRestrictError(provider.base, edges, provider.path, labels, multipleDeletion)
+		return view.DependentsRestrictError(provider.Base, edges, provider.SearchPath, labels, multipleDeletion)
 	}
 	if err := table.ForeignKeyDependents(provider, foreign); err != nil {
 		return err
@@ -62,12 +62,12 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 		if provider.Removed(d.Address()) {
 			continue
 		}
-		if err := provider.removeObjectLocked(provider.owner.catalog.Domain.Ref(provider.base.Epoch(), d.Address()), false); err != nil {
+		if err := provider.removeObjectLocked(provider.Owner.Catalog.Domain.Ref(provider.Base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
 		activeEdges = append(activeEdges, edge)
 	}
-	for _, dependent := range view.DependentLabelsWithPolicies(provider.base, targets, checks, activeEdges, defaults, provider.path, policies, foreign...) {
+	for _, dependent := range view.DependentLabelsWithPolicies(provider.Base, targets, checks, activeEdges, defaults, provider.SearchPath, policies, foreign...) {
 		provider.cascadeNotice("drop cascades to " + dependent.Label)
 	}
 	return nil

@@ -32,15 +32,15 @@ func TestRelationLockWaitsNowait(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(v INT)")
 			ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
-			if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, held); err != nil {
+			if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, held); err != nil {
 				t.Fatal(err)
 			}
-			request, err := e.locks.StartAcquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, requested, lock.Policy{NoWait: true})
+			request, err := e.Locks.StartAcquire(context.Background(), b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, requested, lock.Policy{NoWait: true})
 			conflict := held == lock.AccessExclusive || requested == lock.AccessExclusive || held == lock.ShareUpdateExclusive && requested == lock.ShareUpdateExclusive
 			if request != nil || conflict && !errors.Is(err, lock.ErrUnavailable) || !conflict && err != nil {
 				t.Fatalf("%d/%d: request=%v err=%v", held, requested, request, err)
 			}
-			lockState := e.locks.Inspect(b.Transactions.Ticket)
+			lockState := e.Locks.Inspect(b.Transactions.Ticket)
 			entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 			bad := len(entry.Pending) != 0 || entry.Holders[a.Transactions.Ticket].Mode != held || conflict && len(lockState.Journals[b.Transactions.Ticket]) != 0
 			if bad {
@@ -60,7 +60,7 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 		sessionSQL(t, a, "CREATE TABLE t(v INT)")
 		ra, rb, rc := transactionBegin(t, a), transactionBegin(t, b), transactionBegin(t, c)
 		ref := catalogRef(t, e, e.CatalogRead(), "t")
-		if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+		if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -71,18 +71,18 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 			// not by a race between the observer and an elapsed timer.
 			policy.Timeout = time.Hour
 		}
-		ax, err := e.locks.StartAcquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
+		ax, err := e.Locks.StartAcquire(ctx, b.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if err != nil || ax == nil {
 			t.Fatal("AX not queued", err)
 		}
 		follower, stopFollower := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stopFollower()
-		rx, err := e.locks.StartAcquire(follower, c.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive, lock.Policy{})
+		rx, err := e.Locks.StartAcquire(follower, c.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive, lock.Policy{})
 		if err != nil || rx == nil {
 			t.Fatal("RX barged", err)
 		}
 		lockPending(t, e, 2)
-		probe, err := e.locks.StartAcquire(context.Background(), c.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive, lock.Policy{NoWait: true})
+		probe, err := e.Locks.StartAcquire(context.Background(), c.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.RowExclusive, lock.Policy{NoWait: true})
 		if probe != nil || !errors.Is(err, lock.ErrUnavailable) {
 			t.Fatal("NOWAIT barged", err)
 		}
@@ -90,7 +90,7 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 			cancel()
 		}
 		if timeout {
-			waitsDiagnostic(t, e.locks.ExpireWait(ax, ax.Deadline()), "55P03", "canceling statement due to lock timeout")
+			waitsDiagnostic(t, e.Locks.ExpireWait(ax, ax.Deadline()), "55P03", "canceling statement due to lock timeout")
 		}
 		err = ax.Wait()
 		cancel()
@@ -102,7 +102,7 @@ func TestRelationLockWaitsFairness(t *testing.T) {
 		if err = rx.Wait(); err != nil {
 			t.Fatal(err)
 		}
-		lockState := e.locks.Inspect(b.Transactions.Ticket)
+		lockState := e.Locks.Inspect(b.Transactions.Ticket)
 		bad := lockState.Resources[lock.Resource{ObjectRef: ref}].Holders[a.Transactions.Ticket].Mode != lock.AccessShare || len(lockState.Journals[b.Transactions.Ticket]) != 0 || !ax.Terminal() || !rx.Terminal()
 		if bad {
 			t.Fatal("interruption damaged ownership/journal")
@@ -199,7 +199,7 @@ func TestRelationLockWaitsTimeout(t *testing.T) {
 					// A short SQL timeout may already have removed its
 					// request before the parent gets scheduled. Observe
 					// progress, but never require catching that transient.
-					state := e.locks.Inspect()
+					state := e.Locks.Inspect()
 					if entry := state.Resources[resource]; entry.Holders[holder].Mode != lock.AccessExclusive || len(entry.Pending) > 1 {
 						poll.Stop()
 						t.Fatal("timeout wait damaged holder or queue")
@@ -214,7 +214,7 @@ func TestRelationLockWaitsTimeout(t *testing.T) {
 			}
 			waitsDiagnostic(t, outcome, tc.code, tc.message, position)
 			lockPending(t, e, 0)
-			if state := e.locks.Inspect(); state.Resources[resource].Holders[holder].Mode != lock.AccessExclusive {
+			if state := e.Locks.Inspect(); state.Resources[resource].Holders[holder].Mode != lock.AccessExclusive {
 				t.Fatal("timeout released the blocking holder")
 			}
 			transactionEnd(t, a, ra, false)
@@ -231,21 +231,21 @@ func TestRelationLockWaitsTimeoutCleanup(t *testing.T) {
 	ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	resource := lock.Resource{ObjectRef: ref}
-	if err := e.locks.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.AccessExclusive); err != nil {
+	if err := e.Locks.Acquire(context.Background(), a.Transactions.Ticket, resource, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
-	r, err := e.locks.StartAcquire(context.Background(), b.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{Timeout: 200 * time.Millisecond})
+	r, err := e.Locks.StartAcquire(context.Background(), b.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{Timeout: 200 * time.Millisecond})
 	if err != nil || r == nil {
 		t.Fatal("timeout request did not queue", err)
 	}
 	// Use the actual request deadline. A real timer that already won must
 	// still yield the exact timeout and retire the same registrations.
-	e.locks.ExpireWait(r, r.Deadline())
+	e.Locks.ExpireWait(r, r.Deadline())
 	waitsDiagnostic(t, r.Wait(), "55P03", "canceling statement due to lock timeout")
 	if !r.Released() {
 		t.Fatal("timed-out acquisition retained timer or context callback")
 	}
-	lockState := e.locks.Inspect(b.Transactions.Ticket)
+	lockState := e.Locks.Inspect(b.Transactions.Ticket)
 	entry := lockState.Resources[resource]
 	if entry == nil || len(entry.Pending) != 0 || len(entry.Holders) != 1 || entry.Holders[a.Transactions.Ticket].Mode != lock.AccessExclusive {
 		t.Fatal("timeout changed holder or retained waiter")
@@ -254,7 +254,7 @@ func TestRelationLockWaitsTimeoutCleanup(t *testing.T) {
 		t.Fatal("timeout retained resource in waiter journal")
 	}
 	transactionEnd(t, a, ra, false)
-	if request, err := e.locks.StartAcquire(context.Background(), b.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{}); err != nil || request != nil {
+	if request, err := e.Locks.StartAcquire(context.Background(), b.Transactions.Ticket, resource, lock.AccessShare, lock.Policy{}); err != nil || request != nil {
 		t.Fatalf("same-ticket recovery acquisition: request=%v err=%v", request, err)
 	}
 	transactionEnd(t, b, rb, false)

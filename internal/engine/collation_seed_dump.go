@@ -22,7 +22,7 @@ func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view catalo
 	}
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
-	edges, err := domainDependencyClosure(ctx, stage, roots)
+	edges, err := DomainDependencyClosure(ctx, stage, roots)
 	if err != nil {
 		return err
 	}

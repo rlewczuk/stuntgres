@@ -49,7 +49,7 @@ func TestUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 					if mode == "all" {
 						grant(2, authorization.SelectPrivilege)
 					}
-					before, store := e.catalog.State, e.storage.Relations[ref.Address]
+					before, store := e.Catalog.State, e.Storage.Relations[ref.Address]
 					ast := statement(t, "CREATE UNIQUE INDEX ui_ab ON ui_t(a,b)")
 					var result Result
 					var err error
@@ -77,7 +77,7 @@ func TestUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 						detail = "Key (a, b)=(1, protected) is duplicated."
 					}
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "ui_ab"`, Detail: detail, Schema: "public", Table: "ui_t", Constraint: "ui_ab"})
-					if e.catalog.State != before || e.storage.Relations[ref.Address] != store || len(e.storage.IndexRoots) != 0 {
+					if e.Catalog.State != before || e.Storage.Relations[ref.Address] != store || len(e.Storage.IndexRoots) != 0 {
 						t.Fatal("failed build published state")
 					}
 					want := [][]driver.Value{{int64(1), "protected"}, {int64(1), "protected"}}

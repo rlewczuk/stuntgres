@@ -65,7 +65,7 @@ func TestRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 				originalName := b.Settings.Values["application_name"]
 				ra := transactionBegin(t, a)
 				rb := transactionBegin(t, b)
-				t.Cleanup(func() { e.endLockOwner(a.Transactions.Ticket); e.endLockOwner(b.Transactions.Ticket) })
+				t.Cleanup(func() { e.EndLockOwner(a.Transactions.Ticket); e.EndLockOwner(b.Transactions.Ticket) })
 				name := "t"
 				if strings.Contains(tc.create, "猫") {
 					name = "\"猫\""
@@ -121,13 +121,13 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	transactionBegin(t, a)
 	transactionBegin(t, b)
 	at, bt := a.Transactions.Ticket, b.Transactions.Ticket
-	t.Cleanup(func() { e.endLockOwner(at); e.endLockOwner(bt) })
+	t.Cleanup(func() { e.EndLockOwner(at); e.EndLockOwner(bt) })
 	x := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "t")}
 	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "u")}
 	deadlockRequest(t, e, at, x, lock.AccessExclusive)
 	deadlockRequest(t, e, bt, y, lock.AccessExclusive)
 	ctx, cancel := context.WithCancel(context.Background())
-	r, err := e.locks.StartAcquire(ctx, at, y, lock.AccessExclusive, lock.Policy{})
+	r, err := e.Locks.StartAcquire(ctx, at, y, lock.AccessExclusive, lock.Policy{})
 	if err != nil || r == nil {
 		t.Fatal(r, err)
 	}
@@ -142,10 +142,10 @@ func TestRelationDeadlockLifecycleCanceledPredecessor(t *testing.T) {
 	if terminal {
 		t.Fatal("canceled predecessor fabricated a deadlock")
 	}
-	e.endLockOwner(at)
+	e.EndLockOwner(at)
 	if err := deadlockResult(t, follower); err != nil {
 		t.Fatal(err)
 	}
-	e.endLockOwner(bt)
+	e.EndLockOwner(bt)
 	lockEmpty(t, e)
 }

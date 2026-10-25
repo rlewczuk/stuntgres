@@ -20,7 +20,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 	}
 	name := raw.Parts[len(raw.Parts)-1].Text
 	for i := range path.Count() {
-		a := auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: name})
+		a := auth.DefinitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: name})
 		descriptor, _ := auth.definitionDescriptor(a)
 		if d, ok := descriptor.(*catalog.Collation); ok {
 			one := [1]regobj.CollationCandidate{{Address: a, Encoding: d.Encoding}}
@@ -38,10 +38,10 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	}
 	pos := raw.Parts[0].Pos
 	if u.Type.Usage().Collation.ID == 0 {
-		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+		binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		return sqltype.Usage{}, expr.ErrorAt("42804", "collations are not supported by type "+binder.DiagnosticTypeName(u.Type), pos)
 	}
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
@@ -58,7 +58,7 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 }
 
 func (e *Engine) lookupCollation(raw parser.ObjectName, op *session.Operation) (uint32, error) {
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return 0, err
 	}

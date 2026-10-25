@@ -37,7 +37,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *session.Session, c
 		if source != nil {
 			source.Close()
 		}
-		if scope != nil && !scope.finished {
+		if scope != nil && !scope.Finished {
 			scope.Finish(errors.New("abandoned mutation capture fixture"))
 		}
 		op.Done()
@@ -49,43 +49,43 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *session.Session, c
 	}
 	fail := func(err error) { scope.Finish(err); op.Done(); t.Fatal(err) }
 	ast := statement(t, q)
-	if err = scope.gate(ast); err != nil {
+	if err = scope.Gate(ast); err != nil {
 		fail(err)
 	}
-	if err = scope.acquireRelation(ast, true); err != nil {
+	if err = scope.AcquireRelation(ast, true); err != nil {
 		fail(err)
 	}
-	e.mu.Lock()
-	auth, err := e.authorizationLocked(op)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	var view *visibility.View
 	if err == nil {
-		b, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
-		scope.routineAuth, scope.routineDependencies = auth, b.Dependencies
+		b, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		scope.RoutineAuth, scope.RoutineDependencies = auth, b.Dependencies
 	}
 	if err == nil {
-		err = e.initializeQueryLocksLocked(scope, nil, b.QuerySources)
+		err = e.InitializeQueryLocksLocked(scope, nil, b.QuerySources)
 	}
 	if err == nil {
-		err = e.captureCommentSnapshotLocked(scope)
+		err = e.CaptureCommentSnapshotLocked(scope)
 	}
 	var refs []ids.ObjectRef
 	if err == nil {
-		refs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.Session.SessionToken, plan.RowMark{})
+		refs, err = e.QueryTableRefsLocked(auth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.Op.Session.SessionToken, plan.RowMark{})
 	}
 	if err == nil {
-		_, err = scope.acquireDataViewsLocked(e, refs)
+		_, err = scope.AcquireDataViewsLocked(e, refs)
 	}
 	if err == nil {
-		view, err = scope.acquireDataViewLocked(e, b.Ref)
+		view, err = scope.AcquireDataViewLocked(e, b.Ref)
 	}
 	if err == nil {
 		source, err = exec.CaptureSource(op.Ctx, view, b.Ref)
 	}
 	if err == nil {
-		from, err = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
+		from, err = e.CaptureQuerySourcesLocked(scope, b.QuerySources, false)
 	}
-	e.mu.Unlock()
+	e.Mu.Unlock()
 	if err != nil {
 		if source != nil {
 			source.Close()
@@ -135,10 +135,10 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if target.View != nil || from.Sources != nil || len(scope.querySources) != 0 {
+	if target.View != nil || from.Sources != nil || len(scope.QuerySources) != 0 {
 		t.Fatal("capture ownership leaked")
 	}
-	store := e.storage.Relations[b.Ref.Address]
+	store := e.Storage.Relations[b.Ref.Address]
 	if len(store.Versions) != 2 || store.Versions[0].Row != original[0].Row || store.Versions[1].Row != original[1].Row || original[0].Row == original[1].Row || store.Versions[0].Version == original[0].Version || testExport(original[0].Values[1]) != int64(10) {
 		t.Fatal("physical identity/head immutability", store.Versions, original)
 	}
@@ -196,7 +196,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 					t.Fatal("orphan source capture", child)
 				}
 			}
-			if target.View != nil || from.Sources != nil || len(scope.querySources) != 0 {
+			if target.View != nil || from.Sources != nil || len(scope.QuerySources) != 0 {
 				t.Fatal("orphan statement capture")
 			}
 			if testExport(saved[0].Values[1]) != int64(10) || testExport(saved[1].Values[1]) != int64(20) {

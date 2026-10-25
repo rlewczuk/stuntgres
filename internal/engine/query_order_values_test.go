@@ -20,14 +20,14 @@ func TestQueryOrderValuesSourceOrder(t *testing.T) {
 	defer done()
 	for _, key := range []string{"column2 DESC NULLS LAST,column1", "column2+0 DESC NULLS LAST,column1", "2 DESC NULLS LAST,1"} {
 		ast := statement(t, "INSERT INTO d VALUES(1,2),(2,1),(3,NULL),(4,2) ORDER BY "+key)
-		e.mu.Lock()
-		auth, err := e.authorizationLocked(op)
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-		e.mu.Unlock()
+		bound, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}

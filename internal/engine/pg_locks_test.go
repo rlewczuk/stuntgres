@@ -23,7 +23,7 @@ import (
 
 func pgLocksUnitCapture(t *testing.T, e *Engine) []lock.Record {
 	t.Helper()
-	records, err := e.locks.PGLocks(e.catalog.Domain, e.catalog.State.Epoch())
+	records, err := e.Locks.PGLocks(e.Catalog.Domain, e.Catalog.State.Epoch())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,10 +42,10 @@ func pgLocksUnitOwnerRecords(records []lock.Record, ticket *lock.Ticket, kind lo
 
 func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *lock.Ticket) uint32 {
 	t.Helper()
-	e.mu.Lock()
-	err := e.assignTransactionXIDLocked(ticket.Ref())
-	xid := e.visibility.Entries[ticket.Ref()].AssignedXID
-	e.mu.Unlock()
+	e.Mu.Lock()
+	err := e.AssignTransactionXIDLocked(ticket.Ref())
+	xid := e.Visibility.Entries[ticket.Ref()].AssignedXID
+	e.Mu.Unlock()
 	if err != nil || xid == 0 || ticket.AssignedPublicXID() != xid {
 		t.Fatal("canonical assignment mirror", xid, ticket.AssignedPublicXID(), err)
 	}
@@ -55,7 +55,7 @@ func pgLocksUnitAssign(t *testing.T, e *Engine, ticket *lock.Ticket) uint32 {
 func TestPGLocksProjectionModes(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
-	d := e.catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.LocksOID})
+	d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.LocksOID})
 	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
@@ -153,12 +153,12 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 			t.Fatal("register did not own exact VXID")
 		}
 		xid := pgLocksUnitAssign(t, e, ticket)
-		held := e.locks.Checkpoint(ticket)
-		e.locks.Restore(ticket, held)
-		e.mu.Lock()
-		e.visibility.RecordCommitTimestampLocked(ticket.Ref())
-		e.visibility.DropSnapshotLocked(ticket.Ref())
-		e.mu.Unlock()
+		held := e.Locks.Checkpoint(ticket)
+		e.Locks.Restore(ticket, held)
+		e.Mu.Lock()
+		e.Visibility.RecordCommitTimestampLocked(ticket.Ref())
+		e.Visibility.DropSnapshotLocked(ticket.Ref())
+		e.Mu.Unlock()
 		if ticket.AssignedPublicXID() != xid {
 			t.Fatal("history/snapshot consumed lock ownership")
 		}
@@ -166,12 +166,12 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		// boundary. In particular, a detached completion wait must retain its
 		// real XID through the publication-to-manager-end interval.
 		xid = pgLocksUnitAssign(t, e, ticket)
-		e.locks.DetachPrepared(ticket)
+		e.Locks.DetachPrepared(ticket)
 		_, waiter := blockingUnitOwner(t, e)
 		request, _ := pgLocksUnitRequest(t, e, waiter, lock.CompletionOf(ticket), lock.TransactionCompletion, lock.CompletionVirtual)
-		e.mu.Lock()
-		e.visibility.RecordCommitTimestampLocked(ticket.Ref())
-		e.mu.Unlock()
+		e.Mu.Lock()
+		e.Visibility.RecordCommitTimestampLocked(ticket.Ref())
+		e.Mu.Unlock()
 		pending := pgLocksUnitWait(t, e, waiter)
 		if pending.Kind != lock.TransactionRecord || pending.XID != xid || request == nil || request.Terminal() {
 			t.Fatal("prepared publication gap fabricated VXID or lost dependency", pending)
@@ -184,7 +184,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		if len(xids) != 1 || xids[0].XID != xid || !xids[0].Owner.Prepared {
 			t.Fatal("prepared identity", xids)
 		}
-		e.endLockOwner(ticket)
+		e.EndLockOwner(ticket)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
 		}
@@ -195,70 +195,70 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	t.Run("visibility_association_preserves_values_and_exhaustion", func(t *testing.T) {
 		e := New()
 		_, ticket := blockingUnitOwner(t, e)
-		v := e.visibility.Entries[ticket.Ref()]
+		v := e.Visibility.Entries[ticket.Ref()]
 		if v.Ticket != ticket {
 			t.Fatal("registration lost assignment association")
 		}
-		e.mu.Lock()
-		_, err := e.visibilitySnapshotLocked(ticket.Ref(), false)
-		e.mu.Unlock()
+		e.Mu.Lock()
+		_, err := e.VisibilitySnapshotLocked(ticket.Ref(), false)
+		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		before := e.visibility.Entries[ticket.Ref()]
-		e.visibility.SetLastAssignedXIDLocked(math.MaxUint64)
-		e.mu.Lock()
-		err = e.assignTransactionXIDLocked(ticket.Ref())
-		e.mu.Unlock()
-		if err == nil || e.visibility.Entries[ticket.Ref()] != before || ticket.AssignedPublicXID() != 0 {
+		before := e.Visibility.Entries[ticket.Ref()]
+		e.Visibility.SetLastAssignedXIDLocked(math.MaxUint64)
+		e.Mu.Lock()
+		err = e.AssignTransactionXIDLocked(ticket.Ref())
+		e.Mu.Unlock()
+		if err == nil || e.Visibility.Entries[ticket.Ref()] != before || ticket.AssignedPublicXID() != 0 {
 			t.Fatal("exhaustion partially mutated", err)
 		}
-		e.visibility.SetLastAssignedXIDLocked(2)
+		e.Visibility.SetLastAssignedXIDLocked(2)
 		pgLocksUnitAssign(t, e, ticket)
-		if e.visibility.Entries[ticket.Ref()].Xmin != before.Xmin || !e.visibility.Entries[ticket.Ref()].Snapshot {
+		if e.Visibility.Entries[ticket.Ref()].Xmin != before.Xmin || !e.Visibility.Entries[ticket.Ref()].Snapshot {
 			t.Fatal("assignment discarded visibility")
 		}
-		e.locks.Fence(e.catalog.Domain, ticket.Ref().Epoch()+1)
-		if rows, err := e.locks.PGLocks(e.catalog.Domain, ticket.Ref().Epoch()); !errors.Is(err, ids.ErrCatalogReplaced) || rows != nil {
+		e.Locks.Fence(e.Catalog.Domain, ticket.Ref().Epoch()+1)
+		if rows, err := e.Locks.PGLocks(e.Catalog.Domain, ticket.Ref().Epoch()); !errors.Is(err, ids.ErrCatalogReplaced) || rows != nil {
 			t.Fatal("old epoch snapshot", rows, err)
 		}
-		if rows, err := e.locks.PGLocks(e.catalog.Domain, ticket.Ref().Epoch()+1); err != nil || len(rows) != 0 {
+		if rows, err := e.Locks.PGLocks(e.Catalog.Domain, ticket.Ref().Epoch()+1); err != nil || len(rows) != 0 {
 			t.Fatal("fenced owner resurrection", rows, err)
 		}
 	})
 	t.Run("phase_reset_retains_assignment_association", func(t *testing.T) {
 		e := New()
 		_, ticket := blockingUnitOwner(t, e)
-		e.mu.Lock()
-		v := e.visibility.Entries[ticket.Ref()]
+		e.Mu.Lock()
+		v := e.Visibility.Entries[ticket.Ref()]
 		v.XID, v.Xmin, v.Snapshot, v.SafeBuilder = 91, 13, true, true
-		e.visibility.Entries[ticket.Ref()] = v
-		e.visibility.ResetPhaseLocked(ticket.Ref())
-		after := e.visibility.Entries[ticket.Ref()]
-		e.mu.Unlock()
+		e.Visibility.Entries[ticket.Ref()] = v
+		e.Visibility.ResetPhaseLocked(ticket.Ref())
+		after := e.Visibility.Entries[ticket.Ref()]
+		e.Mu.Unlock()
 		if after != (visibility.Entry{Ticket: ticket}) {
 			t.Fatal("phase reset lost ticket or retained advertisement", after)
 		}
 		xid := pgLocksUnitAssign(t, e, ticket)
-		e.mu.Lock()
-		v = e.visibility.Entries[ticket.Ref()]
+		e.Mu.Lock()
+		v = e.Visibility.Entries[ticket.Ref()]
 		v.XID, v.Xmin, v.Snapshot, v.SafeBuilder = 92, 14, true, true
-		e.visibility.Entries[ticket.Ref()] = v
-		e.visibility.ResetPhaseLocked(ticket.Ref())
-		after = e.visibility.Entries[ticket.Ref()]
-		e.mu.Unlock()
+		e.Visibility.Entries[ticket.Ref()] = v
+		e.Visibility.ResetPhaseLocked(ticket.Ref())
+		after = e.Visibility.Entries[ticket.Ref()]
+		e.Mu.Unlock()
 		if after != (visibility.Entry{Ticket: ticket, AssignedXID: xid, FullXID: uint64(xid)}) || ticket.AssignedPublicXID() != xid {
 			t.Fatal("phase reset discarded real assigned ownership", after)
 		}
-		e.mu.Lock()
-		e.visibility.RecordCommitTimestampLocked(ticket.Ref())
+		e.Mu.Lock()
+		e.Visibility.RecordCommitTimestampLocked(ticket.Ref())
 		if ticket.AssignedPublicXID() != xid {
-			e.mu.Unlock()
+			e.Mu.Unlock()
 			t.Fatal("bookkeeping impersonated manager release")
 		}
-		e.visibility.ResetPhaseLocked(ticket.Ref())
-		after = e.visibility.Entries[ticket.Ref()]
-		e.mu.Unlock()
+		e.Visibility.ResetPhaseLocked(ticket.Ref())
+		after = e.Visibility.Entries[ticket.Ref()]
+		e.Mu.Unlock()
 		if after != (visibility.Entry{Ticket: ticket}) || ticket.AssignedPublicXID() != 0 {
 			t.Fatal("completed phase retained XID or lost association", after)
 		}
@@ -273,15 +273,15 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 	})
 	t.Run("public_backend_boundary", func(t *testing.T) {
 		e := New()
-		ref := e.catalog.Domain.Tx(e.catalog.Domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
-		if _, _, err := lock.PublicOwner(e.catalog.Domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
+		ref := e.Catalog.Domain.Tx(e.Catalog.Domain.Session(math.MaxInt32+1), 1, 0, nil, 0)
+		if _, _, err := lock.PublicOwner(e.Catalog.Domain, ref, false); err == nil || err.Error() != "stuntgres: lock session identity exceeds integer range" {
 			t.Fatal("PID overflow", err)
 		}
-		if owner, ok, err := lock.PublicOwner(e.catalog.Domain, ref, true); err != nil || !ok || !owner.Prepared {
+		if owner, ok, err := lock.PublicOwner(e.Catalog.Domain, ref, true); err != nil || !ok || !owner.Prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
-		ref = withTxSession(ref, e.catalog.Domain.PrivateSession(&session.Session{}))
-		if _, ok, err := lock.PublicOwner(e.catalog.Domain, ref, false); err != nil || ok {
+		ref = withTxSession(ref, e.Catalog.Domain.PrivateSession(&session.Session{}))
+		if _, ok, err := lock.PublicOwner(e.Catalog.Domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
 	})
@@ -306,14 +306,14 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
-	scope.owner.Mu.Lock()
+	scope.Owner.Mu.Lock()
 	scope.attachTransactionLocked()
-	scope.owner.Mu.Unlock()
+	scope.Owner.Mu.Unlock()
 	scope.worked = true
-	ref := e.catalog.Domain.Ref(e.catalog.State.Epoch(), d.Address())
-	store := e.storage.Relations[d.Address()]
-	scope.lockedRef, scope.lockedStorage, scope.lockedDescriptor = ref, store, d
-	before := e.visibility.LastAssignedXID()
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
+	store := e.Storage.Relations[d.Address()]
+	scope.LockedRef, scope.LockedStorage, scope.LockedDescriptor = ref, store, d
+	before := e.Visibility.LastAssignedXID()
 	switch route {
 	case "insert":
 		v, _ := sqltype.Integer(testUsage(e, sqltype.Int4).Type, 1)
@@ -329,29 +329,29 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 			var publication *PreparedCatalogPublication
 			publication, err = e.ValidateCatalogStage(context.Background(), stage)
 			if err == nil {
-				_, err = e.publishCatalogOperation(op, scope, publication, PublicationToken{Epoch: ref.Epoch})
+				_, err = e.PublishCatalogOperation(op, scope, publication, PublicationToken{Epoch: ref.Epoch})
 			}
 		}
 	case "prepare":
 		e.prepared.ReserveLocked()
 		entry := &session.PreparedTransaction{Ref: ticket.Ref(), Ticket: ticket, GID: "pg_locks_unit_prepare"}
-		err = e.publishRowsPrepared(op, ticket.Ref(), nil, nil, nil, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: scope.owner}, scope)
+		err = e.publishRowsPrepared(op, ticket.Ref(), nil, nil, nil, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: scope.Owner}, scope)
 		if err == nil {
-			e.locks.DetachPrepared(ticket)
+			e.Locks.DetachPrepared(ticket)
 		}
 	}
 	if err != nil {
 		t.Fatal(route, err)
 	}
-	if uint64(ticket.AssignedPublicXID()) != before+1 || e.visibility.LastAssignedXID() != before+1 {
-		t.Fatal("actual route failed to mirror exactly one canonical assignment", route, before, ticket.AssignedPublicXID(), e.visibility.LastAssignedXID())
+	if uint64(ticket.AssignedPublicXID()) != before+1 || e.Visibility.LastAssignedXID() != before+1 {
+		t.Fatal("actual route failed to mirror exactly one canonical assignment", route, before, ticket.AssignedPublicXID(), e.Visibility.LastAssignedXID())
 	}
 	if len(pgLocksUnitOwnerRecords(pgLocksUnitCapture(t, e), ticket, lock.TransactionRecord)) != 1 {
 		t.Fatal("actual assignment lacks completion ownership", route)
 	}
 	if route == "prepare" {
 		e.prepared.RemoveLocked("pg_locks_unit_prepare")
-		e.endLockOwner(ticket)
+		e.EndLockOwner(ticket)
 	}
 }
 
@@ -359,11 +359,11 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 	e, _, d := typedUnitCatalog(t, false)
 	_, a := blockingUnitOwner(t, e)
 	_, b := blockingUnitOwner(t, e)
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
 	e.enrollSerializableLocked(a.Ref(), session.Serializable)
 	e.enrollSerializableLocked(b.Ref(), session.Serializable)
-	first, overlap := e.visibility.Serializable.Nodes[a.Ref()], e.visibility.Serializable.Nodes[b.Ref()]
+	first, overlap := e.Visibility.Serializable.Nodes[a.Ref()], e.Visibility.Serializable.Nodes[b.Ref()]
 	first.Captured, overlap.Captured = true, true
 	first.Reads[d.Address()] = struct{}{}
 	before, err := e.capturePGPredicateLocksLocked()

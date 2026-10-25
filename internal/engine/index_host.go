@@ -15,44 +15,44 @@ import (
 // ddlHost implements index.Host for CREATE INDEX, ALTER/DROP INDEX, REINDEX
 // and constraint-index staging. Like the rest of ddlHost, every method runs
 // under Engine.mu and never waits.
-var _ index.Host = ddlHost{}
+var _ index.Host = DDLHost{}
 
-func (h ddlHost) IndexStage() *index.Stage { return h.stage.indexes() }
+func (h DDLHost) IndexStage() *index.Stage { return h.CatalogStage.Indexes() }
 
-func (h ddlHost) DescriptorStage() index.DescriptorStage { return h.stage }
+func (h DDLHost) DescriptorStage() index.DescriptorStage { return h.CatalogStage }
 
-func (h ddlHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
-	owner := &h.e.catalog.Owner
-	return regobj.ACLItemOutput{Owner: owner, Roles: h.e.roles.Read(owner, view, h.e.operationRolesLocked(h.op))}
+func (h DDLHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
+	owner := &h.E.Catalog.Owner
+	return regobj.ACLItemOutput{Owner: owner, Roles: h.E.RoleStore.Read(owner, view, h.E.OperationRolesLocked(h.Op))}
 }
 
-func (h ddlHost) DefinitionReader() catalog.DefinitionReader { return stageDefinitions(h.stage) }
+func (h DDLHost) DefinitionReader() catalog.DefinitionReader { return StageDefinitions(h.CatalogStage) }
 
-func (h ddlHost) ValidityTarget() index.ValidityTarget {
-	return stageDropProvider(context.Background(), h.stage, nil, nil, nil)
+func (h DDLHost) ValidityTarget() index.ValidityTarget {
+	return StageDropProvider(context.Background(), h.CatalogStage, nil, nil, nil)
 }
 
-func (h ddlHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
-	return h.e.lookupCollation(raw, h.op)
+func (h DDLHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
+	return h.E.lookupCollation(raw, h.Op)
 }
 
-func (h ddlHost) BindIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error) {
-	return h.e.bindIndexExpression(h.op, input, ddlAuthorityOf(a), parent, raw, literals)
+func (h DDLHost) BindIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error) {
+	return h.E.bindIndexExpression(h.Op, input, DDLAuthorityOf(a), parent, raw, literals)
 }
 
-func (h ddlHost) BindIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error) {
-	return h.e.bindIndexPredicate(h.op, input, ddlAuthorityOf(a), parent, raw)
+func (h DDLHost) BindIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error) {
+	return h.E.bindIndexPredicate(h.Op, input, DDLAuthorityOf(a), parent, raw)
 }
 
 var _ index.DropStage = (*CatalogStage)(nil)
 
 // StageRead reads the stage over its base.
-func (s *CatalogStage) StageRead() catalog.Read { return s.owner.stageRead(s) }
+func (s *CatalogStage) StageRead() catalog.Read { return s.Owner.StageRead(s) }
 
 // RemoveRelation stages the removal of the relation at address. Like Remove,
 // it takes Engine.mu; the caller holds nothing.
 func (s *CatalogStage) RemoveRelation(address ids.ObjectAddress) error {
-	return s.Remove(s.owner.catalog.Domain.Ref(s.Base.Epoch(), address))
+	return s.Remove(s.Owner.Catalog.Domain.Ref(s.Base.Epoch(), address))
 }
 
-var _ index.ValidityTarget = (*dropProvider)(nil)
+var _ index.ValidityTarget = (*DropProvider)(nil)

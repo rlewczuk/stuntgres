@@ -25,7 +25,7 @@ import (
 func TestFDWCatalogOverlay(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
-	owner := e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
+	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 	wrapper := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignWrapperClassID, ObjectID: 40000}, ObjectRevision: 1, ObjectName: "unit_wrapper", Owner: owner, Options: []catalog.ForeignOption{{"a", "1"}}}
 	server := &catalog.ForeignObject{ObjectAddress: ids.ObjectAddress{ClassID: ids.ForeignServerClassID, ObjectID: 40001}, ObjectRevision: 1, ObjectName: "unit_server", Owner: owner, Wrapper: wrapper.Address()}
 	server.ACL = authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege}}}
@@ -43,10 +43,10 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if _, ok := base.Descriptor(wrapper.Address()); ok {
 		t.Fatal("private descriptor leaked into base")
 	}
-	if _, ok := e.stageRead(stage).Descriptor(wrapper.Address()); !ok {
+	if _, ok := e.StageRead(stage).Descriptor(wrapper.Address()); !ok {
 		t.Fatal("stage overlay lost descriptor")
 	}
-	beforeStorage := len(e.storage.Relations)
+	beforeStorage := len(e.Storage.Relations)
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if len(e.storage.Relations) != beforeStorage {
+	if len(e.Storage.Relations) != beforeStorage {
 		t.Fatal("SQL/MED metadata allocated physical storage")
 	}
 	if got := descriptorReferences(mapping); !slices.Equal(got, []authorization.PrincipalRef{owner}) {
@@ -68,9 +68,9 @@ func TestFDWCatalogOverlay(t *testing.T) {
 	if mappedOwner != owner || publicOwner != (authorization.PrincipalRef{}) {
 		t.Fatal("mapping ownership is not mapped identity", mappedOwner, publicOwner)
 	}
-	e.mu.Lock()
-	auth := catalogAuthorization(e, e.catalog.Current())
-	e.mu.Unlock()
+	e.Mu.Lock()
+	auth := catalogAuthorization(e, e.Catalog.Current())
+	e.Mu.Unlock()
 	for _, d := range []*catalog.ForeignObject{wrapper, server} {
 		ref := fdw.ObjectRef(auth.View, d)
 		for _, grantOptions := range []bool{false, true} {
@@ -183,12 +183,12 @@ func TestFDWRegistry(t *testing.T) {
 	if err = e.InstallForeignDefinitions([]fdw.WrapperDefinition{def}, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	address := e.catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
-	procedure := e.catalog.State.MustProcedure(address)
+	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)})
+	procedure := e.Catalog.State.MustProcedure(address)
 	if procedure.Foreign.Wrapper != w || procedure.Result != 3115 || procedure.Signature != catalog.ForeignHandlerSignature {
 		t.Fatal("installed declaration lost executable identity", procedure)
 	}
-	if err = e.catalog.Providers[ids.ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
+	if err = e.Catalog.Providers[ids.ProcedureClassID].Validate(e.CatalogRead(), procedure); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -201,28 +201,28 @@ func TestFDWProcedureIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "handler", Signature: string(catalog.ForeignHandlerSignature)}
-	oldAddress := e.catalog.State.NameAddress(key)
+	oldAddress := e.Catalog.State.NameAddress(key)
 	wrapper := &catalog.ForeignObject{ObjectName: "wrapper", Handler: oldAddress}
 	if token, err := fdw.HandlerFor(e.CatalogRead(), wrapper); err != nil || token.Wrapper != w {
 		t.Fatal(token, err)
 	}
-	replacement := catalog.CloneState(e.catalog.State)
+	replacement := catalog.CloneState(e.Catalog.State)
 	copy := *replacement.MustProcedure(oldAddress)
 	replacement.RemoveDescriptor(oldAddress)
 	copy.ObjectAddress.ObjectID = 40010
 	replacement.SetDescriptor(copy.Address(), &copy)
 	replacement.BindName(key, copy.Address())
-	_, err := fdw.HandlerFor(e.catalog.Read(replacement), wrapper)
+	_, err := fdw.HandlerFor(e.Catalog.Read(replacement), wrapper)
 	var diagnostic *sqlstate.Error
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "55000", Message: `foreign-data wrapper "wrapper" has no registered handler`}
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("retired address retargeted by same SQL name or lost defensive diagnostic", err)
 	}
-	uncallable := catalog.CloneState(e.catalog.State)
+	uncallable := catalog.CloneState(e.Catalog.State)
 	procedure := *uncallable.MustProcedure(oldAddress)
 	procedure.Foreign = nil
 	uncallable.SetDescriptor(oldAddress, &procedure)
-	_, err = fdw.HandlerFor(e.catalog.Read(uncallable), wrapper)
+	_, err = fdw.HandlerFor(e.Catalog.Read(uncallable), wrapper)
 	if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 		t.Fatal("a stored procedure name masqueraded as an executable handler", err)
 	}
@@ -251,7 +251,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if count != 1 {
 				t.Fatal("registered procedure identity not unique", count)
 			}
-			ref := e.catalog.Domain.Ref(base.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.ID})
+			ref := e.Catalog.Domain.Ref(base.Epoch(), ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: selected.ID})
 			original := base.MustProcedure(ref.Address)
 			retained := catalogAuthorization(e, base)
 			retained.State.CurrentUser = retained.Roles.LookupRef("pg_read_all_data")
@@ -282,7 +282,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if next == materialized || next.Foreign != original.Foreign || next.Revision() != original.Revision() || next.Owner != original.Owner || next.Namespace() != original.Namespace() || next.Signature != original.Signature {
 				t.Fatal("ACL publication replaced foreign capability or definition identity")
 			}
-			if err := e.catalog.Providers[ids.ProcedureClassID].Validate(current, next); err != nil {
+			if err := e.Catalog.Providers[ids.ProcedureClassID].Validate(current, next); err != nil {
 				t.Fatal("ACL copy lost native payload eligibility", err)
 			}
 			fresh := catalogAuthorization(e, current)
@@ -298,8 +298,8 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 			if rights, err := retained.Effective(ref, false); err != nil || rights != authorization.ExecutePrivilege {
 				t.Fatal("publication mutated retained authority", rights, err)
 			}
-			stable, roles := e.catalog.State, e.roles.Published
-			if err := applyObjectGrantUnit(e, op, request); err != nil || e.catalog.State != stable || e.roles.Published != roles {
+			stable, roles := e.Catalog.State, e.RoleStore.Published
+			if err := applyObjectGrantUnit(e, op, request); err != nil || e.Catalog.State != stable || e.RoleStore.Published != roles {
 				t.Fatal("explicit no-op republished foreign procedure", err)
 			}
 		})
@@ -393,37 +393,37 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 				unlock()
 			}
 		}
-		check("engine", e.mu.TryLock, e.mu.Unlock)
+		check("engine", e.Mu.TryLock, e.Mu.Unlock)
 		check("session", s.Mu.TryLock, s.Mu.Unlock)
 		check("settings", s.Settings.Mu.TryLock, s.Settings.Mu.Unlock)
 		check("transaction", txn.Mu.TryLock, txn.Mu.Unlock)
-		check("replacement", e.replacementMu.TryLock, e.replacementMu.Unlock)
+		check("replacement", e.ReplacementMu.TryLock, e.ReplacementMu.Unlock)
 		return failure
 	}}
 	owner := &exec.ForeignScanOwner{}
 	source := &exec.ForeignQuerySource{Executions: []*exec.ForeignExecution{{Scan: scan}}}
 	owner.Add(source)
 	cursor := &sqlCursor{ordinal: 1, foreignOwner: owner}
-	payloadOf(s).cursors.entries = map[string]*sqlCursor{"child": cursor}
-	e.replacementMu.RLock()
-	e.mu.Lock()
+	PayloadOf(s).Cursors.Entries = map[string]*sqlCursor{"child": cursor}
+	e.ReplacementMu.RLock()
+	e.Mu.Lock()
 	s.Settings.Mu.Lock()
 	s.Mu.Lock()
 	txn.Mu.Lock()
-	ownerExtensionOf(txn).cursorCleanup = append(ownerExtensionOrZero(txn).cursorCleanup, payloadOf(s).cursors.rollback(0)...)
+	ownerExtensionOf(txn).cursorCleanup = append(ownerExtensionOrZero(txn).cursorCleanup, PayloadOf(s).Cursors.rollback(0)...)
 	premature := scan.ends
 	txn.Mu.Unlock()
 	s.Mu.Unlock()
 	s.Settings.Mu.Unlock()
-	e.mu.Unlock()
-	e.replacementMu.RUnlock()
+	e.Mu.Unlock()
+	e.ReplacementMu.RUnlock()
 	if premature != 0 {
 		t.Fatal("locked registry detach ran application cleanup")
 	}
 	if err := drainCursorCleanup(txn, context.Background(), nil); !errors.Is(err, failure) {
 		t.Fatal("cleanup outcome was swallowed", err)
 	}
-	if len(blocked) != 0 || scan.ends != 1 || len(payloadOf(s).cursors.entries) != 0 || len(ownerExtensionOrZero(txn).cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
+	if len(blocked) != 0 || scan.ends != 1 || len(PayloadOf(s).Cursors.Entries) != 0 || len(ownerExtensionOrZero(txn).cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
 		t.Fatal("owner/lock boundary", blocked, scan.ends)
 	}
 	if err := cursor.dispose(context.Background()); !errors.Is(err, failure) || scan.ends != 1 {

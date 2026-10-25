@@ -22,7 +22,7 @@ func TestVacuumF1SelectionSkipLocked(t *testing.T) {
 	root, ends, facts := store.Versions, store.Ends, store.Maintenance
 	transactionBegin(t, holder)
 	defer sessionSQL(t, holder, "ROLLBACK")
-	if err := e.locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+	if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	// Bound a broken blocking selection; success must be genuine NoWait omission.
@@ -42,15 +42,15 @@ func TestVacuumF1SelectionSkipLocked(t *testing.T) {
 	if len(notices) != 1 || notices[0] != want {
 		t.Errorf("full selection diagnostic got %#v want %#v", notices, want)
 	}
-	if entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: ref}]; entry == nil || len(entry.Pending) != 0 {
+	if entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: ref}]; entry == nil || len(entry.Pending) != 0 {
 		t.Errorf("selection left a queued request: %#v", entry)
 	}
-	if !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Maintenance != facts || len(e.vacuumProgress) != 0 {
+	if !storage.SameVersionRoot(root, store.Versions) || store.Ends != ends || store.Maintenance != facts || len(e.VacuumProgress) != 0 {
 		t.Error("selection skip changed roots, statistics, or progress")
 	}
 	sessionSQL(t, holder, "ROLLBACK")
 	sessionSQL(t, worker, "VACUUM (SKIP_LOCKED) review_skip")
-	if store.Maintenance.VacuumCount != 1 || store.Maintenance.Live != 1 || store.Maintenance.Dead != 0 || len(e.vacuumProgress) != 0 {
+	if store.Maintenance.VacuumCount != 1 || store.Maintenance.Live != 1 || store.Maintenance.Dead != 0 || len(e.VacuumProgress) != 0 {
 		t.Fatal("same worker did not recover after holder release", store.Maintenance)
 	}
 	transactionRows(t, worker, "SELECT id FROM review_skip", 2).Close()
@@ -64,9 +64,9 @@ func TestVacuumF2OlderPublisherHorizon(t *testing.T) {
 				t.Run(phase, func(t *testing.T) {
 					e := New()
 					if wrap {
-						e.mu.Lock()
-						e.visibility.SetLastAssignedXIDLocked(0xfffffffe)
-						e.mu.Unlock()
+						e.Mu.Lock()
+						e.Visibility.SetLastAssignedXIDLocked(0xfffffffe)
+						e.Mu.Unlock()
 					}
 					older, creator := sessionStart(t, e, nil), sessionStart(t, e, nil)
 					sessionSQL(t, older, "BEGIN ISOLATION LEVEL READ COMMITTED")
@@ -78,9 +78,9 @@ func TestVacuumF2OlderPublisherHorizon(t *testing.T) {
 					if err := inquiry.Rows.Close(); err != nil {
 						t.Fatal(err)
 					}
-					e.mu.Lock()
-					assigned := e.visibility.FullXIDLocked(older.Transactions.Ref)
-					e.mu.Unlock()
+					e.Mu.Lock()
+					assigned := e.Visibility.FullXIDLocked(older.Transactions.Ref)
+					e.Mu.Unlock()
 					if assigned < 3 {
 						t.Fatal("inquiry failed to assign canonical publisher", assigned)
 					}
@@ -91,18 +91,18 @@ func TestVacuumF2OlderPublisherHorizon(t *testing.T) {
 					}
 					if phase == "older_birth" || phase == "older_prepared_birth" {
 						sessionSQL(t, older, "INSERT INTO review_birth VALUES(7)")
-						e.mu.Lock()
-						stillAssigned := e.visibility.FullXIDLocked(older.Transactions.Ref)
-						e.mu.Unlock()
+						e.Mu.Lock()
+						stillAssigned := e.Visibility.FullXIDLocked(older.Transactions.Ref)
+						e.Mu.Unlock()
 						if stillAssigned != assigned {
 							t.Fatal("older transaction changed canonical identity", assigned, stillAssigned)
 						}
 						if phase == "older_prepared_birth" {
 							sessionSQL(t, older, "PREPARE TRANSACTION 'review_birth'")
 							defer func() {
-								e.mu.Lock()
+								e.Mu.Lock()
 								pending := e.prepared.Lookup("review_birth") != nil
-								e.mu.Unlock()
+								e.Mu.Unlock()
 								if pending {
 									sessionSQL(t, creator, "ROLLBACK PREPARED 'review_birth'")
 								}
@@ -121,8 +121,8 @@ func TestVacuumF2OlderPublisherHorizon(t *testing.T) {
 						}
 						// No main-table VACUUM is allowed to repair the invariant before proof.
 						sessionSQL(t, creator, "VACUUM (ONLY_DATABASE_STATS)")
-						if e.databaseFrozenXID > assigned {
-							t.Errorf("database horizon %d passed older birth %d", e.databaseFrozenXID, assigned)
+						if e.DatabaseFrozenXID > assigned {
+							t.Errorf("database horizon %d passed older birth %d", e.DatabaseFrozenXID, assigned)
 						}
 					}
 					if store.Maintenance.FrozenXID < 3 || store.Maintenance.FrozenXID > assigned {

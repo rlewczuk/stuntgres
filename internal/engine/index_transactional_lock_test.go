@@ -52,7 +52,7 @@ func TestTransactionalIndexLocks(t *testing.T) {
 			lockPending(t, e, 1)
 			ref := roleTableRef(t, e, "t")
 			found := false
-			for resource, state := range e.locks.Inspect().Resources {
+			for resource, state := range e.Locks.Inspect().Resources {
 				for _, request := range state.Pending {
 					if request.Ticket == ticket {
 						if resource.ObjectRef != ref || request.Mode != lock.Share {
@@ -68,12 +68,12 @@ func TestTransactionalIndexLocks(t *testing.T) {
 			transactionEnd(t, writer, wt, commit)
 			lockAwait(t, done, nil)
 			held := false
-			for resource, state := range e.locks.Inspect().Resources {
+			for resource, state := range e.Locks.Inspect().Resources {
 				if resource.ObjectRef == ref && state.Holders[ticket].Mode == lock.Share {
 					held = true
 				}
 			}
-			if !held || len(e.storage.IndexRoots) != 0 {
+			if !held || len(e.Storage.IndexRoots) != 0 {
 				t.Fatal("builder failed to retain private Share")
 			}
 			sessionSQL(t, builder, "SAVEPOINT mark")
@@ -84,7 +84,7 @@ func TestTransactionalIndexLocks(t *testing.T) {
 			lockAwait(t, laterDone, nil)
 			earlyDone := transactionalIndexAsync(t, e, writer, "INSERT INTO t VALUES(3)")
 			lockPending(t, e, 1)
-			for _, resource := range e.locks.Inspect().Resources {
+			for _, resource := range e.Locks.Inspect().Resources {
 				for _, request := range resource.Pending {
 					if request.Mode != lock.RowExclusive {
 						t.Fatal("wrong blocked writer mode", request.Mode)
@@ -124,11 +124,11 @@ func TestTransactionalIndexReplacementFences(t *testing.T) {
 				} else {
 					sessionSQL(t, b, "CREATE INDEX idx ON t(n)")
 					sessionSQL(t, b, "SAVEPOINT mark")
-					prior, epoch := b.Transactions.Catalog, e.catalog.State.Epoch()
+					prior, epoch := b.Transactions.Catalog, e.Catalog.State.Epoch()
 					if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE bad(n INT); INSERT INTO bad VALUES('bad');")); err == nil {
 						t.Fatal("invalid Restore succeeded")
 					}
-					if b.Transactions.Catalog != prior || e.catalog.State.Epoch() != epoch {
+					if b.Transactions.Catalog != prior || e.Catalog.State.Epoch() != epoch {
 						t.Fatal("failed replacement changed eligible journal/epoch")
 					}
 				}
@@ -158,7 +158,7 @@ func TestTransactionalIndexReplacementFences(t *testing.T) {
 				}
 				sessionSQL(t, a, "CREATE TABLE t(n INT)")
 				fresh := roleTableRef(t, e, "t")
-				if fresh == old || len(e.storage.IndexRoots) != 0 {
+				if fresh == old || len(e.Storage.IndexRoots) != 0 {
 					t.Fatal("replacement retargeted old build")
 				}
 				lockEmpty(t, e)

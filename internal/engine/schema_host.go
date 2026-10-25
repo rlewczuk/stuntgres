@@ -10,30 +10,30 @@ import (
 )
 
 // ddlHost implements ddl.SchemaHost here; see ddl_host.go.
-var _ ddl.SchemaHost = ddlHost{}
+var _ ddl.SchemaHost = DDLHost{}
 
 // StageSchemaTable analyzes the element as the schema owner with the new
 // namespace first in the explicit path, as PostgreSQL does. Both changes are
 // made on a copy, so the caller's authority is unchanged.
-func (h ddlHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddress, owner authorization.PrincipalRef, table *parser.CreateTable, input sqltype.InputEnvironment) error {
-	v := ddlAuthorityOf(a)
+func (h DDLHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddress, owner authorization.PrincipalRef, table *parser.CreateTable, input sqltype.InputEnvironment) error {
+	v := DDLAuthorityOf(a)
 	v.State.CurrentUser = owner
 	v.pathPrefix = namespace
-	return h.e.schemaTableLocked(h.op, v, h.stage, table, namespace, owner, input, nil)
+	return h.E.SchemaTableLocked(h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
 }
 
-func (h ddlHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {
-	return h.e.stageSchemaDomainsLocked(h.op, ddlAuthorityOf(a), h.stage, schemas, relations, others, cascade)
+func (h DDLHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {
+	return h.E.stageSchemaDomainsLocked(h.Op, DDLAuthorityOf(a), h.CatalogStage, schemas, relations, others, cascade)
 }
 
-func (h ddlHost) RemoveObject(ref ids.ObjectRef, namespace bool) error {
-	return h.stage.removeObjectLocked(ref, namespace)
+func (h DDLHost) RemoveObject(ref ids.ObjectRef, namespace bool) error {
+	return h.CatalogStage.RemoveObjectLocked(ref, namespace)
 }
 
-func (h ddlHost) AddCascadeNotice(line string) {
-	h.stage.schemaCascadeNames = append(h.stage.schemaCascadeNames, line)
+func (h DDLHost) AddCascadeNotice(line string) {
+	h.CatalogStage.SchemaCascadeNames = append(h.CatalogStage.SchemaCascadeNames, line)
 }
 
-func (h ddlHost) RelationDiagnostic(a ddl.Authority, relation *catalog.Relation) (kind, name string) {
-	return catalog.RelationDiagnosticKind(relation), relationDiagnosticName(ddlAuthorityOf(a), relation)
+func (h DDLHost) RelationDiagnostic(a ddl.Authority, relation *catalog.Relation) (kind, name string) {
+	return catalog.RelationDiagnosticKind(relation), relationDiagnosticName(DDLAuthorityOf(a), relation)
 }

@@ -43,18 +43,18 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 						transactionEnd(t, writer, writerRef, false)
 					}
 				})
-				writerNode := e.visibility.Serializable.Nodes[writerRef]
+				writerNode := e.Visibility.Serializable.Nodes[writerRef]
 				if writerNode == nil || !writerNode.Captured || writerNode.Ended || writerNode.Committed || len(writer.Transactions.Writes[relation.Address]) != 1 {
 					t.Fatal("writer was not actually admitted with unresolved staged data")
 				}
 				beforeWrites := append([]storage.RowVersion(nil), writer.Transactions.Writes[relation.Address]...)
-				beforeStorage := e.storage.Relations[relation.Address]
-				beforeFrontier, beforeRows, beforeVersions := e.visibility.CommitSeq(), e.storage.RowFrontier(), e.storage.VersionFrontier()
-				beforeCatalog := e.catalog.State
+				beforeStorage := e.Storage.Relations[relation.Address]
+				beforeFrontier, beforeRows, beforeVersions := e.Visibility.CommitSeq(), e.Storage.RowFrontier(), e.Storage.VersionFrontier()
+				beforeCatalog := e.Catalog.State
 				ctx, cancel := context.WithCancel(context.Background())
 				t.Cleanup(cancel)
 				reader, node := serializableUnitAcquisition(t, e, ctx, true, true)
-				scope, err := e.StartStatement(reader.op)
+				scope, err := e.StartStatement(reader.Op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -97,10 +97,10 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 					if joined {
 						break
 					}
-					e.mu.Lock()
+					e.Mu.Lock()
 					_, containsWriter := node.Possible[writerNode]
 					waiting = node.Ready != nil && !node.Resolved && containsWriter && !writerNode.Ended && !writerNode.Committed
-					e.mu.Unlock()
+					e.Mu.Unlock()
 					if waiting {
 						cancel()
 						select {
@@ -119,25 +119,25 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				if !waiting || !errors.Is(outcome, context.Canceled) {
 					t.Errorf("utility safe-snapshot wait=%t: got %v, want cancellation after admission", waiting, outcome)
 				}
-				snapshot := e.visibility.Entries[node.Ref]
-				if node.Captured || node.Ready != nil || len(node.Possible) != 0 || reader.owner.SnapshotSet || len(reader.owner.Roots) != 0 || reader.owner.CurrentSnapshot != nil || reader.owner.SequenceCatalog != nil || reader.owner.Frontier != 0 || snapshot.Snapshot || snapshot.Xmin != 0 || snapshot.SafeBuilder {
+				snapshot := e.Visibility.Entries[node.Ref]
+				if node.Captured || node.Ready != nil || len(node.Possible) != 0 || reader.Owner.SnapshotSet || len(reader.Owner.Roots) != 0 || reader.Owner.CurrentSnapshot != nil || reader.Owner.SequenceCatalog != nil || reader.Owner.Frontier != 0 || snapshot.Snapshot || snapshot.Xmin != 0 || snapshot.SafeBuilder {
 					t.Error("canceled utility retained candidate/root/snapshot evidence")
 				}
-				if reader.owner.State != session.TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.Transactions.Writes[relation.Address]) || e.catalog.State != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
+				if reader.Owner.State != session.TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.Transactions.Writes[relation.Address]) || e.Catalog.State != beforeCatalog || e.Storage.Relations[relation.Address] != beforeStorage || e.Visibility.CommitSeq() != beforeFrontier || e.Storage.RowFrontier() != beforeRows || e.Storage.VersionFrontier() != beforeVersions {
 					t.Error("utility changed writer/source/publication state or did not abort its owner")
 				}
-				reader.op.Done()
-				transactionEnd(t, reader.op.Session, node.Ref, false)
-				if reader.owner.State != session.TxIdle || len(reader.owner.Roots) != 0 || !node.Ended {
+				reader.Op.Done()
+				transactionEnd(t, reader.Op.Session, node.Ref, false)
+				if reader.Owner.State != session.TxIdle || len(reader.Owner.Roots) != 0 || !node.Ended {
 					t.Fatal("rollback did not retire the canceled owner")
 				}
-				preparedUnitStatement(t, e, reader.op.Session, &parser.Select{Targets: []parser.Expr{literal(1)}})
+				preparedUnitStatement(t, e, reader.Op.Session, &parser.Select{Targets: []parser.Expr{literal(1)}})
 				// Ordinary SELECT still waits on this exact writer and resumes only
 				// after its rollback; canceled utility admission cannot disable it.
 				controlContext, controlCancel := context.WithCancel(context.Background())
 				t.Cleanup(controlCancel)
 				control, controlNode := serializableUnitAcquisition(t, e, controlContext, true, true)
-				controlScope, err := e.StartStatement(control.op)
+				controlScope, err := e.StartStatement(control.Op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -166,10 +166,10 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 					controlDone <- controlScope.Finish(err)
 				}()
 				serializableUnitAwaitCandidate(t, e, controlNode)
-				e.mu.Lock()
+				e.Mu.Lock()
 				_, containsWriter := controlNode.Possible[writerNode]
-				registered := containsWriter && len(controlNode.Possible) == 1 && !controlNode.Resolved && !control.owner.SnapshotSet
-				e.mu.Unlock()
+				registered := containsWriter && len(controlNode.Possible) == 1 && !controlNode.Resolved && !control.Owner.SnapshotSet
+				e.Mu.Unlock()
 				if !registered {
 					t.Fatal("ordinary SELECT control did not retain the actual unresolved writer")
 				}
@@ -184,11 +184,11 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("ordinary SELECT did not resume after writer rollback")
 				}
-				if !control.owner.SnapshotSet || !controlNode.Resolved || !writerNode.Ended || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier {
+				if !control.Owner.SnapshotSet || !controlNode.Resolved || !writerNode.Ended || e.Storage.Relations[relation.Address] != beforeStorage || e.Visibility.CommitSeq() != beforeFrontier {
 					t.Fatal("snapshot control or writer rollback changed committed source state")
 				}
-				control.op.Done()
-				transactionEnd(t, control.op.Session, controlNode.Ref, false)
+				control.Op.Done()
+				transactionEnd(t, control.Op.Session, controlNode.Ref, false)
 			})
 		}
 	}

@@ -323,12 +323,12 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			columns := append([]catalog.Column(nil), idx.Columns...)
 			parentColumns := append([]catalog.Column(nil), parent.Columns...)
 			e := New()
-			stage := e.BeginCatalogStage(e.catalog.Read(catalogSnapshot))
+			stage := e.BeginCatalogStage(e.Catalog.Read(catalogSnapshot))
 			if err := stage.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
 			transforms := []index.ColumnTransformation{{Attribute: tc.attribute, Rewrite: tc.rewrite}}
-			if err := e.evolveStageIndexesLocked(stage, parent.Address(), transforms); err != nil {
+			if err := e.EvolveStageIndexesLocked(stage, parent.Address(), transforms); err != nil {
 				t.Fatal(err)
 			}
 			evolved, ok := stage.Get(idx.Address()).(*catalog.Relation)
@@ -354,11 +354,11 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			}
 			other := parent.Address()
 			other.ObjectID += 2
-			unrelated := e.BeginCatalogStage(e.catalog.Read(catalogSnapshot))
+			unrelated := e.BeginCatalogStage(e.Catalog.Read(catalogSnapshot))
 			if err := unrelated.Replace(parent); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.evolveStageIndexesLocked(unrelated, other, transforms); err != nil || unrelated.Get(idx.Address()) != nil {
+			if err := e.EvolveStageIndexesLocked(unrelated, other, transforms); err != nil || unrelated.Get(idx.Address()) != nil {
 				t.Fatal("TYPE attribute leaked across parent identity", err)
 			}
 		})
@@ -368,11 +368,11 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 func TestIndexClausesUntouchedStage(t *testing.T) {
 	parent, idx, catalog, _ := indexClausesFixture(t)
 	e := New()
-	stage := e.BeginCatalogStage(e.catalog.Read(catalog))
+	stage := e.BeginCatalogStage(e.Catalog.Read(catalog))
 	transforms := []index.ColumnTransformation{{Attribute: parent.Attributes[0]}}
 	var err error
 	allocations := testing.AllocsPerRun(100, func() {
-		err = e.evolveStageIndexesLocked(stage, parent.Address(), transforms)
+		err = e.EvolveStageIndexesLocked(stage, parent.Address(), transforms)
 	})
 	if err != nil || allocations != 0 || stage.DescriptorCount() != 0 || catalog.Get(idx.Address()) != idx {
 		t.Fatal("untouched parent evolution allocated or changed descriptors", allocations, err)
@@ -390,16 +390,16 @@ func TestIndexClausesReplacement(t *testing.T) {
 	}
 	destination := &storage.Relation{Versions: append([]storage.RowVersion(nil), source.Versions...)}
 	e := New()
-	e.storage.SetFrontierLocked(100, 200)
-	e.catalog.PublishLocked(catalog)
-	e.mu.Lock()
-	e.storage.InstallRelationLocked(parent.Address(), source)
-	e.mu.Unlock()
-	e.mu.Lock()
-	e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): original})
-	e.mu.Unlock()
-	e.visibility.SetCommitSeqLocked(1)
-	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.Read(catalog), map[ids.ObjectAddress]*storage.Relation{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): original}, 1)
+	e.Storage.SetFrontierLocked(100, 200)
+	e.Catalog.PublishLocked(catalog)
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(parent.Address(), source)
+	e.Mu.Unlock()
+	e.Mu.Lock()
+	e.Storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): original})
+	e.Mu.Unlock()
+	e.Visibility.SetCommitSeqLocked(1)
+	snapshot, err := e.captureIndexSnapshot(ctx, e.Catalog.Read(catalog), map[ids.ObjectAddress]*storage.Relation{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): original}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows != 101 || versions != 201 || roots[idx.Address()].Entries[0].Row != 101 || len(roots[idx.Address()].Entries[0].Keys) != 2 || e.storage.RowFrontier() != 100 || e.storage.VersionFrontier() != 200 {
+	if rows != 101 || versions != 201 || roots[idx.Address()].Entries[0].Row != 101 || len(roots[idx.Address()].Entries[0].Keys) != 2 || e.Storage.RowFrontier() != 100 || e.Storage.VersionFrontier() != 200 {
 		t.Fatal("replacement did not privately remint actual key-only root", roots, rows, versions)
 	}
 	if !reflect.DeepEqual(idx.SQLIndex.Include, []int32{30}) || source.Versions[0].Row != 1 || original.Entries[0].Version != 2 {
@@ -418,7 +418,7 @@ func TestIndexClausesReplacement(t *testing.T) {
 	if _, _, _, err := e.prepareRemintedStorage(canceled, catalog, map[ids.ObjectAddress]*storage.Relation{parent.Address(): destination}, snapshot, true); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.storage.RowFrontier() != 100 || e.storage.VersionFrontier() != 200 {
+	if e.Storage.RowFrontier() != 100 || e.Storage.VersionFrontier() != 200 {
 		t.Fatal("failed replacement published allocator")
 	}
 }
@@ -523,16 +523,16 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err := setup.Create(parent); err != nil {
 				t.Fatal(err)
 			}
-			auth.Catalog = e.stageRead(setup)
+			auth.Catalog = e.StageRead(setup)
 			auth.Recapture(auth.Catalog)
 			bind := func(name, query string, oid ids.OID) *catalog.Relation {
 				raw, err := parser.Parse(query)
 				if err != nil {
 					t.Fatal(err)
 				}
-				e.mu.Lock()
-				definition, columns, attributes, labels, err := index.BindAttributes(ddlHost{e: e, op: scope.op}, auth, scope.input, parent, raw[0].(*parser.CreateIndex))
-				e.mu.Unlock()
+				e.Mu.Lock()
+				definition, columns, attributes, labels, err := index.BindAttributes(DDLHost{E: e, Op: scope.Op}, auth, scope.Input, parent, raw[0].(*parser.CreateIndex))
+				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -544,7 +544,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			}
 			unsigned := bind("unsigned", "CREATE INDEX unsigned ON t((n+0) oid_ops) INCLUDE(p)", 20001)
 			cover := bind("cover", `CREATE INDEX cover ON t(lower(s) COLLATE "POSIX" bpchar_ops DESC NULLS LAST,lower(s) COLLATE "default" text_ops) INCLUDE(p)`, 20002)
-			view := e.stageRead(setup)
+			view := e.StageRead(setup)
 			auth.Catalog = view
 			auth.Recapture(auth.Catalog)
 			for _, idx := range []*catalog.Relation{unsigned, cover} {
@@ -578,10 +578,10 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if cmp, err := padding.Comparisons[0].Compare(ctx, coverRoot.Entries[0].Keys[0], coverRoot.Entries[1].Keys[0], scope.input); err != nil || cmp != 0 {
+			if cmp, err := padding.Comparisons[0].Compare(ctx, coverRoot.Entries[0].Keys[0], coverRoot.Entries[1].Keys[0], scope.Input); err != nil || cmp != 0 {
 				t.Fatal("actual bound lower(TEXT) lost padding peers", cmp, err)
 			}
-			if cmp, err := padding.Comparisons[1].Compare(ctx, coverRoot.Entries[0].Keys[1], coverRoot.Entries[1].Keys[1], scope.input); err != nil || cmp >= 0 {
+			if cmp, err := padding.Comparisons[1].Compare(ctx, coverRoot.Entries[0].Keys[1], coverRoot.Entries[1].Keys[1], scope.Input); err != nil || cmp >= 0 {
 				t.Fatal("ordinary TEXT distinction was lost", cmp, err)
 			}
 			snapshot := func(index *catalog.Relation) []string {
@@ -610,10 +610,10 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err := layout.Replace(&compacted); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.evolveStageIndexesLocked(layout, ids.ObjectAddress{}, nil); err != nil {
+			if err := e.EvolveStageIndexesLocked(layout, ids.ObjectAddress{}, nil); err != nil {
 				t.Fatal(err)
 			}
-			compactedView := e.stageRead(layout)
+			compactedView := e.StageRead(layout)
 			compactedCover := compactedView.MustRelation(cover.Address())
 			compactedUnsigned := compactedView.MustRelation(unsigned.Address())
 			compactedStore := &storage.Relation{}
@@ -652,10 +652,10 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			if err := e.rebindAlterTypeIndexes(scope, auth, &final, stage, queue); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.evolveStageIndexesLocked(stage, parent.Address(), []index.ColumnTransformation{{Attribute: attribute}}); err != nil {
+			if err := e.EvolveStageIndexesLocked(stage, parent.Address(), []index.ColumnTransformation{{Attribute: attribute}}); err != nil {
 				t.Fatal(err)
 			}
-			finalView := e.stageRead(stage)
+			finalView := e.StageRead(stage)
 			next := finalView.MustRelation(cover.Address())
 			if next == compactedCover || next.SQLIndex == compactedCover.SQLIndex || next.SQLIndex.Keys[1].ExplicitClass || next.SQLIndex.Keys[1].Collation != 0 || !next.SQLIndex.Keys[0].ExplicitClass || next.SQLIndex.Keys[0].Class.Name != "bpchar_ops" || next.SQLIndex.Keys[0].Collation != 951 || !next.SQLIndex.Keys[0].Desc || next.SQLIndex.Keys[0].NullsFirst || !reflect.DeepEqual(next.SQLIndex.Include, []int32{4}) {
 				t.Fatal("TYPE lost providers/options/INCLUDE or old-default normalization", next.SQLIndex)
@@ -669,7 +669,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				}
 				dependent := false
 				for _, dependency := range key.Derived.Dependencies {
-					if dependency.Address == (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.catalog.Domain && dependency.Epoch == view.Epoch() {
+					if dependency.Address == (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000, SubID: 3}) && dependency.Domain() == e.Catalog.Domain && dependency.Epoch == view.Epoch() {
 						dependent = true
 					}
 				}

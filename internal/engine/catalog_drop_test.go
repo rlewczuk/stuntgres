@@ -32,7 +32,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	if _, ok := e.CatalogRead().Descriptor(a.Address); !ok {
 		t.Fatal("private removal leaked")
 	}
-	if _, ok := e.stageRead(stage).Descriptor(a.Address); ok {
+	if _, ok := e.StageRead(stage).Descriptor(a.Address); ok {
 		t.Fatal("staged removal visible")
 	}
 	run(t, e, "CREATE TABLE unrelated(id INT)")
@@ -60,7 +60,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	if now.Epoch() != base.Epoch() {
 		t.Fatal("drop advanced epoch")
 	}
-	if _, ok := now.Descriptor(a.Address); ok || e.storage.Relations[a.Address] != nil {
+	if _, ok := now.Descriptor(a.Address); ok || e.Storage.Relations[a.Address] != nil {
 		t.Fatal("drop retained definition/storage")
 	}
 	for _, typ := range []*catalog.Type{row, array} {
@@ -94,7 +94,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	run(t, e, "CREATE TABLE a(id INT)")
 	base := e.CatalogRead()
 	ref := roleTableRef(t, e, "a")
-	for _, bad := range []ids.ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}), ref.Domain().Ref(ref.Epoch-1, ref.Address)} {
+	for _, bad := range []ids.ObjectRef{{Epoch: ref.Epoch, Address: ref.Address}, New().Catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ref.Address.ObjectID, SubID: 1}), ref.Domain().Ref(ref.Epoch, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}), ref.Domain().Ref(ref.Epoch-1, ref.Address)} {
 		s := e.BeginCatalogStage(base)
 		if err := s.Remove(bad); err == nil {
 			t.Fatal("invalid ref accepted", bad)
@@ -280,7 +280,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()
-	custom := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, ObjectName: "feature", ObjectRevision: 1, Owner: e.roles.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
+	custom := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: provider.ClassID(), ObjectID: 1}, ObjectName: "feature", ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")}
 	stage := e.BeginCatalogStage(base)
 	if err = stage.Create(custom); err != nil {
 		t.Fatal(err)
@@ -295,7 +295,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 	base = e.CatalogRead()
 	for _, address := range []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.TypeClassID, ObjectID: 23}, custom.Address()} {
 		stage = e.BeginCatalogStage(base)
-		if err = stage.Remove(e.catalog.Domain.Ref(base.Epoch(), address)); err == nil {
+		if err = stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), address)); err == nil {
 			t.Fatal("unowned class accepted", address)
 		}
 		if stage.RemovalCount() != 0 || e.CatalogRead().State() != base.State() {
