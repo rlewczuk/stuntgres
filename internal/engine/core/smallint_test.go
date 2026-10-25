@@ -5,7 +5,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
-	"sync/atomic"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -55,20 +54,4 @@ func TestSmallintLiteralInference(t *testing.T) {
 			t.Fatal(result.Rows.Schema()[i])
 		}
 	}
-}
-
-// cancelAtErrCheck drives existing cooperative cancellation boundaries without
-// sleeps or production hooks. Its embedded real context owns Done and Err state.
-type cancelAtErrCheck struct {
-	context.Context
-	cancel context.CancelFunc
-	at     int32
-	checks atomic.Int32
-}
-
-func (c *cancelAtErrCheck) Err() error {
-	if c.checks.Add(1) == c.at {
-		c.cancel()
-	}
-	return c.Context.Err()
 }

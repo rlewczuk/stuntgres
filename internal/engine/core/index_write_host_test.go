@@ -1,0 +1,90 @@
+package core_test
+
+import (
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/index"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// Each projection change through the write host advances the exclusion
+// registry generation exactly once, so a scan captured before it is stale and
+// one captured after it is current.
+func TestIndexWriteHostPublishExclusionAdvancesGeneration(t *testing.T) {
+	e := engine.New()
+	enginetest.SessionSQL(t, enginetest.StartSession(t, e, nil), "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING btree(k WITH =))")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if !scope.Finished {
+			_ = scope.Finish(errors.New("unit rollback"))
+		}
+	})
+	if err := scope.Gate(&parser.Insert{}); err != nil {
+		t.Fatal(err)
+	}
+	h := scope.WriteHost()
+	var _ index.WriteHost = h
+	ref := enginetest.RoleTableRef(t, e, "public.t")
+	binding, err := dml.BindUniqueWrite(scope.WriteHost(), ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(binding.Keys) != 1 || !binding.Keys[0].Index.SQLIndex.IsExclusion() {
+		t.Fatalf("binding keys %d, want the one exclusion index", len(binding.Keys))
+	}
+	idx := binding.Keys[0].Index
+	before, err := h.CaptureExclusionScan(ref, binding, idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !h.ExclusionScanCurrent(before, idx.Address()) {
+		t.Fatal("a fresh scan is not current")
+	}
+	value, err := sqltype.Integer(binding.Parent.Columns[0].Usage.Type, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := []sqltype.Value{value}
+	proposal := index.WriteCandidate{Values: []sqltype.Value{value}}
+	row, err := h.PublishExclusion(ref, binding.Catalog, proposal, index.ExclusionEdit{Index: idx.Address(), Keys: key, Member: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	proposal.RecordExclusion(row, false)
+	if proposal.Exclusion == nil || proposal.Exclusion.Version != row.Version || row.Version == 0 {
+		t.Fatalf("published row %+v, proposal exclusion %+v", row, proposal.Exclusion)
+	}
+	if h.ExclusionScanCurrent(before, idx.Address()) {
+		t.Fatal("a scan captured before the publication is still current")
+	}
+	after, err := h.CaptureExclusionScan(ref, binding, idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Generation != before.Generation+1 {
+		t.Fatalf("generation %d after publication, want %d", after.Generation, before.Generation+1)
+	}
+	if !h.ExclusionScanCurrent(after, idx.Address()) {
+		t.Fatal("a scan captured after the publication is not current")
+	}
+	if got := h.OwnExclusionKeys(idx.Address(), row.Version); len(got) != 1 || !sqltype.SameDatum(got[0], value) {
+		t.Fatalf("own exclusion keys %v, want [7]", got)
+	}
+	h.DiscardExclusion(proposal.TakeExclusion())
+	if proposal.Exclusion != nil || h.OwnExclusionKeys(idx.Address(), row.Version) != nil {
+		t.Fatal("discarded proposal is still projected")
+	}
+	if h.ExclusionScanCurrent(after, idx.Address()) {
+		t.Fatal("a scan captured before the discard is still current")
+	}
+}

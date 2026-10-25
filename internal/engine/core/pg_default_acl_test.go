@@ -424,17 +424,3 @@ func TestPGDefaultACLPermissionPublication(t *testing.T) {
 	execute(nil, false)
 	execute(&held, false)
 }
-
-type namespaceCancelContext struct {
-	context.Context
-	cancel    context.CancelFunc
-	calls, at int
-}
-
-func (c *namespaceCancelContext) Err() error {
-	c.calls++
-	if c.calls == c.at {
-		c.cancel()
-	}
-	return c.Context.Err()
-}

@@ -876,12 +876,6 @@ func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	}
 }
 
-// replaceWithFreshCatalog replaces e's catalog with a new engine's.
-func replaceWithFreshCatalog(ctx context.Context, e *core.Engine) (core.ChangeSet, error) {
-	fresh := engine.New()
-	return e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
-}
-
 // Ordinary preparation has no retirement ticket yet, so a peer view can publish
 // and force whole-root recapture. Post-drain maintenance already holds the
 // procedure's AX lock: publish an unrelated durable root first, then prove the

@@ -182,19 +182,3 @@ func TestQueryDistinctOnLaterComponentDemand(t *testing.T) {
 		t.Fatal(rows, count, err, calls, source.View)
 	}
 }
-
-type aggregateCancelContext struct {
-	context.Context
-	armed     bool
-	calls, at int
-}
-
-func (c *aggregateCancelContext) Err() error {
-	if c.armed {
-		c.calls++
-		if c.calls >= c.at {
-			return context.Canceled
-		}
-	}
-	return nil
-}

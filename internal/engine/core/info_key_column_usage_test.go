@@ -367,29 +367,3 @@ func TestInfoKeyColumnUsageCancellation(t *testing.T) {
 func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorization.Privileges) authorization.ACLEntry {
 	return authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: privileges, GrantOptions: options}
 }
-
-func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) core.AuthorizationView {
-	t.Helper()
-	f.e.Mu.Lock()
-	auth, err := f.e.AuthorizationLocked(f.op)
-	f.e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	auth.Recapture(catalog)
-	return auth
-}
-
-// A deterministic cancellation point inside enumeration, without timing races.
-type dtpCancelContext struct {
-	context.Context
-	remaining int
-}
-
-func (c *dtpCancelContext) Err() error {
-	c.remaining--
-	if c.remaining <= 0 {
-		return context.Canceled
-	}
-	return nil
-}

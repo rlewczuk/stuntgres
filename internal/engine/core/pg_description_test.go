@@ -3,7 +3,6 @@ package core_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -246,17 +245,6 @@ func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 	if _, exists := bag[ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1003}]; exists {
 		t.Fatal("array inherited description")
 	}
-}
-
-// captureCatalogSourceLocked runs source's registered producer over view and
-// roles, without the per-source policy of openCatalogSourceLocked.
-func captureCatalogSourceLocked(e *core.Engine, ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
-	produce, ok := pgcatalog.ProducerFor(source.Address().ObjectID)
-	if !ok {
-		return nil, fmt.Errorf("stuntgres: unknown catalog source")
-	}
-	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: &e.Catalog.Owner, Ref: ref, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, SequenceBase: view.State()})}
-	return core.CaptureCatalogSourceRows(in, produce)
 }
 
 // Independent release expectations shared with the public reference scenarios,

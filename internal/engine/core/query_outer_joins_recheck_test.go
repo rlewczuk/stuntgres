@@ -172,9 +172,3 @@ func TestQueryOuterJoinsChangedPairRecheck(t *testing.T) {
 		}
 	}
 }
-
-func queryJoinsFixture(t *testing.T, q string) (*core.Engine, *plan.Query, *exec.Source) {
-	t.Helper()
-	e, query, source, _ := queryJoinsAdmittedFixture(t, q, false)
-	return e, query, source
-}

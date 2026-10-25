@@ -12,12 +12,10 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func assertTemporaryNamespacePair(t *testing.T, e *core.Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
@@ -242,49 +240,6 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "SELECT v FROM owned_temp")
 	enginetest.RoleExecute(t, e, op, "DROP VIEW owned_temp")
 	assertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
-}
-
-func namespaceUnitCapture(t *testing.T, e *core.Engine, c catalog.Read) *exec.Source {
-	t.Helper()
-	d, ref := namespaceUnitSource(t, e, c)
-	e.Mu.Lock()
-	rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, c), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, capturePGNamespace)
-	e.Mu.Unlock()
-	if err != nil || rows == nil || rows.Ref != ref {
-		t.Fatal(rows, err)
-	}
-	return rows
-}
-
-func namespaceUnitRow(t *testing.T, rows *exec.Source, id uint32) []sqltype.Value {
-	t.Helper()
-	var found []sqltype.Value
-	for _, row := range rows.Anonymous {
-		oid, err := row[0].OID()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if oid == id {
-			if found != nil {
-				t.Fatal("duplicate namespace", id)
-			}
-			found = row
-		}
-	}
-	if found == nil {
-		t.Fatal("missing namespace", id)
-	}
-	return found
-}
-
-func namespaceUnitSource(t *testing.T, e *core.Engine, c catalog.Read) (*catalog.Relation, ids.ObjectRef) {
-	t.Helper()
-	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2615}
-	d, ok := c.Relation(a)
-	if !ok {
-		t.Fatal("missing namespace source")
-	}
-	return d, e.Catalog.Domain.Ref(c.Epoch(), a)
 }
 
 // Unit tests name producers by their former engine identifiers. Each one is

@@ -1,0 +1,118 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/sqlstate"
+)
+
+func batchUnitDiagnostic(t *testing.T, err error, code, message string) {
+	t.Helper()
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+	var got *sqlstate.Error
+	if !errors.As(err, &got) || *got != want {
+		t.Fatal("full independently specified diagnostic", err, want)
+	}
+}
+
+func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
+	for _, finish := range []string{"COMMIT", "ROLLBACK"} {
+		t.Run(finish, func(t *testing.T) {
+			e := engine.New()
+			owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, owner, "CREATE TABLE t(v INT)")
+			enginetest.SessionSQL(t, owner, "INSERT INTO t VALUES(7)")
+			table := catalogRef(t, e, e.CatalogRead(), "t")
+			original := owner.Authorization.State
+			m := batchUnitStart(t, owner, context.Background())
+			defer m.end(context.Canceled)
+			t.Cleanup(func() {
+				e.Mu.Lock()
+				pending := core.EnginePreparedRef(e).Lookup("batch_detached") != nil
+				e.Mu.Unlock()
+				if pending {
+					if err := controlsExecute(t, peer, "ROLLBACK PREPARED 'batch_detached'"); err != nil {
+						t.Error("prepared cleanup", err)
+					}
+				}
+			})
+			for _, q := range []string{"CREATE ROLE detached LOGIN", "GRANT SELECT ON t TO detached", "SET ROLE detached", "BEGIN", "PREPARE TRANSACTION 'batch_detached'"} {
+				if _, err := m.step(enginetest.Statement(t, q)); err != nil {
+					t.Fatal(q, err)
+				}
+			}
+			if err := m.end(nil); err != nil {
+				t.Fatal(err)
+			}
+			entry := core.EnginePreparedRef(e).Lookup("batch_detached")
+			if entry == nil || entry.Catalog == nil || entry.Catalog.Roles == nil || owner.Authorization.State.CurrentUser != entry.Owner || owner.Authorization.State.SessionUser != original.SessionUser || owner.Transactions.Catalog != nil {
+				t.Fatal("prepared role authority was lost or retained by session")
+			}
+			op, err := owner.Acquire(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			auth, err := core.OperationAuthorization(op)
+			op.Done()
+			if err != nil || auth.RoleRecord != e.RoleStore.Published || auth.State.CurrentUser != entry.Owner || auth.MissingCurrent != entry.Owner {
+				t.Fatal("numeric authority did not admit missing effective name", err)
+			}
+			if _, exists := auth.Roles.Lookup("detached"); exists {
+				t.Fatal("detached private role name leaked into new command")
+			}
+			batchUnitDiagnostic(t, auth.Check(access.Requirement{Object: table, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table t")
+			unadmitted := auth
+			unadmitted.MissingCurrent = authorization.PrincipalRef{}
+			if _, err := unadmitted.Effective(table, false); err == nil {
+				t.Fatal("unadmitted missing actor acquired numeric authority")
+			}
+			if err := unadmitted.Check(access.Requirement{Object: table, Privileges: authorization.SelectPrivilege}); err == nil {
+				t.Fatal("unadmitted missing actor bypassed privilege preflight")
+			}
+			foreign := auth
+			foreign.State.CurrentUser = engine.New().RoleStore.Domain.Principal(entry.Owner.ID())
+			if _, err := foreign.Effective(table, false); err == nil {
+				t.Fatal("foreign numeric principal bypassed authority")
+			}
+			missing := fmt.Sprintf("invalid role OID: %d", entry.Owner.ID())
+			batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT current_user"), "42704", missing)
+			batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT v FROM t"), "42501", "permission denied for table t")
+			enginetest.TransactionRows(t, owner, "SELECT 1", 1)
+			controlsRequire(t, peer, finish+" PREPARED 'batch_detached'")
+			if core.EnginePreparedRef(e).Lookup("batch_detached") != nil {
+				t.Fatal("prepared completion retained registry")
+			}
+			if finish == "COMMIT" {
+				role, exists := e.Roles().Lookup("detached")
+				if !exists || role.Ref != entry.Owner {
+					t.Fatal("commit changed numeric role identity")
+				}
+				result := enginetest.SessionSQL(t, owner, "SELECT current_user")
+				if got := enginetest.Tuples(result); len(got) != 1 || len(got[0]) != 1 || got[0][0] != "detached" {
+					t.Fatal("published name consumer", got)
+				}
+				if err := result.Rows.Close(); err != nil {
+					t.Fatal(err)
+				}
+				enginetest.TransactionRows(t, owner, "SELECT v FROM t", 7)
+			} else {
+				batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT current_user"), "42704", missing)
+				batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT v FROM t"), "42501", "permission denied for table t")
+			}
+			controlsRequire(t, owner, "SET ROLE NONE")
+			if owner.Authorization.State != original {
+				t.Fatal("NONE recovered a fabricated identity")
+			}
+			enginetest.TransactionRows(t, owner, "SELECT v FROM t", 7)
+			enginetest.LockEmpty(t, e)
+		})
+	}
+}

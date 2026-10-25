@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/view"
-	"stuntgres/internal/engine/visibility"
 )
 
 func TestRLSBaseDecision(t *testing.T) {
@@ -127,13 +126,4 @@ func TestRLSBaseDecision(t *testing.T) {
 			t.Fatal("live selection revived denied input", err)
 		}
 	})
-}
-
-func accessMethodHeapOperationsUnit(t *testing.T, view catalog.Read) visibility.HeapOperations {
-	t.Helper()
-	heap, err := visibility.ResolveHeapAccess(view, 2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return heap
 }

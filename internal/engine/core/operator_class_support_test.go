@@ -138,16 +138,3 @@ func TestOperatorClassSupportExecution(t *testing.T) {
 		})
 	}
 }
-
-// Fixture identities use the real allocator: bootstrap definitions can occupy
-// user-range OIDs without becoming relation descriptors.
-func catalogUnitOID(t *testing.T, e *core.Engine) ids.OID {
-	t.Helper()
-	e.Mu.Lock()
-	oid, err := e.Catalog.AllocateOIDLocked()
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return oid
-}

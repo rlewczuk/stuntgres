@@ -57,13 +57,3 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("foreign empty ACL authority admitted")
 	}
 }
-
-func pgAttributeUnitSource(t *testing.T, e *core.Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
-	t.Helper()
-	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1249}
-	d, ok := catalog.Relation(address)
-	if !ok {
-		t.Fatal("missing pg_attribute")
-	}
-	return d, e.Catalog.Domain.Ref(catalog.Epoch(), address)
-}

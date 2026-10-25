@@ -305,18 +305,6 @@ func TestPGGroupCancellation(t *testing.T) {
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, source, d)[20000], 20001, 20001, 20001, 20001, 20001, 20001, 20001, 20001)
 }
 
-func pgRolesUnitRole(e *core.Engine, state *access.RoleRecord, id uint64, name string) authorization.PrincipalRef {
-	e.RoleStore.InstallPrincipalFrontierLocked(id)
-	ref, err := e.RoleStore.PrincipalCandidateLocked()
-	if err != nil {
-		panic(err)
-	}
-	e.RoleStore.InstallPrincipalFrontierLocked(ref.ID() + 1)
-	putFixtureRole(state, authorization.RoleDescriptor{Ref: ref, Name: name, Login: true, Inherit: true, ConnectionLimit: -1, Password: "unit-private-verifier"})
-
-	return ref
-}
-
 func emptyRoleFixture(e *core.Engine) *access.RoleRecord {
 	root := authorization.Seed(&e.RoleStore.Domain)
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)

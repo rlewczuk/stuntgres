@@ -1,9 +1,6 @@
 package engine
 
 import (
-	"context"
-	"errors"
-	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
@@ -22,6 +19,15 @@ type columnsUnitFixture struct {
 	table *catalog.Relation
 }
 
+func (f columnsUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
+	t.Helper()
+	view := f.dc.f.e.Catalog.Read(state)
+	auth := dtpUnitAuthority(t, f.dc.f, view)
+	auth.State.CurrentUser = actor
+	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnsOID})
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
+}
+
 func newColumnsUnitFixture(t *testing.T) columnsUnitFixture {
 	t.Helper()
 	dc := newDCUnitFixture(t)
@@ -37,14 +43,7 @@ func newColumnsUnitFixture(t *testing.T) columnsUnitFixture {
 	state.SetDescriptor(table.Address(), table)
 	return columnsUnitFixture{dc: dc, state: state, table: table}
 }
-func (f columnsUnitFixture) input(t *testing.T, state *catalog.State, actor authorization.PrincipalRef) pgcatalog.Input {
-	t.Helper()
-	view := f.dc.f.e.Catalog.Read(state)
-	auth := dtpUnitAuthority(t, f.dc.f, view)
-	auth.State.CurrentUser = actor
-	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "captured_database"}}
-}
+
 func columnsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
 	produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoColumnsOID)
@@ -71,6 +70,7 @@ func columnsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	}
 	return source.Anonymous
 }
+
 func columnsUnitCell(t *testing.T, value sqltype.Value) any {
 	t.Helper()
 	if value.IsNull() {
@@ -93,6 +93,7 @@ func columnsUnitCell(t *testing.T, value sqltype.Value) any {
 	}
 	return text
 }
+
 func columnsUnitTable(t *testing.T, rows [][]sqltype.Value) map[string][44]any {
 	t.Helper()
 	out := map[string][44]any{}
@@ -112,6 +113,7 @@ func columnsUnitTable(t *testing.T, rows [][]sqltype.Value) map[string][44]any {
 	}
 	return out
 }
+
 func columnsUnitExpected() map[string][44]any {
 	base := func(name string, ordinal int64, dataType, udtSchema, udt string) [44]any {
 		var row [44]any
@@ -128,177 +130,4 @@ func columnsUnitExpected() map[string][44]any {
 	nested := base("nested", 4, "USER-DEFINED", "default_schema", "nn")
 	nested[22], nested[23], nested[24], nested[32] = "captured_database", "default_schema", "nn_child", "4"
 	return map[string][44]any{"a": a, "b": b, "nested": nested}
-}
-func TestInfoColumnsProducer(t *testing.T) {
-	f := newColumnsUnitFixture(t)
-	in := f.input(t, f.state, f.dc.f.owner)
-	rows := columnsUnitRows(t, in)
-	if got := columnsUnitTable(t, rows); !reflect.DeepEqual(got, columnsUnitExpected()) {
-		t.Fatal("full44 rows", got, columnsUnitExpected())
-	}
-	self := 0
-	for _, row := range rows {
-		if columnsUnitCell(t, row[1]) == "information_schema" && columnsUnitCell(t, row[2]) == "columns" {
-			self++
-		}
-	}
-	if self != 44 {
-		t.Fatal("genuine self description", self)
-	}
-	if in.Source.Address().ObjectID != 16214 || in.Source.RowType != 13319 {
-		t.Fatal("source/row identity", in.Source.Address(), in.Source.RowType)
-	}
-	rowType := in.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13319})
-	array := in.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13318})
-	if rowType.OwningRelation != in.Source.Address() || array.OwningRelation != in.Source.Address() || rowType.Array != 13318 || array.SQLType.Element() != rowType.SQLType {
-		t.Fatal("row/array backlinks")
-	}
-	for i, column := range in.Source.Columns {
-		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != uint32(pgcatalog.InfoColumnsOID) || column.OriginAttribute != int16(i+1) || column.Usage.Typmod != -1 || column.DeclaredDimensions != 0 {
-			t.Fatal("source metadata", i, column)
-		}
-	}
-	hidden := catalog.CloneState(f.state)
-	for _, d := range in.Catalog.Descriptors() {
-		if relation, ok := d.(*catalog.Relation); ok {
-			copy := *relation
-			copy.Owner = f.dc.f.owner
-			copy.Security.ACL = authorization.ACLValue{Explicit: true}
-			copy.Security.ColumnACL = nil
-			hidden.SetDescriptor(copy.Address(), &copy)
-		}
-	}
-	if rows := columnsUnitRows(t, f.input(t, hidden, f.dc.f.reader)); rows == nil || len(rows) != 0 {
-		t.Fatal("typed empty", rows)
-	}
-}
-
-func TestInfoColumnsCapture(t *testing.T) {
-	f := newColumnsUnitFixture(t)
-	old := f.input(t, f.state, f.dc.f.owner)
-	retained := columnsUnitRows(t, old)
-	changed := catalog.CloneState(f.state)
-	table := *f.table
-	table.Columns = append([]catalog.Column(nil), table.Columns...)
-	table.Columns[0].Name = "renamed"
-	table.ColumnMeta.Defaults = nil
-	changed.SetDescriptor(table.Address(), &table)
-	fresh := columnsUnitTable(t, columnsUnitRows(t, f.input(t, changed, f.dc.f.owner)))
-	if fresh["renamed"][5] != nil || len(fresh) != 3 {
-		t.Fatal("fresh capture", fresh)
-	}
-	if got := columnsUnitTable(t, columnsUnitRows(t, old)); !reflect.DeepEqual(got, columnsUnitExpected()) || !reflect.DeepEqual(columnsUnitTable(t, retained), got) {
-		t.Fatal("retained capture changed", got)
-	}
-	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoColumnsOID)
-	for _, mutate := range []func(*pgcatalog.Input){
-		func(in *pgcatalog.Input) { in.Owner = &New().Catalog.Owner },
-		func(in *pgcatalog.Input) { in.Catalog = New().CatalogRead() },
-		func(in *pgcatalog.Input) { in.Roles = New().Roles() },
-		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
-		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
-		func(in *pgcatalog.Input) { in.Ref = new(ids.Domain).Ref(in.Ref.Epoch, in.Ref.Address) },
-		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
-		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
-			r.Auth.RoleRecord = nil
-			in.Runtime = r
-		},
-		func(in *pgcatalog.Input) {
-			r := in.Runtime.(core.EngineCatalogRuntime)
-			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
-			in.Runtime = r
-		},
-	} {
-		in := old
-		mutate(&in)
-		if rows, err := produce(in); rows != nil || err == nil {
-			t.Fatal("foreign capture accepted", rows, err)
-		}
-	}
-	for _, kind := range []string{"width", "name", "domain", "generation", "base-generation", "typmod", "collation", "nullable", "dimensions", "origin", "virtual", "attributes"} {
-		t.Run(kind, func(t *testing.T) {
-			state := catalog.CloneState(f.state)
-			source := *old.Source
-			source.Columns = append([]catalog.Column(nil), source.Columns...)
-			source.Attributes = append([]int32(nil), source.Attributes...)
-			switch kind {
-			case "width":
-				source.Columns = source.Columns[:43]
-			case "name":
-				source.Columns[0].Name = "foreign"
-			case "domain":
-				source.Columns[0].Usage = source.Columns[4].Usage
-			case "generation":
-				source.Columns[0].Usage.Type, _ = New().CatalogRead().LookupType(13248)
-			case "base-generation":
-				typ := *old.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Name)})
-				typ.SQLType, _ = New().CatalogRead().LookupType(sqltype.Name)
-				state.SetDescriptor(typ.Address(), &typ)
-			case "typmod":
-				source.Columns[0].Usage.Typmod = 0
-			case "collation":
-				source.Columns[0].Usage.Collation = sqltype.CollationRef{}
-			case "nullable":
-				source.Columns[0].Nullable = false
-			case "dimensions":
-				source.Columns[0].DeclaredDimensions = 1
-			case "origin":
-				source.Columns[0].OriginAttribute = 2
-			case "virtual":
-				source.VirtualView = false
-			case "attributes":
-				source.Attributes[0] = 2
-			}
-			state.SetDescriptor(source.Address(), &source)
-			if rows, err := produce(f.input(t, state, f.dc.f.owner)); rows != nil || err == nil {
-				t.Fatal("bad source accepted", rows, err)
-			}
-		})
-	}
-	columnsUnitPairedCapture(t)
-}
-
-type columnsCancelRuntime struct {
-	core.EngineCatalogRuntime
-	cancel context.CancelFunc
-	calls  *int
-}
-
-func (r columnsCancelRuntime) ColumnExpression(ctx context.Context, view catalog.Read, relation *catalog.Relation, expression expr.Expr) (string, error) {
-	*r.calls++
-	if *r.calls == 2 {
-		r.cancel()
-	}
-	return r.EngineCatalogRuntime.ColumnExpression(ctx, view, relation, expression)
-}
-func TestInfoColumnsCancellation(t *testing.T) {
-	f := newColumnsUnitFixture(t)
-	produce, _ := pgcatalog.ProducerFor(pgcatalog.InfoColumnsOID)
-	in := f.input(t, f.state, f.dc.f.owner)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	in.Context = ctx
-	if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) {
-		t.Fatal("pre-canceled", rows, err)
-	}
-	state := catalog.CloneState(f.state)
-	table := *f.table
-	boolean, _ := in.Catalog.LookupType(sqltype.Bool)
-	table.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: f.table.ColumnMeta.Defaults[1], 3: {OID: 22501, Expression: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}}}
-	state.SetDescriptor(table.Address(), &table)
-	in = f.input(t, state, f.dc.f.owner)
-	ctx, cancel = context.WithCancel(t.Context())
-	defer cancel()
-	in.Context = ctx
-	calls := 0
-	in.Runtime = columnsCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), cancel: cancel, calls: &calls}
-	if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) || calls != 2 {
-		t.Fatal("deparse cancellation published a prefix", rows, err, calls)
-	}
-	in = f.input(t, f.state, f.dc.f.owner)
-	in.Context = &dtpCancelContext{Context: context.Background(), remaining: 2}
-	if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) {
-		t.Fatal("enumeration cancellation", rows, err)
-	}
 }

@@ -762,21 +762,3 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-func preparedUnitStatement(t *testing.T, e *core.Engine, s *session.Session, stmt parser.Statement) {
-	t.Helper()
-	op := transactionOperation(t, s)
-	defer op.Done()
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		t.Fatal(err)
-	}
-	result, err := scope.Execute(stmt, 0, nil)
-	err = scope.Finish(err)
-	if result.Rows != nil {
-		result.Rows.Close()
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-}

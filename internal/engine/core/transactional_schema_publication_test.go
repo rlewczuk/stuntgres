@@ -1,0 +1,199 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func transactionalSchemaUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name string, ref ids.TxRef, value int64) (*core.CatalogStage, *catalog.Relation) {
+	t.Helper()
+	usage := enginetest.Usage(e, sqltype.Int4)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		e.Mu.Unlock()
+		t.Fatal(err)
+	}
+	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.AuthorizeLocked(auth, op.Session)
+	d, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
+	if err == nil {
+		err = e.StageRowTypeLocked(stage, d)
+	}
+	if err == nil {
+		err = stage.Create(d)
+	}
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := sqltype.Integer(usage.Type, value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.StageQueryTableRows(context.Background(), stage, d, [][]sqltype.Value{{v}}, ref); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
+	return stage, d
+}
+
+func TestTransactionalSchemaPublication(t *testing.T) {
+	for _, phase := range []string{"commit", "unrelated", "name_conflict", "epoch", "savepoint"} {
+		t.Run(phase, func(t *testing.T) {
+			e := engine.New()
+			owner := enginetest.StartSession(t, e, nil)
+			ref := enginetest.TransactionBegin(t, owner)
+			op := enginetest.TransactionOperation(t, owner)
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := scope.Gate(&parser.CreateTable{}); err != nil {
+				t.Fatal(err)
+			}
+			ended := false
+			defer func() {
+				scope.Finish(errors.New("discard publication unit"))
+				op.Done()
+				if !ended {
+					enginetest.TransactionEnd(t, owner, ref, false)
+				}
+			}()
+			before := e.CatalogRead()
+			scope.Owner.Mu.Lock()
+			mark := core.CaptureSavepoint(scope.Owner, "private_stage")
+			scope.Owner.Mu.Unlock()
+			oldRoot := mark.Catalog
+			stage, d := transactionalSchemaUnitStage(t, e, op, "publication_private", ref, 7)
+			prepared, err := e.ValidateCatalogStage(op.Context(), stage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var unrelated *catalog.Relation
+			if phase == "unrelated" || phase == "name_conflict" {
+				name := "publication_unrelated"
+				if phase == "name_conflict" {
+					name = d.Name()
+				}
+				peer, done := enginetest.RoleOperation(t, e, "postgres")
+				winner, w := transactionalSchemaUnitStage(t, e, peer, name, ids.TxRef{}, 19)
+				publication, err := e.ValidateCatalogStage(peer.Context(), winner)
+				if err == nil {
+					_, err = enginetest.PublishCatalog(e, publication, core.PublicationToken{Epoch: winner.Base.Epoch()})
+				}
+				done()
+				if err != nil {
+					t.Fatal(err)
+				}
+				unrelated = w
+			}
+			if phase == "epoch" {
+				if err := engine.Reset(context.Background(), e); err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+			if phase == "name_conflict" {
+				var diagnostic *sqlstate.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Constraint != "pg_type_typname_nsp_index" {
+					t.Fatal(err)
+				}
+				if e.CatalogRead().Get(d.Address()) != nil || e.Storage.Relations[d.Address()] != nil {
+					t.Fatal("failed stage published a partial table/store")
+				}
+				if e.CatalogRead().Get(unrelated.Address()) != unrelated {
+					t.Fatal("name winner lost")
+				}
+				return
+			}
+			if phase == "epoch" {
+				if !errors.Is(err, ids.ErrCatalogReplaced) {
+					t.Fatal(err)
+				}
+				if e.CatalogRead().Get(d.Address()) != nil || e.Storage.Relations[d.Address()] != nil {
+					t.Fatal("old epoch resurrected private state")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if e.CatalogRead().Get(d.Address()) != nil || e.Storage.Relations[d.Address()] != nil {
+				t.Fatal("stage merge published globally")
+			}
+			if err := scope.Finish(nil); err != nil {
+				t.Fatal(err)
+			}
+			e.Mu.Lock()
+			private := e.PrivateCatalogLocked(scope.Owner.Catalog)
+			old := e.PrivateCatalogLocked(oldRoot)
+			stagePrivate := e.StageCatalogBaseLocked(stage)
+			privateStore := e.PrivateStorageLocked(scope.Owner.Catalog, d.Address())
+			stageStore := e.StageStorageLocked(stage, d.Address())
+			e.Mu.Unlock()
+			if private.Get(d.Address()) != d || old.Get(d.Address()) != nil || before.Get(d.Address()) != nil {
+				t.Fatal("journal roots were mutated or private descriptor lost")
+			}
+			if stagePrivate.Get(d.Address()) != d || privateStore == nil || stageStore != privateStore {
+				t.Fatal("ordinary stage validation lost explicit owner's private descriptor/store")
+			}
+			if phase == "savepoint" {
+				for range 2 {
+					scope.Owner.Mu.Lock()
+					core.RestoreSavepoint(scope.Owner, mark, mark.Settings.Clone())
+					scope.Owner.Mu.Unlock()
+					e.Locks.Restore(scope.LockTicket, mark.Locks)
+				}
+				e.Mu.Lock()
+				restored := e.PrivateCatalogLocked(scope.Owner.Catalog)
+				e.Mu.Unlock()
+				if restored.Get(d.Address()) != nil || len(scope.Owner.Writes[d.Address()]) != 0 {
+					t.Fatal("savepoint retained private descriptor/rows")
+				}
+				op.Done()
+				enginetest.TransactionEnd(t, owner, ref, true)
+				ended = true
+				if e.CatalogRead().Get(d.Address()) != nil || e.Storage.Relations[d.Address()] != nil {
+					t.Fatal("savepoint-discarded graph resurrected at commit")
+				}
+				return
+			}
+			key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}
+			created, ok := stage.NameBinding(key)
+			if !ok || created != d.Address() || private.NameAddress(key) != created {
+				t.Fatal("created result is not actual staged identity", created)
+			}
+			op.Done()
+			enginetest.TransactionEnd(t, owner, ref, true)
+			ended = true
+			committed := e.CatalogRead()
+			if committed.Get(d.Address()) != d || committed.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)}).OwningRelation != d.Address() {
+				t.Fatal("table/rowtype publication split")
+			}
+			store := e.Storage.Relations[d.Address()]
+			if store == nil || len(store.Versions) != 1 {
+				t.Fatal("row/catalog publication split", store)
+			}
+			value, valueErr := store.Versions[0].Values[0].Integer()
+			if valueErr != nil || value != 7 {
+				t.Fatal(value, valueErr)
+			}
+			if unrelated != nil && committed.Get(unrelated.Address()) != unrelated {
+				t.Fatal("unrelated commit overwritten")
+			}
+		})
+	}
+}
