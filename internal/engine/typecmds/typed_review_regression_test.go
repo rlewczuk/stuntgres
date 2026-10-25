@@ -1,4 +1,4 @@
-package engine
+package typecmds_test
 
 import (
 	"context"
@@ -7,16 +7,19 @@ import (
 	osexec "os/exec"
 	"reflect"
 	"strings"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 // Run the actual callback replacement executor in an isolated test process:
@@ -46,15 +49,15 @@ func TestTypedPublicationCallbackReplacement(t *testing.T) {
 
 func typedCallbackReplacement(t *testing.T, kind string) {
 	e, source, table := typedUnitCatalog(t, false)
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	roleExecute(t, e, op, "INSERT INTO typed VALUES(11,'kept')")
+	enginetest.RoleExecute(t, e, op, "INSERT INTO typed VALUES(11,'kept')")
 	query := "ALTER TYPE pair ADD ATTRIBUTE flag boolean CASCADE"
 	if kind == "drop" {
 		// A surviving holder descriptor makes DROP validation callback-capable;
 		// dropping only whole typed relations would validate no survivor.
-		roleExecute(t, e, op, "CREATE TABLE holder(v pair,k integer)")
-		roleExecute(t, e, op, "INSERT INTO holder VALUES('(7,held)',19)")
+		enginetest.RoleExecute(t, e, op, "CREATE TABLE holder(v pair,k integer)")
+		enginetest.RoleExecute(t, e, op, "INSERT INTO holder VALUES('(7,held)',19)")
 		query = "DROP TYPE pair CASCADE"
 	}
 	if kind == "create" {
@@ -75,11 +78,11 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		}
 		called = true
 		e.Catalog.Providers[ids.RelationClassID] = original
-		if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE sentinel(a integer);INSERT INTO sentinel VALUES(91)")); err != nil {
+		if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE sentinel(a integer);INSERT INTO sentinel VALUES(91)")); err != nil {
 			t.Fatal(err)
 		}
 	}}
-	_, err := e.Execute(op, statement(t, query), 0, nil)
+	_, err := e.Execute(op, enginetest.Statement(t, query), 0, nil)
 	if !called || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("callback did not reject captured epoch", called, err)
 	}
@@ -92,8 +95,8 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 			t.Fatal("replacement resurrected old relation", name)
 		}
 	}
-	result := roleExecute(t, e, op, "SELECT a FROM sentinel")
-	if values := tuples(result); len(values) != 1 || values[0][0] != int64(91) {
+	result := enginetest.RoleExecute(t, e, op, "SELECT a FROM sentinel")
+	if values := enginetest.Tuples(result); len(values) != 1 || values[0][0] != int64(91) {
 		t.Fatal(values)
 	}
 	if result.Rows != nil {
@@ -101,7 +104,7 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 			t.Fatal(err)
 		}
 	}
-	lockEmpty(t, e)
+	enginetest.LockEmpty(t, e)
 	if !e.ReplacementMu.TryLock() {
 		t.Fatal("replacement read reservation leaked")
 	}
@@ -112,16 +115,16 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 	for _, temporary := range []bool{false, true} {
 		t.Run(map[bool]string{false: "persistent", true: "temporary"}[temporary], func(t *testing.T) {
 			e, source, _ := typedUnitCatalog(t, false)
-			op, done := roleOperation(t, e, "postgres")
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			query := "CREATE TABLE late OF pair"
 			if temporary {
 				query = "CREATE TEMP TABLE late OF pair"
 			}
-			if _, err := e.Describe(op, statement(t, query)); err != nil {
+			if _, err := e.Describe(op, enginetest.Statement(t, query)); err != nil {
 				t.Fatal(err)
 			}
-			lockEmpty(t, e)
+			enginetest.LockEmpty(t, e)
 			original := e.Catalog.Providers[ids.RelationClassID]
 			called, granted := false, false
 			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{original, func() {
@@ -135,11 +138,11 @@ func TestTypedAdmissionCreateSourceGrant(t *testing.T) {
 				}
 			}}
 			defer func() { e.Catalog.Providers[ids.RelationClassID] = original }()
-			roleExecute(t, e, op, query)
+			enginetest.RoleExecute(t, e, op, query)
 			if !called || !granted {
 				t.Fatal("actual CREATE validation lacks retained source AccessShare grant", called, granted)
 			}
-			lockEmpty(t, e)
+			enginetest.LockEmpty(t, e)
 		})
 	}
 }
@@ -148,19 +151,19 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 	for _, rowName := range []string{"typed", "child"} {
 		t.Run(rowName, func(t *testing.T) {
 			e, source, root := typedUnitCatalog(t, false)
-			op, done := roleOperation(t, e, "postgres")
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			predecessor, before := root, e.CatalogRead()
 			stored := e.Storage.Relations[root.Address()]
-			roleExecute(t, e, op, "CREATE TABLE child() INHERITS(typed)")
+			enginetest.RoleExecute(t, e, op, "CREATE TABLE child() INHERITS(typed)")
 			root = e.CatalogRead().MustRelation(predecessor.Address())
 			if root == predecessor || !root.History.HasSubclasses || predecessor.History.HasSubclasses || root.Address() != predecessor.Address() || root.RowType != predecessor.RowType || root.OfType != predecessor.OfType || root.Revision() == predecessor.Revision() || before.Get(predecessor.Address()) != predecessor || e.Storage.Relations[root.Address()] != stored {
 				t.Fatal("successful child publication did not preserve immutable typed identity/storage and transition subclass history")
 			}
-			roleExecute(t, e, op, "INSERT INTO typed VALUES(11,'root')")
-			roleExecute(t, e, op, "INSERT INTO child VALUES(7,'leaf')")
+			enginetest.RoleExecute(t, e, op, "INSERT INTO typed VALUES(11,'root')")
+			enginetest.RoleExecute(t, e, op, "INSERT INTO child VALUES(7,'leaf')")
 			view := e.CatalogRead()
-			childRef := roleTableRef(t, e, "child")
+			childRef := enginetest.RoleTableRef(t, e, "child")
 			child := view.MustRelation(childRef.Address)
 			rootStorage, childStorage := e.Storage.Relations[root.Address()], e.Storage.Relations[child.Address()]
 			original := e.Catalog.Providers[ids.RelationClassID]
@@ -172,12 +175,12 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				}
 				called = true
 				e.Catalog.Providers[ids.RelationClassID] = original
-				creator, finish := roleOperation(t, e, "postgres")
+				creator, finish := enginetest.RoleOperation(t, e, "postgres")
 				defer finish()
-				roleExecute(t, e, creator, "CREATE TABLE holder(v "+rowName+")")
+				enginetest.RoleExecute(t, e, creator, "CREATE TABLE holder(v "+rowName+")")
 				after = e.CatalogRead().State()
 			}}
-			_, err := e.Execute(op, statement(t, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE integer CASCADE"), 0, nil)
+			_, err := e.Execute(op, enginetest.Statement(t, "ALTER TYPE pair ALTER ATTRIBUTE id TYPE integer CASCADE"), 0, nil)
 			var conflict catalog.Conflict
 			if !called || !errors.As(err, &conflict) {
 				t.Fatal("late semantic own-row dependency admitted", called, err)
@@ -194,7 +197,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 					t.Fatal("semantic conflict changed shape", relation)
 				}
 			}
-			holderRef := roleTableRef(t, e, "holder")
+			holderRef := enginetest.RoleTableRef(t, e, "holder")
 			holder := current.MustRelation(holderRef.Address)
 			row := root.RowType
 			if rowName == "child" {
@@ -208,11 +211,11 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 				id    int64
 				note  string
 			}{{rootStorage, 11, "root"}, {childStorage, 7, "leaf"}} {
-				if len(expected.store.Versions) != 1 || len(expected.store.Versions[0].Values) != 2 || testExport(expected.store.Versions[0].Values[0]) != expected.id || testExport(expected.store.Versions[0].Values[1]) != expected.note {
+				if len(expected.store.Versions) != 1 || len(expected.store.Versions[0].Values) != 2 || enginetest.Export(expected.store.Versions[0].Values[0]) != expected.id || enginetest.Export(expected.store.Versions[0].Values[1]) != expected.note {
 					t.Fatal("rejected TYPE changed independently expected rows")
 				}
 			}
-			lockEmpty(t, e)
+			enginetest.LockEmpty(t, e)
 		})
 	}
 }
@@ -234,20 +237,20 @@ func typedReviewTypeACL(t *testing.T, e *core.Engine, address ids.ObjectAddress,
 
 func typedReviewACLFixture(t *testing.T) (*core.Engine, *session.Operation, func(), ids.ObjectAddress) {
 	t.Helper()
-	e := New()
-	admin, finish := roleOperation(t, e, "postgres")
-	roleExecute(t, e, admin, "CREATE USER typed_owner")
-	roleExecute(t, e, admin, "CREATE USER typed_reader")
-	roleExecute(t, e, admin, "CREATE DOMAIN member AS integer")
-	roleExecute(t, e, admin, "CREATE TYPE foreign_pair AS (z integer)")
+	e := engine.New()
+	admin, finish := enginetest.RoleOperation(t, e, "postgres")
+	enginetest.RoleExecute(t, e, admin, "CREATE USER typed_owner")
+	enginetest.RoleExecute(t, e, admin, "CREATE USER typed_reader")
+	enginetest.RoleExecute(t, e, admin, "CREATE DOMAIN member AS integer")
+	enginetest.RoleExecute(t, e, admin, "CREATE TYPE foreign_pair AS (z integer)")
 	ns := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
-	if err := setObjectACL(e, context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
+	if err := enginetest.SetObjectACL(e, context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	finish()
-	op, done := roleOperation(t, e, "typed_owner")
-	roleExecute(t, e, op, "CREATE TYPE pair AS (id integer)")
-	roleExecute(t, e, op, "CREATE TABLE typed OF pair")
+	op, done := enginetest.RoleOperation(t, e, "typed_owner")
+	enginetest.RoleExecute(t, e, op, "CREATE TYPE pair AS (id integer)")
+	enginetest.RoleExecute(t, e, op, "CREATE TABLE typed OF pair")
 	address := e.CatalogRead().NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ns.Address, Name: "member"})
 	return e, op, done, address
 }
@@ -257,8 +260,8 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	defer done()
 	before := e.CatalogRead()
 	originalMember := before.MustType(member)
-	pair := roleTableRef(t, e, "pair")
-	table := roleTableRef(t, e, "typed")
+	pair := enginetest.RoleTableRef(t, e, "pair")
+	table := enginetest.RoleTableRef(t, e, "typed")
 	oldSource, oldTable, oldStorage := before.Get(pair.Address), before.Get(table.Address), e.Storage.Relations[table.Address]
 	original := e.Catalog.Providers[ids.RelationClassID]
 	called := false
@@ -272,7 +275,7 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 		typedReviewTypeACL(t, e, member, authorization.ACLValue{Explicit: true})
 		after = e.CatalogRead().State()
 	}}
-	_, err := e.Execute(op, statement(t, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE"), 0, nil)
+	_, err := e.Execute(op, enginetest.Statement(t, "ALTER TYPE pair ADD ATTRIBUTE value member CASCADE"), 0, nil)
 	var conflict catalog.Conflict
 	if !called || !errors.As(err, &conflict) {
 		t.Fatal("late member ACL change escaped final authority fence", called, err)
@@ -282,5 +285,18 @@ func TestTypedPublicationMemberACLConflict(t *testing.T) {
 	if current.State() != after || current.Get(pair.Address) != oldSource || current.Get(table.Address) != oldTable || e.Storage.Relations[table.Address] != oldStorage || changed.SQLType != originalMember.SQLType || reflect.DeepEqual(changed.ACL, originalMember.ACL) {
 		t.Fatal("ACL conflict was not type-descriptor-only and atomic")
 	}
-	lockEmpty(t, e)
+	enginetest.LockEmpty(t, e)
+}
+
+type alterDropProvider struct {
+	catalog.Provider
+	callback func()
+}
+
+func (p alterDropProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
+	if err := p.Provider.Validate(v, d); err != nil {
+		return err
+	}
+	p.callback()
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -54,11 +55,11 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	u := relation.Columns[0].Usage
-	value, provenance, err := typedef.RestoreDomainReplayNode(DomainReplayEnv(e, &c, op, auth), u, &mixed)
+	value, provenance, err := typedef.RestoreDomainReplayNode(typecmds.DomainReplayEnv(e, &c, op, auth), u, &mixed)
 	if err != nil || provenance != typedef.DomainReplayDomainNull {
 		t.Fatal("mixed reconstruction provenance", provenance, err)
 	}
-	capture, err := CaptureDomainReplay(e, scope, source, record, auth, relation)
+	capture, err := typecmds.CaptureDomainReplay(e, scope, source, record, auth, relation)
 	if err != nil {
 		t.Fatal("mixed cell admission", err)
 	}

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -175,7 +176,7 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	}
 	if insertion, ok := stmt.(*parser.Insert); ok {
 		if record, paired := r.domainReplayPairs[insertion]; paired {
-			result, err = ExecuteDomainReplayInsert(r.stage, op, insertion, record)
+			result, err = typecmds.ExecuteDomainReplayInsert(r.stage, op, insertion, record)
 		} else {
 			result, err = r.stage.Execute(op, stmt, 0, nil)
 		}

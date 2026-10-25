@@ -1,4 +1,4 @@
-package engine
+package typecmds_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
 
@@ -14,9 +15,9 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 	for _, temporary := range []bool{false, true} {
 		t.Run(map[bool]string{false: "persistent", true: "temporary"}[temporary], func(t *testing.T) {
 			e, source, table := typedUnitCatalog(t, false)
-			holder, creator := sessionStart(t, e, nil), sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
-			ref := roleTableRef(t, e, "pair")
+			holder, creator := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
+			ref := enginetest.RoleTableRef(t, e, "pair")
 			if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
@@ -26,12 +27,12 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 			if temporary {
 				query = "CREATE TEMP TABLE late OF pair"
 			}
-			finished := lockAsync(e, creator, ctx, query, false)
+			finished := enginetest.LockAsync(e, creator, ctx, query, false)
 			released, joined := false, false
 			defer func() {
 				cancel()
 				if !released {
-					transactionEnd(t, holder, tx, false)
+					enginetest.TransactionEnd(t, holder, tx, false)
 				}
 				if !joined {
 					select {
@@ -41,7 +42,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 					}
 				}
 			}()
-			lockPending(t, e, 1)
+			enginetest.LockPending(t, e, 1)
 			// Publish a coherent new generation while CREATE is queued. The
 			// package provider seam deliberately bypasses relation admission;
 			// the actual CREATE executor must not adopt that captured shape.
@@ -49,7 +50,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			domainUnitPublish(t, e, stage)
 			winning := e.CatalogRead().State()
-			transactionEnd(t, holder, tx, false)
+			enginetest.TransactionEnd(t, holder, tx, false)
 			released = true
 			select {
 			case err := <-finished:
@@ -69,11 +70,11 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 					t.Fatal("stale attachment published")
 				}
 			}
-			lockEmpty(t, e)
-			sessionSQL(t, creator, query)
+			enginetest.LockEmpty(t, e)
+			enginetest.SessionSQL(t, creator, query)
 			// A fresh statement may use the new authoritative shape; this is
 			// not a retry or restamping of the failed captured statement.
-			result := sessionSQL(t, creator, "SELECT * FROM late")
+			result := enginetest.SessionSQL(t, creator, "SELECT * FROM late")
 			if result.Rows == nil || len(result.Rows.Schema()) != 2 || result.Rows.Schema()[1].Name != "label" {
 				t.Fatal("fresh CREATE did not use current source", result)
 			}

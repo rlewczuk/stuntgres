@@ -1,4 +1,4 @@
-package engine
+package typecmds_test
 
 import (
 	"context"
@@ -6,8 +6,10 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -40,7 +42,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	}
 	domainUnitPublish(t, e, late)
 	before := e.CatalogRead()
-	changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+	changes, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("late attachment was missed", changes, err)
@@ -71,7 +73,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	e.Storage.InstallRelationLocked(table.Address(), &concurrent)
 	e.Mu.Unlock()
 	before := e.CatalogRead()
-	changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
+	changes, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.Storage.Relations[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
@@ -81,7 +83,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	source, original, table := typedUnitCatalog(t, false)
 	before := source.CatalogRead()
-	destination := New()
+	destination := engine.New()
 	if _, err := destination.ReplaceCatalog(context.Background(), source, before); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +141,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 	for _, change := range []string{"session", "roles"} {
 		t.Run(change, func(t *testing.T) {
 			e, source, table := typedUnitCatalog(t, false)
-			op, done := roleOperation(t, e, "postgres")
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			auth, err := core.OperationAuthorization(op)
 			if err != nil {
@@ -166,7 +168,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 				e.Mu.Unlock()
 			}
 			before := e.CatalogRead()
-			changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
+			changes, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
 			if err == nil || err.Error() != "stuntgres: authorization changed before publication" || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale authority published typed closure", changes, err)
 			}
@@ -185,7 +187,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			if change == "replacement" {
-				if err := Reset(context.Background(), e); err != nil {
+				if err := engine.Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -199,7 +201,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 				domainUnitPublish(t, e, late)
 			}
 			before := e.CatalogRead()
-			changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+			changes, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale source/replacement publication was not atomic", changes, err)
 			}
@@ -208,4 +210,17 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 			}
 		})
 	}
+}
+
+// catalogStateFixture builds an unpublished state at epoch that holds
+// descriptors and names, through the state's write API.
+func catalogStateFixture(epoch ids.CatalogEpoch, descriptors map[ids.ObjectAddress]catalog.Descriptor, names map[ids.NameKey]ids.ObjectAddress) *catalog.State {
+	s := catalog.NewState(epoch)
+	for a, d := range descriptors {
+		s.SetDescriptor(a, d)
+	}
+	for k, a := range names {
+		s.BindName(k, a)
+	}
+	return s
 }

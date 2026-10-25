@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -110,7 +111,7 @@ func afterRestoreTypeOwner(r *restoreRun, op *session.Operation, stmt parser.Sta
 		return nil
 	}
 	var err error
-	r.pairedTypeOwner, err = CaptureRestoredTypeOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate, kind)
+	r.pairedTypeOwner, err = typecmds.CaptureRestoredTypeOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate, kind)
 	return err
 }
 

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/parser"
 )
 
@@ -70,7 +71,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return dispatched(tablecmds.ExecuteSequenceDDL(e, scope, stmt, count))
 	case *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum:
-		return dispatched(ExecuteEnumDDL(e, scope, stmt, count))
+		return dispatched(typecmds.ExecuteEnumDDL(e, scope, stmt, count))
 	case *parser.AlterDomain:
 		domain := stmt.(*parser.AlterDomain)
 		var result core.Result
@@ -78,14 +79,14 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
 			result, err = executeSchema(e, scope, op, stmt, count, scope.Input)
 		} else {
-			result, err = ExecuteAlterDomain(e, scope, domain, count)
+			result, err = typecmds.ExecuteAlterDomain(e, scope, domain, count)
 		}
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.AlterComposite:
-		return dispatched(ExecuteAlterComposite(e, scope, op, stmt.(*parser.AlterComposite), count))
+		return dispatched(typecmds.ExecuteAlterComposite(e, scope, op, stmt.(*parser.AlterComposite), count))
 	case *parser.Comment:
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
 			return dispatched(tablecmds.ExecuteSequenceComment(e, scope, c, count))
@@ -157,7 +158,7 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	case *parser.RefreshMaterializedView:
 		return dispatched(refreshMaterializedLocked(e, scope, auth, s, count))
 	case *parser.AlterTableOf:
-		return dispatched(AlterTableOfLocked(e, scope, op, auth, s, count))
+		return dispatched(typecmds.AlterTableOfLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAttachPartition:
 		return dispatched(partitioncmds.AttachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableDetachPartition:

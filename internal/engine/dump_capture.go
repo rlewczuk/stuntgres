@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typecmds"
 )
 
 // captureDumpLocked reads the catalog, roles, storage and sequence state Dump
@@ -39,7 +40,7 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 	// definitions and values must render against the original captured names.
 	catalogView, constraintReplay := partition.ConstraintDumpCatalog(control.Resolver{}, catalogView)
 	domainRoles := e.RoleStore.PublishedRead(&e.Catalog.Owner, catalogView)
-	if err := ValidateTemporaryCollationDump(e, ctx, catalogView); err != nil {
+	if err := typecmds.ValidateTemporaryCollationDump(e, ctx, catalogView); err != nil {
 		return nil, err
 	}
 	for address, name := range e.Foreign.NamespaceEntries() {

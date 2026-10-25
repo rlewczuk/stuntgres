@@ -1,4 +1,4 @@
-package engine
+package typecmds
 
 import (
 	"stuntgres/internal/engine/authorization"

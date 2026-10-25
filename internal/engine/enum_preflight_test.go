@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -39,7 +40,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 		}
 		catalog := e.Catalog.State
 		ast := &parser.AlterEnum{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "mood"}}}, Label: parser.EnumLabel{Text: strings.Repeat("x", 64)}, Old: parser.EnumLabel{Text: "old"}, Rename: rename}
-		_, failure := ExecuteEnumDDL(e, scope, ast, 0)
+		_, failure := typecmds.ExecuteEnumDDL(e, scope, ast, 0)
 		d, ok := failure.(*sqlstate.Error)
 		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[resource]

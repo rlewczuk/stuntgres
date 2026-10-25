@@ -1,22 +1,30 @@
-package engine
+package typecmds_test
 
 import (
 	"testing"
 
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func TestGeometryConversionReplayShapes(t *testing.T) {
-	e := New().RestoreStage()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New().RestoreStage()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	domainUnitTable(t, e, op, "CREATE TABLE public.conversion_replay_member(c circle)")
 	relation := domainUnitTable(t, e, op, "CREATE TABLE public.conversion_replay_array(a public.conversion_replay_member[],c circle)")
-	source := statement(t, "INSERT INTO public.conversion_replay_array VALUES(NULL,NULL)").(*parser.Insert)
+	source := enginetest.Statement(t, "INSERT INTO public.conversion_replay_array VALUES(NULL,NULL)").(*parser.Insert)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -52,11 +60,11 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	usage := relation.Columns[0].Usage
-	value, provenance, err := typedef.RestoreDomainReplayNode(DomainReplayEnv(e, &c, op, auth), usage, &array)
+	value, provenance, err := typedef.RestoreDomainReplayNode(typecmds.DomainReplayEnv(e, &c, op, auth), usage, &array)
 	if err != nil || provenance != 0 {
 		t.Fatal("constructor reconstruction", provenance, err)
 	}
-	if _, err := CaptureDomainReplay(e, scope, source, record("a", &array), auth, relation); err == nil {
+	if _, err := typecmds.CaptureDomainReplay(e, scope, source, record("a", &array), auth, relation); err == nil {
 		t.Fatal("constructor-only array acquired private domain NULL provenance")
 	}
 	if bounds := regobj.ConstructorArrayTargetBounds(value); bounds != "[-2:-1][3:4]" {
@@ -68,19 +76,19 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	if value.ArrayElement(0).CompositeField(0).RequiresCircleConstructorReplay() != true || value.ArrayElement(1).CompositeField(0).RequiresCircleConstructorReplay() || !value.ArrayElement(2).IsNull() || value.ArrayElement(3).IsNull() || !value.ArrayElement(3).CompositeField(0).IsNull() {
 		t.Fatal("leaf or NULL identity lost")
 	}
-	if _, err := CaptureDomainReplay(e, scope, source, record("c", &negative), auth, relation); err == nil {
+	if _, err := typecmds.CaptureDomainReplay(e, scope, source, record("c", &negative), auth, relation); err == nil {
 		t.Fatal("standalone negative acquired array provenance")
 	}
 	ordinaryElements := []typedef.DomainReplayNode{member(positive), member(positive), {Kind: "null"}, member(typedef.DomainReplayNode{Kind: "null"})}
 	ordinary := array
 	ordinary.Elements = &ordinaryElements
-	if _, err := CaptureDomainReplay(e, scope, source, record("a", &ordinary), auth, relation); err == nil {
+	if _, err := typecmds.CaptureDomainReplay(e, scope, source, record("a", &ordinary), auth, relation); err == nil {
 		t.Fatal("ordinary array acquired private provenance")
 	}
 	badDims := []typedef.DomainReplayDimension{{Lower: -2, Length: 5}}
 	malformed := array
 	malformed.Dimensions = &badDims
-	if _, err := CaptureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
+	if _, err := typecmds.CaptureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
 		t.Fatal("inconsistent shape accepted")
 	}
 	wrongMembers := []typedef.DomainReplayMember{{Name: "other", Value: &negative}}
@@ -88,7 +96,7 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	wrongElements[0] = typedef.DomainReplayNode{Kind: "composite", Members: &wrongMembers}
 	malformed = array
 	malformed.Elements = &wrongElements
-	if _, err := CaptureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
+	if _, err := typecmds.CaptureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
 		t.Fatal("wrong member name accepted")
 	}
 	for _, text := range []string{"CAST('<(0,0),-1>' AS circle)", "circle('(0,0)'::pg_catalog.point,'-1'::pg_catalog.float8)", "pg_catalog.circle($1::pg_catalog.point,'-1'::pg_catalog.float8)", "pg_catalog.circle('(0,0)'::pg_catalog.point,(random())::pg_catalog.float8)"} {
@@ -96,12 +104,34 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 		badElements[0] = member(scalar(text))
 		bad := array
 		bad.Elements = &badElements
-		if _, err := CaptureDomainReplay(e, scope, source, record("a", &bad), auth, relation); err == nil {
+		if _, err := typecmds.CaptureDomainReplay(e, scope, source, record("a", &bad), auth, relation); err == nil {
 			t.Fatal("invalid constructor leaf accepted", text)
 		}
 	}
-	wrongPlaceholder := statement(t, "INSERT INTO public.conversion_replay_array VALUES(ARRAY[]::public.conversion_replay_member[],NULL)").(*parser.Insert)
-	if _, err := CaptureDomainReplay(e, scope, wrongPlaceholder, record("a", &array), auth, relation); err == nil {
+	wrongPlaceholder := enginetest.Statement(t, "INSERT INTO public.conversion_replay_array VALUES(ARRAY[]::public.conversion_replay_member[],NULL)").(*parser.Insert)
+	if _, err := typecmds.CaptureDomainReplay(e, scope, wrongPlaceholder, record("a", &array), auth, relation); err == nil {
 		t.Fatal("nonNULL placeholder accepted")
 	}
+}
+
+func domainUnitTable(t *testing.T, e *core.Engine, op *session.Operation, q string) *catalog.Relation {
+	t.Helper()
+	raw := enginetest.Statement(t, q).(*parser.CreateTable)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	stage := e.BeginCatalogStage(auth.Catalog)
+	if err == nil {
+		err = tablecmds.SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	}
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainUnitPublish(t, e, stage)
+	view := e.CatalogRead()
+	addresses := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: raw.Name.Parts[len(raw.Name.Parts)-1].Text})
+	if len(addresses) != 1 {
+		t.Fatal(addresses)
+	}
+	return view.MustRelation(addresses[0])
 }

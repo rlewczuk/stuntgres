@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -73,8 +74,8 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		view := e.Catalog.Read(&state)
 		domainUnitDiagnostic(t, typedef.RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
-		TypedStage(stage).Source = tbl.OfType
-		TypedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
+		typecmds.TypedStage(stage).Source = tbl.OfType
+		typecmds.TypedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
 		if table.TypedObservationValid(stage.Typed, view) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
@@ -145,8 +146,8 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	TypedStage(stage).Source = tbl.OfType
-	TypedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
+	typecmds.TypedStage(stage).Source = tbl.OfType
+	typecmds.TypedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
 	if err := table.CompositeFieldDependencies(core.StageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mutation, err := TypedMutation(e, &core.StatementScope{Op: op}, op, auth, stage, current, actions)
+	mutation, err := typecmds.TypedMutation(e, &core.StatementScope{Op: op}, op, auth, stage, current, actions)
 	if err != nil {
 		t.Fatal(err)
 	}

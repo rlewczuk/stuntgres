@@ -1,17 +1,20 @@
-package engine
+package typecmds_test
 
 import (
 	"errors"
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -20,15 +23,15 @@ import (
 func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 	for _, kind := range []string{"inherited", "local", "other_parent"} {
 		t.Run(kind, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			parent := inheritanceUnitRelation(e, "p", 22000, "id")
 			child := inheritanceUnitRelation(e, "c", 22001, "id")
 			child.Attributes, child.ColumnMeta.HighWater = []int32{7}, 7
 			child.Columns[0].OriginAttribute = 7
 			child.Columns[0].Nullable = false
-			boolean := testUsage(e, sqltype.Bool)
+			boolean := enginetest.Usage(e, sqltype.Bool)
 			predicate := plan.LiteralExpr{Info: expr.Info{Usage: boolean}, Value: sqltype.Boolean(boolean.Type, true)}
-			integer := testUsage(e, sqltype.Int4)
+			integer := enginetest.Usage(e, sqltype.Int4)
 			value, err := sqltype.Integer(integer.Type, 7)
 			if err != nil {
 				t.Fatal(err)
@@ -110,7 +113,7 @@ func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 
 func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	e, _, table := typedUnitCatalog(t, false)
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
@@ -132,11 +135,28 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	ref.Address.SubID = 1
 	node := plan.ColumnExpr{Info: expr.Info{Usage: table.Columns[0].Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
-	mutation := TypedRelationMutation{Old: table, Next: &next, Transforms: []index.ColumnTransformation{{Attribute: 1, Expression: node}}}
-	if err := stageTypedRows(e, scope, auth, stage, mutation); err != nil {
+	mutation := typecmds.TypedRelationMutation{Old: table, Next: &next, Transforms: []index.ColumnTransformation{{Attribute: 1, Expression: node}}}
+	if err := typecmds.StageTypedRows(e, scope, auth, stage, mutation); err != nil {
 		t.Fatal(err)
 	}
 	if len(stage.RowShapes) != 0 || e.Storage.Relations[table.Address()] != store {
 		t.Fatal("binary-identical TYPE copied physical rows")
 	}
+}
+
+func inheritanceUnitParents(parents ...ids.ObjectAddress) []catalog.InheritanceParent {
+	edges := make([]catalog.InheritanceParent, len(parents))
+	for i, parent := range parents {
+		edges[i] = catalog.InheritanceParent{Relation: parent, Seqno: int32(i + 1)}
+	}
+	return edges
+}
+
+func inheritanceUnitView(e *core.Engine, relations ...*catalog.Relation) catalog.Read {
+	state := catalog.CloneState(e.CatalogRead().State())
+	for _, d := range relations {
+		state.SetDescriptor(d.Address(), d)
+		state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
+	}
+	return e.Catalog.Read(state)
 }

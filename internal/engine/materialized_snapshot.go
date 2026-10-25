@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -138,7 +139,7 @@ func importMaterializedSnapshotRow(e *core.Engine, ctx context.Context, op *sess
 	scope.Input = input
 	scope.RoutineAuth = auth
 	if replay != nil {
-		capture, captureErr := CaptureDomainReplay(e, scope, s, *replay, auth, d)
+		capture, captureErr := typecmds.CaptureDomainReplay(e, scope, s, *replay, auth, d)
 		if captureErr != nil {
 			return nil, captureErr
 		}
