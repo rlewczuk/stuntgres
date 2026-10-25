@@ -68,7 +68,8 @@ engines inherit the same mode.
 
 ### Test-only legacy crypto oracle
 
-`WithLegacyCryptoProvider()` (used only by `catalogs`) feeds an OpenSSL
+`WithLegacyCryptoProvider()` (used only by the catalog packages `catalogs`,
+`catalog_objects`, `catalog_privileges`, `information_schema` and `extensions`) feeds an OpenSSL
 configuration into the same container (`OPENSSL_CONF=/tmp/stuntgres-openssl.cnf`)
 activating both `default` and `legacy` providers, so BF/DES/CAST are available to
 the oracle. Legacy activation changes the oracle's DES/CAST initialization

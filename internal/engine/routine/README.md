@@ -90,7 +90,7 @@ package or the engine.
   becomes callable only through an explicit routine association and appears in
   `pg_operator` only through `SupportedOperatorMetadata`; every published
   descriptor must also be a row of `docs/design/pg-operator-pg18-supported.tsv`,
-  which the engine and `reference/catalogs` inventory tests read.
+  which the engine and `reference/catalog_objects` inventory tests read.
   Geometric relation and transform declarations carry `OperatorRoutineProvider`:
   associations authorize operator execution, not newly callable support names.
   Existing polygon-point/circle-circle providers and callable registrations retain ownership.

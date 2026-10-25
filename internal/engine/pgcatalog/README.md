@@ -335,7 +335,7 @@ identity and wraps rows through the ordinary catalog source path. Successful
 empty capture is nonnil; cancellation or malformed authority/shape returns no
 partial rows. Native relation identity16211 is independent of PostgreSQL's
 allocator-dependent view OID.
-See [selected proof and smoke](../../../reference/catalogs/README.md#domain-constraints).
+See [selected proof and smoke](../../../reference/information_schema/README.md#domain-constraints).
 
 ## Information-schema sequence definitions
 
@@ -463,8 +463,9 @@ Package units here run without an engine. Producer behavior tests need an
 engine-seeded catalog, so they live in `internal/engine` and reach producers
 through the real registry (`catalog_source_producers_test.go`); see the
 [engine Testing section](../README.md#system-catalog-producer-contract). Public
-catalog SQL belongs in `reference/catalogs` (large objects in
-`reference/object_grants`, settings in `reference/session_state`); follow
+catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
+(large objects in `reference/object_grants`, settings in
+`reference/session_state`); follow
 [docs/TESTING.md](../../../docs/TESTING.md) and add `REFERENCE=1` for the oracle.
 
 - Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`

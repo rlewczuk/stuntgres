@@ -23,9 +23,12 @@ in [reference/temporal_types](../temporal_types/README.md#testing); bit strings,
 BYTEA, JSON and arrays in
 [reference/binary_json_arrays](../binary_json_arrays/README.md#testing); OID
 aliases, NAME/OID and the comparison resolution matrix in
-[reference/type_resolution](../type_resolution/README.md#testing); `pg_type`,
-`pg_operator` and `pg_opclass` inventories, extension availability and
-`uuid-ossp` in [reference/catalogs](../catalogs/README.md#testing); binary COPY of
+[reference/type_resolution](../type_resolution/README.md#testing); `pg_type`
+inventories in [reference/catalogs](../catalogs/README.md#testing); `pg_operator`
+and `pg_opclass` inventories in
+[reference/catalog_objects](../catalog_objects/README.md#testing); extension
+availability and `uuid-ossp` in
+[reference/extensions](../extensions/README.md#testing); binary COPY of
 ranges in [reference/dml](../dml/README.md#testing).
 
 ## Testing
@@ -64,7 +67,8 @@ Rules:
 - While a DROP waits for its AccessExclusiveLock, observe it through catalog
   queries; a new reader of the table would queue behind the DROP.
 - A new or changed builtin type, operator, opclass or extension also changes the
-  inventories in reference/catalogs: rerun `^TestReferencePGType`,
+  inventories in reference/catalogs, reference/catalog_objects and
+  reference/extensions: rerun `^TestReferencePGType`,
   `^TestReferencePGOperator`, `^TestReferencePGOpclass` and, for extension types,
   `^TestReferenceAvailableExtensionsFiltering$`.
 

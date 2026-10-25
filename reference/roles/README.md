@@ -9,7 +9,7 @@ PRIVILEGES; predefined roles; `pg_has_role`/`row_security_active`; the
 `row_security` setting; and row security (policy DDL, table flags, policy
 combination). Related: non-table grants and large objects in
 `reference/object_grants`; `pg_roles`, `pg_user`, `pg_group`, `pg_default_acl`
-and ACL inquiry functions in `reference/catalogs`; session identity forms in
+and ACL inquiry functions in `reference/catalog_privileges`; session identity forms in
 `reference/sessions`.
 
 ## Testing

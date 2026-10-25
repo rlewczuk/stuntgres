@@ -7,8 +7,9 @@ the type core, diagnostic field records, the OID alias types (`regclass`,
 `regcollation`, `regnamespace`, `regconfig`, `regdictionary`, `regrole`,
 `regoperator`, `regproc`/`regprocedure`, `regtype`) and `xid`/`cid`/`xid8`.
 User-defined operators and `TestReferenceRegOperatorExternalBoundary` are in
-[reference/operators](../operators/README.md#testing); `pg_cast` and other
-catalog inventories are in [reference/catalogs](../catalogs/README.md#testing).
+[reference/operators](../operators/README.md#testing); `pg_cast` is in
+[reference/catalog_objects](../catalog_objects/README.md#testing) and other catalog
+inventories are in [reference/catalogs](../catalogs/README.md#testing).
 
 ## Testing
 

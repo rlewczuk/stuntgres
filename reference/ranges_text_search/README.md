@@ -104,7 +104,8 @@ Rules:
 - While a DROP waits for its AccessExclusiveLock, observe it through catalog
   queries; a new reader of the table would queue behind the DROP.
 - A new or changed builtin type, operator, opclass or extension also changes the
-  inventories in reference/catalogs: rerun `^TestReferencePGType`,
+  inventories in reference/catalogs, reference/catalog_objects and
+  reference/extensions: rerun `^TestReferencePGType`,
   `^TestReferencePGOperator`, `^TestReferencePGOpclass` and, for extension types,
   `^TestReferenceAvailableExtensionsFiltering$`.
 
