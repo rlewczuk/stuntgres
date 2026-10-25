@@ -43,6 +43,7 @@ imports the root and lower packages, and nothing imports it except tests.
 | `CatalogAuthorization`, `CatalogRef`, `RoleTableRef` | `catalogAuthorization`, `catalogRef`, `roleTableRef` | bootstrap-principal authorization and relation references |
 | `PublishCatalog`, `ValidateObjectRef` | `Engine.PublishCatalog`, `Engine.ValidateObjectRef` | catalog publication and reference checks outside an operation |
 | `ExpressionBinder` | `newTestExpressionBinder` | scalar binder over a postgres session |
+| `SetObjectACL(e, ctx, ref, acl)` | `Engine.SetObjectACL` | publish an object or column ACL directly, outside GRANT and REVOKE |
 
 ## Stages
 
@@ -53,7 +54,8 @@ fills the package in two stages:
 2. **Stage 2:** shared inspection helpers that tests in two or more
    destinations use (role errors, session SQL and transactions, lock and
    catalog inspection, table refs, binders), built on the names the export
-   pass made public.
+   pass made public. The test waves add helpers their files share, such as
+   `SetObjectACL`.
 
 ## Testing
 
