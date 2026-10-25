@@ -49,6 +49,23 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 	}
 	roles := root.Read(bootstrap)
 	registry := settings.NewRegistry(nil, false)
+	restrictedNames := map[string]bool{
+		"config_file": true, "data_directory": true, "external_pid_file": true,
+		"hba_file": true, "ident_file": true, "dynamic_library_path": true,
+		"extension_control_path": true, "jit_provider": true,
+		"session_preload_libraries": true, "shared_preload_libraries": true,
+	}
+	for name := range restrictedNames {
+		d, err := registry.Lookup(name)
+		if err != nil || !d.ReadRestricted {
+			t.Fatal("missing restricted builtin", name, d, err)
+		}
+	}
+	for name, d := range registry.Definitions() {
+		if d.ReadRestricted != restrictedNames[name] {
+			t.Fatal("unexpected restricted-read policy", name, d.ReadRestricted)
+		}
+	}
 	store := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
 	if err := store.Initialize(t.Context(), registry.Definitions(), registry.Order(), nil); err != nil {
 		t.Fatal(err)
@@ -83,16 +100,29 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 		}
 		count := len(registry.Order())
 		if !allowed {
-			count -= 5
+			count -= len(restrictedNames)
 		}
 		if len(rows) != count {
 			t.Fatal(tc.role, "filtered registry size", len(rows), count)
 		}
-		for _, name := range registry.Order() {
-			d := registry.Definitions()[name]
-			if !d.ReadRestricted {
-				continue
+		seen := make(map[string]bool, len(rows))
+		for _, row := range rows {
+			name, err := row[0].Text()
+			if err != nil {
+				t.Fatal(tc.role, "aggregate name", err)
 			}
+			name = settings.FoldName(name)
+			if _, err := registry.Lookup(name); err != nil || seen[name] || restrictedNames[name] && !allowed {
+				t.Fatal(tc.role, "unexpected aggregate member", name, err)
+			}
+			seen[name] = true
+		}
+		for _, name := range registry.Order() {
+			if seen[name] != (allowed || !restrictedNames[name]) {
+				t.Fatal(tc.role, "aggregate membership", name, seen[name])
+			}
+		}
+		for name := range restrictedNames {
 			value, err := store.CurrentSettingLocked(t.Context(), registry, text, sqltype.String(text, name), allowed)
 			if allowed {
 				if err != nil {

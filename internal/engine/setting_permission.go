@@ -12,10 +12,9 @@ func settingAccess(d settings.Definition, op *session.Operation) error {
 	return session.SettingAccess(d, func(name string) (bool, error) { return parameterSetAllowed(op, name) })
 }
 
-// Only lc_messages has a real native privileged setter that accepts parameter
-// SET grants. Read-only settings and deny-only custom settings retain their
-// access contract in settingAccess. The operation supplies one coherent current
-// catalog/role root; no session ACL cache or second setting authority exists.
+// Eligible privileged builtins accept parameter SET grants. Read-only and
+// deny-only custom definitions retain their separate admission contract.
+// The operation supplies one coherent catalog/role root, not a session ACL cache.
 func parameterSetAllowed(op *session.Operation, name string) (bool, error) {
 	view, err := OperationAuthorization(op)
 	if err != nil {

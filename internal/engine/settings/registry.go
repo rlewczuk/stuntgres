@@ -25,7 +25,15 @@ func NewRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 				if d.Name == "track_commit_timestamp" && trackCommitTimestamps {
 					d.BootDefault = "on"
 				}
-				v, err := d.Parse(d.BootDefault)
+				// Boot metadata can predate database initialization and need not
+				// satisfy the live setter's capability checks.
+				var v Value
+				var err error
+				if d.NativeStartup != nil && d.Type == String {
+					v.Text = d.BootDefault
+				} else {
+					v, err = d.Parse(d.BootDefault)
+				}
 				if err != nil {
 					panic(err)
 				} // Builtin definitions are source-owned constants.

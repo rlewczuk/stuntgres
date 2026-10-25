@@ -76,7 +76,7 @@ func (d Definition) Parse(input string) (Value, error) {
 		v.Text = input
 		if d.Name == "search_path" {
 			var err error
-			v.Path, err = parseSearchPath(input)
+			v.Path, err = ParseIdentifierList(d.Name, input)
 			if err != nil {
 				return Value{}, err
 			}

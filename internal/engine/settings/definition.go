@@ -47,8 +47,8 @@ const (
 	Minutes
 )
 
-// StartupDefault is a builtin's simulated initial assignment, distinct from its
-// nullable PostgreSQL boot metadata. It is immutable registry-owned metadata.
+// StartupDefault is a builtin's effective native initial assignment, distinct
+// from nullable PostgreSQL boot metadata. It is immutable registry-owned data.
 type StartupDefault struct {
 	Value     string
 	ResetNull bool
@@ -58,14 +58,14 @@ type StartupDefault struct {
 type Definition struct {
 	Name, Description, BootDefault  string
 	Category, ExtraDescription      string
-	Type                           Type
-	Access                         Access
-	Unit                           Unit
+	Type                            Type
+	Access                          Access
+	Unit                            Unit
 	IntegerMin, IntegerMax          int32
 	FloatMin, FloatMax              float64
-	EnumValues                     []string
+	EnumValues                      []string
 	BootDefaultNull, ReadRestricted bool
-	NativeStartup                  *StartupDefault
+	NativeStartup                   *StartupDefault
 	// Normalize is reserved for builtin behavior; registration has no callbacks.
 	Normalize    func(string) (string, *sqlstate.Error, error)
 	bootValue    Value

@@ -9,8 +9,8 @@ import (
 )
 
 // TestSettingAccessAllowedCallback pins the access classes and the
-// parameter-grant callback: only privileged lc_messages consults it, its
-// error and its verdict pass through, and other classes keep their errors.
+// parameter-grant callback: eligible privileged builtins consult it, its
+// error and verdict pass through, and other classes keep their errors.
 func TestSettingAccessAllowedCallback(t *testing.T) {
 	refuse := errors.New("authority failed")
 	cases := []struct {
@@ -29,6 +29,12 @@ func TestSettingAccessAllowedCallback(t *testing.T) {
 		{name: "lc_messages granted", d: settings.Definition{Name: "lc_messages", Access: settings.Privileged}, allowed: true, consults: true},
 		{name: "lc_messages denied", d: settings.Definition{Name: "lc_messages", Access: settings.Privileged}, consults: true, code: "42501", message: `permission denied to set parameter "lc_messages"`},
 		{name: "lc_messages failure", d: settings.Definition{Name: "lc_messages", Access: settings.Privileged}, failure: refuse, consults: true},
+		{name: "dynamic path granted", d: settings.Definition{Name: "dynamic_library_path", Access: settings.Privileged}, allowed: true, consults: true},
+		{name: "event trigger granted", d: settings.Definition{Name: "event_triggers", Access: settings.Privileged}, allowed: true, consults: true},
+		{name: "extension path granted", d: settings.Definition{Name: "extension_control_path", Access: settings.Privileged}, allowed: true, consults: true},
+		{name: "session preload granted", d: settings.Definition{Name: "session_preload_libraries", Access: settings.Privileged}, allowed: true, consults: true},
+		{name: "replication role denied", d: settings.Definition{Name: "session_replication_role", Access: settings.Privileged}, consults: true, code: "42501", message: `permission denied to set parameter "session_replication_role"`},
+		{name: "custom deny-only", d: settings.Definition{Name: "custom.privileged", Access: settings.Privileged}, allowed: true, code: "42501", message: `permission denied to set parameter "custom.privileged"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -56,5 +62,21 @@ func TestSettingAccessAllowedCallback(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestClientPrivilegedResetAll(t *testing.T) {
+	store := &SettingsStore{Values: make(map[string]string), Typed: make(map[string]settings.Value)}
+	for _, name := range []string{"lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "custom.privileged", "log_statement_stats"} {
+		store.Values[name] = "changed"
+	}
+	custom, err := settings.Validate(settings.Definition{Name: "custom.privileged", Type: settings.String, Access: settings.Privileged})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := settings.NewRegistry([]settings.Definition{custom}, false)
+	store.ResetAllLocked(registry)
+	if len(store.Values) != 2 || store.Values["custom.privileged"] != "changed" || store.Values["log_statement_stats"] != "changed" {
+		t.Fatal("RESET ALL changed deny-only values or retained eligible builtin", store.Values)
 	}
 }

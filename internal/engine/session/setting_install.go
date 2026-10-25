@@ -56,7 +56,7 @@ func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry 
 func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 	timeoutChanged, transactionAssignment := false, false
 	for key := range s.Values {
-		if d, ok := registry.Definitions()[key]; ok && d.Access != settings.Session && d.Name != "lc_messages" {
+		if d, ok := registry.Definitions()[key]; ok && d.Access != settings.Session && !parameterGrantSetting(d.Name) {
 			continue
 		}
 		s.Touch(key, false)

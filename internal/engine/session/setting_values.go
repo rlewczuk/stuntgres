@@ -86,10 +86,11 @@ func SetInput(op *Operation, s *parser.Set, implicit bool) (*string, error) {
 	}
 	if !s.Default && s.Interval == nil {
 		name := s.Name.Text
-		if strings.EqualFold(name, "search_path") || strings.EqualFold(name, "datestyle") {
+		switch settings.FoldName(name) {
+		case "search_path", "datestyle", "temp_tablespaces", "createrole_self_grant", "restrict_nonsystem_relation_kind", "local_preload_libraries", "session_preload_libraries", "shared_preload_libraries":
 			value := strings.Join(s.Values, ", ")
 			input = &value
-		} else {
+		default:
 			if len(s.Values) != 1 {
 				return nil, sqlError("22023", "SET "+name+" takes only one argument")
 			}

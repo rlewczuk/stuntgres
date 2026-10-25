@@ -567,7 +567,7 @@ var keywords = [...]keyword{
 	{"work", Unreserved, true, WORK},
 	{"wrapper", Unreserved, true, WRAPPER},
 	{"write", Unreserved, true, 0},
-	{"xml", Unreserved, true, 0},
+	{"xml", Unreserved, true, XML},
 	{"xmlattributes", ColumnName, true, 0},
 	{"xmlconcat", ColumnName, true, 0},
 	{"xmlelement", ColumnName, true, 0},

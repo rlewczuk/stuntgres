@@ -13,8 +13,12 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Reporting and Logging / What to Log"
 	case "track_commit_timestamp":
 		d.Category = "Replication / Sending Servers"
-	case "timezone", "datestyle", "intervalstyle", "timezone_abbreviations", "client_encoding", "lc_messages", "lc_monetary", "lc_numeric", "lc_time", "icu_validation_level", "extra_float_digits":
+	case "timezone", "datestyle", "intervalstyle", "timezone_abbreviations", "client_encoding", "lc_messages", "lc_monetary", "lc_numeric", "lc_time", "icu_validation_level", "extra_float_digits", "default_text_search_config":
 		d.Category = "Client Connection Defaults / Locale and Formatting"
+	case "local_preload_libraries", "session_preload_libraries", "shared_preload_libraries", "jit_provider":
+		d.Category = "Client Connection Defaults / Shared Library Preloading"
+	case "dynamic_library_path", "extension_control_path", "gin_fuzzy_search_limit":
+		d.Category = "Client Connection Defaults / Other Defaults"
 	case "log_statement_stats":
 		d.Category = "Statistics / Monitoring"
 	case "server_encoding":
@@ -27,6 +31,18 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Query Tuning / Planner Method Configuration"
 	}
 	switch d.Name {
+	case "event_triggers":
+		d.ExtraDescription = "When enabled, event triggers will fire for all applicable statements."
+	case "gin_fuzzy_search_limit":
+		d.ExtraDescription = "0 means no limit."
+	case "default_tablespace", "temp_tablespaces":
+		d.ExtraDescription = "An empty string means use the database's default tablespace."
+	case "createrole_self_grant":
+		d.ExtraDescription = "An empty string disables automatic self grants."
+	case "dynamic_library_path":
+		d.ExtraDescription = "If a dynamically loadable module needs to be opened and the specified name does not have a directory component (i.e., the name does not contain a slash), the system will search this path for the specified file."
+	case "extension_control_path":
+		d.ExtraDescription = "The remaining extension script and secondary control files are then loaded from the same directory where the primary control file was found."
 	case "row_security":
 		d.ExtraDescription = "When enabled, row security will be applied to all users."
 	case "statement_timeout", "lock_timeout", "transaction_timeout", "idle_in_transaction_session_timeout", "idle_session_timeout":

@@ -70,6 +70,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md), including its **Timeouts** rule
   security witnesses without asserting the size of the evolving registry.
   Run `RUN='^TestReference(Settings(BuiltinRegistry|ShowAllPlaceholdersAndLifecycle|UtilitySnapshotOwnership)|FormatEncodingSettings|TimezoneBuiltinRegistryValues|StatisticsSettings)'`
   in both modes.
+  `TestReferenceStatisticsSettingsMetadata` keeps the complete selected native
+  tuples, including boot/startup source distinctions, and the same released
+  isolation enum order in both modes. Internal `TestPhysicalSettingsReadAccess`
+  independently names all ten restricted builtins and asserts every aggregate
+  membership and individual read, not merely a filtered row count.
 - `TestReferenceSettingsPrivilegeAndTimeoutOracle` and
   `TestReferenceSettingsLocalPrivilegeOracle` carry the legacy `reference` build
   tag and run only with `REFERENCE=1`; a native no-match run is not evidence.
@@ -79,6 +84,20 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Settings SQL, registry, SHOW ALL: `RUN='^TestReferenceSettings'`
 - SET LOCAL and transaction-scoped settings: `RUN='^TestReferenceSettingsLocal'`
 - `pg_settings` metadata and statistics settings: `RUN='^TestReferenceStatisticsSettings'`
+- Client connection defaults: `RUN='^TestReferenceClientSettings(Inventory|Validation|Authority|Lifecycle|SimulationSmoke)$$'`
+  covers all 46 selected settings, independently expected full metadata and
+  diagnostics, direct/prepared routes, parameter SET grants versus restricted
+  reads, catalog validation, LOCAL/savepoint/pool/native-control behavior and
+  the explicit setting-only safety boundary. Run both native and REFERENCE=1.
+  SimulationSmoke is the new-feature smoke (8MB SHOW versus raw8192, XML alias,
+  native FK/routine safety and unchanged logical rows), not a physical-effect
+  claim. Native initialization is UTF8/C/UTC/simple FTS; the pinned 18.6
+  initialized oracle has Etc/UTC and English FTS. pq initializes both encoding
+  and DateStyle with source client and NULL file provenance; other configured
+  defaults retain authorized config-file provenance. Session overrides expose
+  NULL file fields; RESET restores the actual captured client/config source;
+  unauthorized readers never see file fields. Ordinary-login scenarios use
+  the fixture's role-core-fixture password convention.
 - Timeouts: `RUN='^TestReference(Timeout|SettingsPublicTimeout)'`
 - Physical-session adapter: `RUN='^TestReferenceSession(PhysicalControls|DecimalInteger|Reset|AdapterCancellation|ShowCommand)'`
 - Direct-message batches: `RUN='^TestReferenceDriverBatch'`

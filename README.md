@@ -17,6 +17,18 @@ The [PL/pgSQL block core](reference/operators/README.md#plpgsql-core) supports
 DO, lexical declarations, assignment and scalar/void RETURN, not general
 procedural control flow, CALL/copyback or language lifecycle.
 
+Client connection defaults use one typed settings registry, including
+`SET XML OPTION DOCUMENT/CONTENT`. Presentation, UTF8/C locale boundaries,
+search paths, row security, transaction characteristics and timeouts retain
+their real native behavior. Storage/GIN/TOAST, FTS configuration selection,
+XML defaults, library/path/preload strings and other absent mechanisms are
+explicit **setting-only simulations**, not physical effects. Native
+`session_replication_role=replica` never bypasses FK checks, and
+`check_function_bodies=off` never admits invalid routines. Postmaster settings
+still refuse live mutation; SET grants and restricted reads are independent.
+See the [settings boundary inventory](internal/engine/settings/README.md#client-connection-defaults).
+
+
 ## Using stuntgres in unit tests
 
 Each `stuntgres.NewDriver()` owns independent in-memory clusters.

@@ -69,8 +69,12 @@ implement its slots, so either import would form a cycle.
   startup, never for metadata reads or RESET.
   Effective defaults use the registry's cached `DefaultValue`, separately from
   nullable boot/reset metadata. Startup-only provider values must equal that
-  effective default; identical supplied values retain provider provenance. The settings cores
-  (`Presentation`, `LookupDefinition`, `ParseValue`, `SetInput`,
+  effective default; identical supplied values retain provider provenance.
+  The trusted native SessionDefaultProvider remains a pure typed capture seam:
+  AM/tablespace/FTS catalog checks apply to explicit SQL candidates, not provider
+  initialization or restoring captured defaults. A captured simulated name is
+  not proof of a catalog object. No provider callback runs on RESET/DEFAULT.
+  The settings cores (`Presentation`, `LookupDefinition`, `ParseValue`, `SetInput`,
   `SettingAccess`) parse and check without installing. Under the root's
   install window, `AdmitLocked` checks the operation and attachment;
   `ApplyLocked`, `ResetAllLocked` and `ShowAllRowsLocked` (`setting_install.go`)
@@ -86,6 +90,17 @@ implement its slots, so either import would form a cycle.
   `Operation.FinishDiscardRoleResetLocked` installs it after publication. The
   root keeps the lock windows and the authorization behind `SettingAccess`'s
   `allowed` callback.
+  Eligible selected privileged builtins use effective superuser/parameter SET
+  authority; custom Privileged definitions and log_statement_stats stay
+  deny-only. Restricted reads remain independent of parameter SET grants.
+  SET list flattening distinguishes raw keyword lists from quote-reconstructed
+  tablespace/preload lists. Catalog-dependent client setting checks run in the
+  root before the atomic install window, not under session locks. Simulated
+  replication/check-function settings never weaken FK/final routine validation.
+  RESET ALL resets previously assigned eligible privileged builtins without
+  rechecking SET grants (including after revoke); individual RESET still
+  checks current SET authority. The same setting action stack makes that reset
+  transactional. Startup and deny-only definitions remain excluded.
 - **Statement classification** (pure functions of the AST and owner values):
   command tags (`command_tag.go`); admission predicates and refusals
   (`statement_class.go`: `ModifyingTag`, `ExplicitUtility`, `ReadOnlyRefusal`,

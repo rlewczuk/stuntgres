@@ -52,20 +52,29 @@ func statisticsSettingsBuiltinInventory(t *testing.T, pg bool, run statisticsSet
 		{"idle_session_timeout", "integer", "user", behavior},
 	} {
 		run(fixture.Select("SELECT name,vartype,context,category FROM pg_settings WHERE name=$1", []string{"name", "vartype", "context", "category"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{tc.name, tc.kind, tc.context, tc.category}}, tc.name))
-		boot := statisticsSettingsNativeBoot(tc.name)
-		unit, min, max, enums := statisticsSettingsFields(tc.name, pg)
+		initial := statisticsSettingsNativeInitial(tc.name)
+		unit, min, max, enums := statisticsSettingsFields(tc.name)
 		run(fixture.Select("SELECT unit,min_val,max_val,enumvals FROM pg_settings WHERE name=$1",
 			[]string{"unit", "min_val", "max_val", "enumvals"}, []string{"TEXT", "TEXT", "TEXT", "_TEXT"},
 			[][]any{{unit, min, max, enums}}, tc.name))
 		if !pg {
+			var boot any = initial
+			source := "default"
+			switch tc.name {
+			case "TimeZone":
+				boot, source = "GMT", "override"
+			case "timezone_abbreviations":
+				boot, source = nil, "override"
+			case "client_encoding":
+				boot, source = "SQL_ASCII", "override"
+			case "lc_messages":
+				boot, source = "", "override"
+			}
 			run(fixture.Select("SELECT "+statisticsSettingsColumnsSQL+" FROM pg_settings WHERE name=$1", statisticsSettingsColumns, statisticsSettingsTypes,
-				[][]any{{tc.name, boot, unit, tc.category, tc.context, tc.kind, "default", min, max, enums, boot, boot, nil, nil, false}}, tc.name))
+				[][]any{{tc.name, initial, unit, tc.category, tc.context, tc.kind, source, min, max, enums, boot, initial, nil, nil, false}}, tc.name))
 		}
 	}
-	isolation := "{\"read committed\",\"read uncommitted\",\"repeatable read\",serializable}"
-	if pg {
-		isolation = "{serializable,\"repeatable read\",\"read committed\",\"read uncommitted\"}"
-	}
+	const isolation = `{serializable,"repeatable read","read committed","read uncommitted"}`
 	for _, tc := range []struct{ name, values string }{
 		{"transaction_isolation", isolation},
 		{"default_transaction_isolation", isolation},
@@ -141,7 +150,7 @@ func TestReferenceStatisticsSettingsUnsupportedCollectors(t *testing.T) {
 	})
 }
 
-func statisticsSettingsNativeBoot(name string) string {
+func statisticsSettingsNativeInitial(name string) string {
 	switch name {
 	case "application_name":
 		return ""
@@ -180,7 +189,7 @@ func statisticsSettingsNativeBoot(name string) string {
 	}
 }
 
-func statisticsSettingsFields(name string, pg bool) (unit, min, max, enums any) {
+func statisticsSettingsFields(name string) (unit, min, max, enums any) {
 	switch name {
 	case "statement_timeout", "lock_timeout", "transaction_timeout", "idle_in_transaction_session_timeout", "idle_session_timeout":
 		unit, min, max = "ms", "0", "2147483647"
@@ -191,10 +200,7 @@ func statisticsSettingsFields(name string, pg bool) (unit, min, max, enums any) 
 	}
 	switch name {
 	case "default_transaction_isolation", "transaction_isolation":
-		enums = `{"read committed","read uncommitted","repeatable read",serializable}`
-		if pg {
-			enums = `{serializable,"repeatable read","read committed","read uncommitted"}`
-		}
+		enums = `{serializable,"repeatable read","read committed","read uncommitted"}`
 	case "bytea_output":
 		enums = "{escape,hex}"
 	case "IntervalStyle":

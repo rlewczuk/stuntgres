@@ -29,6 +29,12 @@ func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStor
 			}
 			return "", err
 		}
+		if err := checkClientSetting(op, d, &v); err != nil {
+			if parseNotice != nil {
+				op.EmitNotice(session.LevelNotice, *parseNotice)
+			}
+			return "", err
+		}
 		value, notice = &v, parseNotice
 	}
 	e.Mu.Lock()

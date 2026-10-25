@@ -13,13 +13,13 @@ func TestParseSearchPath(t *testing.T) {
 		input string
 		want  []string
 	}{{`"dot.name", "comma,name", "quote""name"`, []string{"dot.name", "comma,name", "quote\"name"}}, {`"$user", public`, []string{"$user", "public"}}, {`""`, []string{""}}, {`"", s2`, []string{"", "s2"}}, {"", nil}, {`a"b`, []string{`a"b`}}} {
-		got, err := parseSearchPath(tc.input)
+		got, err := ParseIdentifierList("search_path", tc.input)
 		if err != nil || !reflect.DeepEqual(got, tc.want) {
 			t.Fatal(tc, got, err)
 		}
 	}
 	for _, input := range []string{",", "s1,", `"unterminated`, `a b`} {
-		_, err := parseSearchPath(input)
+		_, err := ParseIdentifierList("search_path", input)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "22023" {
 			t.Fatal(input, err)

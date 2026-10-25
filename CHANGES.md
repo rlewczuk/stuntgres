@@ -1,3 +1,15 @@
+Client connection defaults now cover the complete 46-setting family through
+the existing typed registry, with released metadata, boot/startup distinctions,
+catalog-aware AM/tablespace validation, parameter SET authority, independent
+restricted reads, keyword/preload list semantics and SET XML OPTION syntax.
+Absent physical mechanisms are explicitly setting-only simulations: no files
+or libraries are loaded, no compression/GIN/placement/FTS/XML engine is implied,
+and postmaster settings still reject live changes. Native foreign-key and final
+routine validation remain enforced even under replica/check_function_bodies
+settings. Physical reuse retains settings; native controls exclude them.
+XML OPTION preserves ordinary XML identifier/type syntax; pq-initialized
+DateStyle and encoding metadata retain their actual client source.
+
 File-location settings now expose deterministic, explicitly simulated startup
 labels through SHOW, current_setting and pg_settings, including exact nullable
 boot/reset metadata. Effective-user read privileges filter aggregate rows and

@@ -6,6 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"io"
+	"math"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -123,10 +125,27 @@ func TestReferenceRoutineCorePersistence(t *testing.T) {
 			t.Fatal("canceled Restore accepted")
 		}
 		assertUnchanged()
-		// Restore's exception is not a new public SQL setting.
-		if _, err := c.ExecContext(p.Ctx, "SET check_function_bodies = false"); err == nil {
-			t.Fatal("private replay directive leaked into public settings")
+		// Public configuration is simulated; final native validation stays on.
+		routineExec(t, p, b, c, "SET check_function_bodies = false")
+		show := fixture.Select("SHOW check_function_bodies", []string{"check_function_bodies"}, []string{"TEXT"}, [][]any{{"off"}})
+		show.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+			columns, err := rows.ColumnTypes()
+			if err != nil || len(columns) != 1 {
+				t.Fatal(columns, err)
+			}
+			column := columns[0]
+			nullable, nullableKnown := column.Nullable()
+			length, lengthKnown := column.Length()
+			precision, scale, decimalKnown := column.DecimalSize()
+			if nullable || !nullableKnown || column.ScanType() != reflect.TypeFor[string]() || length != math.MaxInt64 || !lengthKnown || precision != 0 || scale != 0 || decimalKnown {
+				t.Fatal("native SHOW metadata", column)
+			}
 		}
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, show)
+		if _, err := c.ExecContext(p.Ctx, "CREATE FUNCTION public.routine_invalid() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_routine_table$$"); err == nil {
+			t.Fatal("simulated check_function_bodies disabled final validation")
+		}
+		assertUnchanged()
 	})
 }
 

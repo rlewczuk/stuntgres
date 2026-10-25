@@ -8,10 +8,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// parseSearchPath preserves raw setting text separately from decoded identifiers.
-func parseSearchPath(input string) ([]string, error) {
+// ParseIdentifierList decodes PostgreSQL GUC identifier lists without rewriting
+// their stored spelling. Quoted empty identifiers denote the default tablespace.
+func ParseIdentifierList(parameter, input string) ([]string, error) {
 	invalid := func() ([]string, error) {
-		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "search_path": "%s"`, input), Detail: "List syntax is invalid."}
+		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "%s": "%s"`, parameter, input), Detail: "List syntax is invalid."}
 	}
 	s := strings.Trim(input, " \t\r\n\f\v")
 	var path []string

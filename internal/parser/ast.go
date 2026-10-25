@@ -2576,7 +2576,8 @@ func settingIdentifier(value string) string {
 }
 func parsedSet(name Identifier, list settingList, pos Position) *Set {
 	values := list.values
-	if strings.EqualFold(name.Text, "search_path") {
+	switch strings.ToLower(name.Text) {
+	case "search_path", "temp_tablespaces", "local_preload_libraries", "session_preload_libraries", "shared_preload_libraries":
 		for i, isString := range list.stringValues {
 			if isString {
 				values[i] = settingIdentifier(values[i])

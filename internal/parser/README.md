@@ -41,6 +41,10 @@ single-statement limit of driver calls) belong to callers.
 - Setting-call statements retain operand trees for semantic argument analysis;
   their provider, not a syntactic expression-shape check, resolves row visibility.
   Call-start and final function-name component positions remain distinct.
+- `SET [SESSION|LOCAL] XML OPTION DOCUMENT/CONTENT` lowers to the existing
+  xmloption Set node. XML has an explicit unreserved terminal to distinguish
+  this prefix from SET CONSTRAINTS, while retaining its ordinary identifier,
+  type-name and typed-literal contexts. No XML evaluator is implied.
 - Trigger declarations retain explicit timing/row kind, ordered event syntax,
   positioned WHEN and literal arguments. Parsing does not reinterpret the default
   statement kind as ROW; execution admits the supported timing and target kind.

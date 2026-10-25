@@ -168,3 +168,57 @@ func TestSettingsRoleGrammarComposition(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsXMLOption(t *testing.T) {
+	for _, scope := range []string{"", "SESSION ", "LOCAL "} {
+		for _, option := range []string{"DOCUMENT", "CONTENT"} {
+			query := "SET " + scope + "XML OPTION " + option
+			statements, err := Parse(query)
+			if err != nil || len(statements) != 1 {
+				t.Fatal(query, statements, err)
+			}
+			s, ok := statements[0].(*Set)
+			if !ok || s.Name.Text != "xmloption" || s.Local != (scope == "LOCAL ") || len(s.Values) != 1 || s.Values[0] != fold(option) {
+				t.Fatalf("%s: %#v", query, statements[0])
+			}
+		}
+	}
+	for _, query := range []string{
+		"CREATE TABLE xml(xml xml)",
+		"SELECT xml(xml) FROM xml",
+		"SELECT xml 'body'",
+		"CREATE ROLE xml LOGIN",
+		"SET xml='value'",
+		"SET CONSTRAINTS ALL IMMEDIATE",
+		"SET CONSTRAINTS xml DEFERRED",
+		"DO $$DECLARE xml integer; BEGIN xml := 1; END$$",
+	} {
+		if _, err := Parse(query); err != nil {
+			t.Fatal("XML keyword context", query, err)
+		}
+	}
+	for _, query := range []string{"SET XML OPTION", "SET XML OPTION other", "SET XML OPTION DOCUMENT trailing", "SET XML OPTION DOCUMENT SELECT 1", `SET "xml" OPTION DOCUMENT`, `SET XML OPTION "document"`, "SET other OPTION DOCUMENT"} {
+		if _, err := Parse(query); err == nil {
+			t.Fatal("accepted invalid XML OPTION", query)
+		}
+	}
+}
+
+func TestSettingsClientListFlattening(t *testing.T) {
+	for _, tc := range []struct{ query, first string }{
+		{`SET createrole_self_grant TO 'SET','INHERIT'`, "SET"},
+		{`SET restrict_nonsystem_relation_kind TO 'VIEW','foreign-table'`, "VIEW"},
+		{`SET temp_tablespaces TO 'pg_default',''`, "pg_default"},
+		{`SET local_preload_libraries TO 'a,b','c'`, `"a,b"`},
+		{`SET session_preload_libraries TO 'a"b','c'`, `"a""b"`},
+	} {
+		statements, err := Parse(tc.query)
+		if err != nil || len(statements) != 1 {
+			t.Fatal(tc.query, statements, err)
+		}
+		s := statements[0].(*Set)
+		if len(s.Values) != 2 || s.Values[0] != tc.first {
+			t.Fatal(tc.query, s.Values)
+		}
+	}
+}

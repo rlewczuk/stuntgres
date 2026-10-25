@@ -80,6 +80,74 @@ but a different startup value is rejected. Neither the registry nor its consumer
 load configuration/authentication files, select disk storage, create PID files,
 or restart processes. The labels need not exist on the host.
 
+## Client connection defaults
+
+The PostgreSQL 18 client family shares this registry and the existing typed
+SET/SHOW/current_setting/set_config/pg_settings path. Bytea, encoding, message
+filtering, date/interval/time-zone presentation, C/POSIX locale environments,
+float formatting, search_path, row security, transaction characteristics and
+timeouts retain their real native consumers. Encoding remains UTF8-only;
+recognized unsupported encodings report the existing capability error.
+
+The following are **setting-only simulations**, not operational switches:
+`check_function_bodies`, `createrole_self_grant`, `default_table_access_method`,
+`default_tablespace`, `default_text_search_config`, `default_toast_compression`,
+`dynamic_library_path`, `event_triggers`, `extension_control_path`,
+`gin_fuzzy_search_limit`, `gin_pending_list_limit`, `local_preload_libraries`,
+`restrict_nonsystem_relation_kind`, `session_preload_libraries`,
+`session_replication_role`, `temp_tablespaces`, `xmlbinary` and `xmloption`.
+Table AM/tablespace names use actual catalog identities and temporary
+tablespaces check CREATE privileges. Text-search configuration names use a
+finite released builtin-name resolver without creating pg_ts_config rows.
+No compressors, GIN truncation/pending lists, physical placement, automatic
+role membership, relation restrictions, FTS/XML execution or event-trigger
+mechanisms are implied. In particular, native FK checks still run with
+replication role replica, and invalid routines cannot publish with
+check_function_bodies off. `SET XML OPTION DOCUMENT/CONTENT` (including
+SESSION/LOCAL) is syntax for the same xmloption value.
+
+Library/path settings never probe or load files. Preload SET argument lists
+are quote-reconstructed, but raw malformed set_config strings are accepted
+without eager loader/list checks. `jit_provider` and `shared_preload_libraries`
+are restricted-read postmaster settings: all live changes fail with 55P02,
+not a simulated restart or load.
+
+Privileged selected builtins honor superuser or effective parameter SET ACLs;
+restricted reads independently require pg_read_all_settings. SET privilege
+alone never grants read access. Registered Privileged definitions and
+log_statement_stats remain deny-only.
+
+AM/default tablespace name settings apply PostgreSQL GUC_IS_NAME truncation at
+63 UTF8-safe bytes, without folding case. Its NOTICE42622 precedes catalog
+validation, including on failed assignments, and uses the prior message filter.
+Catalog validation sees and diagnoses the clipped name; failure still preserves
+the old setting and logical catalog.
+
+Boot metadata differs from effective native startup/reset values:
+client_encoding SQL_ASCII → UTF8, lc_messages empty → C, TimeZone GMT → UTC,
+timezone_abbreviations SQL NULL → Default. Native FTS starts at
+pg_catalog.simple; the pinned initialized oracle starts at pg_catalog.english.
+Native startup assignments have truthful override sources and no source file
+or line. Real initdb/pq configuration-file/client sources are separate oracle
+facts, not native file provenance.
+
+SET LOCAL, rollback/savepoints and RESET reuse the session action stack.
+Returning a connection to a pool retains its physical settings; replacement
+captures fresh defaults. Native Reset/Dump/Restore never serialize or reset
+live settings.
+RESET ALL restores previously SET eligible privileged builtins even after their
+SET grant is revoked, as PostgreSQL does; individual RESET still checks current
+authority. This does not unlock deny-only custom/logging definitions.
+
+The internal trusted native SessionDefaultProvider retains its pure typed
+capture contract, not a PostgreSQL startup/catalog hook. AM/tablespace/FTS
+provider strings may name nonexistent simulated objects; this is not evidence
+those objects exist. Explicit SQL assigning an unknown name still fails.
+DEFAULT/RESET restores the captured value without provider reentry or catalog
+lookup. Providers still use pure parsing/normalization (including name clipping)
+with silent initialization; replacement physical sessions capture defaults anew.
+
+
 ## What stays in the engine
 
 SET/RESET/SHOW execution, `current_setting`/`set_config` and RESET ALL stay
@@ -98,6 +166,7 @@ parsing, registry metadata, simulated startup defaults and raw integer/real form
 
 ```sh
 make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers|ApplicationNameNormalizer|ParseSearchPath|SettingsMetadata(Raw|Registry)|PhysicalSettingsDefinitions)$$'
+make check RUN='^Test(ClientSettings(BootAndStartup|KeywordLists|ProviderCapture)|ClientCatalogNameNormalization|ClientPrivilegedResetAll|Settings(XMLOption|ClientListFlattening)|SettingAccessAllowedCallback)$$'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in
@@ -106,3 +175,4 @@ Their `SHOW ALL` expectations assert every built-in description independently
 against PostgreSQL 18 `short_desc`, including the current and default
 transaction settings, and every registered custom description, with no
 empty-string exemptions.
+

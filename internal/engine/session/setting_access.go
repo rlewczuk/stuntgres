@@ -9,7 +9,7 @@ import (
 
 // SettingAccess checks whether d may be set at all: startup-only and
 // read-only settings are refused, and privileged ones need a parameter grant.
-// allowed reports that grant; only lc_messages consults it.
+// allowed reports current operation authority for explicitly eligible builtins.
 func SettingAccess(d settings.Definition, allowed func(name string) (bool, error)) error {
 	switch d.Access {
 	case settings.StartupOnly:
@@ -17,7 +17,7 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 	case settings.ReadOnly:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
 	case settings.Privileged:
-		if d.Name == "lc_messages" {
+		if parameterGrantSetting(d.Name) {
 			ok, err := allowed(d.Name)
 			if err != nil {
 				return err
@@ -29,6 +29,16 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 		return sqlError("42501", fmt.Sprintf(`permission denied to set parameter "%s"`, d.Name))
 	}
 	return nil
+}
+
+// parameterGrantSetting is the single eligibility decision for privileged
+// builtins. Custom privileged definitions and logging remain deny-only.
+func parameterGrantSetting(name string) bool {
+	switch name {
+	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role":
+		return true
+	}
+	return false
 }
 
 // SettingReadAccess applies the captured effective user's restricted-read
