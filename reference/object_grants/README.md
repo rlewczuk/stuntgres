@@ -24,7 +24,9 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   runs `direct`/`prepared` × backend subtests, registers role and schema cleanup
   before the scenario, and creates the roles `og_object_reader` and
   `og_object_other`. `largeObjectScenario` (`large_object_helpers_test.go`) is the
-  same shape for large objects.
+  same shape for large objects. Steps are not subtests: step runners call
+  `objectGrantStep`, which runs the step on the backend subtest, stops at its
+  first failure and logs the failing SQL.
 - `objectGrantProviderLifecycle` (`object_grant_aggregate_provider_authority_test.go`)
   is the standard deny → grant → revoke cycle over `objectGrantProviderCase`
   consumers; `objectGrantBodyConsumer` (`object_grant_routine_body_consumers_test.go`)

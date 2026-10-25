@@ -35,11 +35,10 @@ func largeObjectScenario(t *testing.T, schemas []string, body func(*testing.T, *
 						}
 					}()
 					run := func(s fixture.Step) {
+						t.Helper()
 						s.Prepared = prepared
 						s = largeObjectBackendStep(s, b)
-						if !t.Run(s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }) {
-							t.FailNow()
-						}
+						objectGrantStep(t, p.Ctx, c, b.Recorder, s)
 					}
 					run(fixture.Exec("CREATE ROLE og_object_reader", 0))
 					run(fixture.Exec("CREATE ROLE og_object_other", 0))

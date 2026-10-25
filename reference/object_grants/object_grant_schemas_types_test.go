@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 
@@ -25,10 +26,9 @@ func objectGrantScenario(t *testing.T, schemas []string, body func(*testing.T, *
 					}
 					defer c.Close()
 					run := func(s fixture.Step) {
+						t.Helper()
 						s.Prepared = prepared
-						if !t.Run(s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }) {
-							t.FailNow()
-						}
+						objectGrantStep(t, p.Ctx, c, b.Recorder, s)
 					}
 					run(fixture.Exec("CREATE ROLE og_object_reader", 0))
 					run(fixture.Exec("CREATE ROLE og_object_other", 0))
@@ -36,6 +36,22 @@ func objectGrantScenario(t *testing.T, schemas []string, body func(*testing.T, *
 				})
 			}
 		})
+	}
+}
+
+// objectGrantStep runs one step on the caller's goroutine, not as a subtest,
+// and stops the test at the step's first failure, logging its SQL.
+func objectGrantStep(t *testing.T, ctx context.Context, executor fixture.Executor, recorder *fixture.Recorder, s fixture.Step) {
+	t.Helper()
+	failed := t.Failed()
+	defer func() {
+		if !failed && t.Failed() {
+			t.Logf("failed step on %T: %q args %v", executor, s.Query, s.Args)
+		}
+	}()
+	fixture.RunStep(t, ctx, executor, recorder, s)
+	if !failed && t.Failed() {
+		t.FailNow()
 	}
 }
 

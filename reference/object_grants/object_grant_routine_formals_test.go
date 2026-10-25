@@ -150,11 +150,7 @@ func TestReferenceObjectGrantRoutineFormalSelection(t *testing.T) {
 				run := func(s fixture.Step) {
 					t.Helper()
 					s.Prepared = prepared
-					if !t.Run(s.Query, func(t *testing.T) {
-						fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
-					}) {
-						t.FailNow()
-					}
+					objectGrantStep(t, p.Ctx, c, b.Recorder, s)
 				}
 				// Cleanup runs even after a fatal expectation failure and before the
 				// next case/backend. public-schema resets cannot restore pg_catalog ACLs.

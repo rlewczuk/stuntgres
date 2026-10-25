@@ -16,10 +16,9 @@ func TestReferenceLargeObjectTransactions(t *testing.T) {
 		}
 		defer peer.Close()
 		observe := func(s fixture.Step) {
+			t.Helper()
 			s.Prepared = prepared
-			if !t.Run("peer/"+s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, peer, b.Recorder, s) }) {
-				t.FailNow()
-			}
+			objectGrantStep(t, p.Ctx, peer, b.Recorder, s)
 		}
 		metadata := func(oid string, present bool) fixture.Step {
 			var rows [][]any
