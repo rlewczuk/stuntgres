@@ -167,7 +167,8 @@ transitions and its CHAIN and characteristic rules; the owner state itself is
 visibility with the catalog, storage, locks or sessions:
 
 - `registerTransactionLocks`, the fence wrappers and `endStatementVisibility`;
-- `waitOlderIndexSnapshots`;
+- `waitOlderIndexSnapshots` (CREATE INDEX CONCURRENTLY, in
+  [`indexcmds`](../indexcmds/README.md));
 - `AcquireDataView` and `captureDataViews*` (snapshot construction from
   private storage);
 - `snapshotDataPhase` and `acquireSerializableSnapshot`;

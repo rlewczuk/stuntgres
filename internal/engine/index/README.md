@@ -226,12 +226,14 @@ authority retention, not predicate/expression evaluation during transport.
 
 ## What stays in the engine
 
-Orchestration: the `Engine.Mu` and capture windows, CONCURRENTLY phases, lock
-admission (`acquireIndexMaintenance` over the grant plan), unique key pins, the
-registry instances, savepoint capture/restore, Finish order, publication and
-Restore storage (`prepareIndexCatalog`), and `executeCreateIndex`/
-`executeIndexMaintenance`. Thin wrappers build a `TableHost` for production
-callers; tests call `index` functions directly with one. The write-time loops
+The statement executors (CREATE INDEX with its CONCURRENTLY phases, ALTER
+INDEX, DROP INDEX, REINDEX) are [`indexcmds`](../indexcmds/README.md)'s. Core
+keeps the runtime: the `Engine.Mu` and capture windows, lock admission
+(`acquireIndexMaintenance` over the grant plan), unique key pins, the registry
+instances, savepoint capture/restore, Finish order, publication and Restore
+storage (`prepareIndexCatalog`). Family code builds a `tablecmds.TableHost`
+for production callers; tests call `index` functions directly with one. The
+write-time loops
 (unique probe/claim, exclusion probe/admission, ON CONFLICT arbiters) are
 `dml`'s and reach this host through `dml.Host`.
 

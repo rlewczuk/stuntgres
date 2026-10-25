@@ -16,9 +16,9 @@ runtime.
 ## Layering
 
 It imports [`core`](../core/README.md) and the decision packages, never the
-root or another family. The root composition (dispatch and Restore hooks) and
-the families still in the root import it; by rule 6 every later family except
-`rolecmds` may. Code that tables share with those families lives here:
+root or another family. The root composition (dispatch and Restore hooks),
+[`indexcmds`](../indexcmds/README.md) and the families still in the root
+import it; by rule 6 every later family except `rolecmds` may. Code that tables share with those families lives here:
 renames, SET SCHEMA, typed sources, the IF EXISTS skip, the ALTER column
 candidates and type rebinds, `PrepareAlterTypeLocked`, and the hosts.
 

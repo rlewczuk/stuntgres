@@ -5,9 +5,10 @@ The root is the composition layer ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SP
 [`core`](core/README.md)'s `Statements` hook, the engine factory, `Reset`,
 `Dump` and `Restore` with the Restore hooks, and, until each moves to its
 `*cmds` package, the family statement code and its hosts; table, sequence,
-identity and VACUUM statements are [`tablecmds`](tablecmds/README.md)'s.
-Runtime state, admission, publication and the transaction lifecycle are
-core's. No package imports the root except tests and `enginetest`.
+identity and VACUUM statements are [`tablecmds`](tablecmds/README.md)'s, and
+index statements [`indexcmds`](indexcmds/README.md)'s. Runtime state,
+admission, publication and the transaction lifecycle are core's. No package
+imports the root except tests and `enginetest`.
 
 ## Composition
 
@@ -19,9 +20,9 @@ implements `Execute` and `ExecuteLocked` in the historical case order, and
 and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
 `*core.Engine`.
 
-Family statement code still in the root (indexes, partitions, inheritance
-Restore, types, views, rules, policies, triggers, roles, schema objects,
-routines, extensions and FDW) is written as
+Family statement code still in the root (partitions, inheritance Restore,
+types, views, rules, policies, triggers, roles, schema objects, routines,
+extensions and FDW) is written as
 receiver-first functions over core types (`attachPartitionLocked(e, scope,
 ...)`, `typedStage(stage)`, `executeSchema(e, ...)`), so that it can leave
 with its family; it names only exported core and `tablecmds` members. A root
