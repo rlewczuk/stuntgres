@@ -41,7 +41,7 @@ func (s *server) serve() error {
 }
 func (c *client) run() {
 	reason := session.InvalidConnection
-	defer func() { c.finish(reason) }()
+	defer func() { c.emitQuery(); c.finish(reason) }()
 	c.server.log(slog.LevelInfo, "connection opened", "connection_id", c.id)
 	admitted, err := c.startup()
 	if err != nil {
@@ -55,6 +55,10 @@ func (c *client) run() {
 		return
 	}
 	c.cycle = c.session.NewProtocolCycle()
+	if c.server.logs.queries != nil {
+		c.capture = &queryCapture{}
+		c.wire.capture = c.capture
+	}
 	c.stopPeerWatch, err = watchPeerShutdown(c.socket, func() { c.cancel(); _ = c.socket.Close() }, func(e error) {
 		c.server.log(slog.LevelError, "peer shutdown monitor failed", "connection_id", c.id, "error", e.Error())
 	})
@@ -68,6 +72,9 @@ func (c *client) run() {
 	c.messages, c.sessionEnded = c.startReader(), c.watchSessionEnd()
 	for {
 		wake, err := c.drainNotifications()
+		if c.capture != nil && !c.capture.open {
+			c.emitQuery() // idle notifications sent outside any cycle
+		}
 		if err != nil {
 			if !c.fatalSent {
 				_ = c.writeSQLError(c.ctx, "", err)
@@ -105,6 +112,9 @@ func (c *client) run() {
 			reason = session.CleanClose
 			return
 		}
+		if m.tag != 'd' && m.tag != 'c' && m.tag != 'f' {
+			c.capture.begin(m.tag)
+		}
 		if c.protocolState == protocolRecovery && m.tag != 'S' {
 			c.releaseMessage(m)
 			continue
@@ -117,6 +127,7 @@ func (c *client) run() {
 			if e == nil {
 				e = input.End()
 			}
+			c.capture.detail(m.tag, 0, "", session.ProtocolContext{Source: source})
 			c.releaseMessage(m)
 			if e != nil {
 				e = c.rejectCommand(e)
@@ -181,6 +192,9 @@ func (c *client) run() {
 			return
 		}
 		done()
+		if c.capture != nil && c.capture.ready {
+			c.emitQuery()
+		}
 		if err != nil {
 			if diagnostic(err).Severity == "FATAL" {
 				reason = session.Terminated

@@ -83,13 +83,24 @@ type ServerFixture struct {
 	events                                                   []map[string]any
 	changed                                                  chan struct{}
 	readers                                                  sync.WaitGroup
+	queryLog                                                 bool
 }
 
-func NewServerFixture(t *testing.T) *ServerFixture {
+// ServerOption configures the native server process of a ServerFixture.
+type ServerOption func(*ServerFixture)
+
+// ServerQueryLog starts the native server with -q, so it writes
+// Logdir/query.log.
+func ServerQueryLog() ServerOption { return func(f *ServerFixture) { f.queryLog = true } }
+
+func NewServerFixture(t *testing.T, options ...ServerOption) *ServerFixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	dir := t.TempDir()
 	f := &ServerFixture{Ctx: ctx, t: t, Userfile: filepath.Join(dir, "users"), Dumpdir: filepath.Join(dir, "dumps"), Logdir: filepath.Join(dir, "logs"), PIDFile: filepath.Join(dir, "server.pid"), changed: make(chan struct{})}
+	for _, option := range options {
+		option(f)
+	}
 	t.Cleanup(func() {
 		f.closePools()
 		if f.cmd != nil {
@@ -286,6 +297,9 @@ func (f *ServerFixture) start(t *testing.T, restore bool) {
 	args := []string{"serve", "-l", "127.0.0.1:0", "-u", f.Userfile, "-d", f.Dumpdir, "-L", f.Logdir, "-p", f.PIDFile}
 	if restore {
 		args = append(args, "-r")
+	}
+	if f.queryLog {
+		args = append(args, "-q")
 	}
 	f.cmd = exec.Command(f.Binary, args...)
 	stdout, err := f.cmd.StdoutPipe()

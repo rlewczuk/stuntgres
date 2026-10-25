@@ -1,3 +1,8 @@
+The `stuntgres` server's new `-q`/`--querylog` option (requires `-L`) writes
+`query.log`: one JSONL record per command cycle with the query, parameters,
+frontend steps and every backend message as exact base64 bytes plus a readable
+decoded form, for comparison with real PostgreSQL responses.
+
 Routine declaration defaults now retain exact named-composite and table-row
 attribute dependencies for quoted and SQL-standard bodies. Captured defaults
 preserve their original authority through rename, schema moves and native

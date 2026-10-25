@@ -30,7 +30,8 @@ type wireCodec struct {
 	writer        *bufio.Writer
 	startup       []byte
 	authenticated bool
-	readScratch   [8192]byte // Sole reader's fulfilled-byte growth scratch.
+	capture       *queryCapture // nil unless query.log is enabled
+	readScratch   [8192]byte    // Sole reader's fulfilled-byte growth scratch.
 }
 
 func newWire(conn net.Conn) *wireCodec {
@@ -120,6 +121,7 @@ func (w *wireCodec) send(tag byte, body []byte) error {
 	if len(body) > maxMessageLength-4 {
 		return framingError("54000", "message exceeds maximum allowed length")
 	}
+	w.capture.backend(tag, body)
 	var header [5]byte
 	header[0] = tag
 	binary.BigEndian.PutUint32(header[1:], uint32(len(body)+4))

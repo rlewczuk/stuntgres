@@ -73,7 +73,7 @@ func TestServerLogging(t *testing.T) {
 	t.Run("split mirrors modes and append", func(t *testing.T) {
 		stdout := loggingStdout(t)
 		dir := filepath.Join(t.TempDir(), "logs")
-		logs, err := openLogs(dir, false)
+		logs, err := openLogs(dir, false, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -128,7 +128,7 @@ func TestServerLogging(t *testing.T) {
 				t.Fatalf("mode %s: %v, %v", entry.path, info, err)
 			}
 		}
-		logs, err = openLogs(dir, true)
+		logs, err = openLogs(dir, true, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -145,7 +145,7 @@ func TestServerLogging(t *testing.T) {
 	})
 	t.Run("stdout only is not owned", func(t *testing.T) {
 		stdout := loggingStdout(t)
-		logs, err := openLogs("", true)
+		logs, err := openLogs("", true, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -166,15 +166,60 @@ func TestServerLogging(t *testing.T) {
 			t.Fatal(r)
 		}
 	})
+	t.Run("query log is file only", func(t *testing.T) {
+		stdout := loggingStdout(t)
+		dir := filepath.Join(t.TempDir(), "logs")
+		if logs, err := openLogs("", false, true); err == nil || logs != nil {
+			t.Fatalf("query log without directory accepted: %v %v", logs, err)
+		}
+		logs, err := openLogs(dir, false, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if logs.queries != nil {
+			t.Fatal("query log enabled by default")
+		}
+		if err := logs.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "query.log")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("query.log created without the option: %v", err)
+		}
+		for i := range 2 {
+			logs, err = openLogs(dir, false, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := logs.query(context.Background(), "cycle", i+1, "query", "SELECT 1"); err != nil {
+				t.Fatal(err)
+			}
+			if err := logs.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := logs.query(context.Background(), "query", "late"); !errors.Is(err, os.ErrClosed) {
+			t.Fatalf("closed query sink: %v", err)
+		}
+		records := loggingRecords(t, filepath.Join(dir, "query.log"))
+		if len(records) != 2 || records[0]["cycle"] != float64(1) || records[1]["cycle"] != float64(2) || records[1]["message"] != "query" || records[1]["severity"] != "INFO" || records[1]["query"] != "SELECT 1" {
+			t.Fatal(records)
+		}
+		if info, err := os.Stat(filepath.Join(dir, "query.log")); err != nil || info.Mode().Perm() != 0600 {
+			t.Fatalf("query.log mode: %v, %v", info, err)
+		}
+		if len(loggingRecords(t, stdout)) != 0 || len(loggingRecords(t, filepath.Join(dir, "server.log"))) != 0 {
+			t.Fatal("query records mirrored")
+		}
+	})
 	t.Run("open failures are visible", func(t *testing.T) {
 		dir := t.TempDir()
 		if err := os.Mkdir(filepath.Join(dir, "error.log"), 0700); err != nil {
 			t.Fatal(err)
 		}
-		if logs, err := openLogs(dir, false); err == nil || logs != nil {
+		if logs, err := openLogs(dir, false, false); err == nil || logs != nil {
 			t.Fatalf("missing error sink accepted: %v %v", logs, err)
 		}
-		if logs, err := openLogs(filepath.Join(dir, "error.log", "..", "server.log", "child"), false); err == nil || logs != nil {
+		if logs, err := openLogs(filepath.Join(dir, "error.log", "..", "server.log", "child"), false, false); err == nil || logs != nil {
 			t.Fatalf("invalid log directory accepted: %v %v", logs, err)
 		}
 	})
