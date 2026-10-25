@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -88,7 +89,7 @@ func TestUsingIndexBlockedCancellation(t *testing.T) {
 
 // Package-entry fixtures use independently built ASTs, not driver SQL. Catalog,
 // providers, committed rows, baseline roots and transaction owners are real.
-func usingIndexUnitExecute(t *testing.T, e *Engine, s *session.Session, statement parser.Statement) Result {
+func usingIndexUnitExecute(t *testing.T, e *core.Engine, s *session.Session, statement parser.Statement) core.Result {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -106,7 +107,7 @@ func usingIndexUnitTable(name string) *parser.CreateTable {
 	table.Elements = table.Elements[:3]
 	return table
 }
-func usingIndexUnitSeed(t *testing.T, e *Engine, s *session.Session) (*catalog.Relation, *catalog.Relation) {
+func usingIndexUnitSeed(t *testing.T, e *core.Engine, s *session.Session) (*catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	usingIndexUnitExecute(t, e, s, usingIndexUnitTable("t"))
 	for _, a := range []int64{1, 2} {
@@ -118,7 +119,7 @@ func usingIndexUnitSeed(t *testing.T, e *Engine, s *session.Session) (*catalog.R
 	usingIndexUnitExecute(t, e, s, &parser.CreateIndex{Name: parser.Identifier{Text: "sibling"}, Table: primaryKeyUnitName("t"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "b"}}}})
 	return primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "prebuilt")
 }
-func usingIndexUnitFixture(t *testing.T) (*Engine, *session.Session, *catalog.Relation, *catalog.Relation) {
+func usingIndexUnitFixture(t *testing.T) (*core.Engine, *session.Session, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -210,7 +211,7 @@ func TestUsingIndexImmutableGroup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
+			if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			parent := primaryKeyUnitRelation(t, e, "t")
@@ -528,7 +529,7 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 			t.Fatal("INCLUDE entered equality root")
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,7 +576,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(bindOp)
+	auth, err := core.OperationAuthorization(bindOp)
 	if err != nil {
 		bindOp.Done()
 		t.Fatal(err)
@@ -602,7 +603,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	source := primaryKeyUnitRelation(t, e, "prebuilt")

@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -26,7 +26,7 @@ import (
 
 // Reuse the existing bound-table fixture, then construct immutable typed view
 // recipes and actual private ACLs. Public SQL witnesses live in reference only.
-func querySetLockAuthorityFixture(t *testing.T) (*engine.Engine, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectRef, ids.ObjectRef, map[string]ids.ObjectRef) {
+func querySetLockAuthorityFixture(t *testing.T) (*core.Engine, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectRef, ids.ObjectRef, map[string]ids.ObjectRef) {
 	t.Helper()
 	e, query, source := queryCoreFixture(t, "SELECT v FROM t")
 	base := source.Ref
@@ -191,7 +191,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		{localCatalogSet, plan.RowMark{}, "0A000", "row locking is not supported for virtual catalog relations"},
 	} {
 		d := e.Catalog.State.MustRelation(tc.ref.Address)
-		scope := &engine.StatementScope{Owner: &session.TransactionOwner{}}
+		scope := &core.StatementScope{Owner: &session.TransactionOwner{}}
 		leaf := exec.Leaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
 		e.Mu.Lock()
 		err := e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{leaf})
@@ -224,7 +224,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	sources[1].Ref.Epoch++
 	d.View = stored.ViewOf(&d).With(func(p *stored.ViewParts) { p.Sources = sources })
 	e.Catalog.State.SetDescriptor(set.Address, &d)
-	scope := &engine.StatementScope{Owner: &session.TransactionOwner{}}
+	scope := &core.StatementScope{Owner: &session.TransactionOwner{}}
 	e.Mu.Lock()
 	err := e.InitializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
 	e.Mu.Unlock()

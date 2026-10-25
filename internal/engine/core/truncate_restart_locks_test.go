@@ -11,16 +11,16 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func truncateRestartUnitAsyncSQL(t *testing.T, e *engine.Engine, s *session.Session, q string) (<-chan error, context.CancelFunc) {
+func truncateRestartUnitAsyncSQL(t *testing.T, e *core.Engine, s *session.Session, q string) (<-chan error, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done, finished := make(chan error, 1), make(chan struct{})
@@ -28,7 +28,7 @@ func truncateRestartUnitAsyncSQL(t *testing.T, e *engine.Engine, s *session.Sess
 		defer close(finished)
 		op, err := s.Acquire(ctx)
 		if err == nil {
-			var r engine.Result
+			var r core.Result
 			r, err = e.Execute(op, mustLockStatement(q), 0, nil)
 			if r.Rows != nil {
 				r.Rows.Close()
@@ -270,7 +270,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				} else {
 					enginetest.TransactionEnd(t, holder, tx, false)
 				}
-				if engine.PayloadOf(holder).Sequences.Memory(ps.Address) != nil || engine.PayloadOf(waiter).Sequences.Memory(ps.Address) != nil {
+				if core.PayloadOf(holder).Sequences.Memory(ps.Address) != nil || core.PayloadOf(waiter).Sequences.Memory(ps.Address) != nil {
 					t.Fatal("persistent replacement retained retired sequence observation/source event")
 				}
 				if len(oldStore.Versions) != 2 || oldGenerator.Last != 2 || oldStore.TruncateLineage != nil {
@@ -301,7 +301,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			tx := enginetest.TransactionBegin(t, s)
 			truncateUnitExecute(t, e, s, truncateRestartUnitAST("local_t"))
 			enginetest.TransactionEnd(t, s, tx, false)
-			memory := engine.PayloadOf(s).Sequences.Memory(ref.Address)
+			memory := core.PayloadOf(s).Sequences.Memory(ref.Address)
 			if memory == nil || memory.SourceStamp() == 0 || currvalValid(memory) {
 				t.Fatal("missing zero-valid local analysis event")
 			}
@@ -313,7 +313,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			} else if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE replacement(id INT);")); err != nil {
 				t.Fatal(err)
 			}
-			if engine.PayloadOf(s).Sequences.Memory(ref.Address) != memory || memory.SourceStamp() != stamp || currvalValid(memory) {
+			if core.PayloadOf(s).Sequences.Memory(ref.Address) != memory || memory.SourceStamp() != stamp || currvalValid(memory) {
 				t.Fatal("exact caller-owned live TEMP event lost across control replacement")
 			}
 			result, err := sequencePreparedExecute(e, s, ast, &description)
@@ -329,22 +329,12 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			if err := s.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if engine.PayloadOf(s).Sequences.Len() != 0 {
+			if core.PayloadOf(s).Sequences.Len() != 0 {
 				t.Fatal("physical end retained source events")
 			}
 			enginetest.LockEmpty(t, e)
 		})
 	}
-}
-
-func truncateRestartUnitFixture(t *testing.T) (*engine.Engine, *session.Session, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef) {
-	t.Helper()
-	e := engine.New()
-	s := enginetest.StartSession(t, e, nil)
-	for _, q := range []string{"CREATE TABLE p(id SERIAL PRIMARY KEY)", "CREATE TABLE q(id INT GENERATED ALWAYS AS IDENTITY(START 44))", "INSERT INTO p DEFAULT VALUES", "INSERT INTO p DEFAULT VALUES", "INSERT INTO q DEFAULT VALUES"} {
-		enginetest.SessionSQL(t, s, q)
-	}
-	return e, s, enginetest.RoleTableRef(t, e, "p"), enginetest.RoleTableRef(t, e, "q"), enginetest.RoleTableRef(t, e, "p_id_seq"), enginetest.RoleTableRef(t, e, "q_id_seq")
 }
 
 func sequenceScalar(t *testing.T, s *session.Session, q string, want int64) {
@@ -354,39 +344,6 @@ func sequenceScalar(t *testing.T, s *session.Session, q string, want int64) {
 	if got := enginetest.Tuples(r); !reflect.DeepEqual(got, [][]driver.Value{{want}}) {
 		t.Fatalf("%s got %v want %d", q, got, want)
 	}
-}
-
-func truncateUnitAsync(t *testing.T, e *engine.Engine, s *session.Session, stmt *parser.Truncate) (<-chan error, context.CancelFunc) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	done := make(chan error, 1)
-	finished := make(chan struct{})
-	go func() {
-		defer close(finished)
-		op, err := s.Acquire(ctx)
-		if err == nil {
-			_, err = e.Execute(op, stmt, 0, nil)
-			op.Done()
-		}
-		done <- err
-	}()
-	// A separate completion signal lets cleanup join even if the result was
-	// already consumed. Cancellation unwinds a held prefix before session cleanup.
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case <-finished:
-		case <-time.After(5 * time.Second):
-			t.Error("truncate worker did not terminate")
-		}
-	})
-	return done, cancel
-}
-
-func truncateRestartUnitAST(names ...string) *parser.Truncate {
-	s := truncateUnitAST(names...)
-	s.RestartIdentity = true
-	return s
 }
 
 // currvalValid reports whether a session memory holds a currval.

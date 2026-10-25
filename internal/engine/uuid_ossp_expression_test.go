@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -302,7 +303,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		},
 		func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 	} {
-		auth := *RoutineAuthorityView(&evaluation)
+		auth := *core.RoutineAuthorityView(&evaluation)
 		auth.Catalog = auth.Catalog.WithState(catalog.CloneState(auth.Catalog.State()))
 		bad := *captured
 		mutate(&bad)
@@ -441,7 +442,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if tc.sql != "" {
 			roleExecute(t, e, op, tc.sql)
 		}
-		auth, err := OperationAuthorization(reader)
+		auth, err := core.OperationAuthorization(reader)
 		if err != nil {
 			t.Fatal(err)
 		}

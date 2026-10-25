@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -71,7 +72,7 @@ func TestAlterRenameLockGrantTime(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+				if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 					t.Fatal(err)
 				}
 			case "shadow":

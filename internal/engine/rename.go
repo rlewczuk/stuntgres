@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -15,8 +16,8 @@ import (
 
 // Engine.mu and the owner-authorized AX grant are held on entry. Every
 // return releases Engine.mu; relabeling never copies or scans row storage.
-func renameRelationLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+func renameRelationLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (core.Result, error) {
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
@@ -40,7 +41,7 @@ func renameRelationLocked(e *Engine, scope *StatementScope, op *session.Operatio
 	var renamed *catalog.Relation
 	if columnRename {
 		if old.OfType != (ids.ObjectAddress{}) {
-			return fail(SQLError("42809", "cannot rename column of typed table"))
+			return fail(core.SQLError("42809", "cannot rename column of typed table"))
 		}
 		if err := table.InheritanceColumnGuard(old, column, "rename", parser.Position{}); err != nil {
 			return fail(err)
@@ -64,7 +65,7 @@ func renameRelationLocked(e *Engine, scope *StatementScope, op *session.Operatio
 			return fail(err)
 		}
 		if _, exists := auth.Catalog.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: old.Namespace(), Name: destination}); exists {
-			return fail(SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination)))
+			return fail(core.SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination)))
 		}
 	}
 	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
@@ -91,7 +92,7 @@ func renameRelationLocked(e *Engine, scope *StatementScope, op *session.Operatio
 		if err = index.StageBackingIndexRename(stage, &next); err != nil {
 			e.Mu.Unlock()
 			e.DiscardCatalogStage(stage)
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	e.Mu.Unlock()
@@ -101,10 +102,10 @@ func renameRelationLocked(e *Engine, scope *StatementScope, op *session.Operatio
 	}
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err == nil {
-		var prepared *PreparedCatalogPublication
+		var prepared *core.PreparedCatalogPublication
 		prepared, err = e.ValidateCatalogStage(op.Context(), stage)
 		if err == nil {
-			_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+			_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: ref.Epoch})
 		}
 	}
 	if _, conflict := err.(catalog.Conflict); conflict && !columnRename {
@@ -114,12 +115,12 @@ func renameRelationLocked(e *Engine, scope *StatementScope, op *session.Operatio
 		sameEpoch := current.Epoch() == ref.Epoch
 		e.Mu.Unlock()
 		if sameEpoch && exists && winner != ref.Address {
-			return Result{}, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination))
+			return core.Result{}, core.SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, destination))
 		}
 	}
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	scope.Completed = true
-	return Result{}, nil
+	return core.Result{}, nil
 }

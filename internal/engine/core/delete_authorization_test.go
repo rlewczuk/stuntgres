@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -88,7 +89,7 @@ func TestDeleteCoreAuthorization(t *testing.T) {
 	if result.Count != 0 || result.Rows != nil || !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal(result, err, diagnostic)
 	}
-	view, err := engine.OperationAuthorization(op)
+	view, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

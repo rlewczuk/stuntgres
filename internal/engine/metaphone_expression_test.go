@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -21,7 +22,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func metaphoneUnitExpression(t *testing.T, e *Engine) plan.InstalledMetaphoneExpr {
+func metaphoneUnitExpression(t *testing.T, e *core.Engine) plan.InstalledMetaphoneExpr {
 	t.Helper()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{

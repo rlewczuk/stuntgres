@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func tableLikeTemporaryRelation(t *testing.T, e *engine.Engine, namespace ids.ObjectAddress, name string) *catalog.Relation {
+func tableLikeTemporaryRelation(t *testing.T, e *core.Engine, namespace ids.ObjectAddress, name string) *catalog.Relation {
 	t.Helper()
 	view := e.CatalogRead()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
@@ -77,7 +78,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			e.Mu.Lock()
 			auth, err := e.AuthorizationLocked(op)
 			if err == nil {
-				err = table.StageLikeColumns(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
+				err = table.StageLikeColumns(engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
 			}
 			e.Mu.Unlock()
 			sequenceOwnerDiagnostic(t, err, "0A000", "temporary sequence DEFAULT is unsupported", "")

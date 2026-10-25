@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -38,12 +39,12 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := Describe(context.Background(), e.AnalysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
+			b, err := core.Describe(context.Background(), e.AnalysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
 			if err != nil {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			stage, d, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, s, b)
+			stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, s, b)
 			e.Mu.Unlock()
 			if err != nil || skipped {
 				t.Fatalf("freeze stage: %v skipped=%v", err, skipped)
@@ -54,7 +55,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			if len(b.QuerySources) != 0 && (len(stored.ViewOf(d).Columns()) == 0 || len(stored.ViewOf(d).Namespaces()) == 0) {
 				t.Fatal("missing source column/frame analysis")
 			}
-			if err := (RelationProvider).Validate(e.StageRead(stage), d); err != nil {
+			if err := (core.RelationProvider).Validate(e.StageRead(stage), d); err != nil {
 				t.Fatal("captured definition is invalid:", err)
 			}
 		})
@@ -73,7 +74,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	_, err = Describe(context.Background(), e.AnalysisHost(op), statements[0], auth, ids.ObjectRef{}, input, nil, nil)
+	_, err = core.Describe(context.Background(), e.AnalysisHost(op), statements[0], auth, ids.ObjectRef{}, input, nil, nil)
 	e.Mu.Unlock()
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "materialized views may not be defined using bound parameters" {

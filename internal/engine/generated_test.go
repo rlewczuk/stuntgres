@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -21,7 +22,7 @@ import (
 	"testing"
 )
 
-func generatedUnitDescriptor(t *testing.T) (*Engine, catalog.Read, *catalog.Relation) {
+func generatedUnitDescriptor(t *testing.T) (*core.Engine, catalog.Read, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	view := e.CatalogRead()
@@ -79,8 +80,8 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
 	columns := []analyze.QueryColumn{{Descriptor: d.Columns[0], Slot: 0, Leaf: 0, Physical: 0}, {Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}}
 	ns := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: "g", Original: "g", Schema: "public", Ref: ref, Columns: columns}}, Frame: d.Columns}
-	auth := AuthorizationView{View: access.View{Catalog: view}}
-	b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	auth := core.AuthorizationView{View: access.View{Catalog: view}}
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Target.GeneratedOwner = d
 	b.Query.Auth = &auth
 	b.Query.Namespace = &ns
@@ -175,11 +176,11 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	op := &session.Operation{Ctx: context.Background()}
 	declarations := []analyze.ColumnDeclaration{{}, {Generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
-	if err := bindCreateGenerations(e, op, AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
+	if err := bindCreateGenerations(e, op, core.AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	err := table.AssignDefinitionOIDs(DDLHost{E: e}, d)
+	err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, d)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -192,7 +193,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	candidate.SetDescriptor(d.Address(), d)
 	candidate.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	read := e.Catalog.Read(candidate)
-	if err := (RelationProvider).Validate(read, d); err != nil {
+	if err := (core.RelationProvider).Validate(read, d); err != nil {
 		t.Fatal(err)
 	}
 	if !catalog.DefinitionOIDUsed(d, definition.OID) {
@@ -209,7 +210,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		replacement := definition
 		mutate(&replacement)
 		bad.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: replacement}
-		if err := (RelationProvider).Validate(read, &bad); err == nil {
+		if err := (core.RelationProvider).Validate(read, &bad); err == nil {
 			t.Fatal("invalid generated definition accepted")
 		}
 	}

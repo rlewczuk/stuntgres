@@ -7,7 +7,7 @@ import (
 	"io"
 	"runtime"
 	"strconv"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/parser"
 )
 
@@ -123,7 +123,7 @@ func (c *conn) copyRequest(ctx context.Context, statement string, source io.Read
 		return 0, errors.New("stuntgres: COPY requires a COPY statement")
 	}
 	if syntax.Endpoint == parser.CopyFile || syntax.Endpoint == parser.CopyProgram {
-		return 0, engine.CopyBoundary(syntax)
+		return 0, core.CopyBoundary(syntax)
 	}
 	if syntax.From != from {
 		return 0, errors.New("stuntgres: COPY helper direction does not match statement")

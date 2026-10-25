@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -37,11 +38,11 @@ func (e *defaultOrdinal) Eval(ctx expr.Context) (sqltype.Value, error) {
 			e.cancel()
 			return sqltype.Value{}, c.Context.Err()
 		}
-		return sqltype.Value{}, SQLError("22003", "integer out of range")
+		return sqltype.Value{}, core.SQLError("22003", "integer out of range")
 	}
 	return sqltype.Integer(e.Usage.Type, e.ordinal)
 }
-func defaultProbe(t *testing.T, e *Engine, probe *defaultOrdinal) {
+func defaultProbe(t *testing.T, e *core.Engine, probe *defaultOrdinal) {
 	t.Helper()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -128,10 +129,10 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := Describe(op.Ctx, e.AnalysisHost(op), statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, nil, nil)
+	b, err := core.Describe(op.Ctx, e.AnalysisHost(op), statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, nil, nil)
 	var defaults map[int32]catalog.ColumnDefault
 	if err == nil {
-		defaults, err = bindCreateDefaults(NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
+		defaults, err = bindCreateDefaults(core.NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -250,7 +251,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			// preflight. No flag or execution-folded node leaks into the catalog.
 			_, _, err = exec.PreflightCoercions(c, original.Expression)
 			state(t, err, "22P02")
-			if err := (RelationProvider).Validate(view, d); err != nil {
+			if err := (core.RelationProvider).Validate(view, d); err != nil {
 				t.Fatal("execution planning changed the stored definition", err)
 			}
 			if !reflect.DeepEqual(d.ColumnMeta.Defaults[d.Attributes[0]], original) {

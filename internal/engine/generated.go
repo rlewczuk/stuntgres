@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -16,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func bindCreateGenerations(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
+func bindCreateGenerations(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.Generation != nil {
 			if d.ColumnMeta.Generations == nil {
@@ -46,13 +47,13 @@ func bindCreateGenerations(e *Engine, op *session.Operation, auth AuthorizationV
 	return nil
 }
 
-func GenerationNamespace(e *Engine, auth AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
+func GenerationNamespace(e *core.Engine, auth core.AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
 	return analyze.RelationNamespace(auth.Catalog, d, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), 0)
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.
-func BindGeneration(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
-	b := NewExpressionBinder(op.Context(), e, input, op, nil)
+func BindGeneration(e *core.Engine, op *session.Operation, auth core.AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
+	b := core.NewExpressionBinder(op.Context(), e, input, op, nil)
 	b.Target.GeneratedOwner = d
 	b.Params.NoParameters = true
 	b.Query.Auth = &auth
@@ -82,7 +83,7 @@ func BindGeneration(e *Engine, op *session.Operation, auth AuthorizationView, d 
 		return catalog.ColumnGeneration{}, err
 	}
 	if !plan.GenerationImmutable(node) {
-		return catalog.ColumnGeneration{}, SQLError("42P17", "generation expression is not immutable")
+		return catalog.ColumnGeneration{}, core.SQLError("42P17", "generation expression is not immutable")
 	}
 	if node.ResultUsage() != column.Usage {
 		input, annotations := analyze.DomainCoercionInput(node, column.Usage)
@@ -92,7 +93,7 @@ func BindGeneration(e *Engine, op *session.Operation, auth AuthorizationView, d 
 		}
 		coercionPlan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if failure != nil {
-			diagnostic := SQLError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
+			diagnostic := core.SQLError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
 			diagnostic.Hint = "You will need to rewrite or cast the expression."
 			return catalog.ColumnGeneration{}, diagnostic
 		}

@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -67,7 +68,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 		}
 	}
 	tempDemand(1)
-	tempGenerator, tempMemory := e.Storage.Sequences[tempAddress], engine.PayloadOf(op.Session).Sequences.Memory(tempAddress)
+	tempGenerator, tempMemory := e.Storage.Sequences[tempAddress], core.PayloadOf(op.Session).Sequences.Memory(tempAddress)
 	enginetest.RoleExecute(t, e, op, "CREATE TEMP TABLE retained_table(k INT,payload INT DEFAULT nextval('retained_temp'),g INT GENERATED ALWAYS AS(payload+1) STORED,CONSTRAINT retained_positive CHECK(payload>0))")
 	enginetest.RoleExecute(t, e, op, "CREATE UNIQUE INDEX retained_table_key ON retained_table(k) WHERE payload>0")
 	enginetest.RoleExecute(t, e, op, "CREATE INDEX retained_table_expression ON retained_table((k+0)) WHERE payload>0")
@@ -102,7 +103,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if err != nil || !changes.Replacement || e.CatalogRead().Epoch() != retained.Epoch()+1 {
 		t.Fatal(changes, err)
 	}
-	if op.Session.SessionToken != tempToken || op.Session.TemporaryNamespace != tempNamespace || e.Catalog.State.Get(tempAddress) != tempDescriptor || e.Catalog.State.Get(tempNamespace) != tempNamespaceDescriptor || e.Storage.Sequences[tempAddress] != tempGenerator || engine.PayloadOf(op.Session).Sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
+	if op.Session.SessionToken != tempToken || op.Session.TemporaryNamespace != tempNamespace || e.Catalog.State.Get(tempAddress) != tempDescriptor || e.Catalog.State.Get(tempNamespace) != tempNamespaceDescriptor || e.Storage.Sequences[tempAddress] != tempGenerator || core.PayloadOf(op.Session).Sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
 		t.Fatal("hierarchy self remap changed exact live TEMP identity/cache")
 	}
 	tempDemand(3)

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -336,7 +337,7 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	binder := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	binder := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	project := query.Root.(*plan.ProjectNode)
 	window := project.Child.(*plan.WindowNode)
 	binder.Grouping.WindowCalls = append([]plan.WindowCall(nil), window.Calls...)
@@ -393,7 +394,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	description, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	description, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

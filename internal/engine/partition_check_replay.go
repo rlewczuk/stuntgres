@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
@@ -12,11 +13,11 @@ import (
 // This capability is an exact private-import target, not a public hierarchy
 // ALTER policy. The ordinary ALTER binder, providers, stage and Finish still own
 // every definition and publication check.
-func beginPartitionCheckReplay(e *Engine, op *session.Operation, raw *parser.AlterTable) error {
+func beginPartitionCheckReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}
-	OperationReplay(op).PartitionCheck = nil
+	core.OperationReplay(op).PartitionCheck = nil
 	if !partition.CheckReplayActions(raw) {
 		return nil
 	}
@@ -26,7 +27,7 @@ func beginPartitionCheckReplay(e *Engine, op *session.Operation, raw *parser.Alt
 	if err != nil {
 		return err
 	}
-	if !PartitionConstraintReplayImport(e, op, auth) {
+	if !core.PartitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK authority")
 	}
 	if err := table.RestoreAlterConstraints(raw); err != nil {
@@ -41,7 +42,7 @@ func beginPartitionCheckReplay(e *Engine, op *session.Operation, raw *parser.Alt
 		return ids.ErrCatalogReplaced
 	}
 	if partition.CheckReplayTarget(auth.Catalog, d) {
-		OperationReplay(op).PartitionCheck = d
+		core.OperationReplay(op).PartitionCheck = d
 	}
 	return nil
 }

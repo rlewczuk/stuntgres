@@ -8,6 +8,7 @@ import (
 	"io"
 	"reflect"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -125,7 +126,7 @@ func TestServerProtocolFraming(t *testing.T) {
 		p := &c.copyStream
 		defer p.closeCommand()
 		p.ctx = context.Background()
-		if err := c.copyHooks.Start(engine.CopyProtocolMetadata{}); err != nil {
+		if err := c.copyHooks.Start(core.CopyProtocolMetadata{}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := p.Write([]byte("out")); err != nil {
@@ -163,7 +164,7 @@ func TestServerProtocolFraming(t *testing.T) {
 			messages <- frontendMessage{tag: 'c'}
 			c.messages = messages
 			c.freeBuffers = make(chan []byte, 2)
-			if err := c.copyHooks.Start(engine.CopyProtocolMetadata{From: true, Format: 1, ColumnFormats: []int16{1}}); err != nil {
+			if err := c.copyHooks.Start(core.CopyProtocolMetadata{From: true, Format: 1, ColumnFormats: []int16{1}}); err != nil {
 				t.Fatal(err)
 			}
 			var data [8]byte
@@ -195,7 +196,7 @@ func TestServerProtocolFraming(t *testing.T) {
 		messages <- frontendMessage{tag: 'd', body: []byte("tail")}
 		c.messages = messages
 		c.freeBuffers = make(chan []byte, 2)
-		if err := c.copyHooks.Start(engine.CopyProtocolMetadata{From: true}); err != nil {
+		if err := c.copyHooks.Start(core.CopyProtocolMetadata{From: true}); err != nil {
 			t.Fatal(err)
 		}
 		var data [1]byte

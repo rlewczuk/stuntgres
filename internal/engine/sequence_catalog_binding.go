@@ -2,11 +2,12 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
-func acquireCatalogBinding(s *StatementScope, base catalog.Read, claim catalog.BindingClaim) error {
+func acquireCatalogBinding(s *core.StatementScope, base catalog.Read, claim catalog.BindingClaim) error {
 	key := claim.Key
 	resource := lock.Resource{ObjectRef: s.Engine().Catalog.Domain.Ref(base.Epoch(), key.Namespace), Name: key}
 	if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {

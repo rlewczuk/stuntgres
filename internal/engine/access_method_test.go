@@ -6,16 +6,17 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 )
 
-func accessMethodUnit(t *testing.T, e *Engine, name string, native catalog.NativeAccessMethod, handler ids.OID) *catalog.AccessMethod {
+func accessMethodUnit(t *testing.T, e *core.Engine, name string, native catalog.NativeAccessMethod, handler ids.OID) *catalog.AccessMethod {
 	t.Helper()
 	return &catalog.AccessMethod{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 1, ObjectName: name, Native: native, Handler: handler}
 }
-func accessMethodPublish(t *testing.T, e *Engine, definitions ...catalog.Descriptor) catalog.Read {
+func accessMethodPublish(t *testing.T, e *core.Engine, definitions ...catalog.Descriptor) catalog.Read {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
@@ -29,7 +30,7 @@ func accessMethodPublish(t *testing.T, e *Engine, definitions ...catalog.Descrip
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	return e.CatalogRead()

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -24,7 +25,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	array, _ := sqltype.Array(45001, "_mood", mood)
 	targetMood, _ := sqltype.Enum(45002, "mood", "public.mood", mood.EnumLabels())
 	targetArray, _ := sqltype.Array(45003, "_mood", targetMood)
-	fixtureView := func(e *engine.Engine, enum, array *sqltype.Descriptor) catalog.Read {
+	fixtureView := func(e *core.Engine, enum, array *sqltype.Descriptor) catalog.Read {
 		base := e.CatalogRead()
 		namespace := base.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
 		stage := e.BeginCatalogStage(base)

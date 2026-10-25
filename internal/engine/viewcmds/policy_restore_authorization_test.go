@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -23,7 +24,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 	defer done()
 	enginetest.RoleExecute(t, stage, op, "SET SESSION AUTHORIZATION selector_owner")
 	creation := enginetest.Statement(t, "CREATE POLICY p ON t TO CURRENT_USER,CURRENT_ROLE,SESSION_USER").(*parser.CreatePolicy)
-	capture := func() engine.AuthorizationView {
+	capture := func() core.AuthorizationView {
 		t.Helper()
 		stage.Mu.Lock()
 		defer stage.Mu.Unlock()
@@ -33,7 +34,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 		}
 		return auth
 	}
-	assertTargets := func(auth engine.AuthorizationView, want authorization.PrincipalRef) {
+	assertTargets := func(auth core.AuthorizationView, want authorization.PrincipalRef) {
 		t.Helper()
 		if err := view.PolicyPreflight(op, auth.View, creation, false); err != nil {
 			t.Fatal("preflight", err)
@@ -53,7 +54,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 		t.Fatal("ordinary capture lost actual session state")
 	}
 	assertTargets(ordinary, ordinary.State.CurrentUser)
-	engine.OperationReplay(op).TableDestination = true
+	core.OperationReplay(op).TableDestination = true
 	trusted := capture()
 	if trusted.State.CurrentUser != ordinary.State.Authenticated || trusted.SessionRoleState != ordinary.State || op.RoleState() != ordinary.State {
 		t.Fatal("trusted capture did not separate authority and session semantics")
@@ -61,10 +62,10 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 	assertTargets(trusted, ordinary.State.CurrentUser)
 	// A fresh execution capture must observe a subsequent real session change;
 	// the immutable earlier preflight snapshot must not change retroactively.
-	engine.OperationReplay(op).TableDestination = false
+	core.OperationReplay(op).TableDestination = false
 	enginetest.RoleExecute(t, stage, op, "RESET SESSION AUTHORIZATION")
 	enginetest.RoleExecute(t, stage, op, "SET SESSION AUTHORIZATION next_owner")
-	engine.OperationReplay(op).TableDestination = true
+	core.OperationReplay(op).TableDestination = true
 	fresh := capture()
 	if fresh.Revision == trusted.Revision || fresh.SessionRoleState.CurrentUser == trusted.SessionRoleState.CurrentUser || fresh.State.CurrentUser != trusted.State.CurrentUser {
 		t.Fatal("fresh capture reused old semantics or lost trusted authority")
@@ -75,7 +76,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 		t.Fatal("retained semantic snapshot mutated")
 	}
 	// The flag alone still grants no trusted authority on a live engine.
-	engine.OperationReplay(sourceOp).TableDestination = true
+	core.OperationReplay(sourceOp).TableDestination = true
 	source.Mu.Lock()
 	_, err := source.StatementAuthorizationLocked(sourceOp, creation)
 	source.Mu.Unlock()

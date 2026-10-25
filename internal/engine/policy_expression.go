@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -20,7 +21,7 @@ func (h ViewHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw
 	if raw == nil {
 		return nil, nil
 	}
-	e, auth := h.E, DDLAuthorityOf(a)
+	e, auth := h.E, core.DDLAuthorityOf(a)
 	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]analyze.QueryColumn, len(d.Columns))
 	for i, c := range d.Columns {
@@ -31,7 +32,7 @@ func (h ViewHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw
 		Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}},
 		Frame:      d.Columns,
 	}
-	b := NewExpressionBinder(h.Op.Context(), e, input, h.Op, nil)
+	b := core.NewExpressionBinder(h.Op.Context(), e, input, h.Op, nil)
 	b.Consumer.PolicyConsumer, b.Params.NoParameters = true, true
 	// Query scopes carry this clause to the aggregate's semantic owner.
 	b.Clause.AggregateClause = "policy expressions"
@@ -59,7 +60,7 @@ func (h ViewHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw
 			RegtypeConstants:  b.Prepared.RegtypeConstants,
 		},
 	}
-	frozen, err := stored.FreezeQueryPresentation(auth.Catalog, CatalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
+	frozen, err := stored.FreezeQueryPresentation(auth.Catalog, core.CatalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/typedef"
@@ -28,7 +29,7 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +48,7 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	record := func(column string, node *typedef.DomainReplayNode) typedef.DomainReplayRecord {
 		return typedef.DomainReplayRecord{Schema: "public", Table: "conversion_replay_array", Cells: []typedef.DomainReplayCell{{Column: column, Value: node}}}
 	}
-	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	usage := relation.Columns[0].Usage

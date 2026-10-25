@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -78,7 +79,7 @@ func TestRoleOwnershipDatabaseRestoreRoleGraph(t *testing.T) {
 	}
 }
 
-func roleAttributeCreate(t *testing.T, e *engine.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
+func roleAttributeCreate(t *testing.T, e *core.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
 	t.Helper()
 	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
 	d, ok := e.Roles().Lookup(name)
@@ -88,7 +89,7 @@ func roleAttributeCreate(t *testing.T, e *engine.Engine, op *session.Operation, 
 	return d
 }
 
-func roleAttributeApply(t *testing.T, e *engine.Engine, op *session.Operation, s parser.Statement) {
+func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {
 	t.Helper()
 	r, err := e.Execute(op, s, 0, nil)
 	if err != nil || r.Count != 0 || r.Rows != nil {

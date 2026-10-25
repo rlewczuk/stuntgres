@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -22,14 +23,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func citextUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema string) *CatalogStage {
+func citextUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, schema string) *core.CatalogStage {
 	t.Helper()
 	creation := &parser.CreateExtension{Name: parser.Identifier{Text: name}}
 	if schema != "" {
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, creation)
+	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +39,7 @@ func citextUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schem
 	return stage
 }
 
-func citextUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type) {
+func citextUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension, *catalog.Type) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -101,7 +102,7 @@ func TestCitextProviderIdentity(t *testing.T) {
 			t.Fatal("released citext conversion display declaration", procedure.Display)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +250,7 @@ func TestCitextProviderConflicts(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		before := e.Catalog.State
 		e.Mu.Lock()
-		_, err = stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "citext"}})
+		_, err = stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "citext"}})
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "citext" already exists`, Context: extension.CitextTypeContext}

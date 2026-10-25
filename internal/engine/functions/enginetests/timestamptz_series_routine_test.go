@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -99,12 +99,12 @@ func TestTimestamptzSeriesRoutineAuthority(t *testing.T) {
 			}
 		}
 		probe := evaluation
-		foreignAuthority := *engine.RoutineAuthorityView(&foreign)
+		foreignAuthority := *core.RoutineAuthorityView(&foreign)
 		probe.RoutineAuthority = &foreignAuthority
 		if err := exec.AdmitRoutineCall(&probe, s, false, false); err == nil {
 			t.Fatal("foreign equal-OID authority")
 		}
-		changed := *engine.RoutineAuthorityView(&evaluation)
+		changed := *core.RoutineAuthorityView(&evaluation)
 		changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 		replacement := *captured
 		replacement.Volatility = expr.Volatile

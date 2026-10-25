@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/proc"
@@ -56,12 +57,12 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoutineSequenceUsageOID})
-	input := func(v catalog.Read, a engine.AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: engine.EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
+	input := func(v catalog.Read, a core.AuthorizationView) pgcatalog.Input {
+		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: core.EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
 	}
 	check := func(in pgcatalog.Input, names ...string) [][]sqltype.Value {
 		t.Helper()
-		captured, err := engine.CaptureCatalogSourceRows(in, produce)
+		captured, err := core.CaptureCatalogSourceRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,12 +188,12 @@ func TestInfoRoutineSequenceUsageProducer(t *testing.T) {
 		func(in *pgcatalog.Input) {
 			a := auth
 			a.RoleRecord = nil
-			in.Runtime = engine.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.EngineCatalogRuntime{Auth: a}
 		},
 		func(in *pgcatalog.Input) {
 			a := auth
 			a.State.CurrentUser = f.e.RoleStore.Domain.Principal(99999)
-			in.Runtime = engine.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.EngineCatalogRuntime{Auth: a}
 		},
 	} {
 		in := input(view, auth)

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -83,7 +84,7 @@ func TestBtreeIndexPrivateTypeSavepointAndDrop(t *testing.T) {
 
 // withPublicSchemaUnitOwner provisions only a positive CREATE or owner-successor
 // precondition. It leaves the tested operation's identity and object ACLs alone.
-func withPublicSchemaUnitOwner(t *testing.T, e *engine.Engine, owner string, body func()) {
+func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body func()) {
 	t.Helper()
 	view := e.CatalogRead()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})

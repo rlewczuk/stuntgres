@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -29,7 +30,7 @@ func (p roleSwitchDefaultProvider) SessionDefault(ctx context.Context, d setting
 	}
 	return p.value, true, p.err
 }
-func roleSwitchUnitSession(t *testing.T) (*Engine, *session.Session) {
+func roleSwitchUnitSession(t *testing.T) (*core.Engine, *session.Session) {
 	t.Helper()
 	e := New()
 	for _, q := range []string{"CREATE USER switch_login NOINHERIT", "CREATE ROLE switch_a", "CREATE ROLE switch_b", "CREATE ROLE switch_c", "GRANT switch_a,switch_b,switch_c TO switch_login WITH INHERIT FALSE, SET TRUE"} {
@@ -50,7 +51,7 @@ func roleSwitchUnitSession(t *testing.T) (*Engine, *session.Session) {
 }
 func roleSwitchAssert(t *testing.T, s *session.Session, before authorization.RoleState, name string) {
 	t.Helper()
-	role, ok := EngineOf(s).Roles().Lookup(name)
+	role, ok := core.EngineOf(s).Roles().Lookup(name)
 	if !ok {
 		t.Fatal(name)
 	}
@@ -69,7 +70,7 @@ func roleSwitchUnitExec(t *testing.T, s *session.Session, q string) error {
 		return err
 	}
 	defer op.Done()
-	_, err = EngineOf(s).Execute(op, statement(t, q), 0, nil)
+	_, err = core.EngineOf(s).Execute(op, statement(t, q), 0, nil)
 	return err
 }
 

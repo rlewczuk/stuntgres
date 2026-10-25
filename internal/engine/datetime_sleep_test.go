@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -103,7 +104,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 		}
 		done := make(chan error, 1)
 		go func() {
-			_, err := wait.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope)}})
+			_, err := wait.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope)}})
 			done <- err
 		}()
 		datetimeSleepCleanupAdmission(t, done)

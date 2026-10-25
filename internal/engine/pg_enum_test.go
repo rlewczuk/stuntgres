@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
@@ -61,7 +62,7 @@ func TestPGEnumAllocatorLifecycle(t *testing.T) {
 	}
 }
 
-func pgEnumUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
+func pgEnumUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3501}
 	d, ok := e.Catalog.State.Relation(a)
@@ -96,7 +97,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
-	captured, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGEnum)
+	captured, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGEnum)
 	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 0 {
 		t.Fatal("fresh empty source", captured, err)
 	}
@@ -105,7 +106,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	readerRole := roleAttributeCreate(t, e, op, "enum_metadata_reader", true, parser.RoleOptions{})
 	readerOp, readerDone := roleOperation(t, e, readerRole.Name)
 	defer readerDone()
-	retainedAuth, err := OperationAuthorization(readerOp)
+	retainedAuth, err := core.OperationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +116,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	currentAuth, err := OperationAuthorization(readerOp)
+	currentAuth, err := core.OperationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +127,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := setObjectACL(e, context.Background(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restoredAuth, err := OperationAuthorization(readerOp)
+	restoredAuth, err := core.OperationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,18 +178,18 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	private, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.StageRead(stage), Ref: ref, Source: d, Owner: (e.StageRead(stage)).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGEnum)
+	private, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.StageRead(stage), Ref: ref, Source: d, Owner: (e.StageRead(stage)).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGEnum)
 	if err != nil || reflect.DeepEqual(private.Anonymous, before) || !reflect.DeepEqual(captured.Anonymous, before) {
 		t.Fatal("capture generation lifetime", err)
 	}
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Oid)
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("foreign source type", rows, err)
 	}
 	invalid.Columns = invalid.Columns[:3]
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("invalid shape", rows, err)
 	}
 	invalidOwner := *e.Catalog.State
@@ -200,16 +201,16 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	wrongAddress := mood.Address()
 	wrongAddress.ObjectID++
 	invalidOwner.SetDescriptor(wrongAddress, mood)
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(&invalidOwner), Ref: ref, Source: d, Owner: (e.Catalog.Read(&invalidOwner)).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(&invalidOwner), Ref: ref, Source: d, Owner: (e.Catalog.Read(&invalidOwner)).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("mismatched owner identity", rows, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("canceled capture", rows, err)
 	}
 	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: e.Catalog.State.DescriptorCount() + 2}
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("traversal cancellation", rows, err)
 	}
 }

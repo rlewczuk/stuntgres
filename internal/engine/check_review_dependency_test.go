@@ -6,9 +6,10 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 )
 
-func checkReviewDependencyValid(t *testing.T, e *Engine) {
+func checkReviewDependencyValid(t *testing.T, e *core.Engine) {
 	t.Helper()
 	read := e.CatalogRead()
 	for _, descriptor := range read.Descriptors() {

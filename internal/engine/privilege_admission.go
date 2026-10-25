@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
@@ -21,7 +22,7 @@ type privilegeClaim struct {
 // Named relation binding is an admission operation. Re-resolution after an AS
 // wait precedes ACL planning, so a replacement name can legitimately identify a
 // new object. No existing candidate is ever replayed or retargeted.
-func admitGrantRelation(s *StatementScope, name parser.ObjectName, initial catalog.Descriptor) (catalog.Descriptor, error) {
+func admitGrantRelation(s *core.StatementScope, name parser.ObjectName, initial catalog.Descriptor) (catalog.Descriptor, error) {
 	e := s.Engine()
 	ref := e.Catalog.Domain.Ref(s.TxRef.Epoch(), initial.Address())
 	for {
@@ -49,7 +50,7 @@ func admitGrantRelation(s *StatementScope, name parser.ObjectName, initial catal
 	}
 }
 
-func admitObjectGrant(s *StatementScope, req role.GrantRequest, statement *parser.ObjectGrant) error {
+func admitObjectGrant(s *core.StatementScope, req role.GrantRequest, statement *parser.ObjectGrant) error {
 	e := s.Engine()
 	targets := req.Targets()
 	if statement.Kind == "" || statement.Kind == "sequence" {
@@ -110,7 +111,7 @@ func admitObjectGrant(s *StatementScope, req role.GrantRequest, statement *parse
 		e.Mu.Unlock()
 		if changed {
 			if claim.address.ClassID == ids.RelationClassID {
-				return SQLError("XX000", "tuple concurrently updated")
+				return core.SQLError("XX000", "tuple concurrently updated")
 			}
 			return catalog.Conflict{}
 		}
@@ -126,7 +127,7 @@ type defaultPrivilegeClaim struct {
 // Default planning preserves its existing ordered error precedence. Its private
 // immutable outputs are retained only if every claimed predecessor and captured
 // authority survives the unlocked writer wait; no ACL is recomputed after wait.
-func admitDefaultPrivileges(s *StatementScope, claims []defaultPrivilegeClaim) error {
+func admitDefaultPrivileges(s *core.StatementScope, claims []defaultPrivilegeClaim) error {
 	e := s.Engine()
 	slices.SortFunc(claims, func(a, b defaultPrivilegeClaim) int {
 		if n := cmp.Compare(a.key.Creator.ID(), b.key.Creator.ID()); n != 0 {
@@ -150,7 +151,7 @@ func admitDefaultPrivileges(s *StatementScope, claims []defaultPrivilegeClaim) e
 			continue
 		}
 		if claim.original != nil {
-			return SQLError("XX000", "tuple concurrently updated")
+			return core.SQLError("XX000", "tuple concurrently updated")
 		}
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23505",
 			Message: `duplicate key value violates unique constraint "pg_default_acl_role_nsp_obj_index"`,

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -69,7 +70,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 				grant(column(i), rights)
 			}
 			auth := enginetest.CatalogAuthorization(e, e.CatalogRead())
-			b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+			b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			query, err := b.BindSelect(enginetest.Statement(t, tc.query).(*parser.Select), false)
 			if err != nil {
@@ -117,7 +118,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 	}
 }
 
-func domainUnitTable(t *testing.T, e *engine.Engine, op *session.Operation, q string) *catalog.Relation {
+func domainUnitTable(t *testing.T, e *core.Engine, op *session.Operation, q string) *catalog.Relation {
 	t.Helper()
 	raw := enginetest.Statement(t, q).(*parser.CreateTable)
 	e.Mu.Lock()
@@ -151,13 +152,13 @@ func putFixtureRole(r *access.RoleRecord, d authorization.RoleDescriptor) {
 	r.Root = root
 }
 
-func domainUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

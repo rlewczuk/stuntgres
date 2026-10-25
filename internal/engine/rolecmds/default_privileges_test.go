@@ -3,10 +3,10 @@ package rolecmds_test
 import (
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -123,14 +123,14 @@ func TestDefaultPrivilegesCreatorSelection(t *testing.T) {
 
 // defaultUnitTable owns Engine.mu; callers must not hold it. Resolve the
 // immutable stage-base carrier first, without a locking Engine.CatalogRead.
-func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *engine.CatalogStage, name string, owner authorization.PrincipalRef) *catalog.Relation {
+func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *core.CatalogStage, name string, owner authorization.PrincipalRef) *catalog.Relation {
 	t.Helper()
 	typ, ok := stage.Base.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("stage has no int4 carrier")
 	}
 	f.e.Mu.Lock()
-	d, err := table.NewRelation(engine.DDLHost{E: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
+	d, err := table.NewRelation(core.DDLHost{E: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
 		d.Security.ACL = stage.CreationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.StageRowTypeLocked(stage, d)

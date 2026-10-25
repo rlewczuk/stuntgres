@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -14,7 +15,7 @@ import (
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
 // owner's engine. No public adapter or testing-only production switch is used.
-func hashCaptureQuery(t *testing.T, e *Engine, op *session.Operation, q string) (*plan.Query, *exec.Source, func()) {
+func hashCaptureQuery(t *testing.T, e *core.Engine, op *session.Operation, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	ast := statement(t, q)
 	scope, err := e.StartStatement(op)
@@ -29,7 +30,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *session.Operation, q string) 
 	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		bound, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	var source *exec.Source
 	if err == nil {
@@ -60,7 +61,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *session.Operation, q string) 
 	return bound.Query, source, release
 }
 
-func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *exec.Source, func()) {
+func hashImplicitQuery(t *testing.T, e *core.Engine, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
@@ -81,7 +82,7 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, param
 		t.Fatal("fixture has no top-level filter")
 	}
 	state := &exec.State{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := ScopeOf(source.LiveHost()); scope != nil {
+	if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.Input, scope.Output
 	}
 	stage, err := exec.OpenNode(context.Background(), state, filter)

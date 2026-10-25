@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -86,7 +87,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 				enginetest.SessionSQL(t, peer, q)
 			}
 			ast := enginetest.Statement(t, "UPDATE t x SET v=coalesce(r.z,x.v) FROM s LEFT JOIN r USING(k) WHERE x.id=s.k RETURNING old.v,new.v,s.k,r.k,r.z")
-			var expected *engine.StatementDescription
+			var expected *core.StatementDescription
 			if prepared {
 				op := enginetest.TransactionOperation(t, writer)
 				description, err := e.Describe(op, ast)
@@ -105,7 +106,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			type outcome struct {
 				count int64
 				rows  [][]driver.Value
-				scope *engine.StatementScope
+				scope *core.StatementScope
 				err   error
 			}
 			done := make(chan outcome, 1)
@@ -113,7 +114,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 				var o outcome
 				op, err := writer.Acquire(ctx)
 				if err == nil {
-					var result engine.Result
+					var result core.Result
 					o.scope, err = e.StartStatement(op)
 					if err == nil {
 						o.scope.Expected = expected

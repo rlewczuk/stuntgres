@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -27,7 +28,7 @@ func TestSequenceGenericRelationRenameAuthority(t *testing.T) {
 			generator := e.Storage.Sequences[ref.Address]
 			state := *generator
 			utility := enginetest.Statement(t, "ALTER TABLE s RENAME TO identity")
-			var expected *engine.StatementDescription
+			var expected *core.StatementDescription
 			if prepared {
 				_, d := sequencePreparedDescription(t, e, s, "ALTER TABLE s RENAME TO identity")
 				expected = &d

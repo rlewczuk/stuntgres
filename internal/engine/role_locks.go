@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
@@ -10,7 +11,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func roleTupleUnchanged(s *StatementScope, captured authorization.RoleDescriptor) error {
+func roleTupleUnchanged(s *core.StatementScope, captured authorization.RoleDescriptor) error {
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -24,15 +25,15 @@ func roleTupleUnchanged(s *StatementScope, captured authorization.RoleDescriptor
 func checkRoleTupleUnchanged(roles authorization.Read, captured authorization.RoleDescriptor) error {
 	actual, exists := roles.Find(captured.Ref)
 	if !exists {
-		return SQLError("XX000", "tuple concurrently deleted")
+		return core.SQLError("XX000", "tuple concurrently deleted")
 	}
 	if actual.AuthIDVersion != captured.AuthIDVersion {
-		return SQLError("XX000", "tuple concurrently updated")
+		return core.SQLError("XX000", "tuple concurrently updated")
 	}
 	return nil
 }
 
-func acquireRoleAttributeLocks(s *StatementScope, stmt parser.Statement, target authorization.RoleDescriptor) error {
+func acquireRoleAttributeLocks(s *core.StatementScope, stmt parser.Statement, target authorization.RoleDescriptor) error {
 	if create, ok := stmt.(*parser.CreateRole); ok {
 		e := s.Engine()
 		resource := lock.Resource{ObjectRef: e.Cluster.RoleDomain.Ref(1, ids.ObjectAddress{}), Name: ids.NameKey{ClassID: ids.RoleClassID, Name: create.Name.Text}}
@@ -58,7 +59,7 @@ func acquireRoleAttributeLocks(s *StatementScope, stmt parser.Statement, target 
 	return roleTupleUnchanged(s, target)
 }
 
-func acquireRoleRetirementLocks(s *StatementScope, statement *parser.DropRole) error {
+func acquireRoleRetirementLocks(s *core.StatementScope, statement *parser.DropRole) error {
 	if s.Owner.State != session.TxActive && s.Owner.RetainsTransaction() {
 		return nil
 	}
@@ -95,7 +96,7 @@ func acquireRoleRetirementLocks(s *StatementScope, statement *parser.DropRole) e
 	return nil
 }
 
-func roleRetirementUnchanged(s *StatementScope, captured authorization.RoleDescriptor) error {
+func roleRetirementUnchanged(s *core.StatementScope, captured authorization.RoleDescriptor) error {
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -112,7 +113,7 @@ func roleRetirementUnchanged(s *StatementScope, captured authorization.RoleDescr
 	return checkRoleTupleUnchanged(v.Roles, captured)
 }
 
-func acquireMembershipLocks(s *StatementScope, v AuthorizationView, statement *parser.RoleMembership, candidate *authorization.Root) error {
+func acquireMembershipLocks(s *core.StatementScope, v core.AuthorizationView, statement *parser.RoleMembership, candidate *authorization.Root) error {
 	for _, spec := range statement.Targets {
 		ref, err := authorization.MembershipRole(v.Roles, v.State, spec)
 		if err != nil {
@@ -148,7 +149,7 @@ func acquireMembershipLocks(s *StatementScope, v AuthorizationView, statement *p
 	return s.AcquireRoleDependencies(authorization.AddedMembershipReferences(&v.RoleRecord.Root, candidate))
 }
 
-func acquireInitialMembershipLocks(s *StatementScope, base, candidate *authorization.Root, created authorization.PrincipalRef) error {
+func acquireInitialMembershipLocks(s *core.StatementScope, base, candidate *authorization.Root, created authorization.PrincipalRef) error {
 	for edge := range authorization.AddedMemberships(base, candidate) {
 		if edge.Role != created {
 			if err := s.AcquireRolePrincipal(edge.Role, lock.ShareUpdateExclusive, false); err != nil {

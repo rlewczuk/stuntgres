@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -86,8 +87,8 @@ func prepareRestorePartitionUnique(r *restoreRun, op *session.Operation, stmt pa
 	if err := beginPartitionUniqueReplay(r.stage, op, alteration); err != nil {
 		return err
 	}
-	if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && OperationReplayOrZero(op).PartitionUnique == nil && r.cur.physicalConstructor == nil {
-		return SQLError("0A000", "restore accepts only captured private virtual unique definitions")
+	if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && core.OperationReplayOrZero(op).PartitionUnique == nil && r.cur.physicalConstructor == nil {
+		return core.SQLError("0A000", "restore accepts only captured private virtual unique definitions")
 	}
 	return nil
 }
@@ -129,7 +130,7 @@ func beforeRestoreRoutineDirective(r *restoreRun, op *session.Operation, stmt pa
 	if !routine.ReplayDirective(r.source, stmt) {
 		return false, nil
 	}
-	OperationReplay(op).SQLBodies = true
+	core.OperationReplay(op).SQLBodies = true
 	return true, nil
 }
 

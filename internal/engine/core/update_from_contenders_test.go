@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
@@ -23,7 +24,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				enginetest.SessionSQL(t, peer, q)
 			}
 			ast := enginetest.Statement(t, "UPDATE t x SET v=x.v+s.n FROM s WHERE x.id=1 AND x.v>=s.lo AND x.v<=s.hi RETURNING old.v,s.n,new.v,s.lo,s.hi")
-			var expected *engine.StatementDescription
+			var expected *core.StatementDescription
 			if prepared {
 				op := enginetest.TransactionOperation(t, writer)
 				description, err := e.Describe(op, ast)
@@ -42,7 +43,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 			type outcome struct {
 				count int64
 				rows  [][]driver.Value
-				scope *engine.StatementScope
+				scope *core.StatementScope
 				err   error
 			}
 			done := make(chan outcome, 1)
@@ -50,7 +51,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				var o outcome
 				op, err := writer.Acquire(ctx)
 				if err == nil {
-					var result engine.Result
+					var result core.Result
 					o.scope, err = e.StartStatement(op)
 					if err == nil {
 						o.scope.Expected = expected

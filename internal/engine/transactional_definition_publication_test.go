@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -46,7 +47,7 @@ func TestTransactionalDefinitionPublication(t *testing.T) {
 			if target == "source" {
 				mode = parser.DropCascade
 			}
-			if err := StageExpressionDependencies(context.Background(), retire, retire.DomainTargets, mode, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := core.StageExpressionDependencies(context.Background(), retire, retire.DomainTargets, mode, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			journal := session.NewJournal()

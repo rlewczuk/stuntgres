@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -17,11 +18,9 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -104,7 +103,7 @@ func TestObjectACLAddressLookup(t *testing.T) {
 		}
 		eng.Mu.Lock()
 		columns := sequence.Columns(eng.Catalog.Current())
-		sequence, err := table.NewRelation(engine.DDLHost{E: eng}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, columns, nil)
+		sequence, err := table.NewRelation(core.DDLHost{E: eng}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, columns, nil)
 		eng.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -219,22 +218,4 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 			t.Fatal("named render changed written order or a NULL child", i, spec.Args[i])
 		}
 	}
-}
-
-func domainUnitBindSelect(t *testing.T, e *engine.Engine, op *session.Operation, q string) *plan.Query {
-	t.Helper()
-	raw := enginetest.Statement(t, q).(*parser.Select)
-	e.Mu.Lock()
-	auth, err := e.AuthorizationLocked(op)
-	b := engine.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	b.Query.Auth = &auth
-	var query *plan.Query
-	if err == nil {
-		query, err = b.BindSelect(raw, false)
-	}
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(q, err)
-	}
-	return query
 }

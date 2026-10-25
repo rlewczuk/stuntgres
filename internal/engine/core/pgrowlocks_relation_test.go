@@ -1,0 +1,149 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func pgrowlocksUnitScope(t *testing.T, e *core.Engine, s *session.Session) *core.StatementScope {
+	t.Helper()
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	scope.Owner.Mu.Lock()
+	core.ScopeAttachTransactionLocked(scope)
+	scope.Owner.Mu.Unlock()
+	core.SetScopeWorked(scope, true)
+	t.Cleanup(func() { scope.Finish(context.Canceled); op.Done() })
+	return scope
+}
+func TestPgrowlocksRelationIdentity(t *testing.T) {
+	t.Run("function_only_and_prior_select_contributions", func(t *testing.T) {
+		e, _, d := typedUnitCatalog(t, false)
+		pgrowlocksUnitInstalled(t, e)
+		n := pgrowlocksUnitExpression(t, e)
+		reader, ticket := blockingUnitOwner(t, e)
+		scope := pgrowlocksUnitScope(t, e, reader)
+		scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
+		resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())}
+		for _, prior := range []bool{false, true} {
+			if prior {
+				request, err := e.Locks.StartAcquire(context.Background(), ticket, resource, lock.AccessShare, lock.Policy{})
+				if err != nil || request != nil {
+					t.Fatal(request, err)
+				}
+			}
+			rows, err := scope.WriteHost().Pgrowlocks("typed", n.Usage.Type)
+			if err != nil || len(rows) != 0 {
+				t.Fatal(rows, err)
+			}
+			if e.Locks.HasAccessShare(ticket, resource) != prior {
+				t.Fatal("function removed earlier SELECT or retained its added AS", prior)
+			}
+		}
+	})
+	t.Run("exact_queued_contribution_cancel_and_epoch", func(t *testing.T) {
+		e, _, d := typedUnitCatalog(t, false)
+		_, holder := blockingUnitOwner(t, e)
+		_, waiter := blockingUnitOwner(t, e)
+		resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())}
+		request, err := e.Locks.StartAcquire(context.Background(), holder, resource, lock.AccessExclusive, lock.Policy{})
+		if err != nil || request != nil {
+			t.Fatal(request, err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		queued, err := e.Locks.StartAcquire(ctx, waiter, resource, lock.AccessShare, lock.Policy{})
+		if err != nil || queued == nil {
+			cancel()
+			t.Fatal(queued, err)
+		}
+		cancel()
+		if err := queued.Wait(); !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+		e.Locks.ReleaseAddedAccessShare(waiter, resource, false)
+		if e.Locks.HasAccessShare(waiter, resource) {
+			t.Fatal("canceled request left function grant")
+		}
+		if err := engine.Reset(context.Background(), e); err != nil {
+			t.Fatal(err)
+		}
+		request, err = e.Locks.StartAcquire(context.Background(), waiter, resource, lock.AccessShare, lock.Policy{})
+		if request != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
+			t.Fatal("old identity admitted after replacement", request, err)
+		}
+	})
+	t.Run("descriptor_readmission_never_retargets", func(t *testing.T) {
+		e, _, d := typedUnitCatalog(t, false)
+		reader, _ := blockingUnitOwner(t, e)
+		scope := pgrowlocksUnitScope(t, e, reader)
+		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
+		name := parser.ObjectName{Parts: []parser.Identifier{{Text: "typed"}}}
+		stored := e.Storage.Relations[d.Address()]
+		e.Mu.Lock()
+		auth, err := core.ScopeWriteAuthorizationLocked(scope, e)
+		if err == nil {
+			err = core.ScopePgrowlocksReadmitLocked(scope, e, auth, name, ref, d, stored)
+		}
+		e.Mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		stage := e.BeginCatalogStage(e.CatalogRead())
+		defer e.DiscardCatalogStage(stage)
+		next := *d
+		next.ObjectRevision++
+		if err := stage.Replace(&next); err != nil {
+			t.Fatal(err)
+		}
+		domainUnitPublish(t, e, stage)
+		e.Mu.Lock()
+		auth, err = core.ScopeWriteAuthorizationLocked(scope, e)
+		if err == nil {
+			err = core.ScopePgrowlocksReadmitLocked(scope, e, auth, name, ref, d, stored)
+		}
+		e.Mu.Unlock()
+		if !errors.Is(err, ids.ErrCatalogReplaced) {
+			t.Fatal("descriptor changed during admission", err)
+		}
+	})
+}
+
+func pgrowlocksUnitInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
+	t.Helper()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION pgrowlocks")
+	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"}))
+}
+
+func pgrowlocksUnitExpression(t *testing.T, e *core.Engine) plan.InstalledPgrowlocksExpr {
+	t.Helper()
+	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	b.Clause.AggregateClause = "SELECT"
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pgrowlocks"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "typed"}}}}
+	node, err := b.BindFunctionProvider(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := node.(plan.InstalledPgrowlocksExpr)
+	return n
+}

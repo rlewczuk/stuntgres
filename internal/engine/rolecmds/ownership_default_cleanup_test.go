@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
@@ -61,12 +61,12 @@ func TestDropOwnedDefaultCanonicalCleanup(t *testing.T) {
 	}
 }
 
-func defaultUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) error {
+func defaultUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) error {
 	t.Helper()
 	p, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		return err
 	}
-	_, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	return err
 }

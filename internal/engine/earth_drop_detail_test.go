@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/view"
@@ -18,7 +19,7 @@ func TestEarthPrerequisiteRemovalDetail(t *testing.T) {
 	e, earth, domain := earthUnitInstalled(t)
 	catalogView := e.CatalogRead()
 	cube := catalogView.MustExtension(catalogView.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "cube"}))
-	reader := &DropProvider{Owner: e, Base: catalogView, Ctx: context.Background()}
+	reader := &core.DropProvider{Owner: e, Base: catalogView, Ctx: context.Background()}
 	extensionEdge := table.DomainDependency{Address: earth.Address(), Target: cube.Address(), Label: "extension earthdistance"}
 	memberEdge := table.DomainDependency{Address: domain.Address(), Target: cube.Members[0], Label: "type earth"}
 	for _, tc := range []struct {

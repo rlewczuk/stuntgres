@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -66,7 +67,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 					}
 				}
 			}()
-			go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
+			go func() { done <- core.ScopeAcquireMaterializedRefresh(scope, stmt) }()
 			if tc.blocked {
 				lockPending(t, e, 1)
 				if !tc.target {

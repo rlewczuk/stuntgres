@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -15,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func domainUnitTable(t *testing.T, e *Engine, op *session.Operation, q string) *catalog.Relation {
+func domainUnitTable(t *testing.T, e *core.Engine, op *session.Operation, q string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, q).(*parser.CreateTable)
 	e.Mu.Lock()
@@ -178,7 +179,7 @@ func TestDomainDefinitionIdentityDependencyOrder(t *testing.T) {
 		t.Fatal("definition allocation does not follow attribute defaults then CHECK", first, second, check)
 	}
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.a RESTRICT")
-	dependencies, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
+	dependencies, err := core.DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}

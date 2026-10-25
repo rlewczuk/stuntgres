@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 )
 
@@ -28,7 +29,7 @@ func TestCommentRoleInstallerDisposition(t *testing.T) {
 			defer e.Mu.Unlock()
 			base := e.RoleStore.Published
 			next := &access.RoleRecord{Revision: base.Revision + 1, Root: base.Root}
-			InstallOperationRolesLocked(e, op, next)
+			core.InstallOperationRolesLocked(e, op, next)
 			if mode == "autocommit" {
 				if e.RoleStore.Published != next || s.Transactions.Catalog != nil && s.Transactions.Catalog.Roles != nil {
 					t.Fatal("autocommit did not publish exactly once")
@@ -40,7 +41,7 @@ func TestCommentRoleInstallerDisposition(t *testing.T) {
 			}
 			retained := s.Transactions.Catalog
 			last := &access.RoleRecord{Revision: next.Revision + 1, Root: next.Root}
-			InstallOperationRolesLocked(e, op, last)
+			core.InstallOperationRolesLocked(e, op, last)
 			if e.RoleStore.Published != base || retained.Roles != next || retained.RolesBase != base || s.Transactions.Catalog == retained || s.Transactions.Catalog.Roles != last || s.Transactions.Catalog.RolesBase != base {
 				t.Fatal("installer mutated retained journal or recaptured baseline")
 			}

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -136,7 +137,7 @@ func TestBtreeIndexGrantTimeCompatibleRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	enginetest.TransactionEnd(t, writer, tx, false)

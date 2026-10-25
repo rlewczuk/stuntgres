@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -35,7 +36,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	s.Mu.Lock()
 	after := s.Authorization.Revision
 	s.Mu.Unlock()
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)

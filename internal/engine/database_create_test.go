@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -19,7 +20,7 @@ import (
 
 // These fixtures exercise package functions with real initialized catalogs and
 // independently constructed ASTs. No parser or public SQL adapter is involved.
-func databaseCreateUnitTarget(t *testing.T, e, seed *Engine, name string) *Engine {
+func databaseCreateUnitTarget(t *testing.T, e, seed *core.Engine, name string) *core.Engine {
 	t.Helper()
 	target := newDatabaseRuntime(e, seed, name, e.Roles().LookupRef("postgres"))
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
@@ -31,13 +32,13 @@ func databaseCreateUnitTarget(t *testing.T, e, seed *Engine, name string) *Engin
 	return target
 }
 
-func databaseCreateUnitPublish(e *Engine, ctx context.Context, name string, target *Engine) (Result, error) {
+func databaseCreateUnitPublish(e *core.Engine, ctx context.Context, name string, target *core.Engine) (core.Result, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return publishDatabaseTargetLocked(e, ctx, name, target, e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID))
 }
 
-func databaseCreateUnitInstall(t *testing.T, e, seed *Engine, name string) *Engine {
+func databaseCreateUnitInstall(t *testing.T, e, seed *core.Engine, name string) *core.Engine {
 	t.Helper()
 	target := databaseCreateUnitTarget(t, e, seed, name)
 	result, err := databaseCreateUnitPublish(e, context.Background(), name, target)
@@ -49,11 +50,11 @@ func databaseCreateUnitInstall(t *testing.T, e, seed *Engine, name string) *Engi
 
 // Failure assertions include the allocator and every previously visible root,
 // not just a failed name lookup; a partial fanout must not escape unnoticed.
-func databaseCreateUnitUnchanged(t *testing.T, e *Engine) func() {
+func databaseCreateUnitUnchanged(t *testing.T, e *core.Engine) func() {
 	t.Helper()
 	frontier := e.Cluster.NextOID
 	targets := maps.Clone(e.Cluster.Targets)
-	roots := make(map[*Engine]*catalog.State, len(targets))
+	roots := make(map[*core.Engine]*catalog.State, len(targets))
 	for _, target := range targets {
 		roots[target] = target.Catalog.State
 	}
@@ -70,7 +71,7 @@ func databaseCreateUnitUnchanged(t *testing.T, e *Engine) func() {
 	}
 }
 
-func databaseCreateUnitRows(t *testing.T, e *Engine) map[string]ids.OID {
+func databaseCreateUnitRows(t *testing.T, e *core.Engine) map[string]ids.OID {
 	t.Helper()
 	view := e.CatalogRead()
 	descriptor, ref := pgDatabaseUnitSource(t, e, view)
@@ -110,7 +111,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 		t.Fatal("database identities are not distinct and monotonic", a, b)
 	}
 	want := map[string]ids.OID{initial.DatabaseName: initial.Catalog.DatabaseAddress().ObjectID, "registry_first": a.ObjectID, "registry_second": b.ObjectID}
-	for _, target := range []*Engine{e, first, second} {
+	for _, target := range []*core.Engine{e, first, second} {
 		if got := databaseCreateUnitRows(t, target); !reflect.DeepEqual(got, want) {
 			t.Fatalf("registered catalog rows: %v want %v", got, want)
 		}
@@ -146,7 +147,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 		if selected.Catalog.DatabaseAddress().ObjectID <= pending {
 			t.Fatal("database reused a transaction-private allocation")
 		}
-		for _, runtime := range []*Engine{host, selected} {
+		for _, runtime := range []*core.Engine{host, selected} {
 			if err := catalog.ValidateDefinitionOIDs(runtime.CatalogRead()); err != nil {
 				t.Fatal("registration collided with a seeded definition:", err)
 			}
@@ -166,7 +167,7 @@ func TestDatabaseCreateRegistry(t *testing.T) {
 			t.Fatal("selected database DDL:", err)
 		}
 		second := databaseCreateUnitInstall(t, host, template, "identity_second")
-		for _, runtime := range []*Engine{host, selected, second} {
+		for _, runtime := range []*core.Engine{host, selected, second} {
 			if err := catalog.ValidateDefinitionOIDs(runtime.CatalogRead()); err != nil {
 				t.Fatal("later registration collided with stored DDL:", err)
 			}
@@ -200,7 +201,7 @@ func TestDatabaseCreateTemplateCopy(t *testing.T) {
 	table := primaryKeyUnitRelation(t, seed, "t")
 	indexAddress := table.Constraints.Unique[0].Index
 	sequenceAddress := primaryKeyUnitRelation(t, seed, "template_seq").Address()
-	for _, target := range []*Engine{left, right} {
+	for _, target := range []*core.Engine{left, right} {
 		view := target.CatalogRead()
 		for _, name := range []string{"pg_catalog", "pg_toast", "information_schema", "public"} {
 			address, ok := view.LookupName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
@@ -226,7 +227,7 @@ func TestDatabaseCreateTemplateCopy(t *testing.T) {
 	if _, err := left.Execute(leftOp, primaryKeyUnitInsert(1), 0, nil); err == nil {
 		t.Fatal("copied unique index lost template membership")
 	}
-	for target, count := range map[*Engine]int{seed: 1, right: 1, left: 2} {
+	for target, count := range map[*core.Engine]int{seed: 1, right: 1, left: 2} {
 		if len(target.Storage.Relations[table.Address()].Versions) != count || len(target.Storage.IndexRoots[indexAddress].Entries) != count {
 			t.Fatal("clone row/index mutation leaked or lost membership", count)
 		}
@@ -254,18 +255,18 @@ func TestDatabaseCreateTemplateCopy(t *testing.T) {
 
 func TestDatabaseCreatePublication(t *testing.T) {
 	e, seed := New(), New()
-	candidates := []*Engine{databaseCreateUnitTarget(t, e, seed, "contended"), databaseCreateUnitTarget(t, e, seed, "contended")}
+	candidates := []*core.Engine{databaseCreateUnitTarget(t, e, seed, "contended"), databaseCreateUnitTarget(t, e, seed, "contended")}
 	frontier := e.Cluster.NextOID
 	start := make(chan struct{})
 	type outcome struct {
-		target *Engine
+		target *core.Engine
 		err    error
 	}
 	results := make(chan outcome, 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for _, candidate := range candidates {
-		go func(target *Engine) {
+		go func(target *core.Engine) {
 			<-start
 			_, err := databaseCreateUnitPublish(e, ctx, "contended", target)
 			results <- outcome{target, err}
@@ -281,7 +282,7 @@ func TestDatabaseCreatePublication(t *testing.T) {
 			t.Fatal("publication workers did not finish:", ctx.Err())
 		}
 	}
-	var winner, loser *Engine
+	var winner, loser *core.Engine
 	for _, result := range joined {
 		if result.err == nil {
 			if winner != nil {
@@ -304,7 +305,7 @@ func TestDatabaseCreatePublication(t *testing.T) {
 		t.Fatal("contention exposed an orphan or consumed a losing identity")
 	}
 	want := map[string]ids.OID{e.DatabaseName: e.Catalog.DatabaseAddress().ObjectID, "contended": winnerOID}
-	for _, target := range []*Engine{e, winner} {
+	for _, target := range []*core.Engine{e, winner} {
 		if got := databaseCreateUnitRows(t, target); !reflect.DeepEqual(got, want) {
 			t.Fatal(got, want)
 		}
@@ -349,7 +350,7 @@ func TestDatabaseCreateCancellation(t *testing.T) {
 func TestDatabaseCreateProvenance(t *testing.T) {
 	e, seed, foreign := New(), New(), New()
 	local := databaseCreateUnitInstall(t, e, seed, "local")
-	for name, candidate := range map[string]*Engine{
+	for name, candidate := range map[string]*core.Engine{
 		"foreign":    databaseCreateUnitTarget(t, foreign, seed, "foreign"),
 		"wrong_name": databaseCreateUnitTarget(t, e, seed, "different_name"),
 	} {
@@ -372,7 +373,7 @@ func TestDatabaseCreateProvenance(t *testing.T) {
 	unchanged()
 	// Builtins deliberately have equal numeric addresses in every local domain.
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259}
-	for _, source := range []*Engine{e, foreign} {
+	for _, source := range []*core.Engine{e, foreign} {
 		view := source.CatalogRead()
 		ref := source.Catalog.Domain.Ref(view.Epoch(), address)
 		if err := validateObjectRef(local, local.CatalogRead(), ref); err == nil {
@@ -396,7 +397,7 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 	if _, ok := old.Lookup(actor.Name); ok {
 		t.Fatal("retained role capture changed")
 	}
-	for _, target := range []*Engine{e, left, right} {
+	for _, target := range []*core.Engine{e, left, right} {
 		got, ok := target.Roles().Lookup(actor.Name)
 		if !ok || got != actor {
 			t.Fatal("committed shared role is not visible", got)
@@ -422,7 +423,7 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 	otherAdmin, otherDone := roleOperation(t, right, "postgres")
 	defer otherDone()
 	roleAttributeApply(t, right, otherAdmin, roleAttributeAlter(actor.Name, parser.RoleOptions{Present: parser.RoleCreateDB, CreateDB: true}))
-	for _, target := range []*Engine{e, left, right} {
+	for _, target := range []*core.Engine{e, left, right} {
 		current, err := target.Roles().Descriptor(actor.Ref)
 		if err != nil || !current.CreateDB {
 			t.Fatal("reverse publication not visible", current, err)
@@ -445,7 +446,7 @@ func TestDatabaseCreateSharedAuthority(t *testing.T) {
 	if _, err := right.Execute(otherAdmin, drop, 0, nil); err != nil {
 		t.Fatal("role remained dependent after the other database's object was dropped", err)
 	}
-	for _, target := range []*Engine{e, left, right} {
+	for _, target := range []*core.Engine{e, left, right} {
 		if _, ok := target.Roles().Lookup(dependent.Name); ok {
 			t.Fatal("role retirement was not shared")
 		}

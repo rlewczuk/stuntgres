@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -154,7 +155,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	sequenceScalar(t, c, "SELECT nextval('peer_temp')", 40)
 }
 
-func assertTemporaryNamespacePair(t *testing.T, e *engine.Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
+func assertTemporaryNamespacePair(t *testing.T, e *core.Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
 	t.Helper()
 	ns, ok := e.Catalog.State.Namespace(table)
 	if !ok || ns.Temporary != token || ns.TemporaryToast || ns.Owner.ID() != 10 || ns.ACL.Explicit || len(ns.ACL.Entries) != 0 {

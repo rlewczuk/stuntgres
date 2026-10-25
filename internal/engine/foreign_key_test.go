@@ -3,12 +3,13 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
 
-func foreignKeyLockFixture(t *testing.T) (*Engine, *session.Session, *session.Session, *session.Session, ids.ObjectRef, ids.RowID) {
+func foreignKeyLockFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, *session.Session, ids.ObjectRef, ids.RowID) {
 	t.Helper()
 	e := New()
 	a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -22,7 +23,7 @@ func foreignKeyLockFixture(t *testing.T) (*Engine, *session.Session, *session.Se
 	return e, a, b, c, ref, row
 }
 
-func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, ticket *lock.Ticket, want lock.Mode) {
+func foreignKeyHeldMode(t *testing.T, e *core.Engine, ref ids.ObjectRef, row ids.RowID, ticket *lock.Ticket, want lock.Mode) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
@@ -35,7 +36,7 @@ func foreignKeyHeldMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowI
 	}
 }
 
-func foreignKeyQueuedMode(t *testing.T, e *Engine, ref ids.ObjectRef, row ids.RowID, holder *lock.Ticket, want lock.Mode) {
+func foreignKeyQueuedMode(t *testing.T, e *core.Engine, ref ids.ObjectRef, row ids.RowID, holder *lock.Ticket, want lock.Mode) {
 	t.Helper()
 	rowLockQueued(t, e, holder, want)
 	lockState := e.Locks.Inspect()

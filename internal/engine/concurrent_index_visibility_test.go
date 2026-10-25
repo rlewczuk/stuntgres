@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
@@ -12,7 +13,7 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *session.Session) (*StatementScope, *session.Operation, context.CancelFunc) {
+func concurrentUnitSnapshotScope(t *testing.T, e *core.Engine, s *session.Session) (*core.StatementScope, *session.Operation, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)
@@ -39,7 +40,7 @@ func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *session.Session) (*
 	return scope, op, cancel
 }
 
-func concurrentUnitOlderWait(t *testing.T, scope *StatementScope, xmin uint64, cancel context.CancelFunc) func() error {
+func concurrentUnitOlderWait(t *testing.T, scope *core.StatementScope, xmin uint64, cancel context.CancelFunc) func() error {
 	t.Helper()
 	done := make(chan error, 1)
 	joined := false

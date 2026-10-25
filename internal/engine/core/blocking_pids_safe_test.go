@@ -1,0 +1,129 @@
+package core_test
+
+import (
+	"math"
+	"reflect"
+	"sort"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/visibility"
+)
+
+func blockingUnitSafeWant(t *testing.T, e *core.Engine, pid ids.SessionID, want ...int64) {
+	t.Helper()
+	typ := blockingUnitType(e)
+	e.Mu.Lock()
+	values, err := core.EngineSafeSnapshotBlockingPidsLocked(e, pid, typ)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]int64, len(values))
+	for i, v := range values {
+		got[i], err = v.Integer()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	sort.Slice(got, func(i, j int) bool { return got[i] < got[j] })
+	sort.Slice(want, func(i, j int) bool { return want[i] < want[j] })
+	if len(got) != len(want) || len(want) != 0 && !reflect.DeepEqual(got, want) {
+		t.Fatal("safe blocker bag", got, want)
+	}
+}
+
+func TestBlockingPidsSafeAuthority(t *testing.T) {
+	e := engine.New()
+	reader, rt := blockingUnitOwner(t, e)
+	writer, wt := blockingUnitOwner(t, e)
+	_, second := blockingUnitOwner(t, e)
+	typ := blockingUnitType(e)
+	r := &visibility.SerializableTx{Ref: rt.Ref(), Captured: true, ReadOnly: true, Deferrable: true, Ready: make(chan struct{})}
+	w := &visibility.SerializableTx{Ref: wt.Ref(), Captured: true}
+	w2 := &visibility.SerializableTx{Ref: second.Ref(), Captured: true}
+	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}, w2: {}}
+	e.Mu.Lock()
+	e.Visibility.Serializable.Nodes = map[ids.TxRef]*visibility.SerializableTx{r.Ref: r, w.Ref: w, w2.Ref: w2}
+	e.Mu.Unlock()
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), int64(writer.SessionToken.ID()), int64(second.Session().ID()))
+	blockingUnitWant(t, e, reader.SessionToken.ID()) // SSI must never invent ordinary locks.
+	for _, mutate := range []func(){
+		func() { r.Deferrable = false }, func() { r.ReadOnly = false }, func() { r.Captured = false },
+		func() { r.Resolved = true }, func() { r.Aborted = true }, func() { r.Ended = true },
+		func() { r.Committed = true }, func() { r.Prepared = true }, func() { r.Ready = nil },
+	} {
+		e.Mu.Lock()
+		original := *r
+		mutate()
+		e.Mu.Unlock()
+		blockingUnitSafeWant(t, e, reader.SessionToken.ID())
+		e.Mu.Lock()
+		*r = original
+		e.Mu.Unlock()
+	}
+	// Each retained prepared SSI owner is a distinct candidate, even when
+	// both projections are zero. Preparing does not resolve safe acquisition.
+	e.Mu.Lock()
+	w.Prepared, w2.Prepared = true, true
+	e.Mu.Unlock()
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), 0, 0)
+	e.Mu.Lock()
+	core.EngineEndSerializableLocked(e, w.Ref, false)
+	e.Mu.Unlock()
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), 0)
+	e.Mu.Lock()
+	core.EngineEndSerializableLocked(e, w2.Ref, false)
+	e.Mu.Unlock()
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
+	select {
+	case <-r.Ready:
+	default:
+		t.Fatal("resolved acquisition not woken")
+	}
+	// A retired node retained in a possible map is not a current owner.
+	e.Mu.Lock()
+	r.Resolved = false
+	r.Ready = make(chan struct{})
+	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}}
+	e.Visibility.Serializable.Nodes[r.Ref] = r
+	e.Mu.Unlock()
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
+	// Full-width session identity must not alias an int4 target on lookup.
+	e.Mu.Lock()
+	delete(e.Visibility.Serializable.Nodes, r.Ref)
+	r.Ref = withTxSession(r.Ref, withSessionID(r.Ref.Session(), r.Ref.Session().ID()+ids.SessionID(uint64(1)<<32)))
+	e.Visibility.Serializable.Nodes[r.Ref] = r
+	e.Mu.Unlock()
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
+	// Exercise native overflow separately from prepared zero classification.
+	e.Mu.Lock()
+	w.Aborted, w.Ended, w.Prepared = false, false, false
+	delete(e.Visibility.Serializable.Nodes, w.Ref)
+	w.Ref = withTxSession(w.Ref, withSessionID(w.Ref.Session(), math.MaxInt32+1))
+	e.Visibility.Serializable.Nodes[w.Ref] = w
+	delete(e.Visibility.Serializable.Nodes, r.Ref)
+	r.Ref = withTxSession(r.Ref, reader.SessionToken)
+	e.Visibility.Serializable.Nodes[r.Ref] = r
+	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}}
+	_, err := core.EngineSafeSnapshotBlockingPidsLocked(e, reader.SessionToken.ID(), typ)
+	e.Mu.Unlock()
+	if err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+		t.Fatal("safe PID overflow", err)
+	}
+	e.Mu.Lock()
+	core.EngineFenceSerializableLocked(e)
+	e.Mu.Unlock()
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
+}
+
+func withTxSession(ref ids.TxRef, session ids.SessionToken) ids.TxRef {
+	return ref.Domain().Tx(session, ref.ID(), ref.Epoch(), ref.Attachment(), ref.Diagnostic())
+}
+
+// withSessionID rebuilds a public token with another ID.
+func withSessionID(token ids.SessionToken, id ids.SessionID) ids.SessionToken {
+	return token.Domain().Session(id)
+}

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -23,7 +24,7 @@ func sqlSizingUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Read) p
 	t.Helper()
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSQLSizingOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engine.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 
 func sqlSizingUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -32,7 +33,7 @@ func sqlSizingUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing sql_sizing producer")
 	}
-	captured, err := engine.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,17 +217,17 @@ func TestInfoSQLSizingCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { copied := *in.Source; in.Source = &copied },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engine.EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engine.EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engine.EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = r
 		},
@@ -319,7 +320,7 @@ func TestInfoSQLSizingCatalogACLRecheck(t *testing.T) {
 	reader, readerDone := enginetest.RoleOperation(t, e, role.Name)
 	defer readerDone()
 	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
-	retained, err := engine.OperationAuthorization(reader)
+	retained, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +330,7 @@ func TestInfoSQLSizingCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, t.Context(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := engine.OperationAuthorization(reader)
+	denied, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -344,7 +345,7 @@ func TestInfoSQLSizingCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, t.Context(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := engine.OperationAuthorization(reader)
+	restored, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +364,7 @@ func TestInfoSQLSizingCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, t.Context(), nsRef, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	noUsage, err := engine.OperationAuthorization(reader)
+	noUsage, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +375,7 @@ func TestInfoSQLSizingCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, t.Context(), nsRef, namespace.ACL); err != nil {
 		t.Fatal(err)
 	}
-	withUsage, err := engine.OperationAuthorization(reader)
+	withUsage, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}

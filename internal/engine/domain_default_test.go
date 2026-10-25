@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -219,7 +220,7 @@ func TestDomainDefaultDependencyReasonInternal(t *testing.T) {
 	child := domainUnitType(t, view, "recipe_child")
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.recipe_provider CASCADE")
 	defer e.DiscardCatalogStage(stage)
-	edges, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
+	edges, err := core.DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}

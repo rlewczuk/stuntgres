@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-func captureVacuumLocked(e *Engine, s *StatementScope, target vacuumHeapTarget) (table.VacuumCapture, bool, error) {
+func captureVacuumLocked(e *core.Engine, s *core.StatementScope, target vacuumHeapTarget) (table.VacuumCapture, bool, error) {
 	var c table.VacuumCapture
 	if err := vacuumDatabasePreflightLocked(e, s); err != nil {
 		return c, false, err
@@ -41,7 +42,7 @@ func captureVacuumLocked(e *Engine, s *StatementScope, target vacuumHeapTarget) 
 	return c, true, nil
 }
 
-func vacuumRelation(e *Engine, s *StatementScope, selected table.VacuumTarget, o table.VacuumOptions) error {
+func vacuumRelation(e *core.Engine, s *core.StatementScope, selected table.VacuumTarget, o table.VacuumOptions) error {
 	e.Mu.Lock()
 	if err := vacuumDatabasePreflightLocked(e, s); err != nil {
 		e.Mu.Unlock()
@@ -52,7 +53,7 @@ func vacuumRelation(e *Engine, s *StatementScope, selected table.VacuumTarget, o
 		e.Mu.Unlock()
 		return err
 	}
-	if selected.Ref.Domain() != DomainOf(e) || selected.Ref.Epoch != auth.Catalog.Epoch() {
+	if selected.Ref.Domain() != core.DomainOf(e) || selected.Ref.Epoch != auth.Catalog.Epoch() {
 		e.Mu.Unlock()
 		return ids.ErrCatalogReplaced
 	}
@@ -93,9 +94,9 @@ func vacuumRelation(e *Engine, s *StatementScope, selected table.VacuumTarget, o
 		return fmt.Errorf("stuntgres: vacuum session identity exceeds integer range")
 	}
 	if e.VacuumProgress == nil {
-		e.VacuumProgress = make(map[ids.TxRef]VacuumProgress)
+		e.VacuumProgress = make(map[ids.TxRef]core.VacuumProgress)
 	}
-	e.VacuumProgress[s.TxRef] = VacuumProgress{Fact: pgcatalog.VacuumProgressFact{PID: int64(s.Op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.Op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.Indexes))}, Owner: auth.State.Authenticated}
+	e.VacuumProgress[s.TxRef] = core.VacuumProgress{Fact: pgcatalog.VacuumProgressFact{PID: int64(s.Op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.Op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.Indexes))}, Owner: auth.State.Authenticated}
 	e.Mu.Unlock()
 	defer endVacuumProgress(e, s.TxRef)
 	phase := func(name string, total, processed int64) {
@@ -152,7 +153,7 @@ func vacuumRelation(e *Engine, s *StatementScope, selected table.VacuumTarget, o
 }
 
 // Completion timestamp and cancellation are prepared outside publication locks.
-func vacuumCompletion(s *StatementScope) (time.Time, error) {
+func vacuumCompletion(s *core.StatementScope) (time.Time, error) {
 	completed := time.Now().UTC().Truncate(time.Microsecond)
 	return completed, s.Op.Context().Err()
 }

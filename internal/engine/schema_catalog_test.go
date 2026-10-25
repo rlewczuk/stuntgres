@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 	ns := schemaRef(t, e, "s")
 	table := roleTableRef(t, e, "s.t")
 	stage := e.BeginCatalogStage(base)
-	if err := StageRemoveObject(stage, ns, true); err != nil {
+	if err := core.StageRemoveObject(stage, ns, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := stage.Remove(table); err != nil {
@@ -31,7 +32,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 	}
 	run(t, e, "CREATE TABLE s.concurrent(id INT)")
 	before := e.CatalogRead()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
 		t.Fatal("drop lost concurrent dependent", err)
 	}
 	stage = e.BeginCatalogStage(before)
@@ -47,7 +48,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 	}
 	run(t, e, "ALTER SCHEMA s RENAME TO winner")
 	before = e.CatalogRead()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
 		t.Fatal("stale rename published", err)
 	}
 	stage = e.BeginCatalogStage(before)
@@ -63,7 +64,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
 		t.Fatal("cancelled rename published", err)
 	}
 }
@@ -86,7 +87,7 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	run(t, e, "INSERT INTO pg_catalog.t VALUES(9)")
@@ -157,7 +158,7 @@ func TestSchemaExhaustionAndRoleRevisionFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, admin, "CREATE ROLE changed_authority")
-	if _, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
+	if _, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().State() != before.State() {
 		t.Fatal("role revision fence published fragment", err)
 	}
 }

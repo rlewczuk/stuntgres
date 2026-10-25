@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -22,13 +23,13 @@ import (
 func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	f.actor(f.owner)
-	create := func(name string) (engine.AuthorizationView, *catalog.Type, *catalog.Type) {
+	create := func(name string) (core.AuthorizationView, *catalog.Type, *catalog.Type) {
 		t.Helper()
 		stage := f.e.BeginCatalogStage(f.e.CatalogRead())
 		f.e.Mu.Lock()
 		auth, err := f.e.AuthorizationLocked(f.op)
 		if err == nil {
-			err = typedef.StageCreateEnumLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: f.e, Op: f.op, CatalogStage: stage}}}, auth, &parser.CreateEnum{
+			err = typedef.StageCreateEnumLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: core.DDLHost{E: f.e, Op: f.op, CatalogStage: stage}}}, auth, &parser.CreateEnum{
 				Name:   parser.ObjectName{Parts: []parser.Identifier{{Text: "default_schema"}, {Text: name}}},
 				Labels: []parser.EnumLabel{{Text: "a"}},
 			})
@@ -49,7 +50,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		auth.State.CurrentUser = f.reader
 		return auth, base, array
 	}
-	check := func(auth engine.AuthorizationView, base, array *catalog.Type, allowed bool) {
+	check := func(auth core.AuthorizationView, base, array *catalog.Type, allowed bool) {
 		t.Helper()
 		for _, descriptor := range []*catalog.Type{base, array} {
 			ref := f.e.Catalog.Domain.Ref(auth.Catalog.Epoch(), descriptor.Address())
@@ -216,7 +217,7 @@ func defaultUnitStatement(class, privilege string, creators, schemas, grantees [
 	return s
 }
 
-func assertTemporaryNamespacePair(t *testing.T, e *engine.Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
+func assertTemporaryNamespacePair(t *testing.T, e *core.Engine, token ids.SessionToken, table ids.ObjectAddress) ids.ObjectAddress {
 	t.Helper()
 	ns, ok := e.Catalog.State.Namespace(table)
 	if !ok || ns.Temporary != token || ns.TemporaryToast || ns.Owner.ID() != 10 || ns.ACL.Explicit || len(ns.ACL.Entries) != 0 {
@@ -259,7 +260,7 @@ func defaultUnitDiagnostic(t *testing.T, err error, code, message string) {
 }
 
 type defaultUnitFixture struct {
-	e                     *engine.Engine
+	e                     *core.Engine
 	op                    *session.Operation
 	owner, reader, member authorization.PrincipalRef
 	schema                ids.ObjectAddress

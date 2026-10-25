@@ -2,9 +2,6 @@ package core_test
 
 import (
 	"errors"
-	"fmt"
-	"reflect"
-	"sort"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -211,28 +208,4 @@ func identityMultiCacheUnits(t *testing.T) {
 			t.Fatal("retired owner resurrected counter authority", err)
 		}
 	})
-}
-
-func identityMultiWant(t *testing.T, e *engine.Engine, id uint32, want ...string) {
-	t.Helper()
-	members, err := e.Locks.MultiXactMembers(e.Catalog.Domain, nil, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := make([]string, len(members))
-	for i, m := range members {
-		got[i] = fmt.Sprintf("%d/%s", m.XID, m.Mode.Name())
-	}
-	sort.Strings(got)
-	sort.Strings(want)
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("MultiXact %d: %v want %v", id, got, want)
-	}
-	if len(members) != 0 {
-		members[0].XID = 0
-		again, err := e.Locks.MultiXactMembers(e.Catalog.Domain, nil, id)
-		if err != nil || again[0].XID == 0 {
-			t.Fatal("borrowed mutable history", err)
-		}
-	}
 }

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -9,9 +10,9 @@ import (
 // dispatch switches, in their historical order.
 type familyStatements struct{}
 
-var _ Statements = familyStatements{}
+var _ core.Statements = familyStatements{}
 
-func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, bool, error) {
+func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, bool, error) {
 	op := scope.Op
 	switch stmt.(type) {
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
@@ -58,7 +59,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 			if owner.Materialized {
 				kind = "materialized view"
 			}
-			return dispatched(ExecuteRelationOwnership(e, scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count))
+			return dispatched(core.ExecuteRelationOwnership(e, scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count))
 		}
 		return dispatched(executeAlterView(e, scope, stmt.(*parser.AlterView), count))
 	case *parser.DropView:
@@ -69,7 +70,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		return dispatched(executeEnumDDL(e, scope, stmt, count))
 	case *parser.AlterDomain:
 		domain := stmt.(*parser.AlterDomain)
-		var result Result
+		var result core.Result
 		var err error
 		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
 			result, err = executeSchema(e, scope, op, stmt, count, scope.Input)
@@ -129,7 +130,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership:
 		if drop, ok := stmt.(*parser.DropRole); ok && count == 0 {
 			if err := acquireRoleRetirementLocks(scope, drop); err != nil {
-				return Result{}, true, err
+				return core.Result{}, true, err
 			}
 		}
 		result, err := executeRole(e, op, stmt, count, !scope.Owner.InBlock())
@@ -138,10 +139,10 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		}
 		return result, true, err
 	}
-	return Result{}, false, nil
+	return core.Result{}, false, nil
 }
 
-func (familyStatements) ExecuteLocked(e *Engine, scope *StatementScope, auth AuthorizationView, stmt parser.Statement, count int) (Result, bool, error) {
+func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stmt parser.Statement, count int) (core.Result, bool, error) {
 	op := scope.Op
 	switch s := stmt.(type) {
 	case *parser.AlterTable:
@@ -171,10 +172,10 @@ func (familyStatements) ExecuteLocked(e *Engine, scope *StatementScope, auth Aut
 	case *parser.CreateTable:
 		return dispatched(createTableLocked(e, scope, op, auth, s, count))
 	}
-	return Result{}, false, nil
+	return core.Result{}, false, nil
 }
 
 // dispatched reports a statement as handled with its handler's outcome.
-func dispatched(result Result, err error) (Result, bool, error) {
+func dispatched(result core.Result, err error) (core.Result, bool, error) {
 	return result, true, err
 }

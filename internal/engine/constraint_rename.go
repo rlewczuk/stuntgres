@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -13,8 +14,8 @@ import (
 // The owner-authorized AX grant pins the private parent incarnation. Rename is
 // metadata-only: the existing overlay and Finish own publication of the group.
 // Engine.mu is held on entry and released on every return.
-func renameConstraintLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+func renameConstraintLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (core.Result, error) {
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
@@ -52,28 +53,28 @@ func renameConstraintLocked(e *Engine, scope *StatementScope, op *session.Operat
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if ref.Epoch != e.Catalog.State.Epoch() {
-		return Result{}, ids.ErrCatalogReplaced
+		return core.Result{}, ids.ErrCatalogReplaced
 	}
 	// Check all originals before transferring any member. Earlier overlay originals
 	// remain intact across repeated renames and savepoint rollback.
 	for a := range stage.Descriptors() {
 		if e.Catalog.State.Get(a) != grantCatalog.Get(a) {
-			return Result{}, catalog.Conflict{}
+			return core.Result{}, catalog.Conflict{}
 		}
 	}
 	for k := range stage.Touched() {
 		if e.Catalog.State.NameAddress(k) != grantCatalog.NameAddress(k) {
-			return Result{}, catalog.Conflict{}
+			return core.Result{}, catalog.Conflict{}
 		}
 	}
 	for a, d := range stage.Descriptors() {
 		e.CatalogChangeLocked(changes, a, d)
 	}
 	scope.Catalog = changes
-	return Result{}, nil
+	return core.Result{}, nil
 }

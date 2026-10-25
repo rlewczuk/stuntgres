@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
@@ -17,7 +18,7 @@ import (
 // there. It supplies neither rows, comparison answers nor branch selections.
 type pruningProviderContext struct {
 	context.Context
-	engine        *Engine
+	engine        *core.Engine
 	failure       error
 	cancel        context.CancelFunc
 	providerCalls int
@@ -72,7 +73,7 @@ func TestPartitionPruningSafety(t *testing.T) {
 			}
 			project := query.Root.(*plan.ProjectNode)
 			state := &exec.State{Source: source, Frame: project.Frame}
-			if scope := ScopeOf(source.LiveHost()); scope != nil {
+			if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 				state.Input, state.Output = scope.Input, scope.Output
 			}
 			ctx, cancel := context.WithCancel(context.Background())

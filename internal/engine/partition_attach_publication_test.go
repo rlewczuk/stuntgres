@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -16,7 +17,7 @@ import (
 )
 
 // All setup uses catalog/transaction functions, not a public SQL executor.
-func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*catalog.Relation) {
+func partitionAttachUnitInstall(t *testing.T, e *core.Engine, relations ...*catalog.Relation) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -29,12 +30,12 @@ func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*catalog.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *catalog.Relation {
+func partitionAttachUnitRoot(t *testing.T, e *core.Engine, name string, id ids.OID) *catalog.Relation {
 	t.Helper()
 	d := inheritanceUnitRelation(e, name, id, "k")
 	d.RelationKind = catalog.PartitionedRelation
@@ -47,7 +48,7 @@ func partitionAttachUnitRoot(t *testing.T, e *Engine, name string, id ids.OID) *
 	return d
 }
 
-func partitionAttachUnitStage(t *testing.T, e *Engine, view catalog.Read, parent, child *catalog.Relation) *CatalogStage {
+func partitionAttachUnitStage(t *testing.T, e *core.Engine, view catalog.Read, parent, child *catalog.Relation) *core.CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(view)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
@@ -68,7 +69,7 @@ func partitionAttachUnitStage(t *testing.T, e *Engine, view catalog.Read, parent
 	return stage
 }
 
-func partitionAttachUnitScope(t *testing.T, e *Engine, session *session.Session) (*StatementScope, *session.Operation) {
+func partitionAttachUnitScope(t *testing.T, e *core.Engine, session *session.Session) (*core.StatementScope, *session.Operation) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := session.Acquire(ctx)
@@ -92,7 +93,7 @@ func partitionAttachUnitScope(t *testing.T, e *Engine, session *session.Session)
 	if err := scope.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
+	if err := core.ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
 	return scope, op
@@ -143,7 +144,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			}
 			before := e.Catalog.State
 			stores, roots := maps.Clone(e.Storage.Relations), maps.Clone(e.Storage.IndexRoots)
-			changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("stale validation published an attachment")
 			}

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -37,7 +38,7 @@ func TestCountExpressionColumnACL(t *testing.T) {
 				grant(column, authorization.SelectPrivilege)
 				enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION aggregate_reader")
 				ast := enginetest.Statement(t, q)
-				var description *engine.StatementDescription
+				var description *core.StatementDescription
 				if prepared {
 					desc, err := e.Describe(op, ast)
 					if err != nil {
@@ -106,7 +107,7 @@ func TestAggregateModifiersColumnACL(t *testing.T) {
 		for _, q := range []string{"SELECT count(v) FILTER(WHERE hidden>0) FROM am_acl WHERE FALSE", "SELECT count(v ORDER BY hidden) FILTER(WHERE FALSE) FROM am_acl", "SELECT GROUPING(hidden) FROM am_acl WHERE FALSE GROUP BY ROLLUP(hidden)", "SELECT GROUPING(hidden) FROM am_acl GROUP BY GROUPING SETS((hidden),()) HAVING FALSE"} {
 			for _, prepared := range []bool{false, true} {
 				ast := enginetest.Statement(t, q)
-				var expected *engine.StatementDescription
+				var expected *core.StatementDescription
 				if prepared {
 					desc, err := e.Describe(op, ast)
 					if err != nil {

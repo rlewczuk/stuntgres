@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -160,7 +161,7 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || plan.GenerationImmutable(e) {
 				t.Fatal(e.Properties(), e.DateWrapperContext)
 			}
-			_, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: input, Host: engine.HostOf(scope)}})
+			_, err = e.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Input: input, Host: core.HostOf(scope)}})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "0A000" || d.Message != `unit "timezone" not supported for type timestamp without time zone` || d.Context != "" {
 				t.Fatal(err)

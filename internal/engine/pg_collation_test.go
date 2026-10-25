@@ -8,13 +8,14 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
 
-func pgCollationUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
+func pgCollationUnitSource(t *testing.T, e *core.Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3456}
 	d, ok := catalog.Relation(address)
@@ -41,7 +42,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 			t.Error("release attribute", i+1, column)
 		}
 	}
-	if err := (RelationProvider).Validate(view, d); err != nil {
+	if err := (core.RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -62,7 +63,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 	}
 }
 
-func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *exec.Source {
+func pgCollationUnitCapture(t *testing.T, e *core.Engine, view catalog.Read) *exec.Source {
 	t.Helper()
 	d, ref := pgCollationUnitSource(t, e, view)
 	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
@@ -138,7 +139,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *exec.So
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCollation); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGCollation); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published partial source", got, err)
 	}
 	unchanged()

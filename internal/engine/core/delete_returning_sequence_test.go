@@ -7,8 +7,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -75,35 +73,4 @@ func TestDeleteReturningSequenceDemand(t *testing.T) {
 	}
 	published.Rows.Close()
 	enginetest.TransactionRows(t, s, "SELECT id FROM t")
-}
-
-func sequencePreparedDescription(t *testing.T, e *engine.Engine, s *session.Session, query string) (parser.Statement, engine.StatementDescription) {
-	t.Helper()
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	ast := enginetest.Statement(t, query)
-	d, err := e.Describe(op, ast)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ast, d
-}
-
-func sequencePreparedExecute(e *engine.Engine, s *session.Session, ast parser.Statement, d *engine.StatementDescription) (engine.Result, error) {
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		return engine.Result{}, err
-	}
-	defer op.Done()
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		return engine.Result{}, err
-	}
-	scope.Expected = d
-	r, err := scope.Execute(ast, 0, nil)
-	err = scope.Finish(err)
-	return r, err
 }

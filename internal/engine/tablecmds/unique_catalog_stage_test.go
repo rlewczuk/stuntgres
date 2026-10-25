@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -124,7 +125,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+				if _, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -132,7 +133,7 @@ func TestUniqueCatalogStageExactNameReuse(t *testing.T) {
 			if mode == "canceled" {
 				cancel()
 			}
-			_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()})
+			_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()})
 			switch mode {
 			case "concurrent", "name_reassignment":
 				if err == nil || e.CatalogRead().State() != before.State() {

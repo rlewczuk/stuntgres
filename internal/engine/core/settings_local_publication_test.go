@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -21,7 +22,7 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var e *engine.Engine
+			var e *core.Engine
 			var s *session.Session
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -116,17 +117,5 @@ func TestSettingsLocalExactTypedUndo(t *testing.T) {
 	enginetest.TransactionEnd(t, s, ref, true)
 	if math.Float64bits(s.Settings.Typed["demo.exact"].Number) != candidate {
 		t.Fatal("masked candidate lost typed bits")
-	}
-}
-
-func localOwnerValue(t *testing.T, s *session.Session, name, want string) {
-	t.Helper()
-	s.Settings.Mu.Lock()
-	defer s.Settings.Mu.Unlock()
-	if got := s.Settings.Value(name); got != want {
-		t.Fatalf("%s got=%q want=%q", name, got, want)
-	}
-	if len(s.Settings.Actions) != 0 {
-		t.Fatal("retained transactional actions", s.Settings.Actions)
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestSQLDiagnosticSeverityAndRowDetail(t *testing.T) {
-	err := engine.SQLError("22003", "out of range")
+	err := core.SQLError("22003", "out of range")
 	var got *sqlstate.Error
 	if !errors.As(err, &got) || got.Severity != "ERROR" || got.SeverityUnlocalized != "ERROR" || got.Schema != "" {
 		t.Fatalf("SQL error fields = %#v", got)

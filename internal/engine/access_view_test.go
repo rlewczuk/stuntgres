@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
@@ -38,7 +39,7 @@ func TestAccessViewRejectsForeignOwner(t *testing.T) {
 	e, foreign := New(), New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +77,7 @@ func TestAccessViewTemporaryNamespaceFromEnvironment(t *testing.T) {
 	defer readerDone()
 	effective := func() (none, own authorization.Privileges) {
 		t.Helper()
-		auth, err := OperationAuthorization(readerOp)
+		auth, err := core.OperationAuthorization(readerOp)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,7 +117,7 @@ func TestAccessViewTypeDenialQualifiesByReferencePath(t *testing.T) {
 	roleExecute(t, e, op, "REVOKE USAGE ON TYPE moods.mood FROM PUBLIC")
 	readerOp, readerDone := roleOperation(t, e, "type_reader")
 	defer readerDone()
-	auth, err := OperationAuthorization(readerOp)
+	auth, err := core.OperationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestAccessViewTypeDenialFollowsLiveSearchPath(t *testing.T) {
 		if tc.set != "" {
 			roleExecute(t, e, readerOp, tc.set)
 		}
-		auth, err := OperationAuthorization(readerOp)
+		auth, err := core.OperationAuthorization(readerOp)
 		if err != nil {
 			t.Fatal(err)
 		}

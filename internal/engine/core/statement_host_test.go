@@ -3,13 +3,13 @@ package core_test
 import (
 	"testing"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
 func TestStatementHostNilScopeIsUntypedNil(t *testing.T) {
-	if host := engine.HostOf(nil); host != nil {
+	if host := core.HostOf(nil); host != nil {
 		t.Fatalf("hostOf(nil) = %#v, want untyped nil", host)
 	}
 	if host := (&exec.Context{}).LiveHost(); host != nil {
@@ -18,18 +18,18 @@ func TestStatementHostNilScopeIsUntypedNil(t *testing.T) {
 	if host := (&exec.Source{}).LiveHost(); host != nil {
 		t.Fatalf("scope-less querySource host = %#v, want untyped nil", host)
 	}
-	if scope := engine.ScopeOf(nil); scope != nil {
+	if scope := core.ScopeOf(nil); scope != nil {
 		t.Fatalf("scopeOf(nil) = %p, want nil", scope)
 	}
 }
 
 func TestStatementHostRoundTrip(t *testing.T) {
-	scope := &engine.StatementScope{}
-	host := engine.HostOf(scope)
+	scope := &core.StatementScope{}
+	host := core.HostOf(scope)
 	if host == nil {
 		t.Fatal("hostOf(scope) = nil")
 	}
-	if got := engine.ScopeOf(host); got != scope {
+	if got := core.ScopeOf(host); got != scope {
 		t.Fatalf("scopeOf(hostOf(scope)) = %p, want %p", got, scope)
 	}
 }
@@ -59,8 +59,8 @@ func TestStatementHostDetachedPresentation(t *testing.T) {
 	}
 	formatters := map[string]exec.PresentationFormatters{
 		"detached":      exec.DetachedPresentation{},
-		"nil scope":     (*engine.StatementScope)(nil),
-		"no snapshot":   &engine.StatementScope{},
+		"nil scope":     (*core.StatementScope)(nil),
+		"no snapshot":   &core.StatementScope{},
 		"scope-less ev": (&exec.Context{}).Presentation(),
 	}
 	for _, tc := range cases {

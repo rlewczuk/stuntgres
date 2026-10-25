@@ -8,12 +8,13 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
-func sequenceOwnerCommand(t *testing.T, e *engine.Engine, op *session.Operation, q string, prepared bool) error {
+func sequenceOwnerCommand(t *testing.T, e *core.Engine, op *session.Operation, q string, prepared bool) error {
 	t.Helper()
 	ss := enginetest.Statement(t, q)
 	if !prepared {

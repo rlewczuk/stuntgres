@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -18,15 +19,15 @@ func (h TypeHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, ra
 	if h.Op == nil {
 		return false, nil
 	}
-	capture := OperationReplayOrZero(h.Op).DomainDefault
+	capture := core.OperationReplayOrZero(h.Op).DomainDefault
 	if capture == nil {
 		return false, nil
 	}
 	fail := func() (bool, error) {
 		return true, fmt.Errorf("stuntgres: invalid trusted domain default snapshot authority")
 	}
-	auth := DDLAuthorityOf(a)
-	if !PartitionConstraintReplayImport(h.E, h.Op, auth) || capture.Statement == nil {
+	auth := core.DDLAuthorityOf(a)
+	if !core.PartitionConstraintReplayImport(h.E, h.Op, auth) || capture.Statement == nil {
 		return fail()
 	}
 	if _, ok := h.E.ImportTargets[auth.State.CurrentUser]; !ok {

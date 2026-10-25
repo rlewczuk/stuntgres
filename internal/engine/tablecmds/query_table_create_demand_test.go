@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func queryCreateBoundSource(t *testing.T, e *engine.Engine, width int) (*plan.ProjectNode, *exec.Source) {
+func queryCreateBoundSource(t *testing.T, e *core.Engine, width int) (*plan.ProjectNode, *exec.Source) {
 	t.Helper()
 	schema := make(plan.QuerySchema, width)
 	expressions := make([]expr.Expr, width)
@@ -155,14 +156,14 @@ func queryProbe(usage sqltype.Usage, eval func(*exec.Context) (sqltype.Value, er
 	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
 }
 
-func queryCreateStage(t *testing.T, e *engine.Engine, name string, width int) (*engine.CatalogStage, *catalog.Relation) {
+func queryCreateStage(t *testing.T, e *core.Engine, name string, width int) (*core.CatalogStage, *catalog.Relation) {
 	t.Helper()
 	columns := make([]catalog.Column, width)
 	for i := range columns {
 		columns[i] = catalog.Column{Name: "i", Usage: enginetest.Usage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
 	}
 	e.Mu.Lock()
-	d, err := table.NewRelation(engine.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
+	d, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
 	stage := e.BeginCatalogStage(e.Catalog.Current())
 	if err == nil {
 		err = stage.Create(d)
@@ -174,18 +175,18 @@ func queryCreateStage(t *testing.T, e *engine.Engine, name string, width int) (*
 	return stage, d
 }
 
-func queryCreatePublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func queryCreateAssertAbsent(t *testing.T, e *engine.Engine, d *catalog.Relation) {
+func queryCreateAssertAbsent(t *testing.T, e *core.Engine, d *catalog.Relation) {
 	t.Helper()
 	view := e.CatalogRead()
 	if _, ok := view.Descriptor(d.Address()); ok || e.Storage.Relations[d.Address()] != nil {

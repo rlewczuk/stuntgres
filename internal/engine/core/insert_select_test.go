@@ -364,17 +364,3 @@ func TestInsertSelectSelfTransaction(t *testing.T) {
 	enginetest.TransactionEnd(t, a, tx, true)
 	enginetest.TransactionRows(t, b, "SELECT i FROM t ORDER BY i", 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3)
 }
-
-// Deterministic cancellation, including comparisons taking NULL/tie shortcuts.
-type queryCountingContext struct {
-	context.Context
-	remaining int
-}
-
-func (c *queryCountingContext) Err() error {
-	c.remaining--
-	if c.remaining <= 0 {
-		return context.Canceled
-	}
-	return nil
-}

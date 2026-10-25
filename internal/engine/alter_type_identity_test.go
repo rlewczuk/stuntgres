@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -39,14 +40,14 @@ func TestAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
 	sequence := e.Catalog.State.Get(sequenceRef.Address)
 	s := sessionStart(t, e, nil)
 	sequenceScalar(t, s, "SELECT nextval('q')", 10)
-	generator, memory := e.Storage.Sequences[sequenceRef.Address], PayloadOf(s).Sequences.Memory(sequenceRef.Address)
+	generator, memory := e.Storage.Sequences[sequenceRef.Address], core.PayloadOf(s).Sequences.Memory(sequenceRef.Address)
 	generatorValue, memoryValue := *generator, *memory
 	run(t, e, "ALTER TABLE t ALTER c TYPE BIGINT USING c+1")
 	after := e.Catalog.State.MustRelation(tableRef.Address)
 	if after.Address() != before.Address() || after.Owner != before.Owner || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.Security.ACL, before.Security.ACL) || !reflect.DeepEqual(after.Security.ColumnACL, before.Security.ColumnACL) {
 		t.Fatal("TYPE changed ACL/attribute/owner identity", before, after)
 	}
-	if e.Catalog.State.Get(sequenceRef.Address) != sequence || e.Storage.Sequences[sequenceRef.Address] != generator || *generator != generatorValue || PayloadOf(s).Sequences.Memory(sequenceRef.Address) != memory || *memory != memoryValue {
+	if e.Catalog.State.Get(sequenceRef.Address) != sequence || e.Storage.Sequences[sequenceRef.Address] != generator || *generator != generatorValue || core.PayloadOf(s).Sequences.Memory(sequenceRef.Address) != memory || *memory != memoryValue {
 		t.Fatal("TYPE changed owned sequence identity/generator/cache")
 	}
 	sequenceScalar(t, s, "SELECT nextval('q')", 11)
@@ -116,10 +117,10 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				if generator.Last != oldGenerator.Last || generator.Called != oldGenerator.Called || generator.Generation == oldGenerator.Generation || nextSequence.Revision() <= sequence.Revision() {
 					t.Fatal("AS restarted state or retained generation", oldGenerator, generator, sequence.Revision(), nextSequence.Revision())
 				}
-				if err := (RelationProvider).Validate(e.CatalogRead(), after); err != nil {
+				if err := (core.RelationProvider).Validate(e.CatalogRead(), after); err != nil {
 					t.Fatal(err)
 				}
-				if err := (RelationProvider).Validate(e.CatalogRead(), nextSequence); err != nil {
+				if err := (core.RelationProvider).Validate(e.CatalogRead(), nextSequence); err != nil {
 					t.Fatal(err)
 				}
 			})
@@ -178,9 +179,9 @@ func TestAlterTypeIdentitySequenceGrantFreshness(t *testing.T) {
 			originalTable := e.Catalog.State.MustRelation(tableRef.Address)
 			originalIdentity := originalTable.ColumnMeta.Identities[originalTable.Attributes[0]]
 			ast := statement(t, "ALTER TABLE i ALTER id TYPE BIGINT")
-			var expected *StatementDescription
+			var expected *core.StatementDescription
 			if prepared {
-				var description StatementDescription
+				var description core.StatementDescription
 				ast, description = sequencePreparedDescription(t, e, b, "ALTER TABLE i ALTER id TYPE BIGINT")
 				expected = &description
 			}

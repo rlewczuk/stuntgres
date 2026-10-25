@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -127,33 +126,4 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		}
 		e.EndLockOwner(b.Transactions.Ticket)
 	}
-}
-
-func advisoryXactUnitGrant(t *testing.T, s *session.Session, key lock.Resource, mode lock.Mode, xact bool) {
-	t.Helper()
-	r, err := advisoryXactUnitAcquire(t, s, key, mode, xact, true)
-	if r != nil || err != nil {
-		t.Fatal("expected immediate grant", r, err)
-	}
-}
-
-func advisoryXactUnitHold(s *session.Session, key lock.Resource) lock.Hold {
-	m := engine.EngineOf(s).Locks
-	lockState := m.Inspect()
-	if e := lockState.Resources[key]; e != nil {
-		return e.Holders[s.Transactions.Ticket]
-	}
-	return lock.Hold{}
-}
-
-func advisoryXactUnitAcquire(t *testing.T, s *session.Session, key lock.Resource, mode lock.Mode, xact, nowait bool) (*lock.Request, error) {
-	t.Helper()
-	return engine.EngineOf(s).Locks.StartAcquire(context.Background(), advisoryXactUnitTicket(s, xact), key, mode, lock.Policy{Provenance: s.Transactions.Ref, NoWait: nowait})
-}
-
-func advisoryXactUnitTicket(s *session.Session, xact bool) *lock.Ticket {
-	if xact {
-		return s.Transactions.Ticket
-	}
-	return s.Advisory.Ticket
 }

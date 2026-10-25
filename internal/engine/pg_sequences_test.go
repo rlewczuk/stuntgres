@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -45,7 +46,7 @@ func TestPGSequencesDescriptors(t *testing.T) {
 	if row.OwningRelation != address || row.Array != 12049 || array.OwningRelation != address || array.SQLType.Element() != row.SQLType {
 		t.Fatal(row, array)
 	}
-	if err := (RelationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (core.RelationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 }

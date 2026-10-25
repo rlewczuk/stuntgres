@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 // creator which already owns the provider's AccessShare lock can publish new
 // AUTO members while DROP waits. Once granted, capture a fresh closure of the
 // same object; never retry a lookup against a replacement or renamed object.
-func admitDefinitionRetirement(s *StatementScope, stage *CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment) (*CatalogStage, error) {
+func admitDefinitionRetirement(s *core.StatementScope, stage *core.CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment) (*core.CatalogStage, error) {
 	switch stmt.(type) {
 	case *parser.DropAccessMethod, *parser.DropOperatorFamily, *parser.DropOperatorClass:
 	default:
@@ -24,7 +25,7 @@ func admitDefinitionRetirement(s *StatementScope, stage *CatalogStage, stmt pars
 	}
 	var scratch [4]ids.ObjectAddress
 	addresses := append(scratch[:0], stage.DomainTargets...)
-	slices.SortFunc(addresses, DefinitionAddressOrder)
+	slices.SortFunc(addresses, core.DefinitionAddressOrder)
 	e := s.Engine()
 	for _, a := range addresses {
 		ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), a)

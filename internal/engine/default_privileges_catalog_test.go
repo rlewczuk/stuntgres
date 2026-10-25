@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
@@ -87,7 +88,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	stage := f.e.BeginCatalogStage(private)
 	table := defaultUnitTable(t, f, stage, "retained", f.owner)
 	f.e.Mu.Lock()
-	EngineStageCatalogChangesLocked(f.e, stage, changes)
+	core.EngineStageCatalogChangesLocked(f.e, stage, changes)
 	combined := f.e.PrivateCatalogLocked(changes)
 	err = f.e.CatalogPreflightLocked(changes)
 	f.e.Mu.Unlock()
@@ -97,7 +98,7 @@ func TestDefaultPrivilegesRetainedMessage(t *testing.T) {
 	if _, observed := changes.DefaultReads[key]; observed {
 		t.Fatal("private default output was fenced as committed input")
 	}
-	prepared, err := EnginePreparePrivateCatalog(f.e, context.Background(), changes, committedCatalog.Epoch())
+	prepared, err := core.EnginePreparePrivateCatalog(f.e, context.Background(), changes, committedCatalog.Epoch())
 	if err != nil || prepared.DefaultACL(key) == nil || prepared.DefaultACL(key).OID != private.State().DefaultACL(key).OID || prepared.Get(table.Address()) != table {
 		t.Fatal("combined preparation lost default or object", err)
 	}
@@ -138,7 +139,7 @@ func TestTransactionalPrivilegesCreation(t *testing.T) {
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	merged := changes.Clone()
 	f.e.Mu.Lock()
-	EngineStageCatalogChangesLocked(f.e, stage, merged)
+	core.EngineStageCatalogChangesLocked(f.e, stage, merged)
 	f.e.Mu.Unlock()
 	if _, observed := merged.DefaultReads[key]; observed {
 		t.Fatal("private policy recorded as a committed journal predecessor")
@@ -189,7 +190,7 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	changes := session.NewJournal()
 	changes.Roles = removed
 	changes.RetiredRoles = map[authorization.PrincipalRef]struct{}{f.reader: {}}
-	if err := EngineRoleRetirementPreflightLocked(f.e, changes, f.e.Catalog.State); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := core.EngineRoleRetirementPreflightLocked(f.e, changes, f.e.Catalog.State); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("late default recipient retirement", err)
 	}
 	stage := f.e.BeginCatalogStage(f.e.CatalogRead())
@@ -207,12 +208,12 @@ func TestDefaultPrivilegesDependencies(t *testing.T) {
 	if !access.DescriptorRoleDependencies(table, f.reader, nil) {
 		t.Fatal("default reversal erased materialized dependency")
 	}
-	if err := EngineRoleRetirementPreflightLocked(f.e, changes, f.e.Catalog.State); err != nil {
+	if err := core.EngineRoleRetirementPreflightLocked(f.e, changes, f.e.Catalog.State); err != nil {
 		t.Fatal("reversed default still blocked retirement", err)
 	}
 	candidate := catalog.CloneState(f.e.Catalog.State)
 	candidate.SetDescriptor(table.Address(), table)
-	if err := EngineRoleRetirementPreflightLocked(f.e, changes, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := core.EngineRoleRetirementPreflightLocked(f.e, changes, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("materialized dependency omitted from final retirement", err)
 	}
 	empty := defaultUnitStatement("large objects", "all", []string{"default_owner"}, nil, []string{"default_owner"})
@@ -260,7 +261,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	before := f.e.CatalogRead()
 	drop := f.e.BeginCatalogStage(before)
 	ref := f.e.Catalog.Domain.Ref(before.Epoch(), f.schema)
-	if err := StageRemoveObject(drop, ref, true); err != nil {
+	if err := core.StageRemoveObject(drop, ref, true); err != nil {
 		t.Fatal(err)
 	}
 	delta, changed := drop.DefaultACLChange(scoped)
@@ -294,7 +295,7 @@ func TestDefaultPrivilegesSchemaLifecycle(t *testing.T) {
 	stale := f.e.BeginCatalogStage(f.e.CatalogRead())
 	ref.Address = namespace.Address()
 	ref.Epoch = stale.Base.Epoch()
-	if err := StageRemoveObject(stale, ref, true); err != nil {
+	if err := core.StageRemoveObject(stale, ref, true); err != nil {
 		t.Fatal(err)
 	}
 	f.grant(t, "sequences", "usage", []string{"default_schema"})

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -76,7 +77,7 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 			return err
 		}
 		auth.State.CurrentUser = reader.Ref
-		binder := engine.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+		binder := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		binder.Query.Auth = &auth
 		raw := enginetest.Statement(t, q).(*parser.Select)
 		if _, err = binder.BindSelect(raw, false); err != nil {

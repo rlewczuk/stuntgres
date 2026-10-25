@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 )
 
-func waitOlderIndexSnapshots(s *StatementScope, xmin uint64, idx ids.ObjectAddress) error {
+func waitOlderIndexSnapshots(s *core.StatementScope, xmin uint64, idx ids.ObjectAddress) error {
 	e := s.Engine()
 	e.Mu.Lock()
 	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {

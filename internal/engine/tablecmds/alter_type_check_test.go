@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -159,7 +160,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 			if len(pending.Literals) != 2 || !strings.Contains(pending.SQL, "$1") || !strings.Contains(pending.SQL, "$2") {
 				t.Fatal("missing private literal transport", pending)
 			}
-			binder := engine.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+			binder := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 			binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Stored.CheckLiterals = true, true, pending.Literals
 			for i, literal := range pending.Literals {
 				if literal.ResultUsage().Type.ID() != tc.id || literal.Value.IsNull() != (i == 1) {

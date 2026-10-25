@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 // LockEmpty requires that the lock manager of e holds no owner and no
 // resource.
-func LockEmpty(t testing.TB, e *engine.Engine) {
+func LockEmpty(t testing.TB, e *core.Engine) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
 	if len(lockState.Owners) != 0 || len(lockState.Resources) != 0 {
@@ -24,7 +24,7 @@ func LockEmpty(t testing.TB, e *engine.Engine) {
 
 // LockPending waits up to five seconds until exactly n lock requests of e are
 // pending.
-func LockPending(t testing.TB, e *engine.Engine, n int) {
+func LockPending(t testing.TB, e *core.Engine, n int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -59,7 +59,7 @@ func LockAwait(t testing.TB, done <-chan error, want error) {
 
 // LockAsync describes (prepare) or executes q in one operation of s on a new
 // goroutine and delivers its error on the returned channel.
-func LockAsync(e *engine.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
+func LockAsync(e *core.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		op, err := s.Acquire(ctx)
@@ -67,7 +67,7 @@ func LockAsync(e *engine.Engine, s *session.Session, ctx context.Context, q stri
 			if prepare {
 				_, err = e.Describe(op, lockStatement(q))
 			} else {
-				var r engine.Result
+				var r core.Result
 				r, err = e.Execute(op, lockStatement(q), 0, nil)
 				if r.Rows != nil {
 					r.Rows.Close()

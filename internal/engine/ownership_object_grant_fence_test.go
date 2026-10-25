@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -35,7 +36,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if private {
 					session.Transactions.Catalog = changes
 				}
-				auth, err := OperationAuthorization(message.op)
+				auth, err := core.OperationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -54,7 +55,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if err := auth.Check(access.Requirement{Object: root, OwnerOnly: true}); err != nil {
 					t.Fatal("selected DB owner cannot authorize actual table", err)
 				}
-				checkReader := func(view AuthorizationView, allowed bool) {
+				checkReader := func(view core.AuthorizationView, allowed bool) {
 					t.Helper()
 					view.State.CurrentUser = reader
 					err := view.Check(access.Requirement{Object: root, Privileges: authorization.SelectPrivilege})
@@ -88,7 +89,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if err != nil || result.Rows != nil || result.Count != 0 {
 					t.Fatal("actual retained ObjectGrant failed", err)
 				}
-				retained, err := OperationAuthorization(message.op)
+				retained, err := core.OperationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}

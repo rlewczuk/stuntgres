@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ import (
 // outside-lock validation/publication gap under bounded synchronization.
 type extensionVersionValidationGate struct {
 	catalog.Provider
-	engine           *Engine
+	engine           *core.Engine
 	entered, release chan struct{}
 	once             atomic.Bool
 }
@@ -45,7 +46,7 @@ func (p *extensionVersionValidationGate) Validate(v catalog.Read, d catalog.Desc
 	return nil
 }
 
-func extensionVersionUnitConsumer(t *testing.T, e *Engine, op *session.Operation) ids.ObjectAddress {
+func extensionVersionUnitConsumer(t *testing.T, e *core.Engine, op *session.Operation) ids.ObjectAddress {
 	t.Helper()
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "version_consumer"}}}
 	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "soundex"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "John"}}}}
@@ -219,7 +220,7 @@ func TestExtensionVersionPublication(t *testing.T) {
 		e, op, ext := extensionVersionUnitInstalled(t, "1.1")
 		members := extensionVersionUnitMembers(t, e.CatalogRead(), ext)
 		e.Mu.Lock()
-		stage, err := stageExtensionUpdateLocked(e, &StatementScope{Op: op}, extensionVersionUnitUpdate())
+		stage, err := stageExtensionUpdateLocked(e, &core.StatementScope{Op: op}, extensionVersionUnitUpdate())
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -12,9 +13,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeEnumDDL(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	op := scope.Op
 	var locked ids.ObjectRef
@@ -23,23 +24,23 @@ func executeEnumDDL(e *Engine, scope *StatementScope, stmt parser.Statement, cou
 		auth, err := e.AuthorizationLocked(op)
 		var ref ids.ObjectRef
 		if err == nil {
-			_, ref, err = typedef.ResolveAlterEnumLocked(DDLHost{E: e, Op: op}, auth, alter.Name)
+			_, ref, err = typedef.ResolveAlterEnumLocked(core.DDLHost{E: e, Op: op}, auth, alter.Name)
 		}
 		e.Mu.Unlock()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		// New-label bytes are immutable: reject invalid input before entering
 		// the type queue, after object/kind/owner precedence has been resolved.
 		if len(alter.Label.Text) > 63 {
-			d := SQLError("42602", fmt.Sprintf(`invalid enum label "%s"`, alter.Label.Text)).(*sqlstate.Error)
+			d := core.SQLError("42602", fmt.Sprintf(`invalid enum label "%s"`, alter.Label.Text)).(*sqlstate.Error)
 			d.Detail = "Labels must be 63 bytes or less."
-			return Result{}, d
+			return core.Result{}, d
 		}
 		// Same manager/ticket/deadline authority as transactional sequence DDL;
 		// resource is the actual type object, never a fabricated relation alias.
 		if err := scope.AcquireSequence(ref, lock.TypeExclusive, true); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		locked = ref
 	}
@@ -47,16 +48,16 @@ func executeEnumDDL(e *Engine, scope *StatementScope, stmt parser.Statement, cou
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	changes := scope.Owner.Catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	host := TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}
+	host := TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	var created ids.ObjectRef
 	if create, ok := stmt.(*parser.CreateEnum); ok {
 		if err := typedef.StageCreateEnumLocked(host, auth, create); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
 		if len(scope.Owner.Savepoints) == 0 {
@@ -72,7 +73,7 @@ func executeEnumDDL(e *Engine, scope *StatementScope, stmt parser.Statement, cou
 		}
 	} else if create, ok := stmt.(*parser.CreateRange); ok {
 		if err := typedef.StageCreateRangeLocked(host, auth, create); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		// Retain the constructor's actual fresh range identity for the same
 		// bounded owner-pair protocol used by CREATE DOMAIN. Never resolve
@@ -88,18 +89,18 @@ func executeEnumDDL(e *Engine, scope *StatementScope, stmt parser.Statement, cou
 		alter := stmt.(*parser.AlterEnum)
 		old, ref, err := typedef.ResolveAlterEnumLocked(host, auth, alter.Name)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if ref != locked {
-			return Result{}, ids.ErrCatalogReplaced
+			return core.Result{}, ids.ErrCatalogReplaced
 		}
 		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
 		edit, err := typedef.StageAlterEnumLabelLocked(host, old, alter)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if edit.Skipped {
-			return Result{}, nil
+			return core.Result{}, nil
 		}
 		if edit.Added && (!typedef.EnumJournalOf(changes.Enum).CreatedTypes()[ref.Address] || len(scope.Owner.Savepoints) != 0) {
 			journal := typedef.EnumWritable(changes)
@@ -117,15 +118,15 @@ func executeEnumDDL(e *Engine, scope *StatementScope, stmt parser.Statement, cou
 			stage.RowShapes[a] = storage.RowShape{Original: shape.Original, Replacement: shape.Replacement, Generation: shape.Generation, ObservedEnds: shape.Ends, ObservedLength: len(shape.Root)}
 		}
 		if err := e.ReownStagedTypeGenerationsLocked(stage); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if err := adoptEnumGenerationsLocked(e, scope, changes, stage); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	for a, d := range stage.Descriptors() {
 		e.CatalogChangeLocked(changes, a, d)
 	}
 	scope.Catalog = changes
-	return Result{Created: created}, nil
+	return core.Result{Created: created}, nil
 }

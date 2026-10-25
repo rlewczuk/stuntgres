@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
@@ -85,7 +86,7 @@ func TestDeleteCoreVisibility(t *testing.T) {
 			} else {
 				enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 2)
 			}
-			if got := enginetest.Tuples(engine.Result{Rows: private}); !reflect.DeepEqual(got, [][]driver.Value{{int64(2)}, {int64(7)}, {int64(7)}}) {
+			if got := enginetest.Tuples(core.Result{Rows: private}); !reflect.DeepEqual(got, [][]driver.Value{{int64(2)}, {int64(7)}, {int64(7)}}) {
 				t.Fatal("private retained cursor", got)
 			}
 			enginetest.LockEmpty(t, e)

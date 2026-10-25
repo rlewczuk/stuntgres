@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -265,7 +266,7 @@ func TestRegclassOpaqueInlineDefaultReplayPrerequisites(t *testing.T) {
 	}
 }
 
-func ownershipUnitExec(t *testing.T, e *engine.Engine, q string) {
+func ownershipUnitExec(t *testing.T, e *core.Engine, q string) {
 	t.Helper()
 	if _, err := enginetest.Execute(e, context.Background(), enginetest.Statement(t, q), nil); err != nil {
 		t.Fatal(q, err)
@@ -274,7 +275,7 @@ func ownershipUnitExec(t *testing.T, e *engine.Engine, q string) {
 
 // These are package fixtures: SQL constructs physical descriptors through the
 // real providers; assertions exercise the issuer and catalog validator directly.
-func retiredUnitTable(t *testing.T, e *engine.Engine, name string) *catalog.Relation {
+func retiredUnitTable(t *testing.T, e *core.Engine, name string) *catalog.Relation {
 	t.Helper()
 	for _, d := range e.CatalogRead().Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok && r.Name() == name {

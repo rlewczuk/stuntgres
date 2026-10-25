@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
@@ -27,7 +28,7 @@ func TestIntervalImmutableConstantCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := engine.StatementDescription{Temporals: b.Prepared.Temporals}
+		description := core.StatementDescription{Temporals: b.Prepared.Temporals}
 		b = enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{IntervalStyle: sqltype.IntervalSQLStandard}, &description)
 		rebound, err := b.Bind(raw, policy)
 		if err != nil {

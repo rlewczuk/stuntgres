@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -369,7 +370,7 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			} else {
 				enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(3)")
 			}
-			_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()})
+			_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()})
 			if mode == "cancel" {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
@@ -426,7 +427,7 @@ func TestConcurrentIndexU7OlderAdmissionEpochFence(t *testing.T) {
 
 // All waits are observed through the actual manager queue. Register cancellation
 // and joining after session cleanup so workers finish before their sessions end.
-func indexMaintenanceAsync(t *testing.T, e *engine.Engine, s *session.Session, q string) (context.CancelFunc, func() error) {
+func indexMaintenanceAsync(t *testing.T, e *core.Engine, s *session.Session, q string) (context.CancelFunc, func() error) {
 	t.Helper()
 	stmt := enginetest.Statement(t, q)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -468,7 +469,7 @@ func indexMaintenanceAsync(t *testing.T, e *engine.Engine, s *session.Session, q
 }
 
 // These are valid catalog-provider component fixtures, not public TEMP-table SQL.
-func arrayComponentTemporary(t *testing.T, e *engine.Engine, op *session.Operation, prototype *catalog.Relation) *catalog.Relation {
+func arrayComponentTemporary(t *testing.T, e *core.Engine, op *session.Operation, prototype *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	e.Mu.Lock()
 	nsOID, err := e.Catalog.AllocateOIDLocked()
@@ -524,13 +525,13 @@ func arrayComponentTemporary(t *testing.T, e *engine.Engine, op *session.Operati
 // fallback or a test callback.
 func operatorFamilyTestRead() catalog.Read { return operatorFamilyUnitSeed() }
 
-func domainUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

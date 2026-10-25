@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -60,7 +61,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 	state := partition.InsertState{Target: parent, Destination: child, Layouts: map[ids.ObjectAddress]*exec.InheritanceQuerySegment{child.Address(): &back}}
 	state.PhysicalRow = state.RowFor(child, logical)
 	owned := append([]sqltype.Value(nil), logical...)
-	scope := engine.StatementScope{StatementMutation: engine.StatementMutation{Command: dml.Command{Partition: dml.Partition{PartitionInsert: &state}}}}
+	scope := core.StatementScope{StatementMutation: core.StatementMutation{Command: dml.Command{Partition: dml.Partition{PartitionInsert: &state}}}}
 	stored := scope.Command.PartitionStoredRow(owned)
 	if &stored[0] != &owned[0] || !reflect.DeepEqual(stored, physical) {
 		t.Fatal("non-returning storage ownership")

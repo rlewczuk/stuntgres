@@ -4,12 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-func preparedUnitStatement(t *testing.T, e *Engine, s *session.Session, stmt parser.Statement) {
+func preparedUnitStatement(t *testing.T, e *core.Engine, s *session.Session, stmt parser.Statement) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -144,7 +145,7 @@ func TestPreparedTemporarySemanticDescriptionIsSticky(t *testing.T) {
 	if err := preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "semantic"); err == nil {
 		t.Fatal("semantic temporary access allowed prepare")
 	}
-	if s.TransactionState() != session.TxIdle || EnginePreparedRef(e).Len() != 0 {
+	if s.TransactionState() != session.TxIdle || core.EnginePreparedRef(e).Len() != 0 {
 		t.Fatal("semantic prepare failure did not fully dispose transaction")
 	}
 }

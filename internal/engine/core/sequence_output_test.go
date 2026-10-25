@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,15 +30,15 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 	}
 	numeric, nd := sequencePreparedDescription(t, e, s, fmt.Sprintf("SELECT nextval('%d'::regclass)", oid))
 	parameter, pd := sequencePreparedDescription(t, e, s, "SELECT nextval($1)")
-	param := func() (engine.Result, error) {
+	param := func() (core.Result, error) {
 		op, err := s.Acquire(context.Background())
 		if err != nil {
-			return engine.Result{}, err
+			return core.Result{}, err
 		}
 		defer op.Done()
 		scope, err := e.StartStatement(op)
 		if err != nil {
-			return engine.Result{}, err
+			return core.Result{}, err
 		}
 		scope.Expected = &pd
 		r, err := scope.Execute(parameter, 1, func(ctx context.Context, info analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {

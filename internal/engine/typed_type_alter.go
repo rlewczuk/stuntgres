@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -15,16 +16,16 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operation, s *parser.AlterComposite, count int) (Result, error) {
+func executeAlterComposite(e *core.Engine, scope *core.StatementScope, op *session.Operation, s *parser.AlterComposite, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	var path []ids.ObjectAddress
 	if err == nil {
 		scope.RoutineAuth = auth
-		path, err = ReferencePath(auth)
+		path, err = core.ReferencePath(auth)
 	}
 	var typ *catalog.Type
 	var source *catalog.Relation
@@ -34,7 +35,7 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 		if err == nil {
 			source = auth.Catalog.MustRelation(ref.Address)
 			if source.RelationKind != catalog.CompositeRelation {
-				err = SQLError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.Name()))
+				err = core.SQLError("42809", fmt.Sprintf(`"%s" is not a composite type`, source.Name()))
 			} else {
 				typ = auth.Catalog.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 			}
@@ -45,15 +46,15 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 	}
 	e.Mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	// Source metadata mutations share exact type authority with identity/drop.
 	// Keep type -> real backing relation -> typed closure order on every route.
 	if err := scope.AcquireSequence(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), typ.Address()), lock.TypeExclusive, true); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err := scope.AcquireSequence(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address()), lock.AccessExclusive, true); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
@@ -69,9 +70,9 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 			restrict = restrict || action.Mode != parser.DropCascade
 		}
 		if restrict {
-			diagnostic := SQLError("2BP01", fmt.Sprintf(`cannot alter type "%s" because it is the type of a typed table`, source.Name())).(*sqlstate.Error)
+			diagnostic := core.SQLError("2BP01", fmt.Sprintf(`cannot alter type "%s" because it is the type of a typed table`, source.Name())).(*sqlstate.Error)
 			diagnostic.Hint = "Use ALTER ... CASCADE to alter the typed tables too."
-			return Result{}, diagnostic
+			return core.Result{}, diagnostic
 		}
 	}
 	// OID order grants deterministic closure authority; planning order below is
@@ -79,7 +80,7 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 	addresses := typedef.TypedSortedAddresses(targets)
 	for _, address := range addresses {
 		if err := scope.AcquireSequence(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	e.Mu.Lock()
@@ -100,7 +101,7 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 	}
 	e.Mu.Unlock()
 	if admissionErr != nil {
-		return Result{}, admissionErr
+		return core.Result{}, admissionErr
 	}
 	// Source ownership does not extend to typed tables or their descendants.
 	// PostgreSQL checks them while recursing each subcommand, so ALTER
@@ -120,13 +121,13 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 	}
 	if s.Rename != nil || len(s.Actions) == 0 || s.Actions[0].Action != parser.AlterColumnType {
 		if err := checkOwners(); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
 			if err := typedef.RowRewriteError(auth.Catalog, source); err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 	}
@@ -134,10 +135,10 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 	if s.Rename != nil {
 		next, renameErr := table.RenameColumnCandidate(source, s.Column.Text, s.Rename.Text)
 		if renameErr != nil {
-			return Result{}, renameErr
+			return core.Result{}, renameErr
 		}
 		if source.Revision() == ids.DefinitionRevision(^uint64(0)) {
-			return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+			return core.Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 		}
 		next.ObjectRevision = source.Revision() + 1
 		sourceMutation = typedRelationMutation{old: source, next: next}
@@ -148,13 +149,13 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 		}
 		sourceMutation, err = typedMutation(e, scope, op, auth, stage, source, actions)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	for i, action := range s.Actions {
 		if i == 1 {
 			if err := checkOwners(); err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		name := action.Column.Text
@@ -171,15 +172,15 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 		usage := sourceMutation.next.Columns[slot].Usage
 		ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := auth.CanUse(ref); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		stage.DomainBases = append(stage.DomainBases, auth.Catalog.Get(ref.Address))
 	}
 	if err := checkOwners(); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err := stage.Replace(sourceMutation.next); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	forced := make(map[ids.ObjectAddress]map[int32]bool, len(targets)+1)
 	for _, action := range s.Actions {
@@ -203,12 +204,12 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 		} else {
 			actions, renames, graph, err = table.TypedInheritedActions(view, tbl, forced)
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		mutation, err := typedMutation(e, scope, op, auth, stage, tbl, actions)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if len(mutation.transforms) != 0 {
 			if forced == nil {
@@ -227,13 +228,13 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 			}
 			mutation.next, err = table.RenameColumnCandidate(mutation.next, mutation.next.Columns[slot].Name, destination)
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		if graph != nil || len(renames) != 0 {
 			next := *mutation.next
 			if tbl.Revision() == ids.DefinitionRevision(^uint64(0)) {
-				return Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
+				return core.Result{}, fmt.Errorf("stuntgres: definition revision exhausted")
 			}
 			next.ObjectRevision = tbl.Revision() + 1
 			mutation.next = &next
@@ -242,14 +243,14 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 			}
 		}
 		if err := stage.Replace(mutation.next); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if err := stageTypedRows(e, scope, auth, stage, mutation); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
@@ -257,11 +258,11 @@ func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operati
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err == nil {
 		view.EmitCascade(op, stage.DropCascadeNames)
 		scope.Completed = true
 	}
-	return Result{}, err
+	return core.Result{}, err
 }

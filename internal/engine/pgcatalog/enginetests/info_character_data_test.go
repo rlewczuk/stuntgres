@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -15,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func infoCharacterDataUnitCatalog(t *testing.T, e *engine.Engine, view catalog.Read) *catalog.Type {
+func infoCharacterDataUnitCatalog(t *testing.T, e *core.Engine, view catalog.Read) *catalog.Type {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13246}
 	d, ok := view.Type(address)

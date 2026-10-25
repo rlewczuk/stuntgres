@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -17,17 +18,17 @@ import (
 )
 
 // These are actual private binding/freezing/staging calls, not SQL execution.
-func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, namespace *catalog.Namespace, name, call string) *catalog.Relation {
+func intaggUnitTemporaryView(t *testing.T, e *core.Engine, op *session.Operation, namespace *catalog.Namespace, name, call string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, "CREATE TEMP VIEW "+name+" AS SELECT "+namespace.Name()+"."+call+" AS v").(*parser.CreateView)
-	stage, consumer, err := func() (*CatalogStage, *catalog.Relation, error) {
+	stage, consumer, err := func() (*core.CatalogStage, *catalog.Relation, error) {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
 		auth, err := e.AuthorizationLocked(op)
 		if err != nil {
 			return nil, nil, err
 		}
-		b, err := Describe(op.Context(), e.AnalysisHost(nil), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
+		b, err := core.Describe(op.Context(), e.AnalysisHost(nil), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -43,7 +44,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 		if err != nil {
 			return nil, nil, err
 		}
-		definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), raw.Query, b, false, false, rule, catalog.ViewRelation, true)
+		definition, err := view.FreezeDefinition(core.DDLHost{E: e}, auth.Catalog, core.CatalogSourceTemporaryOwner(auth), raw.Query, b, false, false, rule, catalog.ViewRelation, true)
 		if err != nil {
 			return nil, nil, err
 		}

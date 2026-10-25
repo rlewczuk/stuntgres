@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -198,7 +199,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: before.Epoch()}); err != nil {
+				if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()}); err != nil {
 					t.Fatal(err)
 				}
 				assertHeld()
@@ -220,7 +221,7 @@ func tableLikeAdmission(t *testing.T, provider string) {
 	}
 }
 
-func tableLikeBuild(t *testing.T, e *engine.Engine, op *session.Operation, query string) (*engine.CatalogStage, *catalog.Relation, error) {
+func tableLikeBuild(t *testing.T, e *core.Engine, op *session.Operation, query string) (*core.CatalogStage, *catalog.Relation, error) {
 	t.Helper()
 	syntax := enginetest.Statement(t, query).(*parser.CreateTable)
 	e.Mu.Lock()

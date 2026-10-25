@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"testing"
 )
@@ -84,8 +85,8 @@ func TestNominalTypeRestoreDestinationFence(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			before := e.Catalog.State
-			OperationReplay(op).TableDestination = true
-			defer func() { OperationReplay(op).TableDestination = false }()
+			core.OperationReplay(op).TableDestination = true
+			defer func() { core.OperationReplay(op).TableDestination = false }()
 			_, err := e.Execute(op, statement(t, tc.query), 0, nil)
 			if err == nil || e.Catalog.State != before {
 				t.Fatal("destination flag bypassed isolated importer fence", err)
@@ -100,8 +101,8 @@ func TestNominalTypeRestoreDestinationFence(t *testing.T) {
 			defer done()
 			before := e.Catalog.State
 			e.ImportTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
-			OperationReplay(op).TableDestination = true
-			defer func() { OperationReplay(op).TableDestination = false; e.ImportTargets = nil }()
+			core.OperationReplay(op).TableDestination = true
+			defer func() { core.OperationReplay(op).TableDestination = false; e.ImportTargets = nil }()
 			_, err := e.Execute(op, statement(t, tc.query), 0, nil)
 			if err == nil || e.Catalog.State != before {
 				t.Fatal("ordinary authenticator bypassed importer fence", err)

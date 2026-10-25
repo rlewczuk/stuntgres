@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*session.Operation, func()) {
+func extensionTemporaryOperation(t *testing.T, e *core.Engine, name string) (*session.Operation, func()) {
 	t.Helper()
 	ref, err := e.ResolveLogin(name)
 	if err != nil {
@@ -51,7 +52,7 @@ func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*session
 	}
 	return op, close
 }
-func extensionTemporaryInstalled(t *testing.T) (*Engine, *session.Operation, *session.Operation, *catalog.Extension, func()) {
+func extensionTemporaryInstalled(t *testing.T) (*core.Engine, *session.Operation, *session.Operation, *catalog.Extension, func()) {
 	t.Helper()
 	e := New()
 	owner, closeOwner := extensionTemporaryOperation(t, e, "postgres")
@@ -64,7 +65,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *session.Operation, *se
 	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 	return e, owner, installer, ext, closeOwner
 }
-func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *session.Operation, ext *catalog.Extension) *catalog.Relation {
+func extensionTemporaryConsumerUnits(t *testing.T, e *core.Engine, op *session.Operation, ext *catalog.Extension) *catalog.Relation {
 	t.Helper()
 	name := e.Catalog.State.Get(ext.TargetNamespace).Name()
 	for _, q := range []string{
@@ -78,7 +79,7 @@ func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *session.Operat
 	}
 	return e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_survivor"}))
 }
-func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *catalog.Extension) {
+func extensionTemporaryGoneUnit(t *testing.T, e *core.Engine, ext *catalog.Extension) {
 	t.Helper()
 	namespace, ok := e.Catalog.State.Namespace(ext.TargetNamespace)
 	if !ok {
@@ -95,7 +96,7 @@ func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *catalog.Extension)
 			t.Fatal("retired signature/name retained", key)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +130,7 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	roleExecute(t, e, op, "CREATE VIEW public.ext_schema_late AS SELECT v FROM public.ext_chain")
 	prepared, err := e.ValidateCatalogStage(context.Background(), candidate)
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
+		_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: candidate.Base.Epoch()})
 	}
 	if err == nil {
 		t.Fatal("late schema dependent bypassed publication fence")

@@ -1,0 +1,57 @@
+package core_test
+
+import (
+	"context"
+	"slices"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/view"
+)
+
+// TestDropReaderSeam pins the view.DropReader seam on dropProvider: a staged
+// drop reads SQL dependencies through its stage, a prepared drop through its
+// preparation, and a bare provider has no definition input. Path is the
+// stage's dependency path, and RetirementDescriptor still reads a removed
+// relation.
+func TestDropReaderSeam(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	enginetest.RoleExecute(t, e, op, "CREATE TABLE retiring(id INTEGER)")
+	read := e.CatalogRead()
+	relation := read.MustRelation(roleTableRef(t, e, "retiring").Address)
+
+	var bare view.DropReader = core.StageDropProvider(context.Background(), nil, nil, nil, nil)
+	if input := bare.DefinitionInput(); input != nil {
+		t.Fatalf("bare DefinitionInput = %T, want nil", input)
+	}
+
+	stage := e.BeginCatalogStage(read)
+	defer e.DiscardCatalogStage(stage)
+	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
+	stage.DependencyPath = path
+	var staged view.DropReader = core.StageDropProvider(context.Background(), stage, nil, nil, nil)
+	if input, ok := staged.DefinitionInput().(core.StageDefinitionReader); !ok || core.StageDefinitionReaderStage(&input) != stage {
+		t.Fatalf("staged DefinitionInput = %T, want the stage reader", staged.DefinitionInput())
+	}
+	if !slices.Equal(staged.Path(), path) {
+		t.Fatalf("Path = %v, want %v", staged.Path(), path)
+	}
+	if err := stage.Remove(e.Catalog.Domain.Ref(read.Epoch(), relation.Address())); err != nil {
+		t.Fatal(err)
+	}
+	if !staged.Removed(relation.Address()) || staged.RetirementDescriptor(relation.Address()) != relation {
+		t.Fatal("RetirementDescriptor must still read the removed relation")
+	}
+
+	prepared := &table.DropPreparation{Base: read, Discovery: read}
+	var preparedReader view.DropReader = &core.DropProvider{Base: read, Prepared: prepared}
+	if input, ok := preparedReader.DefinitionInput().(*table.DropPreparation); !ok || input != prepared {
+		t.Fatalf("prepared DefinitionInput = %T, want the preparation", preparedReader.DefinitionInput())
+	}
+}

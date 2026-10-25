@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -21,7 +22,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func schemaRef(t *testing.T, e *engine.Engine, name string) ids.ObjectRef {
+func schemaRef(t *testing.T, e *core.Engine, name string) ids.ObjectRef {
 	t.Helper()
 	v := e.CatalogRead()
 	a := v.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})
@@ -30,7 +31,7 @@ func schemaRef(t *testing.T, e *engine.Engine, name string) ids.ObjectRef {
 	}
 	return e.Catalog.Domain.Ref(v.Epoch(), a)
 }
-func schemaFail(t *testing.T, e *engine.Engine, op *session.Operation, q, code string) {
+func schemaFail(t *testing.T, e *core.Engine, op *session.Operation, q, code string) {
 	t.Helper()
 	before := e.CatalogRead()
 	storage := e.Storage.Relations

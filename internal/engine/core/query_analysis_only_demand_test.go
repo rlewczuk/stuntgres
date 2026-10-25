@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -125,7 +126,7 @@ func analysisOnlyLifetimeRejected(t *testing.T, kind string, err error) {
 	}
 }
 
-func analysisOnlyFixture(t *testing.T, sql string) (*engine.Engine, *plan.Query, []catalog.ExpressionDependency) {
+func analysisOnlyFixture(t *testing.T, sql string) (*core.Engine, *plan.Query, []catalog.ExpressionDependency) {
 	t.Helper()
 	// Reuse the core's real catalog/source fixture, then bind WITH through the
 	// binder rather than its single-table FROM convenience wrapper.
@@ -137,7 +138,7 @@ func analysisOnlyFixture(t *testing.T, sql string) (*engine.Engine, *plan.Query,
 	defer done()
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	b := engine.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	b := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Query.Auth = &auth
 	var q *plan.Query
 	if err == nil {
@@ -150,7 +151,7 @@ func analysisOnlyFixture(t *testing.T, sql string) (*engine.Engine, *plan.Query,
 	return e, q, b.Dependencies
 }
 
-func analysisOnlyAuthority(t *testing.T, e *engine.Engine, grant string) engine.AuthorizationView {
+func analysisOnlyAuthority(t *testing.T, e *core.Engine, grant string) core.AuthorizationView {
 	t.Helper()
 	enginetest.Run(t, e, grant)
 	op, done := enginetest.RoleOperation(t, e, "analysis_reader")
@@ -164,7 +165,7 @@ func analysisOnlyAuthority(t *testing.T, e *engine.Engine, grant string) engine.
 	return auth
 }
 
-func analysisOnlyAdmit(ctx context.Context, q *plan.Query, dependencies []catalog.ExpressionDependency, auth engine.AuthorizationView) error {
+func analysisOnlyAdmit(ctx context.Context, q *plan.Query, dependencies []catalog.ExpressionDependency, auth core.AuthorizationView) error {
 	// Each invocation owns all mutable execution/frame state. The query and
 	// captured authority are immutable and may be shared by finite workers.
 	c := exec.Context{
@@ -260,7 +261,7 @@ func TestQueryAnalysisOnlyOriginalLifetime(t *testing.T) {
 			other := enginetest.CatalogAuthorization(foreign, foreign.Catalog.Current())
 			foreign.Mu.Unlock()
 			for _, call := range original.calls {
-				if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), dependencies, call.Procedure, nil); err != nil {
+				if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), dependencies, call.Procedure, nil); err != nil {
 					t.Fatal("genuine original", err)
 				}
 				for _, kind := range []string{"missing", "revision", "foreign", "epoch", "substitution"} {
@@ -289,7 +290,7 @@ func TestQueryAnalysisOnlyOriginalLifetime(t *testing.T) {
 					case "substitution":
 						selected = other.Catalog.MustProcedure(call.Ref.Address)
 					}
-					analysisOnlyLifetimeRejected(t, kind, exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(authority), probe, selected, nil))
+					analysisOnlyLifetimeRejected(t, kind, exec.AdmitRoutineDescriptor(core.RoutineAccessOf(authority), probe, selected, nil))
 				}
 			}
 			if err := engine.Reset(context.Background(), e); err != nil {
@@ -299,7 +300,7 @@ func TestQueryAnalysisOnlyOriginalLifetime(t *testing.T) {
 			after := enginetest.CatalogAuthorization(e, e.Catalog.Current())
 			e.Mu.Unlock()
 			for _, call := range original.calls {
-				analysisOnlyLifetimeRejected(t, "replacement", exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(after), dependencies, call.Procedure, nil))
+				analysisOnlyLifetimeRejected(t, "replacement", exec.AdmitRoutineDescriptor(core.RoutineAccessOf(after), dependencies, call.Procedure, nil))
 			}
 			analysisOnlyUnchanged(t, original, q.Root, dependencies)
 		})

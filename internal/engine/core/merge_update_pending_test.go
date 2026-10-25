@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -21,7 +22,7 @@ import (
 
 // These are executor/Finish and manager-state witnesses, not public SQL copies.
 // A live request on the original RowID establishes the exact interleaving.
-func mergeUpdatePendingRow(t *testing.T, e *engine.Engine, ref ids.ObjectRef, row ids.RowID, worker *session.Session, blocker *lock.Ticket, mode lock.Mode) {
+func mergeUpdatePendingRow(t *testing.T, e *core.Engine, ref ids.ObjectRef, row ids.RowID, worker *session.Session, blocker *lock.Ticket, mode lock.Mode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -55,9 +56,9 @@ func mergeUpdatePendingExecute(t *testing.T, s *session.Session, q string) <-cha
 	go func() {
 		defer close(finished)
 		op, err := s.Acquire(ctx)
-		var result engine.Result
+		var result core.Result
 		if err == nil {
-			result, err = engine.EngineOf(s).Execute(op, ast, 0, nil)
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
 			op.Done()
 		}
 		done <- deleteOutcome{result, err}

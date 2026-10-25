@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
@@ -52,7 +53,7 @@ func finishRestoreComparisonContext(r *restoreRun, _ context.Context, _ *session
 // validateComparisonBindingStatement captures the stage authorization under
 // Engine.mu, checks USAGE on the bound namespace with nothing held, then
 // checks the definitions stmt published.
-func validateComparisonBindingStatement(e *Engine, op *session.Operation, stmt parser.Statement, check control.ComparisonCheck) error {
+func validateComparisonBindingStatement(e *core.Engine, op *session.Operation, stmt parser.Statement, check control.ComparisonCheck) error {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()

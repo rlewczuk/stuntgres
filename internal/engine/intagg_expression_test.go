@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func intaggUnitAggregate(t *testing.T, e *Engine) (*analyze.Binder, plan.AggregateCall) {
+func intaggUnitAggregate(t *testing.T, e *core.Engine) (*analyze.Binder, plan.AggregateCall) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
@@ -33,7 +34,7 @@ func intaggUnitAggregate(t *testing.T, e *Engine) (*analyze.Binder, plan.Aggrega
 	return b, b.Grouping.Aggregates[0]
 }
 
-func intaggUnitEnum(t *testing.T, e *Engine, input string) plan.UnnestExpr {
+func intaggUnitEnum(t *testing.T, e *core.Engine, input string) plan.UnnestExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"

@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -31,7 +31,7 @@ import (
 // Creation uses a separate real namespace: its explicit ACL grants no PUBLIC
 // CREATE, and its only owner is pg_database_owner. The actor's direct ownership
 // of the OWNED BY table cannot supply the earlier namespace CREATE privilege.
-func ownershipManualCreationFixture(t *testing.T, e *engine.Engine, actor authorization.PrincipalRef) (ids.ObjectAddress, ids.ObjectRef) {
+func ownershipManualCreationFixture(t *testing.T, e *core.Engine, actor authorization.PrincipalRef) (ids.ObjectAddress, ids.ObjectRef) {
 	t.Helper()
 	ownershipUnitExec(t, e, "CREATE SCHEMA ownership_fence_creation")
 	ownershipUnitExec(t, e, "CREATE TABLE ownership_fence_creation.owned_table(v INT)")
@@ -76,11 +76,11 @@ type ownershipManualSnapshot struct {
 	rows            map[ids.ObjectAddress][]storage.RowVersion
 }
 
-func ownershipManualCapture(e *engine.Engine, session *session.Session, sequence ids.ObjectRef) ownershipManualSnapshot {
+func ownershipManualCapture(e *core.Engine, session *session.Session, sequence ids.ObjectRef) ownershipManualSnapshot {
 	snapshot := ownershipManualSnapshot{
 		roots: indexMaintenanceCapture(e), roles: e.RoleStore.Published, revision: session.Authorization.Revision,
 		generators: make(map[ids.ObjectAddress]*storage.SequenceGenerator), generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
-		memory: engine.PayloadOf(session).Sequences.Memory(sequence.Address), last: engine.PayloadOf(session).Sequences.Last(),
+		memory: core.PayloadOf(session).Sequences.Memory(sequence.Address), last: core.PayloadOf(session).Sequences.Last(),
 		rows: make(map[ids.ObjectAddress][]storage.RowVersion),
 	}
 	snapshot.memoryValue = *snapshot.memory
@@ -97,14 +97,14 @@ func ownershipManualCapture(e *engine.Engine, session *session.Session, sequence
 	return snapshot
 }
 
-func ownershipManualStart(t *testing.T, e *engine.Engine, session *session.Session, sequence ids.ObjectRef, changes *session.Journal) (*batchUnitMessage, engine.AuthorizationView, ownershipManualSnapshot) {
+func ownershipManualStart(t *testing.T, e *core.Engine, session *session.Session, sequence ids.ObjectRef, changes *session.Journal) (*batchUnitMessage, core.AuthorizationView, ownershipManualSnapshot) {
 	t.Helper()
 	message := batchUnitStart(t, session, context.Background())
 	t.Cleanup(func() { message.end(context.Canceled) })
 	if changes != nil {
 		session.Transactions.Catalog = changes
 	}
-	auth, err := engine.OperationAuthorization(message.op)
+	auth, err := core.OperationAuthorization(message.op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func ownershipManualStart(t *testing.T, e *engine.Engine, session *session.Sessi
 	}
 	values := enginetest.Tuples(result)
 	result.Rows.Close()
-	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.Storage.Sequences[sequence.Address].Last != 42 || engine.PayloadOf(session).Sequences.Memory(sequence.Address).CachedTail() != 2 {
+	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.Storage.Sequences[sequence.Address].Last != 42 || core.PayloadOf(session).Sequences.Memory(sequence.Address).CachedTail() != 2 {
 		t.Fatal("fixture did not consume actual nontransactional CACHE3 sequence", values)
 	}
 	if _, err := message.step(enginetest.Statement(t, "INSERT INTO ownership_fence_sentinel VALUES(9)")); err != nil {
@@ -131,7 +131,7 @@ func ownershipManualStart(t *testing.T, e *engine.Engine, session *session.Sessi
 	return message, auth, ownershipManualCapture(e, session, sequence)
 }
 
-func ownershipManualReplaceDatabase(t *testing.T, e *engine.Engine, session *session.Session, before *ownershipManualSnapshot, private bool) {
+func ownershipManualReplaceDatabase(t *testing.T, e *core.Engine, session *session.Session, before *ownershipManualSnapshot, private bool) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	database := *e.Catalog.State.MustDatabase(catalog.CurrentDatabaseAddress)
@@ -172,12 +172,12 @@ func ownershipManualReplaceDatabase(t *testing.T, e *engine.Engine, session *ses
 	before.roots = indexMaintenanceCapture(e)
 }
 
-func ownershipManualRetainedUnchanged(t *testing.T, e *engine.Engine, session *session.Session, sequence ids.ObjectRef, auth engine.AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
+func ownershipManualRetainedUnchanged(t *testing.T, e *core.Engine, session *session.Session, sequence ids.ObjectRef, auth core.AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
 	if e.RoleStore.Published != before.roles || session.Authorization.Revision != before.revision || e.Catalog.State.Epoch() != auth.Catalog.Epoch() || auth.DatabasePredecessor != committed || auth.Catalog.Get(sequence.Address) != old || old.Owner != auth.Roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
-	if engine.PayloadOf(session).Sequences.Memory(sequence.Address) != before.memory || *before.memory != before.memoryValue || engine.PayloadOf(session).Sequences.Last() != before.last {
+	if core.PayloadOf(session).Sequences.Memory(sequence.Address) != before.memory || *before.memory != before.memoryValue || core.PayloadOf(session).Sequences.Last() != before.last {
 		t.Fatal("manual utility changed actual currval/cache/lastval memory")
 	}
 	for address, generator := range before.generators {
@@ -443,7 +443,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("OWNED CREATE did not resume after actual table wait")
 				}
-				fresh, err := engine.OperationAuthorization(message.op)
+				fresh, err := core.OperationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -497,7 +497,7 @@ type indexMaintenanceSnapshot struct {
 	stores  map[ids.ObjectAddress]*storage.Relation
 }
 
-func indexMaintenanceCapture(e *engine.Engine) indexMaintenanceSnapshot {
+func indexMaintenanceCapture(e *core.Engine) indexMaintenanceSnapshot {
 	s := indexMaintenanceSnapshot{catalog: e.Catalog.State, roots: make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.Storage.IndexRoots)), stores: make(map[ids.ObjectAddress]*storage.Relation, len(e.Storage.Relations))}
 	for a, r := range e.Storage.IndexRoots {
 		s.roots[a] = r
@@ -509,17 +509,17 @@ func indexMaintenanceCapture(e *engine.Engine) indexMaintenanceSnapshot {
 }
 
 type batchUnitMessage struct {
-	scope  *engine.StatementScope
+	scope  *core.StatementScope
 	op     *session.Operation
 	ended  bool
 	result error
 }
 
-func (m *batchUnitMessage) step(stmt parser.Statement) (engine.Result, error) {
+func (m *batchUnitMessage) step(stmt parser.Statement) (core.Result, error) {
 	if m.scope.Finished {
 		next, err := m.scope.NextStatement()
 		if err != nil {
-			return engine.Result{}, err
+			return core.Result{}, err
 		}
 		m.scope = next
 	}
@@ -546,7 +546,7 @@ func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batc
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := engine.EngineOf(s).StartStatement(op)
+	scope, err := core.EngineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -588,7 +588,7 @@ func (c *rangePartitionPhaseContext) Err() error {
 	return c.Context.Err()
 }
 
-func indexMaintenanceUnchanged(t *testing.T, e *engine.Engine, before indexMaintenanceSnapshot) {
+func indexMaintenanceUnchanged(t *testing.T, e *core.Engine, before indexMaintenanceSnapshot) {
 	t.Helper()
 	if e.Catalog.State != before.catalog || len(e.Storage.IndexRoots) != len(before.roots) || len(e.Storage.Relations) != len(before.stores) {
 		t.Fatal("failed operation published catalog/storage/root state")

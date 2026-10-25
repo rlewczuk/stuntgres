@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -192,7 +193,7 @@ func TestNotNullAlterScanFailureAndPreparedUtility(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "ALTER TABLE t ALTER a SET NOT NULL")
 }
 
-func notNullMetadataStage(t *testing.T, e *engine.Engine) (*engine.CatalogStage, ids.ObjectRef, *catalog.Relation) {
+func notNullMetadataStage(t *testing.T, e *core.Engine) (*core.CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, "t")
 	old := e.Catalog.State.MustRelation(ref.Address)
@@ -202,7 +203,7 @@ func notNullMetadataStage(t *testing.T, e *engine.Engine) (*engine.CatalogStage,
 	next.Columns[0].Nullable = false
 	next.Constraints.NotNull = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
 	e.Mu.Lock()
-	err := table.AssignDefinitionOIDs(engine.DDLHost{E: e}, &next)
+	err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, &next)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +226,7 @@ func TestNotNullSameStorageLengthFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	enginetest.Run(t, e, "INSERT INTO t VALUES(NULL)")
-	changes, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch})
+	changes, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.Catalog.State.Get(ref.Address) != old {
 		t.Fatal(changes, err)
@@ -297,7 +298,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+					if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 						t.Fatal(err)
 					}
 				case "role":

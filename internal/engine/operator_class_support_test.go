@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 )
 
 // This fixture constructs real descriptors and real registered routine bindings;
 // no SQL, name-based class cloning or callback stands in for native support.
-func operatorClassUnitDefinitions(t *testing.T, e *Engine, name string, function ids.OID) (*catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
+func operatorClassUnitDefinitions(t *testing.T, e *core.Engine, name string, function ids.OID) (*catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
 	t.Helper()
 	builtin, ok := e.CatalogRead().OperatorClass(1978)
 	if !ok {

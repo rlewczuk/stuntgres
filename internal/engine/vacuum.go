@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -21,10 +22,10 @@ type vacuumHeapTarget struct {
 	store    *storage.Relation
 }
 
-func vacuumNotice(s *StatementScope, w table.VacuumWarning) {
+func vacuumNotice(s *core.StatementScope, w table.VacuumWarning) {
 	s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: w.Code, Message: w.Message})
 }
-func vacuumAcquire(s *StatementScope, ref ids.ObjectRef, mode lock.Mode, skip bool) error {
+func vacuumAcquire(s *core.StatementScope, ref ids.ObjectRef, mode lock.Mode, skip bool) error {
 	e := s.Engine()
 	policy := lock.Policy{NoWait: skip, TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
 	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
@@ -37,19 +38,19 @@ func vacuumAcquire(s *StatementScope, ref ids.ObjectRef, mode lock.Mode, skip bo
 // VACUUM needs only namespace/object authority for a peer TEMP relation, never
 // access to its data. Keep ordinary SELECT/DML's stricter foreign-TEMP lookup
 // boundary unchanged; this utility path still checks the actual namespace ACL.
-func resolveVacuumReference(e *Engine, auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
+func resolveVacuumReference(e *core.Engine, auth core.AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
 	if err := e.Catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
 	if len(name.Parts) == 1 {
 		// Share parsing, aliases, precedence, dedup and ACL omission with the
 		// ordinary path builder. Only this maintenance caller permits peer TEMP.
-		in := PathInput(auth, true)
+		in := core.PathInput(auth, true)
 		path, _, err := analyze.ExplicitPath(in, analyze.RelationLookup, true)
 		if err != nil {
 			return ids.ObjectRef{}, err
 		}
-		return ResolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Path: analyze.EffectivePath(in, path, analyze.RelationLookup)})
+		return core.ResolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Path: analyze.EffectivePath(in, path, analyze.RelationLookup)})
 	}
 	if len(name.Parts) == 2 && name.Parts[0].Text != "pg_temp" {
 		address := auth.DefinitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
@@ -58,13 +59,13 @@ func resolveVacuumReference(e *Engine, auth AuthorizationView, name parser.Objec
 			if err := auth.CanUse(auth.Ref(address)); err != nil {
 				return ids.ObjectRef{}, err
 			}
-			return ResolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Qualified: address})
+			return core.ResolveRelationPathSnapshot(auth, name, analyze.NamespaceSelection{Qualified: address})
 		}
 	}
 	return e.ResolveRelationReference(auth, name, true)
 }
 
-func vacuumTargets(e *Engine, s *StatementScope, raw *parser.Vacuum, skipLocked bool) ([]table.VacuumTarget, error) {
+func vacuumTargets(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, skipLocked bool) ([]table.VacuumTarget, error) {
 	var selection table.VacuumSelection
 	// All expansions finish before work. Deliver only genuine selection notices,
 	// in encounter order and outside every checkpoint/metadata mutex region.
@@ -127,30 +128,30 @@ func vacuumTargets(e *Engine, s *StatementScope, raw *parser.Vacuum, skipLocked 
 	}
 	return selection.Targets, nil
 }
-func executeVacuum(e *Engine, s *StatementScope, raw *parser.Vacuum, count int) (Result, error) {
+func executeVacuum(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	options, err := table.NormalizeVacuum(raw)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err := table.CheckVacuumEntry(options, s.Owner.InBlock()); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if options.OnlyDatabase {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
 		if err := vacuumDatabasePreflightLocked(e, s); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		e.UpdateDatabaseMaintenanceLocked()
 		s.Completed = true
-		return Result{}, nil
+		return core.Result{}, nil
 	}
 	targets, err := vacuumTargets(e, s, raw, options.SkipLocked)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	for _, target := range targets {
 		checkpoint := e.Locks.Checkpoint(s.LockTicket)
@@ -168,7 +169,7 @@ func executeVacuum(e *Engine, s *StatementScope, raw *parser.Vacuum, count int) 
 			return vacuumRelation(e, s, target, options)
 		}()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	if !options.SkipDatabase {
@@ -179,13 +180,13 @@ func executeVacuum(e *Engine, s *StatementScope, raw *parser.Vacuum, count int) 
 		}
 		e.Mu.Unlock()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	s.Completed = true
-	return Result{}, nil
+	return core.Result{}, nil
 }
 
-func definitionNamespace(a AuthorizationView, address ids.ObjectAddress) (*catalog.Namespace, bool) {
+func definitionNamespace(a core.AuthorizationView, address ids.ObjectAddress) (*catalog.Namespace, bool) {
 	return catalog.DefinitionNamespaceAt(a.Catalog, a.Definition, address)
 }

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -19,7 +20,7 @@ import (
 // All rows and descriptors belong exclusively to Restore's isolated engine.
 // No public INSERT execution, authority relaxation or definition evaluation is
 // involved. The destination engine still receives one fenced replacement only.
-func importMaterializedSnapshots(e *Engine, ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
+func importMaterializedSnapshots(e *core.Engine, ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -120,7 +121,7 @@ func importMaterializedSnapshots(e *Engine, ctx context.Context, op *session.Ope
 // Captured cells use the same exact INSERT binder transport as ordinary private
 // table replay. A real statement scope also retains normal CHECK providers for
 // all other non-NULL conversions; no constraint suppression is introduced here.
-func importMaterializedSnapshotRow(e *Engine, ctx context.Context, op *session.Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
+func importMaterializedSnapshotRow(e *core.Engine, ctx context.Context, op *session.Operation, auth core.AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return nil, err
@@ -141,14 +142,14 @@ func importMaterializedSnapshotRow(e *Engine, ctx context.Context, op *session.O
 		if captureErr != nil {
 			return nil, captureErr
 		}
-		if OperationReplayOrZero(op).DomainReplay != nil {
+		if core.OperationReplayOrZero(op).DomainReplay != nil {
 			return nil, fmt.Errorf("stuntgres: nested native replay transport")
 		}
-		OperationReplay(op).DomainReplay = capture
-		defer func() { OperationReplay(op).DomainReplay = nil }()
+		core.OperationReplay(op).DomainReplay = capture
+		defer func() { core.OperationReplay(op).DomainReplay = nil }()
 	}
 	e.Mu.Lock()
-	b, err := Describe(ctx, e.AnalysisHost(op), s, auth, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, nil, nil)
+	b, err := core.Describe(ctx, e.AnalysisHost(op), s, auth, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, nil, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -158,7 +159,7 @@ func importMaterializedSnapshotRow(e *Engine, ctx context.Context, op *session.O
 		return nil, err
 	}
 	scope.RoutineDependencies = b.Dependencies
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: environment, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: environment, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 	evaluation.Input.DomainChecks = &evaluation
 	return view.EvaluateMaterializedSnapshotRows(&evaluation, &b, d, s)
 }

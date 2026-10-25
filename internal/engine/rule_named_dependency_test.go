@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -20,7 +21,7 @@ import (
 	"testing"
 )
 
-func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine, *session.Session, *catalog.Relation, *catalog.Relation) {
+func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*core.Engine, *session.Session, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -88,7 +89,7 @@ func TestRuleNamedConstraintDependencies(t *testing.T) {
 				}
 				stage := e.BeginCatalogStage(catalogView)
 				defer e.DiscardCatalogStage(stage)
-				edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{constraint, backing})
+				edges, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{constraint, backing})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -120,7 +121,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 					e, session, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
 					before := e.Catalog.State
 					op := alterConstraintOperation(t, session)
-					auth, err := OperationAuthorization(op)
+					auth, err := core.OperationAuthorization(op)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -318,7 +319,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(catalogView)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider})
+			edges, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{provider})
 			if err != nil {
 				t.Fatal(err)
 			}

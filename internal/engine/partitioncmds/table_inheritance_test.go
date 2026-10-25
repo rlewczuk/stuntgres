@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func inheritanceUnitRelation(e *engine.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
+func inheritanceUnitRelation(e *core.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
 	for i, name := range names {
 		d.Index[name] = i
@@ -29,7 +30,7 @@ func inheritanceUnitRelation(e *engine.Engine, name string, id ids.OID, names ..
 	d.ColumnMeta.HighWater = int32(len(names))
 	return d
 }
-func inheritanceUnitView(e *engine.Engine, relations ...*catalog.Relation) catalog.Read {
+func inheritanceUnitView(e *core.Engine, relations ...*catalog.Relation) catalog.Read {
 	state := catalog.CloneState(e.CatalogRead().State())
 	for _, d := range relations {
 		state.SetDescriptor(d.Address(), d)
@@ -78,7 +79,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{2: {OID: 23003, Expression: literal}}
 	child := inheritanceUnitRelation(e, "c", 22002, "a", "x", "z")
 	view := inheritanceUnitView(e, p, q)
-	auth, err := engine.OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +87,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	auth.Recapture(auth.Catalog)
 	stage := e.BeginCatalogStage(view)
 	b := analyze.Binding{Create: analyze.CreateTableBinding{Inheritance: []analyze.InheritanceInput{{Source: p}, {Source: q}}, LocalColumns: map[string]bool{"z": true}, Declarations: make([]analyze.ColumnDeclaration, 3)}}
-	if err := table.StageInheritance(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, child, b); err != nil {
+	if err := table.StageInheritance(engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, child, b); err != nil {
 		t.Fatal(err)
 	}
 	if len(child.Constraints.NotNull) != 1 || child.Constraints.NotNull[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
@@ -95,7 +96,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if !reflect.DeepEqual(child.Inheritance.Parents, inheritanceUnitParents(p.Address(), q.Address())) || !analyze.SameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
 		t.Fatal(child.ColumnMeta.Defaults, p.ColumnMeta.Defaults)
 	}
-	if err := table.AssignDefinitionOIDs(engine.DDLHost{E: e}, child); err != nil {
+	if err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, child); err != nil {
 		t.Fatal(err)
 	}
 	if child.Constraints.NotNull[0].OID == p.Constraints.NotNull[0].OID || child.ColumnMeta.Defaults[1].OID == p.ColumnMeta.Defaults[1].OID {
@@ -180,7 +181,7 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23000, Expression: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: first}}}
 	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23001, Expression: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: second}}}
 	view := inheritanceUnitView(e, p, q)
-	auth, err := engine.OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +196,7 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 		}
 		b.Create.Declarations[0].CopiedDefault = kind == "copied"
 		stage := e.BeginCatalogStage(view)
-		err := table.StageInheritance(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, child, b)
+		err := table.StageInheritance(engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, child, b)
 		if !override {
 			diagnostic, ok := err.(interface{ SQLState() string })
 			if !ok || diagnostic.SQLState() != "42611" {
@@ -221,7 +222,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 	e.Catalog.PublishLocked(inheritanceUnitView(e, p, q).State())
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	auth, err := engine.OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +234,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 		{Column: &parser.Column{Name: "a", TypeName: parser.TypeName{Name: "integer"}}},
 	}}
 	e.Mu.Lock()
-	bound, err := engine.Describe(op.Context(), e.AnalysisHost(op), syntax, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := core.Describe(op.Context(), e.AnalysisHost(op), syntax, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -294,7 +295,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 	expression := plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: value}
 	parent.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: expression, Planned: expression}}
 	view := inheritanceUnitView(e, parent)
-	auth, err := engine.OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +307,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		if explicit {
 			b.Create.Declarations[0].Generation = &parser.GenerationDefinition{Kind: "stored"}
 		}
-		if err := table.StageInheritance(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: e.BeginCatalogStage(view)}}, auth, child, b); err != nil {
+		if err := table.StageInheritance(engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: e.BeginCatalogStage(view)}}, auth, child, b); err != nil {
 			t.Fatal(err)
 		}
 		provenance := child.Inheritance.Columns[1]

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -41,7 +42,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			authority := auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
 			// Empty descriptor/removal sets are deliberate: storage-only TRUNCATE and
 			// other staged authorities must still record the database predecessor.
-			if err := EngineCaptureCatalogStageLocked(e, stage, changes, auth.Catalog.State(), authority); err != nil {
+			if err := core.EngineCaptureCatalogStageLocked(e, stage, changes, auth.Catalog.State(), authority); err != nil {
 				t.Fatal(err)
 			}
 			if changes.Originals[catalog.CurrentDatabaseAddress] != committed || authority.DatabasePredecessor != committed || authority.DatabaseAuthority != auth.Catalog.Get(catalog.CurrentDatabaseAddress) {
@@ -63,7 +64,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			if err := e.CatalogPreflightLocked(released); err == nil {
 				t.Fatal("outer commit accepted changed database predecessor")
 			}
-			if err := EngineCaptureCatalogStageLocked(e, stage, session.NewJournal(), auth.Catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
+			if err := core.EngineCaptureCatalogStageLocked(e, stage, session.NewJournal(), auth.Catalog.State(), nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("Finish accepted changed committed predecessor", err)
 			}
 			if auth.Catalog.Get(catalog.CurrentDatabaseAddress) != stage.DatabaseAuthority || auth.RoleRecord.Revision != e.RoleStore.Published.Revision {
@@ -134,7 +135,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 			if err := message.scope.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			retained, err := OperationAuthorization(message.op)
+			retained, err := core.OperationAuthorization(message.op)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -9,7 +10,7 @@ import (
 
 // Restore alone calls this interpreter, against its isolated catalog. It is not
 // an UPDATE execution path and never grants writable access to catalog sources.
-func restoreAttributeRank(e *Engine, op *session.Operation, raw *parser.Update) error {
+func restoreAttributeRank(e *core.Engine, op *session.Operation, raw *parser.Update) error {
 	name, column, rank, err := table.RestoreAttributeRankSyntax(raw)
 	if err != nil {
 		return err
@@ -17,7 +18,7 @@ func restoreAttributeRank(e *Engine, op *session.Operation, raw *parser.Update) 
 	if err = op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -26,7 +27,7 @@ func restoreAttributeRank(e *Engine, op *session.Operation, raw *parser.Update) 
 		return err
 	}
 	if !actor.Superuser {
-		return SQLError("42501", "permission denied for table pg_attribute")
+		return core.SQLError("42501", "permission denied for table pg_attribute")
 	}
 	e.Mu.Lock()
 	if e.ImportTargets == nil || auth.Owner != &e.Catalog.Owner || auth.Session != op.Session || auth.RoleRecord != e.RoleStore.Published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.Catalog.Domain || auth.Catalog.State() != e.Catalog.State || auth.Catalog.Epoch() != e.Catalog.State.Epoch() {

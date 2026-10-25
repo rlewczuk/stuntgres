@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
@@ -75,7 +76,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		err = typedef.StageCreateDomainLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: staged}}}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		err = typedef.StageCreateDomainLocked(TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: staged}}}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -124,7 +125,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.whole AS public.di[]"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.nested AS public.whole[]"))
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.di RESTRICT")
-	edges, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
+	edges, err := core.DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +311,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 }
 
 // These are valid catalog-provider component fixtures, not public TEMP-table SQL.
-func arrayComponentTemporary(t *testing.T, e *Engine, op *session.Operation, prototype *catalog.Relation) *catalog.Relation {
+func arrayComponentTemporary(t *testing.T, e *core.Engine, op *session.Operation, prototype *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	e.Mu.Lock()
 	nsOID, err := e.Catalog.AllocateOIDLocked()

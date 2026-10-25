@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
@@ -57,8 +57,8 @@ type client struct {
 	messages       <-chan frontendMessage
 	sessionEnded   <-chan error
 	protocolState  protocolState
-	copyStream     protocolCopy             // Serial dispatcher only; never retained by engine.
-	copyHooks      engine.CopyProtocolHooks // Bound methods cached once per physical connection.
+	copyStream     protocolCopy           // Serial dispatcher only; never retained by engine.
+	copyHooks      core.CopyProtocolHooks // Bound methods cached once per physical connection.
 	copyDrain      [8192]byte
 	lastSettings   map[string]string
 	commandCancel  context.CancelCauseFunc // server.mu
@@ -103,7 +103,7 @@ func (s *server) newClient(socket net.Conn) (*client, error) {
 	ctx, cancel := context.WithCancel(s.ctx)
 	c := &client{server: s, socket: socket, wire: newWire(socket), ctx: ctx, cancel: cancel, id: s.nextID, key: secret, keyLength: 4, lastSettings: make(map[string]string)}
 	c.copyStream.client = c
-	c.copyHooks = engine.CopyProtocolHooks{Start: c.copyStream.start, FinishInput: c.copyStream.finishInput}
+	c.copyHooks = core.CopyProtocolHooks{Start: c.copyStream.start, FinishInput: c.copyStream.finishInput}
 	s.clients[c] = struct{}{}
 	s.workers.Add(1)
 	return c, nil

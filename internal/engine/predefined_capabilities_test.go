@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -253,7 +254,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 	}
 	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "grant_target"})
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
-	view, err := OperationAuthorization(op)
+	view, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

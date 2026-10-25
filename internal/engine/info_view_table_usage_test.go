@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -64,12 +65,12 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
-	input := func(read catalog.Read, authority AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: authority.Roles, Owner: read.Owner(), Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Source: read.MustRelation(source.Address()), Runtime: EngineCatalogRuntime{Auth: authority, Database: "captured_database"}}
+	input := func(read catalog.Read, authority core.AuthorizationView) pgcatalog.Input {
+		return pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: authority.Roles, Owner: read.Owner(), Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Source: read.MustRelation(source.Address()), Runtime: core.EngineCatalogRuntime{Auth: authority, Database: "captured_database"}}
 	}
 	check := func(in pgcatalog.Input, want map[[2]string]int) [][]sqltype.Value {
 		t.Helper()
-		captured, err := CaptureCatalogSourceRows(in, produce)
+		captured, err := core.CaptureCatalogSourceRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,7 +177,7 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 	// dependency walk independently of descriptor enumeration order.
 	for _, remaining := range []int{1, 3, 10, 15} {
 		ctx := &dtpCancelContext{Context: context.Background(), remaining: remaining}
-		if refs, err := (EngineCatalogRuntime{Auth: auth}).ViewReferences(ctx, view, &v); refs != nil || !errors.Is(err, context.Canceled) {
+		if refs, err := (core.EngineCatalogRuntime{Auth: auth}).ViewReferences(ctx, view, &v); refs != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("view-reference cancellation exposed prefix", remaining, refs, err)
 		}
 	}
@@ -198,11 +199,15 @@ func TestInfoViewTableUsageProducer(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Epoch = 0 },
 		func(in *pgcatalog.Input) { in.Ref = new(ids.Domain).Ref(view.Epoch(), source.Address()) },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
-		func(in *pgcatalog.Input) { a := auth; a.RoleRecord = nil; in.Runtime = EngineCatalogRuntime{Auth: a} },
+		func(in *pgcatalog.Input) {
+			a := auth
+			a.RoleRecord = nil
+			in.Runtime = core.EngineCatalogRuntime{Auth: a}
+		},
 		func(in *pgcatalog.Input) {
 			a := auth
 			a.State.CurrentUser = f.e.RoleStore.Domain.Principal(99999)
-			in.Runtime = EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.EngineCatalogRuntime{Auth: a}
 		},
 	} {
 		in := input(view, auth)
@@ -327,7 +332,7 @@ func infoViewTableUsageCapture(t *testing.T) {
 	next.SetDescriptor(renamed.Address(), &renamed)
 	f.e.Catalog.PublishLocked(next)
 	f.e.Mu.Lock()
-	captured, err := EngineOpenRelationSourceLocked(f.e, scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	captured, err := core.EngineOpenRelationSourceLocked(f.e, scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("coherent captured usage source", err)
 	}
@@ -364,7 +369,7 @@ func infoViewTableUsageCapture(t *testing.T) {
 	}
 	freshView := scope.Inquiry.CommentCatalog
 	f.e.Mu.Lock()
-	fresh, err := EngineOpenRelationSourceLocked(f.e, scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	fresh, err := core.EngineOpenRelationSourceLocked(f.e, scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || fresh == nil {
 		t.Fatal("fresh captured usage source", err)
 	}

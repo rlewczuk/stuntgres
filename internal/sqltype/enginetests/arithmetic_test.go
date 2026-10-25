@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -37,7 +38,7 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		bound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

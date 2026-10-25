@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -15,10 +16,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func deleteProbeScope(t *testing.T, s *session.Session) (*StatementScope, analyze.Binding, *exec.Source) {
+func deleteProbeScope(t *testing.T, s *session.Session) (*core.StatementScope, analyze.Binding, *exec.Source) {
 	t.Helper()
 	op := transactionOperation(t, s)
-	scope, err := EngineOf(s).StartStatement(op)
+	scope, err := core.EngineOf(s).StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,17 +200,17 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	version := source.Committed[0]
 	candidate := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	copiedScope := *scope
-	if err := ScopeAcquireRow(&copiedScope, candidate); err == nil {
+	if err := core.ScopeAcquireRow(&copiedScope, candidate); err == nil {
 		t.Fatal("copied scope acquired a row")
 	}
-	var absent *WriteStage
+	var absent *core.WriteStage
 	if _, err := absent.Delete(candidate); err == nil {
 		t.Fatal("nil stage accepted")
 	}
 	if _, err := scope.Writes().Delete(candidate); err == nil {
 		t.Fatal("ungranted deletion accepted")
 	}
-	if err := ScopeAcquireRow(scope, candidate); err != nil {
+	if err := core.ScopeAcquireRow(scope, candidate); err != nil {
 		t.Fatal(err)
 	}
 	copied := *scope.Writes()
@@ -219,7 +220,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	invalidStorage := *candidate.Storage
 	invalid := candidate
 	invalid.Storage = &invalidStorage
-	if err := ScopeAcquireRow(scope, invalid); err == nil {
+	if err := core.ScopeAcquireRow(scope, invalid); err == nil {
 		t.Fatal("copied storage acquired a row")
 	}
 	if _, err := scope.Writes().Delete(invalid); err == nil {
@@ -259,7 +260,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.Committed[0]
 	candidate := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: version.Row, Version: version.Version, Ordinal: 0}
-	if err := ScopeAcquireRow(scope, candidate); err != nil {
+	if err := core.ScopeAcquireRow(scope, candidate); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
@@ -269,7 +270,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)
 	}
-	if err := ScopeAcquireRow(scope, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := core.ScopeAcquireRow(scope, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted row acquisition", err)
 	}
 	_ = scope.Finish(ids.ErrCatalogReplaced)

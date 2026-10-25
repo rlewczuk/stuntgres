@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -10,9 +11,9 @@ import (
 
 // The ADD COLUMN candidate runs under Engine.mu; DEFAULT recipes keep the
 // statement's authority for row fills.
-func addColumnCandidate(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, table.AddedColumn, error) {
+func addColumnCandidate(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, table.AddedColumn, error) {
 	scope.RoutineAuth = auth
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.AddColumnCandidate(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, old, action, captured)
+	return table.AddColumnCandidate(alterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, action, captured)
 }

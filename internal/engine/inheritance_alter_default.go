@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -12,10 +13,10 @@ import (
 // The ordinary default provider is metadata-only. Cook each physical default
 // against its own column Usage, but publish the complete hierarchy only once.
 // The caller holds Engine.mu; every return releases it.
-func alterInheritanceDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (Result, error) {
+func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (core.Result, error) {
 	targets, auth, err := acquireInheritanceDefinitions(scope, root, !raw.Only)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
@@ -43,33 +44,33 @@ func alterInheritanceDefaultLocked(e *Engine, scope *StatementScope, op *session
 		}
 		if err != nil {
 			e.Mu.Unlock()
-			return Result{}, err
+			return core.Result{}, err
 		}
 		next, err := table.InheritanceDefaultCandidate(old, childSlot, definition)
 		if err != nil {
 			e.Mu.Unlock()
-			return Result{}, err
+			return core.Result{}, err
 		}
 		store := e.PrivateStorageLocked(scope.Owner.Catalog, old.Address())
 		if store == nil {
 			e.Mu.Unlock()
-			return Result{}, ids.ErrCatalogReplaced
+			return core.Result{}, ids.ErrCatalogReplaced
 		}
 		length, generation, ends := len(store.Versions), store.Generation, store.Ends
 		e.Mu.Unlock()
 		if err := stage.AlterRelation(op.Context(), ref, next, store, store, length, generation, ends); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
 		scope.Completed = true
 	}
-	return Result{}, err
+	return core.Result{}, err
 }

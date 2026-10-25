@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
@@ -51,7 +52,7 @@ func columnsUnitPairedCapture(t *testing.T) {
 	e.Catalog.PublishLocked(next)
 	e.RoleStore.PublishLocked(roles)
 	e.Mu.Lock()
-	captured, err := EngineOpenRelationSourceLocked(e, scope, old.Owner().Domain.Ref(old.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	captured, err := core.EngineOpenRelationSourceLocked(e, scope, old.Owner().Domain.Ref(old.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("paired columns source", err)
 	}

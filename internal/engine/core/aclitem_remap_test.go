@@ -213,38 +213,6 @@ func TestACLItemStaleDump(t *testing.T) {
 	}
 }
 
-func aclUnitRoles(e *engine.Engine, names ...string) {
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	next := cloneRoleFixture(e.RoleStore.Published)
-	for i, name := range names {
-		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.RoleStore.Domain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
-	}
-	e.RoleStore.PublishLocked(next)
-	if nextID := uint64(20000 + len(names)); e.RoleStore.NextPrincipal() < nextID {
-		e.RoleStore.InstallPrincipalFrontierLocked(nextID)
-	}
-}
-
-func aclUnitValue(t *testing.T, e *engine.Engine, text string) sqltype.Value {
-	t.Helper()
-	d := aclUnitType(t, e, sqltype.ACLItem)
-	v, err := d.InputWithEnvironment(context.Background(), text, -1, sqltype.InputEnvironment{ACLItem: e.CaptureACLItemInput(engine.AuthorizationView{View: access.View{Roles: e.Roles()}}, nil)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return v
-}
-
-func aclUnitType(t *testing.T, e *engine.Engine, id sqltype.ID) *sqltype.Descriptor {
-	t.Helper()
-	d, ok := e.CatalogRead().LookupType(id)
-	if !ok {
-		t.Fatal("missing type", id)
-	}
-	return d
-}
-
 func retireFixtureRole(r *access.RoleRecord, ref authorization.PrincipalRef) {
 	d := fixtureRole(r, ref)
 	r.Root = r.Root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{ref: d})

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -70,7 +71,7 @@ func TestTimezonePreparedTemporalPayloads(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		expected := &engine.StatementDescription{Temporals: first.Prepared.Temporals}
+		expected := &core.StatementDescription{Temporals: first.Prepared.Temporals}
 		second := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}, expected)
 		replayed, err := second.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {

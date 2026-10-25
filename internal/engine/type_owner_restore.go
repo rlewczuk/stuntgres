@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -11,9 +12,9 @@ import (
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it
 // on every subsequent statement; it is not general ALTER OWNER eligibility.
-func captureRestoredTypeOwner(e *Engine, op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef, kind string) (typedef.RestoredTypeOwner, error) {
+func captureRestoredTypeOwner(e *core.Engine, op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef, kind string) (typedef.RestoredTypeOwner, error) {
 	reject := func() (typedef.RestoredTypeOwner, error) {
-		return typedef.RestoredTypeOwner{}, SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind))
+		return typedef.RestoredTypeOwner{}, core.SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind))
 	}
 	if op == nil {
 		return reject()
@@ -21,13 +22,13 @@ func captureRestoredTypeOwner(e *Engine, op *session.Operation, created ids.Obje
 	if err := op.Context().Err(); err != nil {
 		return typedef.RestoredTypeOwner{}, err
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return typedef.RestoredTypeOwner{}, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if !PartitionConstraintReplayImport(e, op, auth) || created.Domain() != e.Catalog.Domain || created.Epoch != auth.Catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
+	if !core.PartitionConstraintReplayImport(e, op, auth) || created.Domain() != e.Catalog.Domain || created.Epoch != auth.Catalog.Epoch() || created.Address.ClassID != ids.TypeClassID || created.Address.SubID != 0 {
 		return reject()
 	}
 	if _, captured := e.ImportTargets[owner]; !captured {
@@ -65,12 +66,12 @@ func captureRestoredTypeOwner(e *Engine, op *session.Operation, created ids.Obje
 	return typedef.RestoredTypeOwner{Ref: created, Type: typ, Kind: kind, Namespace: namespace, Owner: owner, Creator: actor.Ref}, nil
 }
 
-func restoreTypeOwner(e *Engine, op *session.Operation, raw *parser.AlterOwner, pair typedef.RestoredTypeOwner) error {
+func restoreTypeOwner(e *core.Engine, op *session.Operation, raw *parser.AlterOwner, pair typedef.RestoredTypeOwner) error {
 	kind := pair.Kind
 	if raw != nil {
 		kind = raw.Kind
 	}
-	reject := func() error { return SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind)) }
+	reject := func() error { return core.SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind)) }
 	if raw == nil || raw.Kind != pair.Kind || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.Ref == (ids.ObjectRef{}) {
 		return reject()
 	}
@@ -81,7 +82,7 @@ func restoreTypeOwner(e *Engine, op *session.Operation, raw *parser.AlterOwner, 
 	if current != pair || raw.Name.Parts[0].Text != pair.Namespace.Name() || raw.Name.Parts[1].Text != pair.Type.Name() {
 		return reject()
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return err
 	}

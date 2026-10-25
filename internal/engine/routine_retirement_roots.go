@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -12,7 +13,7 @@ import (
 // Routine DROP has only captured identity roots at this point. Hold those
 // objects before discovering dependents, then use grant-time metadata without
 // resolving the original names again or repeating conditional notices.
-func acquireRoutineRetirementRoots(s *StatementScope, stage *CatalogStage) error {
+func acquireRoutineRetirementRoots(s *core.StatementScope, stage *core.CatalogStage) error {
 	var scratch [8]ids.ObjectAddress
 	addresses := append(scratch[:0], stage.DomainTargets...)
 	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })

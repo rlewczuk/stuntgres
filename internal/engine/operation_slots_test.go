@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"testing"
 )
@@ -13,7 +14,7 @@ func TestOperationAnalysisSlotHoldsItsHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	h, _ := op.Analysis.(*BindingHost)
+	h, _ := op.Analysis.(*core.BindingHost)
 	if h == nil || h.Op != op || h.Engine != e || e.AnalysisHost(op) != h {
 		t.Fatalf("analysis slot %#v is not the operation's own host", op.Analysis)
 	}
@@ -25,16 +26,16 @@ func TestOperationAnalysisSlotHoldsItsHost(t *testing.T) {
 func TestOperationReplaySlot(t *testing.T) {
 	op := &session.Operation{}
 	allocs := testing.AllocsPerRun(10, func() {
-		if OperationReplayOrZero(op).TableDestination {
+		if core.OperationReplayOrZero(op).TableDestination {
 			t.Fatal("missing replay state does not read as zero")
 		}
 	})
 	if allocs != 0 || op.ReplaySlot != nil {
 		t.Fatalf("reading missing replay state allocated (%v allocs, slot %v)", allocs, op.ReplaySlot)
 	}
-	r := OperationReplay(op)
+	r := core.OperationReplay(op)
 	r.TableDestination = true
-	if OperationReplay(op) != r || !OperationReplayOrZero(op).TableDestination {
+	if core.OperationReplay(op) != r || !core.OperationReplayOrZero(op).TableDestination {
 		t.Fatal("operationReplay did not keep one replay state")
 	}
 }

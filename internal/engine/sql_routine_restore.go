@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/session"
 )
@@ -12,7 +13,7 @@ import (
 // whole replay. Only a terminal structured missing callable may defer binding;
 // invocation must bind and check the declared result before opening producers.
 
-func validateRestoredSQLRoutines(e *Engine, ctx context.Context, op *session.Operation) error {
+func validateRestoredSQLRoutines(e *core.Engine, ctx context.Context, op *session.Operation) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)

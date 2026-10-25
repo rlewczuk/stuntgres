@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -23,13 +24,13 @@ func TestPGTransformCapture(t *testing.T) {
 	if !ok {
 		t.Fatal("missing transform producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: engine.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Owner: view.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	if rows, err := produce(input); err != nil || rows == nil || len(rows) != 0 {
 		t.Fatal("truthful empty transform inventory", rows, err)
 	}
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 	input.Ref = ref
-	captured, err := engine.CaptureCatalogSourceRows(input, produce)
+	captured, err := core.CaptureCatalogSourceRows(input, produce)
 	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 0 {
 		t.Fatal("empty capture lost source identity", captured, err)
 	}
@@ -61,7 +62,7 @@ func TestPGTransformCapture(t *testing.T) {
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation must precede shape admission", rows, err)
 	}
-	if got, err := engine.CaptureCatalogSourceRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published source", got, err)
 	}
 }
@@ -133,7 +134,7 @@ func TestPGTransformOwnership(t *testing.T) {
 	if !ok {
 		t.Fatal("missing transform producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: engine.EngineCatalogRuntime{}}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: freshView, Source: fresh, Owner: freshView.Owner(), Runtime: core.EngineCatalogRuntime{}}
 	if rows, err := produce(input); rows == nil || len(rows) != 0 || err != nil {
 		t.Fatal("replacement transform capture", rows, err)
 	}

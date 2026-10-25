@@ -7,11 +7,12 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func partitionInfoUnitCatalog(t *testing.T, e *engine.Engine) (catalog.Read, *sqltype.Descriptor) {
+func partitionInfoUnitCatalog(t *testing.T, e *core.Engine) (catalog.Read, *sqltype.Descriptor) {
 	t.Helper()
 	base := e.CatalogRead()
 	state := catalog.CloneState(base.State())
@@ -80,7 +81,7 @@ func TestPartitionInfoCaptureOwnership(t *testing.T) {
 	regclass, _ := view.LookupType(sqltype.Regclass)
 	scope := tablespaceInfoUnitScope(t, e)
 	scope.Inquiry.CommentCatalog = view
-	host := engine.HostOf(scope)
+	host := core.HostOf(scope)
 	old, err := host.PartitionTree(41011, shape)
 	if err != nil {
 		t.Fatal(err)

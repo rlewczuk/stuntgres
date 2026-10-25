@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"testing"
 
@@ -21,7 +22,7 @@ func (p stubTypeProvider) Validate(catalog.Read, catalog.Descriptor) error { ret
 func TestInstalledCodecArrayUsesRegisteredTypeProvider(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
-		install  func(*testing.T) (*Engine, *catalog.Extension, *catalog.Type)
+		install  func(*testing.T) (*core.Engine, *catalog.Extension, *catalog.Type)
 		provider catalog.ExtensionImplementation
 	}{
 		{"intarray", intarrayUnitInstalled, extension.StockIntarray},

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -68,10 +69,10 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
+			if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 				t.Fatal("actual admission", err)
 			}
-			if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), nil, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), nil, captured, nil); err == nil {
 				t.Fatal("missing dependency repaired")
 			}
 			stale := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -80,7 +81,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 					stale[i].Revision++
 				}
 			}
-			if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), stale, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), stale, captured, nil); err == nil {
 				t.Fatal("stale declaration admitted")
 			}
 			// Reuse the actual routine through the existing custom-operator seam.

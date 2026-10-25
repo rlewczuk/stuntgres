@@ -7,6 +7,7 @@ import (
 	"maps"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -160,7 +161,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 // checked view waits for retirement rather than creating an impossible
 // synchronous late-consumer schedule. Disjoint durable publication is preserved
 // by the maintenance merge; it does not itself require a new closure.
-func extensionTemporaryLatePeer(t *testing.T, e *Engine, ext *catalog.Extension, mixed bool, resume func()) {
+func extensionTemporaryLatePeer(t *testing.T, e *core.Engine, ext *catalog.Extension, mixed bool, resume func()) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -308,7 +309,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	}
 }
 
-func extensionRetirementRowsUnit(t *testing.T, e *Engine, op *session.Operation) {
+func extensionRetirementRowsUnit(t *testing.T, e *core.Engine, op *session.Operation) {
 	t.Helper()
 	result := roleExecute(t, e, op, "SELECT id,txt FROM public.ext_survivor ORDER BY id")
 	defer result.Rows.Close()

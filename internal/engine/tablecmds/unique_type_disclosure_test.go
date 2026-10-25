@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/sqlstate"
 )
@@ -57,19 +58,19 @@ func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
 				constraint := parent.Constraints.Unique[0]
 				root := e.Storage.IndexRoots[constraint.Index]
 				store := e.Storage.Relations[ref.Address]
-				execute := func(query string) (engine.Result, error) {
+				execute := func(query string) (core.Result, error) {
 					ast := enginetest.Statement(t, query)
 					if !prepared {
 						return e.Execute(owner, ast, 0, nil)
 					}
 					scope, err := e.StartStatement(owner)
 					if err != nil {
-						return engine.Result{}, err
+						return core.Result{}, err
 					}
 					description, err := scope.Describe(ast)
 					if err != nil {
 						scope.Finish(err)
-						return engine.Result{}, err
+						return core.Result{}, err
 					}
 					scope.Expected = &description
 					result, err := scope.Execute(ast, 0, nil)

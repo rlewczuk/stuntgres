@@ -6,7 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"runtime"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -14,7 +14,7 @@ import (
 )
 
 type conn struct {
-	engine           *engine.Engine // The engine that hosts session; immutable.
+	engine           *core.Engine // The engine that hosts session; immutable.
 	session          *session.Session
 	cleanup          runtime.Cleanup
 	closed           atomic.Bool
@@ -129,7 +129,7 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 // Direct and prepared execution share one message/statement admission path.
 // Completed outputs are transport, not transaction or execution authority.
 type commandOutput struct {
-	engine.Result
+	core.Result
 	sets []exec.RowResult
 }
 
@@ -147,7 +147,7 @@ func (r *commandOutput) close() error {
 	r.sets = nil
 	return first
 }
-func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *engine.StatementDescription) (r commandOutput, description engine.StatementDescription, parsed parser.Statement, err error) {
+func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *core.StatementDescription) (r commandOutput, description core.StatementDescription, parsed parser.Statement, err error) {
 	defer runtime.KeepAlive(c)
 	if err = c.check(ctx); err != nil {
 		return
@@ -218,14 +218,14 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 		batch = true
 		for i, statement := range statements {
 			if i != 0 {
-				var next *engine.StatementScope
+				var next *core.StatementScope
 				next, err = scope.NextStatement()
 				if err != nil {
 					return
 				}
 				scope = next
 			}
-			var current engine.Result
+			var current core.Result
 			current, err = scope.Execute(statement, 0, frameImporter(values))
 			err = scope.Finish(err)
 			err = op.CommandError(err)
@@ -252,7 +252,7 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	r.RowSets = nil
 	return
 }
-func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *engine.StatementDescription) (engine.Result, error) {
+func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *core.StatementDescription) (core.Result, error) {
 	r, _, _, err := c.request(ctx, "", ast, args, false, false, expected)
 	for _, rows := range r.sets {
 		if closeErr := rows.Close(); err == nil {

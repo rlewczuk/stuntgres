@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
@@ -101,7 +102,7 @@ func TestVacuumF2OlderPublisherHorizon(t *testing.T) {
 							sessionSQL(t, older, "PREPARE TRANSACTION 'review_birth'")
 							defer func() {
 								e.Mu.Lock()
-								pending := EnginePreparedRef(e).Lookup("review_birth") != nil
+								pending := core.EnginePreparedRef(e).Lookup("review_birth") != nil
 								e.Mu.Unlock()
 								if pending {
 									sessionSQL(t, creator, "ROLLBACK PREPARED 'review_birth'")

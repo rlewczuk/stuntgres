@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -32,8 +33,8 @@ func TestAnalysisHostWithoutOperation(t *testing.T) {
 		t.Fatal("ReplayInsertAuthority() = true without an operation")
 	}
 	host.EmitWarning(sqlstate.Error{Code: "01000", Message: "dropped"})
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	got, ok := b.Host.(*engine.BindingHost)
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	got, ok := b.Host.(*core.BindingHost)
 	if !ok || got.Engine != e || got.Op != nil {
 		t.Fatalf("binder host = %#v, want the engine and no operation", b.Host)
 	}
@@ -63,13 +64,13 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 	if notices := op.DetachNotices(); len(notices) != 1 || notices[0].Message != "kept" {
 		t.Fatalf("notices = %#v, want the warning", notices)
 	}
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	if got, ok := b.Host.(*engine.BindingHost); !ok || got.Engine != e || got.Op != op {
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	if got, ok := b.Host.(*core.BindingHost); !ok || got.Engine != e || got.Op != op {
 		t.Fatalf("binder host = %#v, want the engine and the operation", b.Host)
 	}
 }
 
 // binderOperation and binderEngine read a binder's host state in tests.
-func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*engine.BindingHost).Op }
+func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*core.BindingHost).Op }
 
-func binderEngine(b *analyze.Binder) *engine.Engine { return b.Host.(*engine.BindingHost).Engine }
+func binderEngine(b *analyze.Binder) *core.Engine { return b.Host.(*core.BindingHost).Engine }

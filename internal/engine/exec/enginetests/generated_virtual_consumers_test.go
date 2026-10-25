@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -215,7 +216,7 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 	}
 }
 
-func generatedUnitDescriptor(t *testing.T) (*engine.Engine, catalog.Read, *catalog.Relation) {
+func generatedUnitDescriptor(t *testing.T) (*core.Engine, catalog.Read, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
 	view := e.CatalogRead()

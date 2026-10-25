@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
-func commentDump(t *testing.T, e *engine.Engine) string {
+func commentDump(t *testing.T, e *core.Engine) string {
 	t.Helper()
 	var b bytes.Buffer
 	if err := engine.Dump(context.Background(), e, &b); err != nil {

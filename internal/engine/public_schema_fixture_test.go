@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 
 // withPublicSchemaUnitOwner provisions only a positive CREATE or owner-successor
 // precondition. It leaves the tested operation's identity and object ACLs alone.
-func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func()) {
+func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body func()) {
 	t.Helper()
 	view := e.CatalogRead()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})

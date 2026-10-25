@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -14,7 +15,7 @@ import (
 	"testing"
 )
 
-func pgCastUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
+func pgCastUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2605}
 	d, ok := e.Catalog.State.Relation(a)
@@ -41,17 +42,17 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 			t.Fatal("descriptor", i, c)
 		}
 	}
-	if err := (RelationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (core.RelationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
-	if err := (RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
+	if err := (core.RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ids.ObjectRef{}, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCast); err == nil || rows != nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ids.ObjectRef{}, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGCast); err == nil || rows != nil {
 		t.Fatal("foreign source capture", rows, err)
 	}
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -162,7 +163,7 @@ func TestPGCastProjection(t *testing.T) {
 		t.Fatal("unrelated relation enumeration", err)
 	}
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Int2)})
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCast); rows != nil || err == nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGCast); rows != nil || err == nil {
 		t.Fatal("missing endpoint silently skipped", rows, err)
 	}
 }
@@ -183,7 +184,7 @@ func (c *pgCastCancelDuringCapture) Err() error {
 func TestPGCastCancellationAndGenerations(t *testing.T) {
 	e := New()
 	d, ref := pgCastUnitSource(t, e)
-	old, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCast)
+	old, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGCast)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +192,7 @@ func TestPGCastCancellationAndGenerations(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, ctx := range []context.Context{canceled, &pgCastCancelDuringCapture{Context: context.Background()}} {
-		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCast)
+		rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGCast)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)
 		}
@@ -200,7 +201,7 @@ func TestPGCastCancellationAndGenerations(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgCastUnitSource(t, e)
-	newRows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCast)
+	newRows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: freshRef, Source: fresh, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGCast)
 	if err != nil {
 		t.Fatal(err)
 	}

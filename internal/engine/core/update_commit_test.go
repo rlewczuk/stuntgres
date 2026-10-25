@@ -5,7 +5,6 @@ import (
 	"errors"
 	"reflect"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -96,27 +95,4 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 			enginetest.LockEmpty(t, e)
 		})
 	}
-}
-
-// Context.Err is the existing cooperative preflight seam, not a production hook.
-// Arm only after staging. Entry validation checks twice; third check is the final
-// publication boundary while both Session.mu and Engine.mu are held.
-type transactionBarrierContext struct {
-	context.Context
-	checks  atomic.Int32
-	entered chan struct{}
-	release chan struct{}
-	late    context.CancelFunc
-}
-
-func (c *transactionBarrierContext) Err() error {
-	if c.checks.Add(1) == 3 {
-		close(c.entered)
-		<-c.release
-		if c.late != nil {
-			c.late()
-			return nil
-		}
-	}
-	return c.Context.Err()
 }

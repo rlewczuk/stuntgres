@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -20,7 +21,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func namespaceTemporaryStorageFixture(t *testing.T) (*engine.Engine, *session.Session, *session.Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
+func namespaceTemporaryStorageFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
 	owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
@@ -46,14 +47,14 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*engine.Engine, *session.Se
 	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "storage_parent")
 }
 
-func namespaceCapturedAuthorization(t *testing.T, s *session.Session) engine.AuthorizationView {
+func namespaceCapturedAuthorization(t *testing.T, s *session.Session) core.AuthorizationView {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	auth, err := engine.OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

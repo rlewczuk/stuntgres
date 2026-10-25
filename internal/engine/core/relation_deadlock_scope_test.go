@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
-func deadlockCommand(t *testing.T, e *engine.Engine, s *session.Session, q string, prepare bool) func() error {
+func deadlockCommand(t *testing.T, e *core.Engine, s *session.Session, q string, prepare bool) func() error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	done := waitsCommandAsync(e, s, ctx, q, prepare)

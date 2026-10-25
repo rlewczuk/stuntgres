@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -22,7 +23,7 @@ func truncateUnitAST(names ...string) *parser.Truncate {
 	}
 	return stmt
 }
-func truncateUnitFixture(t *testing.T) (*engine.Engine, *session.Session, ids.ObjectRef, ids.ObjectRef) {
+func truncateUnitFixture(t *testing.T) (*core.Engine, *session.Session, ids.ObjectRef, ids.ObjectRef) {
 	t.Helper()
 	e := engine.New()
 	s := enginetest.StartSession(t, e, nil)
@@ -31,7 +32,7 @@ func truncateUnitFixture(t *testing.T) (*engine.Engine, *session.Session, ids.Ob
 	}
 	return e, s, enginetest.RoleTableRef(t, e, "p"), enginetest.RoleTableRef(t, e, "q")
 }
-func truncateUnitScope(t *testing.T, e *engine.Engine, s *session.Session, ctx context.Context) (*engine.StatementScope, *session.Operation) {
+func truncateUnitScope(t *testing.T, e *core.Engine, s *session.Session, ctx context.Context) (*core.StatementScope, *session.Operation) {
 	t.Helper()
 	op, err := s.Acquire(ctx)
 	if err != nil {
@@ -45,7 +46,7 @@ func truncateUnitScope(t *testing.T, e *engine.Engine, s *session.Session, ctx c
 	t.Cleanup(func() { scope.Finish(errors.New("truncate unit cleanup")); op.Done() })
 	return scope, op
 }
-func truncateUnitStage(t *testing.T, e *engine.Engine, s *session.Session, names ...string) *engine.StatementScope {
+func truncateUnitStage(t *testing.T, e *core.Engine, s *session.Session, names ...string) *core.StatementScope {
 	t.Helper()
 	scope, _ := truncateUnitScope(t, e, s, context.Background())
 	if _, err := scope.Execute(truncateUnitAST(names...), 0, nil); err != nil {
@@ -53,7 +54,7 @@ func truncateUnitStage(t *testing.T, e *engine.Engine, s *session.Session, names
 	}
 	return scope
 }
-func truncateUnitExecute(t *testing.T, e *engine.Engine, s *session.Session, stmt *parser.Truncate) {
+func truncateUnitExecute(t *testing.T, e *core.Engine, s *session.Session, stmt *parser.Truncate) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

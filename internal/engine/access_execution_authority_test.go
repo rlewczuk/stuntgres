@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -54,7 +55,7 @@ func TestAccessExecutionInquiryOriginalAuthority(t *testing.T) {
 			if err:=exec.AdmitRoutineCall(&probe,mapped,false,false);err==nil {t.Fatal("retag manufactured authority")}
 			invalid:=call;invalid.RoutineReference=(*catalog.Procedure)(nil)
 			if err:=exec.AdmitRoutineCall(&evaluation,invalid,false,false);err==nil {t.Fatal("typed nil admitted")}
-			changed:=*RoutineAuthorityView(&evaluation);changed.Catalog=changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
+			changed:=*core.RoutineAuthorityView(&evaluation);changed.Catalog=changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement:=*captured;replacement.Strict=false;changed.Catalog.State().SetDescriptor(captured.Address(),&replacement)
 			probe=evaluation;probe.RoutineAuthority=&changed
 			if err:=exec.AdmitRoutineCall(&probe,call,false,false);err==nil {t.Fatal("incompatible current declaration admitted")}

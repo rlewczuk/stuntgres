@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -117,7 +118,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 	}
 }
 
-func typedCreateACLFixture(t *testing.T, member bool) (*engine.Engine, *session.Operation, func(), *catalog.Type, ids.ObjectAddress) {
+func typedCreateACLFixture(t *testing.T, member bool) (*core.Engine, *session.Operation, func(), *catalog.Type, ids.ObjectAddress) {
 	t.Helper()
 	e, owner, finishOwner, memberAddress := typedReviewACLFixture(t)
 	if member {
@@ -172,7 +173,7 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 
 // Publish real immutable type ACL descriptors, not a replacement SQL codec or
 // role/session revision. Type-only ACL replacement is the established seam.
-func typedReviewTypeACL(t *testing.T, e *engine.Engine, address ids.ObjectAddress, acl authorization.ACLValue) {
+func typedReviewTypeACL(t *testing.T, e *core.Engine, address ids.ObjectAddress, acl authorization.ACLValue) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -185,7 +186,7 @@ func typedReviewTypeACL(t *testing.T, e *engine.Engine, address ids.ObjectAddres
 	domainUnitPublish(t, e, stage)
 }
 
-func typedReviewACLFixture(t *testing.T) (*engine.Engine, *session.Operation, func(), ids.ObjectAddress) {
+func typedReviewACLFixture(t *testing.T) (*core.Engine, *session.Operation, func(), ids.ObjectAddress) {
 	t.Helper()
 	e := engine.New()
 	admin, finish := enginetest.RoleOperation(t, e, "postgres")
@@ -205,13 +206,13 @@ func typedReviewACLFixture(t *testing.T) (*engine.Engine, *session.Operation, fu
 	return e, op, done, address
 }
 
-func domainUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

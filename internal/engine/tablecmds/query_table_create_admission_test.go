@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -201,7 +202,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 	}
 }
 
-func serializableUnitRelation(t *testing.T, e *engine.Engine) ids.ObjectRef {
+func serializableUnitRelation(t *testing.T, e *core.Engine) ids.ObjectRef {
 	t.Helper()
 	base := e.CatalogRead()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}
@@ -214,13 +215,13 @@ func serializableUnitRelation(t *testing.T, e *engine.Engine) ids.ObjectRef {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	return e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
 }
 
-func preparedUnitStatement(t *testing.T, e *engine.Engine, s *session.Session, stmt parser.Statement) {
+func preparedUnitStatement(t *testing.T, e *core.Engine, s *session.Session, stmt parser.Statement) {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
@@ -238,7 +239,7 @@ func preparedUnitStatement(t *testing.T, e *engine.Engine, s *session.Session, s
 	}
 }
 
-func serializableUnitAcquisition(t *testing.T, e *engine.Engine, parent context.Context, readOnly, deferrable bool) (*engine.StatementScope, *visibility.SerializableTx) {
+func serializableUnitAcquisition(t *testing.T, e *core.Engine, parent context.Context, readOnly, deferrable bool) (*core.StatementScope, *visibility.SerializableTx) {
 	t.Helper()
 	sess := enginetest.StartSession(t, e, nil)
 	op, err := sess.Acquire(parent)
@@ -250,10 +251,10 @@ func serializableUnitAcquisition(t *testing.T, e *engine.Engine, parent context.
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &engine.StatementScope{Owner: sess.Transactions, Op: op, TxRef: ref}, e.Visibility.Serializable.Nodes[ref]
+	return &core.StatementScope{Owner: sess.Transactions, Op: op, TxRef: ref}, e.Visibility.Serializable.Nodes[ref]
 }
 
-func serializableUnitAwaitCandidate(t *testing.T, e *engine.Engine, node *visibility.SerializableTx) {
+func serializableUnitAwaitCandidate(t *testing.T, e *core.Engine, node *visibility.SerializableTx) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -273,7 +274,7 @@ func serializableUnitAwaitCandidate(t *testing.T, e *engine.Engine, node *visibi
 
 // Fixture identities use the real allocator: bootstrap definitions can occupy
 // user-range OIDs without becoming relation descriptors.
-func catalogUnitOID(t *testing.T, e *engine.Engine) ids.OID {
+func catalogUnitOID(t *testing.T, e *core.Engine) ids.OID {
 	t.Helper()
 	e.Mu.Lock()
 	oid, err := e.Catalog.AllocateOIDLocked()

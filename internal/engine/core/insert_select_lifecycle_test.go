@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -94,7 +95,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+			b, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 			if err != nil {
 				e.Mu.Unlock()
 				t.Fatal(err)

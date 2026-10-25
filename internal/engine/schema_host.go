@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 // implements ddl.SchemaHost over the shared DDLHost, which also supplies
 // RemoveObject and RelationDiagnostic.
 type SchemaHost struct {
-	DDLHost
+	core.DDLHost
 }
 
 var _ ddl.SchemaHost = SchemaHost{}
@@ -22,14 +23,14 @@ var _ ddl.SchemaHost = SchemaHost{}
 // namespace first in the explicit path, as PostgreSQL does. Both changes are
 // made on a copy, so the caller's authority is unchanged.
 func (h SchemaHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddress, owner authorization.PrincipalRef, table *parser.CreateTable, input sqltype.InputEnvironment) error {
-	v := DDLAuthorityOf(a)
+	v := core.DDLAuthorityOf(a)
 	v.State.CurrentUser = owner
 	v.PathPrefix = namespace
 	return SchemaTableLocked(h.E, h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
 }
 
 func (h SchemaHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {
-	return stageSchemaDomainsLocked(h.E, h.Op, DDLAuthorityOf(a), h.CatalogStage, schemas, relations, others, cascade)
+	return stageSchemaDomainsLocked(h.E, h.Op, core.DDLAuthorityOf(a), h.CatalogStage, schemas, relations, others, cascade)
 }
 
 func (h SchemaHost) AddCascadeNotice(line string) {

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -31,7 +32,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, _ := v.Timestamp()
-	wantDesc := StatementDescription{Temporals: b.Prepared.Temporals}
+	wantDesc := core.StatementDescription{Temporals: b.Prepared.Temporals}
 	before := append([]analyze.TemporalConstant(nil), wantDesc.Temporals...)
 	old := v.Type()
 	if err = Reset(ctx, e); err != nil {
@@ -211,7 +212,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := StatementDescription{Temporals: b.Prepared.Temporals}
+		description := core.StatementDescription{Temporals: b.Prepared.Temporals}
 		b = newTestExpressionBinder(t, ctx, e, later, &description)
 		node, err = b.Bind(raw, policy)
 		if err != nil {
@@ -243,7 +244,7 @@ func TestTimestampCatalogModifierValidation(t *testing.T) {
 	}
 	descriptor, _ := view.Descriptor(matches[0])
 	original := descriptor.(*catalog.Relation)
-	provider := RelationProvider
+	provider := core.RelationProvider
 	if err := provider.Validate(view, original); err != nil {
 		t.Fatal("valid precision rejected", err)
 	}

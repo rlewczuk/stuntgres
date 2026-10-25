@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -24,7 +24,7 @@ var sessionID atomic.Uint64
 
 // Operation starts a session and acquires its operation. The cleanup releases
 // the operation and ends the session.
-func Operation(e *engine.Engine, ctx context.Context) (*session.Operation, func(), error) {
+func Operation(e *core.Engine, ctx context.Context) (*session.Operation, func(), error) {
 	s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(sessionID.Add(1))})
 	if err != nil {
 		return nil, nil, err
@@ -45,17 +45,17 @@ func Operation(e *engine.Engine, ctx context.Context) (*session.Operation, func(
 }
 
 // Execute runs stmt in a fresh session with positional arguments.
-func Execute(e *engine.Engine, ctx context.Context, stmt parser.Statement, args []driver.NamedValue) (engine.Result, error) {
+func Execute(e *core.Engine, ctx context.Context, stmt parser.Statement, args []driver.NamedValue) (core.Result, error) {
 	op, cleanup, err := Operation(e, ctx)
 	if err != nil {
-		return engine.Result{}, err
+		return core.Result{}, err
 	}
 	defer cleanup()
 	return ExecuteFrame(e, op, stmt, args)
 }
 
 // Describe returns the parameter description of stmt in a fresh session.
-func Describe(e *engine.Engine, stmt parser.Statement) (analyze.ParameterInfo, error) {
+func Describe(e *core.Engine, stmt parser.Statement) (analyze.ParameterInfo, error) {
 	op, cleanup, err := Operation(e, context.Background())
 	if err != nil {
 		return analyze.ParameterInfo{}, err
@@ -80,7 +80,7 @@ func Statement(t testing.TB, sql string) parser.Statement {
 
 // Run executes sql with args in a fresh session, fails the test on error and
 // closes the result rows at test cleanup.
-func Run(t testing.TB, e *engine.Engine, sql string, args ...any) engine.Result {
+func Run(t testing.TB, e *core.Engine, sql string, args ...any) core.Result {
 	t.Helper()
 	named := make([]driver.NamedValue, len(args))
 	for i, v := range args {
@@ -102,15 +102,15 @@ func Run(t testing.TB, e *engine.Engine, sql string, args ...any) engine.Result 
 
 // ExecuteFrame executes stmt on op. Arguments must be positional; their values
 // are converted to text and read with each parameter type's input function.
-func ExecuteFrame(e *engine.Engine, op *session.Operation, stmt parser.Statement, args []driver.NamedValue) (engine.Result, error) {
+func ExecuteFrame(e *core.Engine, op *session.Operation, stmt parser.Statement, args []driver.NamedValue) (core.Result, error) {
 	raw := make([]driver.Value, len(args))
 	for i, a := range args {
 		if a.Name != "" || a.Ordinal != i+1 {
-			return engine.Result{}, fmt.Errorf("invalid test argument")
+			return core.Result{}, fmt.Errorf("invalid test argument")
 		}
 		v, err := driver.DefaultParameterConverter.ConvertValue(a.Value)
 		if err != nil {
-			return engine.Result{}, err
+			return core.Result{}, err
 		}
 		if b, ok := v.([]byte); ok {
 			v = string(b)

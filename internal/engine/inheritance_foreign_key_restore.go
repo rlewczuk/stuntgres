@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -10,7 +11,7 @@ import (
 // This is not a general valid ALTER whitelist. Only a successful isolated
 // import of both actual relations, with a strict ordinary inheritance edge,
 // can issue a receipt. The incumbent pending binder remains the sole FK binder.
-func captureInheritedForeignKey(e *Engine, op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
+func captureInheritedForeignKey(e *core.Engine, op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
 	if handled, err := table.InheritedForeignKeyShape(raw); !handled || err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
@@ -19,11 +20,11 @@ func captureInheritedForeignKey(e *Engine, op *session.Operation, raw *parser.Al
 	if err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
-	auth := DDLAuthorityOf(pending.Auth)
+	auth := core.DDLAuthorityOf(pending.Auth)
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if !PartitionConstraintReplayImport(e, op, auth) {
-		return table.RestoredForeignKeys{}, false, SQLError("0A000", table.RestoreInheritedForeignKeyBoundary)
+	if !core.PartitionConstraintReplayImport(e, op, auth) {
+		return table.RestoredForeignKeys{}, false, core.SQLError("0A000", table.RestoreInheritedForeignKeyBoundary)
 	}
 	sourceRef, err := e.ResolveRelationReference(auth, raw.Name, false)
 	if err != nil {

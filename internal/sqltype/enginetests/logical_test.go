@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -171,7 +172,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	bound, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -234,7 +235,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	}
 }
 
-func eType(t *testing.T, e *engine.Engine, id sqltype.ID) *sqltype.Descriptor {
+func eType(t *testing.T, e *core.Engine, id sqltype.ID) *sqltype.Descriptor {
 	t.Helper()
 	typ, ok := e.CatalogRead().LookupType(id)
 	if !ok {

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -17,7 +18,7 @@ import (
 	"testing"
 )
 
-func tableLikeBuild(t *testing.T, e *Engine, op *session.Operation, query string) (*CatalogStage, *catalog.Relation, error) {
+func tableLikeBuild(t *testing.T, e *core.Engine, op *session.Operation, query string) (*core.CatalogStage, *catalog.Relation, error) {
 	t.Helper()
 	syntax := statement(t, query).(*parser.CreateTable)
 	e.Mu.Lock()
@@ -148,7 +149,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.Storage.Relations[destination.Address()].Versions) != 0 {
@@ -218,7 +219,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	}
 	queryCreatePublish(t, e, update)
 	incumbent := e.CatalogRead()
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("stale source silently retargeted", err)
 	}
 	if e.Catalog.State != incumbent.State() {
@@ -238,15 +239,15 @@ func TestTableLikeInlineSourceProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if len(StageTableOrZero(stage).LikeSources) < 2 {
+	if len(core.StageTableOrZero(stage).LikeSources) < 2 {
 		t.Fatal("private source/provider provenance absent")
 	}
-	for _, source := range StageTableOrZero(stage).LikeSources {
+	for _, source := range core.StageTableOrZero(stage).LikeSources {
 		if stage.Base.Get(source.Address()) != nil || stage.Get(source.Address()) != source {
 			t.Fatal("private input mistaken for incumbent", source)
 		}
 	}
-	if err := StageValidateLikeSources(stage, e.CatalogRead()); err != nil {
+	if err := core.StageValidateLikeSources(stage, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)

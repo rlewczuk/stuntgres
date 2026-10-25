@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -86,7 +87,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				captured, ref = enum.Procedure, enum.Ref
 				carrier, err := exec.ExpressionRoutineDescriptor(node)
-				if err != nil || carrier != captured || !ProcedureReturnsSet(captured) || exec.StrictScalarRoutine(captured) {
+				if err != nil || carrier != captured || !core.ProcedureReturnsSet(captured) || exec.StrictScalarRoutine(captured) {
 					t.Fatal("enum selected declaration/set classification", err)
 				}
 				if tc.name == "enum_parameter" {
@@ -196,7 +197,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				},
 				func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 			} {
-				auth := *RoutineAuthorityView(&evaluation)
+				auth := *core.RoutineAuthorityView(&evaluation)
 				auth.Catalog = auth.Catalog.WithState(catalog.CloneState(auth.Catalog.State()))
 				bad := *captured
 				mutate(&bad)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -218,7 +219,7 @@ func TestTypedPublicationLateOwnRowConsumer(t *testing.T) {
 
 // Publish real immutable type ACL descriptors, not a replacement SQL codec or
 // role/session revision. Type-only ACL replacement is the established seam.
-func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl authorization.ACLValue) {
+func typedReviewTypeACL(t *testing.T, e *core.Engine, address ids.ObjectAddress, acl authorization.ACLValue) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -231,7 +232,7 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl 
 	domainUnitPublish(t, e, stage)
 }
 
-func typedReviewACLFixture(t *testing.T) (*Engine, *session.Operation, func(), ids.ObjectAddress) {
+func typedReviewACLFixture(t *testing.T) (*core.Engine, *session.Operation, func(), ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	admin, finish := roleOperation(t, e, "postgres")

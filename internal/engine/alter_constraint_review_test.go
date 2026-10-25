@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -23,7 +24,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	backing := old.Constraints.Unique[0].Index
 	root := e.Storage.IndexRoots[backing]
 	op := alterConstraintOperation(t, s)
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			ua, ub := old.Constraints.Unique[0].Index, old.Constraints.Unique[1].Index
 			uaRoot, ubRoot := e.Storage.IndexRoots[ua], e.Storage.IndexRoots[ub]
 			op := alterConstraintOperation(t, s)
-			auth, err := OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}

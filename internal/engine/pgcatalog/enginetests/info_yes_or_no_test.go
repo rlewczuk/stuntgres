@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -20,7 +21,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func infoYesOrNoUnitCatalog(t *testing.T, e *engine.Engine, view catalog.Read) *catalog.Type {
+func infoYesOrNoUnitCatalog(t *testing.T, e *core.Engine, view catalog.Read) *catalog.Type {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13256}
 	d, ok := view.Type(address)

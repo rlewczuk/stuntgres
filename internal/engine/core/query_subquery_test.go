@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -28,7 +29,7 @@ func subqueryTestInteger(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype
 	return value
 }
 
-func subqueryTestExpression(t *testing.T, e *engine.Engine, q *plan.Query, kind parser.SubqueryKind) plan.SubqueryExpr {
+func subqueryTestExpression(t *testing.T, e *core.Engine, q *plan.Query, kind parser.SubqueryKind) plan.SubqueryExpr {
 	t.Helper()
 	typ, ok := e.CatalogRead().LookupType(sqltype.Bool)
 	if !ok {
@@ -252,7 +253,7 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		bound, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -562,7 +563,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
+		bound, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {

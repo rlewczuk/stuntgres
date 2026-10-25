@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -54,7 +55,7 @@ type vacuumTask struct {
 	joined  bool
 }
 
-func startVacuumBarrier(t *testing.T, e *Engine, s *session.Session, q, function string) *vacuumTask {
+func startVacuumBarrier(t *testing.T, e *core.Engine, s *session.Session, q, function string) *vacuumTask {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	op, err := s.Acquire(ctx)
@@ -154,7 +155,7 @@ func TestVacuumPublicationFences(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+				if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 					t.Fatal(err)
 				}
 			case "comment_wait":

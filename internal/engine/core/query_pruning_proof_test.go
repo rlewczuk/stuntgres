@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func pruningSelection(t *testing.T, e *engine.Engine, query string, parameters []sqltype.Value) ([]string, exec.QueryBranchSelection) {
+func pruningSelection(t *testing.T, e *core.Engine, query string, parameters []sqltype.Value) ([]string, exec.QueryBranchSelection) {
 	t.Helper()
 	bound, source, release := hashImplicitQuery(t, e, query)
 	defer release()
@@ -21,7 +22,7 @@ func pruningSelection(t *testing.T, e *engine.Engine, query string, parameters [
 	filter := project.Child.(*plan.FilterNode)
 	state := &exec.State{Source: source, Frame: project.Frame, Parameters: parameters}
 	evaluation := state.Evaluation(context.Background())
-	if scope := engine.ScopeOf(source.LiveHost()); scope != nil {
+	if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 		evaluation.Input = scope.Input
 	}
 	if source.BranchPruner == nil {

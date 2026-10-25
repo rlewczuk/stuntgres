@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 )
 
-func indexMaintenanceStage(t *testing.T, e *Engine, table string, indexes ...string) *CatalogStage {
+func indexMaintenanceStage(t *testing.T, e *core.Engine, table string, indexes ...string) *core.CatalogStage {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)

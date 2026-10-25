@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -49,7 +50,7 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 		t.Fatal("comparison retained old authority")
 	}
 	for _, entry := range []struct {
-		owner *engine.Engine
+		owner *core.Engine
 		node  plan.ComparisonExpr
 	}{{e, original}, {target, rebound}} {
 		node := entry.node

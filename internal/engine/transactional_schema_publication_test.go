@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -14,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func transactionalSchemaUnitStage(t *testing.T, e *Engine, op *session.Operation, name string, ref ids.TxRef, value int64) (*CatalogStage, *catalog.Relation) {
+func transactionalSchemaUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name string, ref ids.TxRef, value int64) (*core.CatalogStage, *catalog.Relation) {
 	t.Helper()
 	usage := testUsage(e, sqltype.Int4)
 	e.Mu.Lock()
@@ -25,7 +26,7 @@ func transactionalSchemaUnitStage(t *testing.T, e *Engine, op *session.Operation
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	d, err := table.NewRelation(DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
+	d, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
 	if err == nil {
 		err = e.StageRowTypeLocked(stage, d)
 	}
@@ -71,7 +72,7 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 			}()
 			before := e.CatalogRead()
 			scope.Owner.Mu.Lock()
-			mark := CaptureSavepoint(scope.Owner, "private_stage")
+			mark := core.CaptureSavepoint(scope.Owner, "private_stage")
 			scope.Owner.Mu.Unlock()
 			oldRoot := mark.Catalog
 			stage, d := transactionalSchemaUnitStage(t, e, op, "publication_private", ref, 7)
@@ -89,7 +90,7 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 				winner, w := transactionalSchemaUnitStage(t, e, peer, name, ids.TxRef{}, 19)
 				publication, err := e.ValidateCatalogStage(peer.Context(), winner)
 				if err == nil {
-					_, err = publishCatalog(e, publication, PublicationToken{Epoch: winner.Base.Epoch()})
+					_, err = publishCatalog(e, publication, core.PublicationToken{Epoch: winner.Base.Epoch()})
 				}
 				done()
 				if err != nil {
@@ -102,7 +103,7 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if phase == "name_conflict" {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" || diagnostic.Constraint != "pg_type_typname_nsp_index" {
@@ -150,7 +151,7 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 			if phase == "savepoint" {
 				for range 2 {
 					scope.Owner.Mu.Lock()
-					RestoreSavepoint(scope.Owner, mark, mark.Settings.Clone())
+					core.RestoreSavepoint(scope.Owner, mark, mark.Settings.Clone())
 					scope.Owner.Mu.Unlock()
 					e.Locks.Restore(scope.LockTicket, mark.Locks)
 				}

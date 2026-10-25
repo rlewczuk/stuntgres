@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -16,7 +17,7 @@ import (
 	"testing"
 )
 
-func pgExtensionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
+func pgExtensionUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3079}
 	d, ok := e.Catalog.State.Relation(a)
@@ -26,7 +27,7 @@ func pgExtensionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Obje
 	return d, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), a)
 }
 
-func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
+func pgExtensionUnitShape(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
 	d, _ := pgExtensionUnitSource(t, e)
 	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
@@ -42,7 +43,7 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
 			t.Fatal("column", i, c)
 		}
 	}
-	if err := (RelationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (core.RelationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Explicit || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -68,7 +69,7 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
-	if err := (RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
+	if err := (core.RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
 	class := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
@@ -111,7 +112,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	for i, c := range d.Columns {
 		root.Expressions = append(root.Expressions, plan.ColumnExpr{Info: expr.Info{Usage: c.Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: i})
 	}
-	executable, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, captureExtensionCatalog)
+	executable, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, captureExtensionCatalog)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	for _, width := range []int{0, 7, 9} {
 		invalid := *d
 		invalid.Columns = make([]catalog.Column, width)
-		if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+		if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("malformed width", width, rows, err)
 		}
 	}
@@ -141,7 +142,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		invalid := *d
 		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(c.Usage.Type.ID())
-		if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+		if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("foreign column", i, rows, err)
 		}
 	}
@@ -156,12 +157,12 @@ func TestPGExtensionCapture(t *testing.T) {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 		t.Fatal("missing array descriptor", rows, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, captureExtensionCatalog); rows != nil || !errors.Is(err, context.Canceled) {
+	if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, captureExtensionCatalog); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)
 	}
 	retained := &exec.Stage{Source: old, Columns: d.Columns}
@@ -179,7 +180,7 @@ func TestPGExtensionCapture(t *testing.T) {
 				t.Fatal("generation not reminted", i)
 			}
 		}
-		if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
+		if rows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: core.EngineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("old source accepted in replacement", rows, err)
 		}
 		if !reflect.DeepEqual(retained.Schema(), original) || old.Ref != ref || old.Count() != 0 {

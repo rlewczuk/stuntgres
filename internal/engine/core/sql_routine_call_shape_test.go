@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -20,7 +21,7 @@ import (
 func TestSQLRoutineProviderCallShapes(t *testing.T) {
 	e := engine.New()
 	auth := enginetest.CatalogAuthorization(e, e.CatalogRead())
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, tc := range []struct {
@@ -157,7 +158,7 @@ func TestSQLRoutineCallableShapeMasking(t *testing.T) {
 func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	e := engine.New()
 	auth := enginetest.CatalogAuthorization(e, e.CatalogRead())
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	raw := enginetest.Statement(t, "SELECT 1+2").(*parser.Select).Targets[0]
 	node := &plan.LiteralExpr{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}}
@@ -192,7 +193,7 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	e := engine.New()
 	auth := enginetest.CatalogAuthorization(e, e.CatalogRead())
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	raw := parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lag"}}},
@@ -252,7 +253,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 func TestSQLRoutineNamedProviderShapes(t *testing.T) {
 	e := engine.New()
 	auth := enginetest.CatalogAuthorization(e, e.CatalogRead())
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Auth = &auth
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	for _, tc := range []struct {
@@ -318,7 +319,7 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 				e.Catalog.State.SetDescriptor(cast.Address(), cast)
 			}
 			auth := enginetest.CatalogAuthorization(e, e.CatalogRead())
-			b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+			b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 			b.Query.Auth = &auth
 			namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 			for _, tc := range []struct {
@@ -368,6 +369,6 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 
 // definitionProceduresNamed lists the procedures named name in namespace as
 // a's definition reader sees them.
-func definitionProceduresNamed(a engine.AuthorizationView, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func definitionProceduresNamed(a core.AuthorizationView, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.Definition, namespace, name)
 }

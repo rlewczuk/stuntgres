@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -18,7 +19,7 @@ import (
 // operator-family decisions: the routine.DDLHost methods beyond the shared
 // DDLHost here, and index.FamilyDDLHost with operator_family_host.go.
 type RoutineHost struct {
-	DDLHost
+	core.DDLHost
 }
 
 var (
@@ -27,25 +28,25 @@ var (
 )
 
 func (h RoutineHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return DDLAuthorityOf(a).DefinitionType(id)
+	return core.DDLAuthorityOf(a).DefinitionType(id)
 }
 
 func (h RoutineHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
-	return DDLAuthorityOf(a).DefinitionLookup(key)
+	return core.DDLAuthorityOf(a).DefinitionLookup(key)
 }
 
 func (h RoutineHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
-	v := DDLAuthorityOf(a)
+	v := core.DDLAuthorityOf(a)
 	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, nil, sqltype.Usage{}, err
 	}
-	reader := StageDefinitions(h.CatalogStage)
+	reader := core.StageDefinitions(h.CatalogStage)
 	previous := h.Op.Definition
 	h.Op.Definition = reader
 	defer func() { h.Op.Definition = previous }()
 	v.Definition = reader
-	binder := NewExpressionBinder(h.Context(), h.E, sqltype.InputEnvironment{}, h.Op, nil)
+	binder := core.NewExpressionBinder(h.Context(), h.E, sqltype.InputEnvironment{}, h.Op, nil)
 	binder.Query.Auth = &v
 	selected, err := binder.SelectAggregateSupport(v.Catalog, reader, path, name, inputs)
 	if err != nil {
@@ -63,7 +64,7 @@ func (h RoutineHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectN
 }
 
 func (h RoutineHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
-	input, err := CaptureRegtypeInput(DDLAuthorityOf(a), h.Op)
+	input, err := core.CaptureRegtypeInput(core.DDLAuthorityOf(a), h.Op)
 	if err != nil {
 		return 0, err
 	}
@@ -74,13 +75,13 @@ func (h RoutineHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.O
 // BindSQLRoutine binds d's body with the stage's definitions in place of the
 // operation's. Restore defers SQL body validation until the import ends.
 func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
-	if OperationReplayOrZero(h.Op).SQLBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
+	if core.OperationReplayOrZero(h.Op).SQLBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
 		return nil
 	}
 	previous := h.Op.Definition
-	h.Op.Definition = StageDefinitions(h.CatalogStage)
+	h.Op.Definition = core.StageDefinitions(h.CatalogStage)
 	defer func() { h.Op.Definition = previous }()
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	auth.Definition = h.Op.Definition
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		return h.E.CompilePLRoutineLocked(h.Op, auth, d)
@@ -96,11 +97,11 @@ func (h RoutineHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw 
 		return nil
 	}
 	previous := h.Op.Definition
-	h.Op.Definition = StageDefinitions(h.CatalogStage)
+	h.Op.Definition = core.StageDefinitions(h.CatalogStage)
 	defer func() { h.Op.Definition = previous }()
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	auth.Definition = h.Op.Definition
-	b := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
+	b := core.NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	b.Query.Auth = &auth
 	b.Params.NoParameters = true
 	entries := make([]expr.Expr, len(d.SQL.Inputs))

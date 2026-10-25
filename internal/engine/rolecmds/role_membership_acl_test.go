@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -30,7 +31,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	}
 	ref := enginetest.RoleTableRef(t, e, "secret")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	retained, err := engine.OperationAuthorization(op)
+	retained, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +41,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	view, err := engine.OperationAuthorization(op)
+	view, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +66,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	roleExecute(t, e, op, "GRANT rights TO reader")
 	roleExecute(t, e, op, "REVOKE INHERIT OPTION FOR middle FROM reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	view, err = engine.OperationAuthorization(op)
+	view, err = core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: rights.Ref}, Privileges: authorization.UpdatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	view, err = engine.OperationAuthorization(op)
+	view, err = core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +105,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 
 // withPublicSchemaUnitOwner provisions only a positive CREATE or owner-successor
 // precondition. It leaves the tested operation's identity and object ACLs alone.
-func withPublicSchemaUnitOwner(t *testing.T, e *engine.Engine, owner string, body func()) {
+func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body func()) {
 	t.Helper()
 	view := e.CatalogRead()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -99,7 +99,7 @@ func TestTimestamptzSeriesHooks(t *testing.T) {
 			replacement := *later.State().MustType(address)
 			replacement.SQLType = next.Args[i].ResultUsage().Type
 			later.State().SetDescriptor(address, &replacement)
-			authority := *engine.RoutineAuthorityView(&evaluation)
+			authority := *core.RoutineAuthorityView(&evaluation)
 			authority.View.Recapture(later)
 			probe := evaluation
 			probe.Catalog, probe.RoutineAuthority = later, &authority

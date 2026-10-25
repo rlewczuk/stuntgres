@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/index"
@@ -41,7 +42,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			sessionSQL(t, s, "UPDATE t SET v=11 WHERE k<=64")
 			prior := s.Transactions.Writes[ref.Address]
 			op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			integer := func(n int64) sqltype.Value {
 				value, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 				if err != nil {

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -86,7 +87,7 @@ func TestRangePartitionConstraintPrivacy(t *testing.T) {
 						}
 					}
 					ast := enginetest.Statement(t, query)
-					var description *engine.StatementDescription
+					var description *core.StatementDescription
 					if prepared {
 						desc, err := e.Describe(op, ast)
 						if err != nil {
@@ -289,7 +290,7 @@ func TestRangePartitionPhysicalConstraintPrivacy(t *testing.T) {
 							query = "INSERT INTO " + c.target + "(" + columns + ") SELECT " + values
 						}
 						ast := enginetest.Statement(t, query)
-						var description *engine.StatementDescription
+						var description *core.StatementDescription
 						count := 0
 						if prepared {
 							desc, err := e.Describe(op, ast)

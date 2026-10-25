@@ -5,16 +5,14 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 )
 
-func pgrowlocksUnitCapture(t *testing.T, e *engine.Engine, caller *lock.Ticket, tuple lock.MultiTuple, private bool) []lock.PgrowlocksRecord {
+func pgrowlocksUnitCapture(t *testing.T, e *core.Engine, caller *lock.Ticket, tuple lock.MultiTuple, private bool) []lock.PgrowlocksRecord {
 	t.Helper()
 	rows, err := e.Locks.Pgrowlocks(context.Background(), caller, []lock.PgrowlocksTuple{{Tuple: tuple, PrivateInsertion: private}})
 	if err != nil {
@@ -93,55 +91,4 @@ func TestPgrowlocksCapture(t *testing.T) {
 	if got := pgrowlocksUnitCapture(t, e, observer, tuple, false); len(got) != 0 {
 		t.Fatal("ended-only raw bag reported", got)
 	}
-}
-
-func blockingUnitOwner(t *testing.T, e *engine.Engine) (*session.Session, *lock.Ticket) {
-	t.Helper()
-	s := enginetest.StartSession(t, e, nil)
-	enginetest.TransactionBegin(t, s)
-	return s, s.Transactions.Ticket
-}
-
-func pgLocksUnitAssign(t *testing.T, e *engine.Engine, ticket *lock.Ticket) uint32 {
-	t.Helper()
-	e.Mu.Lock()
-	err := e.AssignTransactionXIDLocked(ticket.Ref())
-	xid := e.Visibility.Entries[ticket.Ref()].AssignedXID
-	e.Mu.Unlock()
-	if err != nil || xid == 0 || ticket.AssignedPublicXID() != xid {
-		t.Fatal("canonical assignment mirror", xid, ticket.AssignedPublicXID(), err)
-	}
-	return xid
-}
-
-func identityMultiUnitTuple(e *engine.Engine, row ids.RowID) lock.MultiTuple {
-	resource := blockingUnitResource(e)
-	resource.Row = row
-	return lock.MultiTuple{resource, ids.VersionID(row)}
-}
-
-func identityMultiGrant(t *testing.T, e *engine.Engine, owner *lock.Ticket, tuple lock.MultiTuple, mode lock.Mode) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	request, err := e.Locks.StartAcquire(ctx, owner, tuple.Resource, mode, lock.Policy{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if request != nil {
-		if err := request.Wait(); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func identityMultiEmit(t *testing.T, e *engine.Engine, owner *lock.Ticket, tuple lock.MultiTuple, mode lock.MultiMode) {
-	t.Helper()
-	if err := e.Locks.PhysicalEvents(owner, []lock.MultiEvent{{Tuple: tuple, Mode: mode}}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func blockingUnitResource(e *engine.Engine) lock.Resource {
-	return lock.Resource{ObjectRef: e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
 }

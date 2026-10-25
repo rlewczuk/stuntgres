@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
@@ -56,7 +57,7 @@ func TestPartitionPruningSearchBound(t *testing.T) {
 				ctx := &pruningWorkContext{Context: context.Background()}
 				state := &exec.State{Source: source, Frame: project.Frame}
 				evaluation := state.Evaluation(ctx)
-				if scope := engine.ScopeOf(source.LiveHost()); scope != nil {
+				if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 					evaluation.Input = scope.Input
 				}
 				selected, err := source.BranchPruner.Select(ctx, &evaluation, filter.Predicate)

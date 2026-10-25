@@ -12,6 +12,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -233,7 +234,7 @@ func TestRoleAttributesValidityInput(t *testing.T) {
 	}{
 		{"2000-01-01 02:00:00", 0}, {"02/01/2000 02:00:00", 86400000000}, {"2000-01-01 09:30 CST", 0}, {"now", 0},
 	} {
-		scope := &StatementScope{Op: op, Input: captured}
+		scope := &core.StatementScope{Op: op, Input: captured}
 		if _, err := executeRoleAttributes(e, scope, roleAttributeAlter("expiry", parser.RoleOptions{Present: parser.RoleValidUntil, ValidUntil: tc.text}), 0); err != nil {
 			t.Fatal(tc, err)
 		}

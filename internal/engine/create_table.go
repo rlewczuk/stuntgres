@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -15,10 +16,10 @@ import (
 )
 
 // Called under Engine.mu. Every return releases it, like the existing DDL path.
-func createTableLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.CreateTable, count int) (Result, error) {
+func createTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.CreateTable, count int) (core.Result, error) {
 	if count != 0 {
 		e.Mu.Unlock()
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	changes := scope.Owner.Catalog.Clone()
 	persistence := s.Persistence
@@ -28,28 +29,28 @@ func createTableLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 	ns, err := e.RelationCreationNamespaceLocked(auth, s.Name, persistence, changes)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, ddl.CreationError(err, s.Name)
+		return core.Result{}, ddl.CreationError(err, s.Name)
 	}
 	auth.Catalog = e.PrivateCatalogLocked(changes)
 	auth.Recapture(auth.Catalog)
 	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
 		auth.StagedTemporary = table.Address()
 	}
-	if OperationReplayOrZero(op).TableDestination {
+	if core.OperationReplayOrZero(op).TableDestination {
 		bootstrap, er := auth.Roles.Descriptor(auth.State.Authenticated)
 		if er != nil || !bootstrap.Superuser || e.ImportTargets == nil {
 			e.Mu.Unlock()
-			return Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
+			return core.Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
 		}
 	}
-	if err = auth.CheckCreate(ns); err != nil && !OperationReplayOrZero(op).TableDestination {
+	if err = auth.CheckCreate(ns); err != nil && !core.OperationReplayOrZero(op).TableDestination {
 		e.Mu.Unlock()
-		return Result{}, ddl.CreationError(err, s.Name)
+		return core.Result{}, ddl.CreationError(err, s.Name)
 	}
 	persistence, err = access.AdjustRelationCreationPersistence(auth.View, auth, ns, persistence)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, ddl.CreationError(err, s.Name)
+		return core.Result{}, ddl.CreationError(err, s.Name)
 	}
 	temporary := persistence == "temporary"
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
@@ -59,7 +60,7 @@ func createTableLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 		if existing {
 			op.ExistingRelationNotice(key.Name)
 		}
-		return Result{}, err
+		return core.Result{}, err
 	}
 	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
@@ -74,28 +75,28 @@ func createTableLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 	}
 	e.Mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = partition.finish(scope); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	// Only the source helper's newly acquired reservation is incidental.
 	// Preserve entry admission and acquire genuine definition-provider holds
 	// afterward, under their existing publication/cancellation policy.
 	replacementRead := scope.ReplacementRead
 	if err = acquireTypedSources(scope, stage, false); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if !replacementRead && scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
 	if err = scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	createdAddress, _ := stage.NameBinding(key)
 	created := e.Catalog.Domain.Ref(base.Epoch(), createdAddress)
@@ -110,31 +111,31 @@ func createTableLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 			}
 		}
 		if err := e.StageCatalogOverlay(scope, stage, changes); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
-		return Result{Created: created}, nil
+		return core.Result{Created: created}, nil
 	}
-	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: base.Epoch()})
 	if err == nil {
 		scope.Completed = true
 	}
 	if err != nil && s.IfNotExists {
 		skipped, failure := scope.SkipConcurrentRelation(base, key, s.Name, err)
 		if skipped {
-			return Result{}, nil
+			return core.Result{}, nil
 		}
 		err = failure
 	}
 	if _, conflict := err.(catalog.Conflict); conflict {
 		if err := op.Context().Err(); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if s.IfNotExists {
 			e.Mu.Lock()
 			currentAuth, authErr := e.AuthorizationLocked(op)
 			if authErr != nil {
 				e.Mu.Unlock()
-				return Result{}, authErr
+				return core.Result{}, authErr
 			}
 			resolved, resolveErr := e.CreationNamespace(currentAuth, s.Name)
 			_, exists := currentAuth.Catalog.LookupName(key)
@@ -146,29 +147,29 @@ func createTableLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 			contextErr := op.Context().Err()
 			e.Mu.Unlock()
 			if contextErr != nil {
-				return Result{}, contextErr
+				return core.Result{}, contextErr
 			}
 			if resolveErr != nil {
-				return Result{}, ddl.CreationError(resolveErr, s.Name)
+				return core.Result{}, ddl.CreationError(resolveErr, s.Name)
 			}
 			if accessErr != nil {
-				return Result{}, ddl.CreationError(accessErr, s.Name)
+				return core.Result{}, ddl.CreationError(accessErr, s.Name)
 			}
 			if same && exists {
 				op.ExistingRelationNotice(key.Name)
-				return Result{}, nil
+				return core.Result{}, nil
 			}
 		}
-		return Result{}, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
+		return core.Result{}, core.SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
 	}
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	return Result{Created: created}, nil
+	return core.Result{Created: created}, nil
 }
 
 // SchemaTableLocked stages CREATE TABLE s without a PARTITION clause; see
 // table.StageCreateTable. Called under Engine.mu.
-func SchemaTableLocked(e *Engine, op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
-	return table.StageCreateTable(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s, ns, owner, input, foreignTargets)
+func SchemaTableLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
+	return table.StageCreateTable(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s, ns, owner, input, foreignTargets)
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -60,7 +61,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 				existing = domainUnitType(t, e.CatalogRead(), family)
 			}
 			before := e.CatalogRead()
-			var seed, stage *CatalogStage
+			var seed, stage *core.CatalogStage
 			defer func() {
 				if stage != nil {
 					e.DiscardCatalogStage(stage)
@@ -229,7 +230,7 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var stage *CatalogStage
+			var stage *core.CatalogStage
 			defer func() {
 				if stage != nil {
 					e.DiscardCatalogStage(stage)

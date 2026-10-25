@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -26,7 +27,7 @@ func regexpSetUnitTypes(t *testing.T) (catalog.Read, *sqltype.Descriptor) {
 
 // regexpSetUnitEngineTypes is regexpSetUnitTypes with the engine that owns the
 // returned view.
-func regexpSetUnitEngineTypes(t *testing.T) (*engine.Engine, catalog.Read, *sqltype.Descriptor) {
+func regexpSetUnitEngineTypes(t *testing.T) (*core.Engine, catalog.Read, *sqltype.Descriptor) {
 	t.Helper()
 	eng := engine.New()
 	view := eng.CatalogRead()
@@ -94,7 +95,7 @@ func regexpSetUnitLayout(n *plan.SetProjectNode) *plan.SetProjectNode {
 	}
 	return n
 }
-func regexpSetUnitLower(eng *engine.Engine, root plan.Node, expressions []expr.Expr, frame uint32) (plan.Node, []expr.Expr, error) {
+func regexpSetUnitLower(eng *core.Engine, root plan.Node, expressions []expr.Expr, frame uint32) (plan.Node, []expr.Expr, error) {
 	found := false
 	for _, expression := range expressions {
 		found = found || exec.QuerySetDepth(expression) != 0
@@ -480,7 +481,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 			Calls:       regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " "), regexpSetUnitCall(t, text, column(9, 1), " ")),
 			Frame:       7, Correlated: true, Captures: capture(7, 2),
 		}
-		rebased, err := analyze.RebaseFunctionCorrelation((&engine.Engine{}).AnalysisHost(nil), view, n, 7, 2)
+		rebased, err := analyze.RebaseFunctionCorrelation((&core.Engine{}).AnalysisHost(nil), view, n, 7, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -497,7 +498,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		left := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " ")), Frame: 7, Correlated: true, Captures: capture(7, 2)}
 		right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 0), "")), Frame: 7, Correlated: true, Captures: capture(7, 0)}
 		n := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7, CorrelatedRight: true, Captures: capture(7, 2)}
-		rebased, err := analyze.RebaseFunctionCorrelation((&engine.Engine{}).AnalysisHost(nil), view, n, 7, 2)
+		rebased, err := analyze.RebaseFunctionCorrelation((&core.Engine{}).AnalysisHost(nil), view, n, 7, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -513,7 +514,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		virtual := column(1, 3)
 		virtual.Virtual, virtual.RowStart, virtual.RowWidth = column(1, 0), 2, 2
 		n := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, virtual, " ")), Frame: 1, Correlated: true, Captures: capture(1, 3)}
-		rebased, err := analyze.RebaseFunctionCorrelation((&engine.Engine{}).AnalysisHost(nil), view, n, 1, 2)
+		rebased, err := analyze.RebaseFunctionCorrelation((&core.Engine{}).AnalysisHost(nil), view, n, 1, 2)
 		if err != nil {
 			t.Fatal(err)
 		}

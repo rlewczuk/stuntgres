@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -23,7 +24,7 @@ type typedRelationMutation struct {
 	checks     []catalog.CheckConstraint
 }
 
-func typedMutation(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
+func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
 	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
@@ -108,13 +109,13 @@ func typedMutation(e *Engine, scope *StatementScope, op *session.Operation, auth
 	next.Constraints.Check = slices.Clone(next.Constraints.Check)
 	next.Constraints.NotNull = slices.Clone(next.Constraints.NotNull)
 	e.Mu.Lock()
-	err := table.AssignDefinitionOIDs(DDLHost{E: e}, &next)
+	err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, &next)
 	e.Mu.Unlock()
 	mutation.next = &next
 	return mutation, err
 }
 
-func stageTypedRows(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, mutation typedRelationMutation) error {
+func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, mutation typedRelationMutation) error {
 	old, next := mutation.old, mutation.next
 	if old.RelationKind != catalog.TableRelation {
 		return nil
@@ -201,16 +202,16 @@ func stageTypedRows(e *Engine, scope *StatementScope, auth AuthorizationView, st
 		return err
 	}
 	if !rewrite && len(mutation.checks) != 0 {
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if err := table.ValidateAddedConstraintRows(evaluation, validator, replacement.Versions, replacement.Ends, frontier, projectedWrites, projectedDeletes); err != nil {
 			return err
 		}
 	}
 	e.Mu.Lock()
-	h := TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
+	h := TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 	next, err = index.RebuildAlterUniques(h, next, mutation.transforms)
 	if err == nil {
-		next, err = table.RebuildAlterNotNulls(DDLHost{E: e, CatalogStage: stage}, next, mutation.transforms)
+		next, err = table.RebuildAlterNotNulls(core.DDLHost{E: e, CatalogStage: stage}, next, mutation.transforms)
 	}
 	if err == nil {
 		next, err = index.RebuildAlterExclusions(h, next, mutation.transforms)
@@ -226,8 +227,8 @@ func stageTypedRows(e *Engine, scope *StatementScope, auth AuthorizationView, st
 		return err
 	}
 	if rewrite || len(mutation.transforms) != 0 {
-		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, DisclosureEnv(&auth), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, mutation.transforms, nil, nil, rewrite)
+		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, core.DisclosureEnv(&auth), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, mutation.transforms, nil, nil, rewrite)
 		if err != nil {
 			return index.DefaultClassDiagnostic(h, auth, err)
 		}
@@ -263,9 +264,9 @@ func stageTypedRows(e *Engine, scope *StatementScope, auth AuthorizationView, st
 		stage.RowShapes[old.Address()] = storage.RowShape{Original: store, Root: store.Versions, Replacement: replacement, ObservedLength: len(store.Versions), ObservedEnds: store.Ends, Generation: store.Generation, OwnProjected: true, Rewritten: rewrite, Frontier: frontier, Fills: fills}
 	}
 	if !rewrite && len(stage.IndexesOrZero().Layouts) != 0 {
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		transported := scope.Owner.Catalog.Clone()
-		projectedWrites, _, err = TransportIndexLayouts(&evaluation, stage, transported, next, store, replacement, sourceWrites, projectedWrites)
+		projectedWrites, _, err = core.TransportIndexLayouts(&evaluation, stage, transported, next, store, replacement, sourceWrites, projectedWrites)
 		if err != nil {
 			return err
 		}

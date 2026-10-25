@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -20,7 +21,7 @@ import (
 )
 
 // These tests call private stage/validator functions, not public SQL adapters.
-func domainValueUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) (*CatalogStage, typedef.DomainEdit) {
+func domainValueUnitStage(t *testing.T, e *core.Engine, op *session.Operation, q string) (*core.CatalogStage, typedef.DomainEdit) {
 	t.Helper()
 	raw := statement(t, q).(*parser.AlterDomain)
 	e.Mu.Lock()
@@ -29,7 +30,7 @@ func domainValueUnitStage(t *testing.T, e *Engine, op *session.Operation, q stri
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, _, err := typedef.ResolveAlterDomainLocked(DDLHost{E: e, Op: op}, auth, raw.Name)
+	d, _, err := typedef.ResolveAlterDomainLocked(core.DDLHost{E: e, Op: op}, auth, raw.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,7 @@ func domainValueUnitStage(t *testing.T, e *Engine, op *session.Operation, q stri
 	stage.AuthorizeLocked(auth, op.Session)
 	stage.DomainAlterState().Ctx = op.Context()
 	stage.DomainBases = append(stage.DomainBases, d)
-	edit, err := typedef.StageAlterDomainLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, d, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	edit, err := typedef.StageAlterDomainLocked(TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, d, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		t.Fatal(err)
@@ -256,7 +257,7 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 				case "cancel":
 					ctx, cancel := context.WithCancel(context.Background())
 					cancel()
-					SetPreparedCatalogPublicationCtx(prepared, ctx)
+					core.SetPreparedCatalogPublicationCtx(prepared, ctx)
 				case "root", "length", "generation", "ends":
 					copy := *e.Storage.Relations[table.Address()]
 					switch kind {
@@ -274,7 +275,7 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 				before := e.Catalog.State
 				stores := maps.Clone(e.Storage.Relations)
 				roots := maps.Clone(e.Storage.IndexRoots)
-				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: s.Base.Epoch()})
+				_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: s.Base.Epoch()})
 				if kind == "success" || kind == "unrelated" {
 					if err != nil || domainUnitType(t, e.CatalogRead(), "d") == old {
 						t.Fatal("action not published", err)
@@ -307,7 +308,7 @@ func TestDomainAlterDefaultReplayInternal(t *testing.T) {
 	d := domainUnitType(t, auth.Catalog, "p")
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}
+	h := TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	record := typedef.DomainDefaultSnapshot{Schema: "public", Domain: "p", Own: true, Usage: &typedef.DomainDefaultUsage{Type: []string{"pg_catalog", "int4"}, Typmod: -1}}
 	u, err := typedef.SnapshotUsage(h, auth, record)
 	if err != nil || u != d.SQLType.DomainBase() {
@@ -323,8 +324,8 @@ func TestDomainAlterDefaultReplayInternal(t *testing.T) {
 		t.Fatal("unresolved identity accepted")
 	}
 	record.Usage.Type = []string{"pg_catalog", "int4"}
-	OperationReplay(op).DomainDefault = &DomainDefaultReplayCapture{Statement: raw, Record: record}
-	defer func() { OperationReplay(op).DomainDefault = nil }()
+	core.OperationReplay(op).DomainDefault = &core.DomainDefaultReplayCapture{Statement: raw, Record: record}
+	defer func() { core.OperationReplay(op).DomainDefault = nil }()
 	copy := *d
 	handled, err := h.bindRestoredDomainDefault(auth, &copy, raw.Constraints[0].Default, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if !handled || err == nil || copy.DomainDefault != d.DomainDefault || e.Catalog.State != auth.Catalog.State() {

@@ -8,10 +8,11 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 )
 
-func pgClassHistoryCatalog(e *engine.Engine) (catalog.Read, *catalog.Relation) {
+func pgClassHistoryCatalog(e *core.Engine) (catalog.Read, *catalog.Relation) {
 	state := catalog.CloneState(e.CatalogRead().State())
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200100}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "history_parent", ObjectRevision: 1, Owner: e.RoleStore.Domain.Principal(10)}
 	state.SetDescriptor(parent.Address(), parent)

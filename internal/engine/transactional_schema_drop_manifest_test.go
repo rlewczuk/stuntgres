@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -13,7 +14,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func captureSchemaDropUnit(t *testing.T, e *Engine, op *session.Operation, stmt *parser.DropSchema) ddl.SchemaDropManifest {
+func captureSchemaDropUnit(t *testing.T, e *core.Engine, op *session.Operation, stmt *parser.DropSchema) ddl.SchemaDropManifest {
 	t.Helper()
 	manifest, err := func() (ddl.SchemaDropManifest, error) {
 		e.Mu.Lock()
@@ -22,7 +23,7 @@ func captureSchemaDropUnit(t *testing.T, e *Engine, op *session.Operation, stmt 
 		if err != nil {
 			return ddl.SchemaDropManifest{}, err
 		}
-		return ddl.CaptureSchemaDrop(DDLHost{E: e, Op: op}, auth, stmt)
+		return ddl.CaptureSchemaDrop(core.DDLHost{E: e, Op: op}, auth, stmt)
 	}()
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +31,7 @@ func captureSchemaDropUnit(t *testing.T, e *Engine, op *session.Operation, stmt 
 	return manifest
 }
 
-func constructSchemaDropUnit(e *Engine, op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*CatalogStage, error) {
+func constructSchemaDropUnit(e *core.Engine, op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*core.CatalogStage, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return stageSchemaDropLocked(e, op, stmt, manifest)

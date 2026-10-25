@@ -2,27 +2,28 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func preparePhysicalNotNullConstructor(e *Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.PhysicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
+func preparePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.PhysicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if len(repairs) == 0 {
 		return nil, nil
 	}
 	if !table.PhysicalNotNullConstructorShape(raw, repairs) {
-		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
+		return nil, core.SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if !PartitionConstraintReplayImport(e, op, auth) {
-		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
+	if !core.PartitionConstraintReplayImport(e, op, auth) {
+		return nil, core.SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 	if err != nil {
@@ -32,31 +33,31 @@ func preparePhysicalNotNullConstructor(e *Engine, op *session.Operation, raw *pa
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func capturePhysicalNotNullConstructor(e *Engine, op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*table.RestoredPhysicalNotNull, error) {
-	auth, err := OperationAuthorization(op)
+func capturePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*table.RestoredPhysicalNotNull, error) {
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if !PartitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
-		return nil, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
+	if !core.PartitionConstraintReplayImport(e, op, auth) || constructor.Ref.Epoch != auth.Catalog.Epoch() {
+		return nil, core.SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return table.CapturePhysicalNotNullConstructor(op, auth.RoleRecord, auth.Catalog, constructor, indexes)
 }
 
 // The selected NN and its outbound dependency projection disappear together in
 // the sole private stage. The surviving physical flag is not a synthetic NN row.
-func restorePhysicalNotNull(e *Engine, op *session.Operation, raw *parser.Delete, pair *table.RestoredPhysicalNotNull) error {
+func restorePhysicalNotNull(e *core.Engine, op *session.Operation, raw *parser.Delete, pair *table.RestoredPhysicalNotNull) error {
 	repair, valid := table.RestorePhysicalNotNullSyntax(raw)
-	reject := func() error { return SQLError("0A000", table.RestorePhysicalNotNullBoundary) }
+	reject := func() error { return core.SQLError("0A000", table.RestorePhysicalNotNullBoundary) }
 	if !valid || !pair.Pairs(op, repair) {
 		return reject()
 	}
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -65,10 +66,10 @@ func restorePhysicalNotNull(e *Engine, op *session.Operation, raw *parser.Delete
 		return err
 	}
 	if !actor.Superuser {
-		return SQLError("42501", "permission denied for table pg_constraint")
+		return core.SQLError("42501", "permission denied for table pg_constraint")
 	}
 	e.Mu.Lock()
-	if !PartitionConstraintReplayImport(e, op, auth) || auth.Catalog.Epoch() != pair.Ref.Epoch || !pair.Holds(auth.RoleRecord, auth.Catalog) {
+	if !core.PartitionConstraintReplayImport(e, op, auth) || auth.Catalog.Epoch() != pair.Ref.Epoch || !pair.Holds(auth.RoleRecord, auth.Catalog) {
 		e.Mu.Unlock()
 		return reject()
 	}

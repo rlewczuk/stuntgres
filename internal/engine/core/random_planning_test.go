@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -33,7 +34,7 @@ func randomPlanningUnitDraw(t *testing.T, op *session.Operation) float64 {
 	return rng.Float64()
 }
 
-func randomPlanningUnitDependency(t *testing.T, e *engine.Engine, dependencies []catalog.ExpressionDependency, name string) catalog.ExpressionDependency {
+func randomPlanningUnitDependency(t *testing.T, e *core.Engine, dependencies []catalog.ExpressionDependency, name string) catalog.ExpressionDependency {
 	t.Helper()
 	for _, dependency := range dependencies {
 		if dependency.Ref.Address.ClassID == ids.ProcedureClassID && e.CatalogRead().MustProcedure(dependency.Ref.Address).Name() == name {
@@ -335,7 +336,7 @@ func TestRandomPlanningConcurrentReuse(t *testing.T) {
 	authorized := evaluation
 	authorized.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, op)
 	denied := evaluation
-	denied.Host = engine.HostOf(readerScope)
+	denied.Host = core.HostOf(readerScope)
 	denied.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
 	inputType := binder.Params.Parameters[1].Type
 	one, err := sqltype.Integer(inputType, -1)
@@ -464,7 +465,7 @@ func TestRandomStrictNullTypedInputs(t *testing.T) {
 	}
 }
 
-func jsonbRecordRoutineUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, *engine.StatementScope) {
+func jsonbRecordRoutineUnitFixture(t *testing.T) (*core.Engine, *session.Operation, *core.StatementScope) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -493,7 +494,7 @@ func jsonbRecordRoutineUnitFixture(t *testing.T) (*engine.Engine, *session.Opera
 	return e, op, scope
 }
 
-func eMustJSONBRoutineAuthority(t *testing.T, e *engine.Engine, op *session.Operation) *engine.AuthorizationView {
+func eMustJSONBRoutineAuthority(t *testing.T, e *core.Engine, op *session.Operation) *core.AuthorizationView {
 	t.Helper()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -508,18 +509,18 @@ func objectACLUnitEntry(source, target authorization.PrincipalRef, use, options 
 	return authorization.ACLEntry{Grantor: source, Grantee: authorization.ACLGrantee{Role: target}, Privileges: use, GrantOptions: options}
 }
 
-func ownershipUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func ownershipUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	p, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func roleAttributeCreate(t *testing.T, e *engine.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
+func roleAttributeCreate(t *testing.T, e *core.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
 	t.Helper()
 	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
 	d, ok := e.Roles().Lookup(name)
@@ -529,7 +530,7 @@ func roleAttributeCreate(t *testing.T, e *engine.Engine, op *session.Operation, 
 	return d
 }
 
-func roleAttributeApply(t *testing.T, e *engine.Engine, op *session.Operation, s parser.Statement) {
+func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {
 	t.Helper()
 	r, err := e.Execute(op, s, 0, nil)
 	if err != nil || r.Count != 0 || r.Rows != nil {

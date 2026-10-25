@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -39,7 +40,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 		}
 	}
 	bad.ColumnMeta.Defaults[1] = definition
-	if err := (RelationProvider).Validate(view, &bad); err == nil {
+	if err := (core.RelationProvider).Validate(view, &bad); err == nil {
 		t.Fatal("untracked default edge admitted")
 	}
 	if _, err := stored.DefaultSQL(context.Background(), view, d.ColumnMeta.Defaults[1].Expression); err != nil {

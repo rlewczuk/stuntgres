@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -280,7 +281,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		v, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: engine.HostOf(scope)}})
+		v, err := bound.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope)}})
 		finish := scope.Finish(err)
 		op.Done()
 		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Database: e.Catalog.Domain, Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {

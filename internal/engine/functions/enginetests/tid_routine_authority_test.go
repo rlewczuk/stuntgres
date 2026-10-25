@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -49,7 +50,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := engine.NewExpressionBinder(context.Background(), e, input, reader, nil)
+			binder := core.NewExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 			bindTestTargetNamespace(binder)

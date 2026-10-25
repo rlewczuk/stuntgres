@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -14,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *session.Session, string, string, ids.ObjectAddress) {
+func fdwLateUnitSetup(t *testing.T, edge string) (*core.Engine, *session.Session, *session.Session, string, string, ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	if edge == "procedure_wrapper" || edge == "validator_wrapper" || edge == "transitive_procedure_mapping" {
@@ -78,15 +79,15 @@ func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *se
 	return e, a, b, drop, create, target
 }
 
-func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, query string) *PreparedCatalogPublication {
+func fdwPrepareLateUnitDrop(t *testing.T, e *core.Engine, scope *core.StatementScope, query string) *core.PreparedCatalogPublication {
 	t.Helper()
 	stmt := statement(t, query)
-	var stage *CatalogStage
+	var stage *core.CatalogStage
 	var roots []ids.ObjectAddress
 	var err error
 	e.Mu.Lock()
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
-		var auth AuthorizationView
+		var auth core.AuthorizationView
 		auth, err = e.AuthorizationLocked(scope.Op)
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
@@ -116,7 +117,7 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 	return prepared
 }
 
-func fdwLateUnitConflict(t *testing.T, err error, e *Engine, before *catalog.State) {
+func fdwLateUnitConflict(t *testing.T, err error, e *core.Engine, before *catalog.State) {
 	t.Helper()
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || err.Error() != "stuntgres: catalog publication conflict" {
@@ -149,7 +150,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 					// not merely before preparation of the retirement candidate.
 					sessionSQL(t, b, create)
 					before := e.Catalog.State
-					_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
+					_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: core.PreparedCatalogPublicationEpoch(prepared)})
 					fdwLateUnitConflict(t, err, e, before)
 				case "active":
 					sessionSQL(t, a, "BEGIN")
@@ -157,7 +158,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 						// Public explicit DROP SCHEMA is deliberately excluded.
 						// Exercise the existing eligible private catalog publisher
 						// with a genuine prepared schema retirement stage instead.
-						if err := fdwApplyLateUnitStage(t, e, a, func(scope *StatementScope) (*PreparedCatalogPublication, error) {
+						if err := fdwApplyLateUnitStage(t, e, a, func(scope *core.StatementScope) (*core.PreparedCatalogPublication, error) {
 							return fdwPrepareLateUnitDrop(t, e, scope, drop), nil
 						}); err != nil {
 							t.Fatal(err)
@@ -184,7 +185,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 						err := message.scope.Gate(statement(t, "SELECT 1"))
 						if err == nil {
 							prepared := fdwPrepareLateUnitDrop(t, e, message.scope, drop)
-							_, err = e.PublishCatalogOperation(message.op, message.scope, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
+							_, err = e.PublishCatalogOperation(message.op, message.scope, prepared, core.PublicationToken{Epoch: core.PreparedCatalogPublicationEpoch(prepared)})
 						}
 						if finish := message.scope.Finish(err); err == nil {
 							err = finish
@@ -218,7 +219,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				}
 				defer scope.Finish(context.Canceled)
 				prepared := fdwPrepareLateUnitDrop(t, e, scope, drop)
-				if _, err := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)}); err != nil {
+				if _, err := e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: core.PreparedCatalogPublicationEpoch(prepared)}); err != nil {
 					t.Fatal(err)
 				}
 			case "active":
@@ -261,7 +262,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, "BEGIN")
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, "BEGIN")
-		if err := fdwEditLateUnitServer(t, e, b, server, func(stage *CatalogStage, old *catalog.ForeignObject) error {
+		if err := fdwEditLateUnitServer(t, e, b, server, func(stage *core.CatalogStage, old *catalog.ForeignObject) error {
 			next := *old
 			next.Wrapper = target
 			var err error
@@ -289,7 +290,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 		sessionSQL(t, a, drop)
 		sessionSQL(t, b, create)
 		late := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ForeignServerClassID, Name: "fdw_late"})
-		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *catalog.ForeignObject) error {
+		if err := fdwEditLateUnitServer(t, e, a, late, func(stage *core.CatalogStage, old *catalog.ForeignObject) error {
 			return stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address()), false)
 		}); err != nil {
 			t.Fatal(err)
@@ -346,7 +347,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				defer scope.Finish(context.Canceled)
 				prepared := fdwPrepareLateUnitDrop(t, e, scope, drop)
 				sessionSQL(t, b, "ALTER SERVER fdw_unrelated_server OPTIONS(tag 'changed')")
-				_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
+				_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: core.PreparedCatalogPublicationEpoch(prepared)})
 			case "active":
 				sessionSQL(t, a, "BEGIN")
 				sessionSQL(t, a, drop)
@@ -388,7 +389,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	// Exercise an actual provider-valid private catalog replacement. This is
 	// not a new SQL ALTER SERVER ... WRAPPER spelling: it tests the common
 	// publisher's final candidate override when the old incoming edge is gone.
-	err := fdwEditLateUnitServer(t, e, a, late, func(stage *CatalogStage, old *catalog.ForeignObject) error {
+	err := fdwEditLateUnitServer(t, e, a, late, func(stage *core.CatalogStage, old *catalog.ForeignObject) error {
 		next := *old
 		next.Wrapper = survivor
 		var err error
@@ -408,7 +409,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	}
 }
 
-func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, prepare func(*StatementScope) (*PreparedCatalogPublication, error)) error {
+func fdwApplyLateUnitStage(t *testing.T, e *core.Engine, session *session.Session, prepare func(*core.StatementScope) (*core.PreparedCatalogPublication, error)) error {
 	t.Helper()
 	op, err := session.Acquire(context.Background())
 	if err != nil {
@@ -427,10 +428,10 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, pr
 	}
 	prepared, err := prepare(scope)
 	if prepared != nil {
-		defer e.DiscardCatalogStage(PreparedCatalogPublicationStage(prepared))
+		defer e.DiscardCatalogStage(core.PreparedCatalogPublicationStage(prepared))
 	}
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: core.PreparedCatalogPublicationEpoch(prepared)})
 	}
 	if finish := scope.Finish(err); err == nil {
 		err = finish
@@ -438,12 +439,12 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, pr
 	return err
 }
 
-func fdwEditLateUnitServer(t *testing.T, e *Engine, session *session.Session, address ids.ObjectAddress, edit func(*CatalogStage, *catalog.ForeignObject) error) error {
+func fdwEditLateUnitServer(t *testing.T, e *core.Engine, session *session.Session, address ids.ObjectAddress, edit func(*core.CatalogStage, *catalog.ForeignObject) error) error {
 	t.Helper()
-	return fdwApplyLateUnitStage(t, e, session, func(scope *StatementScope) (*PreparedCatalogPublication, error) {
+	return fdwApplyLateUnitStage(t, e, session, func(scope *core.StatementScope) (*core.PreparedCatalogPublication, error) {
 		e.Mu.Lock()
 		auth, err := e.AuthorizationLocked(scope.Op)
-		var stage *CatalogStage
+		var stage *core.CatalogStage
 		if err == nil {
 			// Capture the authentic committed predecessor, where the late
 			// server's wrapper still exists. The common overlay publisher then

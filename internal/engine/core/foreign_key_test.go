@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func foreignKeyLockFixture(t *testing.T) (*engine.Engine, *session.Session, *session.Session, *session.Session, ids.ObjectRef, ids.RowID) {
+func foreignKeyLockFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, *session.Session, ids.ObjectRef, ids.RowID) {
 	t.Helper()
 	e := engine.New()
 	a, b, c := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
@@ -31,7 +32,7 @@ func foreignKeyLockFixture(t *testing.T) (*engine.Engine, *session.Session, *ses
 	e.Mu.Unlock()
 	return e, a, b, c, ref, row
 }
-func foreignKeyHeldMode(t *testing.T, e *engine.Engine, ref ids.ObjectRef, row ids.RowID, ticket *lock.Ticket, want lock.Mode) {
+func foreignKeyHeldMode(t *testing.T, e *core.Engine, ref ids.ObjectRef, row ids.RowID, ticket *lock.Ticket, want lock.Mode) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
@@ -43,7 +44,7 @@ func foreignKeyHeldMode(t *testing.T, e *engine.Engine, ref ids.ObjectRef, row i
 		t.Fatal("exact canonical parent row grant", ref, row, actual, want)
 	}
 }
-func foreignKeyQueuedMode(t *testing.T, e *engine.Engine, ref ids.ObjectRef, row ids.RowID, holder *lock.Ticket, want lock.Mode) {
+func foreignKeyQueuedMode(t *testing.T, e *core.Engine, ref ids.ObjectRef, row ids.RowID, holder *lock.Ticket, want lock.Mode) {
 	t.Helper()
 	rowLockQueued(t, e, holder, want)
 	lockState := e.Locks.Inspect()

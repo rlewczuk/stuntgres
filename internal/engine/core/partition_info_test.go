@@ -167,15 +167,3 @@ func TestPartitionInfoProtocol(t *testing.T) {
 		}
 	}
 }
-
-func catalogRelationsUnitBind(t *testing.T, e *engine.Engine, name string, args ...parser.Expr) expr.Expr {
-	t.Helper()
-	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	binder.Clause.AggregateClause = "SELECT"
-	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args}
-	node, err := binder.BindFunctionProvider(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return node
-}

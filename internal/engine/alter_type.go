@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -12,8 +13,8 @@ import (
 
 // Sequence AS uses admitted target usages, including the prefix retained when
 // transformation completion fails. It never visits an unadmitted later TYPE.
-func stageAlterIdentityTypes(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, actions []parser.AlterTableAction, prepared []table.AlterTypePreparation) (*CatalogStage, error) {
-	var stage *CatalogStage
+func stageAlterIdentityTypes(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, original *catalog.Relation, actions []parser.AlterTableAction, prepared []table.AlterTypePreparation) (*core.CatalogStage, error) {
+	var stage *core.CatalogStage
 	index := 0
 	for _, action := range actions {
 		if action.Action != parser.AlterColumnType {
@@ -44,14 +45,14 @@ func stageAlterIdentityTypes(e *Engine, scope *StatementScope, op *session.Opera
 
 // alterTypeCandidate runs the TYPE candidate under Engine.mu; stage, when
 // begun, supplies the staged dependent views.
-func alterTypeCandidate(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
+func alterTypeCandidate(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.AlterTypeCandidate(alterHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, scope}, auth, original, next, ref, a, prepared)
+	return table.AlterTypeCandidate(alterHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, scope}, auth, original, next, ref, a, prepared)
 }
 
 // alterRowEvaluation is the statement's evaluation template for ALTER row
 // fills, rewrites and scans; read is the catalog local lowering admits against.
-func alterRowEvaluation(scope *StatementScope, op *session.Operation, read catalog.Read) exec.Context {
-	return exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+func alterRowEvaluation(scope *core.StatementScope, op *session.Operation, read catalog.Read) exec.Context {
+	return exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 }

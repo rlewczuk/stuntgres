@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -24,7 +25,7 @@ import (
 
 var testSessionID atomic.Uint64
 
-func testOperation(e *Engine, ctx context.Context) (*session.Operation, func(), error) {
+func testOperation(e *core.Engine, ctx context.Context) (*session.Operation, func(), error) {
 	s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		return nil, nil, err
@@ -43,15 +44,15 @@ func testOperation(e *Engine, ctx context.Context) (*session.Operation, func(), 
 	}
 	return op, cleanup, nil
 }
-func testExecute(e *Engine, ctx context.Context, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
+func testExecute(e *core.Engine, ctx context.Context, stmt parser.Statement, args []driver.NamedValue) (core.Result, error) {
 	op, cleanup, err := testOperation(e, ctx)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	defer cleanup()
 	return testExecuteFrame(e, op, stmt, args)
 }
-func testDescribe(e *Engine, stmt parser.Statement) (analyze.ParameterInfo, error) {
+func testDescribe(e *core.Engine, stmt parser.Statement) (analyze.ParameterInfo, error) {
 	op, cleanup, err := testOperation(e, context.Background())
 	if err != nil {
 		return analyze.ParameterInfo{}, err
@@ -71,7 +72,7 @@ func statement(t *testing.T, sql string) parser.Statement {
 	}
 	return s[0]
 }
-func run(t *testing.T, e *Engine, sql string, args ...any) Result {
+func run(t *testing.T, e *core.Engine, sql string, args ...any) core.Result {
 	t.Helper()
 	named := make([]driver.NamedValue, len(args))
 	for i, v := range args {
@@ -108,7 +109,7 @@ func independentFinalRows(original exec.RowResult) *exec.FinalRows {
 	}
 	return r
 }
-func tuples(r Result) [][]driver.Value {
+func tuples(r core.Result) [][]driver.Value {
 	cursor := independentFinalRows(r.Rows)
 	defer cursor.Close()
 	rows := make([][]driver.Value, 0, cursor.Count)
@@ -163,22 +164,22 @@ func testExport(v sqltype.Value) driver.Value {
 	}
 	panic("invalid test value")
 }
-func testUsage(e *Engine, id sqltype.ID) sqltype.Usage {
+func testUsage(e *core.Engine, id sqltype.ID) sqltype.Usage {
 	d, ok := e.CatalogRead().LookupType(id)
 	if !ok {
 		panic("missing type")
 	}
 	return d.Usage()
 }
-func testExecuteFrame(e *Engine, op *session.Operation, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
+func testExecuteFrame(e *core.Engine, op *session.Operation, stmt parser.Statement, args []driver.NamedValue) (core.Result, error) {
 	raw := make([]driver.Value, len(args))
 	for i, a := range args {
 		if a.Name != "" || a.Ordinal != i+1 {
-			return Result{}, fmt.Errorf("invalid test argument")
+			return core.Result{}, fmt.Errorf("invalid test argument")
 		}
 		v, err := driver.DefaultParameterConverter.ConvertValue(a.Value)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if b, ok := v.([]byte); ok {
 			v = string(b)
@@ -200,7 +201,7 @@ func testExecuteFrame(e *Engine, op *session.Operation, stmt parser.Statement, a
 			case bool:
 				s = strconv.FormatBool(v)
 			default:
-				return SQLError("0A000", "unsupported parameter value")
+				return core.SQLError("0A000", "unsupported parameter value")
 			}
 			value, err := p.Types[i].Type.InputWithEnvironment(ctx, s, -1, input)
 			if err != nil {

@@ -3,20 +3,21 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-func executeLoad(e *Engine, op *session.Operation, stmt *parser.Load, count int) (Result, error) {
+func executeLoad(e *core.Engine, op *session.Operation, stmt *parser.Load, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	return Result{}, ddl.Load(op.Context(), auth.View, stmt)
+	return core.Result{}, ddl.Load(op.Context(), auth.View, stmt)
 }

@@ -3,17 +3,18 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func pairRestoredNotNull(e *Engine, op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
+func pairRestoredNotNull(e *core.Engine, op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
 	if !table.RestoredNotNullShape(raw) {
-		return table.RestoredNotNull{}, SQLError("0A000", table.RestoreNoInheritBoundary)
+		return table.RestoredNotNull{}, core.SQLError("0A000", table.RestoreNoInheritBoundary)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredNotNull{}, err
 	}
@@ -26,7 +27,7 @@ func pairRestoredNotNull(e *Engine, op *session.Operation, raw *parser.AlterTabl
 
 // Unlike public UPDATE, this interpreter can only run inside isolated Restore,
 // after an imported explicit validated local NN and its immediately paired SET.
-func restoreNoInheritNotNull(e *Engine, op *session.Operation, raw *parser.Update, origin table.RestoredNotNull) error {
+func restoreNoInheritNotNull(e *core.Engine, op *session.Operation, raw *parser.Update, origin table.RestoredNotNull) error {
 	name, column, label, err := table.RestoreNoInheritSyntax(raw)
 	if err != nil {
 		return err
@@ -34,7 +35,7 @@ func restoreNoInheritNotNull(e *Engine, op *session.Operation, raw *parser.Updat
 	if err = op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -43,10 +44,10 @@ func restoreNoInheritNotNull(e *Engine, op *session.Operation, raw *parser.Updat
 		return err
 	}
 	if !actor.Superuser {
-		return SQLError("42501", "permission denied for table pg_constraint")
+		return core.SQLError("42501", "permission denied for table pg_constraint")
 	}
 	e.Mu.Lock()
-	if !PartitionConstraintReplayImport(e, op, auth) {
+	if !core.PartitionConstraintReplayImport(e, op, auth) {
 		e.Mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore no-inherit authority")
 	}

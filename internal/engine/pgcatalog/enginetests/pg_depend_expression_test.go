@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -140,7 +141,7 @@ func TestPGDependQuerySourceSuppression(t *testing.T) {
 	pgDependUnitRefs(t, got, []ids.ObjectAddress{column})
 }
 
-func pgDependUnitCatalog(t *testing.T) (*engine.Engine, catalog.Read, *sqltype.Descriptor) {
+func pgDependUnitCatalog(t *testing.T) (*core.Engine, catalog.Read, *sqltype.Descriptor) {
 	t.Helper()
 	e := engine.New()
 	base := e.CatalogRead()

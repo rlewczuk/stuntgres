@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
@@ -18,7 +19,7 @@ import (
 // Each managed database owns an independent catalog and role set.
 // Network identities are allocated by the physical server, bootstrap uses 1.
 type database struct {
-	engine    *engine.Engine
+	engine    *core.Engine
 	settings  map[string]struct{} // Immutable definition names, never effective values.
 	reference *referenceConfig    // Immutable; non-nil runs every connection in dual-backend mode.
 }
@@ -110,7 +111,7 @@ func (d *database) provision(ctx context.Context, name string, users accounts, r
 	return nil
 }
 func quoteIdentifier(name string) string { return `"` + strings.ReplaceAll(name, `"`, `""`) + `"` }
-func bootstrapExecute(ctx context.Context, e *engine.Engine, sess *session.Session, source string) (err error) {
+func bootstrapExecute(ctx context.Context, e *core.Engine, sess *session.Session, source string) (err error) {
 	op, options, err := sess.AcquireCommand(ctx)
 	if err != nil {
 		return err

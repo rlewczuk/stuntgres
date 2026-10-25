@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 )
@@ -30,7 +31,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+		if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -78,7 +79,7 @@ func TestRLSBaseOwnerPublicationFreshness(t *testing.T) {
 
 // SQL only constructs the ordinary internal catalog fixture. Assertions exercise
 // real binders, frozen presentation, provider validation and publication directly.
-func policyUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, func(), *catalog.Relation) {
+func policyUnitFixture(t *testing.T) (*core.Engine, *session.Operation, func(), *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -20,7 +21,7 @@ func TestBitwiseDefaultValidationAndRetag(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	old := view.MustRelation(ref.Address)
-	if err := (RelationProvider).Validate(view, old); err != nil {
+	if err := (core.RelationProvider).Validate(view, old); err != nil {
 		t.Fatal(err)
 	}
 	root := old.ColumnMeta.Defaults[1].Expression.(plan.BitwiseExpr)
@@ -306,7 +307,7 @@ func TestBitwiseConstantNullDefaultRemainsAnalyzed(t *testing.T) {
 	if err != nil || before != after {
 		t.Fatal(before, after, err)
 	}
-	if err := (RelationProvider).Validate(view, table); err != nil {
+	if err := (core.RelationProvider).Validate(view, table); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -147,7 +148,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	ast := enginetest.Statement(t, "SELECT num_nulls(num_nonnulls(v),f),num_nonnulls(v) FROM secret").(*parser.Select)
-	bound, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

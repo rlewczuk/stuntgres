@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
@@ -33,7 +34,7 @@ func TestSerialDefaultMergedRootProviderValidation(t *testing.T) {
 	enginetest.Run(t, e, `DROP SEQUENCE q RESTRICT`)
 	enginetest.Run(t, e, `CREATE SEQUENCE q START 99`)
 	before := e.Catalog.State
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: read.Epoch()}); err == nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: read.Epoch()}); err == nil {
 		t.Fatal("merged root published a default referencing a removed provider")
 	}
 	if e.Catalog.State != before || e.Catalog.State.Get(ref.Address) != original {

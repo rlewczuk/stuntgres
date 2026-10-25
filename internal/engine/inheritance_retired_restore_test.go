@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -127,7 +128,7 @@ func TestRestoreConstraintHistorySyntax(t *testing.T) {
 	}
 }
 
-func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *table.RestoredHistoryAuthority) {
+func retiredImportFixture(t *testing.T) (*core.Engine, *session.Operation, *table.RestoredHistoryAuthority) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE history_reader LOGIN")
@@ -163,7 +164,7 @@ func retiredAuthorityEqual(a, b *table.RestoredHistoryAuthority) bool {
 		return x.Ref == y.Ref && x.OID == y.OID && x.Name == y.Name && x.Check == y.Check && slices.Equal(x.Attributes, y.Attributes) && analyze.SameGroupExpression(x.Expression, y.Expression) && x.NotValid == y.NotValid && x.NoInherit == y.NoInherit && x.Local == y.Local && x.Count == y.Count
 	})
 }
-func retiredResourceCounts(e *Engine) [7]int {
+func retiredResourceCounts(e *core.Engine) [7]int {
 	e.Mu.Lock()
 	counts := [7]int{len(e.Visibility.Entries), e.IndexWaits.CountLocked(), e.Exclusions.CountLocked()}
 	e.Mu.Unlock()
@@ -174,7 +175,7 @@ func retiredResourceCounts(e *Engine) [7]int {
 	counts[6] = lockState.KeyBuckets
 	return counts
 }
-func retiredReject(t *testing.T, e *Engine, op *session.Operation, q string, a *table.RestoredHistoryAuthority) {
+func retiredReject(t *testing.T, e *core.Engine, op *session.Operation, q string, a *table.RestoredHistoryAuthority) {
 	t.Helper()
 	before := e.Catalog.State
 	stores := maps.Clone(e.Storage.Relations)

@@ -3,6 +3,8 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/core"
 )
 
 // The importer arms this context after analysis/import. The first following
@@ -10,7 +12,7 @@ import (
 // deterministically, without sleeps, goroutines, or a production test hook.
 type castPreflightContext struct {
 	context.Context
-	e        *Engine
+	e        *core.Engine
 	t        *testing.T
 	armed    bool
 	entered  bool

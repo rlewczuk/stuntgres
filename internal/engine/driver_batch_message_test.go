@@ -4,22 +4,23 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 type batchUnitMessage struct {
-	scope  *StatementScope
+	scope  *core.StatementScope
 	op     *session.Operation
 	ended  bool
 	result error
 }
 
-func (m *batchUnitMessage) step(stmt parser.Statement) (Result, error) {
+func (m *batchUnitMessage) step(stmt parser.Statement) (core.Result, error) {
 	if m.scope.Finished {
 		next, err := m.scope.NextStatement()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		m.scope = next
 	}
@@ -46,7 +47,7 @@ func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batc
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := EngineOf(s).StartStatement(op)
+	scope, err := core.EngineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)

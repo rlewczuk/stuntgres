@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
@@ -11,11 +12,11 @@ import (
 
 // Capture the existing physical schema/index origin on the private import lease.
 // The ordinary USING INDEX binder owns eligibility, allocation and publication.
-func beginPartitionUsingIndexReplay(e *Engine, op *session.Operation, raw *parser.AlterTable) error {
+func beginPartitionUsingIndexReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition index operation")
 	}
-	OperationReplay(op).PartitionUsingIndex = nil
+	core.OperationReplay(op).PartitionUsingIndex = nil
 	if raw == nil || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUsingIndex || raw.Actions[0].UsingIndex == nil {
 		return nil
 	}
@@ -25,7 +26,7 @@ func beginPartitionUsingIndexReplay(e *Engine, op *session.Operation, raw *parse
 	if err != nil {
 		return err
 	}
-	if !PartitionConstraintReplayImport(e, op, auth) {
+	if !core.PartitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition index authority")
 	}
 	ref, err := e.ResolveRelationReference(auth, raw.Name, true)
@@ -36,6 +37,6 @@ func beginPartitionUsingIndexReplay(e *Engine, op *session.Operation, raw *parse
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	OperationReplay(op).PartitionUsingIndex = partition.CaptureUsingIndexReplay(auth.Catalog, raw, table)
+	core.OperationReplay(op).PartitionUsingIndex = partition.CaptureUsingIndexReplay(auth.Catalog, raw, table)
 	return nil
 }

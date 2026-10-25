@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
 )
 
-func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q string) (*session.Operation, *StatementScope, analyze.Binding) {
+func conflictUpdateAnalyzedScope(t *testing.T, e *core.Engine, s *session.Session, q string) (*session.Operation, *core.StatementScope, analyze.Binding) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -37,13 +38,13 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q 
 	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
+		b, err = core.Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
 	if err := conflict.SelectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)

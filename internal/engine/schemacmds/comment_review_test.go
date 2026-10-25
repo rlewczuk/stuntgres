@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/sqlstate"
 )
@@ -113,7 +114,7 @@ func TestCommentQualifiedDiagnostics(t *testing.T) {
 				if err != nil {
 					t.Fatal("semantic failure occurred at Prepare", err)
 				}
-				if !reflect.DeepEqual(info, engine.StatementDescription{}) {
+				if !reflect.DeepEqual(info, core.StatementDescription{}) {
 					t.Fatal("utility Prepare metadata", info)
 				}
 			}
@@ -181,7 +182,7 @@ func TestCommentRestoreAuthorityIsolation(t *testing.T) {
 	enginetest.Run(t, source, "CREATE USER ordinary")
 	for _, tc := range []struct {
 		name         string
-		engine       *engine.Engine
+		engine       *core.Engine
 		actor, query string
 	}{
 		{"public operation", source, "postgres", "COMMENT ON SCHEMA public IS 'forbidden'"},
@@ -194,9 +195,9 @@ func TestCommentRestoreAuthorityIsolation(t *testing.T) {
 			before := tc.engine.CatalogRead()
 			rolesPublication := tc.engine.RoleStore.Published
 			identity := op.RoleState()
-			engine.OperationReplay(op).CommentAuthority = true
+			core.OperationReplay(op).CommentAuthority = true
 			_, err := tc.engine.Execute(op, enginetest.Statement(t, tc.query), 0, nil)
-			engine.OperationReplay(op).CommentAuthority = false
+			core.OperationReplay(op).CommentAuthority = false
 			var diagnostic *sqlstate.Error
 			if err == nil || errors.As(err, &diagnostic) {
 				t.Fatal("invalid private marker accepted or fabricated SQL diagnostic", err)

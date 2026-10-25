@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -50,7 +51,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 			done := make(chan outcome, 1)
 			go func() {
 				op, err := writer.Acquire(ctx)
-				var result engine.Result
+				var result core.Result
 				var rows [][]driver.Value
 				if err == nil {
 					result, err = e.Execute(op, mustLockStatement("UPDATE t SET v=t.v+s.n FROM s JOIN r USING(k) WHERE t.id=k RETURNING old.v,new.v,s.n"), 0, nil)

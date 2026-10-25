@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -57,14 +58,14 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 			e.Mu.Unlock()
 			stage := e.BeginCatalogStage(view)
 			defer e.DiscardCatalogStage(stage)
-			closure, err := engine.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{dependency.Address})
+			closure, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{dependency.Address})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if len(closure) != 1 || closure[0].Automatic || closure[0].Label != "policy renamed on table policy_owner" {
 				t.Fatal("private altered policy dependency closure lost identity", closure)
 			}
-			if err = engine.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{dependency.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err = core.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{dependency.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			pruned, ok := stage.Get(ownerRef.Address).(*catalog.Relation)

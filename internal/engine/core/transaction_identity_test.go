@@ -1,0 +1,332 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"math"
+	"reflect"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestTransactionIdentityAgeArithmetic(t *testing.T) {
+	for _, tc := range []struct {
+		now, xid uint32
+		want     int32
+	}{
+		{3, 0, 2147483647}, {3, 1, 2147483647}, {3, 2, 2147483647}, {3, 3, 0},
+		{3, 4294967295, 4}, {2147483651, 3, -2147483648}, {4294967295, 3, -4},
+	} {
+		if got := visibility.Age(tc.now, tc.xid); got != tc.want {
+			t.Fatalf("age(%d,%d)=%d want %d", tc.now, tc.xid, got, tc.want)
+		}
+	}
+	e := engine.New()
+	_, a := blockingUnitOwner(t, e)
+	_, b := blockingUnitOwner(t, e)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	anchor, err := core.EngineTransactionAgeLocked(e, a.Ref(), 3)
+	if err != nil || anchor != 0 || e.Visibility.LastAssignedXID() != 2 || e.Visibility.Entries[a.Ref()].AssignedXID != 0 {
+		t.Fatal("inquiry allocation", anchor, err)
+	}
+	if err := e.AssignTransactionXIDLocked(b.Ref()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AssignTransactionXIDLocked(a.Ref()); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := core.EngineTransactionAgeLocked(e, a.Ref(), 3); err != nil || got != 0 {
+		t.Fatal("changed first-demand anchor", got, err)
+	}
+}
+
+func TestTransactionIdentityAllocation(t *testing.T) {
+	for _, tc := range []struct{ last, want uint64 }{{2, 3}, {4294967294, 4294967295}, {4294967295, 4294967299}, {8589934591, 8589934595}, {math.MaxUint64 - 1, math.MaxUint64}} {
+		got, err := visibility.NextFullXID(tc.last)
+		if err != nil || got != tc.want {
+			t.Fatal(tc, got, err)
+		}
+	}
+	if _, err := visibility.NextFullXID(math.MaxUint64); err == nil {
+		t.Fatal("full identity wrapped")
+	}
+	e := engine.New()
+	_, a := blockingUnitOwner(t, e)
+	_, b := blockingUnitOwner(t, e)
+	_, c := blockingUnitOwner(t, e)
+	pgLocksUnitAssign(t, e, a)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	e.Visibility.SetLastAssignedXIDLocked(4294967295)
+	before := len(e.Visibility.History)
+	if err := e.AssignTransactionXIDLocked(b.Ref()); err == nil || e.Visibility.LastAssignedXID() != 4294967295 || len(e.Visibility.History) != before || b.AssignedPublicXID() != 0 {
+		t.Fatal("live low32 alias partially admitted", err)
+	}
+	e.Visibility.RecordCommitTimestampLocked(a.Ref())
+	if err := e.AssignTransactionXIDLocked(b.Ref()); err == nil {
+		t.Fatal("publisher-to-release gap reused live mirror")
+	}
+	e.Mu.Unlock()
+	e.EndLockOwner(a)
+	e.Mu.Lock()
+	if err := e.AssignTransactionXIDLocked(b.Ref()); err != nil {
+		t.Fatal(err)
+	}
+	if e.Visibility.Entries[b.Ref()].FullXID != 4294967299 || e.Visibility.Entries[b.Ref()].AssignedXID != 3 || b.AssignedPublicXID() != 3 || e.Visibility.CommitTimestamps != nil {
+		t.Fatal("full versus low mirror/OFF-lazy", e.Visibility.Entries[b.Ref()])
+	}
+	previous := e.Visibility.Entries[b.Ref()]
+	if err := e.AssignTransactionXIDLocked(b.Ref()); err != nil || e.Visibility.Entries[b.Ref()] != previous {
+		t.Fatal("non-idempotent assignment", err)
+	}
+	e.Visibility.SetLastAssignedXIDLocked(math.MaxUint64)
+	if err := e.AssignTransactionXIDLocked(c.Ref()); err == nil || e.Visibility.Entries[c.Ref()].FullXID != 0 || c.AssignedPublicXID() != 0 {
+		t.Fatal("exhaustion published assignment", err)
+	}
+}
+
+func identityUnitStatus(t *testing.T, e *core.Engine, id uint64, want string, present bool) {
+	t.Helper()
+	e.Mu.Lock()
+	got, ok, err := e.Visibility.TransactionStatusLocked(id)
+	e.Mu.Unlock()
+	if err != nil || got != want || ok != present {
+		t.Fatalf("status %d = %q/%v (%v), want %q/%v", id, got, ok, err, want, present)
+	}
+}
+func TestTransactionIdentityHistory(t *testing.T) {
+	e := engine.New()
+	s, a := blockingUnitOwner(t, e)
+	id := uint64(pgLocksUnitAssign(t, e, a))
+	identityUnitStatus(t, e, id, "in progress", true)
+	transactionEnd(t, s, a.Ref(), true)
+	identityUnitStatus(t, e, id, "committed", true)
+	s, b := blockingUnitOwner(t, e)
+	aborted := uint64(pgLocksUnitAssign(t, e, b))
+	transactionEnd(t, s, b.Ref(), false)
+	identityUnitStatus(t, e, aborted, "aborted", true)
+	if e.Visibility.CommitTimestamps != nil {
+		t.Fatal("trackingOFF allocated timestamp history")
+	}
+	for _, id := range []uint64{0, 4294967296, 18446744069414584320} {
+		identityUnitStatus(t, e, id, "", false)
+	}
+	for _, id := range []uint64{1, 2, 4294967297, 4294967298, 18446744069414584321, 18446744069414584322} {
+		identityUnitStatus(t, e, id, "committed", true)
+	}
+	e.Mu.Lock()
+	_, _, err := e.Visibility.TransactionStatusLocked(math.MaxUint64)
+	e.Mu.Unlock()
+	var state *sqlstate.Error
+	if !errors.As(err, &state) || state.Code != "22023" || state.Message != "transaction ID 18446744073709551615 is in the future" {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := e.ReplaceCatalog(ctx, e, e.CatalogRead()); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	identityUnitStatus(t, e, id, "committed", true)
+	if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
+		t.Fatal(err)
+	}
+	identityUnitStatus(t, e, id, "", false)
+	identityUnitStatus(t, e, aborted, "", false)
+	e.Mu.Lock()
+	gap := e.Visibility.LastAssignedXID()
+	e.Visibility.SetLastAssignedXIDLocked(e.Visibility.LastAssignedXID() + 2)
+	e.Mu.Unlock()
+	identityUnitStatus(t, e, gap+1, "", false)
+	identityUnitTimestampWrap(t)
+}
+
+func TestTransactionIdentityCompletion(t *testing.T) {
+	e := engine.New()
+	_, a := blockingUnitOwner(t, e)
+	id := uint64(pgLocksUnitAssign(t, e, a))
+	e.Mu.Lock()
+	e.Visibility.RecordCommitTimestampLocked(a.Ref())
+	core.EngineEndSerializableLocked(e, a.Ref(), false)
+	e.Mu.Unlock()
+	identityUnitStatus(t, e, id, "in progress", true)
+	e.EndLockOwner(a)
+	identityUnitStatus(t, e, id, "committed", true)
+	e.Mu.Lock()
+	core.EngineEndSerializableLocked(e, a.Ref(), false)
+	e.Mu.Unlock()
+	identityUnitStatus(t, e, id, "committed", true)
+	_, aborting := blockingUnitOwner(t, e)
+	aborted := uint64(pgLocksUnitAssign(t, e, aborting))
+	e.Mu.Lock()
+	core.EngineEndSerializableLocked(e, aborting.Ref(), false)
+	e.Mu.Unlock()
+	identityUnitStatus(t, e, aborted, "in progress", true)
+	e.EndLockOwner(aborting)
+	identityUnitStatus(t, e, aborted, "aborted", true)
+	_, owner := blockingUnitOwner(t, e)
+	id = uint64(pgLocksUnitAssign(t, e, owner))
+	finisher := sessionStart(t, e, nil)
+	op := transactionOperation(t, finisher)
+	defer op.Done()
+	entry := &session.PreparedTransaction{GID: "identity_claimed", Ref: owner.Ref(), Ticket: owner, Owner: finisher.Authorization.State.CurrentUser, Claimed: true}
+	e.Mu.Lock()
+	core.EnginePreparedRef(e).ReserveLocked()
+	core.EnginePreparedRef(e).InstallLocked(entry)
+	before := e.Visibility.Entries[owner.Ref()]
+	e.Mu.Unlock()
+	err := core.EngineCompletePrepared(e, op, entry.GID, true)
+	var state *sqlstate.Error
+	if !errors.As(err, &state) || state.Code != "55000" || state.Message != `prepared transaction with identifier "identity_claimed" is busy` {
+		t.Fatal("busy claim", err)
+	}
+	e.Mu.Lock()
+	same := core.EnginePreparedRef(e).Lookup(entry.GID) == entry && entry.Claimed && e.Visibility.Entries[owner.Ref()] == before
+	core.EnginePreparedRef(e).RemoveLocked(entry.GID)
+	e.Mu.Unlock()
+	if !same {
+		t.Fatal("busy completion changed actual owner")
+	}
+	identityUnitStatus(t, e, id, "in progress", true)
+	t.Run("exact_phase_full_identity", func(t *testing.T) {
+		phaseEngine := engine.New()
+		_, ticket := blockingUnitOwner(t, phaseEngine)
+		pgLocksUnitAssign(t, phaseEngine, ticket)
+		phaseEngine.Mu.Lock()
+		defer phaseEngine.Mu.Unlock()
+		phaseEngine.Visibility.RecordCommitTimestampLocked(ticket.Ref())
+		phaseEngine.Visibility.ResetPhaseLocked(ticket.Ref())
+		phaseEngine.Visibility.SetLastAssignedXIDLocked(4294967295)
+		if err := phaseEngine.AssignTransactionXIDLocked(ticket.Ref()); err != nil {
+			t.Fatal(err)
+		}
+		old, oldPresent, err := phaseEngine.Visibility.TransactionStatusLocked(3)
+		if err != nil || !oldPresent || old != "committed" {
+			t.Fatal("low32 phase alias changed old completion", old, oldPresent, err)
+		}
+		current, present, err := phaseEngine.Visibility.TransactionStatusLocked(4294967299)
+		if err != nil || !present || current != "in progress" {
+			t.Fatal("new full phase not active", current, present, err)
+		}
+	})
+}
+
+func TestTransactionIdentityBinding(t *testing.T) {
+	ctx := context.Background()
+	e := engine.New()
+	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	for _, tc := range []struct {
+		name   string
+		oid    uint32
+		result sqltype.ID
+	}{{"age", 1181, sqltype.Int4}, {"mxid_age", 3939, sqltype.Int4}, {"pg_current_xact_id", 5059, sqltype.Xid8}, {"pg_current_xact_id_if_assigned", 5060, sqltype.Xid8}, {"pg_xact_status", 5066, sqltype.Text}, {"pg_get_multixact_members", 3819, sqltype.ID(2249)}} {
+		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}}
+		if tc.name != "pg_current_xact_id" && tc.name != "pg_current_xact_id_if_assigned" {
+			raw.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}
+		}
+		var bound expr.Expr
+		var err error
+		if tc.name == "age" {
+			raw.Args = []parser.Expr{ageFiniteTyped("xid", "0")}
+			bound, err = b.BindFunctionProvider(raw)
+		} else {
+			bound, err = b.BindFunctionProvider(raw)
+		}
+		if err != nil {
+			t.Fatal(tc.name, err)
+		}
+		n := bound
+		if err := n.(expr.StoredProvider).ValidateStoredProvider(); err != nil {
+			t.Fatal(err)
+		}
+		reference := expr.InfoOf(n).CallRoutineReference()
+		if reference == nil || reference.RoutineOID() != tc.oid {
+			t.Fatal("original formal identity", tc.name, reference)
+		}
+		if tc.name != "pg_get_multixact_members" && n.ResultUsage().Type.ID() != tc.result {
+			t.Fatal("result usage", tc.name)
+		}
+		intrinsic := expr.Stable
+		if tc.name == "pg_xact_status" || tc.name == "pg_get_multixact_members" {
+			intrinsic = expr.Volatile
+		}
+		if exec.PlannedVolatility(n) != intrinsic || exec.ConditionalConstantInputs(n) || plan.GenerationImmutable(n) {
+			t.Fatal("unsafe constant/volatility admission", tc.name)
+		}
+		count := 0
+		plan.ExpressionChildren(n, func(expr.Expr) { count++ })
+		if count != len(raw.Args) {
+			t.Fatal("closed traversal", tc.name, count)
+		}
+		recipe, err := (stored.ScalarRenderer{}).ScalarFunctionSQL(ctx, e.CatalogRead(), n)
+		if err != nil || !strings.Contains(recipe, "pg_catalog."+tc.name+"(") {
+			t.Fatal("symbolic recipe", recipe, err)
+		}
+		persisted, err := stored.RemapExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		if err != nil || !analyze.SameGroupExpression(n, persisted) {
+			t.Fatal("symbolic remapping", err)
+		}
+		if err := table.ValidateGenerationPlan(e.CatalogRead(), nil, n); err != nil {
+			t.Fatal("original provider", err)
+		}
+		captured, err := exec.ExpressionRoutineDescriptor(n)
+		if err != nil || captured == nil {
+			t.Fatal("missing captured original routine", err)
+		}
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(binderOperation(b))
+		e.Mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
+			t.Fatal("original routine manifest rejected", err)
+		}
+		if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), nil, captured, nil); err == nil {
+			t.Fatal("current OID repaired missing original routine manifest")
+		}
+		if len(n.(expr.Composite).Children()) != 0 && tc.name != "age" {
+			value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+			if err != nil || !value.IsNull() {
+				t.Fatal("typed strict null", err)
+			}
+		}
+		fresh := engine.New()
+		fb := newTestExpressionBinder(t, ctx, fresh, sqltype.InputEnvironment{}, nil)
+		mapped, _, err := stored.RetagTypes(fresh.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+			if d.IsComposite() {
+				return d
+			}
+			return fb.Type(d.ID())
+		})
+		if err != nil || mapped.(expr.StoredProvider).ValidateStoredProvider() != nil {
+			t.Fatal("retag provider", err)
+		}
+		if !reflect.DeepEqual(expr.Expr(n).(expr.Composite).Children(), expr.Expr(persisted).(expr.Composite).Children()) {
+			t.Fatal("source argument reconstruction")
+		}
+	}
+}
+
+func ageFiniteTyped(typ, value string) parser.Expr {
+	return parser.CastExpr{Child: datetimeMakeString(value), TypeName: parser.TypeName{Name: typ}}
+}
+
+func datetimeMakeString(s string) parser.Expr {
+	return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
+}

@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -12,7 +13,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func holdsColumnDropGrant(scope *StatementScope, ref ids.ObjectRef) bool {
+func holdsColumnDropGrant(scope *core.StatementScope, ref ids.ObjectRef) bool {
 	if scope.LockTicket == nil || scope.LockTicket.Ref() != scope.TxRef {
 		return false
 	}
@@ -21,13 +22,13 @@ func holdsColumnDropGrant(scope *StatementScope, ref ids.ObjectRef) bool {
 
 // prepareColumnDrop records the actual ordinary provider effects without owning
 // a catalog stage, visibility view, expression evaluation or physical rewrite.
-func prepareColumnDrop(scope *StatementScope, auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction) (*table.DropPreparation, error) {
+func prepareColumnDrop(scope *core.StatementScope, auth core.AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction) (*table.DropPreparation, error) {
 	return prepareColumnDropAfter(scope, auth, old, ref, action, nil)
 }
 
 // prior is the immediately preceding successful DROP preparation. Its ordered
 // real effects remain visible to dependency discovery, not just its root shape.
-func prepareColumnDropAfter(scope *StatementScope, auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, prior *table.DropPreparation) (*table.DropPreparation, error) {
+func prepareColumnDropAfter(scope *core.StatementScope, auth core.AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, prior *table.DropPreparation) (*table.DropPreparation, error) {
 	provider, err := prepareDropDefinitionProvider(scope, auth, old, ref, prior)
 	if err != nil {
 		return nil, err
@@ -39,7 +40,7 @@ func prepareColumnDropAfter(scope *StatementScope, auth AuthorizationView, old *
 	return finishDropDefinition(scope, provider, next)
 }
 
-func prepareDropDefinitionProvider(scope *StatementScope, auth AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, prior *table.DropPreparation) (*DropProvider, error) {
+func prepareDropDefinitionProvider(scope *core.StatementScope, auth core.AuthorizationView, old *catalog.Relation, ref ids.ObjectRef, prior *table.DropPreparation) (*core.DropProvider, error) {
 	if err := scope.Active(); err != nil {
 		return nil, err
 	}
@@ -57,18 +58,18 @@ func prepareDropDefinitionProvider(scope *StatementScope, auth AuthorizationView
 		return nil, ids.ErrCatalogReplaced
 	}
 	e.Mu.Lock()
-	path, err := ReferencePath(auth)
+	path, err := core.ReferencePath(auth)
 	e.Mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
 	prepared := &table.DropPreparation{Old: old, Ref: ref, Prior: prior, Statement: scope, TxRef: scope.TxRef, Base: auth.Catalog, Discovery: auth.Catalog, Input: dropDiscoveryInput(auth.Definition)}
-	provider := &DropProvider{Base: auth.Catalog, Owner: e, SearchPath: path, Prepared: prepared, Ctx: scope.Op.Context(), Scope: scope}
+	provider := &core.DropProvider{Base: auth.Catalog, Owner: e, SearchPath: path, Prepared: prepared, Ctx: scope.Op.Context(), Scope: scope}
 	provider.Observe(ref.Address)
 	return provider, nil
 }
 
-func finishDropDefinition(scope *StatementScope, provider *DropProvider, next *catalog.Relation) (*table.DropPreparation, error) {
+func finishDropDefinition(scope *core.StatementScope, provider *core.DropProvider, next *catalog.Relation) (*table.DropPreparation, error) {
 	prepared := provider.Prepared
 	prepared.Finish(next)
 	e := provider.Owner
@@ -83,7 +84,7 @@ func finishDropDefinition(scope *StatementScope, provider *DropProvider, next *c
 
 // validateColumnDropObservationsLocked never treats an additive catalog member
 // as replacement. Only captured provider identities and the operation are fenced.
-func validateColumnDropObservationsLocked(scope *StatementScope, prepared *table.DropPreparation, catalog catalog.Read) error {
+func validateColumnDropObservationsLocked(scope *core.StatementScope, prepared *table.DropPreparation, catalog catalog.Read) error {
 	if prepared == nil || scope.Finished {
 		return ids.ErrCatalogReplaced
 	}
@@ -92,14 +93,14 @@ func validateColumnDropObservationsLocked(scope *StatementScope, prepared *table
 
 // consumePreparedDrop applies the exact immutable provider effects to the sole
 // command stage. Neither dependency analysis nor metadata cooking runs again.
-func consumePreparedDrop(scope *StatementScope, stage *CatalogStage, prepared *table.DropPreparation, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, error) {
+func consumePreparedDrop(scope *core.StatementScope, stage *core.CatalogStage, prepared *table.DropPreparation, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, error) {
 	if err := scope.Active(); err != nil {
 		return nil, err
 	}
 	if err := scope.Op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if prepared == nil || prepared.Old != old || prepared.Ref != ref || prepared.Next() == nil || stage == nil || stage.Owner != scope.Engine() || stage.Lifecycle != CatalogOpen || stage.Invalid != nil || !holdsColumnDropGrant(scope, ref) {
+	if prepared == nil || prepared.Old != old || prepared.Ref != ref || prepared.Next() == nil || stage == nil || stage.Owner != scope.Engine() || stage.Lifecycle != core.CatalogOpen || stage.Invalid != nil || !holdsColumnDropGrant(scope, ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, consumed := scopeDropsOrZero(scope).ConsumedColumns[prepared]; consumed {
@@ -129,7 +130,7 @@ func consumePreparedDrop(scope *StatementScope, stage *CatalogStage, prepared *t
 		scopeDrops(scope).ConsumedColumns = make(map[*table.DropPreparation]struct{})
 	}
 	scopeDrops(scope).ConsumedColumns[prepared] = struct{}{}
-	provider := StageDropProvider(scope.Op.Context(), stage, scope, changes, nil)
+	provider := core.StageDropProvider(scope.Op.Context(), stage, scope, changes, nil)
 	for _, effect := range prepared.Effects() {
 		if err := scope.Op.Context().Err(); err != nil {
 			return nil, err
@@ -169,7 +170,7 @@ func consumePreparedDrop(scope *StatementScope, stage *CatalogStage, prepared *t
 	return prepared.Next(), nil
 }
 
-func projectPreparedColumn(p *DropProvider, old, next *catalog.Relation) error {
+func projectPreparedColumn(p *core.DropProvider, old, next *catalog.Relation) error {
 	if old.RelationKind == catalog.CompositeRelation || old.RelationKind == catalog.ForeignRelation {
 		return p.Stage.ReplaceDescriptor(next, false, false)
 	}
@@ -189,7 +190,7 @@ type DropScope struct {
 }
 
 // CloneSlot copies the slot for a PL/pgSQL exception checkpoint.
-func (d *DropScope) CloneSlot() StatementSlot {
+func (d *DropScope) CloneSlot() core.StatementSlot {
 	owned := *d
 	owned.ConsumedColumns = maps.Clone(owned.ConsumedColumns)
 	return &owned
@@ -197,7 +198,7 @@ func (d *DropScope) CloneSlot() StatementSlot {
 
 // dropScopeOf recovers the drops slot. Only DropScope is ever stored there;
 // meeting another type is a bug.
-func dropScopeOf(slot StatementSlot) *DropScope {
+func dropScopeOf(slot core.StatementSlot) *DropScope {
 	d, ok := slot.(*DropScope)
 	if !ok {
 		panic(fmt.Sprintf("stuntgres: unexpected drops slot %T", slot))
@@ -206,7 +207,7 @@ func dropScopeOf(slot StatementSlot) *DropScope {
 }
 
 // drops returns the statement's drops slot, allocating it on first use.
-func scopeDrops(s *StatementScope) *DropScope {
+func scopeDrops(s *core.StatementScope) *DropScope {
 	if s.DropsSlot == nil {
 		s.DropsSlot = new(DropScope)
 	}
@@ -214,7 +215,7 @@ func scopeDrops(s *StatementScope) *DropScope {
 }
 
 // dropsOrZero reads the drops slot; a nil slot reads as zero.
-func scopeDropsOrZero(s *StatementScope) DropScope {
+func scopeDropsOrZero(s *core.StatementScope) DropScope {
 	if s.DropsSlot == nil {
 		return DropScope{}
 	}

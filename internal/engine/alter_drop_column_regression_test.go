@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -40,7 +41,7 @@ func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
 			}
 			defer cleanup()
 			type outcome struct {
-				result  Result
+				result  core.Result
 				err     error
 				notices []sqlstate.Error
 			}
@@ -132,7 +133,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	lockAwait(t, queued, ids.ErrCatalogReplaced)
 	unblock.Do(func() { close(release) })
 	lockAwait(t, dropping, ids.ErrCatalogReplaced)
-	e.Catalog.Providers[ids.RelationClassID] = RelationProvider
+	e.Catalog.Providers[ids.RelationClassID] = core.RelationProvider
 	run(t, e, "CREATE TABLE t(replacement INT)")
 	result := run(t, e, "SELECT * FROM t")
 	if result.Count != 0 || result.Rows.Schema()[0].Name != "replacement" {
@@ -160,7 +161,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				sessionSQL(t, setup, "INSERT INTO late.t VALUES(1,'late',9)")
 				sessionSQL(t, waiter, "SET search_path TO early, late")
 				ast := statement(t, query)
-				var expected *StatementDescription
+				var expected *core.StatementDescription
 				if prepared {
 					op := transactionOperation(t, waiter)
 					description, err := e.Describe(op, ast)

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -38,7 +39,7 @@ func TestAccessMethodDropClosure(t *testing.T) {
 	view := base.WithState(state)
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
-	edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{method.Address()})
+	edges, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{method.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +175,7 @@ func TestAccessMethodCaptureReplacement(t *testing.T) {
 	}
 	// Materialized pg_depend suppresses the stock pinned handler, while retaining
 	// the actual automatic family link to the remapped method.
-	edges, err := pgcatalog.CollectDepend(context.Background(), remapped, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), remapped, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,7 +12,7 @@ import (
 
 // hashPartitionUnitEngine is hashPartitionUnitDescriptor with the engine that
 // owns the returned view.
-func hashPartitionUnitEngine(t *testing.T) (*Engine, catalog.Read, *catalog.Relation, *catalog.Relation) {
+func hashPartitionUnitEngine(t *testing.T) (*core.Engine, catalog.Read, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	snapshot := catalog.CloneState(e.Catalog.State)

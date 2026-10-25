@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -13,16 +14,16 @@ import (
 // call reads definitions through the reader it is handed, as the
 // authority's definition, and runs today's root provider.
 type inheritancePrepareHost struct {
-	e     *Engine
-	scope *StatementScope
+	e     *core.Engine
+	scope *core.StatementScope
 	op    *session.Operation
-	auth  AuthorizationView
+	auth  core.AuthorizationView
 }
 
 var _ table.PrepareHost = inheritancePrepareHost{}
 
 // reading is the node's authority reading definitions through definition.
-func (h inheritancePrepareHost) reading(definition catalog.DefinitionReader) AuthorizationView {
+func (h inheritancePrepareHost) reading(definition catalog.DefinitionReader) core.AuthorizationView {
 	auth := h.auth
 	auth.Definition = definition
 	return auth

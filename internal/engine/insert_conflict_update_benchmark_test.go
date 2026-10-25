@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -39,7 +40,7 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 					}
 					return stmt[0]
 				}
-				execute := func(stmt parser.Statement) Result {
+				execute := func(stmt parser.Statement) core.Result {
 					op, err := s.Acquire(context.Background())
 					if err != nil {
 						b.Fatal(err)

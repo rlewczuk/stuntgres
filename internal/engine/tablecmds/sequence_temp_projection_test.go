@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -24,7 +25,7 @@ type temporaryProjectionCatalog struct {
 	names       map[ids.NameKey]ids.ObjectAddress
 }
 
-func captureTemporaryProjectionCatalog(e *engine.Engine) temporaryProjectionCatalog {
+func captureTemporaryProjectionCatalog(e *core.Engine) temporaryProjectionCatalog {
 	p := temporaryProjectionCatalog{view: e.CatalogRead(), descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress)}
 	for a, d := range p.view.Descriptors() {
 		p.descriptors[a] = d
@@ -42,7 +43,7 @@ func (p temporaryProjectionCatalog) unchanged(t *testing.T) {
 	}
 }
 
-func assertTemporaryProjectionProviders(t *testing.T, e *engine.Engine) {
+func assertTemporaryProjectionProviders(t *testing.T, e *core.Engine) {
 	t.Helper()
 	view := e.CatalogRead()
 	for a, d := range view.Descriptors() {
@@ -107,7 +108,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		}
 	}
 	held(1)
-	generator, memory := e.Storage.Sequences[address], engine.PayloadOf(s).Sequences.Memory(address)
+	generator, memory := e.Storage.Sequences[address], core.PayloadOf(s).Sequences.Memory(address)
 	generatorState, memoryState := *generator, *memory
 	before := captureTemporaryProjectionCatalog(e)
 	sequenceRows := enginetest.SessionSQL(t, s, "SELECT last_value,is_called FROM local_s")
@@ -116,7 +117,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 			t.Fatal("repeated self replacement", err)
 		}
-		if s.SessionToken != token || s.TemporaryNamespace != namespace || e.Catalog.State.Get(address) != descriptor || e.Catalog.State.Get(namespace) != nsDescriptor || e.Storage.Sequences[address] != generator || engine.PayloadOf(s).Sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
+		if s.SessionToken != token || s.TemporaryNamespace != namespace || e.Catalog.State.Get(address) != descriptor || e.Catalog.State.Get(namespace) != nsDescriptor || e.Storage.Sequences[address] != generator || core.PayloadOf(s).Sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 			t.Fatal("self replacement changed exact live TEMP authority/cache")
 		}
 		if e.Catalog.State.DescriptorCount() != len(before.descriptors) || e.Catalog.State.NameCount() != len(before.names) || len(e.Storage.Sequences) != 1 {
@@ -174,9 +175,9 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	namespace, token := b.TemporaryNamespace, b.SessionToken
 	sourceNamespace := a.TemporaryNamespace
 	descriptor, nsDescriptor := dest.Catalog.State.Get(address), dest.Catalog.State.Get(namespace)
-	generator, memory := dest.Storage.Sequences[address], engine.PayloadOf(b).Sequences.Memory(address)
+	generator, memory := dest.Storage.Sequences[address], core.PayloadOf(b).Sequences.Memory(address)
 	generatorState, memoryState := *generator, *memory
-	sourceGenerator, sourceMemory := source.Storage.Sequences[sourceTemp], engine.PayloadOf(a).Sequences.Memory(sourceTemp)
+	sourceGenerator, sourceMemory := source.Storage.Sequences[sourceTemp], core.PayloadOf(a).Sequences.Memory(sourceTemp)
 	sourceGeneratorState, sourceMemoryState := *sourceGenerator, *sourceMemory
 	sourceGenerators := make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	sourceStates := make(map[ids.ObjectAddress]storage.SequenceGenerator)
@@ -201,7 +202,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if _, err := dest.ReplaceCatalog(context.Background(), source, sourceBefore.view); err != nil {
 		t.Fatal(err)
 	}
-	if b.SessionToken != token || b.TemporaryNamespace != namespace || dest.Catalog.State.Get(address) != descriptor || dest.Catalog.State.Get(namespace) != nsDescriptor || dest.Storage.Sequences[address] != generator || engine.PayloadOf(b).Sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
+	if b.SessionToken != token || b.TemporaryNamespace != namespace || dest.Catalog.State.Get(address) != descriptor || dest.Catalog.State.Get(namespace) != nsDescriptor || dest.Storage.Sequences[address] != generator || core.PayloadOf(b).Sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("foreign replacement changed destination TEMP identity/cache")
 	}
 	var tempNamespaces, tempRelations int
@@ -275,7 +276,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		}
 	}
 	destBefore.unchanged(t)
-	if source.Catalog.State != sourceBefore.view.State() || source.Storage.Sequences[sourceTemp] != sourceGenerator || engine.PayloadOf(a).Sequences.Memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
+	if source.Catalog.State != sourceBefore.view.State() || source.Storage.Sequences[sourceTemp] != sourceGenerator || core.PayloadOf(a).Sequences.Memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
 		t.Fatal("destination import changed source live authority")
 	}
 	r, err := sequencePreparedExecute(dest, b, ast, &description)
@@ -418,7 +419,7 @@ func TestSequenceTemporaryRetiredSourceReplacement(t *testing.T) {
 	}
 }
 
-func btreeRoot(t *testing.T, e *engine.Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
+func btreeRoot(t *testing.T, e *core.Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, name)
 	idx := e.Catalog.State.MustRelation(ref.Address)
@@ -455,7 +456,7 @@ func btreeKeys(t *testing.T, root *storage.IndexRoot) []string {
 	return keys
 }
 
-func btreeWantKeys(t *testing.T, e *engine.Engine, name string, want ...string) *storage.IndexRoot {
+func btreeWantKeys(t *testing.T, e *core.Engine, name string, want ...string) *storage.IndexRoot {
 	t.Helper()
 	_, root := btreeRoot(t, e, name)
 	if got := btreeKeys(t, root); !reflect.DeepEqual(got, want) {

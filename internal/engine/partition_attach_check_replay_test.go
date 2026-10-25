@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/parser"
@@ -25,27 +26,27 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if err := beginPartitionCheckReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if OperationReplayOrZero(op).PartitionCheck != child || !PartitionCheckReplayAllowed(op, auth, raw, child) {
+	if core.OperationReplayOrZero(op).PartitionCheck != child || !core.PartitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("genuine leased physical replay rejected")
 	}
-	if err := partition.ConsumerBoundary(raw, child, PartitionReplayAllowed(op, auth)); err != nil {
+	if err := partition.ConsumerBoundary(raw, child, core.PartitionReplayAllowed(op, auth)); err != nil {
 		t.Fatal(err)
 	}
 	copyChild := *child
-	if PartitionCheckReplayAllowed(op, auth, raw, &copyChild) {
+	if core.PartitionCheckReplayAllowed(op, auth, raw, &copyChild) {
 		t.Fatal("lookalike descriptor granted")
 	}
 	copyOp := *op
-	if PartitionCheckReplayAllowed(&copyOp, auth, raw, child) {
+	if core.PartitionCheckReplayAllowed(&copyOp, auth, raw, child) {
 		t.Fatal("copied operation granted")
 	}
 	foreign := auth
 	foreign.Catalog = source.CatalogRead()
-	if PartitionCheckReplayAllowed(op, foreign, raw, child) {
+	if core.PartitionCheckReplayAllowed(op, foreign, raw, child) {
 		t.Fatal("foreign catalog granted")
 	}
 	valid := *raw
@@ -54,24 +55,24 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	check.NotValid = false
 	action.Check = &check
 	valid.Actions = []parser.AlterTableAction{action}
-	if PartitionCheckReplayAllowed(op, auth, &valid, child) {
+	if core.PartitionCheckReplayAllowed(op, auth, &valid, child) {
 		t.Fatal("valid CHECK granted")
 	}
 	virtual := *child
 	virtual.Partition = parent.Partition
-	OperationReplay(op).PartitionCheck = &virtual
-	if PartitionCheckReplayAllowed(op, auth, raw, &virtual) {
+	core.OperationReplay(op).PartitionCheck = &virtual
+	if core.PartitionCheckReplayAllowed(op, auth, raw, &virtual) {
 		t.Fatal("virtual CHECK granted")
 	}
-	OperationReplay(op).PartitionCheck = nil
+	core.OperationReplay(op).PartitionCheck = nil
 	publicOp, publicDone := roleOperation(t, source, "postgres")
 	defer publicDone()
 	if err := beginPartitionCheckReplay(source, publicOp, raw); err == nil {
 		t.Fatal("public bootstrap forged private import")
 	}
-	OperationReplay(op).PartitionCheck = child
+	core.OperationReplay(op).PartitionCheck = child
 	done()
-	if PartitionCheckReplayAllowed(op, auth, raw, child) {
+	if core.PartitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("ended lease retained capability")
 	}
 }

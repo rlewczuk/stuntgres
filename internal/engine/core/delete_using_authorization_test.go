@@ -7,16 +7,17 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func executeUsingDescription(e *engine.Engine, op *session.Operation, ast parser.Statement, description *engine.StatementDescription) (engine.Result, error) {
+func executeUsingDescription(e *core.Engine, op *session.Operation, ast parser.Statement, description *core.StatementDescription) (core.Result, error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
-		return engine.Result{}, err
+		return core.Result{}, err
 	}
 	defer func() {
 		if !scope.Finished {

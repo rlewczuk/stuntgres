@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 )
@@ -27,7 +28,7 @@ func TestHashIndexFinalPublicationVeto(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	polls := counting.checks.Load()
@@ -43,7 +44,7 @@ func TestHashIndexFinalPublicationVeto(t *testing.T) {
 		t.Fatal("veto fired before root preparation", err)
 	}
 	before := indexMaintenanceCapture(e)
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: second.Base.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: second.Base.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	indexMaintenanceUnchanged(t, e, before)
@@ -72,7 +73,7 @@ func TestHashIndexDerivedBatchFailureAndIndexSetFence(t *testing.T) {
 	}
 	enginetest.Run(t, e, "CREATE INDEX sibling ON t USING hash(n)")
 	before := indexMaintenanceCapture(e)
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 		t.Fatal("changed index set accepted old hash rebuild")
 	} else if _, ok := err.(catalog.Conflict); !ok {
 		t.Fatal(err)

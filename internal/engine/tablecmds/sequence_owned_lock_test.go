@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -20,12 +21,12 @@ import (
 )
 
 // The retained description is captured before the competing utility starts.
-func ownedLockAsync(e *engine.Engine, s *session.Session, ctx context.Context, ast parser.Statement, description *engine.StatementDescription) <-chan error {
+func ownedLockAsync(e *core.Engine, s *session.Session, ctx context.Context, ast parser.Statement, description *core.StatementDescription) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		op, err := s.Acquire(ctx)
 		if err == nil {
-			var scope *engine.StatementScope
+			var scope *core.StatementScope
 			scope, err = e.StartStatement(op)
 			if err == nil {
 				scope.Expected = description
@@ -39,7 +40,7 @@ func ownedLockAsync(e *engine.Engine, s *session.Session, ctx context.Context, a
 	return done
 }
 
-func ownedLockQueued(t *testing.T, e *engine.Engine, ref ids.ObjectRef, mode lock.Mode, done <-chan error) *lock.Request {
+func ownedLockQueued(t *testing.T, e *core.Engine, ref ids.ObjectRef, mode lock.Mode, done <-chan error) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -64,7 +65,7 @@ func ownedLockQueued(t *testing.T, e *engine.Engine, ref ids.ObjectRef, mode loc
 	}
 }
 
-func ownedLockStatement(t *testing.T, e *engine.Engine, s *session.Session, create, prepared bool) (parser.Statement, *engine.StatementDescription) {
+func ownedLockStatement(t *testing.T, e *core.Engine, s *session.Session, create, prepared bool) (parser.Statement, *core.StatementDescription) {
 	t.Helper()
 	q := "ALTER SEQUENCE late OWNED BY t.c"
 	if create {
@@ -253,9 +254,9 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(7,9)")
 			enginetest.SessionSQL(t, a, "CREATE SEQUENCE late START 17 OWNED BY t.c")
 			ast := enginetest.Statement(t, "ALTER SEQUENCE late OWNED BY t.keep")
-			var description *engine.StatementDescription
+			var description *core.StatementDescription
 			if prepared {
-				var d engine.StatementDescription
+				var d core.StatementDescription
 				ast, d = sequencePreparedDescription(t, e, b, "ALTER SEQUENCE late OWNED BY t.keep")
 				description = &d
 			}
@@ -352,9 +353,9 @@ func TestSequenceOwnedTableLockSkipped(t *testing.T) {
 				"ALTER SEQUENCE IF EXISTS missing OWNED BY t.c",
 			} {
 				ast := enginetest.Statement(t, q)
-				var description *engine.StatementDescription
+				var description *core.StatementDescription
 				if prepared {
-					var d engine.StatementDescription
+					var d core.StatementDescription
 					ast, d = sequencePreparedDescription(t, e, b, q)
 					description = &d
 				}

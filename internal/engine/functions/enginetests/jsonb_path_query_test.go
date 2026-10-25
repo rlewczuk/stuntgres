@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -87,10 +88,10 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
+			if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 				t.Fatal("original lifetime", err)
 			}
-			if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), nil, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), nil, captured, nil); err == nil {
 				t.Fatal("repaired missing manifest")
 			}
 			checks := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -99,7 +100,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 					checks[i].Revision++
 				}
 			}
-			if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), checks, captured, nil); err == nil {
+			if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), checks, captured, nil); err == nil {
 				t.Fatal("admitted stale declaration")
 			}
 			if tc.set {

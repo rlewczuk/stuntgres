@@ -2,20 +2,21 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 )
 
-func inheritancePreparedNode(scope *StatementScope) *table.InheritancePreparedNode {
+func inheritancePreparedNode(scope *core.StatementScope) *table.InheritancePreparedNode {
 	if scope.Inheritance.Alter == nil {
 		return nil
 	}
 	return scope.Inheritance.Alter.Prepared[scope.LockedRef.Address]
 }
 
-func consumeInheritancePreparedAction(scope *StatementScope, stage *CatalogStage, prepared *table.InheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, table.AddedColumn, bool, error) {
+func consumeInheritancePreparedAction(scope *core.StatementScope, stage *core.CatalogStage, prepared *table.InheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, table.AddedColumn, bool, error) {
 	if prepared == nil {
 		return nil, table.AddedColumn{}, false, nil
 	}
@@ -46,7 +47,7 @@ func consumeInheritancePreparedAction(scope *StatementScope, stage *CatalogStage
 		return next, step.Added, true, err
 	}
 	if step.Using != nil {
-		next, err := index.StageUsingIndex(TableHost{DDLHost{E: scope.Engine(), Op: scope.Op, CatalogStage: stage}}, old, step.Using)
+		next, err := index.StageUsingIndex(TableHost{core.DDLHost{E: scope.Engine(), Op: scope.Op, CatalogStage: stage}}, old, step.Using)
 		return next, step.Added, true, err
 	}
 	return step.Next, step.Added, true, nil

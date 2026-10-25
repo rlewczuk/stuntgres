@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -38,11 +39,11 @@ func (h TypeHost) ReplaceDomainIdentity(d *catalog.Type) error {
 }
 
 func (h TypeHost) RemoveDomainCheck(d *catalog.Type, oid ids.OID) error {
-	return table.RemoveDomainCheck(StageDropProvider(nil, h.CatalogStage, nil, nil, nil), d, oid)
+	return table.RemoveDomainCheck(core.StageDropProvider(nil, h.CatalogStage, nil, nil, nil), d, oid)
 }
 
 func (h TypeHost) FindCollation(a ddl.Authority, name parser.ObjectName) (*catalog.Collation, error) {
-	return h.E.FindCollation(DDLAuthorityOf(a), name)
+	return h.E.FindCollation(core.DDLAuthorityOf(a), name)
 }
 
 func (h TypeHost) ResolveDomainBase(raw parser.TypeName) (sqltype.Usage, error) {
@@ -53,11 +54,11 @@ func (h TypeHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser
 	if restored, err := h.bindRestoredDomainDefault(a, d, raw, input, output); restored || err != nil {
 		return err
 	}
-	return h.E.BindDomainDefault(h.Op.Context(), h.Op, DDLAuthorityOf(a), h.CatalogStage, d, raw, input, output)
+	return h.E.BindDomainDefault(h.Op.Context(), h.Op, core.DDLAuthorityOf(a), h.CatalogStage, d, raw, input, output)
 }
 
 func (h TypeHost) BindDomainConstraints(a ddl.Authority, d *catalog.Type, raw []parser.ColumnConstraint, input sqltype.InputEnvironment) error {
-	return h.E.BindDomainConstraintDefinitions(h.Op.Context(), h.Op, DDLAuthorityOf(a), h.CatalogStage, d, raw, input)
+	return h.E.BindDomainConstraintDefinitions(h.Op.Context(), h.Op, core.DDLAuthorityOf(a), h.CatalogStage, d, raw, input)
 }
 
 func (h TypeHost) NewCompositeRelation(namespace ids.ObjectAddress, name string, owner authorization.PrincipalRef, columns []catalog.Column, index map[string]int) (*catalog.Relation, error) {
@@ -80,7 +81,7 @@ func (h TypeHost) RangeClass(a ddl.Authority, u sqltype.Usage, name *parser.Obje
 			return class, err
 		}
 		if !class.Accepts(u.Type) {
-			return class, SQLError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*name), u.Type.DiagnosticName()))
+			return class, core.SQLError("42804", fmt.Sprintf(`operator class "%s" does not accept data type %s`, catalog.ObjectNameText(*name), u.Type.DiagnosticName()))
 		}
 		ok = true
 	} else {
@@ -91,7 +92,7 @@ func (h TypeHost) RangeClass(a ddl.Authority, u sqltype.Usage, name *parser.Obje
 		}
 	}
 	if !ok {
-		d := SQLError("42704", fmt.Sprintf(`data type %s has no default operator class for access method "btree"`, u.Type.DiagnosticName())).(*sqlstate.Error)
+		d := core.SQLError("42704", fmt.Sprintf(`data type %s has no default operator class for access method "btree"`, u.Type.DiagnosticName())).(*sqlstate.Error)
 		d.Hint = "You must specify an operator class for the range type or define a default operator class for the subtype."
 		return class, d
 	}

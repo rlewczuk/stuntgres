@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -10,18 +11,18 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (Result, error) {
+func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (core.Result, error) {
 	root := scope.LockedDescriptor.(*catalog.Relation)
 	plan, preparatory, err := table.PlanInheritanceAlter(auth.Catalog, root, raw)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	actions := plan.Actions
 	original := scope.StatementMutation
-	var stage *CatalogStage
+	var stage *core.CatalogStage
 	plan.Tablespace, plan.Types = tablespace, types
-	state := &InheritanceAlterState{Changes: scope.Owner.Catalog.Clone(), InheritanceAlterPlan: plan}
+	state := &core.InheritanceAlterState{Changes: scope.Owner.Catalog.Clone(), InheritanceAlterPlan: plan}
 	scope.Inheritance.Alter = state
 	scope.Catalog = state.Changes
 	e.Mu.Unlock()
@@ -32,12 +33,12 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 	}()
 	// Definition preparation and every required physical grant precede the sole
 	// stage. Preparatory grants remain distinct from actually visited owners.
-	if err := e.admitInheritanceAlter(scope, op, auth, raw, preparatory); err != nil {
-		return Result{}, err
+	if err := (*Engine)(e).admitInheritanceAlter(scope, op, auth, raw, preparatory); err != nil {
+		return core.Result{}, err
 	}
 	if preparatory && table.InheritancePureDefinitionPreparation(actions) {
-		if err := e.admitInheritanceAlter(scope, op, auth, raw, false); err != nil {
-			return Result{}, err
+		if err := (*Engine)(e).admitInheritanceAlter(scope, op, auth, raw, false); err != nil {
+			return core.Result{}, err
 		}
 	}
 	state.Events = make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)
@@ -56,7 +57,7 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 		current := e.PrivateCatalogLocked(scope.Owner.Catalog)
 		if current.Get(old.Address()) != old {
 			e.Mu.Unlock()
-			return Result{}, ids.ErrCatalogReplaced
+			return core.Result{}, ids.ErrCatalogReplaced
 		}
 		currentAuth, err := e.StatementAuthorizationLocked(op, raw)
 		refForOwner := original.LockedRef
@@ -70,7 +71,7 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 		}
 		e.Mu.Unlock()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		state.Selected[old.Address()] = true
 		ref := original.LockedRef
@@ -85,7 +86,7 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 			var err error
 			planned, state.Graph, err = inheritedAlterActions(e, state, old)
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		if index != 0 && !table.InheritanceEntryOwner(incoming) && len(planned) != 0 {
@@ -93,7 +94,7 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 			err = currentAuth.Check(access.Requirement{Object: refForOwner, OwnerOnly: true})
 			e.Mu.Unlock()
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		scope.LockedRef, scope.LockedDescriptor = ref, old
@@ -103,11 +104,11 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 		if len(planned) == 0 {
 			next, err := finishInheritanceAlterCandidate(scope, old, old)
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 			if next != old {
 				if err := stage.Replace(next); err != nil {
-					return Result{}, err
+					return core.Result{}, err
 				}
 			}
 			continue
@@ -121,25 +122,25 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 		childAuth.Recapture(childAuth.Catalog)
 		e.Mu.Lock()
 		if _, err := alterTableLocked(e, scope, op, childAuth, &command, count); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	scope.StatementMutation = original
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	if err := scope.ValidateLockedRelation(e); err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	for _, old := range state.Targets {
 		if state.Selected[old.Address()] && e.PrivateCatalogLocked(scope.Owner.Catalog).Get(old.Address()) != old {
 			e.Mu.Unlock()
-			return Result{}, ids.ErrCatalogReplaced
+			return core.Result{}, ids.ErrCatalogReplaced
 		}
 	}
 	for address, d := range stage.Descriptors() {
@@ -154,12 +155,12 @@ func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operat
 	scope.Catalog = state.Changes
 	e.Mu.Unlock()
 	view.EmitCascade(op, stage.DropCascadeNames)
-	return Result{}, nil
+	return core.Result{}, nil
 }
 
 // inheritedAlterActions reads the members as staged, or as the definition
 // preparation sees them before the stage begins.
-func inheritedAlterActions(e *Engine, state *InheritanceAlterState, old *catalog.Relation) ([]parser.AlterTableAction, *catalog.TableInheritance, error) {
+func inheritedAlterActions(e *core.Engine, state *core.InheritanceAlterState, old *catalog.Relation) ([]parser.AlterTableAction, *catalog.TableInheritance, error) {
 	view := state.Definition.Base
 	if state.Stage != nil {
 		view = e.StageRead(state.Stage)
@@ -167,7 +168,7 @@ func inheritedAlterActions(e *Engine, state *InheritanceAlterState, old *catalog
 	return table.InheritedAlterActions(&state.InheritanceAlterPlan, view, retiredBase(state), old)
 }
 
-func finishInheritanceAlterCandidate(scope *StatementScope, old, next *catalog.Relation) (*catalog.Relation, error) {
+func finishInheritanceAlterCandidate(scope *core.StatementScope, old, next *catalog.Relation) (*catalog.Relation, error) {
 	state := scope.Inheritance.Alter
 	if state == nil || old.Inheritance == nil && !state.Partition {
 		return next, nil

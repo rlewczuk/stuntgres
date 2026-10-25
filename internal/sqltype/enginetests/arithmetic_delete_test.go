@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -41,13 +42,13 @@ func TestExpressionArithmeticDeleteAuthorization(t *testing.T) {
 				if err != nil {
 					t.Fatal("ACL moved to Prepare", err)
 				}
-				execute := func() (engine.Result, error) {
+				execute := func() (core.Result, error) {
 					if !prepared {
 						return e.Execute(op, ast, 0, nil)
 					}
 					scope, err := e.StartStatement(op)
 					if err != nil {
-						return engine.Result{}, err
+						return core.Result{}, err
 					}
 					scope.Expected = &description
 					result, err := scope.Execute(ast, 0, nil)

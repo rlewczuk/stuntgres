@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -70,7 +71,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	auth, err := e.AuthorizationLocked(op)
 	var binding analyze.Binding
 	if err == nil {
-		binding, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		binding, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	var source *exec.Source
 	if err == nil {
@@ -219,7 +220,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	// immutable rows, but neither it nor the separate finished statement's grant
 	// can authorize the old physical identity in the replacement catalog.
 	e.Mu.Lock()
-	_, err = engine.CurrentQuerySourceLocked(e, e.Catalog.Current(), nil, grant)
+	_, err = core.CurrentQuerySourceLocked(e, e.Catalog.Current(), nil, grant)
 	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(old, err)
@@ -256,7 +257,7 @@ func TestQueryJoinsSecondLeafGrantRebind(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err = enginetest.PublishCatalog(e, publication, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+					if _, err = enginetest.PublishCatalog(e, publication, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 						t.Fatal(err)
 					}
 				case "shadow":
@@ -378,7 +379,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 					q = "INSERT INTO dst SELECT a.k FROM a JOIN b USING(k)"
 				}
 				ast := enginetest.Statement(t, q)
-				var expected *engine.StatementDescription
+				var expected *core.StatementDescription
 				if prepared {
 					op := enginetest.TransactionOperation(t, reader)
 					description, err := e.Describe(op, ast)
@@ -392,8 +393,8 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				enginetest.SessionSQL(t, holder, "LOCK TABLE b IN ACCESS EXCLUSIVE MODE")
 				old := e.Catalog.State.Get(left.Address)
 				done := make(chan error, 1)
-				var result engine.Result
-				var capturedScope *engine.StatementScope
+				var result core.Result
+				var capturedScope *core.StatementScope
 				var capturedSources []exec.Leaf
 				go func() {
 					op, err := reader.Acquire(context.Background())
@@ -525,7 +526,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			auth, err := e.AuthorizationLocked(op)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+				bound, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 			}
 			var source *exec.Source
 			if err == nil {
@@ -577,7 +578,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 
 // Explicit admission allows immutable captured rows to outlive catalog replacement
 // without bypassing the replacement reservation held by implicit statements.
-func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*engine.Engine, *plan.Query, *exec.Source, func()) {
+func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*core.Engine, *plan.Query, *exec.Source, func()) {
 	t.Helper()
 	ast := enginetest.Statement(t, q)
 	e := engine.New()
@@ -588,7 +589,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*engine.E
 	if err != nil {
 		t.Fatal(err)
 	}
-	var scope *engine.StatementScope
+	var scope *core.StatementScope
 	var source *exec.Source
 	released := false
 	release := func() {
@@ -622,7 +623,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*engine.E
 	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		b, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.
@@ -639,7 +640,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*engine.E
 	return e, b.Query, source, release
 }
 
-func notNullMetadataStage(t *testing.T, e *engine.Engine) (*engine.CatalogStage, ids.ObjectRef, *catalog.Relation) {
+func notNullMetadataStage(t *testing.T, e *core.Engine) (*core.CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, "t")
 	old := e.Catalog.State.MustRelation(ref.Address)
@@ -649,7 +650,7 @@ func notNullMetadataStage(t *testing.T, e *engine.Engine) (*engine.CatalogStage,
 	next.Columns[0].Nullable = false
 	next.Constraints.NotNull = []catalog.NotNullConstraint{{Name: "t_a_not_null", Attribute: 1}}
 	e.Mu.Lock()
-	err := table.AssignDefinitionOIDs(engine.DDLHost{E: e}, &next)
+	err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, &next)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

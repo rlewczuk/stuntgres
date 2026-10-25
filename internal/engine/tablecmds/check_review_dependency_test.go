@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -17,7 +18,7 @@ import (
 // Build a real CREATE candidate and stop at the incumbent validation/publication
 // boundary. This intentionally exercises publication's fence independently of
 // CREATE's relation holds; it is not an alternative execution implementation.
-func checkReviewDependencyStage(t *testing.T, e *engine.Engine) *engine.CatalogStage {
+func checkReviewDependencyStage(t *testing.T, e *core.Engine) *core.CatalogStage {
 	t.Helper()
 	op, done, err := enginetest.Operation(e, context.Background())
 	if err != nil {
@@ -40,7 +41,7 @@ func checkReviewDependencyStage(t *testing.T, e *engine.Engine) *engine.CatalogS
 	return stage
 }
 
-func checkReviewDependencyValid(t *testing.T, e *engine.Engine) {
+func checkReviewDependencyValid(t *testing.T, e *core.Engine) {
 	t.Helper()
 	read := e.CatalogRead()
 	for _, descriptor := range read.Descriptors() {
@@ -80,7 +81,7 @@ func TestCheckReviewDependencyPrivateDeletionThenPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, publicationErr := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+	_, publicationErr := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	op, err := a.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +135,7 @@ func TestCheckReviewDependencyDeletionBetweenValidationAndPublication(t *testing
 	}
 	enginetest.SessionSQL(t, a, "DROP SEQUENCE s CASCADE")
 	before := e.CatalogRead().State()
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 		t.Fatal("CREATE published a validated CHECK after its provider was removed")
 	}
 	if e.CatalogRead().State() != before {

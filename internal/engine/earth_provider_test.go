@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func earthUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type) {
+func earthUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension, *catalog.Type) {
 	t.Helper()
 	e, _, _ := cubeUnitInstalled(t)
 	op, done := roleOperation(t, e, "postgres")
@@ -77,7 +78,7 @@ func TestEarthProviderConflicts(t *testing.T) {
 	defer done()
 	before := e.Catalog.State
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
+	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || stage != nil || e.Catalog.State != before {

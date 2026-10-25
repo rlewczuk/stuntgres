@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -34,7 +34,7 @@ func (f roleColumnGrantsFixture) input(t *testing.T, state *catalog.State, actor
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoRoleColumnGrantsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engine.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 func roleColumnGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -42,7 +42,7 @@ func roleColumnGrantsRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing role_column_grants producer")
 	}
-	captured, err := engine.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}

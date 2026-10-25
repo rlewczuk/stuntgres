@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -37,7 +38,7 @@ func TestJSONPathDestinationParameterInference(t *testing.T) {
 	if err != nil || info.Count != 2 || info.Types[0].Type.ID() != sqltype.Int4 || info.Types[1].Type.ID() != 4072 {
 		t.Fatal(info, err)
 	}
-	expected := &engine.StatementDescription{Parameters: info}
+	expected := &core.StatementDescription{Parameters: info}
 	held := enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, expected)
 	n, err := held.Bind(parser.ParameterExpr{Number: 2}, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment, Column: "p"})
 	if err != nil || n.ResultUsage().Type.ID() != 4072 {

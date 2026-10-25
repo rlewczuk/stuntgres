@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
 
-func btreeRoot(t *testing.T, e *Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
+func btreeRoot(t *testing.T, e *core.Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	ref := roleTableRef(t, e, name)
 	idx := e.Catalog.State.MustRelation(ref.Address)
@@ -48,7 +49,7 @@ func btreeKeys(t *testing.T, root *storage.IndexRoot) []string {
 	return keys
 }
 
-func btreeWantKeys(t *testing.T, e *Engine, name string, want ...string) *storage.IndexRoot {
+func btreeWantKeys(t *testing.T, e *core.Engine, name string, want ...string) *storage.IndexRoot {
 	t.Helper()
 	_, root := btreeRoot(t, e, name)
 	if got := btreeKeys(t, root); !reflect.DeepEqual(got, want) {

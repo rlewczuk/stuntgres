@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
+func pgDBRoleSettingUnitSource(t *testing.T, e *core.Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2964}
 	d, ok := catalog.Relation(address)
@@ -28,7 +29,7 @@ func pgDBRoleSettingUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*
 	return d, e.Catalog.Domain.Ref(catalog.Epoch(), address)
 }
 
-func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) {
+func pgDBRoleSettingUnitCapture(t *testing.T, e *core.Engine, catalog catalog.Read) {
 	t.Helper()
 	d, ref := pgDBRoleSettingUnitSource(t, e, catalog)
 	e.Mu.Lock()
@@ -70,7 +71,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	if d.Columns[2].Usage.Type.Element().ID() != 25 {
 		t.Fatal("text array element")
 	}
-	if err := (RelationProvider).Validate(view, d); err != nil {
+	if err := (core.RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -87,7 +88,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		t.Fatal("table discovery")
 	}
 	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: class, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, d)
+	facts, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: class, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestPGDBRoleSettingAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	execute := func(ast parser.Statement, held StatementDescription, denied bool) {
+	execute := func(ast parser.Statement, held core.StatementDescription, denied bool) {
 		scope, err := e.StartStatement(op)
 		if err != nil {
 			t.Fatal(err)
@@ -221,7 +222,7 @@ func TestPGDBRoleSettingAuthorization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+		if _, err := publishCatalog(e, publication, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
 	}

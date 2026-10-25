@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -17,7 +18,7 @@ import (
 var rowLockTestClauses = []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"}
 var rowLockTestConflicts = [4][4]bool{{false, false, false, true}, {false, false, true, true}, {false, true, true, true}, {true, true, true, true}}
 
-func rowLockEngineFixture(t *testing.T) (*engine.Engine, *session.Session, *session.Session, *session.Session) {
+func rowLockEngineFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, *session.Session) {
 	t.Helper()
 	e := engine.New()
 	a := enginetest.StartSession(t, e, nil)
@@ -27,7 +28,7 @@ func rowLockEngineFixture(t *testing.T) (*engine.Engine, *session.Session, *sess
 	enginetest.SessionSQL(t, c, "INSERT INTO t VALUES(1,10),(2,20)")
 	return e, a, b, c
 }
-func rowLockQueued(t *testing.T, e *engine.Engine, holder *lock.Ticket, mode lock.Mode) {
+func rowLockQueued(t *testing.T, e *core.Engine, holder *lock.Ticket, mode lock.Mode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

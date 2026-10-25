@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -23,7 +24,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonbRecordRoutineUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, *engine.StatementScope) {
+func jsonbRecordRoutineUnitFixture(t *testing.T) (*core.Engine, *session.Operation, *core.StatementScope) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -240,7 +241,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("retag manufactured destination manifest")
 				}
 			}
-			changed := *engine.RoutineAuthorityView(&evaluation)
+			changed := *core.RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict
@@ -359,7 +360,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 		"jsonb_populate_record_valid(NULL::strict_null_rows,NULL::jsonb)",
 	} {
 		node, _, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		scope.RoutineAuth = *engine.RoutineAuthorityView(&evaluation)
+		scope.RoutineAuth = *core.RoutineAuthorityView(&evaluation)
 		evaluation.RoutineAuthority = nil
 		if err := exec.AdmitRoutineCall(&evaluation, node, false, false); err != nil {
 			t.Fatal("live owning scope", err)
@@ -375,7 +376,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 	}
 }
 
-func eMustJSONBRoutineAuthority(t *testing.T, e *engine.Engine, op *session.Operation) *engine.AuthorizationView {
+func eMustJSONBRoutineAuthority(t *testing.T, e *core.Engine, op *session.Operation) *core.AuthorizationView {
 	t.Helper()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -609,7 +610,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 	}
 }
 
-func roleAttributeCreate(t *testing.T, e *engine.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
+func roleAttributeCreate(t *testing.T, e *core.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
 	t.Helper()
 	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
 	d, ok := e.Roles().Lookup(name)
@@ -619,13 +620,13 @@ func roleAttributeCreate(t *testing.T, e *engine.Engine, op *session.Operation, 
 	return d
 }
 
-func ownershipUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func ownershipUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	p, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -634,7 +635,7 @@ func objectACLUnitEntry(source, target authorization.PrincipalRef, use, options 
 	return authorization.ACLEntry{Grantor: source, Grantee: authorization.ACLGrantee{Role: target}, Privileges: use, GrantOptions: options}
 }
 
-func roleAttributeApply(t *testing.T, e *engine.Engine, op *session.Operation, s parser.Statement) {
+func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {
 	t.Helper()
 	r, err := e.Execute(op, s, 0, nil)
 	if err != nil || r.Count != 0 || r.Rows != nil {

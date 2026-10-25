@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -64,7 +65,7 @@ func TestRLSPolicyAggregateSemanticOwner(t *testing.T) {
 func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
 	e, op, done, d := policyUnitFixture(t)
 	defer done()
-	b := engine.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	b := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Target.Relation = d
 	b.Clause.AggregateClause = "policy expressions"
 	for range 2 {
@@ -91,7 +92,7 @@ func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
 
 // SQL only constructs the ordinary internal catalog fixture. Assertions exercise
 // real binders, frozen presentation, provider validation and publication directly.
-func policyUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, func(), *catalog.Relation) {
+func policyUnitFixture(t *testing.T) (*core.Engine, *session.Operation, func(), *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -102,7 +103,7 @@ func policyUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, func()
 	return e, op, done, d.(*catalog.Relation)
 }
 
-func policyUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
+func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
 	t.Helper()
 	raw := enginetest.Statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
 	e.Mu.Lock()
@@ -111,5 +112,5 @@ func policyUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, d *ca
 	if err != nil {
 		t.Fatal(err)
 	}
-	return engine.ViewHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return engine.ViewHost{TableHost: engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }

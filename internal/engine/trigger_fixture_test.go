@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
@@ -16,12 +17,12 @@ import (
 
 // Metadata is constructed directly: these units exercise payloads, frames and
 // write ownership rather than duplicating the public SQL scenarios.
-func triggerUnitFixture(t *testing.T, source string) (*Engine, *StatementScope, catalog.Read, *catalog.Relation, *catalog.Procedure) {
+func triggerUnitFixture(t *testing.T, source string) (*core.Engine, *core.StatementScope, catalog.Read, *catalog.Relation, *catalog.Procedure) {
 	t.Helper()
 	return triggerUnitFixtureContext(t, context.Background(), source)
 }
 
-func triggerUnitFixtureContext(t *testing.T, ctx context.Context, source string) (*Engine, *StatementScope, catalog.Read, *catalog.Relation, *catalog.Procedure) {
+func triggerUnitFixtureContext(t *testing.T, ctx context.Context, source string) (*core.Engine, *core.StatementScope, catalog.Read, *catalog.Relation, *catalog.Procedure) {
 	t.Helper()
 	e := New()
 	read := e.CatalogRead()
@@ -69,7 +70,7 @@ func triggerUnitDefinition(t *testing.T, read catalog.Read, relation *catalog.Re
 	return definition
 }
 
-func triggerUnitInstall(t *testing.T, e *Engine, relation *catalog.Relation, definitions ...stored.Trigger) *catalog.Relation {
+func triggerUnitInstall(t *testing.T, e *core.Engine, relation *catalog.Relation, definitions ...stored.Trigger) *catalog.Relation {
 	t.Helper()
 	copy := *relation
 	copy.Triggers = stored.TriggersPayload(definitions)
@@ -90,7 +91,7 @@ func triggerUnitInt(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Valu
 	return value
 }
 
-func triggerUnitProcedure(t *testing.T, e *Engine, s *StatementScope, name string, oid ids.OID, result *sqltype.Descriptor, trigger bool, source string) *catalog.Procedure {
+func triggerUnitProcedure(t *testing.T, e *core.Engine, s *core.StatementScope, name string, oid ids.OID, result *sqltype.Descriptor, trigger bool, source string) *catalog.Procedure {
 	t.Helper()
 	read := e.CatalogRead()
 	language, err := catalog.LookupLanguage(read, "plpgsql")

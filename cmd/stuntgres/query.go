@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"errors"
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -61,14 +61,14 @@ func (c *client) executeSimple(ctx context.Context, source string) (transportErr
 			break
 		}
 		if i != 0 {
-			var next *engine.StatementScope
+			var next *core.StatementScope
 			next, err = scope.NextStatement()
 			if err != nil {
 				break
 			}
 			scope = next
 		}
-		var result engine.Result
+		var result core.Result
 		described := false
 		describe := func(columns []catalog.Column) error {
 			if e := op.Context().Err(); e != nil {

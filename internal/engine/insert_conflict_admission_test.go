@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -38,7 +39,7 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	return f
 }
 
-func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementScope, ids.ObjectRef) {
+func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*core.StatementScope, ids.ObjectRef) {
 	t.Helper()
 	op, done := roleOperation(t, f.e, "postgres")
 	t.Cleanup(done)

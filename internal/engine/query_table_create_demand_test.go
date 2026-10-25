@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*plan.ProjectNode, *exec.Source) {
+func queryCreateBoundSource(t *testing.T, e *core.Engine, width int) (*plan.ProjectNode, *exec.Source) {
 	t.Helper()
 	schema := make(plan.QuerySchema, width)
 	expressions := make([]expr.Expr, width)

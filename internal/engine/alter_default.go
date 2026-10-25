@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -14,8 +15,8 @@ import (
 // The owner-authorized AX grant protects identity; publication changes only the
 // immutable descriptor and never evaluates a default or rewrites row storage.
 // Every return releases Engine.mu.
-func alterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableDefault, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+func alterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableDefault, count int) (core.Result, error) {
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
@@ -33,8 +34,8 @@ func alterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation,
 		return fail(err)
 	}
 	old := scope.LockedDescriptor.(*catalog.Relation)
-	if catalog.HierarchyRelation(old) && !PartitionDefaultReplayAllowed(e, op, auth, s) {
-		return fail(SQLError("0A000", "altering partition hierarchies is unsupported"))
+	if catalog.HierarchyRelation(old) && !core.PartitionDefaultReplayAllowed(e, op, auth, s) {
+		return fail(core.SQLError("0A000", "altering partition hierarchies is unsupported"))
 	}
 	slot, err := table.AlterDefaultColumn(old, s)
 	if err != nil {
@@ -52,7 +53,7 @@ func alterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation,
 		}
 	} else if _, present := old.ColumnMeta.Defaults[attr]; !present {
 		op.Session.Mu.Lock()
-		err = PublicationOperationLocked(e, op)
+		err = core.PublicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
@@ -61,7 +62,7 @@ func alterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation,
 			scope.Completed = true
 		}
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	next, err := table.AlterDefaultCandidate(old, attr, definition)
 	if err != nil {
@@ -87,23 +88,23 @@ func alterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation,
 		err = stage.AlterRelation(op.Context(), ref, next, original, original, length, generation, ends)
 	}
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	if _, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch}); err != nil {
-		return Result{}, err
+	if _, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
+		return core.Result{}, err
 	}
 	scope.Completed = true
-	return Result{}, nil
+	return core.Result{}, nil
 }
 
 // cookAlterDefaultLocked cooks SET DEFAULT; the caller holds Engine.mu.
-func cookAlterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
-	return table.CookAlterDefault(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, old, slot, expression)
+func cookAlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
+	return table.CookAlterDefault(alterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, slot, expression)
 }

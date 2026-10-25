@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -162,7 +163,7 @@ func TestDeleteCoreConsumers(t *testing.T) {
 			t.Fatal(err)
 		}
 		enginetest.Run(t, e, "DELETE FROM t WHERE a=1")
-		_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: e.CatalogRead().Epoch()})
+		_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: e.CatalogRead().Epoch()})
 		var conflict catalog.Conflict
 		if !errors.As(err, &conflict) {
 			t.Fatal("delete did not fence captured shape", err)
@@ -270,7 +271,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	enginetest.LockEmpty(t, e)
 }
 
-func alterDropTestStage(t *testing.T, e *engine.Engine) (*engine.CatalogStage, ids.ObjectRef, *catalog.Relation) {
+func alterDropTestStage(t *testing.T, e *core.Engine) (*core.CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, "t")
 	old := e.Catalog.State.MustRelation(ref.Address)

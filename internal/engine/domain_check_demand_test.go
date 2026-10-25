@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -35,7 +36,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		b := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+		b := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		b.Query.Auth = &auth
 		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		e.Mu.Unlock()

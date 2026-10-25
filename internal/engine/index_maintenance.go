@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
@@ -9,12 +10,12 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeIndexMaintenance(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return fail(ids.ErrCatalogReplaced)
 	}
@@ -35,11 +36,11 @@ func executeIndexMaintenance(e *Engine, scope *StatementScope, stmt parser.State
 	_, reindex := stmt.(*parser.Reindex)
 	if len(g.Targets) == 0 || reindex && len(g.Indexes) == 0 {
 		scope.Op.Session.Mu.Lock()
-		err := PublicationOperationLocked(e, scope.Op)
+		err := core.PublicationOperationLocked(e, scope.Op)
 		scope.Op.Session.Mu.Unlock()
 		e.Mu.Unlock()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		scope.Completed = true
 		if reindex {
@@ -48,7 +49,7 @@ func executeIndexMaintenance(e *Engine, scope *StatementScope, stmt parser.State
 		for _, notice := range g.Notices {
 			scope.Op.EmitNotice(session.LevelNotice, notice)
 		}
-		return Result{}, nil
+		return core.Result{}, nil
 	}
 	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "rename" {
 		return renameRelationLocked(e, scope, scope.Op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
@@ -56,44 +57,44 @@ func executeIndexMaintenance(e *Engine, scope *StatementScope, stmt parser.State
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
 	stage.Indexes().Output = scope.Output
-	if err := index.StageMaintenance(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, g, stmt); err != nil {
+	if err := index.StageMaintenance(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, g, stmt); err != nil {
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
-		return Result{}, index.DefaultClassDiagnostic(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, err)
+		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, err)
 	}
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if drop, ok := stmt.(*parser.DropIndex); ok {
 		for _, ref := range g.Indexes {
 			if err := index.StagePartitionIndexDrop(stage, g.Descriptors[ref.Address]); err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		roots := make([]ids.ObjectAddress, len(g.Indexes))
 		for i, ref := range g.Indexes {
 			roots[i] = ref.Address
 		}
-		stage.DependencyPath, _ = ReferencePath(auth)
+		stage.DependencyPath, _ = core.ReferencePath(auth)
 		if err := scope.StageExpressionDependents(stage, roots, drop.Mode, nil); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	if _, ok := stmt.(*parser.DropIndex); ok {
 		if err := stagePartitionIndexValidity(e, stage, ids.ObjectAddress{}); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	scope.Completed = true
 	for _, notice := range g.Notices {
 		scope.Op.EmitNotice(session.LevelNotice, notice)
 	}
-	return Result{}, nil
+	return core.Result{}, nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -21,7 +22,7 @@ type indexMaintenanceSnapshot struct {
 	stores  map[ids.ObjectAddress]*storage.Relation
 }
 
-func indexMaintenanceCapture(e *engine.Engine) indexMaintenanceSnapshot {
+func indexMaintenanceCapture(e *core.Engine) indexMaintenanceSnapshot {
 	s := indexMaintenanceSnapshot{catalog: e.Catalog.State, roots: make(map[ids.ObjectAddress]*storage.IndexRoot, len(e.Storage.IndexRoots)), stores: make(map[ids.ObjectAddress]*storage.Relation, len(e.Storage.Relations))}
 	for a, r := range e.Storage.IndexRoots {
 		s.roots[a] = r
@@ -31,7 +32,7 @@ func indexMaintenanceCapture(e *engine.Engine) indexMaintenanceSnapshot {
 	}
 	return s
 }
-func indexMaintenanceUnchanged(t *testing.T, e *engine.Engine, before indexMaintenanceSnapshot) {
+func indexMaintenanceUnchanged(t *testing.T, e *core.Engine, before indexMaintenanceSnapshot) {
 	t.Helper()
 	if e.Catalog.State != before.catalog || len(e.Storage.IndexRoots) != len(before.roots) || len(e.Storage.Relations) != len(before.stores) {
 		t.Fatal("failed operation published catalog/storage/root state")

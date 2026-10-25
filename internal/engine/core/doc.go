@@ -1,3 +1,4 @@
-// Package core will hold the runtime core of the engine; until then it holds
-// only tests that run on a composed engine.
+// Package core is the runtime core of the engine: Engine state and its
+// mutex, statement scopes, catalog stages, admission, publication, the
+// transaction lifecycle, sessions, protocol and the procedural runtime.
 package core

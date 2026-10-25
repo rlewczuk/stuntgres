@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"context"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -13,8 +12,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // The public regression proves real view/body execution and ACL transitions.
@@ -305,47 +302,4 @@ func TestRoutineRuleRecipeOriginalAuthority(t *testing.T) {
 			}
 		})
 	}
-}
-
-func queryCoreFixture(t *testing.T, sql string) (*engine.Engine, *plan.Query, *exec.Source) {
-	t.Helper()
-	// Parsing may terminate the test; never do it while holding e.mu, since
-	// deferred session teardown needs that mutex before WaitEnd can return.
-	ast := enginetest.Statement(t, sql)
-	e := engine.New()
-	enginetest.Run(t, e, "CREATE TABLE t(id INT NOT NULL,v INT,f BOOL)")
-	enginetest.Run(t, e, "INSERT INTO t VALUES(1,1,TRUE),(2,NULL,NULL),(3,2,FALSE),(4,1,TRUE)")
-	captured := enginetest.Run(t, e, "SELECT * FROM t").Rows.(*exec.FinalRows)
-	source, captureErr := exec.CaptureSource(context.Background(), captured.Source.View, captured.Source.Ref)
-	if captureErr != nil {
-		t.Fatal(captureErr)
-	}
-	captured.Close()
-	t.Cleanup(source.Close)
-	op, done, err := enginetest.Operation(e, context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer done()
-	e.Mu.Lock()
-	auth, err := e.AuthorizationLocked(op)
-	if err != nil {
-		e.Mu.Unlock()
-		t.Fatal(err)
-	}
-	from := ast.(*parser.Select).From
-	if alias, ok := from.(*parser.AliasReference); ok {
-		from = alias.Input
-	}
-	ref, err := e.ResolveReference(auth, from.(*parser.TableReference).Name)
-	if err != nil {
-		e.Mu.Unlock()
-		t.Fatal(err)
-	}
-	b, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return e, b.Query, source
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
@@ -39,17 +40,17 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	}
 	ast := enginetest.Statement(t, q)
 	type completion struct {
-		result engine.Result
+		result core.Result
 		err    error
-		scope  *engine.StatementScope
+		scope  *core.StatementScope
 	}
 	done := make(chan completion, 1)
 	joined := make(chan struct{})
 	go func() {
 		defer close(joined)
 		op, err := worker.Acquire(ctx)
-		var result engine.Result
-		var scope *engine.StatementScope
+		var result core.Result
+		var scope *core.StatementScope
 		if err == nil {
 			scope, err = e.StartStatement(op)
 			if err == nil {

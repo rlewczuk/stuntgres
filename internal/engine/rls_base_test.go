@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -24,7 +25,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()
-	noOpScope := &StatementScope{Op: op}
+	noOpScope := &core.StatementScope{Op: op}
 	e.Mu.Lock()
 	if _, err := stageRowSecurityFlagsLocked(e, noOpScope, op, auth, d, d); err != nil {
 		t.Fatal(err)
@@ -35,7 +36,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	exhausted := *d
 	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	exhaustedNext := access.RowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
-	exhaustedScope := &StatementScope{Op: op, Owner: &session.TransactionOwner{}}
+	exhaustedScope := &core.StatementScope{Op: op, Owner: &session.TransactionOwner{}}
 	e.Mu.Lock()
 	if _, err := stageRowSecurityFlagsLocked(e, exhaustedScope, op, auth, &exhausted, exhaustedNext); err == nil || err.Error() != "stuntgres: definition revision exhausted" {
 		t.Fatal("revision exhaustion", err)
@@ -77,7 +78,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	imported := New()
@@ -144,8 +145,8 @@ func TestRLSBaseCancellationAndLocks(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	SetPreparedCatalogPublicationCtx(prepared, ctx)
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
+	core.SetPreparedCatalogPublicationCtx(prepared, ctx)
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled flags published")
 	}
 	if e.CatalogRead().State() != base.State() || d.Security.RLSEnabled || d.Security.RLSForced {

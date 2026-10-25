@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -22,7 +23,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func daitchUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
+func daitchUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -31,7 +32,7 @@ func daitchUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	return e, e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 }
 
-func daitchUnitExpression(t *testing.T, e *Engine, input string) plan.InstalledTextExpr {
+func daitchUnitExpression(t *testing.T, e *core.Engine, input string) plan.InstalledTextExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "daitch_mokotoff"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}}}
@@ -74,7 +75,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
 func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
-	setup := func() (*engine.Engine, *session.Session, ids.TxRef, ids.ObjectRef) {
+	setup := func() (*core.Engine, *session.Session, ids.TxRef, ids.ObjectRef) {
 		e := engine.New()
 		s := enginetest.StartSession(t, e, nil)
 		enginetest.SessionSQL(t, s, "CREATE TABLE t(a INT,b INT)")

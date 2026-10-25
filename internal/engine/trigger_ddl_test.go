@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
@@ -20,7 +21,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func triggerDDLExtensionUnit(t *testing.T) (*Engine, *StatementScope, *catalog.Relation, *catalog.Procedure, *catalog.Extension) {
+func triggerDDLExtensionUnit(t *testing.T) (*core.Engine, *core.StatementScope, *catalog.Relation, *catalog.Procedure, *catalog.Extension) {
 	t.Helper()
 	e, s, _, relation, function := triggerUnitFixture(t, "BEGIN RETURN NEW; END")
 	stage := extensionUnitStage(t, e, s.Op)
@@ -83,7 +84,7 @@ func TestTriggerDDLRenameIdentity(t *testing.T) {
 	}
 }
 
-func triggerDDLTreeUnit(t *testing.T) (*Engine, *StatementScope, *catalog.Relation, *catalog.Relation, *catalog.Relation, *catalog.Extension) {
+func triggerDDLTreeUnit(t *testing.T) (*core.Engine, *core.StatementScope, *catalog.Relation, *catalog.Relation, *catalog.Relation, *catalog.Extension) {
 	t.Helper()
 	e, s, model, function, ext := triggerDDLExtensionUnit(t)
 	root, low, high := triggerPartitionUnitTree(t, e, model)
@@ -197,7 +198,7 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 			case "role":
 				e.RoleStore.Published.Revision++
 			}
-			token := PublicationToken{Epoch: stage.Base.Epoch()}
+			token := core.PublicationToken{Epoch: stage.Base.Epoch()}
 			if reason == "epoch" {
 				token.Epoch++
 			}
@@ -233,7 +234,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	if err := low.Triggers.Validate(read, low); err != nil {
 		t.Fatal(err)
 	}
-	if err := CatalogDependencyPreflight(read.State(), read.State(), []session.DependencyObservation{{Base: before.State(), Targets: []ids.ObjectAddress{ext.Address()}}}, nil); err == nil {
+	if err := core.CatalogDependencyPreflight(read.State(), read.State(), []session.DependencyObservation{{Base: before.State(), Targets: []ids.ObjectAddress{ext.Address()}}}, nil); err == nil {
 		t.Fatal("late automatic dependency was not fenced")
 	}
 	missing := p
@@ -243,7 +244,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	if err := bad.Triggers.Validate(read, &bad); err == nil {
 		t.Fatal("missing extension accepted")
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), read, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), read, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +263,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(read)
 	defer e.DiscardCatalogStage(stage)
-	_, err = DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{ext.Address()})
+	_, err = core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{ext.Address()})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" {
 		t.Fatal("clone-only extension retirement bypassed partition owner", err)
@@ -273,7 +274,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	root = triggerUnitInstall(t, e, root, triggerDDLPartsUnit(t, parent))
 	allowed := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(allowed)
-	closure, err := DomainDependencyClosure(context.Background(), allowed, []ids.ObjectAddress{ext.Address()})
+	closure, err := core.DomainDependencyClosure(context.Background(), allowed, []ids.ObjectAddress{ext.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +287,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	if err := allowed.Remove(allowed.Base.Owner().Domain.Ref(allowed.Base.Epoch(), ext.Address())); err != nil {
 		t.Fatal(err)
 	}
-	if err := StageExpressionDependencies(context.Background(), allowed, []ids.ObjectAddress{ext.Address()}, parser.DropRestrict, nil, nil, nil, ext.Address()); err != nil {
+	if err := core.StageExpressionDependencies(context.Background(), allowed, []ids.ObjectAddress{ext.Address()}, parser.DropRestrict, nil, nil, nil, ext.Address()); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, allowed)

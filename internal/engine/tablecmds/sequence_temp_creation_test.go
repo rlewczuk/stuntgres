@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -104,17 +105,17 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				for address, g := range e.Storage.Sequences {
 					generators[address] = *g
 				}
-				memories := make(map[ids.ObjectAddress]sequence.Memory, engine.PayloadOf(a).Sequences.Len())
-				for address, m := range engine.PayloadOf(a).Sequences.All() {
+				memories := make(map[ids.ObjectAddress]sequence.Memory, core.PayloadOf(a).Sequences.Len())
+				for address, m := range core.PayloadOf(a).Sequences.All() {
 					memories[address] = *m
 				}
 				peerAddress := NameAddressForTempMove(t, e, peerNamespace, "seed")
-				peerDescriptor, peerMemory := catalogSnapshot.Get(peerAddress), *engine.PayloadOf(b).Sequences.Memory(peerAddress)
-				last, peerLast := engine.PayloadOf(a).Sequences.Last(), engine.PayloadOf(b).Sequences.Last()
+				peerDescriptor, peerMemory := catalogSnapshot.Get(peerAddress), *core.PayloadOf(b).Sequences.Memory(peerAddress)
+				last, peerLast := core.PayloadOf(a).Sequences.Last(), core.PayloadOf(b).Sequences.Last()
 				err = sequenceTempMoveCommand(t, e, a, query, prepared)
 				if !success {
 					sequenceOwnerDiagnostic(t, err, code, message, "")
-					if e.Catalog.State != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.TemporaryNamespace != namespace || b.TemporaryNamespace != peerNamespace || engine.PayloadOf(a).Sequences.Last() != last || engine.PayloadOf(b).Sequences.Last() != peerLast || held.Sequences != cell || len(e.Storage.Sequences) != len(generators) || engine.PayloadOf(a).Sequences.Len() != len(memories) {
+					if e.Catalog.State != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.TemporaryNamespace != namespace || b.TemporaryNamespace != peerNamespace || core.PayloadOf(a).Sequences.Last() != last || core.PayloadOf(b).Sequences.Last() != peerLast || held.Sequences != cell || len(e.Storage.Sequences) != len(generators) || core.PayloadOf(a).Sequences.Len() != len(memories) {
 						t.Fatal("creation rejection published catalog, namespace event, generator, memory or held analysis")
 					}
 					for address, want := range generators {
@@ -123,7 +124,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 						}
 					}
 					for address, want := range memories {
-						if engine.PayloadOf(a).Sequences.Memory(address) == nil || *engine.PayloadOf(a).Sequences.Memory(address) != want {
+						if core.PayloadOf(a).Sequences.Memory(address) == nil || *core.PayloadOf(a).Sequences.Memory(address) != want {
 							t.Fatal("creation rejection changed cached tail", address)
 						}
 					}
@@ -173,7 +174,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				if ownedNamespace != (ids.ObjectAddress{}) {
 					assertTemporaryNamespacePair(t, e, a.SessionToken, ownedNamespace)
 				}
-				if a.TemporaryNamespace != (ids.ObjectAddress{}) || engine.PayloadOf(a).Sequences.Len() != 0 || engine.PayloadOf(a).Sequences.Last() != (ids.ObjectAddress{}) || e.Catalog.State.Get(peerAddress) != peerDescriptor || b.TemporaryNamespace != peerNamespace || *engine.PayloadOf(b).Sequences.Memory(peerAddress) != peerMemory {
+				if a.TemporaryNamespace != (ids.ObjectAddress{}) || core.PayloadOf(a).Sequences.Len() != 0 || core.PayloadOf(a).Sequences.Last() != (ids.ObjectAddress{}) || e.Catalog.State.Get(peerAddress) != peerDescriptor || b.TemporaryNamespace != peerNamespace || *core.PayloadOf(b).Sequences.Memory(peerAddress) != peerMemory {
 					t.Fatal("cleanup retained own state or changed peer identity/cache")
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 41)
@@ -202,14 +203,14 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				_, held := sequencePreparedDescription(t, e, s, "SELECT nextval('own_temp')")
 				ref := held.Sequences.Constants[0].Ref
 				catalog, namespace, cell := e.Catalog.State, s.TemporaryNamespace, held.Sequences
-				generator, memory := *e.Storage.Sequences[ref.Address], *engine.PayloadOf(s).Sequences.Memory(ref.Address)
+				generator, memory := *e.Storage.Sequences[ref.Address], *core.PayloadOf(s).Sequences.Memory(ref.Address)
 				query := "CREATE TEMP SEQUENCE denied.created"
 				if existing {
 					query = "CREATE TEMP SEQUENCE IF NOT EXISTS denied.seed"
 				}
 				err := sequenceTempMoveCommand(t, e, s, query, prepared)
 				sequenceOwnerDiagnostic(t, err, "42501", "permission denied for schema denied", "")
-				if e.Catalog.State != catalog || s.TemporaryNamespace != namespace || held.Sequences != cell || *e.Storage.Sequences[ref.Address] != generator || *engine.PayloadOf(s).Sequences.Memory(ref.Address) != memory {
+				if e.Catalog.State != catalog || s.TemporaryNamespace != namespace || held.Sequences != cell || *e.Storage.Sequences[ref.Address] != generator || *core.PayloadOf(s).Sequences.Memory(ref.Address) != memory {
 					t.Fatal("CREATE permission rejection changed authority/state")
 				}
 				sequenceScalar(t, s, "SELECT nextval('own_temp')", 2)

@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
@@ -434,7 +435,7 @@ func TestRoleNoticesConflictSkipRechecksCreateAuthorization(t *testing.T) {
 	}
 }
 
-func schemaRef(t *testing.T, e *engine.Engine, name string) ids.ObjectRef {
+func schemaRef(t *testing.T, e *core.Engine, name string) ids.ObjectRef {
 	t.Helper()
 	v := e.CatalogRead()
 	a := v.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -28,13 +29,13 @@ func TestRelationLockViewAfterWait(t *testing.T) {
 			sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			type answer struct {
-				result Result
+				result core.Result
 				err    error
 			}
 			done := make(chan answer, 1)
 			go func() {
 				op, err := b.Acquire(context.Background())
-				var r Result
+				var r core.Result
 				if err == nil {
 					r, err = e.Execute(op, mustLockStatement("SELECT v FROM t ORDER BY v"), 0, nil)
 					op.Done()

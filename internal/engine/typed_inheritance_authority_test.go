@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -116,7 +117,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("unit candidate discarded"))
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,13 +4,14 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/typedef"
 )
 
-func adoptEnumGenerationsLocked(e *Engine, scope *StatementScope, changes *session.Journal, stage *CatalogStage) error {
+func adoptEnumGenerationsLocked(e *core.Engine, scope *core.StatementScope, changes *session.Journal, stage *core.CatalogStage) error {
 	next := e.StageRead(stage).State()
 	for a, rebound := range stage.RowShapes {
 		consumer, ok := stage.Get(a).(*catalog.Relation)

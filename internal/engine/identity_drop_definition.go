@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"iter"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/table"
@@ -21,7 +22,7 @@ type preparedIdentityDrop struct {
 	original catalog.Descriptor
 }
 
-func prepareIdentityDropDefinition(e *Engine, scope *StatementScope, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
+func prepareIdentityDropDefinition(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
@@ -48,7 +49,7 @@ func prepareIdentityDropDefinition(e *Engine, scope *StatementScope, auth Author
 	return &preparedIdentityDrop{old: old, ref: ref, next: next, drop: drop, sequence: capture.Sequence, original: capture.Original}, nil
 }
 
-func consumeIdentityDropDefinition(scope *StatementScope, stage *CatalogStage, prepared *preparedIdentityDrop, old *catalog.Relation, ref ids.ObjectRef) (*catalog.Relation, error) {
+func consumeIdentityDropDefinition(scope *core.StatementScope, stage *core.CatalogStage, prepared *preparedIdentityDrop, old *catalog.Relation, ref ids.ObjectRef) (*catalog.Relation, error) {
 	if err := scope.Active(); err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func consumeIdentityDropDefinition(scope *StatementScope, stage *CatalogStage, p
 	}
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
 		stage.SequenceState().CaptureIdentityOriginal(prepared.sequence.Address, prepared.original)
-		ApplyIdentityDropTombstone(stage, prepared.sequence.Address)
+		core.ApplyIdentityDropTombstone(stage, prepared.sequence.Address)
 	}
 	return next, nil
 }

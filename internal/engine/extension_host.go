@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -22,21 +23,21 @@ import (
 // rather than being a defined type over CatalogStage, so Create and Replace
 // keep CatalogStage's lifecycle checks.
 type extensionHost struct {
-	engine    *Engine
+	engine    *core.Engine
 	op        *session.Operation
-	auth      AuthorizationView
-	stage     *CatalogStage
+	auth      core.AuthorizationView
+	stage     *core.CatalogStage
 	namespace ids.ObjectAddress
 }
 
 var (
 	_ extension.Host  = (*extensionHost)(nil)
 	_ extension.Stage = (*extensionHost)(nil)
-	_ ddl.Authority   = AuthorizationView{}
+	_ ddl.Authority   = core.AuthorizationView{}
 )
 
 // stageOf returns the root stage behind a Stage that BeginStage returned.
-func stageOf(s extension.Stage) (*CatalogStage, error) {
+func stageOf(s extension.Stage) (*core.CatalogStage, error) {
 	h, ok := s.(*extensionHost)
 	if !ok || h == nil || h.stage == nil {
 		return nil, fmt.Errorf("stuntgres: foreign extension stage")
@@ -46,7 +47,7 @@ func stageOf(s extension.Stage) (*CatalogStage, error) {
 
 // extensionNamespaceOf returns the namespace stage was begun in; a stage no
 // extension host began has the zero address.
-func extensionNamespaceOf(stage *CatalogStage) ids.ObjectAddress {
+func extensionNamespaceOf(stage *core.CatalogStage) ids.ObjectAddress {
 	if stage.ExtensionSlot == nil {
 		return ids.ObjectAddress{}
 	}
@@ -60,11 +61,11 @@ func extensionNamespaceOf(stage *CatalogStage) ids.ObjectAddress {
 func (h *extensionHost) Context() context.Context { return h.op.Context() }
 func (h *extensionHost) Notice(n sqlstate.Error)  { h.op.EmitNotice(session.LevelNotice, n) }
 func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
-	path, _, err := ExplicitPath(h.auth)
+	path, _, err := core.ExplicitPath(h.auth)
 	return path, err
 }
 func (h *extensionHost) ReplayingTableDestination() bool {
-	return OperationReplayOrZero(h.op).TableDestination
+	return core.OperationReplayOrZero(h.op).TableDestination
 }
 func (h *extensionHost) BootstrapSuperuser() authorization.PrincipalRef {
 	return h.engine.RoleStore.Domain.Principal(10)
@@ -91,7 +92,7 @@ func (h *extensionHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, nam
 	return h.engine.DisplaceAssociatedArrayLocked(h.stage, namespace, name)
 }
 func (h *extensionHost) AssociatedArrayName(namespace ids.ObjectAddress, name string) string {
-	return AssociatedArrayName(h.stage, namespace, name)
+	return core.AssociatedArrayName(h.stage, namespace, name)
 }
 func (h *extensionHost) CreationTypeACL(owner authorization.PrincipalRef, namespace ids.ObjectAddress) (authorization.ACLValue, bool) {
 	return h.stage.CreationTypeACL(owner, namespace)
@@ -111,7 +112,7 @@ func (h *extensionHost) ScriptFunctions(owner authorization.PrincipalRef, namesp
 	// Extension scripts replace, rather than prefix, the caller's path. The
 	// stock scripts have no prerequisite schemas; implicit pg_catalog remains,
 	// and the script's explicit pg_temp entry is excluded from function lookup.
-	path := EffectivePath(auth, []ids.ObjectAddress{namespace}, analyze.InstalledFunctionLookup)
+	path := core.EffectivePath(auth, []ids.ObjectAddress{namespace}, analyze.InstalledFunctionLookup)
 	found := make([]*catalog.Procedure, len(helpers))
 	for i, helper := range helpers {
 		found[i] = analyze.ProcedureInNamespaces(auth.Catalog, analyze.NamespaceSelection{Path: path}, helper.Name, helper.Signature)

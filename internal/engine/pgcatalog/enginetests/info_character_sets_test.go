@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -17,7 +18,7 @@ func characterSetsUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Rea
 	t.Helper()
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoCharacterSetsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engine.EngineCatalogRuntime{Auth: auth, Database: database}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: database}}
 }
 
 func characterSetsUnitRows(t *testing.T, in pgcatalog.Input, schema, name *string) [][]sqltype.Value {
@@ -26,7 +27,7 @@ func characterSetsUnitRows(t *testing.T, in pgcatalog.Input, schema, name *strin
 	if !ok {
 		t.Fatal("missing character_sets producer")
 	}
-	captured, err := engine.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,12 +103,12 @@ func TestInfoCharacterSetsProducer(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Catalog = foreign.CatalogRead() },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = runtime
 		},
@@ -206,7 +207,7 @@ func TestInfoCharacterSetsCollationChoice(t *testing.T) {
 	}
 }
 
-func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) engine.AuthorizationView {
+func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) core.AuthorizationView {
 	t.Helper()
 	f.e.Mu.Lock()
 	auth, err := f.e.AuthorizationLocked(f.op)

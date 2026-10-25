@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -15,7 +16,7 @@ import (
 )
 
 type defaultUnitFixture struct {
-	e                     *Engine
+	e                     *core.Engine
 	op                    *session.Operation
 	owner, reader, member authorization.PrincipalRef
 	schema                ids.ObjectAddress
@@ -99,14 +100,14 @@ func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorizat
 
 // defaultUnitTable owns Engine.mu; callers must not hold it. Resolve the
 // immutable stage-base carrier first, without a locking Engine.CatalogRead.
-func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, name string, owner authorization.PrincipalRef) *catalog.Relation {
+func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *core.CatalogStage, name string, owner authorization.PrincipalRef) *catalog.Relation {
 	t.Helper()
 	typ, ok := stage.Base.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("stage has no int4 carrier")
 	}
 	f.e.Mu.Lock()
-	d, err := table.NewRelation(DDLHost{E: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
+	d, err := table.NewRelation(core.DDLHost{E: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
 	if err == nil {
 		d.Security.ACL = stage.CreationACL(owner, f.schema, authorization.DefaultTables)
 		err = f.e.StageRowTypeLocked(stage, d)
@@ -120,12 +121,12 @@ func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *CatalogStage, n
 	}
 	return d
 }
-func defaultUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) error {
+func defaultUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) error {
 	t.Helper()
 	p, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		return err
 	}
-	_, err = publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	return err
 }

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -57,7 +58,7 @@ func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.St
 		return control.NotHandled, nil
 	}
 	if s.Action == "import" {
-		return control.NotHandled, SQLError("0A000", "restore cannot replay IMPORT FOREIGN SCHEMA")
+		return control.NotHandled, core.SQLError("0A000", "restore cannot replay IMPORT FOREIGN SCHEMA")
 	}
 	if s.Action == "create" && !s.IfExists && !s.IfNotExists {
 		switch s.Kind {
@@ -84,7 +85,7 @@ func restoreAdmitForeignDDL(r *restoreRun, op *session.Operation, stmt parser.St
 		}
 		return control.Admitted, nil
 	}
-	return control.NotHandled, SQLError("0A000", "restore accepts only SQL/MED declarations, owner transfers and deferred foreign defaults")
+	return control.NotHandled, core.SQLError("0A000", "restore accepts only SQL/MED declarations, owner transfers and deferred foreign defaults")
 }
 
 // Keep admission and post-bind validation on the same single-action shape.
@@ -117,11 +118,11 @@ func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.Alte
 }
 
 func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
-	reject := func() error { return SQLError("0A000", table.RestoreInheritedOwnerBoundary) }
+	reject := func() error { return core.SQLError("0A000", table.RestoreInheritedOwnerBoundary) }
 	if s.IfExists || len(s.Name.Parts) != 2 || s.Target.Identity != "" || s.Target.Name == "" {
 		return reject()
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -188,7 +189,7 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 // TABLE completes.
 func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser.AlterTableDetachPartition) error {
 	if s.IfExists || s.Only || len(s.Name.Parts) != 2 || len(s.Partition.Parts) != 2 {
-		return SQLError("0A000", "restore accepts only unconditional qualified partition detachments")
+		return core.SQLError("0A000", "restore accepts only unconditional qualified partition detachments")
 	}
 	record, err := capturePartitionReplayTeardown(r.stage, op, s)
 	if err != nil {
@@ -203,7 +204,7 @@ func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser
 // admitRestoreDropTable admits only a generated partition replay teardown.
 func admitRestoreDropTable(r *restoreRun, op *session.Operation, s *parser.DropTable) error {
 	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partition.ReplayStem) {
-		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	return validatePartitionReplayTeardown(r.stage, op, s.Names[0], r.partitionTeardowns)
 }
@@ -224,7 +225,7 @@ func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *pa
 		r.generationRepairs = nil
 	}
 	if !s.OwnerDirective && !s.Default {
-		return SQLError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives or DEFAULT")
+		return core.SQLError("0A000", "restore accepts only named SET SESSION AUTHORIZATION owner directives or DEFAULT")
 	}
 	return nil
 }

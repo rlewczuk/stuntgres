@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -456,8 +456,8 @@ func TestQueryParallelCancellation(t *testing.T) {
 	}
 	// The live admission authority must not overwrite sibling cancellation.
 	_, _, source := queryCoreFixture(t, "SELECT id FROM t")
-	scope := &engine.StatementScope{}
-	source.Authority = &exec.Authority{Host: engine.HostOf(scope)}
+	scope := &core.StatementScope{}
+	source.Authority = &exec.Authority{Host: core.HostOf(scope)}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	state := &exec.State{Source: source, ExecutionContext: ctx}
@@ -465,7 +465,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 	if evaluation.Context != ctx || evaluation.Context.Err() != context.Canceled {
 		t.Fatal("worker cancellation replaced by authority")
 	}
-	if engine.ScopeOf(evaluation.LiveHost()) != scope {
+	if core.ScopeOf(evaluation.LiveHost()) != scope {
 		t.Fatal("worker context lost borrowed authority")
 	}
 }

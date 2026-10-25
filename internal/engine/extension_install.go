@@ -3,31 +3,32 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-func executeExtension(e *Engine, scope *StatementScope, s *parser.CreateExtension, count int) (Result, error) {
+func executeExtension(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
 	stage, err := stageExtensionLocked(e, scope, s)
 	e.Mu.Unlock()
 	if err != nil || stage == nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	return publishExtensionStage(e, scope, stage)
 }
 
 // CREATE and UPDATE publish through the same validated statement-owned changes.
 // Provider callbacks run in ValidateCatalogStage outside the engine mutex.
-func publishExtensionStage(e *Engine, scope *StatementScope, stage *CatalogStage) (Result, error) {
+func publishExtensionStage(e *core.Engine, scope *core.StatementScope, stage *core.CatalogStage) (core.Result, error) {
 	defer e.DiscardCatalogStage(stage)
 	if _, err := e.ValidateCatalogStage(scope.Op.Context(), stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	changes := scope.Owner.Catalog.Clone()
@@ -55,10 +56,10 @@ func publishExtensionStage(e *Engine, scope *StatementScope, stage *CatalogStage
 	scope.Catalog = changes
 	scope.CatalogAuthority = &session.CatalogAuthority{Session: scope.Op.Session, Authorization: stage.AuthRevision, Roles: stage.RoleRevision, Ref: ids.ObjectRef{Address: e.Catalog.Owner.DatabaseAddress()}, Descriptor: stage.DatabasePredecessor, DatabaseAuthority: stage.DatabaseAuthority, DatabasePredecessor: stage.DatabasePredecessor}
 	e.Mu.Unlock()
-	return Result{}, nil
+	return core.Result{}, nil
 }
 
-func stageExtensionLocked(e *Engine, scope *StatementScope, s *parser.CreateExtension) (*CatalogStage, error) {
+func stageExtensionLocked(e *core.Engine, scope *core.StatementScope, s *parser.CreateExtension) (*core.CatalogStage, error) {
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err

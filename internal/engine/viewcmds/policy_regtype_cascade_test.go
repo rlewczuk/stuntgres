@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -42,7 +42,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if err := stage.Remove(providerRef); err != nil {
 						t.Fatal(err)
 					}
-					if err := engine.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+					if err := core.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{providerRef.Address}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
 					next, ok := stage.Get(old.Address()).(*catalog.Relation)
@@ -72,7 +72,7 @@ func TestRLSPolicyRegtypeCascadeRetirement(t *testing.T) {
 					if e.CatalogRead().State() != base.State() || len(old.Security.Policies) != 2 || e.Storage.Relations[old.Address()] != storage {
 						t.Fatal("private retirement mutated published roots/storage")
 					}
-					if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+					if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 						t.Fatal(err)
 					}
 					now := e.CatalogRead()

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Relation, *catalog.Relation, *parser.AlterTable) {
+func partitionUniqueReplayUnit(t *testing.T, primary bool) (*core.Engine, *catalog.Relation, *catalog.Relation, *parser.AlterTable) {
 	t.Helper()
 	e := New().RestoreStage()
 	root := partitionAttachUnitRoot(t, e, "unique_replay_root", 47200)
@@ -32,7 +33,7 @@ func partitionUniqueReplayUnit(t *testing.T, primary bool) (*Engine, *catalog.Re
 		tbl.History.HasIndexes = true
 		// Stored NOT NULL facts need real catalog identities before validation,
 		// just as the canonical CREATE producer assigns them.
-		if err := table.AssignDefinitionOIDs(DDLHost{E: e}, tbl); err != nil {
+		if err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, tbl); err != nil {
 			e.Mu.Unlock()
 			t.Fatal(err)
 		}
@@ -68,35 +69,35 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	if err := beginPartitionUniqueReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !PartitionUniqueReplayAllowed(op, auth, raw, mid) {
+	if !core.PartitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("exact origin missing")
 	}
 	copied := *op
-	if PartitionUniqueReplayAllowed(&copied, auth, raw, mid) {
+	if core.PartitionUniqueReplayAllowed(&copied, auth, raw, mid) {
 		t.Fatal("copied lease authorized")
 	}
 	lookalike := *mid
-	if PartitionUniqueReplayAllowed(op, auth, raw, &lookalike) {
+	if core.PartitionUniqueReplayAllowed(op, auth, raw, &lookalike) {
 		t.Fatal("copied table authorized")
 	}
 	raw.Actions[0].Unique.Columns[0].Text = "other"
-	if PartitionUniqueReplayAllowed(op, auth, raw, mid) {
+	if core.PartitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed definition authorized")
 	}
 	raw.Actions[0].Unique.Columns[0].Text = "k"
 	changed := *leaf
 	changed.ObjectRevision++
 	e.Catalog.State.SetDescriptor(leaf.Address(), &changed)
-	if PartitionUniqueReplayAllowed(op, auth, raw, mid) {
+	if core.PartitionUniqueReplayAllowed(op, auth, raw, mid) {
 		t.Fatal("changed subtree authorized")
 	}
 	e.Catalog.State.SetDescriptor(leaf.Address(), leaf)
-	OperationReplay(op).PartitionUnique = nil
-	if partition.ConsumerBoundary(raw, mid, PartitionReplayAllowed(op, auth)) == nil {
+	core.OperationReplay(op).PartitionUnique = nil
+	if partition.ConsumerBoundary(raw, mid, core.PartitionReplayAllowed(op, auth)) == nil {
 		t.Fatal("public hierarchy ADD widened")
 	}
 }

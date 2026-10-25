@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
@@ -21,7 +22,7 @@ import (
 
 // Use the ordinary admitted statement/binding path, including its occurrence
 // manifest and current attribute capabilities, rather than synthetic view roots.
-func exprCollationStoredBinding(t *testing.T, e *engine.Engine, owner *session.Session, q string) (analyze.Binding, *engine.StatementScope) {
+func exprCollationStoredBinding(t *testing.T, e *core.Engine, owner *session.Session, q string) (analyze.Binding, *core.StatementScope) {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, owner)
 	t.Cleanup(op.Done)
@@ -38,7 +39,7 @@ func exprCollationStoredBinding(t *testing.T, e *engine.Engine, owner *session.S
 	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		bound, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 		scope.RoutineAuth, scope.RoutineDependencies = auth, bound.Dependencies
 	}
 	e.Mu.Unlock()
@@ -77,7 +78,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			if len(bound.QuerySources) != 1 || !reflect.DeepEqual(bound.QuerySources[0].Uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.QuerySources, tc.uses)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: engine.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.Query.Root.(*plan.ProjectNode).Frame}}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.Query.Root.(*plan.ProjectNode).Frame}}
 			err := view.ValidateQueryJoinExecution(&evaluation, bound.Query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error

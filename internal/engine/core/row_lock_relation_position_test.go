@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
@@ -39,7 +40,7 @@ func TestRowLockRelationWaitPosition(t *testing.T) {
 					case "prepare":
 						_, err = e.Describe(op, ast)
 					case "cached":
-						var scope *engine.StatementScope
+						var scope *core.StatementScope
 						scope, err = e.StartStatement(op)
 						if err == nil {
 							scope.Expected = &desc

@@ -3,11 +3,12 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string) *catalog.Relation {
+func inheritanceUnitRelation(e *core.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
 	for i, name := range names {
 		d.Index[name] = i
@@ -18,7 +19,7 @@ func inheritanceUnitRelation(e *Engine, name string, id ids.OID, names ...string
 	return d
 }
 
-func inheritanceUnitView(e *Engine, relations ...*catalog.Relation) catalog.Read {
+func inheritanceUnitView(e *core.Engine, relations ...*catalog.Relation) catalog.Read {
 	state := catalog.CloneState(e.CatalogRead().State())
 	for _, d := range relations {
 		state.SetDescriptor(d.Address(), d)

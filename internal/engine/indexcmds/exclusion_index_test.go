@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/index"
@@ -109,7 +110,7 @@ func TestExclusionCatalogLifecycle(t *testing.T) {
 	if !renamed.Deferrable || !renamed.InitiallyDeferred {
 		t.Fatal("rename dropped definition properties")
 	}
-	if _, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), engine.EngineCatalogRuntime{}); err != nil {
+	if _, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.EngineCatalogRuntime{}); err != nil {
 		t.Fatal(err)
 	}
 	enginetest.SessionSQL(t, s, "ALTER TABLE t DROP CONSTRAINT renamed")
@@ -211,13 +212,13 @@ func TestExclusionAlterFirstIndexPublication(t *testing.T) {
 	}
 }
 
-func uniqueClaimsEmpty(t *testing.T, e *engine.Engine) {
+func uniqueClaimsEmpty(t *testing.T, e *core.Engine) {
 	t.Helper()
 	enginetest.LockEmpty(t, e)
 	uniqueKeyBucketsEmpty(t, e)
 }
 
-func uniqueKeyBucketsEmpty(t *testing.T, e *engine.Engine) {
+func uniqueKeyBucketsEmpty(t *testing.T, e *core.Engine) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
 	if lockState.KeyBuckets != 0 {

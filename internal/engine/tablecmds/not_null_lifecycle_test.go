@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -69,7 +70,7 @@ func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
 	}
 }
 
-func notNullDropEnforcement(t *testing.T, e *engine.Engine) {
+func notNullDropEnforcement(t *testing.T, e *core.Engine) {
 	t.Helper()
 	for _, q := range []string{"INSERT INTO t VALUES(NULL,8)", "UPDATE t SET a=NULL"} {
 		_, err := enginetest.Execute(e, context.Background(), enginetest.Statement(t, q), nil)
@@ -81,7 +82,7 @@ func notNullDropEnforcement(t *testing.T, e *engine.Engine) {
 	notNullRemainingEnforcement(t, e)
 }
 
-func notNullRemainingEnforcement(t *testing.T, e *engine.Engine) {
+func notNullRemainingEnforcement(t *testing.T, e *core.Engine) {
 	t.Helper()
 	for _, q := range []string{"INSERT INTO t VALUES(7,NULL)", "UPDATE t SET b=NULL"} {
 		_, err := enginetest.Execute(e, context.Background(), enginetest.Statement(t, q), nil)
@@ -92,7 +93,7 @@ func notNullRemainingEnforcement(t *testing.T, e *engine.Engine) {
 	}
 }
 
-func notNullDropRows(t *testing.T, e *engine.Engine, a int64, count int) {
+func notNullDropRows(t *testing.T, e *core.Engine, a int64, count int) {
 	t.Helper()
 	want := make([][]driver.Value, count)
 	for i := range want {
@@ -129,7 +130,7 @@ func TestNotNullAXGrantTimeDescriptorAndRetargetFence(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+				if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 					t.Fatal(err)
 				}
 			case "shadow":
@@ -196,7 +197,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = enginetest.Execute(e, context.Background(), enginetest.Statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), nil)

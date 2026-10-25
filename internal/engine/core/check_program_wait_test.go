@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func checkProgramExpression(folded bool) string {
 	return "pg_catalog.json_array_length(j)>0"
 }
 
-func checkProgramRows(t *testing.T, e *engine.Engine, query string, want ...int64) {
+func checkProgramRows(t *testing.T, e *core.Engine, query string, want ...int64) {
 	t.Helper()
 	s := enginetest.StartSession(t, e, nil)
 	r := enginetest.SessionSQL(t, s, query)

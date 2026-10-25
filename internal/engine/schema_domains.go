@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -16,11 +17,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func domainRestrictError(stage *CatalogStage, targets []ids.ObjectAddress, edges []table.DomainDependency, originalRootCount int, subject ids.ObjectAddress) error {
-	return view.RestrictError(StageDropProvider(context.Background(), stage, nil, nil, nil), targets, edges, originalRootCount, subject)
+func domainRestrictError(stage *core.CatalogStage, targets []ids.ObjectAddress, edges []table.DomainDependency, originalRootCount int, subject ids.ObjectAddress) error {
+	return view.RestrictError(core.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, edges, originalRootCount, subject)
 }
 
-func stageDomainDependents(scope *StatementScope, stage *CatalogStage, mode parser.DropMode) error {
+func stageDomainDependents(scope *core.StatementScope, stage *core.CatalogStage, mode parser.DropMode) error {
 	start := len(stage.DropCascadeNames)
 	if err := scope.StageExpressionDependents(stage, stage.DomainTargets, mode, nil); err != nil {
 		return err
@@ -30,7 +31,7 @@ func stageDomainDependents(scope *StatementScope, stage *CatalogStage, mode pars
 	return nil
 }
 
-func stageSchemaDomainsLocked(e *Engine, op *session.Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
+func stageSchemaDomainsLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
 	var contained []catalog.Descriptor
 	for _, r := range relations {
 		contained = append(contained, r)
@@ -49,13 +50,13 @@ func stageSchemaDomainsLocked(e *Engine, op *session.Operation, auth Authorizati
 	}
 	sort.Slice(contained, func(i, j int) bool { return contained[i].Address().ObjectID < contained[j].Address().ObjectID })
 	sort.Slice(stage.DomainTargets, func(i, j int) bool { return stage.DomainTargets[i].ObjectID < stage.DomainTargets[j].ObjectID })
-	stage.DependencyPath, _ = ReferencePath(auth)
+	stage.DependencyPath, _ = core.ReferencePath(auth)
 	for _, d := range contained {
 		if err := stage.RemoveObjectLocked(e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address()), false); err != nil {
 			return err
 		}
 	}
-	edges, err := DomainDependencyClosure(op.Context(), stage, stage.DomainTargets)
+	edges, err := core.DomainDependencyClosure(op.Context(), stage, stage.DomainTargets)
 	if err != nil {
 		return err
 	}

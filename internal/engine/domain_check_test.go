@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -196,7 +197,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	before := e.CatalogRead()
 	dependent := domainUnitType(t, before, "dependent")
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.provider CASCADE")
-	edges, err := DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
+	edges, err := core.DomainDependencyClosure(context.Background(), stage, stage.DomainTargets)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +214,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 	if visible != 1 {
 		t.Fatal("CHECK-owned dependency multiplicity", edges)
 	}
-	if err := StageExpressionDependencies(context.Background(), stage, stage.DomainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := core.StageExpressionDependencies(context.Background(), stage, stage.DomainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 )
 
@@ -17,9 +18,9 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 	go func() {
 		defer close(finished)
 		op, _, err := s.AcquireCommand(ctx)
-		var result Result
+		var result core.Result
 		if err == nil {
-			result, err = EngineOf(s).Execute(op, ast, 0, nil)
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
 			err = op.CommandError(err)
 			op.Done()
 		}
@@ -36,13 +37,13 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 	return done, cancel
 }
 
-func uniqueClaimsEmpty(t *testing.T, e *Engine) {
+func uniqueClaimsEmpty(t *testing.T, e *core.Engine) {
 	t.Helper()
 	lockEmpty(t, e)
 	uniqueKeyBucketsEmpty(t, e)
 }
 
-func uniqueKeyBucketsEmpty(t *testing.T, e *Engine) {
+func uniqueKeyBucketsEmpty(t *testing.T, e *core.Engine) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
 	if lockState.KeyBuckets != 0 {

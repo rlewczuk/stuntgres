@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -117,7 +118,7 @@ func TestMathConsumers(t *testing.T) {
 	}
 }
 
-func engineMathViewWitnesses(t *testing.T, e *engine.Engine) {
+func engineMathViewWitnesses(t *testing.T, e *core.Engine) {
 	t.Helper()
 	if got := mathTuples(t, enginetest.Run(t, e, "SELECT result FROM null_math_view")); !reflect.DeepEqual(got, [][]any{{nil}}) {
 		t.Fatal("row-dependent NULL stored view", got)
@@ -130,7 +131,7 @@ func engineMathViewWitnesses(t *testing.T, e *engine.Engine) {
 	}
 }
 
-func mathTuples(t *testing.T, result engine.Result) [][]any {
+func mathTuples(t *testing.T, result core.Result) [][]any {
 	t.Helper()
 	cursor := enginetest.IndependentFinalRows(result.Rows)
 	defer cursor.Close()

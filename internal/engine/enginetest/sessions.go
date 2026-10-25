@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -15,7 +15,7 @@ import (
 
 // StartSession starts a session with session defaults from p (nil for none)
 // and ends it at test cleanup.
-func StartSession(t testing.TB, e *engine.Engine, p settings.SessionDefaultProvider) *session.Session {
+func StartSession(t testing.TB, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
 	t.Helper()
 	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(sessionID.Add(1)), Defaults: p})
 	if err != nil {
@@ -32,14 +32,14 @@ func StartSession(t testing.TB, e *engine.Engine, p settings.SessionDefaultProvi
 
 // SessionSQL executes q without parameters in one operation of s, fails the
 // test on error and closes the result rows at test cleanup.
-func SessionSQL(t testing.TB, s *session.Session, q string) engine.Result {
+func SessionSQL(t testing.TB, s *session.Session, q string) core.Result {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	r, err := engine.EngineOf(s).Execute(op, Statement(t, q), 0, nil)
+	r, err := core.EngineOf(s).Execute(op, Statement(t, q), 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TransactionBegin(t testing.TB, s *session.Session) ids.TxRef {
 	t.Helper()
 	op := TransactionOperation(t, s)
 	defer op.Done()
-	ref, err := engine.EngineOf(s).Begin(op, session.TxOptions{})
+	ref, err := core.EngineOf(s).Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,16 +78,16 @@ func TransactionBegin(t testing.TB, s *session.Session) ids.TxRef {
 }
 
 // TransactionEnd commits or rolls back the transaction ref of s.
-func TransactionEnd(t testing.TB, s *session.Session, ref ids.TxRef, commit bool) engine.EndResult {
+func TransactionEnd(t testing.TB, s *session.Session, ref ids.TxRef, commit bool) core.EndResult {
 	t.Helper()
 	op := TransactionOperation(t, s)
 	defer op.Done()
-	var r engine.EndResult
+	var r core.EndResult
 	var err error
 	if commit {
-		r, err = engine.EngineOf(s).Commit(op, ref)
+		r, err = core.EngineOf(s).Commit(op, ref)
 	} else {
-		r, err = engine.EngineOf(s).Rollback(op, ref)
+		r, err = core.EngineOf(s).Rollback(op, ref)
 	}
 	if err != nil {
 		t.Fatal(err)

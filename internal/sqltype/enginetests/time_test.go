@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
@@ -28,7 +29,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	desc := engine.StatementDescription{Temporals: b.Prepared.Temporals}
+	desc := core.StatementDescription{Temporals: b.Prepared.Temporals}
 	before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 	if err := engine.Reset(ctx, e); err != nil {
 		t.Fatal(err)
@@ -77,7 +78,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contextDesc := engine.StatementDescription{Temporals: b.Prepared.Temporals}
+	contextDesc := core.StatementDescription{Temporals: b.Prepared.Temporals}
 	b = enginetest.ExpressionBinder(t, ctx, e, later, &contextDesc)
 	node, err = b.Bind(contextual, policy)
 	if err != nil {

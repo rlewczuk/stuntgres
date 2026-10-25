@@ -1,7 +1,7 @@
 package stuntgres
 
 import (
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/settings"
 )
 
@@ -61,11 +61,11 @@ func (d *Driver) RegisterSetting(def SettingDefinition) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.settingsFrozen {
-		return engine.RegistrationError("setting registry is frozen")
+		return core.RegistrationError("setting registry is frozen")
 	}
 	for _, old := range d.settings {
 		if old.Name == v.Name {
-			return engine.RegistrationError("duplicate setting " + v.Name)
+			return core.RegistrationError("duplicate setting " + v.Name)
 		}
 	}
 	d.settings = append(d.settings, v)

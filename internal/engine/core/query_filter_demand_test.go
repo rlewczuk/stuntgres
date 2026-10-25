@@ -170,19 +170,3 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 		t.Fatal("empty user input erased cancellation", order, err)
 	}
 }
-
-// Instrument a real enum producer's argument to distinguish capture from demand.
-type enumCapturedArgument struct {
-	expr.Info
-	value sqltype.Value
-	calls *int
-}
-
-func (e enumCapturedArgument) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := exec.EvaluationContext(c); err != nil {
-		return sqltype.Value{}, err
-	}
-	(*e.calls)++
-	return e.value, nil
-}

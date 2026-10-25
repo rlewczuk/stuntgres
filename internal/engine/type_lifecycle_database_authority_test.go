@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -61,7 +62,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 				if change == "horizon" {
 					e.Mu.Lock()
 					e.DatabaseFrozenXID = oldDatabase.FrozenXID + 1
-					EnginePublishDatabaseFrozenXIDLocked(e)
+					core.EnginePublishDatabaseFrozenXIDLocked(e)
 					e.Mu.Unlock()
 					expected := *oldDatabase
 					expected.FrozenXID++
@@ -90,7 +91,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 					domainUnitPublish(t, e, replacement)
 				}
 				intervening := e.CatalogRead()
-				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 				if change != "horizon" {
 					if !errors.Is(err, ids.ErrCatalogReplaced) || e.CatalogRead().State() != intervening.State() || e.Storage.Relations[table.Address()] != original {
 						t.Fatal("genuine database authority change did not veto identity publication atomically", err)

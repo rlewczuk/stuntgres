@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"slices"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"testing"
 
@@ -28,13 +29,13 @@ func TestUUIDOsspZeroArity(t *testing.T) {
 	}
 }
 
-func uuidOsspUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
+func uuidOsspUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "uuid-ossp"}})
+	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "uuid-ossp"}})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +59,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if err := e.Catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

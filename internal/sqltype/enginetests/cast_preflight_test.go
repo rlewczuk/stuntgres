@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -377,7 +378,7 @@ func TestCastExpressionEqualityBoundDiagnosticOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		_, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != tc.message || diagnostic.Hint != tc.hint || diagnostic.Position != tc.position {
 			t.Fatal(tc.query, diagnostic, err)

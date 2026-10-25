@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,7 @@ func TestAnalysisHostReadsStoredViews(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	read := e.CatalogRead()
-	auth := AuthorityOf(catalogAuthorization(e, read))
+	auth := core.AuthorityOf(catalogAuthorization(e, read))
 	host := e.AnalysisHost(nil)
 	relation := func(name string) plan.Node {
 		return &plan.SourceNode{Ref: catalogRef(t, e, read, name)}

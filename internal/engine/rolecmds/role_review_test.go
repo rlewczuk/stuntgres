@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -272,7 +273,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 			roles, catalog := e.RoleStore.Published, e.Catalog.State
-			beforeAuth, err := engine.OperationAuthorization(op)
+			beforeAuth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -286,7 +287,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			if e.RoleStore.Published != roles || e.Catalog.State != catalog || !reflect.DeepEqual(e.Roles().Memberships(), expectedEdges) {
 				t.Fatal("later dependency changed state")
 			}
-			afterAuth, err := engine.OperationAuthorization(op)
+			afterAuth, err := core.OperationAuthorization(op)
 			if err != nil || afterAuth.Stamp() != beforeAuth.Stamp() || afterAuth.State != beforeAuth.State ||
 				e.Catalog.NextOID() != beforeOID || e.Catalog.NextRevision() != beforeRevision || e.RoleStore.NextPrincipal() != beforePrincipal {
 				t.Fatal("later dependency changed authority/counters", err)
@@ -381,7 +382,7 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	view, err := engine.OperationAuthorization(op)
+	view, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +399,7 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), ref, acl); err != nil {
 		t.Fatal("real role options rejected", err)
 	}
-	view, err = engine.OperationAuthorization(op)
+	view, err = core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,14 +540,14 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 			// views and explicit transaction identity work must remain independent.
 			_, err := e.Execute(peer, enginetest.Statement(t, "SHOW application_name"), 0, nil)
 			if err == nil {
-				_, err = engine.OperationAuthorization(peer)
+				_, err = core.OperationAuthorization(peer)
 			}
 			var ref ids.TxRef
 			if err == nil {
 				ref, err = e.Begin(peer, session.TxOptions{})
 			}
 			if err == nil {
-				var result engine.Result
+				var result core.Result
 				result, err = e.Execute(peer, enginetest.Statement(t, "SELECT current_user"), 0, nil)
 				if err == nil && !reflect.DeepEqual(enginetest.Tuples(result), [][]driver.Value{{"postgres"}}) {
 					err = errors.New("peer transaction identity changed")

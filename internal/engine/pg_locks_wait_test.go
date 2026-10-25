@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/lock"
 )
 
-func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode, purpose lock.CompletionPurpose) (*lock.Request, context.CancelFunc) {
+func pgLocksUnitRequest(t *testing.T, e *core.Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode, purpose lock.CompletionPurpose) (*lock.Request, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	r, err := e.Locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: purpose})
@@ -29,7 +30,7 @@ func pgLocksUnitRequest(t *testing.T, e *Engine, ticket *lock.Ticket, resource l
 	return r, cancel
 }
 
-func pgLocksUnitWait(t *testing.T, e *Engine, ticket *lock.Ticket) lock.Record {
+func pgLocksUnitWait(t *testing.T, e *core.Engine, ticket *lock.Ticket) lock.Record {
 	t.Helper()
 	var waits []lock.Record
 	for _, r := range pgLocksUnitCapture(t, e) {

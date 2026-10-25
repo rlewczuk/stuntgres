@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
@@ -32,7 +33,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if _, err := b.Bind(raw, policy); err != nil {
 				t.Fatal(err)
 			}
-			desc := engine.StatementDescription{Temporals: b.Prepared.Temporals}
+			desc := core.StatementDescription{Temporals: b.Prepared.Temporals}
 			before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 			if len(before) != 1 || before[0].TypeID != sqltype.Date {
 				t.Fatal(before)

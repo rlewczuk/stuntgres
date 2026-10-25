@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
@@ -11,7 +12,7 @@ import (
 // lockPartitionAttachChild returns the partition.AttachFrontier callback of
 // the incumbent DEFAULT partition: it waits for the child's AccessExclusive
 // lock with nothing held, then rereads the child after the grant.
-func lockPartitionAttachChild(s *StatementScope) func(catalog.Read, ids.ObjectAddress) (catalog.Read, *catalog.Relation, error) {
+func lockPartitionAttachChild(s *core.StatementScope) func(catalog.Read, ids.ObjectAddress) (catalog.Read, *catalog.Relation, error) {
 	return func(view catalog.Read, address ids.ObjectAddress) (catalog.Read, *catalog.Relation, error) {
 		ref := s.Engine().Catalog.Domain.Ref(view.Epoch(), address)
 		if err := s.AcquirePartitionLock(ref, lock.AccessExclusive); err != nil {
@@ -24,7 +25,7 @@ func lockPartitionAttachChild(s *StatementScope) func(catalog.Read, ids.ObjectAd
 // Fences cover the complete candidate stores even when proof elides a scan.
 // Scanned DEFAULT stores have their own predecessors. Normal query snapshots
 // are untouched; the dedicated view uses the same owner/command and own rows.
-func partitionAttachCapture(e *Engine, scope *StatementScope, stage *CatalogStage, view catalog.Read, candidate *catalog.Relation, jobs []partition.AttachScan) error {
+func partitionAttachCapture(e *core.Engine, scope *core.StatementScope, stage *core.CatalogStage, view catalog.Read, candidate *catalog.Relation, jobs []partition.AttachScan) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if scope.TxRef.Epoch() != e.Catalog.State.Epoch() {

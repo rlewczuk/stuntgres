@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/lock"
 )
 
-func deadlockRequest(t *testing.T, e *Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode) *lock.Request {
+func deadlockRequest(t *testing.T, e *core.Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode) *lock.Request {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)

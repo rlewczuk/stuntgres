@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/sequence"
@@ -22,7 +23,7 @@ import (
 )
 
 // These fixtures exercise the private catalog planner directly, not public SQL.
-func objectGrantUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, authorization.PrincipalRef, ids.ObjectAddress) {
+func objectGrantUnitFixture(t *testing.T) (*core.Engine, *session.Operation, authorization.PrincipalRef, ids.ObjectAddress) {
 	t.Helper()
 	e := engine.New()
 	op, done := roleOperation(t, e, "postgres")
@@ -40,7 +41,7 @@ func objectGrantUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, a
 	e.Catalog.State.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)
 	return e, op, reader, address
 }
-func applyObjectGrantUnit(e *engine.Engine, op *session.Operation, s *parser.ObjectGrant) error {
+func applyObjectGrantUnit(e *core.Engine, op *session.Operation, s *parser.ObjectGrant) error {
 	_, err := e.Execute(op, s, 0, nil)
 	return err
 }
@@ -326,7 +327,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()
-	if err != nil || (engine.RoleHost{DDLHost: engine.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of table grant_unit" {
+	if err != nil || (engine.RoleHost{DDLHost: core.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of table grant_unit" {
 		t.Fatal("parent ownership diagnostic", dependencies, err)
 	}
 }
@@ -484,7 +485,7 @@ func TestObjectGrantPlanWarningsBeforeError(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	req, err := role.ObjectGrantRequest(engine.RoleHost{DDLHost: engine.DDLHost{E: e, Op: op}}, v, request)
+	req, err := role.ObjectGrantRequest(engine.RoleHost{DDLHost: core.DDLHost{E: e, Op: op}}, v, request)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)

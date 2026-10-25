@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -267,7 +268,7 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 	}
 }
 
-func recursiveUnitBind(t *testing.T, text string) (*engine.Engine, *plan.Query, error) {
+func recursiveUnitBind(t *testing.T, text string) (*core.Engine, *plan.Query, error) {
 	t.Helper()
 	statements, err := parser.Parse(text)
 	if err != nil {

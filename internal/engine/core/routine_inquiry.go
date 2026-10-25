@@ -1,0 +1,87 @@
+package core
+
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+)
+
+// All SQL query/cursor evaluation borrowing exec.Authority is serialized by the
+// existing session.TransactionOwner.Admission lease through StatementScope.Finish (and
+// message End). Query pipelines do not dispatch parallel expression workers.
+// Thus first-body initialization has that existing single owner, including lazy
+// sources/retained cursors; no metadata mutex, sync.Once or new cell is needed.
+// Each eager outer occurrence still validates its own original recipe/lifetime.
+// A nonnil outer keys lazy inquiry reuse. A nil outer is an unkeyed SQL
+// EXECUTE-actual programme; its individual calls still carry exact identities.
+// Both are consumed graphs owned by the same existing statement collection.
+type commandRoutineProgram struct {
+	outer     *catalog.Procedure
+	consumer  *catalog.Relation
+	ri        bool
+	admission *exec.RoutineProgram
+}
+
+func admitInquiryBody(c *exec.Context, node expr.Info) error {
+	scope := ScopeOf(c.LiveHost())
+	if scope == nil {
+		return nil
+	} // Legitimate standalone internal provider fixtures.
+	local := *c
+	recipe, err := exec.ExpressionRecipeDescriptor(node)
+	if err != nil {
+		return err
+	}
+	if recipe != nil && (!local.RoutineGraft || local.RoutineGraftSource != recipe) || recipe == nil && local.RoutineGraft {
+		if err = exec.SelectExpressionRecipe(&local, recipe); err != nil {
+			return err
+		}
+	}
+	outer, err := exec.ExpressionRoutineDescriptor(node)
+	if err != nil || outer == nil {
+		return err
+	}
+	auth, dependencies, err := exec.RoutineAdmissionAuthority(&local)
+	if err != nil || !auth.Live() {
+		return err
+	}
+	ri := scope.ForeignActionAuth != nil && scope.ForeignActionAuth.State.CurrentUser == auth.State.CurrentUser
+	for _, programme := range scope.routinePrograms {
+		if programme.outer == outer && programme.consumer == local.RoutineConsumer &&
+			programme.ri == ri && len(programme.admission.Calls) != 0 &&
+			programme.admission.Calls[0].Actor == auth.State.CurrentUser {
+			return nil
+		}
+	}
+	programme := commandRoutineProgram{outer: outer, consumer: local.RoutineConsumer, ri: ri, admission: new(exec.RoutineProgram)}
+	local.RoutineProgram = programme.admission
+	// The outer call has already passed executable-graph admission. Retain
+	// that actual first entry too, so later readmission preserves outer-before-
+	// body diagnostics without another permission check at each row.
+	if err := programme.admission.Record(&local, dependencies, outer); err != nil {
+		return err
+	}
+	local.RoutineBodyContext = exec.RoutineBodyContext{Outer: outer, Statement: true}
+	for _, edge := range outer.Body {
+		body, err := exec.BodyRoutineDescriptor(&local, auth, dependencies, edge)
+		if err == nil {
+			err = exec.AdmitRecipeRoutineDescriptor(&local, auth, dependencies, body)
+		}
+		if err != nil {
+			return local.RoutineBodyContext.Annotate(err)
+		}
+	}
+	// Publish only complete successful initialization. The footprint is an
+	// original-call graph, not granted rights; serial recapture readmits it.
+	scope.routinePrograms = append(scope.routinePrograms, programme)
+	return nil
+}
+
+func (s *StatementScope) readmitRoutinePrograms(auth exec.RoutineAccess) error {
+	for i := range s.routinePrograms {
+		if err := s.routinePrograms[i].admission.Readmit(auth); err != nil {
+			return err
+		}
+	}
+	return nil
+}

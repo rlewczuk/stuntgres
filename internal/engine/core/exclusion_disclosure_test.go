@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -56,7 +57,7 @@ func TestExclusionDisclosure(t *testing.T) {
 				if disclosure == "columns" {
 					grant(2, authorization.SelectPrivilege)
 				}
-				auth, err := engine.OperationAuthorization(owner)
+				auth, err := core.OperationAuthorization(owner)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -80,7 +81,7 @@ func TestExclusionDisclosure(t *testing.T) {
 						label := "(" + strings.Join([]string{key, "b"}, ", ") + ")"
 						detail = "Key " + label + "=(x, 2)" + middle + label + "=(x, 2)."
 					}
-					err := index.ValidateExclusionPair(context.Background(), parent, idx, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, engine.DisclosureEnv(&auth), building)
+					err := index.ValidateExclusionPair(context.Background(), parent, idx, previous, current, "public", sqltype.OutputEnvironment{}, &auth.View, core.DisclosureEnv(&auth), building)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23P01", Message: message, Detail: detail, Schema: "public", Table: "t", Constraint: "ex"})
 				}
 			})

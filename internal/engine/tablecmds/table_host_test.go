@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -35,7 +36,7 @@ func TestTableHostBindColumnDefaultsMatchesCreateTable(t *testing.T) {
 
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}
+	var h table.Host = engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 	b, err := h.DescribeCreateTable(auth, s, sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +63,7 @@ func TestTableHostStageChangedReportsStagedDescriptor(t *testing.T) {
 	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}
+	var h table.Host = engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 	if h.StageChanged() {
 		t.Fatal("a new stage reports a change")
 	}
@@ -86,7 +87,7 @@ func TestTableHostStageChangedReportsStagedDescriptor(t *testing.T) {
 	}
 }
 
-func conversionUnitAuth(t *testing.T, e *engine.Engine) (*session.Operation, engine.AuthorizationView) {
+func conversionUnitAuth(t *testing.T, e *core.Engine) (*session.Operation, core.AuthorizationView) {
 	t.Helper()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	t.Cleanup(done)

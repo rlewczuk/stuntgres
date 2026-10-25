@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/session"
 )
 
 func TestMergeInsertContention(t *testing.T) {
@@ -95,13 +94,5 @@ func TestMergeInsertIsolation(t *testing.T) {
 			}
 			enginetest.LockEmpty(t, e)
 		})
-	}
-}
-
-func updateDeleteExecute(t *testing.T, e *engine.Engine, s *session.Session, q string, n int64) {
-	t.Helper()
-	result, err := updateDeleteAsync(t, e, s, context.Background(), q)()
-	if err != nil || result.Count != n || result.Rows != nil {
-		t.Fatal(q, result, err, n)
 	}
 }

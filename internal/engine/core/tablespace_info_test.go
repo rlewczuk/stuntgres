@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -23,7 +24,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func tablespaceInfoUnitScope(t *testing.T, e *engine.Engine) *engine.StatementScope {
+func tablespaceInfoUnitScope(t *testing.T, e *core.Engine) *core.StatementScope {
 	t.Helper()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	t.Cleanup(done)
@@ -137,7 +138,7 @@ func TestTablespaceInfoProtocol(t *testing.T) {
 func TestTablespaceInfoAuthority(t *testing.T) {
 	e := engine.New()
 	scope := tablespaceInfoUnitScope(t, e)
-	host := engine.HostOf(scope)
+	host := core.HostOf(scope)
 	oidType, _ := e.CatalogRead().LookupType(sqltype.Oid)
 	textType, _ := e.CatalogRead().LookupType(sqltype.Text)
 	view := scope.Inquiry.CommentCatalog
@@ -197,7 +198,7 @@ func (n tablespaceInfoCountingArg) Eval(expr.Context) (sqltype.Value, error) {
 func TestTablespaceInfoCursor(t *testing.T) {
 	e := engine.New()
 	scope := tablespaceInfoUnitScope(t, e)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: engine.HostOf(scope)}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope)}}
 	oidType, _ := e.CatalogRead().LookupType(sqltype.Oid)
 	textType, _ := e.CatalogRead().LookupType(sqltype.Text)
 	value, err := sqltype.OIDValue(oidType, 1663)

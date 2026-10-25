@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -431,7 +432,7 @@ func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 	ctx := context.Background()
 	source, target := New(), New()
-	for _, e := range []*Engine{source, target} {
+	for _, e := range []*core.Engine{source, target} {
 		op, done := roleOperation(t, e, "postgres")
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','a')"))
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN wrapped AS mood"))
@@ -454,7 +455,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 			return old
 		}
 	}
-	bind := func(e *Engine, expression string) expr.Expr {
+	bind := func(e *core.Engine, expression string) expr.Expr {
 		t.Helper()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		b.Consumer.DefaultConsumer = true
@@ -717,7 +718,7 @@ func TestConditionalDefaultDecisivePolicy(t *testing.T) {
 			if r := run(t, e, "INSERT INTO d(k) SELECT i FROM src"); r.Count != 1 {
 				t.Fatal(r.Count)
 			}
-			if err := (RelationProvider).Validate(view, d); err != nil {
+			if err := (core.RelationProvider).Validate(view, d); err != nil {
 				t.Fatal("stored definition invalid", err)
 			}
 			if !reflect.DeepEqual(d.ColumnMeta.Defaults[d.Attributes[0]], original) {

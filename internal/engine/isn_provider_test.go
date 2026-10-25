@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -17,14 +18,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func isnUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema string) *CatalogStage {
+func isnUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, schema string) *core.CatalogStage {
 	t.Helper()
 	creation := &parser.CreateExtension{Name: parser.Identifier{Text: name}}
 	if schema != "" {
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, creation)
+	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +34,7 @@ func isnUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema s
 	return stage
 }
 
-func isnUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type) {
+func isnUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension, *catalog.Type) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -103,7 +104,7 @@ func TestIsnProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

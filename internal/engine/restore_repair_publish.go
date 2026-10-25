@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
@@ -11,7 +12,7 @@ import (
 // auth's catalog, goes through a private stage and publishes with no
 // statement scope. The caller holds e.mu; this releases it before
 // validation and publication, and discards the stage on every exit.
-func publishRestoreRepairLocked(e *Engine, op *session.Operation, auth AuthorizationView, next *catalog.Relation, epoch ids.CatalogEpoch) error {
+func publishRestoreRepairLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, next *catalog.Relation, epoch ids.CatalogEpoch) error {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	e.Mu.Unlock()
@@ -23,6 +24,6 @@ func publishRestoreRepairLocked(e *Engine, op *session.Operation, auth Authoriza
 	if err != nil {
 		return err
 	}
-	_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: epoch})
+	_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: epoch})
 	return err
 }

@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 )
 
-func serializableUnitNode(t *testing.T, e *engine.Engine, readOnly bool) *visibility.SerializableTx {
+func serializableUnitNode(t *testing.T, e *core.Engine, readOnly bool) *visibility.SerializableTx {
 	t.Helper()
 	s := enginetest.StartSession(t, e, nil)
 	op := enginetest.TransactionOperation(t, s)

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -69,7 +70,7 @@ func TestExpressionArithmeticCanceledRestoreInstallationFence(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || target.CatalogRead().Epoch() != before.Epoch() {
 		t.Fatal(err)
 	}
-	retained := engine.Result{Rows: held}
+	retained := core.Result{Rows: held}
 	if !reflect.DeepEqual(enginetest.Tuples(retained), [][]driver.Value{{int64(100), int64(198)}}) {
 		t.Fatal("retained computed rows changed")
 	}
@@ -136,7 +137,7 @@ func TestExpressionArithmeticNullAndEmptyOrigins(t *testing.T) {
 	}
 }
 
-func queryCoreFixture(t *testing.T, sql string) (*engine.Engine, *plan.Query, *exec.Source) {
+func queryCoreFixture(t *testing.T, sql string) (*core.Engine, *plan.Query, *exec.Source) {
 	t.Helper()
 	// Parsing may terminate the test; never do it while holding e.mu, since
 	// deferred session teardown needs that mutex before WaitEnd can return.
@@ -171,7 +172,7 @@ func queryCoreFixture(t *testing.T, sql string) (*engine.Engine, *plan.Query, *e
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	b, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

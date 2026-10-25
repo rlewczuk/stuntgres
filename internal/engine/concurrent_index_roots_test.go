@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -14,7 +15,7 @@ import (
 
 // The phase witness is an actual completion request owned by the builder, not
 // worker start, a timing delay, or descriptor visibility standing in for a queue.
-func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, builder *session.Session) *lock.Request {
+func concurrentUnitCompletion(t *testing.T, e *core.Engine, owner *lock.Ticket, builder *session.Session) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -38,7 +39,7 @@ func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, build
 	}
 }
 
-func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool) (*catalog.Relation, *storage.IndexRoot) {
+func concurrentUnitIndex(t *testing.T, e *core.Engine, name string, ready, valid bool) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()

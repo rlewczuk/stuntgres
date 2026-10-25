@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -78,7 +79,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					view := inheritanceUnitView(e, p, q, c)
 					stage := e.BeginCatalogStage(view)
 					stage.UpdateDescriptor(&next)
-					state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Root: p, Targets: []*catalog.Relation{p, c}, Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, Only: only, Actions: []parser.AlterTableAction{action}, Events: make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)}}
+					state := &core.InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Root: p, Targets: []*catalog.Relation{p, c}, Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, Only: only, Actions: []parser.AlterTableAction{action}, Events: make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)}}
 					state.InheritanceAlterPlan.RecordAction(p, &next, action)
 					actions, graph, err := inheritedAlterActions(e, state, c)
 					if err != nil {
@@ -252,7 +253,7 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 		{Action: parser.SetExpression, Column: parser.Identifier{Text: "g"}},
 		{Action: parser.AddUnique},
 	} {
-		state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
+		state := &core.InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
 			Root: p, Targets: []*catalog.Relation{p, c}, Only: true,
 			Selected: map[ids.ObjectAddress]bool{p.Address(): true},
 			Actions:  []parser.AlterTableAction{drop, later},
@@ -294,7 +295,7 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 	nextParent.Constraints.Check = []catalog.CheckConstraint{{OID: 23002, Name: "ck"}}
 	stage.UpdateDescriptor(&nextParent)
 	drop := parser.AlterTableAction{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "ck"}}
-	state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
+	state := &core.InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{
 		Root: p, Targets: []*catalog.Relation{p, c}, Descendant: true,
 		Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true},
 		Actions:  []parser.AlterTableAction{drop},

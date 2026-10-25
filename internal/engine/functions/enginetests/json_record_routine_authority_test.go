@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -22,7 +23,7 @@ import (
 
 // Publish every incidental definition before retaining statement admission.
 // Both engines use the same allocation order for equal-OID foreign probes.
-func jsonRecordRoutineUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, *engine.StatementScope) {
+func jsonRecordRoutineUnitFixture(t *testing.T) (*core.Engine, *session.Operation, *core.StatementScope) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
@@ -219,7 +220,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("foreign retag manufactured original destination manifest")
 				}
 			}
-			changed := *engine.RoutineAuthorityView(&evaluation)
+			changed := *core.RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict

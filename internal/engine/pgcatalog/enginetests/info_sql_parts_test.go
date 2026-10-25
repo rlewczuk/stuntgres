@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -22,11 +23,11 @@ func sqlPartsUnitInput(t *testing.T, f defaultUnitFixture, view catalog.Read) pg
 	return sqlPartsAuthorityInput(t, dtpUnitAuthority(t, f, view))
 }
 
-func sqlPartsAuthorityInput(t *testing.T, auth engine.AuthorizationView) pgcatalog.Input {
+func sqlPartsAuthorityInput(t *testing.T, auth core.AuthorizationView) pgcatalog.Input {
 	t.Helper()
 	view := auth.Catalog
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoSQLPartsOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engine.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 
 func sqlPartsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -35,7 +36,7 @@ func sqlPartsUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing sql_parts producer")
 	}
-	captured, err := engine.CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,17 +158,17 @@ func TestInfoSQLPartsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Epoch++ },
 		func(in *pgcatalog.Input) { copied := *in.Source; in.Source = &copied },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engine.EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engine.EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(engine.EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = r
 		},
@@ -245,9 +246,9 @@ func TestInfoSQLPartsCatalogACLRecheck(t *testing.T) {
 	reader, readerDone := enginetest.RoleOperation(t, e, role.Name)
 	defer readerDone()
 	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
-	authority := func() engine.AuthorizationView {
+	authority := func() core.AuthorizationView {
 		t.Helper()
-		auth, err := engine.OperationAuthorization(reader)
+		auth, err := core.OperationAuthorization(reader)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -255,7 +256,7 @@ func TestInfoSQLPartsCatalogACLRecheck(t *testing.T) {
 	}
 	denied := authority()
 	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for table sql_parts")
-	adminAuth, err := engine.OperationAuthorization(admin)
+	adminAuth, err := core.OperationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +324,7 @@ func TestInfoSQLPartsCatalogACLRecheck(t *testing.T) {
 	}
 	domainUnitDiagnostic(t, noUsage.CanUse(nsRef), "42501", "permission denied for schema information_schema")
 	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for table sql_parts")
-	for _, retained := range []engine.AuthorizationView{allowed, withUsage, restored} {
+	for _, retained := range []core.AuthorizationView{allowed, withUsage, restored} {
 		if !reflect.DeepEqual(matrix, sqlPartsUnitBag(t, sqlPartsUnitRows(t, sqlPartsAuthorityInput(t, retained)))) {
 			t.Fatal("captured matrix changed across ACL publication")
 		}

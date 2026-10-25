@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -9,10 +10,16 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// Engine is core.Engine with the inheritance ALTER admission method: the
+// read-only reference partition cancellation fixture waits on its
+// "(*Engine).admitInheritanceAlter(" frame.
+type Engine core.Engine
+
 // Acquiring an ancestor grant freezes edges below that ancestor. Reconcile
 // after every wait, including the first-child marker's exact publication copy.
 // No stage, statement view, row evaluation or publication exists in this phase.
-func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, preparatory bool) error {
+func (r *Engine) admitInheritanceAlter(scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, preparatory bool) error {
+	e := (*core.Engine)(r)
 	state := scope.Inheritance.Alter
 	if !preparatory && len(state.Targets) == 1 {
 		return nil

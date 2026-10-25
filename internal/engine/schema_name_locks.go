@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -16,13 +17,13 @@ import (
 
 // Schema removal protects the captured namespace before constructing its
 // dependency closure. Rename/owner changes deliberately do not take this AX.
-func acquireSchemaDrop(s *StatementScope, stmt *parser.DropSchema) (ddl.SchemaDropManifest, error) {
+func acquireSchemaDrop(s *core.StatementScope, stmt *parser.DropSchema) (ddl.SchemaDropManifest, error) {
 	e := s.Engine()
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(s.Op)
 	var manifest ddl.SchemaDropManifest
 	if err == nil {
-		manifest, err = ddl.CaptureSchemaDrop(DDLHost{E: e, Op: s.Op}, auth, stmt)
+		manifest, err = ddl.CaptureSchemaDrop(core.DDLHost{E: e, Op: s.Op}, auth, stmt)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -47,7 +48,7 @@ func acquireSchemaDrop(s *StatementScope, stmt *parser.DropSchema) (ddl.SchemaDr
 	return manifest, nil
 }
 
-func skipConcurrentSchema(s *StatementScope, stage *CatalogStage, stmt *parser.CreateSchema, failure error) (bool, error) {
+func skipConcurrentSchema(s *core.StatementScope, stage *core.CatalogStage, stmt *parser.CreateSchema, failure error) (bool, error) {
 	var diagnostic *sqlstate.Error
 	if !errors.As(failure, &diagnostic) || diagnostic.Code != "23505" {
 		return false, failure
@@ -57,7 +58,7 @@ func skipConcurrentSchema(s *StatementScope, stage *CatalogStage, stmt *parser.C
 	auth, err := e.AuthorizationLocked(s.Op)
 	var name string
 	if err == nil {
-		_, name, err = ddl.ResolveSchemaCreation(DDLHost{E: e, Op: s.Op}, auth, stmt)
+		_, name, err = ddl.ResolveSchemaCreation(core.DDLHost{E: e, Op: s.Op}, auth, stmt)
 	}
 	exists := err == nil && auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name}) != (ids.ObjectAddress{})
 	if exists && auth.Catalog.Epoch() != stage.Base.Epoch() {

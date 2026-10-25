@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -29,11 +30,11 @@ var (
 )
 
 func (h ViewHost) TemporaryOwner(a ddl.Authority) ids.SessionToken {
-	return CatalogSourceTemporaryOwner(DDLAuthorityOf(a))
+	return core.CatalogSourceTemporaryOwner(core.DDLAuthorityOf(a))
 }
 
 func (h ViewHost) DescribeRule(a ddl.Authority, stmt parser.Statement, target ids.ObjectRef, input sqltype.InputEnvironment, ns *analyze.RuleNamespace) (analyze.Binding, error) {
-	return DescribeWithRule(h.Op.Context(), h.E.AnalysisHost(h.Op), stmt, DDLAuthorityOf(a), target, input, nil, nil, ns)
+	return core.DescribeWithRule(h.Op.Context(), h.E.AnalysisHost(h.Op), stmt, core.DDLAuthorityOf(a), target, input, nil, nil, ns)
 }
 
 func (h ViewHost) BindRuleCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {
@@ -47,8 +48,8 @@ func (h ViewHost) BindTriggerWhen(a ddl.Authority, ns *analyze.RuleNamespace, ra
 }
 
 func (h ViewHost) bindPseudoRowCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment, clause string) (expr.Expr, *parser.Select, analyze.Binding, error) {
-	auth := DDLAuthorityOf(a)
-	binder := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
+	auth := core.DDLAuthorityOf(a)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	binder.Target.RuleNamespace = ns
 	binder.Params.NoParameters = true
 	binder.Query.Auth = &auth

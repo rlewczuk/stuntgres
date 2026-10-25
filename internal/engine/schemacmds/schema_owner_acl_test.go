@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
@@ -67,7 +68,7 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 		rights authorization.Privileges
 	}{{"former", authorization.CreatePrivilege}, {"successor", authorization.UsagePrivilege | authorization.CreatePrivilege}, {"reader", authorization.UsagePrivilege | authorization.CreatePrivilege}} {
 		enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION "+tc.role)
-		view, err := engine.OperationAuthorization(op)
+		view, err := core.OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +88,7 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 			t.Fatalf("%s ACL=%+v", tc.name, d.ACL)
 		}
 		enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION successor")
-		view, err := engine.OperationAuthorization(op)
+		view, err := core.OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}

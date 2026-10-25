@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -91,7 +92,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 		t.Fatal("inapplicable composite providers invented")
 	}
 	capturedRelation, capturedType := false, false
-	for _, descriptor := range StageTableOrZero(stage).LikeSources {
+	for _, descriptor := range core.StageTableOrZero(stage).LikeSources {
 		capturedRelation = capturedRelation || descriptor == source
 	}
 	for _, descriptor := range stage.DomainBases {
@@ -113,7 +114,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if e.CatalogRead().Get(source.Address()) != source {
 		t.Fatal("type-only replacement changed backing source fixture")
 	}
-	_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal("changed reciprocal type authority was not fenced", err)

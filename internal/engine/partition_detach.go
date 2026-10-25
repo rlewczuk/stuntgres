@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
@@ -14,8 +15,8 @@ import (
 
 // Engine.mu is consumed on every return. The execution scope owns parent AX;
 // DEFAULT, candidate and descendant waits use the same ticket without Engine.mu.
-func detachPartitionLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+func detachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (core.Result, error) {
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
@@ -40,7 +41,7 @@ func detachPartitionLocked(e *Engine, scope *StatementScope, op *session.Operati
 	if defaultAddress != (ids.ObjectAddress{}) {
 		ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), defaultAddress)
 		if err := scope.AcquirePartitionLock(ref, lock.AccessExclusive); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	e.Mu.Lock()
@@ -60,20 +61,20 @@ func detachPartitionLocked(e *Engine, scope *StatementScope, op *session.Operati
 	}
 	e.Mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = scope.AcquirePartitionLock(candidate, lock.AccessExclusive); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	catalog, child, err := partitionAttachRelation(e, scope, candidate)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = partition.DetachMembership(parent, child); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = scope.AcquirePartitionDescendants(candidate, lock.AccessExclusive); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	auth, err = e.StatementAuthorizationLocked(op, raw)
@@ -94,7 +95,7 @@ func detachPartitionLocked(e *Engine, scope *StatementScope, op *session.Operati
 	}
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	catalog = auth.Catalog
 	child = catalog.MustRelation(candidate.Address)
@@ -107,10 +108,10 @@ func detachPartitionLocked(e *Engine, scope *StatementScope, op *session.Operati
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err = partition.StageDetach(stage, stage.Base, parent, child); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	return Result{}, e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
+	return core.Result{}, e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
 }

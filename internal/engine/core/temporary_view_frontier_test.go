@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -88,12 +89,12 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			// System view edges survive, but pinned system tables do not gain
 			// usage rows or pg_depend SELECT-rule edges.
 			usageSource := current.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoViewTableUsageOID})
-			runtime := engine.EngineCatalogRuntime{Auth: auth, Database: "retained_database"}
+			runtime := core.EngineCatalogRuntime{Auth: auth, Database: "retained_database"}
 			produce, ok := pgcatalog.ProducerFor(pgcatalog.InfoViewTableUsageOID)
 			if !ok {
 				t.Fatal("missing usage producer")
 			}
-			usage, err := engine.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
+			usage, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: t.Context(), Catalog: current, Roles: auth.Roles, Owner: current.Owner(), Ref: current.Owner().Domain.Ref(current.Epoch(), usageSource.Address()), Source: usageSource, Runtime: runtime}, produce)
 			if err != nil {
 				t.Fatal("retained usage capture", err)
 			}

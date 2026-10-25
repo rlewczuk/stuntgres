@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
@@ -16,12 +17,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ownershipUnitCapture(t *testing.T, e *Engine, stage *CatalogStage, journal *session.Journal) {
+func ownershipUnitCapture(t *testing.T, e *core.Engine, stage *core.CatalogStage, journal *session.Journal) {
 	t.Helper()
 	e.Mu.Lock()
-	err := EngineCaptureCatalogStageLocked(e, stage, journal, e.PrivateCatalogLocked(journal).State(), nil)
+	err := core.EngineCaptureCatalogStageLocked(e, stage, journal, e.PrivateCatalogLocked(journal).State(), nil)
 	if err == nil {
-		EngineStageCatalogChangesLocked(e, stage, journal)
+		core.EngineStageCatalogChangesLocked(e, stage, journal)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -35,7 +36,7 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	defer done()
 	op.Session.Transactions.RetainedMessage = true
 	defer func() { op.Session.Transactions.RetainedMessage = false; op.Session.Transactions.Catalog = nil }()
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +85,11 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 		t.Fatal("nil candidate erased graph or modified marked descriptors")
 	}
 	// Stage a second deletion against the private predecessor, not base.Revision.
-	auth, err = OperationAuthorization(op)
+	auth, err = core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := OwnershipStage(e, auth, op)
+	second := core.OwnershipStage(e, auth, op)
 	reader = auth.Roles.LookupRef("ownership_reader")
 	if err := role.StageOwnedCleanup(context.Background(), second, auth.Roles, auth.RoleRecord, map[authorization.PrincipalRef]bool{reader: true}); err != nil {
 		t.Fatal(err)
@@ -114,10 +115,10 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 		next.Revision++
 		second.RoleCandidateRecord = &next
 	}
-	if err := StageValidateRoleCandidate(second, auth.RoleRecord); err != nil {
+	if err := core.StageValidateRoleCandidate(second, auth.RoleRecord); err != nil {
 		t.Fatal("private predecessor rejected", err)
 	}
-	if err := StageValidateRoleCandidate(second, base); err == nil {
+	if err := core.StageValidateRoleCandidate(second, base); err == nil {
 		t.Fatal("committed root incorrectly accepted as private predecessor")
 	}
 	if _, err := e.ValidateCatalogStage(context.Background(), second); err != nil {
@@ -143,20 +144,20 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	setFixtureEdges(&nondeletion, survivors)
 	nondeletion.Revision++
 	second.RoleCandidateRecord = &nondeletion
-	if err := StageValidateRoleCandidate(second, auth.RoleRecord); err == nil {
+	if err := core.StageValidateRoleCandidate(second, auth.RoleRecord); err == nil {
 		t.Fatal("nondeletion membership candidate accepted")
 	}
 	second.RoleCandidateRecord = child.Roles
 	bad := *second.RoleCandidateRecord
 	bad.Revision++
 	second.RoleCandidateRecord = &bad
-	if err := StageValidateRoleCandidate(second, auth.RoleRecord); err == nil {
+	if err := core.StageValidateRoleCandidate(second, auth.RoleRecord); err == nil {
 		t.Fatal("invalid candidate revision accepted")
 	}
 	exhausted := *auth.RoleRecord
 	exhausted.Revision = ^uint64(0)
 	second.RoleRevision = exhausted.Revision
-	if err := StageValidateRoleCandidate(second, &exhausted); err == nil {
+	if err := core.StageValidateRoleCandidate(second, &exhausted); err == nil {
 		t.Fatal("revision exhaustion accepted")
 	}
 	if e.RoleStore.Published != base || e.Catalog.State != state {
@@ -170,7 +171,7 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	peerRoles := e.RoleStore.Published
 	e.Mu.Lock()
 	op.Session.Mu.Lock()
-	err = EngineRefreshOperationRolesLocked(e, op)
+	err = core.EngineRefreshOperationRolesLocked(e, op)
 	refreshed := op.Session.Transactions.Catalog
 	op.Session.Mu.Unlock()
 	e.Mu.Unlock()
@@ -194,7 +195,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			e, stage, _ := ownershipCleanupStage(t)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -236,10 +237,10 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			state, roles := e.Catalog.State, e.RoleStore.Published
 			if veto == "invalid-member" {
 				e.Mu.Lock()
-				err = EngineCaptureCatalogStageLocked(e, stage, journal.Clone(), e.PrivateCatalogLocked(journal).State(), nil)
+				err = core.EngineCaptureCatalogStageLocked(e, stage, journal.Clone(), e.PrivateCatalogLocked(journal).State(), nil)
 				e.Mu.Unlock()
 			} else {
-				_, err = EnginePreparePrivateCatalog(e, ctx, journal, stage.Base.Epoch())
+				_, err = core.EnginePreparePrivateCatalog(e, ctx, journal, stage.Base.Epoch())
 				if err == nil {
 					e.Mu.Lock()
 					err = e.CatalogPreflightLocked(journal)
@@ -330,14 +331,14 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			ownershipUnitExec(t, e, alter)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
 			key := ids.NameKey{ClassID: class, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name}
 			address := auth.Catalog.NameAddress(key)
 			captured := auth.Catalog.Get(address)
-			stage := OwnershipStage(e, auth, op)
+			stage := core.OwnershipStage(e, auth, op)
 			defer e.DiscardCatalogStage(stage)
 			e.Mu.Lock()
 			if kind == "type" {
@@ -348,7 +349,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				plan, planErr := role.PlanOwned(auth.View, stmt, func(a ids.ObjectAddress) string { return stored.DependencyObject(auth.Catalog, a, path) })
 				err = planErr
 				if err == nil {
-					err = role.StageOwned(RoleHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, plan)
+					err = role.StageOwned(RoleHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, plan)
 				}
 			}
 			e.Mu.Unlock()
@@ -368,7 +369,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			if replacement == address || replacement == (ids.ObjectAddress{}) {
 				t.Fatal("replacement did not remint identity")
 			}
-			if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+			if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("captured ownership stage adopted same-name replacement")
 			}
 			if e.Catalog.State != current || e.RoleStore.Published != roles || auth.Catalog.Get(address) != captured || current.Get(address) != nil {
@@ -388,7 +389,7 @@ func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 	e, stage, ns := ownershipCleanupStage(t)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,7 +403,7 @@ func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, other)
 	committed, roles := e.Catalog.State, e.RoleStore.Published
-	prepared, err := EnginePreparePrivateCatalog(e, context.Background(), journal, stage.Base.Epoch())
+	prepared, err := core.EnginePreparePrivateCatalog(e, context.Background(), journal, stage.Base.Epoch())
 	if err != nil {
 		t.Fatal("unrelated commit invalidated ownership journal", err)
 	}

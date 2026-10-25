@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
@@ -28,7 +29,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		t.Fatal("cooked row origin was not reowned")
 	}
 	original := child.Constraints.Check[0].Expression
-	auth, err := engine.OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		definition.Constraints.Check = nil
 		syntax := enginetest.Statement(t, "CREATE TABLE leaf(k INT,CONSTRAINT actual CHECK("+test.expression+"))").(*parser.CreateTable)
 		e.Mu.Lock()
-		err := table.BindChecks(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op}}, auth, &definition, table.CreateCheckSyntax(syntax), sqltype.InputEnvironment{}, false, nil)
+		err := table.BindChecks(engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op}}, auth, &definition, table.CreateCheckSyntax(syntax), sqltype.InputEnvironment{}, false, nil)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(test, err)
@@ -58,7 +59,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	binder := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	binder := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	implicit := plan.CoercionExpr{Info: binder.Info(original.ResultUsage(), original.SourcePosition(), original.Properties()), Child: original, Plan: coercionPlan, Mode: sqltype.Implicit}
 	explicit := implicit
 	explicit.Mode = sqltype.Explicit

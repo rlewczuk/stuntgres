@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
@@ -25,7 +26,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	late := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(late)
 	e.Mu.Lock()
-	attached, err := table.NewRelation(DDLHost{E: e}, tbl.Namespace(), "late", tbl.Owner, append([]catalog.Column(nil), tbl.Columns...), tbl.Index)
+	attached, err := table.NewRelation(core.DDLHost{E: e}, tbl.Namespace(), "late", tbl.Owner, append([]catalog.Column(nil), tbl.Columns...), tbl.Index)
 	if err == nil {
 		attached.OfType = tbl.OfType
 		err = e.StageRowTypeLocked(late, attached)
@@ -39,7 +40,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	}
 	domainUnitPublish(t, e, late)
 	before := e.CatalogRead()
-	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("late attachment was missed", changes, err)
@@ -70,7 +71,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	e.Storage.InstallRelationLocked(table.Address(), &concurrent)
 	e.Mu.Unlock()
 	before := e.CatalogRead()
-	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
+	changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.Storage.Relations[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
@@ -140,7 +141,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 			e, source, table := typedUnitCatalog(t, false)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -165,7 +166,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 				e.Mu.Unlock()
 			}
 			before := e.CatalogRead()
-			changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
+			changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
 			if err == nil || err.Error() != "stuntgres: authorization changed before publication" || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale authority published typed closure", changes, err)
 			}
@@ -198,7 +199,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 				domainUnitPublish(t, e, late)
 			}
 			before := e.CatalogRead()
-			changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale source/replacement publication was not atomic", changes, err)
 			}

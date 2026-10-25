@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -56,7 +57,7 @@ func TestUniqueIndexBuildOwnerDisclosure(t *testing.T) {
 					}
 					before, store := e.Catalog.State, e.Storage.Relations[ref.Address]
 					ast := enginetest.Statement(t, "CREATE UNIQUE INDEX ui_ab ON ui_t(a,b)")
-					var result engine.Result
+					var result core.Result
 					var err error
 					if prepared {
 						scope, startErr := e.StartStatement(owner)
@@ -169,9 +170,9 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 	go func() {
 		defer close(finished)
 		op, _, err := s.AcquireCommand(ctx)
-		var result engine.Result
+		var result core.Result
 		if err == nil {
-			result, err = engine.EngineOf(s).Execute(op, ast, 0, nil)
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
 			err = op.CommandError(err)
 			op.Done()
 		}
@@ -189,6 +190,6 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 }
 
 type deleteOutcome struct {
-	result engine.Result
+	result core.Result
 	err    error
 }

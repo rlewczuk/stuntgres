@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -25,7 +26,7 @@ import (
 // TypeHost and ViewHost embed it. Like DDLHost, every method runs under
 // Engine.mu and never waits.
 type TableHost struct {
-	DDLHost
+	core.DDLHost
 }
 
 var _ table.Host = TableHost{}
@@ -51,7 +52,7 @@ func (h TableHost) StageChanged() bool {
 }
 
 func (h TableHost) StagedTemporary(a ddl.Authority, namespace *catalog.Namespace) ddl.Authority {
-	v := DDLAuthorityOf(a)
+	v := core.DDLAuthorityOf(a)
 	if namespace != nil && !namespace.TemporaryToast && v.Session != nil && namespace.Temporary == v.Session.SessionToken {
 		v.StagedTemporary = namespace.Address()
 	}
@@ -59,34 +60,34 @@ func (h TableHost) StagedTemporary(a ddl.Authority, namespace *catalog.Namespace
 }
 
 func (h TableHost) ResolveReference(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
-	return h.E.ResolveReference(DDLAuthorityOf(a), name)
+	return h.E.ResolveReference(core.DDLAuthorityOf(a), name)
 }
 
 func (h TableHost) ResolveRestoredRelation(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
-	return h.E.ResolveRelationReference(DDLAuthorityOf(a), name, false)
+	return h.E.ResolveRelationReference(core.DDLAuthorityOf(a), name, false)
 }
 
 func (h TableHost) DescribeCreateTable(a ddl.Authority, s *parser.CreateTable, input sqltype.InputEnvironment) (analyze.Binding, error) {
-	return Describe(h.Op.Context(), h.E.AnalysisHost(h.Op), s, DDLAuthorityOf(a), ids.ObjectRef{}, input, nil, nil)
+	return core.Describe(h.Op.Context(), h.E.AnalysisHost(h.Op), s, core.DDLAuthorityOf(a), ids.ObjectRef{}, input, nil, nil)
 }
 
 func (h TableHost) BindColumnDefaults(a ddl.Authority, columns []catalog.Column, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment, temporary ids.SessionToken) (map[int32]catalog.ColumnDefault, error) {
-	v := DDLAuthorityOf(a)
-	binder := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
+	v := core.DDLAuthorityOf(a)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	binder.Query.Auth = &v
 	binder.Consumer.DefaultTemporary = temporary
 	return bindCreateDefaults(binder, columns, declarations)
 }
 
 func (h TableHost) BindGenerations(a ddl.Authority, relation *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
-	return bindCreateGenerations(h.E, h.Op, DDLAuthorityOf(a), relation, declarations, input)
+	return bindCreateGenerations(h.E, h.Op, core.DDLAuthorityOf(a), relation, declarations, input)
 }
 
 func (h TableHost) BindCheckExpression(a ddl.Authority, relation *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, []int, error) {
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	ref := h.E.Catalog.Domain.Ref(auth.Catalog.Epoch(), relation.Address())
 	namespace := analyze.RelationNamespace(auth.Catalog, relation, ref, 0)
-	binder := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	binder.Consumer.CheckConsumer, binder.Params.NoParameters = true, true
 	binder.Query.Auth = &auth
 	binder.Query.Namespace = &namespace
@@ -103,10 +104,10 @@ func (h TableHost) OperationDefinition() catalog.DefinitionReader { return h.Op.
 func (h TableHost) LiveEpoch() ids.CatalogEpoch { return h.E.Catalog.State.Epoch() }
 
 func (h TableHost) TrustedRestoreDestination(a ddl.Authority, what string) (bool, error) {
-	if h.Op == nil || !OperationReplayOrZero(h.Op).TableDestination {
+	if h.Op == nil || !core.OperationReplayOrZero(h.Op).TableDestination {
 		return false, nil
 	}
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 	if err != nil || !bootstrap.Superuser || h.E.ImportTargets == nil {
 		return true, fmt.Errorf("stuntgres: invalid trusted restore %s authority", what)
@@ -131,7 +132,7 @@ func (h TableHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name str
 }
 
 func (h TableHost) AssociatedArrayName(namespace ids.ObjectAddress, name string) string {
-	return AssociatedArrayName(h.CatalogStage, namespace, name)
+	return core.AssociatedArrayName(h.CatalogStage, namespace, name)
 }
 
 func (h TableHost) StageRowType(relation *catalog.Relation) error {

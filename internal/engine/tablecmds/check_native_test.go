@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
@@ -98,7 +99,7 @@ func TestCheckAbsentValidatorHasNoAllocation(t *testing.T) {
 	}
 }
 
-func sequencePreparedDescription(t *testing.T, e *engine.Engine, s *session.Session, query string) (parser.Statement, engine.StatementDescription) {
+func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.StatementDescription) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

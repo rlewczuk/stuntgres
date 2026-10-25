@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
 // All waits are observed through the actual manager queue. Register cancellation
 // and joining after session cleanup so workers finish before their sessions end.
-func indexMaintenanceAsync(t *testing.T, e *Engine, s *session.Session, q string) (context.CancelFunc, func() error) {
+func indexMaintenanceAsync(t *testing.T, e *core.Engine, s *session.Session, q string) (context.CancelFunc, func() error) {
 	t.Helper()
 	stmt := statement(t, q)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -56,7 +57,7 @@ func indexMaintenanceAsync(t *testing.T, e *Engine, s *session.Session, q string
 // Low-level catalog publication deliberately changes metadata while a SQL
 // utility sleeps. This exercises exact-incarnation/grant fences without asking
 // a second SQL utility to bypass the same conflicting relation locks.
-func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName string, remove bool) {
+func indexMaintenancePublishIndexClone(t *testing.T, e *core.Engine, name, newName string, remove bool) {
 	t.Helper()
 	old, _ := btreeRoot(t, e, name)
 	if old.SQLIndex.Unique {
@@ -95,7 +96,7 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *Engine, name, newName st
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

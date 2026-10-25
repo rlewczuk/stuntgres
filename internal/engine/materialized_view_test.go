@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -19,7 +20,7 @@ import (
 )
 
 // Exercise the private binder/stager directly, not SQL execution wrappers.
-func materializedUnitStage(t *testing.T, e *Engine) (*session.Operation, func(), *CatalogStage, *catalog.Relation) {
+func materializedUnitStage(t *testing.T, e *core.Engine) (*session.Operation, func(), *core.CatalogStage, *catalog.Relation) {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.unit_mv AS SELECT 1::int AS i WITH NO DATA")
@@ -34,12 +35,12 @@ func materializedUnitStage(t *testing.T, e *Engine) (*session.Operation, func(),
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := Describe(context.Background(), e.AnalysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
+	b, err := core.Describe(context.Background(), e.AnalysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, descriptor, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, s, b)
+	stage, descriptor, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, s, b)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatalf("private stage: %v, skipped %v", err, skipped)
@@ -55,24 +56,24 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	if !d.RelationKind.Stored() || d.Populated || d.View == nil || stored.ViewOf(d).RuleOID() == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
-	if err := (RelationProvider).Validate(view, d); err != nil {
+	if err := (core.RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	populated := *d
 	populated.Populated = true
-	if err := (RelationProvider).Validate(view, &populated); err != nil {
+	if err := (core.RelationProvider).Validate(view, &populated); err != nil {
 		t.Fatal("empty populated descriptor:", err)
 	}
 	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.ViewRelation, catalog.CatalogRelation} {
 		invalid := populated
 		invalid.RelationKind = kind
-		if err := (RelationProvider).Validate(view, &invalid); err == nil {
+		if err := (core.RelationProvider).Validate(view, &invalid); err == nil {
 			t.Fatalf("accepted populated non-materialization %v", kind)
 		}
 	}
 	invalid := *d
 	invalid.View = nil
-	if err := (RelationProvider).Validate(view, &invalid); err == nil {
+	if err := (core.RelationProvider).Validate(view, &invalid); err == nil {
 		t.Fatal("accepted missing definition")
 	}
 }
@@ -90,7 +91,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
+	definition, err := view.FreezeDefinition(core.DDLHost{E: e}, auth.Catalog, core.CatalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

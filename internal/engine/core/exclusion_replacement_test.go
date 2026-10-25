@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/index"
 )
@@ -36,14 +37,14 @@ func TestExclusionReplacement(t *testing.T) {
 			sequenceScalar(t, b, "SELECT nextval('kept')", 1)
 			_, description := sequencePreparedDescription(t, target, b, "SELECT nextval('kept')")
 			tempRef := description.Sequences.Constants[0].Ref
-			temp, generator, memory := target.Catalog.State.Get(tempRef.Address), target.Storage.Sequences[tempRef.Address], engine.PayloadOf(b).Sequences.Memory(tempRef.Address)
+			temp, generator, memory := target.Catalog.State.Get(tempRef.Address), target.Storage.Sequences[tempRef.Address], core.PayloadOf(b).Sequences.Memory(tempRef.Address)
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must collide with a real retained TEMP address")
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.Catalog.State.Get(tempRef.Address) != temp || target.Storage.Sequences[tempRef.Address] != generator || engine.PayloadOf(b).Sequences.Memory(tempRef.Address) != memory {
+			if target.Catalog.State.Get(tempRef.Address) != temp || target.Storage.Sequences[tempRef.Address] != generator || core.PayloadOf(b).Sequences.Memory(tempRef.Address) != memory {
 				t.Fatal("replacement changed retained TEMP identity")
 			}
 			parent := target.Catalog.State.MustRelation(enginetest.RoleTableRef(t, target, "portable.t").Address)

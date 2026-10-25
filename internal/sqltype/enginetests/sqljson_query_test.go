@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -147,7 +147,7 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	}
 }
 
-func subqueryTestExpression(t *testing.T, e *engine.Engine, q *plan.Query, kind parser.SubqueryKind) plan.SubqueryExpr {
+func subqueryTestExpression(t *testing.T, e *core.Engine, q *plan.Query, kind parser.SubqueryKind) plan.SubqueryExpr {
 	t.Helper()
 	typ, ok := e.CatalogRead().LookupType(sqltype.Bool)
 	if !ok {

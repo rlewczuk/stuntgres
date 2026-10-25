@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -18,7 +19,7 @@ func truncateUnitAST(names ...string) *parser.Truncate {
 	return stmt
 }
 
-func truncateUnitFixture(t *testing.T) (*Engine, *session.Session, ids.ObjectRef, ids.ObjectRef) {
+func truncateUnitFixture(t *testing.T) (*core.Engine, *session.Session, ids.ObjectRef, ids.ObjectRef) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -28,7 +29,7 @@ func truncateUnitFixture(t *testing.T) (*Engine, *session.Session, ids.ObjectRef
 	return e, s, roleTableRef(t, e, "p"), roleTableRef(t, e, "q")
 }
 
-func truncateUnitScope(t *testing.T, e *Engine, s *session.Session, ctx context.Context) (*StatementScope, *session.Operation) {
+func truncateUnitScope(t *testing.T, e *core.Engine, s *session.Session, ctx context.Context) (*core.StatementScope, *session.Operation) {
 	t.Helper()
 	op, err := s.Acquire(ctx)
 	if err != nil {
@@ -43,7 +44,7 @@ func truncateUnitScope(t *testing.T, e *Engine, s *session.Session, ctx context.
 	return scope, op
 }
 
-func truncateUnitStage(t *testing.T, e *Engine, s *session.Session, names ...string) *StatementScope {
+func truncateUnitStage(t *testing.T, e *core.Engine, s *session.Session, names ...string) *core.StatementScope {
 	t.Helper()
 	scope, _ := truncateUnitScope(t, e, s, context.Background())
 	if _, err := scope.Execute(truncateUnitAST(names...), 0, nil); err != nil {
@@ -52,7 +53,7 @@ func truncateUnitStage(t *testing.T, e *Engine, s *session.Session, names ...str
 	return scope
 }
 
-func truncateUnitExecute(t *testing.T, e *Engine, s *session.Session, stmt *parser.Truncate) {
+func truncateUnitExecute(t *testing.T, e *core.Engine, s *session.Session, stmt *parser.Truncate) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"slices"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 )
@@ -91,37 +90,7 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 	enginetest.LockEmpty(t, e)
 }
 
-func hashRoot(t *testing.T, e *engine.Engine, name string) (*catalog.Relation, *storage.HashRoot) {
-	t.Helper()
-	index, carrier := btreeRoot(t, e, name)
-	if index.SQLIndex.Method != catalog.HashMethod || carrier.Hash == nil || len(carrier.Entries) != 0 {
-		t.Fatal("not a hash root", index, carrier)
-	}
-	return index, carrier.Hash
-}
-
-func hashKeys(t *testing.T, root *storage.HashRoot) []string {
-	t.Helper()
-	keys := []string{}
-	versions := map[ids.VersionID]bool{}
-	for _, bucket := range root.Buckets {
-		for _, entry := range bucket {
-			if entry.Key.IsNull() || entry.Row == 0 || entry.Version == 0 || versions[entry.Version] || entry.Position < 0 || entry.Position >= root.Prefix {
-				t.Fatal("invalid/collapsed hash identity", entry)
-			}
-			versions[entry.Version] = true
-			s, err := entry.Key.Type().Output(context.Background(), entry.Key)
-			if err != nil {
-				t.Fatal(err)
-			}
-			keys = append(keys, s)
-		}
-	}
-	slices.Sort(keys)
-	return keys
-}
-
-func btreeRoot(t *testing.T, e *engine.Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
+func btreeRoot(t *testing.T, e *core.Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, name)
 	idx := e.Catalog.State.MustRelation(ref.Address)

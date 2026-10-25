@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -34,7 +35,7 @@ func TestCreateAggregatePublicationCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "aggregate_unit_cancel", Signature: "23"}
@@ -274,7 +275,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 				auth, bindErr := e.AuthorizationLocked(op)
 				var binding analyze.Binding
 				if bindErr == nil {
-					binding, bindErr = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), raw, AuthorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, provider.Support.SQL, provider.Support.Name(), provider.InputCollation)
+					binding, bindErr = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), raw, core.AuthorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, provider.Support.SQL, provider.Support.Name(), provider.InputCollation)
 				}
 				e.Mu.Unlock()
 				if bindErr != nil {
@@ -357,7 +358,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 			auth, authErr := e.AuthorizationLocked(op)
 			var binding analyze.Binding
 			if authErr == nil {
-				binding, authErr = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), raw, AuthorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, &definition, definition.Name, input)
+				binding, authErr = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), raw, core.AuthorityOf(auth), ids.ObjectRef{}, sqltype.InputEnvironment{}, analyze.Expected{}, nil, &definition, definition.Name, input)
 			}
 			e.Mu.Unlock()
 			if authErr != nil {

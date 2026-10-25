@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
@@ -97,17 +98,17 @@ func TestMergeDeleteMixedPendingCancellation(t *testing.T) {
 	defer cancel()
 	ast := enginetest.Statement(t, "MERGE INTO t USING (SELECT * FROM source ORDER BY ord) s ON t.id<=s.id AND t.id>=s.id WHEN MATCHED AND s.id=2 THEN UPDATE SET v=21 WHEN MATCHED THEN DELETE WHEN NOT MATCHED THEN INSERT VALUES(s.id,40)")
 	type completion struct {
-		result engine.Result
+		result core.Result
 		err    error
-		scope  *engine.StatementScope
+		scope  *core.StatementScope
 	}
 	done := make(chan completion, 1)
 	joined := make(chan struct{})
 	go func() {
 		defer close(joined)
 		op, err := worker.Acquire(ctx)
-		var result engine.Result
-		var scope *engine.StatementScope
+		var result core.Result
+		var scope *core.StatementScope
 		if err == nil {
 			scope, err = e.StartStatement(op)
 			if err == nil {

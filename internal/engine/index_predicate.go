@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -16,7 +17,7 @@ import (
 )
 
 // Caller holds engine.mu and supplies final parent/catalog authority.
-func bindIndexPredicate(e *Engine, op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr) (*catalog.IndexPredicate, error) {
+func bindIndexPredicate(e *core.Engine, op *session.Operation, input sqltype.InputEnvironment, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr) (*catalog.IndexPredicate, error) {
 	if raw == nil {
 		return nil, nil
 	}
@@ -37,7 +38,7 @@ func bindIndexPredicate(e *Engine, op *session.Operation, input sqltype.InputEnv
 		return nil, err
 	}
 	if exec.PlannedVolatility(execution) != expr.Immutable {
-		return nil, SQLError("42P17", "functions in index predicate must be marked IMMUTABLE")
+		return nil, core.SQLError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ids.ObjectRef
 	if _, err = (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: parent, Dependencies: &dependencies}).SQL(op.Context(), auth.Catalog, definition); err != nil {

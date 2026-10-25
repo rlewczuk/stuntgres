@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
@@ -15,17 +16,17 @@ import (
 
 // restoreObjectACL runs only in Restore's isolated engine. The public UPDATE
 // command cannot reach this literal-only catalog repair capability.
-func restoreObjectACL(e *Engine, op *session.Operation, raw *parser.Update) error {
+func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update) error {
 	repair, ok := control.ParseObjectACLRepair(raw)
-	if !ok { return SQLError("0A000", "restore accepts only generated object ACL repairs") }
+	if !ok { return core.SQLError("0A000", "restore accepts only generated object ACL repairs") }
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	if err != nil { e.Mu.Unlock(); return err }
 	address := ids.ObjectAddress{ClassID: repair.Class}
 	if repair.Class == ids.ProcedureClassID {
-		types, failure := CaptureRegtypeInput(auth, op)
+		types, failure := core.CaptureRegtypeInput(auth, op)
 		if failure != nil { e.Mu.Unlock(); return failure }
-		input, failure := CaptureRoutineInput(auth, types)
+		input, failure := core.CaptureRoutineInput(auth, types)
 		if failure != nil { e.Mu.Unlock(); return failure }
 		oid, failure := input.ResolveRegprocedure(op.Context(), repair.Identity)
 		if failure != nil { e.Mu.Unlock(); return failure }
@@ -73,6 +74,6 @@ func restoreObjectACL(e *Engine, op *session.Operation, raw *parser.Update) erro
 	if err = stage.Replace(next); err != nil { return err }
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil { return err }
-	_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: epoch})
+	_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: epoch})
 	return err
 }

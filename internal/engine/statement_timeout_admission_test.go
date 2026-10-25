@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
 // atCheckpoint runs with physical admission held and the initial Err sampled.
-func statementTimeoutAdmissionContended(t *testing.T, e *Engine, op *session.Operation, cancel context.CancelCauseFunc, atCheckpoint func()) (*StatementScope, error) {
+func statementTimeoutAdmissionContended(t *testing.T, e *core.Engine, op *session.Operation, cancel context.CancelCauseFunc, atCheckpoint func()) (*core.StatementScope, error) {
 	t.Helper()
 	checkpoint := &statementTimeoutAdmissionContext{Context: op.Context(), entered: make(chan struct{}), release: make(chan struct{})}
 	op.Ctx = checkpoint
@@ -29,7 +30,7 @@ func statementTimeoutAdmissionContended(t *testing.T, e *Engine, op *session.Ope
 		}
 	}
 	type outcome struct {
-		scope *StatementScope
+		scope *core.StatementScope
 		err   error
 	}
 	finished := make(chan outcome, 1)
@@ -88,7 +89,7 @@ func (c *statementTimeoutAdmissionContext) Err() error {
 	return err
 }
 
-func statementTimeoutAdmissionOwner(t *testing.T, isolation ...session.Isolation) (*Engine, *session.Session, ids.TxRef) {
+func statementTimeoutAdmissionOwner(t *testing.T, isolation ...session.Isolation) (*core.Engine, *session.Session, ids.TxRef) {
 	t.Helper()
 	e := New()
 	sess := sessionStart(t, e, nil)
@@ -141,7 +142,7 @@ func statementTimeoutAdmissionCommand(t *testing.T, sess *session.Session) (*ses
 	return op, cancel
 }
 
-func statementTimeoutAdmissionOutcome(t *testing.T, e *Engine, sess *session.Session, ref ids.TxRef, op *session.Operation, scope *StatementScope, err error) {
+func statementTimeoutAdmissionOutcome(t *testing.T, e *core.Engine, sess *session.Session, ref ids.TxRef, op *session.Operation, scope *core.StatementScope, err error) {
 	t.Helper()
 	if scope != nil {
 		_ = scope.Finish(errors.New("unexpected timeout admission"))

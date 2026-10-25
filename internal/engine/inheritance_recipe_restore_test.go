@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -13,7 +14,7 @@ import (
 	"testing"
 )
 
-func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[string]ids.ObjectRef, map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) {
+func inheritedRestoreFixture(t *testing.T) (*core.Engine, *session.Operation, map[string]ids.ObjectRef, map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE captured_owner")
@@ -31,7 +32,7 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[str
 	for _, sql := range declarations {
 		raw := statement(t, sql).(*parser.CreateTable)
 		roleExecute(t, e, op, sql)
-		auth, err := OperationAuthorization(op)
+		auth, err := core.OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -153,7 +154,7 @@ func TestCastDefinitionRestoreRecursiveCheckAdmission(t *testing.T) {
 	} {
 		raw := statement(t, declaration).(*parser.CreateTable)
 		roleExecute(t, e, op, declaration)
-		auth, err := OperationAuthorization(op)
+		auth, err := core.OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -206,7 +207,7 @@ func TestCastDefinitionPlainGenerationRepair(t *testing.T) {
 	const declaration = "CREATE TABLE public.plain_generated(a INT,g INT GENERATED ALWAYS AS(NULL) STORED)"
 	created := statement(t, declaration).(*parser.CreateTable)
 	roleExecute(t, e, op, declaration)
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

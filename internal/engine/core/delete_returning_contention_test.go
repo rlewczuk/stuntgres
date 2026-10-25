@@ -6,12 +6,10 @@ import (
 	"errors"
 	"reflect"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 )
 
 func TestDeleteReturningCurrentPredecessor(t *testing.T) {
@@ -121,44 +119,4 @@ func TestDeleteReturningWaitCancellation(t *testing.T) {
 	enginetest.TransactionEnd(t, holder, h, false)
 	enginetest.TransactionRows(t, peer, "SELECT id FROM t ORDER BY id", 1, 2)
 	enginetest.LockEmpty(t, e)
-}
-
-// This worker executes the real command and Finish; its owner cancels and joins
-// before session cleanup, even when an assertion terminates the subtest.
-func updateDeleteAsync(t *testing.T, e *engine.Engine, s *session.Session, parent context.Context, q string) func() (engine.Result, error) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
-	type outcome struct {
-		result engine.Result
-		err    error
-	}
-	done := make(chan outcome, 1)
-	joined := false
-	go func() {
-		op, err := s.Acquire(ctx)
-		var result engine.Result
-		if err == nil {
-			result, err = e.Execute(op, mustLockStatement(q), 0, nil)
-			op.Done()
-		}
-		done <- outcome{result, err}
-	}()
-	await := func() (engine.Result, error) {
-		t.Helper()
-		select {
-		case o := <-done:
-			joined = true
-			return o.result, o.err
-		case <-time.After(5 * time.Second):
-			t.Fatal("mixed DML worker not joined")
-			return engine.Result{}, context.DeadlineExceeded
-		}
-	}
-	t.Cleanup(func() {
-		cancel()
-		if !joined {
-			await()
-		}
-	})
-	return await
 }

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -14,8 +15,8 @@ import (
 
 // Pending declarations live only inside the isolated Restore invocation. Capture
 // the declaring principal and namespace identities, not the later owner directive.
-func captureRestoredForeignKeys(e *Engine, op *session.Operation, raw []parser.ForeignKeyConstraint) (table.RestoredForeignKeys, error) {
-	auth, err := OperationAuthorization(op)
+func captureRestoredForeignKeys(e *core.Engine, op *session.Operation, raw []parser.ForeignKeyConstraint) (table.RestoredForeignKeys, error) {
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredForeignKeys{}, err
 	}
@@ -28,12 +29,12 @@ func captureRestoredForeignKeys(e *Engine, op *session.Operation, raw []parser.F
 
 // Only the exact successful creation outcome admits target/path discovery.
 // A skipped CREATE must not inspect any ignored declaration, even its schema.
-func resolveRestoredForeignKeyTargets(e *Engine, pending *table.RestoredForeignKeys) error {
+func resolveRestoredForeignKeyTargets(e *core.Engine, pending *table.RestoredForeignKeys) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	for i := range pending.Definitions {
 		definition := &pending.Definitions[i]
-		path, err := LookupNamespacesSnapshot(DDLAuthorityOf(pending.Auth), definition.Raw.Target, analyze.RelationLookup)
+		path, err := core.LookupNamespacesSnapshot(core.DDLAuthorityOf(pending.Auth), definition.Raw.Target, analyze.RelationLookup)
 		if err != nil {
 			return err
 		}
@@ -42,14 +43,14 @@ func resolveRestoredForeignKeyTargets(e *Engine, pending *table.RestoredForeignK
 			namespace := path.At(at)
 			definition.Path[at] = namespace
 			if definition.Target == (ids.ObjectAddress{}) {
-				definition.Target = DDLAuthorityOf(pending.Auth).Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.Raw.Target.Parts[len(definition.Raw.Target.Parts)-1].Text})
+				definition.Target = core.DDLAuthorityOf(pending.Auth).Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: definition.Raw.Target.Parts[len(definition.Raw.Target.Parts)-1].Text})
 			}
 		}
 	}
 	return nil
 }
 
-func bindRestoredForeignKeys(e *Engine, ctx context.Context, op *session.Operation, pending []table.RestoredForeignKeys) error {
+func bindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Operation, pending []table.RestoredForeignKeys) error {
 	if len(pending) == 0 {
 		return nil
 	}
@@ -86,7 +87,7 @@ func bindRestoredForeignKeys(e *Engine, ctx context.Context, op *session.Operati
 				e.Mu.Unlock()
 				return err
 			}
-			if err := table.StageForeignKey(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, declaration.Auth, child, definition.Raw, target, definition.Supporting); err != nil {
+			if err := table.StageForeignKey(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, declaration.Auth, child, definition.Raw, target, definition.Supporting); err != nil {
 				e.Mu.Unlock()
 				return err
 			}
@@ -115,7 +116,7 @@ func bindRestoredForeignKeys(e *Engine, ctx context.Context, op *session.Operati
 	}
 	for _, declaration := range pending {
 		child := view.MustRelation(declaration.Child.Address)
-		auth := DDLAuthorityOf(declaration.Auth)
+		auth := core.DDLAuthorityOf(declaration.Auth)
 		auth.Catalog = view
 		auth.Recapture(auth.Catalog)
 		scan := table.ForeignKeyScan{View: auth.View, Env: auth, Domain: e.Catalog.Domain, Capture: capture}
@@ -127,6 +128,6 @@ func bindRestoredForeignKeys(e *Engine, ctx context.Context, op *session.Operati
 	if err != nil {
 		return err
 	}
-	_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: base.Epoch()})
+	_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: base.Epoch()})
 	return err
 }

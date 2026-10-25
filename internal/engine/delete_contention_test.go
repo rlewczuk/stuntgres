@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 )
 
 type deleteOutcome struct {
-	result Result
+	result core.Result
 	err    error
 }
 
@@ -20,9 +21,9 @@ func deleteAsync(t *testing.T, s *session.Session, ctx context.Context, query st
 	done := make(chan deleteOutcome, 1)
 	go func() {
 		op, err := s.Acquire(ctx)
-		var result Result
+		var result core.Result
 		if err == nil {
-			result, err = EngineOf(s).Execute(op, ast, 0, nil)
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
 			op.Done()
 		}
 		done <- deleteOutcome{result, err}

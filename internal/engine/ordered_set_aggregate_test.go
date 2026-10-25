@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -759,7 +760,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	raw := statement(t, "SELECT mode() WITHIN GROUP(ORDER BY COALESCE(v,w)) FROM os_unit_authority").(*parser.Select)
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	b := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	b := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Query.Auth = &auth
 	if err == nil {
 		_, err = b.BindSelect(raw, false)

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -25,7 +26,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	role := roleAttributeCreate(t, e, admin, "settings_metadata_reader", true, parser.RoleOptions{})
 	reader, release := enginetest.RoleOperation(t, e, role.Name)
 	defer release()
-	retained, err := engine.OperationAuthorization(reader)
+	retained, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, t.Context(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := engine.OperationAuthorization(reader)
+	denied, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, t.Context(), column, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	columnReader, err := engine.OperationAuthorization(reader)
+	columnReader, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,7 @@ func TestPGSettingsCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, t.Context(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := engine.OperationAuthorization(reader)
+	restored, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 			t.Fatalf("denial: %#v (%v), want %#v", diagnostic, err, want)
 		}
 	}
-	check := func(t *testing.T, result engine.Result, err error, denied bool, want [][]driver.Value) {
+	check := func(t *testing.T, result core.Result, err error, denied bool, want [][]driver.Value) {
 		t.Helper()
 		if denied {
 			if result.Rows != nil {
@@ -132,7 +133,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 		nameOnly bool
 		want     [][]driver.Value
 		ast      parser.Statement
-		held     engine.StatementDescription
+		held     core.StatementDescription
 	}
 	consumers := []consumer{
 		{query: "SELECT name FROM pg_catalog.pg_settings WHERE name='application_name'", nameOnly: true, want: [][]driver.Value{{"application_name"}}},
@@ -152,7 +153,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 			t.Fatal(c.query, err)
 		}
 	}
-	execute := func(t *testing.T, c *consumer, expected *engine.StatementDescription) (engine.Result, error) {
+	execute := func(t *testing.T, c *consumer, expected *core.StatementDescription) (core.Result, error) {
 		t.Helper()
 		scope, err := e.StartStatement(reader)
 		if err != nil {
@@ -185,7 +186,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 			for _, route := range []string{"direct", "new-prepare", "held"} {
 				t.Run(phase+"/"+route+"/"+c.query, func(t *testing.T) {
 					denied := phase == "denied" || (phase == "name-only" && !c.nameOnly)
-					var expected *engine.StatementDescription
+					var expected *core.StatementDescription
 					switch route {
 					case "new-prepare":
 						description, err := e.Describe(reader, c.ast)

@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
 )
 
-func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
+func schemaRef(t *testing.T, e *core.Engine, name string) ids.ObjectRef {
 	t.Helper()
 	v := e.CatalogRead()
 	a := v.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name})

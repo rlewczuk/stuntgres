@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/pgcatalog"
@@ -90,7 +90,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if rendered, err := (stored.Deparser{View: view}).UniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, engine.EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

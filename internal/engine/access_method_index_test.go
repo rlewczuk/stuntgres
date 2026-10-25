@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -14,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func accessMethodClassUnit(t *testing.T, e *Engine, name string) (*catalog.AccessMethod, *catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
+func accessMethodClassUnit(t *testing.T, e *core.Engine, name string) (*catalog.AccessMethod, *catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
 	t.Helper()
 	method := accessMethodUnit(t, e, name, catalog.BtreeAccessMethod, 330)
 	family, class, member := operatorClassUnitDefinitions(t, e, name, 351)

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -128,4 +129,4 @@ func TestArrayCompareCommonType(t *testing.T) {
 }
 
 // binderOperation and binderEngine read a binder's host state in tests.
-func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*engine.BindingHost).Op }
+func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*core.BindingHost).Op }

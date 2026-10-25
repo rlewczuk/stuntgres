@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
@@ -28,9 +29,9 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 	go func() {
 		defer close(finished)
 		op, _, err := s.AcquireCommand(ctx)
-		var result engine.Result
+		var result core.Result
 		if err == nil {
-			result, err = engine.EngineOf(s).Execute(op, ast, 0, nil)
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
 			err = op.CommandError(err)
 			op.Done()
 		}
@@ -47,13 +48,13 @@ func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan del
 	return done, cancel
 }
 
-func uniqueClaimsEmpty(t *testing.T, e *engine.Engine) {
+func uniqueClaimsEmpty(t *testing.T, e *core.Engine) {
 	t.Helper()
 	enginetest.LockEmpty(t, e)
 	uniqueKeyBucketsEmpty(t, e)
 }
 
-func uniqueKeyBucketsEmpty(t *testing.T, e *engine.Engine) {
+func uniqueKeyBucketsEmpty(t *testing.T, e *core.Engine) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
 	if lockState.KeyBuckets != 0 {
@@ -173,14 +174,14 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			tempRef := description.Sequences.Constants[0].Ref
 			temp := target.Catalog.State.Get(tempRef.Address)
 			generator := target.Storage.Sequences[tempRef.Address]
-			memory := engine.PayloadOf(b).Sequences.Memory(tempRef.Address)
+			memory := core.PayloadOf(b).Sequences.Memory(tempRef.Address)
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.Address())
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.Catalog.State.Get(tempRef.Address) != temp || target.Storage.Sequences[tempRef.Address] != generator || engine.PayloadOf(b).Sequences.Memory(tempRef.Address) != memory {
+			if target.Catalog.State.Get(tempRef.Address) != temp || target.Storage.Sequences[tempRef.Address] != generator || core.PayloadOf(b).Sequences.Memory(tempRef.Address) != memory {
 				t.Fatal("retained TEMP identity changed")
 			}
 			parent := target.Catalog.State.MustRelation(enginetest.RoleTableRef(t, target, "portable.t").Address)
@@ -419,7 +420,7 @@ func TestUniqueKeyChangeTwoUpgradersEvaluateOnce(t *testing.T) {
 	uniqueClaimsEmpty(t, e)
 }
 
-func btreeWantKeys(t *testing.T, e *engine.Engine, name string, want ...string) *storage.IndexRoot {
+func btreeWantKeys(t *testing.T, e *core.Engine, name string, want ...string) *storage.IndexRoot {
 	t.Helper()
 	_, root := btreeRoot(t, e, name)
 	if got := btreeKeys(t, root); !reflect.DeepEqual(got, want) {

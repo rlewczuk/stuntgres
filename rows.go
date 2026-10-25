@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +24,7 @@ type rows struct {
 	batchError         error
 }
 
-func newRows(ctx context.Context, r engine.Result) *rows {
+func newRows(ctx context.Context, r core.Result) *rows {
 	var schema []catalog.Column
 	if r.Rows != nil {
 		schema = r.Rows.Schema()

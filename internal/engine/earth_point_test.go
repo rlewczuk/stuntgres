@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -117,7 +118,7 @@ func TestEarthPointLateOperatorConflict(t *testing.T) {
 	}
 	originalValue := *original
 	e.Mu.Lock()
-	failed, err := stageExtensionLocked(e, &StatementScope{Op: installer}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
+	failed, err := stageExtensionLocked(e, &core.StatementScope{Op: installer}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.Mu.Unlock()
 	if failed != nil {
 		e.DiscardCatalogStage(failed)
@@ -208,7 +209,7 @@ func TestEarthPointOwners(t *testing.T) {
 	}
 }
 
-func earthPointUnitCall(t *testing.T, e *Engine, ext *catalog.Extension, nullable bool) plan.InstalledEarthPointExpr {
+func earthPointUnitCall(t *testing.T, e *core.Engine, ext *catalog.Extension, nullable bool) plan.InstalledEarthPointExpr {
 	t.Helper()
 	view := e.CatalogRead()
 	point, _ := view.LookupType(sqltype.Point)

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -38,7 +39,7 @@ func definitionDefaultPublication(t *testing.T) {
 		t.Fatal("private overlay discarded concurrent committed default", ok, err)
 	}
 	b.Transactions.Mu.Lock()
-	mark := CaptureSavepoint(b.Transactions, "multiple_defaults")
+	mark := core.CaptureSavepoint(b.Transactions, "multiple_defaults")
 	b.Transactions.Mu.Unlock()
 	privateClass, _ := both.LookupOperatorClass(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, method.Address().ObjectID, "journal_default_b")
 	definitionUnitStage(t, e, b, `DROP OPERATOR CLASS public.journal_default_b USING journal_default_am`)
@@ -47,7 +48,7 @@ func definitionDefaultPublication(t *testing.T) {
 	}
 	for range 2 {
 		b.Transactions.Mu.Lock()
-		RestoreSavepoint(b.Transactions, mark, mark.Settings.Clone())
+		core.RestoreSavepoint(b.Transactions, mark, mark.Settings.Clone())
 		b.Transactions.Mu.Unlock()
 		current := definitionUnitRead(e, b)
 		if current.Get(privateClass.Address()) != privateClass {

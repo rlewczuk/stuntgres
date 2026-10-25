@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -19,7 +20,7 @@ func subqueryTestInteger(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype
 	return value
 }
 
-func subqueryTestExpression(t *testing.T, e *Engine, q *plan.Query, kind parser.SubqueryKind) plan.SubqueryExpr {
+func subqueryTestExpression(t *testing.T, e *core.Engine, q *plan.Query, kind parser.SubqueryKind) plan.SubqueryExpr {
 	t.Helper()
 	typ, ok := e.CatalogRead().LookupType(sqltype.Bool)
 	if !ok {

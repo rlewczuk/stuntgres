@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -21,7 +22,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func refreshUnitPrincipals(e *Engine) (authorization.PrincipalRef, authorization.PrincipalRef) {
+func refreshUnitPrincipals(e *core.Engine) (authorization.PrincipalRef, authorization.PrincipalRef) {
 	owner, caller := e.RoleStore.Domain.Principal(100001), e.RoleStore.Domain.Principal(100002)
 	for _, role := range []authorization.RoleDescriptor{{Ref: owner, Name: "refresh_unit_owner", Login: true, Inherit: true, ConnectionLimit: -1}, {Ref: caller, Name: "refresh_unit_caller", Login: true, Inherit: true, ConnectionLimit: -1}} {
 		putFixtureRole(e.RoleStore.Published, role)
@@ -82,7 +83,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		if err := scope.Gate(stmt); err != nil {
 			t.Fatal(err)
 		}
-		if err := ScopeSnapshotPhase(scope, stmt); err != nil {
+		if err := core.ScopeSnapshotPhase(scope, stmt); err != nil {
 			t.Fatal(err)
 		}
 		e.Mu.Lock()
@@ -117,7 +118,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			if auth.State.CurrentUser != owner || auth.State.SessionUser != caller || !AuthorizationMaterializedPopulation(&auth) {
+			if auth.State.CurrentUser != owner || auth.State.SessionUser != caller || !core.AuthorizationMaterializedPopulation(&auth) {
 				t.Fatal("producer did not run as owner", auth.State)
 			}
 			current, _ := scope.Identity.Current.Text()
@@ -134,8 +135,8 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 				t.Fatal(schema)
 			}
 			captured, ok := c.Input.Regtype.(regobj.TypeInput)
-			env, _ := captured.Authority().Environment.(AuthorizationView)
-			if !ok || captured.Authority().View.State.CurrentUser != owner || captured.Authority().View.State.SessionUser != caller || !AuthorizationMaterializedPopulation(&env) ||
+			env, _ := captured.Authority().Environment.(core.AuthorizationView)
+			if !ok || captured.Authority().View.State.CurrentUser != owner || captured.Authority().View.State.SessionUser != caller || !core.AuthorizationMaterializedPopulation(&env) ||
 				!slices.Equal(captured.Path(), []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
 				c.Input.Regclass == nil || c.Input.Regrole == nil || c.Input.Operator == nil || c.Input.Regproc == nil ||
 				c.Input.TypeDiagnosticName != nil || !c.Input.ExactSnapshot {
@@ -176,7 +177,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			scope.Input.ExactSnapshot != beforeInput.ExactSnapshot {
 			t.Fatal("population leaked input context")
 		}
-		if OperationReplayOrZero(op).MaterializedPopulation || OperationReplayOrZero(op).MaterializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.Identity != beforeIdentity || !sqltype.SameDatum(scope.Inquiry.CurrentSchemaResult, beforeSchema) {
+		if core.OperationReplayOrZero(op).MaterializedPopulation || core.OperationReplayOrZero(op).MaterializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.Identity != beforeIdentity || !sqltype.SameDatum(scope.Inquiry.CurrentSchemaResult, beforeSchema) {
 			t.Fatal("population leaked owner context")
 		}
 		if err := scope.Finish(err); !fail && err != nil {

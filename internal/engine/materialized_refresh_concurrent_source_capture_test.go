@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -15,7 +16,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
+func concurrentSourceOuter(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -31,12 +32,12 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	bound, err := Describe(context.Background(), e.AnalysisHost(op), stmt, auth, ids.ObjectRef{}, input, nil, nil)
+	bound, err := core.Describe(context.Background(), e.AnalysisHost(op), stmt, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, d, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, stmt, bound)
+	stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, stmt, bound)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal("source outer stage", skipped, err)
@@ -95,7 +96,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}()
 	// This calls the actual target admission and acquireViewSources, not a
 	// manually assembled visibility.Data or materializedSourceFence.
-	go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
+	go func() { done <- core.ScopeAcquireMaterializedRefresh(scope, stmt) }()
 	lockPending(t, e, 1)
 	assertSourceWait := func() {
 		t.Helper()
@@ -183,15 +184,15 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	changes := session.NewJournal()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if err := EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil); err != nil {
+	if err := core.EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil); err != nil {
 		t.Fatal("actual retained capture", err)
 	}
-	sources := MaterializedSourceFences(changes)
+	sources := core.MaterializedSourceFences(changes)
 	if len(sources) != 1 {
 		t.Fatal("dedicated source fence not generated", sources)
 	}
 	fence := sources[0]
-	if MaterializedSourceFenceRef(&fence).Address != inner.Address() || MaterializedSourceFenceRelation(&fence) != snapshot.Catalog.Get(inner.Address()) || MaterializedSourceFenceStorage(&fence) != innerStorage {
+	if core.MaterializedSourceFenceRef(&fence).Address != inner.Address() || core.MaterializedSourceFenceRelation(&fence) != snapshot.Catalog.Get(inner.Address()) || core.MaterializedSourceFenceStorage(&fence) != innerStorage {
 		t.Fatal("generated source fence retargeted", fence)
 	}
 	if _, strict := changes.Originals[inner.Address()]; strict {
@@ -209,7 +210,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	// Even when the same MV has a source fence, an actual provider observation
 	// must retain strict predecessor authority; compatibility cannot replace it.
 	stage.DomainBases = []catalog.Descriptor{provider, inner}
-	if err := EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil); err != nil {
+	if err := core.EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil); err != nil {
 		t.Fatal(err)
 	}
 	if changes.Originals[inner.Address()] != inner {

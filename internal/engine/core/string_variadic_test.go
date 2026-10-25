@@ -1,0 +1,656 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestStringVariadicRetainedGeneration(t *testing.T) {
+	e := engine.New()
+	s := sessionStart(t, e, nil)
+	ast, description := sequencePreparedDescription(t, e, s, "SELECT quote_ident('foo')")
+	if description.Quotes != nil {
+		t.Fatal("Describe published Execute-only quotes")
+	}
+	result, err := sequencePreparedExecute(e, s, ast, &description)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Rows.Close()
+	if len(description.Quotes) != 1 || core.DescriptionQuoteGeneration(&description) != s.DiscardPlansGeneration || core.DescriptionPlanOwner(&description) != s.SessionToken {
+		t.Fatal("missing owner-qualified capture")
+	}
+	original := description
+	result, err = sequencePreparedExecute(e, s, ast, &description)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Rows.Close()
+	if &original.Quotes[0] != &description.Quotes[0] {
+		t.Fatal("stable hit copied private group")
+	}
+	discardUnitApply(t, s, parser.DiscardPlans)
+	if &original.Quotes[0] != &description.Quotes[0] || core.DescriptionQuoteGeneration(&description) != core.DescriptionQuoteGeneration(&original) {
+		t.Fatal("eager discard mutation")
+	}
+	result, err = sequencePreparedExecute(e, s, ast, &description)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.Rows.Close()
+	if &original.Quotes[0] == &description.Quotes[0] || core.DescriptionQuoteGeneration(&description) != s.DiscardPlansGeneration {
+		t.Fatal("discard did not recollect quotes")
+	}
+	if original.Quotes[0] != description.Quotes[0] {
+		t.Fatal("source capture changed during refresh")
+	}
+
+	bad, failed := sequencePreparedDescription(t, e, s, "SELECT quote_ident('foo'),quote_literal(1/0)")
+	_, err = sequencePreparedExecute(e, s, bad, &failed)
+	if err == nil || failed.Quotes != nil {
+		t.Fatal("failed demanded fold published partial group", err)
+	}
+	before := description
+	discardUnitApply(t, s, parser.DiscardPlans)
+	savedResults := description.Results
+	description.Results = nil
+	_, err = sequencePreparedExecute(e, s, ast, &description)
+	description.Results = savedResults
+	if err == nil || core.DescriptionQuoteGeneration(&description) != core.DescriptionQuoteGeneration(&before) || &description.Quotes[0] != &before.Quotes[0] {
+		t.Fatal("signature failure published private group", err)
+	}
+
+	// Retagging owns a detached tree and exact new descriptors, never changing
+	// the source generation. An equal OID cannot authorize capture adoption.
+	ctx := context.Background()
+	binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
+	bound, err := binder.Bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	node := bound.(functions.StringVariadic)
+	oldGroup := exec.QuoteCaptureCandidate{}
+	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &oldGroup}}, node)
+	if err != nil || len(oldGroup.Entries) != 1 {
+		t.Fatal(err)
+	}
+	types := formatUnitTypes()
+	retagged, changed, err := stored.RetagTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	if err != nil || !changed {
+		t.Fatal(changed, err)
+	}
+	fresh := retagged.(functions.StringVariadic)
+	if fresh.Usage.Type != types[sqltype.Text] || fresh.Args[0].ResultUsage().Type != types[sqltype.Int4] || node.Usage.Type == fresh.Usage.Type || node.Args[0].ResultUsage().Type == fresh.Args[0].ResultUsage().Type {
+		t.Fatal("retag source mutated or authority not replaced")
+	}
+	candidate := exec.QuoteCaptureCandidate{Entries: oldGroup.Entries}
+	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &candidate}}, fresh)
+	if err != nil || !candidate.Private || len(candidate.Entries) != 1 || candidate.Entries[0].Value.Type() != types[sqltype.Text] || oldGroup.Entries[0].Value.Type() != node.Usage.Type {
+		t.Fatal("coincident OID adopted or source group mutated", err)
+	}
+
+	// Two DEFAULT definitions, a view, and statement syntax can have identical
+	// offset/frame/kind/usage without sharing an occurrence or captured result.
+	sessionSQL(t, s, "CREATE TABLE sv_quote_origins(a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'))")
+	sessionSQL(t, s, "CREATE VIEW sv_quote_origin_view AS SELECT quote_ident('v') AS v")
+	table := primaryKeyUnitRelation(t, e, "sv_quote_origins")
+	view := primaryKeyUnitRelation(t, e, "sv_quote_origin_view")
+	catalog := e.CatalogRead()
+	tableRef := e.Catalog.Domain.Ref(catalog.Epoch(), table.Address())
+	viewRef := e.Catalog.Domain.Ref(catalog.Epoch(), view.Address())
+	origins := []exec.QuoteOrigin{
+		{Owner: tableRef, Attribute: table.Attributes[0], Definition: table.ColumnMeta.Defaults[table.Attributes[0]].OID},
+		{Owner: tableRef, Attribute: table.Attributes[1], Definition: table.ColumnMeta.Defaults[table.Attributes[1]].OID},
+		{Owner: viewRef, Definition: stored.ViewOf(view).RuleOID(), Revision: stored.ViewOf(view).QuoteRevision()},
+		{},
+	}
+	stamped := node.WithOrigin(origins[2])
+	targetRef := viewRef
+	targetRef.Epoch++
+	remapped, err := stored.RemapExpression(stamped, func(ref ids.ObjectRef) ids.ObjectRef {
+		if ref == viewRef {
+			return targetRef
+		}
+		return ref
+	}, nil)
+	if err != nil || exec.QuoteOriginOf(remapped.(functions.StringVariadic)).Owner != targetRef || exec.QuoteOriginOf(stamped) != origins[2] {
+		t.Fatal("view quote origin remap lost target ownership or mutated source", err)
+	}
+	stampedRetagged, _, err := stored.RetagTypes(binder.BindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
+	if err != nil || stampedRetagged.(functions.StringVariadic).Origin != stamped.Origin {
+		t.Fatal("view quote origin lost during typed retag", err)
+	}
+	collision := exec.QuoteCaptureCandidate{}
+	for i, origin := range origins {
+		input := string(rune('a' + i))
+		source := plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, input)}
+		occurrence := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 17}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{source}}
+		ambient := origin
+		if origin.Owner != (ids.ObjectRef{}) && origin.Attribute == 0 {
+			occurrence = occurrence.WithOrigin(origin)
+			ambient = exec.QuoteOrigin{} // Lowered view nodes override caller-root context.
+		}
+		folded, _, err := exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &collision, QuoteOrigin: ambient}}, occurrence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, _ := folded.(plan.LiteralExpr).Value.Text()
+		if got != input || len(collision.Entries) != i+1 {
+			t.Fatal("distinct stored origins collided", got, input, collision.Entries)
+		}
+	}
+	published := collision.Entries
+	stableOrigins := exec.QuoteCaptureCandidate{Entries: published}
+	stored.PruneQuoteCaptures(&stableOrigins, e.CatalogRead())
+	if stableOrigins.Private || &stableOrigins.Entries[0] != &published[0] {
+		t.Fatal("valid origin pruning copied group")
+	}
+	sessionSQL(t, s, "ALTER TABLE sv_quote_origins RENAME COLUMN a TO renamed")
+	stored.PruneQuoteCaptures(&stableOrigins, e.CatalogRead())
+	if stableOrigins.Private {
+		t.Fatal("unrelated rename invalidated DEFAULT output")
+	}
+	sessionSQL(t, s, "ALTER TABLE sv_quote_origins ALTER COLUMN renamed SET DEFAULT quote_ident('new')")
+	retired := exec.QuoteCaptureCandidate{Entries: published}
+	stored.PruneQuoteCaptures(&retired, e.CatalogRead())
+	if !retired.Private || len(retired.Entries) != 3 || len(published) != 4 || retired.Entries[0].Origin != origins[1] {
+		t.Fatal("default replacement retained old origin or mutated publication")
+	}
+	sessionSQL(t, s, "CREATE OR REPLACE VIEW sv_quote_origin_view AS SELECT quote_ident('changed') AS v")
+	stored.PruneQuoteCaptures(&retired, e.CatalogRead())
+	if len(retired.Entries) != 2 || len(published) != 4 {
+		t.Fatal("view replacement retained prior defining revision")
+	}
+	sealed := exec.QuoteCaptureCandidate{Entries: published, Sealed: true}
+	missing := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, "local")}}}
+	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &sealed}}, missing)
+	if err != nil || sealed.Private || len(sealed.Entries) != 4 {
+		t.Fatal("sealed executor group admitted row-time publication", err)
+	}
+
+	t.Run("LoweredViewLayersAndLocalChecks", func(t *testing.T) {
+		eng := engine.New()
+		session := sessionStart(t, eng, nil)
+		// Equal-length source/view names place both quote calls at the same
+		// offset in frame 1. The two definitions must never share a capture.
+		for _, query := range []string{
+			"CREATE TABLE bv(v text)",
+			"INSERT INTO bv VALUES('seed')",
+			"CREATE VIEW iv AS SELECT v FROM bv WHERE v<>quote_ident('inval') WITH LOCAL CHECK OPTION",
+			"CREATE VIEW ov AS SELECT v FROM iv WHERE v<>quote_ident('outvl') WITH LOCAL CHECK OPTION",
+		} {
+			sessionSQL(t, session, query)
+		}
+		for _, query := range []string{
+			"INSERT INTO ov VALUES('inval')",
+			"INSERT INTO ov VALUES('outvl')",
+			"UPDATE ov SET v='inval' WHERE v='seed'",
+			"UPDATE ov SET v='outvl' WHERE v='seed'",
+		} {
+			ast, description := sequencePreparedDescription(t, eng, session, query)
+			_, err := sequencePreparedExecute(eng, session, ast, &description)
+			var diagnostic *sqlstate.Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != "44000" {
+				t.Fatalf("%s: local check lost its layer: %v", query, err)
+			}
+			if len(description.Quotes) != 2 {
+				t.Fatalf("%s: missing layer captures: %+v", query, description.Quotes)
+			}
+			a, b := description.Quotes[0], description.Quotes[1]
+			av, _ := a.Value.Text()
+			bv, _ := b.Value.Text()
+			if a.Offset != b.Offset || a.Frame != b.Frame || a.Origin.Owner == b.Origin.Owner || av == bv || (av != "inval" && av != "outvl") || (bv != "inval" && bv != "outvl") {
+				t.Fatalf("lowered equal-offset view calls collided: %+v / %+v", a, b)
+			}
+		}
+		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO ov VALUES('valid')")
+		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+			t.Fatal("valid local-check row rejected", err)
+		}
+		published := description.Quotes
+		sessionSQL(t, session, "SET quote_all_identifiers=on")
+		sessionSQL(t, session, "ALTER TABLE bv ADD COLUMN spare integer")
+		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+			t.Fatal("stored-only analysis replan failed", err)
+		}
+		if len(description.Quotes) != 2 || &description.Quotes[0] != &published[0] {
+			t.Fatal("analysis-only replan copied or refreshed unchanged view captures")
+		}
+		sessionSQL(t, session, "CREATE VIEW nv AS SELECT v FROM bv WHERE concat(quote_nullable(v),'')=quote_nullable(v) WITH LOCAL CHECK OPTION")
+		nestedAST, nestedDescription := sequencePreparedDescription(t, eng, session, "UPDATE nv SET v='nested' WHERE v='seed'")
+		result, err := sequencePreparedExecute(eng, session, nestedAST, &nestedDescription)
+		if err != nil || result.Count != 1 || len(nestedDescription.Quotes) != 0 {
+			t.Fatal("nested row-dependent quotes lost column lowering or were retained", result.Count, err)
+		}
+		for _, name := range []string{"iv", "ov", "nv"} {
+			view := primaryKeyUnitRelation(t, eng, name)
+			_, _, predicates, reason := stored.ViewWriteShape(view)
+			if reason != "" {
+				t.Fatal(reason)
+			}
+			for _, predicate := range predicates {
+				plan.WalkExpression(predicate, func(expression expr.Expr) {
+					if quote, ok := expression.(functions.StringVariadic); ok && exec.QuoteOriginOf(quote) != (exec.QuoteOrigin{}) {
+						t.Fatal("execution lowering stamped the stored source tree")
+					}
+				})
+			}
+		}
+	})
+
+	t.Run("AnalysisReplanRetiresOnlyRoot", func(t *testing.T) {
+		eng := engine.New()
+		session := sessionStart(t, eng, nil)
+		sessionSQL(t, session, "CREATE TABLE sv_replan(v text,w text DEFAULT quote_ident('stored'))")
+		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO sv_replan(v) VALUES(quote_ident('root'))")
+		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+			t.Fatal(err)
+		}
+		published := description.Quotes
+		sessionSQL(t, session, "SET quote_all_identifiers=on")
+		sessionSQL(t, session, "ALTER TABLE sv_replan ADD COLUMN spare integer")
+		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+			t.Fatal(err)
+		}
+		if len(published) != 2 || len(description.Quotes) != 2 {
+			t.Fatal("analysis replan lost root or default capture")
+		}
+		for _, capture := range description.Quotes {
+			want := "stored"
+			if capture.Origin.Owner == (ids.ObjectRef{}) {
+				want = `"root"`
+			}
+			got, _ := capture.Value.Text()
+			if got != want {
+				t.Fatalf("analysis replan capture = %q, want %q", got, want)
+			}
+		}
+		for _, capture := range published {
+			got, _ := capture.Value.Text()
+			if got != "root" && got != "stored" {
+				t.Fatal("analysis replan mutated published source captures")
+			}
+		}
+	})
+
+	t.Run("StalePublishedGroupDemandFailureRetry", func(t *testing.T) {
+		eng := engine.New()
+		session := sessionStart(t, eng, nil)
+		sessionSQL(t, session, "SET quote_all_identifiers=off")
+		sessionSQL(t, session, "SET bytea_output=hex")
+		sessionSQL(t, session, `CREATE TABLE sv_retry(v text,z timestamptz,a text DEFAULT quote_ident('stored'),b text DEFAULT quote_literal('\x00015c'::bytea))`)
+		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO sv_retry(v,z) VALUES(quote_ident('root'),'now'::timestamptz)")
+		result, err := sequencePreparedExecute(eng, session, ast, &description)
+		if err != nil || result.Count != 1 {
+			t.Fatal("initial capture execution", result.Count, err)
+		}
+		before := description
+		if len(before.Quotes) != 3 || len(before.Temporals) == 0 || core.DescriptionAnalysis(&before) == nil {
+			t.Fatal("missing initial quote/temporal/analysis publication")
+		}
+		source := append([]exec.QuoteConstant(nil), before.Quotes...)
+		beforeRelation := primaryKeyUnitRelation(t, eng, "sv_retry")
+		aDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[2]].OID
+		bDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[3]].OID
+		initial := map[string]bool{"root": false, "stored": false, `E'\\x00015c'`: false}
+		for _, capture := range source {
+			value, err := capture.Value.Text()
+			seen, known := initial[value]
+			if err != nil || !known || seen {
+				t.Fatal("unexpected initial retained value", value, err)
+			}
+			initial[value] = true
+		}
+		discardUnitApply(t, session, parser.DiscardPlans)
+		sessionSQL(t, session, "ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal(1/0)")
+		result, err = sequencePreparedExecute(eng, session, ast, &description)
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}) || result.Rows != nil {
+			t.Fatal("demanded fold failure", result, err)
+		}
+		if core.DescriptionPlanOwner(&description) != session.SessionToken || core.DescriptionPlanGeneration(&description) != session.DiscardPlansGeneration || core.DescriptionPlanGeneration(&description) == core.DescriptionPlanGeneration(&before) || core.DescriptionAnalysis(&description) == core.DescriptionAnalysis(&before) || len(description.Temporals) == 0 || &description.Temporals[0] == &before.Temporals[0] {
+			t.Fatal("failure did not occur after temporal/analysis generation advance")
+		}
+		if core.DescriptionQuoteGeneration(&description) != core.DescriptionQuoteGeneration(&before) || len(description.Quotes) != len(source) || &description.Quotes[0] != &before.Quotes[0] {
+			t.Fatal("failed private quote refresh replaced publication")
+		}
+		for i, capture := range source {
+			if before.Quotes[i] != capture || description.Quotes[i] != capture {
+				t.Fatal("failed refresh mutated source capture", i)
+			}
+		}
+		rows := sessionSQL(t, session, "SELECT v,a,b FROM sv_retry")
+		values := enginetest.Tuples(rows)
+		rows.Rows.Close()
+		if len(values) != 1 || values[0][0] != "root" || values[0][1] != "stored" || values[0][2] != `E'\\x00015c'` {
+			t.Fatal("failed demanded fold changed committed rows", values)
+		}
+		sessionSQL(t, session, "SET quote_all_identifiers=on")
+		sessionSQL(t, session, "SET bytea_output=escape")
+		sessionSQL(t, session, `ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal('\x00015c'::bytea)`)
+		result, err = sequencePreparedExecute(eng, session, ast, &description)
+		if err != nil || result.Count != 1 {
+			t.Fatal("successful stale retry", result.Count, err)
+		}
+		if core.DescriptionQuoteGeneration(&description) != session.DiscardPlansGeneration || core.DescriptionPlanGeneration(&description) != session.DiscardPlansGeneration || core.DescriptionPlanOwner(&description) != session.SessionToken || len(description.Quotes) != 3 || &description.Quotes[0] == &before.Quotes[0] {
+			t.Fatal("retry did not publish fresh owner-qualified group and stamps")
+		}
+		relation := primaryKeyUnitRelation(t, eng, "sv_retry")
+		if relation.ColumnMeta.Defaults[relation.Attributes[2]].OID != aDefinition || relation.ColumnMeta.Defaults[relation.Attributes[3]].OID == bDefinition {
+			t.Fatal("retry did not preserve a and replace b DEFAULT identity")
+		}
+		catalog := eng.CatalogRead()
+		ref := eng.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
+		seen := map[string]bool{}
+		for _, capture := range description.Quotes {
+			value, err := capture.Value.Text()
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := `"root"`
+			if capture.Origin.Owner != (ids.ObjectRef{}) {
+				if capture.Origin.Owner != ref {
+					t.Fatal("retry adopted foreign stored origin")
+				}
+				switch capture.Origin.Attribute {
+				case relation.Attributes[2]:
+					want = `"stored"`
+				case relation.Attributes[3]:
+					want = `E'\\000\\001\\\\'`
+				default:
+					t.Fatal("unexpected retry DEFAULT attribute")
+				}
+				if capture.Origin.Definition != relation.ColumnMeta.Defaults[capture.Origin.Attribute].OID {
+					t.Fatal("retry retained obsolete DEFAULT definition")
+				}
+			}
+			if value != want || seen[want] {
+				t.Fatalf("retry capture = %q, want distinct %q", value, want)
+			}
+			seen[want] = true
+		}
+		for i, capture := range source {
+			if before.Quotes[i] != capture {
+				t.Fatal("successful retry mutated source publication", i)
+			}
+		}
+	})
+
+	t.Run("MergeDefaultOrigins", func(t *testing.T) {
+		eng := engine.New()
+		session := sessionStart(t, eng, nil)
+		sessionSQL(t, session, "CREATE TABLE sv_merge_origin(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
+		ast, description := sequencePreparedDescription(t, eng, session, "MERGE INTO sv_merge_origin t USING (VALUES(1)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,r) VALUES(s.id,quote_ident('root'))")
+		result, err := sequencePreparedExecute(eng, session, ast, &description)
+		if err != nil || result.Count != 1 || len(description.Quotes) != 3 {
+			t.Fatal("MERGE did not execute demanded defaults", result.Count, description.Quotes, err)
+		}
+		relation := primaryKeyUnitRelation(t, eng, "sv_merge_origin")
+		catalog := eng.CatalogRead()
+		ref := eng.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
+		seen := map[string]bool{}
+		for _, capture := range description.Quotes {
+			value, err := capture.Value.Text()
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "root"
+			if capture.Origin.Owner != (ids.ObjectRef{}) {
+				if capture.Origin.Owner != ref || capture.Origin.Definition != relation.ColumnMeta.Defaults[capture.Origin.Attribute].OID {
+					t.Fatal("MERGE default lost physical origin", capture.Origin)
+				}
+				switch capture.Origin.Attribute {
+				case relation.Attributes[1]:
+					want = "a"
+				case relation.Attributes[2]:
+					want = "b"
+				default:
+					t.Fatal("MERGE captured unrelated default")
+				}
+			}
+			if value != want || seen[want] {
+				t.Fatal("MERGE origins collided", value, want)
+			}
+			seen[want] = true
+		}
+		for _, attribute := range relation.Attributes[1:3] {
+			node := relation.ColumnMeta.Defaults[attribute].Expression.(functions.StringVariadic)
+			if exec.QuoteOriginOf(node) != (exec.QuoteOrigin{}) {
+				t.Fatal("MERGE stamped catalog DEFAULT source")
+			}
+		}
+	})
+
+	t.Run("ParameterizedMergeOperationLocal", func(t *testing.T) {
+		eng := engine.New()
+		session := sessionStart(t, eng, nil)
+		sessionSQL(t, session, "CREATE TABLE sv_local_merge(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
+		ast, description := sequencePreparedDescription(t, eng, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
+		peerAST, peerDescription := sequencePreparedDescription(t, eng, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
+		stamp := core.DescriptionQuoteGeneration(&description)
+		var previous []exec.QuoteConstant
+		for id := int64(1); id <= 12; id++ {
+			on := id%2 == 1
+			setting := "off"
+			if on {
+				setting = "on"
+			}
+			if id == 9 || id == 11 {
+				sessionSQL(t, session, "BEGIN")
+				if id == 11 {
+					sessionSQL(t, session, "SAVEPOINT sv_local")
+				}
+				sessionSQL(t, session, "SET LOCAL quote_all_identifiers="+setting)
+				discardUnitApply(t, session, parser.DiscardPlans)
+			} else {
+				if id == 10 {
+					sessionSQL(t, session, "ROLLBACK")
+				}
+				if id == 12 {
+					sessionSQL(t, session, "ROLLBACK TO SAVEPOINT sv_local")
+				}
+				sessionSQL(t, session, "SET quote_all_identifiers="+setting)
+			}
+			if id == 7 {
+				discardUnitApply(t, session, parser.DiscardPlans)
+			}
+			func() {
+				op, err := session.Acquire(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer op.Done()
+				scope, err := eng.StartStatement(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				owner, statement := &description, ast
+				if id%2 == 0 {
+					owner, statement = &peerDescription, peerAST
+				}
+				scope.Expected = owner
+				result, err := scope.Execute(statement, 1, func(ctx context.Context, p analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+					value, err := sqltype.Integer(p.Types[0].Type, id)
+					frame[0] = value
+					return err
+				})
+				if err != nil {
+					scope.Finish(err)
+					t.Fatal(err)
+				}
+				group := core.ScopeQuoteCaptures(scope)
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 3 || description.Quotes != nil || peerDescription.Quotes != nil || core.DescriptionQuoteGeneration(&description) != stamp || core.DescriptionQuoteGeneration(&peerDescription) != stamp {
+					scope.Finish(errors.New("unexpected quote publication"))
+					t.Fatal("parameterized MERGE retained/shared quotes", result.Count, group, description.Quotes)
+				}
+				if previous != nil && &previous[0] == &group.Entries[0] {
+					t.Fatal("parameterized execution borrowed prior backing")
+				}
+				relation := primaryKeyUnitRelation(t, eng, "sv_local_merge")
+				catalog := eng.CatalogRead()
+				ref := eng.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
+				seen := map[string]bool{}
+				for _, capture := range group.Entries {
+					want := "root"
+					if capture.Origin.Owner != (ids.ObjectRef{}) {
+						if capture.Origin.Owner != ref || capture.Origin.Definition != relation.ColumnMeta.Defaults[capture.Origin.Attribute].OID {
+							t.Fatal("operation-local default origin lost")
+						}
+						switch capture.Origin.Attribute {
+						case relation.Attributes[1]:
+							want = "a"
+						case relation.Attributes[2]:
+							want = "b"
+						default:
+							t.Fatal("unexpected operation-local default")
+						}
+					}
+					if on {
+						want = `"` + want + `"`
+					}
+					value, err := capture.Value.Text()
+					if err != nil || value != want || seen[want] {
+						t.Fatal("parameterized group did not use current settings", value, want, err)
+					}
+					seen[want] = true
+				}
+				for _, capture := range previous {
+					value, err := capture.Value.Text()
+					if err != nil || on && strings.Contains(value, `"`) || !on && !strings.Contains(value, `"`) {
+						t.Fatal("fresh execution mutated previous group", value, err)
+					}
+				}
+				previous = group.Entries
+				if err := scope.Finish(nil); err != nil {
+					t.Fatal(err)
+				}
+			}()
+		}
+		sessionSQL(t, session, "ROLLBACK")
+	})
+
+	t.Run("ParameterizedViewOperationLocal", func(t *testing.T) {
+		eng := engine.New()
+		session := sessionStart(t, eng, nil)
+		sessionSQL(t, session, "CREATE TABLE sv_local_view_base(id integer,r text)")
+		sessionSQL(t, session, "CREATE VIEW sv_local_view AS SELECT id,r FROM sv_local_view_base WHERE r<>quote_ident('blocked') WITH LOCAL CHECK OPTION")
+		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO sv_local_view VALUES($1::integer,quote_ident('root'))")
+		stamp := core.DescriptionQuoteGeneration(&description)
+		view := primaryKeyUnitRelation(t, eng, "sv_local_view")
+		catalog := eng.CatalogRead()
+		origin := exec.QuoteOrigin{Owner: eng.Catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: stored.ViewOf(view).RuleOID(), Revision: stored.ViewOf(view).QuoteRevision()}
+		var previous []exec.QuoteConstant
+		for id := int64(1); id <= 2; id++ {
+			setting, root, blocked := "off", "root", "blocked"
+			if id == 1 {
+				setting, root, blocked = "on", `"root"`, `"blocked"`
+			}
+			sessionSQL(t, session, "SET quote_all_identifiers="+setting)
+			func() {
+				op, err := session.Acquire(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer op.Done()
+				scope, err := eng.StartStatement(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				scope.Expected = &description
+				result, err := scope.Execute(ast, 1, func(ctx context.Context, p analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+					value, err := sqltype.Integer(p.Types[0].Type, id)
+					frame[0] = value
+					return err
+				})
+				if err != nil {
+					scope.Finish(err)
+					t.Fatal(err)
+				}
+				group := core.ScopeQuoteCaptures(scope)
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 2 || description.Quotes != nil || core.DescriptionQuoteGeneration(&description) != stamp {
+					scope.Finish(errors.New("unexpected view quote publication"))
+					t.Fatal("parameterized view retained quote group", group)
+				}
+				if previous != nil && &previous[0] == &group.Entries[0] {
+					t.Fatal("view borrowed prior parameterized group")
+				}
+				seenRoot, seenView := false, false
+				for _, capture := range group.Entries {
+					value, err := capture.Value.Text()
+					if err != nil {
+						t.Fatal(err)
+					}
+					if capture.Origin.Owner == (ids.ObjectRef{}) {
+						seenRoot = value == root
+					} else {
+						seenView = value == blocked && capture.Origin == origin
+					}
+				}
+				if !seenRoot || !seenView {
+					t.Fatal("operation-local root/view origins lost current settings")
+				}
+				for _, capture := range previous {
+					value, _ := capture.Value.Text()
+					if !strings.Contains(value, `"`) {
+						t.Fatal("view mutated previous on-setting group")
+					}
+				}
+				previous = group.Entries
+				if err := scope.Finish(nil); err != nil {
+					t.Fatal(err)
+				}
+			}()
+		}
+	})
+}
+
+func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
+	types := formatUnitTypes()
+	for _, name := range []string{"concat", "quote_ident", "quote_literal"} {
+		text := strings.Repeat("'a", 8192)
+		arg := plan.LiteralExpr{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Value: sqltype.String(types[sqltype.Text], text)}
+		node := functions.StringVariadic{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Name: name, Args: []expr.Expr{arg}}
+		group := exec.QuoteCaptureCandidate{}
+		ctx := &formatWorkContext{Context: context.Background(), checks: 4}
+		var err error
+		if name == "concat" {
+			_, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
+		} else {
+			_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &group}}, node)
+		}
+		if !errors.Is(err, context.Canceled) || group.Private || group.Entries != nil {
+			t.Fatal("cancellation exposed a scalar or partial capture", name, err)
+		}
+	}
+	// Pure bounded-size diagnostics moved to functions.TestStringVariadicOutputSize;
+	// cancellation must still leave this owner's capture group unpublished.
+}
+
+type formatWorkContext struct {
+	context.Context
+	checks int
+}
+
+func (c *formatWorkContext) Err() error {
+	c.checks--
+	if c.checks <= 0 {
+		return context.Canceled
+	}
+	return nil
+}

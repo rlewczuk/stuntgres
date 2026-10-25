@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -47,14 +48,14 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 		}
 		return statements[0].(*parser.CreateTable).Elements[0].Check
 	}
-	if err := table.BindChecks(alterHost{TableHost{DDLHost{E: e, Op: scope.Op}}, scope}, auth, old, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, scope.Input, true, nil); err != nil {
+	if err := table.BindChecks(alterHost{TableHost{core.DDLHost{E: e, Op: scope.Op}}, scope}, auth, old, []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT original CHECK(a>0))")}, scope.Input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	old.Constraints.Check[0].Ordinal = 7
 	next := *old
 	next.Constraints.Check = slices.Clone(old.Constraints.Check)
 	checks := []*parser.CheckConstraint{raw("CREATE TABLE t(CONSTRAINT z_first CHECK(a>1))"), raw("CREATE TABLE t(CONSTRAINT a_second CHECK(a<9))")}
-	if err := table.BindChecks(alterHost{TableHost{DDLHost{E: e, Op: scope.Op}}, scope}, auth, &next, checks, scope.Input, true, nil); err != nil {
+	if err := table.BindChecks(alterHost{TableHost{core.DDLHost{E: e, Op: scope.Op}}, scope}, auth, &next, checks, scope.Input, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	ordered := table.OrderedChecks(&next)
@@ -62,7 +63,7 @@ func TestAlterAddColumnSparseCheckOrdinalsAndOwnership(t *testing.T) {
 		t.Fatal("CHECK ordering/source invariant", ordered, next.Constraints.Check, old.Constraints.Check)
 	}
 	e.Mu.Lock()
-	err := table.AssignDefinitionOIDs(DDLHost{E: e}, &next)
+	err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, &next)
 	e.Mu.Unlock()
 	if err != nil || old.Constraints.Check[0].OID != 0 || next.Constraints.Check[0].OID == 0 {
 		t.Fatal("OID mutation reached source", err)
@@ -113,7 +114,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	source.Mu.Lock()
-	err = table.AssignDefinitionOIDs(DDLHost{E: source}, next)
+	err = table.AssignDefinitionOIDs(core.DDLHost{E: source}, next)
 	source.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -127,7 +128,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(source, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
+	if _, err := publishCatalog(source, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	before := source.CatalogRead()

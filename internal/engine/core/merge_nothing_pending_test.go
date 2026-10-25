@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
@@ -121,17 +122,17 @@ func TestMergeNothingCancellation(t *testing.T) {
 	defer cancel()
 	ast := enginetest.Statement(t, "MERGE INTO t USING (SELECT id FROM source ORDER BY id) s ON t.id=s.id WHEN NOT MATCHED AND s.id=1 THEN DO NOTHING WHEN NOT MATCHED THEN INSERT VALUES(s.id,20) WHEN MATCHED THEN UPDATE SET v=t.v+1 RETURNING merge_action(),t.id")
 	type completion struct {
-		result engine.Result
+		result core.Result
 		err    error
-		scope  *engine.StatementScope
+		scope  *core.StatementScope
 	}
 	done := make(chan completion, 1)
 	joined := make(chan struct{})
 	go func() {
 		defer close(joined)
 		op, err := worker.Acquire(ctx)
-		var result engine.Result
-		var scope *engine.StatementScope
+		var result core.Result
+		var scope *core.StatementScope
 		if err == nil {
 			scope, err = e.StartStatement(op)
 			if err == nil {
@@ -139,7 +140,7 @@ func TestMergeNothingCancellation(t *testing.T) {
 				err = scope.Finish(err)
 				if err != nil && result.Rows != nil {
 					result.Rows.Close()
-					result = engine.Result{}
+					result = core.Result{}
 				}
 			}
 			op.Done()

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
@@ -87,12 +88,12 @@ func TestTypedSameUsageStoredOwnRowPublicationGuard(t *testing.T) {
 }
 
 // Package fixtures construct providers, not SQL sessions or public-driver mocks.
-func typedUnitCatalog(t *testing.T, empty bool) (*engine.Engine, *catalog.Relation, *catalog.Relation) {
+func typedUnitCatalog(t *testing.T, empty bool) (*core.Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	auth, err := engine.OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +108,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*engine.Engine, *catalog.Relati
 		index[column.Name] = i
 	}
 	e.Mu.Lock()
-	source, err := table.NewRelation(engine.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
+	source, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
 	if err == nil {
 		source.RelationKind = catalog.CompositeRelation
 		if !empty {
@@ -120,7 +121,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*engine.Engine, *catalog.Relati
 	}
 	var tbl *catalog.Relation
 	if err == nil {
-		tbl, err = table.NewRelation(engine.DDLHost{E: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
+		tbl, err = table.NewRelation(core.DDLHost{E: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
 	}
 	if err == nil {
 		tbl.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
@@ -146,7 +147,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*engine.Engine, *catalog.Relati
 	return e, view.MustRelation(source.Address()), view.MustRelation(tbl.Address())
 }
 
-func inheritanceUnitRelation(e *engine.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
+func inheritanceUnitRelation(e *core.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
 	for i, name := range names {
 		d.Index[name] = i
@@ -157,13 +158,13 @@ func inheritanceUnitRelation(e *engine.Engine, name string, id ids.OID, names ..
 	return d
 }
 
-func domainUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

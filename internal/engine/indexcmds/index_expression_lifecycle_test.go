@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -39,7 +40,7 @@ func expressionRootTuples(t *testing.T, root *storage.IndexRoot) [][]string {
 	return tuples
 }
 
-func expressionWantRoot(t *testing.T, e *engine.Engine, name string, want [][]string) *storage.IndexRoot {
+func expressionWantRoot(t *testing.T, e *core.Engine, name string, want [][]string) *storage.IndexRoot {
 	t.Helper()
 	index, root := btreeRoot(t, e, name)
 	if got := expressionRootTuples(t, root); !reflect.DeepEqual(got, want) {
@@ -111,7 +112,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	temporary := description.Sequences.Constants[0].Ref.Address
 	sequenceScalar(t, session, "SELECT nextval('retained')", 40)
 	descriptor := target.Catalog.State.Get(temporary)
-	generator, memory := target.Storage.Sequences[temporary], engine.PayloadOf(session).Sequences.Memory(temporary)
+	generator, memory := target.Storage.Sequences[temporary], core.PayloadOf(session).Sequences.Memory(temporary)
 	generatorState, memoryState := *generator, *memory
 	for _, q := range []string{"CREATE TABLE t(n INT)", "INSERT INTO t VALUES(2),(2),(NULL)", "CREATE INDEX ix ON t((10/n),(n+1),(10/n))"} {
 		enginetest.Run(t, source, q)
@@ -136,7 +137,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if target.Catalog.State.Get(temporary) != descriptor || target.Storage.Sequences[temporary] != generator || engine.PayloadOf(session).Sequences.Memory(temporary) != memory || *generator != generatorState || *memory != memoryState {
+	if target.Catalog.State.Get(temporary) != descriptor || target.Storage.Sequences[temporary] != generator || core.PayloadOf(session).Sequences.Memory(temporary) != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("derived replacement changed retained TEMP descriptor/cache")
 	}
 	sequenceScalar(t, session, "SELECT nextval('retained')", 41)
@@ -181,7 +182,7 @@ func TestExpressionIndexSQLErrorAndForeignReplacementRoots(t *testing.T) {
 	}
 }
 
-func sequencePreparedDescription(t *testing.T, e *engine.Engine, s *session.Session, query string) (parser.Statement, engine.StatementDescription) {
+func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.StatementDescription) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

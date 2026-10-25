@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -77,7 +78,7 @@ func (f colcuUnitFixture) input(t *testing.T, state *catalog.State, actor author
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoColumnColumnUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engine.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 func colcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	t.Helper()
@@ -85,7 +86,7 @@ func colcuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := engine.CaptureCatalogSourceRows(in, produce)
+	source, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,12 +250,12 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = runtime
 		},
@@ -296,7 +297,7 @@ func TestInfoColumnColumnUsageCapture(t *testing.T) {
 }
 
 type colcuCancelRuntime struct {
-	engine.EngineCatalogRuntime
+	core.EngineCatalogRuntime
 	ctx *ccuCancelContext
 }
 
@@ -309,7 +310,7 @@ func (r colcuCancelRuntime) ExpressionReferences(ctx context.Context, view catal
 }
 
 type colcuWalkCancelRuntime struct {
-	engine.EngineCatalogRuntime
+	core.EngineCatalogRuntime
 	ctx *ccuCancelContext
 }
 
@@ -332,7 +333,7 @@ func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 	in = base
 	walking := &ccuCancelContext{Context: t.Context(), remaining: 2}
 	in.Context = walking
-	in.Runtime = colcuWalkCancelRuntime{EngineCatalogRuntime: in.Runtime.(engine.EngineCatalogRuntime), ctx: walking}
+	in.Runtime = colcuWalkCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), ctx: walking}
 	if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("traversal cancellation", rows, err)
 	}
@@ -340,7 +341,7 @@ func TestInfoColumnColumnUsageCancellation(t *testing.T) {
 		in = base
 		ctx := &ccuCancelContext{Context: t.Context(), remaining: remaining}
 		in.Context = ctx
-		in.Runtime = colcuCancelRuntime{EngineCatalogRuntime: in.Runtime.(engine.EngineCatalogRuntime), ctx: ctx}
+		in.Runtime = colcuCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), ctx: ctx}
 		// The second post-walker check follows one fully emitted row, regardless
 		// of dependency order; failure must discard that accumulated prefix.
 		if rows, err := produce(in); rows != nil || !errors.Is(err, context.Canceled) || ctx.calls != remaining {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -48,7 +49,7 @@ func TestStatementTimeoutAdmissionQueued(t *testing.T) {
 }
 
 // atCheckpoint runs with physical admission held and the initial Err sampled.
-func statementTimeoutAdmissionContended(t *testing.T, e *engine.Engine, op *session.Operation, cancel context.CancelCauseFunc, atCheckpoint func()) (*engine.StatementScope, error) {
+func statementTimeoutAdmissionContended(t *testing.T, e *core.Engine, op *session.Operation, cancel context.CancelCauseFunc, atCheckpoint func()) (*core.StatementScope, error) {
 	t.Helper()
 	checkpoint := &statementTimeoutAdmissionContext{Context: op.Context(), entered: make(chan struct{}), release: make(chan struct{})}
 	op.Ctx = checkpoint
@@ -64,7 +65,7 @@ func statementTimeoutAdmissionContended(t *testing.T, e *engine.Engine, op *sess
 		}
 	}
 	type outcome struct {
-		scope *engine.StatementScope
+		scope *core.StatementScope
 		err   error
 	}
 	finished := make(chan outcome, 1)
@@ -123,7 +124,7 @@ func (c *statementTimeoutAdmissionContext) Err() error {
 	return err
 }
 
-func statementTimeoutAdmissionOwner(t *testing.T, isolation ...session.Isolation) (*engine.Engine, *session.Session, ids.TxRef) {
+func statementTimeoutAdmissionOwner(t *testing.T, isolation ...session.Isolation) (*core.Engine, *session.Session, ids.TxRef) {
 	t.Helper()
 	e := engine.New()
 	sess := enginetest.StartSession(t, e, nil)
@@ -176,7 +177,7 @@ func statementTimeoutAdmissionCommand(t *testing.T, sess *session.Session) (*ses
 	return op, cancel
 }
 
-func statementTimeoutAdmissionOutcome(t *testing.T, e *engine.Engine, sess *session.Session, ref ids.TxRef, op *session.Operation, scope *engine.StatementScope, err error) {
+func statementTimeoutAdmissionOutcome(t *testing.T, e *core.Engine, sess *session.Session, ref ids.TxRef, op *session.Operation, scope *core.StatementScope, err error) {
 	t.Helper()
 	if scope != nil {
 		_ = scope.Finish(errors.New("unexpected timeout admission"))

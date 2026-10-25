@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 )
@@ -21,7 +22,7 @@ func lockUtility(t *testing.T, s *session.Session) {
 
 // Unlike public start channels, lockPending observes the real manager queue.
 // Cancellation and joining are registered after session cleanup, so they run first.
-func lockUtilityAsync(t *testing.T, e *engine.Engine, s *session.Session, prepare bool) func() {
+func lockUtilityAsync(t *testing.T, e *core.Engine, s *session.Session, prepare bool) func() {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done := make(chan error, 1)

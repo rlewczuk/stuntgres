@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
@@ -48,7 +49,7 @@ func TestOperatorClassDependencyClosure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := enginetest.PublishCatalog(e, publication, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := enginetest.PublishCatalog(e, publication, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
@@ -66,7 +67,7 @@ func TestOperatorClassDependencyClosure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stage := e.BeginCatalogStage(current)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := engine.DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{tc.root})
+			edges, err := core.DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{tc.root})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,13 +94,13 @@ func TestOperatorClassDependencyClosure(t *testing.T) {
 	}
 	for _, owned := range []ids.ObjectAddress{member.Address(), sibling.Address()} {
 		stage := e.BeginCatalogStage(current)
-		_, err := engine.DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{owned})
+		_, err := core.DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{owned})
 		diagnostic, ok := err.(*sqlstate.Error)
 		if !ok || diagnostic.Code != "2BP01" || diagnostic.Hint != "You can drop operator class class_closure for access method btree instead." {
 			t.Fatalf("member owner restriction: %#v", err)
 		}
 		// Explicitly retiring both owner and member remains legal.
-		if _, err := engine.DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{class.Address(), owned}); err != nil {
+		if _, err := core.DomainDependencyClosure(ctx, stage, []ids.ObjectAddress{class.Address(), owned}); err != nil {
 			t.Fatal("owner/member roots", err)
 		}
 		e.DiscardCatalogStage(stage)
@@ -111,7 +112,7 @@ func TestOperatorClassDependencyClosure(t *testing.T) {
 
 // This fixture constructs real descriptors and real registered routine bindings;
 // no SQL, name-based class cloning or callback stands in for native support.
-func operatorClassUnitDefinitions(t *testing.T, e *engine.Engine, name string, function ids.OID) (*catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
+func operatorClassUnitDefinitions(t *testing.T, e *core.Engine, name string, function ids.OID) (*catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
 	t.Helper()
 	builtin, ok := e.CatalogRead().OperatorClass(1978)
 	if !ok {
@@ -125,7 +126,7 @@ func operatorClassUnitDefinitions(t *testing.T, e *engine.Engine, name string, f
 
 // Fixture identities use the real allocator: bootstrap definitions can occupy
 // user-range OIDs without becoming relation descriptors.
-func catalogUnitOID(t *testing.T, e *engine.Engine) ids.OID {
+func catalogUnitOID(t *testing.T, e *core.Engine) ids.OID {
 	t.Helper()
 	e.Mu.Lock()
 	oid, err := e.Catalog.AllocateOIDLocked()

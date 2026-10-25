@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -16,12 +17,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func aclValuesUnitContext(t *testing.T) (*engine.Engine, *exec.Context) {
+func aclValuesUnitContext(t *testing.T) (*core.Engine, *exec.Context) {
 	t.Helper()
 	e := engine.New()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	return e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: engine.HostOf(&engine.StatementScope{Op: op})}}
+	return e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{Op: op})}}
 }
 func TestACLValuesZeroIdentity(t *testing.T) {
 	e, c := aclValuesUnitContext(t)

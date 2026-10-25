@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -237,7 +238,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 	}
 }
 
-func routinePendingUniqueIndex(t *testing.T, e *engine.Engine, index ids.ObjectRef, worker *session.Session) {
+func routinePendingUniqueIndex(t *testing.T, e *core.Engine, index ids.ObjectRef, worker *session.Session) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

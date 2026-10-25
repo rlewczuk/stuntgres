@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -16,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func partitionAttachUnitBegin(t *testing.T, e *Engine, sess *session.Session, isolation session.Isolation) ids.TxRef {
+func partitionAttachUnitBegin(t *testing.T, e *core.Engine, sess *session.Session, isolation session.Isolation) ids.TxRef {
 	t.Helper()
 	op, err := sess.Acquire(context.Background())
 	if err != nil {
@@ -43,7 +44,7 @@ func partitionAttachUnitBegin(t *testing.T, e *Engine, sess *session.Session, is
 	return ref
 }
 
-func partitionAttachUnitWrite(t *testing.T, e *Engine, session *session.Session, ref ids.ObjectRef, values ...int64) {
+func partitionAttachUnitWrite(t *testing.T, e *core.Engine, session *session.Session, ref ids.ObjectRef, values ...int64) {
 	t.Helper()
 	scope, op := partitionAttachUnitScope(t, e, session)
 	rows := make([][]sqltype.Value, len(values))
@@ -118,7 +119,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		store := e.Storage.Relations[ref.Address]
 		row := store.Versions[0]
 		candidate := visibility.DeleteCandidate{Ref: ref, Storage: store, Row: row.Row, Version: row.Version, Ordinal: 0}
-		if err := ScopeAcquireRow(deleting, candidate); err != nil {
+		if err := core.ScopeAcquireRow(deleting, candidate); err != nil {
 			t.Fatal(err)
 		}
 		deleted, err := deleting.Writes().Delete(candidate)
@@ -184,7 +185,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			beforeOp.Done()
 			control := &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before_attach"}}
 			mark, markOp := partitionAttachUnitScope(t, e, owner)
-			if _, err := ScopeExecuteSavepoint(mark, control, 0); err != nil {
+			if _, err := core.ScopeExecuteSavepoint(mark, control, 0); err != nil {
 				t.Fatal(err)
 			}
 			if err := mark.Finish(nil); err != nil {
@@ -210,7 +211,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			if end == "savepoint" {
 				rollback, rollbackOp := partitionAttachUnitScope(t, e, owner)
 				control.Kind = parser.RollbackSavepoint
-				if _, err := ScopeExecuteSavepoint(rollback, control, 0); err != nil {
+				if _, err := core.ScopeExecuteSavepoint(rollback, control, 0); err != nil {
 					t.Fatal(err)
 				}
 				if err := rollback.Finish(nil); err != nil {

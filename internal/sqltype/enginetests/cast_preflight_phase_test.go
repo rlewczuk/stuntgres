@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -18,7 +19,7 @@ import (
 // deterministically, without sleeps, goroutines, or a production test hook.
 type castPreflightContext struct {
 	context.Context
-	e        *engine.Engine
+	e        *core.Engine
 	t        *testing.T
 	armed    bool
 	entered  bool

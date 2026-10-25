@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -342,7 +343,7 @@ func cubeComparisonExpressionRemap(t *testing.T) {
 				source.Mu.Unlock()
 				t.Fatal(failure)
 			}
-			b := NewExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
+			b := core.NewExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			b.Params.NoParameters = true
 			bound, failure := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
@@ -546,7 +547,7 @@ func TestCubeComparisonBindingWrittenProjection(t *testing.T) {
 		auth, err := source.AuthorizationLocked(op)
 		var bound expr.Expr
 		if err == nil {
-			b := NewExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
+			b := core.NewExpressionBinder(ctx, source, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			b.Params.NoParameters = true
 			bound, err = b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})

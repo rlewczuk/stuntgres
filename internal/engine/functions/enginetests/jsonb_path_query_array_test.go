@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -70,10 +71,10 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
+	if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), b.Dependencies, captured, nil); err != nil {
 		t.Fatal("original omitted-argument binding authority", err)
 	}
-	if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), nil, captured, nil); err == nil {
+	if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), nil, captured, nil); err == nil {
 		t.Fatal("current OID repaired missing original manifest")
 	}
 	checks := append([]catalog.ExpressionDependency(nil), b.Dependencies...)
@@ -82,10 +83,10 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 			checks[i].Revision++
 		}
 	}
-	if err := exec.AdmitRoutineDescriptor(engine.RoutineAccessOf(auth), checks, captured, nil); err == nil {
+	if err := exec.AdmitRoutineDescriptor(core.RoutineAccessOf(auth), checks, captured, nil); err == nil {
 		t.Fatal("stale full-signature routine lifetime admitted")
 	}
 }
 
 // binderOperation and binderEngine read a binder's host state in tests.
-func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*engine.BindingHost).Op }
+func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*core.BindingHost).Op }

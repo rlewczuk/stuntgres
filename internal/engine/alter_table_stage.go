@@ -2,13 +2,14 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
 // authorizedStage returns stage, first beginning it over auth's catalog with
 // auth's full authority when it is nil.
-func authorizedStage(e *Engine, stage *CatalogStage, auth AuthorizationView, s *session.Session) *CatalogStage {
+func authorizedStage(e *core.Engine, stage *core.CatalogStage, auth core.AuthorizationView, s *session.Session) *core.CatalogStage {
 	if stage == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
 		stage.AuthorizeLocked(auth, s)
@@ -23,7 +24,7 @@ func authorizedStage(e *Engine, stage *CatalogStage, auth AuthorizationView, s *
 // otherwise every staged generator of a kept object is installed. A changed
 // original is a catalog.Conflict; changes may then be partly merged. The
 // caller holds Engine.mu.
-func mergeStageJournalLocked(e *Engine, stage *CatalogStage, changes *session.Journal, base *catalog.State, sequencesOnly bool) error {
+func mergeStageJournalLocked(e *core.Engine, stage *core.CatalogStage, changes *session.Journal, base *catalog.State, sequencesOnly bool) error {
 	selected := func(d catalog.Descriptor) bool {
 		sequence, ok := d.(*catalog.Relation)
 		return !sequencesOnly || ok && sequence.RelationKind == catalog.SequenceRelation
@@ -69,7 +70,7 @@ func mergeStageJournalLocked(e *Engine, stage *CatalogStage, changes *session.Jo
 
 // captureCheckSnapshots captures the comment and visibility snapshots that
 // relation's CHECKs demand, under Engine.mu, which it takes.
-func captureCheckSnapshots(e *Engine, scope *StatementScope, relation *catalog.Relation) error {
+func captureCheckSnapshots(e *core.Engine, scope *core.StatementScope, relation *catalog.Relation) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if err := e.CaptureCheckCommentSnapshotLocked(scope, relation); err != nil {

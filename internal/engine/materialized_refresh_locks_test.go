@@ -2,13 +2,14 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"testing"
 )
 
-func refreshUnitScope(t *testing.T, e *Engine, ctx context.Context) *StatementScope {
+func refreshUnitScope(t *testing.T, e *core.Engine, ctx context.Context) *core.StatementScope {
 	t.Helper()
 	session := sessionStart(t, e, nil)
 	op, err := session.Acquire(ctx)
@@ -63,7 +64,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			scope := refreshUnitScope(t, e, ctx)
 			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: tc.noData}
 			done := make(chan error, 1)
-			go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
+			go func() { done <- core.ScopeAcquireMaterializedRefresh(scope, stmt) }()
 			joined := false
 			defer func() {
 				cancel()
@@ -116,14 +117,14 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			first := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: noData}
 			second := &parser.RefreshMaterializedView{Name: first.Name}
 			a := refreshUnitScope(t, e, context.Background())
-			if err := ScopeAcquireMaterializedRefresh(a, first); err != nil {
+			if err := core.ScopeAcquireMaterializedRefresh(a, first); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			b := refreshUnitScope(t, e, ctx)
 			done := make(chan error, 1)
-			go func() { done <- ScopeAcquireMaterializedRefresh(b, second) }()
+			go func() { done <- core.ScopeAcquireMaterializedRefresh(b, second) }()
 			joined := false
 			defer func() {
 				cancel()
@@ -134,7 +135,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			}()
 			lockPending(t, e, 1)
 			before := e.Visibility.CommitSeq()
-			execute := func(scope *StatementScope, stmt *parser.RefreshMaterializedView) {
+			execute := func(scope *core.StatementScope, stmt *parser.RefreshMaterializedView) {
 				t.Helper()
 				e.Mu.Lock()
 				auth, err := e.AuthorizationLocked(scope.Op)

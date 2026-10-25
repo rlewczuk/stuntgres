@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -290,7 +291,7 @@ func currvalValue(m *sequence.Memory) int64 {
 
 // cachedSequencePathIs reports whether the session caches exactly key.
 func cachedSequencePathIs(s *session.Session, key sequence.PathKey) bool {
-	cached, ok := engine.PayloadOf(s).Sequences.CachedPathKey()
+	cached, ok := core.PayloadOf(s).Sequences.CachedPathKey()
 	return ok && cached == key
 }
 
@@ -305,7 +306,7 @@ func controlsAbort(t *testing.T, s *session.Session) {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
-	_, err := engine.EngineOf(s).Execute(op, enginetest.Statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
+	_, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23502" {
 		t.Fatal(err)
@@ -316,7 +317,7 @@ func controlsExecute(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
-	r, err := engine.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
+	r, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
 	if r.Rows != nil {
 		r.Rows.Close()
 	}

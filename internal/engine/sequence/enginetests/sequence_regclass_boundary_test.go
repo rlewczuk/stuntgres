@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -27,17 +28,17 @@ func sequenceBoundaryDiagnostic(t *testing.T, err error, want sqlstate.Error) {
 
 // Hold the actual analysis description across executions, just as a prepared
 // statement does; the direct route leaves Expected unset.
-func sequenceBoundaryRunner(t *testing.T, e *engine.Engine, op *session.Operation, query string, prepared bool) func(string) (engine.Result, error) {
+func sequenceBoundaryRunner(t *testing.T, e *core.Engine, op *session.Operation, query string, prepared bool) func(string) (core.Result, error) {
 	t.Helper()
 	ast := enginetest.Statement(t, query)
 	description, err := e.Describe(op, ast)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return func(text string) (engine.Result, error) {
+	return func(text string) (core.Result, error) {
 		scope, err := e.StartStatement(op)
 		if err != nil {
-			return engine.Result{}, err
+			return core.Result{}, err
 		}
 		if prepared {
 			scope.Expected = &description

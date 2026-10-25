@@ -1,0 +1,187 @@
+package core_test
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func TestDomainIdentityPreparedCapture(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.d AS integer")
+	old := domainUnitType(t, e.CatalogRead(), "d")
+	raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1, Pos: parser.Position{Offset: 7, Character: 8}}, TypeName: parser.TypeName{Name: "d", Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 11, Character: 12}}, Syntax: parser.PostfixCast}
+	first := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	if _, err := first.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+		t.Fatal(err)
+	}
+	key := analyze.PreparedTypeKey{Offset: 11, Kind: analyze.DomainCast}
+	if first.Prepared.Types[key].Base.Type != old.SQLType {
+		t.Fatal("cast source identity not captured")
+	}
+	expected := core.NewDescription(core.DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{old.SQLType.Usage()}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: core.NewPreparedAnalysis(core.PreparedAnalysisFields{})})
+	enginetest.RoleExecute(t, e, op, "ALTER DOMAIN public.d RENAME TO renamed")
+	current := e.CatalogRead().MustType(old.Address())
+	next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	node, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	if err != nil || node.ResultUsage().Type != current.SQLType || next.Prepared.Types[key].Base.Type != current.SQLType {
+		t.Fatal("held cast missed admitted same-ID generation", err)
+	}
+	// A sibling source occurrence must not borrow another cast's identity.
+	sibling := raw
+	sibling.TypeName.Pos = parser.Position{Offset: 29, Character: 30}
+	annotation, err := next.TypeCastAnnotation(sibling)
+	if err != nil || annotation.Name != "d" {
+		t.Fatal("sibling retargeted", annotation, err)
+	}
+	// Owner/epoch mismatch never turns the old ID into current authority.
+	foreign := newTestExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
+	annotation, err = foreign.TypeCastAnnotation(raw)
+	if err != nil || annotation.Name != "d" {
+		t.Fatal("foreign catalog reused old ID", annotation, err)
+	}
+	core.DescriptionRetireAnalysisTypeCasts(expected)
+	if !core.PreparedAnalysisNeedsReanalysis(core.DescriptionAnalysis(expected)) {
+		t.Fatal("failed reanalysis could revive captures when path restored")
+	}
+	next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+	if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
+		t.Fatal("retired old spelling was rescued")
+	}
+}
+
+func TestDomainIdentityArrayCapture(t *testing.T) {
+	for _, direct := range []bool{false, true} {
+		name := "bracketed"
+		if direct {
+			name = "companion"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
+			defer done()
+			enginetest.RoleExecute(t, e, op, "CREATE DOMAIN public.d AS integer")
+			enginetest.RoleExecute(t, e, op, "CREATE SCHEMA identity_dst")
+			old := domainUnitType(t, e.CatalogRead(), "d")
+			oldArray := e.CatalogRead().MustType(old.Address()).Array
+			raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "d", Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 12, Character: 13}, ArrayBounds: []int32{-1, -1}}, Syntax: parser.PostfixCast}
+			if direct {
+				raw.TypeName.Name, raw.TypeName.ArrayBounds = "_d", nil
+			}
+			first := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			if _, err := first.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+				t.Fatal(err)
+			}
+			key := analyze.PreparedTypeKey{Offset: 12, Kind: analyze.DomainCast}
+			captured := first.Prepared.Types[key]
+			if captured.Base.Type == nil || captured.Base.Type.ID() != oldArray || !captured.Base.Type.Element().IsDomain() {
+				t.Fatal("companion cast occurrence not captured")
+			}
+			scope, err := e.StartStatement(op)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := core.ScopeSelectPreparedAnalysis(scope, &parser.Select{}); err != nil {
+				t.Fatal(err)
+			}
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
+			if err != nil {
+				e.Mu.Unlock()
+				t.Fatal(err)
+			}
+			analysis, err := core.EnginePreparedAnalysisLocked(e, scope, auth, analyze.Binding{Prepared: first.Prepared})
+			e.Mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			arraySeen, elementSeen := false, false
+			for _, dep := range core.PreparedAnalysisDependencies(analysis) {
+				arraySeen = arraySeen || sqltype.ID(dep.Ref.Address.ObjectID) == oldArray
+				elementSeen = elementSeen || dep.Ref.Address == old.Address()
+			}
+			if !arraySeen || !elementSeen {
+				t.Fatal("held companion lost carrier or executable element dependency")
+			}
+			if err := scope.Finish(nil); err != nil {
+				t.Fatal(err)
+			}
+			valid := func() bool {
+				t.Helper()
+				e.Mu.Lock()
+				defer e.Mu.Unlock()
+				auth, err := e.AuthorizationLocked(op)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return core.EnginePreparedAnalysisValidLocked(e, auth, analysis, core.PreparedAnalysisPath(analysis))
+			}
+			expected := core.NewDescription(core.DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: analysis})
+			enginetest.RoleExecute(t, e, op, `ALTER DOMAIN public.d RENAME TO "renamed array domain"`)
+			enginetest.RoleExecute(t, e, op, `ALTER DOMAIN public."renamed array domain" SET SCHEMA identity_dst`)
+			current := e.CatalogRead().MustType(old.Address())
+			next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+			annotation, err := next.TypeCastAnnotation(raw)
+			wantName := current.Name()
+			if direct {
+				array, ok := e.CatalogRead().LookupArray(current.SQLType)
+				if !ok {
+					t.Fatal("current reciprocal companion missing")
+				}
+				wantName = array.Name()
+			}
+			if err != nil || annotation.Name != wantName || annotation.Schema == nil || annotation.Schema.Text != "identity_dst" || len(annotation.ArrayBounds) != len(raw.TypeName.ArrayBounds) || annotation.Pos != raw.TypeName.Pos {
+				t.Fatal("wrong companion annotation form", annotation, err)
+			}
+			node, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+			if err != nil || node.ResultUsage().Type.ID() != oldArray {
+				t.Fatal("held array cast lost its carrier", err)
+			}
+			if next.Prepared.Types[key].Base.Type.Element() != current.SQLType {
+				t.Fatal("held companion retained an obsolete element generation")
+			}
+			if !valid() {
+				t.Fatal("array identity edits unnecessarily retired held analysis")
+			}
+			usingIndexUnitExecute(t, e, sessionStart(t, e, nil), enginetest.Statement(t, `ALTER DOMAIN identity_dst."renamed array domain" ADD CONSTRAINT positive CHECK(VALUE>0)`))
+			if valid() {
+				t.Fatal("stable array identity concealed changed element semantics")
+			}
+			foreign := newTestExpressionBinder(t, context.Background(), engine.New(), sqltype.InputEnvironment{}, expected)
+			annotation, err = foreign.TypeCastAnnotation(raw)
+			if err != nil || annotation.Name != raw.TypeName.Name {
+				t.Fatal("foreign owner reused array occurrence", annotation, err)
+			}
+			core.DescriptionRetireAnalysisTypeCasts(expected)
+			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
+			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
+				t.Fatal("retired array occurrence rescued old spelling")
+			}
+		})
+	}
+}
+
+// Package-entry fixtures use independently built ASTs, not driver SQL. Catalog,
+// providers, committed rows, baseline roots and transaction owners are real.
+func usingIndexUnitExecute(t *testing.T, e *core.Engine, s *session.Session, statement parser.Statement) core.Result {
+	t.Helper()
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	result, err := e.Execute(op, statement, 0, nil)
+	if err != nil || result.Rows != nil {
+		t.Fatal(result, err)
+	}
+	return result
+}

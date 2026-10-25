@@ -3,11 +3,12 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-func roleTransactionalAST(t *testing.T, e *Engine, s *session.Session, statement parser.Statement) {
+func roleTransactionalAST(t *testing.T, e *core.Engine, s *session.Session, statement parser.Statement) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	_, err := e.Execute(op, statement, 0, nil)
@@ -51,7 +52,7 @@ func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 			roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_a"})
 			// The failed-statement restoration path consumes a cloned settings mark
 			// and exact refs; it neither resolves names nor repeats SET eligibility.
-			RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
+			core.RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
 			e.Locks.Restore(s.Transactions.Ticket, mark.Locks)
 			if s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction || peer.Authorization.State != peerEntry {
 				t.Fatal("cached restoration changed peer/physical identity or role action")

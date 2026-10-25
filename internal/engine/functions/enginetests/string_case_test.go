@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -139,9 +140,9 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 func TestStringCaseCollatedTypedParameterDiagnostic(t *testing.T) {
 	e := engine.New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	expected := &engine.StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{integer.Usage()}}}
+	expected := &core.StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{integer.Usage()}}}
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
-	established := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, binderOperation(b), nil)
+	established := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, binderOperation(b), nil)
 	established.Params.Parameters[1] = integer.Usage()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()

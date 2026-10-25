@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -15,7 +16,7 @@ import (
 	"testing"
 )
 
-func roleAttributeCreate(t *testing.T, e *Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
+func roleAttributeCreate(t *testing.T, e *core.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
 	t.Helper()
 	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
 	d, ok := e.Roles().Lookup(name)
@@ -24,7 +25,7 @@ func roleAttributeCreate(t *testing.T, e *Engine, op *session.Operation, name st
 	}
 	return d
 }
-func roleAttributeApply(t *testing.T, e *Engine, op *session.Operation, s parser.Statement) {
+func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {
 	t.Helper()
 	r, err := e.Execute(op, s, 0, nil)
 	if err != nil || r.Count != 0 || r.Rows != nil {
@@ -34,7 +35,7 @@ func roleAttributeApply(t *testing.T, e *Engine, op *session.Operation, s parser
 func roleAttributeAlter(name string, o parser.RoleOptions) *parser.AlterRole {
 	return &parser.AlterRole{Name: parser.Identifier{Text: name}, Options: o}
 }
-func roleAttributeFailure(t *testing.T, e *Engine, op *session.Operation, s parser.Statement, code string) {
+func roleAttributeFailure(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement, code string) {
 	t.Helper()
 	beforePublication := e.RoleStore.Published
 	next := e.RoleStore.NextPrincipal()
@@ -293,7 +294,7 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 			if create {
 				stmt = &parser.CreateRole{Name: parser.Identifier{Text: "cancel_created"}}
 			}
-			_, err := executeRoleAttributes(fixture, &StatementScope{Op: actor}, stmt, 0)
+			_, err := executeRoleAttributes(fixture, &core.StatementScope{Op: actor}, stmt, 0)
 			if !fence.observed || !errors.Is(err, context.Canceled) || fixture.RoleStore.Published != beforePublication || fixture.RoleStore.NextPrincipal() != next || fixture.RoleStore.NextRevision() != revision {
 				t.Fatal("final cancellation leaked catalog, edge, allocator", fence.observed, err)
 			}

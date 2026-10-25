@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -38,7 +39,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	}
 	sess := &session.Session{}
 	sess.ArrayRandom.SeedWords(1, 2)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: engine.HostOf(&engine.StatementScope{Op: &session.Operation{Session: sess}})}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(&core.StatementScope{Op: &session.Operation{Session: sess}})}}
 	return node.(functions.ArrayRandom), c
 }
 func arrayRelationalUnitText(t *testing.T, v sqltype.Value) string {
@@ -138,7 +139,7 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner == expr.RandomOwner(&engine.ScopeOf(c.Host).Op.Session.Random) {
+	if owner == expr.RandomOwner(&core.ScopeOf(c.Host).Op.Session.Random) {
 		t.Fatal("seedable stream reused")
 	}
 }
@@ -557,7 +558,7 @@ func TestArrayRelationalCancellation(t *testing.T) {
 	call.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: call.Usage}, Value: value}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &engine.ScopeOf(c.Host).Op.Session.ArrayRandom}
+	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &core.ScopeOf(c.Host).Op.Session.ArrayRandom}
 	c.Context = boundary
 	if result, err := call.Eval(c); !errors.Is(err, context.Canceled) || result.Type() != nil || boundary.calls < 2 {
 		t.Fatal("loop cancellation published result", result, err, boundary.calls)
@@ -594,18 +595,18 @@ func arrayInspectUnitRaw(name string, args ...parser.Expr) parser.FunctionExpr {
 	return parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args}
 }
 
-func collationUnitDefinition(e *engine.Engine, id ids.OID, name string) *catalog.Collation {
+func collationUnitDefinition(e *core.Engine, id ids.OID, name string) *catalog.Collation {
 	owner, _ := e.Roles().Lookup("postgres")
 	return &catalog.Collation{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: catalog.CollationText("C"), CType: catalog.CollationText("C"), Semantics: 950}
 }
 
-func collationUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func collationUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

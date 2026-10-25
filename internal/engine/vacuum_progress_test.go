@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-func vacuumProgressCapture(t *testing.T, e *Engine, observer *session.Session) [][]sqltype.Value {
+func vacuumProgressCapture(t *testing.T, e *core.Engine, observer *session.Session) [][]sqltype.Value {
 	t.Helper()
 	op := transactionOperation(t, observer)
 	defer op.Done()
@@ -40,7 +41,7 @@ func vacuumProgressCapture(t *testing.T, e *Engine, observer *session.Session) [
 		e.Mu.Unlock()
 		t.Fatal("unregistered progress producer")
 	}
-	rows, err := producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.Catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e, Auth: auth})})
+	rows, err := producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.Catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e, Auth: auth})})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

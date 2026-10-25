@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
@@ -19,7 +20,7 @@ import (
 
 // This fixture reuses the real partition/key/storage construction, then drives
 // the actual early-return handler rather than publishing a hand-built drop stage.
-func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *session.Session, ids.ObjectRef, catalog.Descriptor, *session.Journal) {
+func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*core.Engine, *session.Session, ids.ObjectRef, catalog.Descriptor, *session.Journal) {
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
@@ -78,7 +79,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if private {
 					session.Transactions.Catalog = changes
 				}
-				auth, err := OperationAuthorization(message.op)
+				auth, err := core.OperationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -13,8 +14,8 @@ import (
 
 // Engine.mu is held on entry and released on every return. Dependency waits
 // and provider callbacks run without it; one stage publishes the entire closure.
-func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableSetSchema, count int) (Result, error) {
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+func alterSchemaLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableSetSchema, count int) (core.Result, error) {
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
@@ -33,7 +34,7 @@ func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 	}
 	old := scope.LockedDescriptor.(*catalog.Relation)
 	if old.RelationKind != catalog.TableRelation && old.RelationKind != catalog.ViewRelation && old.RelationKind != catalog.MaterializedViewRelation && old.RelationKind != catalog.ForeignRelation {
-		return fail(SQLError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
+		return fail(core.SQLError("0A000", "ALTER TABLE SET SCHEMA supports ordinary tables only"))
 	}
 	destination, err := e.CreationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Schema, {Text: old.Name()}}})
 	if err != nil {
@@ -46,11 +47,11 @@ func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 		return fail(err)
 	}
 	if auth.Catalog.MustNamespace(old.Namespace()).Temporary != (ids.SessionToken{}) {
-		return fail(SQLError("0A000", "cannot move objects into or out of temporary schemas"))
+		return fail(core.SQLError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.Namespace() {
 		op.Session.Mu.Lock()
-		err = PublicationOperationLocked(e, op)
+		err = core.PublicationOperationLocked(e, op)
 		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
@@ -60,7 +61,7 @@ func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 		}
 		scope.Completed = true
 		e.Mu.Unlock()
-		return Result{}, nil
+		return core.Result{}, nil
 	}
 	owned := table.SetSchemaOwned(auth.Catalog, old)
 	e.Mu.Unlock()
@@ -69,7 +70,7 @@ func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 			continue
 		}
 		if err = scope.AcquireSequence(e.Catalog.Domain.Ref(ref.Epoch, r.Address()), lock.AccessExclusive, false); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	// Dependency admission does not reserve replacement; release any existing
@@ -117,12 +118,12 @@ func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 	defer e.DiscardCatalogStage(stage)
 	for i := range next {
 		if err = stage.Replace(&next[i]); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: ref.Epoch})
 	}
 	if _, conflict := err.(catalog.Conflict); conflict {
 		e.Mu.Lock()
@@ -135,8 +136,8 @@ func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, 
 		e.Mu.Unlock()
 	}
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	scope.Completed = true
-	return Result{}, nil
+	return core.Result{}, nil
 }

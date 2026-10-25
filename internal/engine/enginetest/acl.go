@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 )
 
 // SetObjectACL publishes acl on ref directly, outside GRANT and REVOKE,
 // with the validation, revision and publication steps of a grant. It follows
 // the root fixture Engine.SetObjectACL.
-func SetObjectACL(e *engine.Engine, ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
+func SetObjectACL(e *core.Engine, ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() {

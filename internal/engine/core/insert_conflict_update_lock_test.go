@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -17,7 +18,7 @@ import (
 )
 
 type conflictUpdateWorkerResult struct {
-	result engine.Result
+	result core.Result
 	err    error
 }
 type conflictUpdateWorker struct {
@@ -26,13 +27,13 @@ type conflictUpdateWorker struct {
 	joined bool
 }
 
-func conflictUpdateStartWorker(t *testing.T, e *engine.Engine, s *session.Session, q string) *conflictUpdateWorker {
+func conflictUpdateStartWorker(t *testing.T, e *core.Engine, s *session.Session, q string) *conflictUpdateWorker {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	worker := &conflictUpdateWorker{done: make(chan conflictUpdateWorkerResult, 1), cancel: cancel}
 	go func() {
 		op, err := s.Acquire(ctx)
-		var result engine.Result
+		var result core.Result
 		if err == nil {
 			result, err = e.Execute(op, mustLockStatement(q), 0, nil)
 			op.Done()
@@ -66,7 +67,7 @@ func (w *conflictUpdateWorker) await(t *testing.T) conflictUpdateWorkerResult {
 		return conflictUpdateWorkerResult{}
 	}
 }
-func conflictUpdatePendingRow(t *testing.T, e *engine.Engine, ref ids.ObjectRef, id ids.RowID) (*lock.Ticket, lock.Mode) {
+func conflictUpdatePendingRow(t *testing.T, e *core.Engine, ref ids.ObjectRef, id ids.RowID) (*lock.Ticket, lock.Mode) {
 	t.Helper()
 	enginetest.LockPending(t, e, 1)
 	lockState := e.Locks.Inspect()
@@ -125,10 +126,10 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		}()
 		// The request's timeout slot identifies the worker's admitted operation.
 		worker.Mu.Lock()
-		var scope *engine.StatementScope
+		var scope *core.StatementScope
 		for operation := range worker.Operations {
 			if &operation.LockWait == request.Policy.TimeoutSlot {
-				scope = engine.ScopeOfLease(operation.Lease)
+				scope = core.ScopeOfLease(operation.Lease)
 			}
 		}
 		worker.Mu.Unlock()

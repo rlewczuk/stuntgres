@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -15,14 +16,14 @@ import (
 	"testing"
 )
 
-func pgrowlocksUnitInstalled(t *testing.T, e *Engine) *catalog.Extension {
+func pgrowlocksUnitInstalled(t *testing.T, e *core.Engine) *catalog.Extension {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE EXTENSION pgrowlocks")
 	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"}))
 }
-func pgrowlocksUnitExpression(t *testing.T, e *Engine) plan.InstalledPgrowlocksExpr {
+func pgrowlocksUnitExpression(t *testing.T, e *core.Engine) plan.InstalledPgrowlocksExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
@@ -46,7 +47,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 	if err := extension.StockPgrowlocks.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if p.Name() != "pgrowlocks" || p.Signature != "25" || p.Result != 2249 || p.Volatility != expr.Volatile || !p.Strict || !ProcedureReturnsSet(p) || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace {
+	if p.Name() != "pgrowlocks" || p.Signature != "25" || p.Result != 2249 || p.Volatility != expr.Volatile || !p.Strict || !core.ProcedureReturnsSet(p) || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace {
 		t.Fatal("release declaration", p)
 	}
 	n := pgrowlocksUnitExpression(t, e)

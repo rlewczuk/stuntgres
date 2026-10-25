@@ -9,16 +9,16 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func objectRevokeUnitFixture(t *testing.T) (*engine.Engine, *session.Operation, authorization.PrincipalRef, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectAddress) {
+func objectRevokeUnitFixture(t *testing.T) (*core.Engine, *session.Operation, authorization.PrincipalRef, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectAddress) {
 	t.Helper()
 	e, op, reader, address := objectGrantUnitFixture(t)
 	target := roleAttributeCreate(t, e, op, "revoke_target", true, parser.RoleOptions{}).Ref

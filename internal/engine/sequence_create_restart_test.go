@@ -6,17 +6,18 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
 // Utility Prepare is analysis-only; both routes execute through a real scope.
-func sequenceCreateRestartCommand(t *testing.T, e *Engine, s *session.Session, query string, prepared bool) ([]sqlstate.Error, error) {
+func sequenceCreateRestartCommand(t *testing.T, e *core.Engine, s *session.Session, query string, prepared bool) ([]sqlstate.Error, error) {
 	t.Helper()
 	ast := statement(t, query)
-	var expected *StatementDescription
+	var expected *core.StatementDescription
 	if prepared {
-		var description StatementDescription
+		var description core.StatementDescription
 		ast, description = sequencePreparedDescription(t, e, s, query)
 		expected = &description
 	}

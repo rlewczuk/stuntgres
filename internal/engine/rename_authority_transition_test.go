@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
 // Ordinary table owner in a separately owned namespace: USAGE and CREATE are
 // independent host grants, so CREATE can be revoked without hiding the source.
-func renameAuthorityFixture(t *testing.T) (*Engine, *session.Session, *session.Session, ids.ObjectRef, authorization.ACLValue) {
+func renameAuthorityFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, ids.ObjectRef, authorization.ACLValue) {
 	t.Helper()
 	e := New()
 	admin, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)

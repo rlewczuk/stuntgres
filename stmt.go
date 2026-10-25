@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/parser"
 	"sync/atomic"
 )
@@ -18,7 +18,7 @@ type stmt struct {
 	conn        *conn
 	ast         parser.Statement
 	source      string
-	description engine.StatementDescription
+	description core.StatementDescription
 	closed      atomic.Bool
 }
 

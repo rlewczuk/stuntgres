@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,7 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 	members := []typedef.DomainReplayMember{{Name: "n", Value: &domainNull}, {Name: "a", Value: &array}}
 	mixed := typedef.DomainReplayNode{Kind: "composite", Members: &members}
 	record := typedef.DomainReplayRecord{Schema: "public", Table: "conversion_mixed_destination", Cells: []typedef.DomainReplayCell{{Column: "v", Value: &mixed}}}
-	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	u := relation.Columns[0].Usage
@@ -91,7 +92,7 @@ func TestGeometryConversionMixedReplayBoundedRow(t *testing.T) {
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.conversion_row_required AS integer NOT NULL"))
 	domainUnitTable(t, e, op, "CREATE TABLE public.conversion_row_leaf(c circle)")
 	relation := domainUnitTable(t, e, op, "CREATE TABLE public.conversion_row_destination(v public.conversion_row_required[],a public.conversion_row_leaf[])")
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

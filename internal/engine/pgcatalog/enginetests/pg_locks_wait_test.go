@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -17,7 +18,7 @@ import (
 
 // pgLocksUnitWaiter is the queued copy of r, or the zero waiter once r left
 // its queue.
-func pgLocksUnitWaiter(e *engine.Engine, r *lock.Request) lock.Waiter {
+func pgLocksUnitWaiter(e *core.Engine, r *lock.Request) lock.Waiter {
 	if state := e.Locks.Inspect().Resources[r.Resource()]; state != nil {
 		for _, w := range state.Pending {
 			if w.Request == r {
@@ -37,7 +38,7 @@ func (pgLocksUnitKey) OwnedKey() any                               { return nil 
 // pgLocksUnitKeyGrant interns a new unique key of the unit relation and grants
 // ticket its claim, pinning the key only across the acquisition as the
 // engine's unique-key path does.
-func pgLocksUnitKeyGrant(t *testing.T, e *engine.Engine, ticket *lock.Ticket) lock.Resource {
+func pgLocksUnitKeyGrant(t *testing.T, e *core.Engine, ticket *lock.Ticket) lock.Resource {
 	t.Helper()
 	resource, unpin, err := e.Locks.PinUniqueKey(context.Background(), ticket, blockingUnitResource(e).ObjectRef, 17, pgLocksUnitKey{})
 	if err != nil {
@@ -50,7 +51,7 @@ func pgLocksUnitKeyGrant(t *testing.T, e *engine.Engine, ticket *lock.Ticket) lo
 	return resource
 }
 
-func pgLocksUnitRequest(t *testing.T, e *engine.Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode, purpose lock.CompletionPurpose) (*lock.Request, context.CancelFunc) {
+func pgLocksUnitRequest(t *testing.T, e *core.Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode, purpose lock.CompletionPurpose) (*lock.Request, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	r, err := e.Locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: purpose})
@@ -71,7 +72,7 @@ func pgLocksUnitRequest(t *testing.T, e *engine.Engine, ticket *lock.Ticket, res
 	return r, cancel
 }
 
-func pgLocksUnitWait(t *testing.T, e *engine.Engine, ticket *lock.Ticket) lock.Record {
+func pgLocksUnitWait(t *testing.T, e *core.Engine, ticket *lock.Ticket) lock.Record {
 	t.Helper()
 	var waits []lock.Record
 	for _, r := range pgLocksUnitCapture(t, e) {
@@ -362,11 +363,11 @@ func pgLocksUnitBagEqual(a, b []lock.Record) bool {
 	return true
 }
 
-func blockingUnitResource(e *engine.Engine) lock.Resource {
+func blockingUnitResource(e *core.Engine) lock.Resource {
 	return lock.Resource{ObjectRef: e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999999})}
 }
 
-func pgLocksUnitCapture(t *testing.T, e *engine.Engine) []lock.Record {
+func pgLocksUnitCapture(t *testing.T, e *core.Engine) []lock.Record {
 	t.Helper()
 	records, err := e.Locks.PGLocks(e.Catalog.Domain, e.Catalog.State.Epoch())
 	if err != nil {
@@ -375,14 +376,14 @@ func pgLocksUnitCapture(t *testing.T, e *engine.Engine) []lock.Record {
 	return records
 }
 
-func blockingUnitOwner(t *testing.T, e *engine.Engine) (*session.Session, *lock.Ticket) {
+func blockingUnitOwner(t *testing.T, e *core.Engine) (*session.Session, *lock.Ticket) {
 	t.Helper()
 	s := enginetest.StartSession(t, e, nil)
 	enginetest.TransactionBegin(t, s)
 	return s, s.Transactions.Ticket
 }
 
-func pgLocksUnitAssign(t *testing.T, e *engine.Engine, ticket *lock.Ticket) uint32 {
+func pgLocksUnitAssign(t *testing.T, e *core.Engine, ticket *lock.Ticket) uint32 {
 	t.Helper()
 	e.Mu.Lock()
 	err := e.AssignTransactionXIDLocked(ticket.Ref())

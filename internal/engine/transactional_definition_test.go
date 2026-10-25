@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -13,7 +14,7 @@ import (
 
 // This fixture runs each definition through Engine.Execute in the owner's
 // transaction, not through the public SQL adapter.
-func definitionUnitStage(t *testing.T, e *Engine, owner *session.Session, q string) {
+func definitionUnitStage(t *testing.T, e *core.Engine, owner *session.Session, q string) {
 	t.Helper()
 	op := transactionOperation(t, owner)
 	defer op.Done()
@@ -22,14 +23,14 @@ func definitionUnitStage(t *testing.T, e *Engine, owner *session.Session, q stri
 	}
 }
 
-func definitionUnitGraph(t *testing.T, e *Engine, owner *session.Session) {
+func definitionUnitGraph(t *testing.T, e *core.Engine, owner *session.Session) {
 	t.Helper()
 	for _, q := range []string{`CREATE ACCESS METHOD unit_definition_am TYPE INDEX HANDLER bthandler`, `CREATE OPERATOR FAMILY public.unit_definition_family USING unit_definition_am`, `CREATE OPERATOR CLASS public.unit_definition_class DEFAULT FOR TYPE integer USING unit_definition_am FAMILY public.unit_definition_family AS OPERATOR 1 pg_catalog.<, OPERATOR 2 pg_catalog.<=, OPERATOR 3 pg_catalog.=, OPERATOR 4 pg_catalog.>=, OPERATOR 5 pg_catalog.>, FUNCTION 1 pg_catalog.btint4cmp(integer,integer)`} {
 		definitionUnitStage(t, e, owner, q)
 	}
 }
 
-func definitionUnitRead(e *Engine, owner *session.Session) catalog.Read {
+func definitionUnitRead(e *core.Engine, owner *session.Session) catalog.Read {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return e.PrivateCatalogLocked(owner.Transactions.Catalog)
@@ -185,7 +186,7 @@ func TestTransactionalDefinitionSavepoints(t *testing.T) {
 	original := definitionUnitRead(e, owner)
 	class, bound := definitionUnitClass(t, original)
 	owner.Transactions.Mu.Lock()
-	mark := CaptureSavepoint(owner.Transactions, "graph")
+	mark := core.CaptureSavepoint(owner.Transactions, "graph")
 	owner.Transactions.Mu.Unlock()
 	definitionUnitStage(t, e, owner, `ALTER OPERATOR FAMILY public.unit_definition_family USING unit_definition_am ADD FUNCTION 2 (integer,integer) pg_catalog.btint4sortsupport(internal)`)
 	definitionUnitStage(t, e, owner, `DROP OPERATOR CLASS public.unit_definition_class USING unit_definition_am`)
@@ -194,7 +195,7 @@ func TestTransactionalDefinitionSavepoints(t *testing.T) {
 	}
 	for range 2 {
 		owner.Transactions.Mu.Lock()
-		RestoreSavepoint(owner.Transactions, mark, mark.Settings.Clone())
+		core.RestoreSavepoint(owner.Transactions, mark, mark.Settings.Clone())
 		owner.Transactions.Mu.Unlock()
 		current := definitionUnitRead(e, owner)
 		restored, adapted := definitionUnitClass(t, current)
@@ -215,7 +216,7 @@ func TestTransactionalDefinitionSavepoints(t *testing.T) {
 	}
 }
 
-func definitionUnitResolution(t *testing.T, e *Engine, owner *session.Session) {
+func definitionUnitResolution(t *testing.T, e *core.Engine, owner *session.Session) {
 	t.Helper()
 	base := e.CatalogRead()
 	// Intrinsic cast metadata supplies the released endpoints/context/method,

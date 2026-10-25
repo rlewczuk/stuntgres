@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -16,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func rangePartitionRelation(t *testing.T, e *engine.Engine, name string) *catalog.Relation {
+func rangePartitionRelation(t *testing.T, e *core.Engine, name string) *catalog.Relation {
 	t.Helper()
 	descriptor, ok := e.CatalogRead().Descriptor(enginetest.RoleTableRef(t, e, name).Address)
 	relation, okRelation := descriptor.(*catalog.Relation)

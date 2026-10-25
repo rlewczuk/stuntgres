@@ -4,39 +4,40 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 )
 
-func executeOwnership(e *Engine, scope *StatementScope, s *parser.AlterOwner, count int) (Result, error) {
+func executeOwnership(e *core.Engine, scope *core.StatementScope, s *parser.AlterOwner, count int) (core.Result, error) {
 	name, identity := access.OwnershipRoleOperand(s.Target)
 	if s.Kind == "database" {
 		return executeDatabaseOwnership(e, scope, s, name, identity, count)
 	}
 	if s.Kind != "type" && s.Kind != "domain" {
-		return ExecuteRelationOwnership(e, scope, s.Name, name, identity, s.Kind, s.IfExists, count)
+		return core.ExecuteRelationOwnership(e, scope, s.Name, name, identity, s.Kind, s.IfExists, count)
 	}
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return fail(err)
 	}
-	change, err := role.PlanTypeOwnership(RoleHost{DDLHost{E: e, Op: scope.Op}}, auth, s, name, identity)
+	change, err := role.PlanTypeOwnership(RoleHost{core.DDLHost{E: e, Op: scope.Op}}, auth, s, name, identity)
 	if err != nil {
 		return fail(err)
 	}
 	if change.Object == nil {
 		e.Mu.Unlock()
 		scope.Completed = true
-		return Result{}, scope.Op.Context().Err()
+		return core.Result{}, scope.Op.Context().Err()
 	}
-	stage := OwnershipStage(e, auth, scope.Op)
+	stage := core.OwnershipStage(e, auth, scope.Op)
 	err = role.StageOwnership(stage, change.Object, change.Target)
 	e.Mu.Unlock()
 	if err == nil {
@@ -52,16 +53,16 @@ func executeOwnership(e *Engine, scope *StatementScope, s *parser.AlterOwner, co
 	}
 	if err != nil {
 		e.DiscardCatalogStage(stage)
-		return Result{}, err
+		return core.Result{}, err
 	}
-	return PublishOwnership(e, scope, stage)
+	return core.PublishOwnership(e, scope, stage)
 }
-func executeDatabaseOwnership(e *Engine, scope *StatementScope, s *parser.AlterOwner, name string, identity bool, count int) (Result, error) {
+func executeDatabaseOwnership(e *core.Engine, scope *core.StatementScope, s *parser.AlterOwner, name string, identity bool, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return fail(err)
@@ -73,18 +74,18 @@ func executeDatabaseOwnership(e *Engine, scope *StatementScope, s *parser.AlterO
 	if change.Object == nil {
 		e.Mu.Unlock()
 		scope.Completed = true
-		return Result{}, scope.Op.Context().Err()
+		return core.Result{}, scope.Op.Context().Err()
 	}
-	stage := OwnershipStage(e, auth, scope.Op)
+	stage := core.OwnershipStage(e, auth, scope.Op)
 	err = role.StageOwnership(stage, change.Object, change.Target)
 	e.Mu.Unlock()
 	if err != nil {
 		e.DiscardCatalogStage(stage)
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
-	return PublishOwnership(e, scope, stage)
+	return core.PublishOwnership(e, scope, stage)
 }

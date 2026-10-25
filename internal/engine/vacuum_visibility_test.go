@@ -6,13 +6,14 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"testing"
 )
 
-func vacuumStore(t *testing.T, e *Engine, name string) (ids.ObjectRef, *storage.Relation) {
+func vacuumStore(t *testing.T, e *core.Engine, name string) (ids.ObjectRef, *storage.Relation) {
 	t.Helper()
 	ref := catalogRef(t, e, e.CatalogRead(), name)
 	e.Mu.Lock()
@@ -187,7 +188,7 @@ func TestVacuumFreezeProvenance(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO provenance(id) VALUES(3)")
 	sessionSQL(t, s, "PREPARE TRANSACTION 'vacuum_provenance'")
 	e.Mu.Lock()
-	publisher := e.Visibility.FullXIDLocked(EnginePreparedRef(e).Lookup("vacuum_provenance").Ref)
+	publisher := e.Visibility.FullXIDLocked(core.EnginePreparedRef(e).Lookup("vacuum_provenance").Ref)
 	e.Mu.Unlock()
 	sessionSQL(t, s, "COMMIT PREPARED 'vacuum_provenance'")
 	if store.Versions[1].InsertFullXID != publisher {

@@ -7,20 +7,21 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
-func commentWant(t *testing.T, e *engine.Engine, read catalog.Read, ref ids.ObjectRef, want string) {
+func commentWant(t *testing.T, e *core.Engine, read catalog.Read, ref ids.ObjectRef, want string) {
 	t.Helper()
 	got, present, err := enginetest.Comment(e, read, ref)
 	if err != nil || got != want || present != (want != "") {
 		t.Fatalf("comment: %q %v %v want %q", got, present, err, want)
 	}
 }
-func commentFailure(t *testing.T, e *engine.Engine, op *session.Operation, q, code, message, detail string) {
+func commentFailure(t *testing.T, e *core.Engine, op *session.Operation, q, code, message, detail string) {
 	t.Helper()
 	before := e.CatalogRead()
 	rolesPublication := e.RoleStore.Published

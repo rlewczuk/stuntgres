@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -19,7 +20,7 @@ func controlsExecute(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
-	r, err := engine.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
+	r, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
 	if r.Rows != nil {
 		r.Rows.Close()
 	}
@@ -32,7 +33,7 @@ func controlsDescribe(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
-	d, err := engine.EngineOf(s).Describe(op, enginetest.Statement(t, q))
+	d, err := core.EngineOf(s).Describe(op, enginetest.Statement(t, q))
 	if err == nil && (d.Parameters.Count != 0 || len(d.Results) != 0) {
 		t.Fatal(d)
 	}
@@ -48,7 +49,7 @@ func controlsAbort(t *testing.T, s *session.Session) {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, s)
 	defer op.Done()
-	_, err := engine.EngineOf(s).Execute(op, enginetest.Statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
+	_, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23502" {
 		t.Fatal(err)
@@ -255,7 +256,7 @@ func TestTransactionControlsLockLifecycle(t *testing.T) {
 			if err := controlsDescribe(t, a, q); err != nil {
 				t.Fatal(err)
 			}
-			done := make(chan engine.Result, 1)
+			done := make(chan core.Result, 1)
 			fail := make(chan error, 1)
 			go func() {
 				op, err := b.Acquire(context.Background())
@@ -273,7 +274,7 @@ func TestTransactionControlsLockLifecycle(t *testing.T) {
 			}()
 			enginetest.LockPending(t, e, 1)
 			controlsRequire(t, a, q)
-			var r engine.Result
+			var r core.Result
 			select {
 			case r = <-done:
 			case err := <-fail:

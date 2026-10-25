@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -42,7 +43,7 @@ func TestPGSequencesCTE(t *testing.T) {
 							defer enginetest.TransactionEnd(t, a, tx, false)
 							ast, description := sequencePreparedDescription(t, e, a, q)
 							pgSequencesCTEHolder(t, e, a, false)
-							var result engine.Result
+							var result core.Result
 							if prepared {
 								var err error
 								result, err = sequencePreparedExecute(e, a, ast, &description)
@@ -102,7 +103,7 @@ func TestPGSequencesCTE(t *testing.T) {
 	}
 }
 
-func pgSequencesCTEHolder(t *testing.T, e *engine.Engine, s *session.Session, used bool) {
+func pgSequencesCTEHolder(t *testing.T, e *core.Engine, s *session.Session, used bool) {
 	t.Helper()
 	for _, name := range []string{"a", "b"} {
 		ref := enginetest.CatalogRef(t, e, e.CatalogRead(), name)
@@ -122,7 +123,7 @@ func pgSequencesCTEHolder(t *testing.T, e *engine.Engine, s *session.Session, us
 	}
 }
 
-func sequencePreparedDescription(t *testing.T, e *engine.Engine, s *session.Session, query string) (parser.Statement, engine.StatementDescription) {
+func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.StatementDescription) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -137,15 +138,15 @@ func sequencePreparedDescription(t *testing.T, e *engine.Engine, s *session.Sess
 	return ast, d
 }
 
-func sequencePreparedExecute(e *engine.Engine, s *session.Session, ast parser.Statement, d *engine.StatementDescription) (engine.Result, error) {
+func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.StatementDescription) (core.Result, error) {
 	op, err := s.Acquire(context.Background())
 	if err != nil {
-		return engine.Result{}, err
+		return core.Result{}, err
 	}
 	defer op.Done()
 	scope, err := e.StartStatement(op)
 	if err != nil {
-		return engine.Result{}, err
+		return core.Result{}, err
 	}
 	scope.Expected = d
 	r, err := scope.Execute(ast, 0, nil)
@@ -153,7 +154,7 @@ func sequencePreparedExecute(e *engine.Engine, s *session.Session, ast parser.St
 	return r, err
 }
 
-func ownedLockQueued(t *testing.T, e *engine.Engine, ref ids.ObjectRef, mode lock.Mode, done <-chan error) *lock.Request {
+func ownedLockQueued(t *testing.T, e *core.Engine, ref ids.ObjectRef, mode lock.Mode, done <-chan error) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {

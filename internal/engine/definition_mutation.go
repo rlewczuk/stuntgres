@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 )
 
 // Use the genuine catalog relation descriptor, not a synthetic lock identity.
-func acquireCollationCatalog(s *StatementScope, base catalog.Read) error {
+func acquireCollationCatalog(s *core.StatementScope, base catalog.Read) error {
 	if base.Domain() != s.Engine().Catalog.Domain || base.Epoch() != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -28,7 +29,7 @@ func acquireCollationCatalog(s *StatementScope, base catalog.Read) error {
 // Capture stages are effect-free catalog candidates. Hold their original object
 // identities before dependency discovery, then construct at most one final stage
 // from current authority. This is admission recapture, not a command retry.
-func admitDefinitionMutation(s *StatementScope, stage *CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment, noticeMark int) (*CatalogStage, error) {
+func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment, noticeMark int) (*core.CatalogStage, error) {
 	if stage == nil || stage.Owner != s.Engine() || stage.Base.Domain() != s.Engine().Catalog.Domain || stage.Base.Epoch() != s.TxRef.Epoch() {
 		return stage, ids.ErrCatalogReplaced
 	}
@@ -47,30 +48,30 @@ func admitDefinitionMutation(s *StatementScope, stage *CatalogStage, stmt parser
 	addresses := scratch[:0]
 	if alter {
 		for _, original := range stage.DomainBases {
-			if DefinitionObjectClass(original.Address().ClassID) {
+			if core.DefinitionObjectClass(original.Address().ClassID) {
 				addresses = append(addresses, original.Address())
 			}
 		}
 	}
 	for address, descriptor := range stage.Descriptors() {
-		if DefinitionObjectClass(address.ClassID) && stage.Base.Get(address) != nil && descriptor != stage.Base.Get(address) {
+		if core.DefinitionObjectClass(address.ClassID) && stage.Base.Get(address) != nil && descriptor != stage.Base.Get(address) {
 			addresses = append(addresses, address)
 		}
 	}
 	for address := range stage.Removals() {
-		if DefinitionObjectClass(address.ClassID) {
+		if core.DefinitionObjectClass(address.ClassID) {
 			addresses = append(addresses, address)
 		}
 	}
 	for _, address := range stage.DomainTargets {
-		if DefinitionObjectClass(address.ClassID) {
+		if core.DefinitionObjectClass(address.ClassID) {
 			addresses = append(addresses, address)
 		}
 	}
 	if len(addresses) == 0 {
 		return stage, nil
 	}
-	slices.SortFunc(addresses, CompareDefinitionAddress)
+	slices.SortFunc(addresses, core.CompareDefinitionAddress)
 	addresses = slices.Compact(addresses)
 	for _, address := range addresses {
 		ref := s.Engine().Catalog.Domain.Ref(stage.Base.Epoch(), address)
@@ -118,7 +119,7 @@ func admitDefinitionMutation(s *StatementScope, stage *CatalogStage, stmt parser
 	// Conditional multi-target drops cannot acquire a previously absent target
 	// or a successor while another target's lock was pending.
 	for _, address := range current.DomainTargets {
-		if DefinitionObjectClass(address.ClassID) && !slices.Contains(stage.DomainTargets, address) {
+		if core.DefinitionObjectClass(address.ClassID) && !slices.Contains(stage.DomainTargets, address) {
 			e.DiscardCatalogStage(current)
 			return stage, ids.ErrCatalogReplaced
 		}
@@ -126,20 +127,20 @@ func admitDefinitionMutation(s *StatementScope, stage *CatalogStage, stmt parser
 	// ALTER's resolved target is retained even for no-op actions. Replacements
 	// and removals must all belong to the original admitted mutation set.
 	for _, original := range current.DomainBases {
-		if alter && DefinitionObjectClass(original.Address().ClassID) && !slices.Contains(addresses, original.Address()) {
+		if alter && core.DefinitionObjectClass(original.Address().ClassID) && !slices.Contains(addresses, original.Address()) {
 			e.DiscardCatalogStage(current)
 			return stage, ids.ErrCatalogReplaced
 		}
 	}
 	for address, descriptor := range current.Descriptors() {
-		if DefinitionObjectClass(address.ClassID) && current.Base.Get(address) != nil &&
+		if core.DefinitionObjectClass(address.ClassID) && current.Base.Get(address) != nil &&
 			descriptor != current.Base.Get(address) && !slices.Contains(addresses, address) {
 			e.DiscardCatalogStage(current)
 			return stage, ids.ErrCatalogReplaced
 		}
 	}
 	for address := range current.Removals() {
-		if DefinitionObjectClass(address.ClassID) && !slices.Contains(addresses, address) {
+		if core.DefinitionObjectClass(address.ClassID) && !slices.Contains(addresses, address) {
 			e.DiscardCatalogStage(current)
 			return stage, ids.ErrCatalogReplaced
 		}

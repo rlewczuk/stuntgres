@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -231,7 +232,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 	})
 }
 
-func queryJoinsFixture(t *testing.T, q string) (*engine.Engine, *plan.Query, *exec.Source) {
+func queryJoinsFixture(t *testing.T, q string) (*core.Engine, *plan.Query, *exec.Source) {
 	t.Helper()
 	e, query, source, _ := queryJoinsAdmittedFixture(t, q, false)
 	return e, query, source
@@ -267,7 +268,7 @@ func subqueryTestTarget(t *testing.T, project *plan.ProjectNode, replacement exp
 
 // Explicit admission allows immutable captured rows to outlive catalog replacement
 // without bypassing the replacement reservation held by implicit statements.
-func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*engine.Engine, *plan.Query, *exec.Source, func()) {
+func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*core.Engine, *plan.Query, *exec.Source, func()) {
 	t.Helper()
 	ast := enginetest.Statement(t, q)
 	e := engine.New()
@@ -278,7 +279,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*engine.E
 	if err != nil {
 		t.Fatal(err)
 	}
-	var scope *engine.StatementScope
+	var scope *core.StatementScope
 	var source *exec.Source
 	released := false
 	release := func() {
@@ -312,7 +313,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*engine.E
 	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		b, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.

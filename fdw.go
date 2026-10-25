@@ -1,8 +1,8 @@
 package stuntgres
 
 import (
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 )
 
@@ -84,11 +84,11 @@ func (d *Driver) RegisterForeignDataWrapper(def ForeignDataWrapperDefinition) er
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.settingsFrozen {
-		return engine.RegistrationError("foreign registry is frozen")
+		return core.RegistrationError("foreign registry is frozen")
 	}
 	for _, old := range d.foreignWrappers {
 		if old.HandlerName == v.HandlerName {
-			return engine.RegistrationError("duplicate foreign handler")
+			return core.RegistrationError("duplicate foreign handler")
 		}
 	}
 	d.foreignWrappers = append(d.foreignWrappers, v)
@@ -105,11 +105,11 @@ func (d *Driver) RegisterForeignValidator(def ForeignValidatorDefinition) error 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.settingsFrozen {
-		return engine.RegistrationError("foreign registry is frozen")
+		return core.RegistrationError("foreign registry is frozen")
 	}
 	for _, old := range d.foreignValidators {
 		if old.Name == v.Name {
-			return engine.RegistrationError("duplicate foreign validator")
+			return core.RegistrationError("duplicate foreign validator")
 		}
 	}
 	d.foreignValidators = append(d.foreignValidators, v)

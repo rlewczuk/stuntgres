@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -72,7 +73,7 @@ func TestExtensionOwnerManifestAdmission(t *testing.T) {
 	fuzzyBase, _, fuzzyBaseExt := extensionVersionUnitInstalled(t, "1.1")
 	fuzzyUpdated, _, fuzzyUpdatedExt := extensionVersionUnitInstalled(t, "1.2")
 	for _, installed := range []struct {
-		e   *Engine
+		e   *core.Engine
 		ext *catalog.Extension
 	}{{unaccent, unaccentExt}, {intarray, intarrayExt}, {crypto, cryptoExt}, {intagg, intaggExt}, {fuzzyBase, fuzzyBaseExt}, {fuzzyUpdated, fuzzyUpdatedExt}} {
 		metadata, err := extension.OwnerMetadata(installed.e.CatalogRead(), installed.e.Roles(), installed.ext)

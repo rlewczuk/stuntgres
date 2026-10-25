@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func listPartitionUnitDescriptor(t *testing.T) (*engine.Engine, catalog.Read, *catalog.Relation, *catalog.Relation) {
+func listPartitionUnitDescriptor(t *testing.T) (*core.Engine, catalog.Read, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e, view, root, leaf := hashPartitionUnitEngine(t)
 	usage := root.Columns[0].Usage
@@ -192,7 +193,7 @@ func operatorFamilyTestOrdering(usage sqltype.Usage, class sqltype.IndexClass) (
 	return routine.BindIndexOrdering(operatorFamilyTestRead(), usage, class)
 }
 
-func collationUnitDefinition(e *engine.Engine, id ids.OID, name string) *catalog.Collation {
+func collationUnitDefinition(e *core.Engine, id ids.OID, name string) *catalog.Collation {
 	owner, _ := e.Roles().Lookup("postgres")
 	return &catalog.Collation{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: catalog.CollationText("C"), CType: catalog.CollationText("C"), Semantics: 950}
 }

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -239,7 +240,7 @@ func partitionConstraintDescriptors(t *testing.T) partitionConstraintUnit {
 }
 
 type partitionConstraintUnit struct {
-	e                         *engine.Engine
+	e                         *core.Engine
 	root, leaf, parent, child *catalog.Relation
 	view                      catalog.Read
 }

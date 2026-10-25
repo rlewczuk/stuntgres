@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 )
@@ -45,17 +46,17 @@ func TestInfoRoleColumnGrantsCaptureOwnership(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { copy := *in.Source; copy.ObjectAddress.ObjectID++; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.State.CurrentUser = f.f.e.RoleStore.Domain.Principal(999999)
 			in.Runtime = runtime
 		},

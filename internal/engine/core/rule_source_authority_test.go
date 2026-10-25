@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -36,7 +36,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					e, _, src, sink := ruleUnitCatalog(t)
 					op, done := enginetest.RoleOperation(t, e, "postgres")
 					defer done()
-					auth, err := engine.OperationAuthorization(op)
+					auth, err := core.OperationAuthorization(op)
 					if err != nil {
 						t.Fatal(err)
 					}

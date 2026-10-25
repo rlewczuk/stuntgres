@@ -2,12 +2,13 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/table"
 )
 
-func acquireTypedSources(scope *StatementScope, stage *CatalogStage, drop bool) error {
+func acquireTypedSources(scope *core.StatementScope, stage *core.CatalogStage, drop bool) error {
 	if stage == nil || stage.Owner != scope.Engine() || stage.Base.Domain() != scope.Engine().Catalog.Domain || stage.Base.Epoch() != scope.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}

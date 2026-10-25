@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 )
 
-func rlsBaseLockCancellation(t *testing.T, e *Engine, d *catalog.Relation) {
+func rlsBaseLockCancellation(t *testing.T, e *core.Engine, d *catalog.Relation) {
 	t.Helper()
 	holder := sessionStart(t, e, nil)
 	waiter := sessionStart(t, e, nil)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -43,7 +43,7 @@ func (p *protocolCopy) closeCommand() {
 	p.started = false
 	p.transportErr = nil
 }
-func (p *protocolCopy) start(metadata engine.CopyProtocolMetadata) error {
+func (p *protocolCopy) start(metadata core.CopyProtocolMetadata) error {
 	p.release()
 	p.ended = false
 	p.transportErr = nil

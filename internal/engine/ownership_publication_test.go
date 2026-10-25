@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"sync"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-func ownershipCleanupStage(t *testing.T) (*Engine, *CatalogStage, *catalog.Namespace) {
+func ownershipCleanupStage(t *testing.T) (*core.Engine, *core.CatalogStage, *catalog.Namespace) {
 	t.Helper()
 	e, owner, source, target, reader := ownershipUnitRoles()
 	setFixtureEdges(e.RoleStore.Published, append(fixtureEdges(e.RoleStore.Published), authorization.Membership{Role: target, Member: source, Grantor: owner, Admin: true}, authorization.Membership{Role: target, Member: reader, Grantor: source, Inherit: true, Set: true}))
@@ -60,7 +61,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 				done = cleanup
-				auth, err := OperationAuthorization(op)
+				auth, err := core.OperationAuthorization(op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -125,7 +126,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				stage.RoleCandidateRecord = &next
 			}
 			state, roles := e.Catalog.State, e.RoleStore.Published
-			if _, err = publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+			if _, err = publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("stale/exhausted publication succeeded")
 			}
 			if e.Catalog.State != state || e.RoleStore.Published != roles {
@@ -146,7 +147,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 // channels make cancellation deterministic without sleeps or timing assertions.
 type ownershipInstallContext struct {
 	context.Context
-	e                *Engine
+	e                *core.Engine
 	armed            bool
 	once             sync.Once
 	entered, release chan struct{}
@@ -174,7 +175,10 @@ func TestRoleOwnershipPublicationFinalInstallCancellation(t *testing.T) {
 	state, roles := e.Catalog.State, e.RoleStore.Published
 	ctx.armed = true
 	result := make(chan error, 1)
-	go func() { _, err := publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()}); result <- err }()
+	go func() {
+		_, err := publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
+		result <- err
+	}()
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 	select {
@@ -229,12 +233,12 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_fenced"})
-	stage := OwnershipStage(e, auth, op)
+	stage := core.OwnershipStage(e, auth, op)
 	if err = role.StageOwnership(stage, auth.Catalog.Get(address), target); err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +251,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	go func() {
 		close(ready)
 		<-release
-		_, err := publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err := publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
 		result <- err
 	}()
 	<-ready

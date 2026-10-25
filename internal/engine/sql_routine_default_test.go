@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
@@ -30,7 +31,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 	}
 	read := e.CatalogRead()
 	relation := read.MustRelation(roleTableRef(t, e, "routine_unit_stored_default").Address)
-	if err := (RelationProvider).Validate(read, relation); err != nil {
+	if err := (core.RelationProvider).Validate(read, relation); err != nil {
 		t.Fatal("valid closed SQL default rejected or evaluated", err)
 	}
 	if _, err := (stored.ScalarRenderer{}).SQL(ctx, read, original); err != nil {
@@ -63,7 +64,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 			definition := relation.ColumnMeta.Defaults[1]
 			definition.Expression = bad
 			candidate.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: definition}
-			if err := (RelationProvider).Validate(read, &candidate); err == nil {
+			if err := (core.RelationProvider).Validate(read, &candidate); err == nil {
 				t.Fatal("forged catalog SQL default accepted")
 			}
 		})

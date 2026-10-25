@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -14,7 +15,7 @@ import (
 
 // These are package fixtures: SQL constructs physical descriptors through the
 // real providers; assertions exercise the issuer and catalog validator directly.
-func retiredUnitTable(t *testing.T, e *Engine, name string) *catalog.Relation {
+func retiredUnitTable(t *testing.T, e *core.Engine, name string) *catalog.Relation {
 	t.Helper()
 	for _, d := range e.CatalogRead().Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok && r.Name() == name {
@@ -25,7 +26,7 @@ func retiredUnitTable(t *testing.T, e *Engine, name string) *catalog.Relation {
 	return nil
 }
 
-func retiredRuntimeFixture(t *testing.T) (*Engine, *session.Operation) {
+func retiredRuntimeFixture(t *testing.T) (*core.Engine, *session.Operation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -133,8 +134,8 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	c := retiredUnitTable(t, e, "c")
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Events: map[ids.ObjectAddress][]table.InheritanceAlterEvent{}}}
-	scope := &StatementScope{}
+	state := &core.InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Events: map[ids.ObjectAddress][]table.InheritanceAlterEvent{}}}
+	scope := &core.StatementScope{}
 	scope.Inheritance.Alter = state
 	next := *p
 	next.Columns = slices.Clone(p.Columns[1:])

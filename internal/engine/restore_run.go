@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -22,7 +23,7 @@ import (
 // running that call touches it. Every step runs against stage, the private
 // restore engine, never against the target engine.
 type restoreRun struct {
-	stage      *Engine
+	stage      *core.Engine
 	source     string
 	statements []parser.Statement
 
@@ -91,7 +92,7 @@ func (r *restoreRun) startCaptures(archiveHighWater uint64) {
 // restoreHost is the root's side of one Restore. Only Start and Publish touch
 // target, the engine being restored; every hook entry runs on run.stage.
 type restoreHost struct {
-	target *Engine
+	target *core.Engine
 	run    *restoreRun
 }
 
@@ -128,16 +129,16 @@ func (h *restoreHost) Start(ctx context.Context) (*session.Operation, func(), er
 		endSession()
 		return nil, nil, err
 	}
-	OperationReplay(op).StagingEffects = true
+	core.OperationReplay(op).StagingEffects = true
 	end := func() {
-		OperationReplay(op).StagingEffects = false
-		OperationReplay(op).SQLBodies = false
-		OperationReplay(op).DefaultReplay = false
-		OperationReplay(op).LargeObjectAuthority = false
-		OperationReplay(op).PartitionAttach = false
-		OperationReplay(op).PartitionCheck = nil
-		OperationReplay(op).PartitionUsingIndex = nil
-		OperationReplay(op).PartitionUnique = nil
+		core.OperationReplay(op).StagingEffects = false
+		core.OperationReplay(op).SQLBodies = false
+		core.OperationReplay(op).DefaultReplay = false
+		core.OperationReplay(op).LargeObjectAuthority = false
+		core.OperationReplay(op).PartitionAttach = false
+		core.OperationReplay(op).PartitionCheck = nil
+		core.OperationReplay(op).PartitionUsingIndex = nil
+		core.OperationReplay(op).PartitionUnique = nil
 		op.Done()
 		endSession()
 	}
@@ -165,11 +166,11 @@ func (h *restoreHost) Publish(ctx context.Context, op *session.Operation) error 
 // per-statement replay flags, closes any rows and detaches the notices.
 func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (control.Outcome, error) {
 	var err error
-	var result Result
+	var result core.Result
 	if domain, ok := stmt.(*parser.CreateDomain); ok {
 		if record, paired := r.domainDefaultPairs[domain]; paired {
-			OperationReplay(op).DomainDefault = &DomainDefaultReplayCapture{Statement: domain, Record: record}
-			defer func() { OperationReplay(op).DomainDefault = nil }()
+			core.OperationReplay(op).DomainDefault = &core.DomainDefaultReplayCapture{Statement: domain, Record: record}
+			defer func() { core.OperationReplay(op).DomainDefault = nil }()
 		}
 	}
 	if insertion, ok := stmt.(*parser.Insert); ok {
@@ -181,19 +182,19 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	} else {
 		result, err = r.stage.Execute(op, stmt, 0, nil)
 	}
-	OperationReplay(op).DefaultReplay = false
-	OperationReplay(op).LargeObjectAuthority = false
-	OperationReplay(op).PartitionAttach = false
-	OperationReplay(op).PartitionCheck = nil
-	OperationReplay(op).PartitionUsingIndex = nil
-	OperationReplay(op).PartitionUnique = nil
+	core.OperationReplay(op).DefaultReplay = false
+	core.OperationReplay(op).LargeObjectAuthority = false
+	core.OperationReplay(op).PartitionAttach = false
+	core.OperationReplay(op).PartitionCheck = nil
+	core.OperationReplay(op).PartitionUsingIndex = nil
+	core.OperationReplay(op).PartitionUnique = nil
 	if result.Rows != nil {
 		closeErr := result.Rows.Close()
 		if err == nil {
 			err = closeErr
 		}
 	}
-	OperationReplay(op).CommentAuthority = false
+	core.OperationReplay(op).CommentAuthority = false
 	op.DetachNotices()
 	return control.Outcome{Created: result.Created}, err
 }

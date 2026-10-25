@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
@@ -15,7 +15,7 @@ import (
 // RoleOperation starts a session authenticated as the login role name and
 // acquires its operation. The cleanup releases the operation and ends the
 // session.
-func RoleOperation(t testing.TB, e *engine.Engine, name string) (*session.Operation, func()) {
+func RoleOperation(t testing.TB, e *core.Engine, name string) (*session.Operation, func()) {
 	t.Helper()
 	ref, err := e.ResolveLogin(name)
 	if err != nil {
@@ -40,13 +40,13 @@ func RoleOperation(t testing.TB, e *engine.Engine, name string) (*session.Operat
 
 // RoleError requires that sql fails on op with exactly the diagnostic code,
 // message and detail, at no position.
-func RoleError(t testing.TB, e *engine.Engine, op *session.Operation, sql, code, message, detail string) {
+func RoleError(t testing.TB, e *core.Engine, op *session.Operation, sql, code, message, detail string) {
 	t.Helper()
 	RoleErrorPosition(t, e, op, sql, code, message, detail, "")
 }
 
 // RoleErrorPosition is RoleError with an expected position.
-func RoleErrorPosition(t testing.TB, e *engine.Engine, op *session.Operation, sql, code, message, detail, position string) {
+func RoleErrorPosition(t testing.TB, e *core.Engine, op *session.Operation, sql, code, message, detail, position string) {
 	t.Helper()
 	_, err := e.Execute(op, Statement(t, sql), 0, nil)
 	var d *sqlstate.Error
@@ -61,7 +61,7 @@ func RoleErrorPosition(t testing.TB, e *engine.Engine, op *session.Operation, sq
 
 // RoleExecute executes sql without parameters on op, fails the test on error
 // and closes the result rows at test cleanup.
-func RoleExecute(t testing.TB, e *engine.Engine, op *session.Operation, sql string) engine.Result {
+func RoleExecute(t testing.TB, e *core.Engine, op *session.Operation, sql string) core.Result {
 	t.Helper()
 	r, err := e.Execute(op, Statement(t, sql), 0, nil)
 	if err != nil {

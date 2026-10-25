@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/table"
@@ -26,7 +27,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 				defer e.DiscardCatalogStage(stage)
 				raw := &parser.ExclusionConstraint{Index: parser.CreateIndex{Method: name, Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "n"}}}}, Operators: []parser.ObjectName{ddlHostName("=")}}
 				e.Mu.Lock()
-				err := index.StageExclusion(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, sqltype.InputEnvironment{}, &catalog.Relation{}, raw, false)
+				err := index.StageExclusion(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, sqltype.InputEnvironment{}, &catalog.Relation{}, raw, false)
 				e.Mu.Unlock()
 				code, message := "0A000", `access method "`+name+`" does not support exclusion constraints`
 				if kind == "table" {
@@ -71,7 +72,7 @@ func TestAccessMethodExclusionDescriptorPrecedence(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(before)
 			defer e.DiscardCatalogStage(stage)
-			h := TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}
+			h := TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 			typ, _ := before.LookupType(sqltype.Int4)
 			raw := &parser.ExclusionConstraint{
 				Name:      parser.Identifier{Text: "am_exclusion_backing"},

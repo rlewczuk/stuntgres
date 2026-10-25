@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
 
-func updateRowWorker(t *testing.T, e *engine.Engine, s *session.Session, q string) func(error) {
+func updateRowWorker(t *testing.T, e *core.Engine, s *session.Session, q string) func(error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done := enginetest.LockAsync(e, s, ctx, q, false)

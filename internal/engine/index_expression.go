@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/index"
@@ -18,7 +19,7 @@ import (
 // used by the enclosing CREATE or TYPE owner.
 // Ordering admission belongs to the caller's final selected class/collation,
 // not an expression-only default comparator.
-func bindIndexExpression(e *Engine, op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
+func bindIndexExpression(e *core.Engine, op *session.Operation, input sqltype.InputEnvironment, auth core.AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.IndexExpressionBinder(op, input, auth, parent)
 	binder.Stored.CheckLiterals = literals
 	definition, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
@@ -42,7 +43,7 @@ func bindIndexExpression(e *Engine, op *session.Operation, input sqltype.InputEn
 		return nil, "", err
 	}
 	if exec.PlannedVolatility(execution) != expr.Immutable {
-		return nil, "", SQLError("42P17", "functions in index expression must be marked IMMUTABLE")
+		return nil, "", core.SQLError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
 	if _, err = (stored.ScalarRenderer{ACLOutput: regobj.ACLItemOutput{Owner: auth.Owner, Roles: auth.Roles}, Owner: parent, Dependencies: &key.Dependencies}).SQL(op.Context(), auth.Catalog, definition); err != nil {

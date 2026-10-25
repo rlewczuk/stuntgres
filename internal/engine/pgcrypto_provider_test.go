@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -23,13 +24,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgcryptoUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
+func pgcryptoUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
+	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "pgcrypto"}})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +72,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

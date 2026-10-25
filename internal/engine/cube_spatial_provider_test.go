@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func cubeSpatialUnitArguments(t *testing.T, e *Engine, base *catalog.Type) [2]expr.Expr {
+func cubeSpatialUnitArguments(t *testing.T, e *core.Engine, base *catalog.Type) [2]expr.Expr {
 	t.Helper()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	var args [2]expr.Expr

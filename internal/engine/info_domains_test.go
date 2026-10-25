@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -35,7 +36,7 @@ func domainsUnitInput(t *testing.T, f dcUnitFixture, state *catalog.State, actor
 	in.Source = in.Catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoDomainsOID})
 	in.Ref = in.Owner.Domain.Ref(in.Catalog.Epoch(), in.Source.Address())
 	var err error
-	in.TypeNamePath, err = ReferencePath(in.Runtime.(EngineCatalogRuntime).Auth)
+	in.TypeNamePath, err = core.ReferencePath(in.Runtime.(core.EngineCatalogRuntime).Auth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +120,7 @@ func domainsUnitCapture(t *testing.T, in pgcatalog.Input, want map[[27]any]int) 
 	if !ok {
 		t.Fatal("missing domains producer")
 	}
-	captured, err := CaptureCatalogSourceRows(in, produce)
+	captured, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,12 +221,12 @@ func TestInfoDomainsCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) { in.TypeNamePath = nil },
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.RoleRecord = nil
 			in.Runtime = r
 		},
 		func(in *pgcatalog.Input) {
-			r := in.Runtime.(EngineCatalogRuntime)
+			r := in.Runtime.(core.EngineCatalogRuntime)
 			r.Auth.State.CurrentUser = authorization.PrincipalRef{}
 			in.Runtime = r
 		},
@@ -361,7 +362,7 @@ func infoDomainsPairedCapture(t *testing.T) {
 	next.RemoveDescriptor(f.plain.Address())
 	f.f.e.Catalog.PublishLocked(next)
 	f.f.e.Mu.Lock()
-	captured, err := EngineOpenRelationSourceLocked(f.f.e, scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	captured, err := core.EngineOpenRelationSourceLocked(f.f.e, scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

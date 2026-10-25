@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -14,7 +15,7 @@ import (
 	"testing"
 )
 
-func pgRangeUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
+func pgRangeUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 3541}
 	d, ok := e.Catalog.State.Relation(a)
@@ -97,7 +98,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		if !rowOK || !arrayOK || row.SQLType != ownedRow || array.SQLType != ownedArray || row.Array != 10100 || array.SQLType.Element() != row.SQLType || row.OwningRelation != d.Address() || array.OwningRelation != d.Address() || row.Owner != d.Owner || array.Owner != d.Owner {
 			t.Fatal("row/array ownership", row, array)
 		}
-		if err := (RelationProvider).Validate(view, d); err != nil {
+		if err := (core.RelationProvider).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -111,7 +112,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	bag := pgRangeUnitBag(t, rows, d)
-	second, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGRange)
+	second, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGRange)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +139,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	wrong.Columns[5].Usage.Type = d.Columns[0].Usage.Type
 	badSources = append(badSources, &wrong)
 	for _, bad := range badSources {
-		got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: bad, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGRange)
+		got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: bad, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGRange)
 		message := "stuntgres: foreign range source type"
 		if bad == nil || len(bad.Columns) != 7 {
 			message = "stuntgres: invalid range source shape"
@@ -158,7 +159,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 			cancel()
 			ctx = during
 		}
-		got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGRange)
+		got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGRange)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled capture", got, err)
@@ -180,14 +181,14 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	if d == fresh || oldRow == newRow {
 		t.Fatal("relation/row descriptor reused")
 	}
-	freshRows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: fresh, Owner: (freshCatalog).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGRange)
+	freshRows, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: fresh, Owner: (freshCatalog).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGRange)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(pgRangeUnitBag(t, freshRows, fresh), bag) || !reflect.DeepEqual(pgRangeUnitBag(t, rows, d), bag) {
 		t.Fatal("replacement changed retained facts")
 	}
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: d, Owner: (freshCatalog).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGRange); got != nil || err == nil || err.Error() != "stuntgres: foreign range source type" {
+	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: freshCatalog, Ref: freshRef, Source: d, Owner: (freshCatalog).Owner(), Runtime: core.EngineCatalogRuntime{}}, capturePGRange); got != nil || err == nil || err.Error() != "stuntgres: foreign range source type" {
 		t.Fatal("old source accepted by fresh generation", got, err)
 	}
 }

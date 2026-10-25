@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-func lockPending(t *testing.T, e *Engine, n int) {
+func lockPending(t *testing.T, e *core.Engine, n int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -30,7 +31,7 @@ func lockPending(t *testing.T, e *Engine, n int) {
 	}
 }
 
-func lockEmpty(t *testing.T, e *Engine) {
+func lockEmpty(t *testing.T, e *core.Engine) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
 	if len(lockState.Owners) != 0 || len(lockState.Resources) != 0 {
@@ -38,7 +39,7 @@ func lockEmpty(t *testing.T, e *Engine) {
 	}
 }
 
-func lockAsync(e *Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
+func lockAsync(e *core.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		op, err := s.Acquire(ctx)
@@ -46,7 +47,7 @@ func lockAsync(e *Engine, s *session.Session, ctx context.Context, q string, pre
 			if prepare {
 				_, err = e.Describe(op, mustLockStatement(q))
 			} else {
-				var r Result
+				var r core.Result
 				r, err = e.Execute(op, mustLockStatement(q), 0, nil)
 				if r.Rows != nil {
 					r.Rows.Close()

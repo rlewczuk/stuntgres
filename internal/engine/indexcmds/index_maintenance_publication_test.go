@@ -8,11 +8,12 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 )
 
-func indexMaintenanceStage(t *testing.T, e *engine.Engine, table string, indexes ...string) *engine.CatalogStage {
+func indexMaintenanceStage(t *testing.T, e *core.Engine, table string, indexes ...string) *core.CatalogStage {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
@@ -44,7 +45,7 @@ func TestIndexMaintenanceDescriptorUnchangedIntent(t *testing.T) {
 	if e.Storage.IndexRoots[a.Address()] != old {
 		t.Fatal("validation installed a root")
 	}
-	changes, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+	changes, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	if err != nil || len(changes.Definitions) != 0 {
 		t.Fatal("descriptor-unchanged rebuild forged a definition change", changes, err)
 	}
@@ -88,7 +89,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+				if _, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 					t.Fatal(err)
 				}
 			case "reset":
@@ -97,7 +98,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 				}
 			}
 			before := indexMaintenanceCapture(e)
-			_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if action == "reset" {
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("epoch replacement accepted old rebuild", err)
@@ -126,7 +127,7 @@ func TestIndexMaintenanceFinalPublicationCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: first.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	polls := counting.checks.Load()
@@ -142,7 +143,7 @@ func TestIndexMaintenanceFinalPublicationCancellation(t *testing.T) {
 		t.Fatal("cancellation fired before root preparation", err)
 	}
 	before := indexMaintenanceCapture(e)
-	_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: second.Base.Epoch()})
+	_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: second.Base.Epoch()})
 	if !errors.Is(err, context.Canceled) || finalVeto.checks.Load() != polls {
 		t.Fatal("final publication veto was not honored", polls, finalVeto.checks.Load(), err)
 	}
@@ -166,7 +167,7 @@ func TestIndexMaintenancePreservesNewestUnchangedSibling(t *testing.T) {
 	if newestB == oldB {
 		t.Fatal("fixture did not publish a newer sibling")
 	}
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if e.Storage.IndexRoots[a.Address()] == oldA || e.Storage.IndexRoots[b.Address()] != newestB {
@@ -202,7 +203,7 @@ func TestIndexMaintenanceFinalAuthorizationFence(t *testing.T) {
 				enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION other")
 			}
 			before := indexMaintenanceCapture(e)
-			_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || err.Error() != "stuntgres: authorization changed before publication" {
 				t.Fatal("final authorization fence accepted stale authority", err)
 			}

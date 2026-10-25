@@ -10,13 +10,14 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func domainAlterPublicationFixture(t *testing.T) (*Engine, *session.Operation, func(), *catalog.Type, *catalog.Relation, *CatalogStage, *PreparedCatalogPublication) {
+func domainAlterPublicationFixture(t *testing.T) (*core.Engine, *session.Operation, func(), *catalog.Type, *catalog.Relation, *core.CatalogStage, *core.PreparedCatalogPublication) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -113,7 +114,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 			before := e.Catalog.State
 			stores := maps.Clone(e.Storage.Relations)
 			roots := maps.Clone(e.Storage.IndexRoots)
-			_, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if kind == "success" || kind == "unrelated" {
 				if err != nil || domainUnitType(t, e.CatalogRead(), "d").DomainChecks[0].NotValid {
 					t.Fatal("validity not atomically installed", err)
@@ -137,7 +138,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 			if mode == "cancel_after" {
 				barrier.late = cancel
 			}
-			SetPreparedCatalogPublicationCtx(prepared, barrier)
+			core.SetPreparedCatalogPublicationCtx(prepared, barrier)
 			before, store := e.Catalog.State, e.Storage.Relations[table.Address()]
 			finished := make(chan error, 1)
 			joined := false
@@ -157,7 +158,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				}
 			}()
 			go func() {
-				_, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 				finished <- err
 			}()
 			select {

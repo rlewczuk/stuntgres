@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -21,10 +22,10 @@ import (
 var _ partition.Host = TableHost{}
 
 func (h TableHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, []int, error) {
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	ref := h.E.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	namespace := analyze.RelationNamespace(auth.Catalog, d, ref, 0)
-	binder := NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, input, h.Op, nil)
 	binder.Consumer.PartitionConsumer, binder.Params.NoParameters, binder.Query.Auth = "partition key expression", true, &auth
 	binder.Query.Namespace = &namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
@@ -43,7 +44,7 @@ func (h TableHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw p
 // partitionBoundBinder binds the bound datums of one pending definition for
 // the statement that owns it.
 type partitionBoundBinder struct {
-	scope   *StatementScope
+	scope   *core.StatementScope
 	pending *pendingPartitionDefinition
 }
 
@@ -67,7 +68,7 @@ func (b partitionBoundBinder) BindBound(datum parser.PartitionDatum, key catalog
 	if auth.Revision != p.stage.AuthRevision || auth.RoleRecord.Revision != p.stage.RoleRevision {
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
 	}
-	binder := NewExpressionBinder(scope.Op.Context(), e, scope.Input, scope.Op, nil)
+	binder := core.NewExpressionBinder(scope.Op.Context(), e, scope.Input, scope.Op, nil)
 	binder.Query.Auth = &p.auth
 	binder.Params.NoParameters = true
 	binder.Consumer.PartitionConsumer = "partition bound"

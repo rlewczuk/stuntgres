@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
@@ -25,7 +26,7 @@ func TestDomainIdentityGrantStamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	host := RoleHost{DDLHost{E: e, Op: op}}
+	host := RoleHost{core.DDLHost{E: e, Op: op}}
 	req, err := role.ObjectGrantRequest(host, auth, raw)
 	if err != nil {
 		t.Fatal(err)

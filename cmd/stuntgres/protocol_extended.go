@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 )
 
@@ -105,7 +105,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 				if message.tag == 'C' {
 					err = scope.CloseProtocolStatement(name)
 				} else {
-					var statement engine.ProtocolStatement
+					var statement core.ProtocolStatement
 					statement, err = scope.DescribeProtocolStatement(name)
 					if err == nil {
 						response = func() error {
@@ -128,7 +128,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 				if message.tag == 'C' {
 					err = scope.CloseProtocolPortal(name)
 				} else {
-					var portal engine.ProtocolPortalDescription
+					var portal core.ProtocolPortalDescription
 					portal, err = scope.DescribeProtocolPortal(name)
 					if err == nil {
 						response = func() error {
@@ -181,7 +181,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 				}
 				return socketErr
 			}
-			var execution engine.ProtocolExecution
+			var execution core.ProtocolExecution
 			execution, err = scope.ExecuteProtocolPortal(name, uint32(max(limit, 0)), sink, stream, stream, c.copyHooks)
 			response = func() error {
 				if e := stream.complete(); e != nil {

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -99,7 +99,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal(err)
 	}
 	var op *session.Operation
-	var scope *engine.StatementScope
+	var scope *core.StatementScope
 	type outcome struct {
 		admitted bool
 		err      error

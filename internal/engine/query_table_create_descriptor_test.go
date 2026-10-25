@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -18,7 +19,7 @@ import (
 	"testing"
 )
 
-func queryCreateDomain(t *testing.T, e *Engine) *catalog.Type {
+func queryCreateDomain(t *testing.T, e *core.Engine) *catalog.Type {
 	t.Helper()
 	e.Mu.Lock()
 	oid, err := e.Catalog.AllocateOIDLocked()
@@ -60,11 +61,11 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: []parser.Identifier{{Text: "renamed"}}, Query: &parser.Select{}, NoData: true}
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	var stage *CatalogStage
+	var stage *core.CatalogStage
 	var d *catalog.Relation
 	var skipped bool
 	if err == nil {
-		stage, d, skipped, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: query})
+		stage, d, skipped, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: query})
 	}
 	e.Mu.Unlock()
 	if err != nil || skipped {
@@ -92,7 +93,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	// The actual dependency closure records the destination's stable attribute.
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.DomainTargets = []ids.ObjectAddress{domain.Address()}
-	edges, err := DomainDependencyClosure(context.Background(), drop, drop.DomainTargets)
+	edges, err := core.DomainDependencyClosure(context.Background(), drop, drop.DomainTargets)
 	if err != nil || len(edges) != 1 || edges[0].Target != domain.Address() || edges[0].Column != "d" || edges[0].Address != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: d.Address().ObjectID, SubID: 2}) {
 		t.Fatal("stored domain dependency lost", edges, err)
 	}
@@ -123,9 +124,9 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 			registry := queryCreateTypes(e)
 			e.Mu.Lock()
 			auth, authErr := e.AuthorizationLocked(op)
-			var stage *CatalogStage
+			var stage *core.CatalogStage
 			if authErr == nil {
-				stage, _, _, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+				stage, _, _, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 			} else {
 				err = authErr
 			}
@@ -162,7 +163,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, peer)
-	_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal(err)
@@ -268,9 +269,9 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		beforeRow, beforeVersion, beforeFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier(), e.Visibility.CommitSeq()
 		e.Mu.Lock()
 		auth, err := e.AuthorizationLocked(op)
-		var stage *CatalogStage
+		var stage *core.CatalogStage
 		if err == nil {
-			stage, _, _, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+			stage, _, _, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
 		e.Mu.Unlock()
 		var got *sqlstate.Error
@@ -291,7 +292,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		auth, err = e.AuthorizationLocked(op)
 		var skipped bool
 		if err == nil {
-			stage, _, skipped, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+			stage, _, skipped, err = core.EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
 		e.Mu.Unlock()
 		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.Address()) != d {

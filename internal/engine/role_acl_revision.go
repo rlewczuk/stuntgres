@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 )
 
@@ -17,7 +18,7 @@ func touchOperationIdentityLocked(op *session.Operation) {
 // its fresh record through the existing allocator, just like actual role
 // installation; ACL-only journals retain their unreserved logical delta.
 // Caller owns Engine.mu and this statement's newly cloned role record.
-func reserveMixedACLRevisionLocked(e *Engine, c *session.Journal) error {
+func reserveMixedACLRevisionLocked(e *core.Engine, c *session.Journal) error {
 	if c.Roles.SameAuthority(c.RolesBase) {
 		return nil
 	}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -200,11 +201,11 @@ func TestRoutineDomainCompositeRemap(t *testing.T) {
 func TestRoutineDiagnosticOwnership(t *testing.T) {
 	view := engine.New()
 	op, auth := conversionUnitAuth(t, view)
-	types, err := engine.CaptureRegtypeInput(auth, op)
+	types, err := core.CaptureRegtypeInput(auth, op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := engine.CaptureRoutineInput(auth, types)
+	input, err := core.CaptureRoutineInput(auth, types)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,18 +222,18 @@ func TestRoutineDiagnosticOwnership(t *testing.T) {
 	}
 }
 
-func collationUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func collationUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func conversionUnitAuth(t *testing.T, e *engine.Engine) (*session.Operation, engine.AuthorizationView) {
+func conversionUnitAuth(t *testing.T, e *core.Engine) (*session.Operation, core.AuthorizationView) {
 	t.Helper()
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	t.Cleanup(done)

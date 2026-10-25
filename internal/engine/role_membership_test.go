@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/parser"
 )
 
 // Fixtures use the real private command planner, with checked identities and
 // explicit options; there is no second append-only membership publication path.
-func grantMembership(t *testing.T, e *Engine, m authorization.Membership) error {
+func grantMembership(t *testing.T, e *core.Engine, m authorization.Membership) error {
 	t.Helper()
 	r := e.Roles()
 	names := make([]string, 3)

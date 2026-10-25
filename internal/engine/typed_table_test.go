@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/typedef"
@@ -17,12 +18,12 @@ import (
 )
 
 // Package fixtures construct providers, not SQL sessions or public-driver mocks.
-func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *catalog.Relation) {
+func typedUnitCatalog(t *testing.T, empty bool) (*core.Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 		index[column.Name] = i
 	}
 	e.Mu.Lock()
-	source, err := table.NewRelation(DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
+	source, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "pair", auth.State.CurrentUser, append([]catalog.Column(nil), columns...), index)
 	if err == nil {
 		source.RelationKind = catalog.CompositeRelation
 		if !empty {
@@ -50,7 +51,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 	}
 	var tbl *catalog.Relation
 	if err == nil {
-		tbl, err = table.NewRelation(DDLHost{E: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
+		tbl, err = table.NewRelation(core.DDLHost{E: e}, source.Namespace(), "typed", source.Owner, append([]catalog.Column(nil), columns...), index)
 	}
 	if err == nil {
 		tbl.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
@@ -143,7 +144,7 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 	}
 }
 
-func typedRenameStage(t *testing.T, e *Engine, source, tbl *catalog.Relation) *CatalogStage {
+func typedRenameStage(t *testing.T, e *core.Engine, source, tbl *catalog.Relation) *core.CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	typedStage(stage).Source = tbl.OfType
@@ -172,7 +173,7 @@ func TestTypedPublicationFinalCancellationPreservesRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
+	changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("cancelled publication changed catalog", changes, err)
 	}

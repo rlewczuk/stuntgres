@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -39,7 +40,7 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 			provider := e.BeginCatalogStage(auth.Catalog)
-			source, err := table.NewRelation(DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "private_composite", auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
+			source, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "private_composite", auth.State.CurrentUser, []catalog.Column{{Name: "v", Usage: usage, Nullable: true, NullabilityKnown: true}}, map[string]int{"v": 0})
 			if err == nil {
 				source.RelationKind = catalog.CompositeRelation
 				err = e.StageRowTypeLocked(provider, source)
@@ -58,7 +59,7 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 			scope.Owner.Catalog = journal
 			private := e.PrivateCatalogLocked(journal)
 			consumer := e.BeginCatalogStage(private)
-			target, err := table.NewRelation(DDLHost{E: e}, source.Namespace(), "private_typed", source.Owner, nil, nil)
+			target, err := table.NewRelation(core.DDLHost{E: e}, source.Namespace(), "private_typed", source.Owner, nil, nil)
 			if err == nil {
 				target.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)}
 				err = consumer.Create(target)

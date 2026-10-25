@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -17,7 +18,7 @@ import (
 
 // This fixture constructs real descriptors and real registered routine bindings;
 // no SQL, name-based class cloning or callback stands in for native support.
-func operatorClassUnitDefinitions(t *testing.T, e *engine.Engine, name string, function ids.OID) (*catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
+func operatorClassUnitDefinitions(t *testing.T, e *core.Engine, name string, function ids.OID) (*catalog.OperatorFamily, *catalog.OperatorClass, *catalog.OperatorFamilySupport) {
 	t.Helper()
 	builtin, ok := e.CatalogRead().OperatorClass(1978)
 	if !ok {
@@ -140,7 +141,7 @@ func TestOperatorClassSupportExecution(t *testing.T) {
 
 // Fixture identities use the real allocator: bootstrap definitions can occupy
 // user-range OIDs without becoming relation descriptors.
-func catalogUnitOID(t *testing.T, e *engine.Engine) ids.OID {
+func catalogUnitOID(t *testing.T, e *core.Engine) ids.OID {
 	t.Helper()
 	e.Mu.Lock()
 	oid, err := e.Catalog.AllocateOIDLocked()

@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -20,7 +20,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			e, _, base, inner := ruleUnitCatalog(t)
 			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			auth, err := engine.OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -72,7 +72,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			auth.Recapture(e.Catalog.Current())
 			auth.State.CurrentUser = owner.Ref
 			leaf := exec.Leaf{Ref: ruleUnitRef(e, root), Relation: root, Principal: actor.Ref}
-			collect := func(view engine.AuthorizationView, invoker authorization.PrincipalRef, leaves ...exec.Leaf) ([]ids.ObjectRef, error) {
+			collect := func(view core.AuthorizationView, invoker authorization.PrincipalRef, leaves ...exec.Leaf) ([]ids.ObjectRef, error) {
 				t.Helper()
 				e.Mu.Lock()
 				defer e.Mu.Unlock()

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func ownershipUnitRoles() (e *engine.Engine, owner, source, target, reader authorization.PrincipalRef) {
+func ownershipUnitRoles() (e *core.Engine, owner, source, target, reader authorization.PrincipalRef) {
 	e = engine.New()
 	owner = e.RoleStore.Domain.Principal(10)
 	refs := []*authorization.PrincipalRef{&source, &target, &reader}
@@ -37,19 +38,19 @@ func ownershipUnitRoles() (e *engine.Engine, owner, source, target, reader autho
 	e.RoleStore.PublishLocked(publication)
 	return
 }
-func ownershipUnitExec(t *testing.T, e *engine.Engine, q string) {
+func ownershipUnitExec(t *testing.T, e *core.Engine, q string) {
 	t.Helper()
 	if _, err := enginetest.Execute(e, context.Background(), enginetest.Statement(t, q), nil); err != nil {
 		t.Fatal(q, err)
 	}
 }
-func ownershipUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func ownershipUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	p, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -21,7 +22,7 @@ import (
 )
 
 // Private seams only: parser/binder/catalog fixtures do not issue driver SQL.
-func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids.ObjectAddress) *typedef.DomainValidationFence {
+func domainAlterUnitFence(t *testing.T, e *core.Engine, view catalog.Read, target ids.ObjectAddress) *typedef.DomainValidationFence {
 	t.Helper()
 	f, err := typedef.DomainUsesAt(view, target, []ids.ObjectAddress{})
 	if err != nil {
@@ -59,7 +60,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	evaluation.Input.DomainChecks = prior
 	selected := *child
 	selected.DomainChecks = []catalog.DomainCheckConstraint{child.DomainChecks[1]}
-	if err := PrepareOwnDomainChecks(&evaluation, &selected); err != nil {
+	if err := core.PrepareOwnDomainChecks(&evaluation, &selected); err != nil {
 		t.Fatal("selected preparation initialized unrelated recipe", err)
 	}
 	violation := errors.New("historical column violation")
@@ -78,7 +79,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	}
 	unknown := *child
 	unknown.DomainChecks = []catalog.DomainCheckConstraint{child.DomainChecks[2]}
-	if err := PrepareOwnDomainChecks(&evaluation, &unknown); err != nil {
+	if err := core.PrepareOwnDomainChecks(&evaluation, &unknown); err != nil {
 		t.Fatal(err)
 	}
 	if err := evaluation.EvaluateSelectedDomainCheck(view, &unknown, sqltype.Null(integer), violation); err != nil {
@@ -202,7 +203,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		t.Fatal("container generations/bounds/NULLs lost")
 	}
 	drop := e.BeginCatalogStage(current)
-	if err := (TypeHost{TableHost{DDLHost{CatalogStage: drop}}}).RemoveDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
+	if err := (TypeHost{TableHost{core.DDLHost{CatalogStage: drop}}}).RemoveDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	drop.DomainAlterState().Ctx = context.Background()

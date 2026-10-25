@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
@@ -46,7 +47,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				stmt.Concurrent = parser.Position{Character: 27}
 			}
 			done := make(chan error, 1)
-			go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
+			go func() { done <- core.ScopeAcquireMaterializedRefresh(scope, stmt) }()
 			joined := false
 			defer func() {
 				cancel()

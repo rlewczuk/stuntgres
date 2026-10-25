@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func loUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type) {
+func loUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension, *catalog.Type) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -110,7 +111,7 @@ func TestLoProviderConflicts(t *testing.T) {
 			before := e.Catalog.State
 			e.Mu.Lock()
 			e.Catalog.InstallOIDFrontierLocked(frontier)
-			stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
+			stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
 			e.Mu.Unlock()
 			if stage != nil {
 				e.DiscardCatalogStage(stage)

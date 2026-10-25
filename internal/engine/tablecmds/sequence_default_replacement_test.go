@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/stored"
 )
@@ -25,7 +26,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 			tempRef := description.Sequences.Constants[0].Ref
 			temp := e.Catalog.State.Get(tempRef.Address)
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(7 AS BIGINT),b BOOL DEFAULT (CAST(1 AS BIGINT)=CAST(1 AS BIGINT)))"
-			var source *engine.Engine
+			var source *core.Engine
 			var sourceDefinition *catalog.Relation
 			if mode == "Restore" {
 				if err := engine.Restore(context.Background(), e, strings.NewReader(script)); err != nil {

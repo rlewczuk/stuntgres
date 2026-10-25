@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -45,7 +46,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref = catalogRef(t, e, e.CatalogRead(), "g2")
-	auth, err := OperationAuthorization(admin)
+	auth, err := core.OperationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +64,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(next, attribute, err)
 	}
 	e.Mu.Lock()
-	err = table.AssignDefinitionOIDs(DDLHost{E: e}, next)
+	err = table.AssignDefinitionOIDs(core.DDLHost{E: e}, next)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

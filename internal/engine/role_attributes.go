@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 
 // validateRoleAttributesLocked is repeated after preparation: held statements,
 // catalog changes and effective identity changes never cache authority.
-func validateRoleAttributesLocked(e *Engine, op *session.Operation, stmt parser.Statement) (AuthorizationView, authorization.RoleDescriptor, authorization.RoleDescriptor, parser.RoleOptions, error) {
+func validateRoleAttributesLocked(e *core.Engine, op *session.Operation, stmt parser.Statement) (core.AuthorizationView, authorization.RoleDescriptor, authorization.RoleDescriptor, parser.RoleOptions, error) {
 	v, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return v, authorization.RoleDescriptor{}, authorization.RoleDescriptor{}, parser.RoleOptions{}, err
@@ -32,9 +33,9 @@ func validateRoleAttributesLocked(e *Engine, op *session.Operation, stmt parser.
 	return v, actor, target, o, op.Context().Err()
 }
 
-func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeRoleAttributes(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	op := scope.Op
 	e.Mu.Lock()
@@ -42,11 +43,11 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 	typ, _ := e.Catalog.Current().LookupType(sqltype.Timestamptz)
 	e.Mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if scope.LockTicket != nil {
 		if err := acquireRoleAttributeLocks(scope, stmt, target); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	// Expensive crypto, random-source I/O and typed input run with no lifecycle
@@ -55,11 +56,11 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 	if o.Present&parser.RoleValidUntil != 0 {
 		value, err := typ.InputWithEnvironment(op.Context(), o.ValidUntil, -1, scope.Input)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		expiry, err = value.Timestamp()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	var password string
@@ -67,7 +68,7 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 	if o.Present&parser.RolePassword != 0 && !o.PasswordNull {
 		password, notice, err = authorization.PrepareRolePassword(op.Context(), target.Name, o.Password)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	e.Mu.Lock()
@@ -75,12 +76,12 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 	for {
 		v, actor, target, o, err := validateRoleAttributesLocked(e, op, stmt)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		d := authorization.ApplyRoleOptions(target, o)
 		d.AuthIDVersion, err = e.RoleStore.RevisionCandidateLocked()
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if o.Present&parser.RolePassword != 0 {
 			d.Password = password
@@ -94,7 +95,7 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 			create = c
 			d.Ref, err = e.RoleStore.PrincipalCandidateLocked()
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
@@ -102,7 +103,7 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 			op.Notices = notices
 		}
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if create != nil && scope.LockTicket != nil {
 			e.Mu.Unlock()
@@ -110,15 +111,15 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 			e.Mu.Lock()
 			if lockErr != nil {
 				op.Notices = notices
-				return Result{}, lockErr
+				return core.Result{}, lockErr
 			}
 			fresh, _, _, _, err := validateRoleAttributesLocked(e, op, stmt)
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 			revision, err := e.RoleStore.RevisionCandidateLocked()
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 			if fresh.RoleRecord != v.RoleRecord || e.RoleStore.NextPrincipal() != d.Ref.ID() || revision != d.AuthIDVersion {
 				continue
@@ -127,16 +128,16 @@ func executeRoleAttributes(e *Engine, scope *StatementScope, stmt parser.Stateme
 		op.Notices = notices
 		op.Session.Mu.Lock()
 		defer op.Session.Mu.Unlock()
-		if err := PublicationOperationLocked(e, op); err != nil {
-			return Result{}, err
+		if err := core.PublicationOperationLocked(e, op); err != nil {
+			return core.Result{}, err
 		}
 		if _, creating := stmt.(*parser.CreateRole); creating {
 			e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
 		}
-		if err := InstallOperationRolesLocked(e, op, &access.RoleRecord{Root: n}); err != nil {
-			return Result{}, err
+		if err := core.InstallOperationRolesLocked(e, op, &access.RoleRecord{Root: n}); err != nil {
+			return core.Result{}, err
 		}
 		role.EmitPasswordNotice(op, notice)
-		return Result{}, nil
+		return core.Result{}, nil
 	}
 }

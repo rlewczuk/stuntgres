@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ import (
 // no stage: none of the role.Host methods reads it. ResolveRelation,
 // AddDomainBase, RemoveObject and OtherDatabaseDependencies come from DDLHost.
 type RoleHost struct {
-	DDLHost
+	core.DDLHost
 }
 
 var (
@@ -24,7 +25,7 @@ var (
 )
 
 func (h RoleHost) ArgumentTypes(a ddl.Authority) (func(context.Context, parser.TypeName) (uint32, error), error) {
-	types, err := CaptureRegtypeInput(DDLAuthorityOf(a), h.Op)
+	types, err := core.CaptureRegtypeInput(core.DDLAuthorityOf(a), h.Op)
 	if err != nil {
 		return nil, err
 	}
@@ -38,12 +39,12 @@ func (h RoleHost) CanonicalParameter(name string) (string, error) {
 }
 
 func (h RoleHost) GrantParameter(a ddl.Authority, key string) (*catalog.Parameter, error) {
-	return role.GrantParameterDescriptorLocked(h.E.Settings, DDLAuthorityOf(a).Catalog, key, &h.E.RoleStore.Domain, h.E.Catalog.AllocateOIDLocked, h.E.Catalog.RevisionLocked)
+	return role.GrantParameterDescriptorLocked(h.E.Settings, core.DDLAuthorityOf(a).Catalog, key, &h.E.RoleStore.Domain, h.E.Catalog.AllocateOIDLocked, h.E.Catalog.RevisionLocked)
 }
 
 func (h RoleHost) DescribeRoleDependency(a ddl.Authority, dep access.RoleDependency) string {
-	auth := DDLAuthorityOf(a)
-	path, _ := ReferencePath(auth)
+	auth := core.DDLAuthorityOf(a)
+	path, _ := core.ReferencePath(auth)
 	return role.DependencyDescription(auth.View, path, dep)
 }
 

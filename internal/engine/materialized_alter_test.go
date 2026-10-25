@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -20,11 +21,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func materializedAlterUnit(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation, action, target string) error {
+func materializedAlterUnit(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation, action, target string) error {
 	t.Helper()
 	return extensionUnitExecute(t, e, op, &parser.AlterView{Materialized: true, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Action: action, Target: parser.Identifier{Text: target}})
 }
-func materializedAlterIndex(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation) *catalog.Relation {
+func materializedAlterIndex(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	// Setup uses the real index binder and publisher; assertions below inspect roots.
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.Name()+"(i)")
@@ -114,11 +115,11 @@ func TestMaterializedAlterExtensionAuthority(t *testing.T) {
 	for _, addresses := range [][]ids.ObjectAddress{{{ClassID: ids.ProcedureClassID, ObjectID: ext.Members[0].ObjectID}}, {ext.Address(), ext.Address()}, {{ClassID: ids.ExtensionClassID, ObjectID: ext.Address().ObjectID, SubID: 1}}, {{ClassID: ids.ExtensionClassID, ObjectID: 999999}}} {
 		bad := *next
 		bad.AutoExtensions = addresses
-		if err := (RelationProvider).Validate(e.CatalogRead(), &bad); err == nil {
+		if err := (core.RelationProvider).Validate(e.CatalogRead(), &bad); err == nil {
 			t.Fatal("malformed authority accepted", addresses)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), e.CatalogRead(), core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +166,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := StageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := core.StageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal("genuine provider retirement", err)
 			}
 			queryCreatePublish(t, e, stage)
@@ -186,7 +187,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := StageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+		if err := core.StageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 			t.Fatal(err)
 		}
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
@@ -195,7 +196,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		}
 		changes := session.NewJournal()
 		e.Mu.Lock()
-		err = EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil)
+		err = core.EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -211,7 +212,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		if _, conflict := err.(catalog.Conflict); !conflict {
 			t.Fatal("retained-message retirement missed late x authority", err)
 		}
-		if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+		if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 			t.Fatal("late x edge allowed stale retirement")
 		}
 		if e.Catalog.State != state || e.Catalog.State.Get(d.Address()) != current || e.Catalog.State.Get(ext.Address()) != ext || e.Storage.Relations[d.Address()] != store {
@@ -253,7 +254,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		edges, err := DomainDependencyClosure(context.Background(), stage, roots)
+		edges, err := core.DomainDependencyClosure(context.Background(), stage, roots)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -275,7 +276,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 		if automatic != 1 || ordinary != 1 {
 			t.Fatal("incomplete merged closure", automatic, ordinary)
 		}
-		if err := StageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
+		if err := core.StageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err == nil {
 			t.Fatal("ordinary dependent lost RESTRICT authority")
 		}
 		e.DiscardCatalogStage(stage)
@@ -290,7 +291,7 @@ func TestMaterializedAlterDependencyUnion(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := StageExpressionDependencies(context.Background(), stage, providerRoots, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := core.StageExpressionDependencies(context.Background(), stage, providerRoots, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
@@ -334,7 +335,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "authorization":
 				op.Session.Authorization.Revision++
 			}
-			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("unfenced publication")
 			}
@@ -382,7 +383,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	extensionUnitError(t, err, "23505")
 	if e.Catalog.State != state || e.Storage.Relations[d.Address()] != old || e.Storage.IndexRoots[index.Address()] != root {
@@ -437,7 +438,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := StageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := core.StageExpressionDependencies(context.Background(), stage, roots, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, target, stage)

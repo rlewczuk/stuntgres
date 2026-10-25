@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func inheritanceMaintPublished(t *testing.T, attached bool) (*Engine, *catalog.Relation, *catalog.Relation) {
+func inheritanceMaintPublished(t *testing.T, attached bool) (*core.Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	if !attached {

@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func predefinedUtilityError(t *testing.T, e *Engine, op *session.Operation, stmt parser.Statement, code, message, detail string) {
+func predefinedUtilityError(t *testing.T, e *core.Engine, op *session.Operation, stmt parser.Statement, code, message, detail string) {
 	t.Helper()
 	before, next := e.RoleStore.Published, e.RoleStore.NextPrincipal()
 	result, err := e.Execute(op, stmt, 0, nil)
@@ -118,7 +119,7 @@ func TestPredefinedRoleAllocation(t *testing.T) {
 	defer cancel()
 	fence := &identityRolePublicationContext{Context: ctx, session: actor.Session, cancel: cancel}
 	actor.Ctx = fence
-	_, err = executeRoleAttributes(canceled, &StatementScope{Op: actor}, &parser.CreateRole{Name: parser.Identifier{Text: "canceled"}}, 0)
+	_, err = executeRoleAttributes(canceled, &core.StatementScope{Op: actor}, &parser.CreateRole{Name: parser.Identifier{Text: "canceled"}}, 0)
 	if !fence.observed || !errors.Is(err, context.Canceled) || canceled.RoleStore.Published != before || canceled.RoleStore.NextPrincipal() != allocator {
 		t.Fatal("publication cancellation", err, fence.observed)
 	}

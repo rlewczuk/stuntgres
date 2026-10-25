@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
@@ -34,7 +35,7 @@ func TestTransactionalDefinitionDependencyFences(t *testing.T) {
 		}
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
-			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: committed.Epoch()})
+			_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: committed.Epoch()})
 		}
 		if err != nil {
 			t.Fatal(err)
@@ -81,11 +82,11 @@ func TestTransactionalDefinitionDependencyFences(t *testing.T) {
 				candidate.RemoveDescriptor(tc.target)
 				observations := []session.DependencyObservation{{Base: &original, Targets: []ids.ObjectAddress{tc.target}}}
 				var conflict catalog.Conflict
-				if err := CatalogDependencyPreflight(&current, &candidate, observations, nil); !errors.As(err, &conflict) {
+				if err := core.CatalogDependencyPreflight(&current, &candidate, observations, nil); !errors.As(err, &conflict) {
 					t.Fatal("retirement admitted new dangling incoming edge", err)
 				}
 				candidate.RemoveDescriptor(tc.descriptor.Address())
-				if err := CatalogDependencyPreflight(&current, &candidate, observations, nil); err != nil {
+				if err := core.CatalogDependencyPreflight(&current, &candidate, observations, nil); err != nil {
 					t.Fatal("removed candidate edge impersonated survivor", err)
 				}
 			})
@@ -107,7 +108,7 @@ func TestTransactionalDefinitionReplacementFences(t *testing.T) {
 	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	_, err = EnginePreparePrivateCatalog(e, context.Background(), owner.Transactions.Catalog, ref.Epoch())
+	_, err = core.EnginePreparePrivateCatalog(e, context.Background(), owner.Transactions.Catalog, ref.Epoch())
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("replacement accepted private old-epoch graph", err)
 	}

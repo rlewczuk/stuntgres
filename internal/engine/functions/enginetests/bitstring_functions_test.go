@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -174,4 +175,4 @@ func TestBitStringFunctionsBoundedOperands(t *testing.T) {
 	}
 }
 
-func binderEngine(b *analyze.Binder) *engine.Engine { return b.Host.(*engine.BindingHost).Engine }
+func binderEngine(b *analyze.Binder) *core.Engine { return b.Host.(*core.BindingHost).Engine }

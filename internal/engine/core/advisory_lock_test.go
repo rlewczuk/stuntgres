@@ -7,20 +7,21 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
 
-func advisoryUnitOwner(t *testing.T, e *engine.Engine) (*session.Session, ids.TxRef) {
+func advisoryUnitOwner(t *testing.T, e *core.Engine) (*session.Session, ids.TxRef) {
 	t.Helper()
 	s := enginetest.StartSession(t, e, nil)
 	return s, enginetest.TransactionBegin(t, s)
 }
 func advisoryUnitAcquire(t *testing.T, s *session.Session, provenance ids.TxRef, key lock.Resource, mode lock.Mode, nowait bool) (*lock.Request, error) {
 	t.Helper()
-	return engine.EngineOf(s).Locks.StartAcquire(context.Background(), s.Advisory.Ticket, key, mode, lock.Policy{Provenance: provenance, NoWait: nowait})
+	return core.EngineOf(s).Locks.StartAcquire(context.Background(), s.Advisory.Ticket, key, mode, lock.Policy{Provenance: provenance, NoWait: nowait})
 }
 func advisoryUnitGrant(t *testing.T, s *session.Session, provenance ids.TxRef, key lock.Resource, mode lock.Mode) {
 	t.Helper()
@@ -30,7 +31,7 @@ func advisoryUnitGrant(t *testing.T, s *session.Session, provenance ids.TxRef, k
 	}
 }
 func advisoryUnitHold(s *session.Session, key lock.Resource) lock.Hold {
-	m := engine.EngineOf(s).Locks
+	m := core.EngineOf(s).Locks
 	lockState := m.Inspect()
 	if entry := lockState.Resources[key]; entry != nil {
 		return entry.Holders[s.Advisory.Ticket]
@@ -39,7 +40,7 @@ func advisoryUnitHold(s *session.Session, key lock.Resource) lock.Hold {
 }
 func advisoryUnitUnlock(t *testing.T, s *session.Session, key lock.Resource, mode lock.Mode, want bool) {
 	t.Helper()
-	got, err := engine.EngineOf(s).Locks.UnlockAdvisory(s.Advisory.Ticket, key, mode)
+	got, err := core.EngineOf(s).Locks.UnlockAdvisory(s.Advisory.Ticket, key, mode)
 	if err != nil || got != want {
 		t.Fatal("exact mode unlock", got, err, want)
 	}

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -17,7 +18,7 @@ import (
 
 // Fixture identities use the real allocator: bootstrap definitions can occupy
 // user-range OIDs without becoming relation descriptors.
-func catalogUnitOID(t *testing.T, e *Engine) ids.OID {
+func catalogUnitOID(t *testing.T, e *core.Engine) ids.OID {
 	t.Helper()
 	e.Mu.Lock()
 	oid, err := e.Catalog.AllocateOIDLocked()
@@ -113,14 +114,14 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, p, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	p, err = e.ValidateCatalogStage(context.Background(), second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, p, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatalf("unrelated-key stage conflicted: %v", err)
 	}
 	conflictA, conflictB := e.BeginCatalogStage(e.CatalogRead()), e.BeginCatalogStage(e.CatalogRead())
@@ -134,14 +135,14 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, p, PublicationToken{Epoch: e.CatalogRead().Epoch()}); err != nil {
+	if _, err = publishCatalog(e, p, core.PublicationToken{Epoch: e.CatalogRead().Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	p, err = e.ValidateCatalogStage(context.Background(), conflictB)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, p, PublicationToken{Epoch: e.CatalogRead().Epoch()}); err == nil {
+	if _, err = publishCatalog(e, p, core.PublicationToken{Epoch: e.CatalogRead().Epoch()}); err == nil {
 		t.Fatal("same-key stage conflict was not detected")
 	}
 	foreign := New().CatalogRead()
@@ -247,7 +248,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: view.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: view.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("old stage after Reset: %v", err)
 	}
 }
@@ -257,7 +258,7 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 	base := e.CatalogRead()
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: catalogUnitOID(t, e)}
-	prepare := func(name string) *PreparedCatalogPublication {
+	prepare := func(name string) *core.PreparedCatalogPublication {
 		t.Helper()
 		stage := e.BeginCatalogStage(base)
 		d := &catalog.Relation{ObjectAddress: address, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ns, ObjectName: name, ObjectRevision: 1, Columns: []catalog.Column{{Name: "id", Usage: testUsage(e, sqltype.Int4)}}, Index: map[string]int{"id": 0}, Attributes: []int32{1}}
@@ -272,12 +273,12 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 		return p
 	}
 	first, second := prepare("first"), prepare("second")
-	if _, err := publishCatalog(e, first, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, first, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	run(t, e, "INSERT INTO public.first VALUES (77)")
 	before := e.CatalogRead()
-	changes, err := publishCatalog(e, second, PublicationToken{Epoch: base.Epoch()})
+	changes, err := publishCatalog(e, second, core.PublicationToken{Epoch: base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatalf("address collision: changes=%+v error=%v", changes, err)
@@ -442,7 +443,7 @@ func TestForeignCatalogReplacementOwnsRowBacking(t *testing.T) {
 	run(t, source, "INSERT INTO public.t VALUES (40)")
 	run(t, target, "INSERT INTO public.t VALUES (50)")
 
-	assertRows := func(engine *Engine, want []int64) {
+	assertRows := func(engine *core.Engine, want []int64) {
 		t.Helper()
 		got := tuples(run(t, engine, "SELECT id FROM public.t ORDER BY id"))
 		if len(got) != len(want) {
@@ -519,13 +520,13 @@ func TestCatalogProviderRegistersBeforeInitialization(t *testing.T) {
 		t.Fatal("provider registered after initialization")
 	}
 
-	var uninitialized Engine
+	var uninitialized core.Engine
 	if err := uninitialized.RegisterCatalogProvider(&initializationTestProvider{}); err == nil {
 		t.Fatal("zero-value Engine accepted registration")
 	}
 }
 
-func catalogRef(t *testing.T, e *Engine, view catalog.Read, name string) ids.ObjectRef {
+func catalogRef(t *testing.T, e *core.Engine, view catalog.Read, name string) ids.ObjectRef {
 	t.Helper()
 	e.Mu.Lock()
 	ref, err := e.ResolveReference(catalogAuthorization(e, view), parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: name}}})
@@ -538,7 +539,7 @@ func catalogRef(t *testing.T, e *Engine, view catalog.Read, name string) ids.Obj
 
 func TestCatalogReferenceProvenance(t *testing.T) {
 	a, b := New(), New()
-	for i, e := range []*Engine{a, b} {
+	for i, e := range []*core.Engine{a, b} {
 		run(t, e, "CREATE TABLE public.t (id INTEGER)")
 		run(t, e, "INSERT INTO public.t VALUES ($1)", int64((i+1)*11))
 	}
@@ -548,7 +549,7 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 		t.Fatalf("coincident identities lack provenance: %#v / %#v", ra, rb)
 	}
 	for _, tc := range []struct {
-		engine       *Engine
+		engine       *core.Engine
 		view         catalog.Read
 		own, foreign ids.ObjectRef
 		want         int64
@@ -617,7 +618,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()})
+	changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()})
 	if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != private.Address {
 		t.Fatalf("private publication: %#v, %v", changes, err)
 	}
@@ -672,7 +673,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(target, prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+	if _, err := publishCatalog(target, prepared, core.PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatalf("failed restore fenced eligible stage: %v", err)
 	}
 	if err := Reset(context.Background(), target); err != nil || target.Catalog.Domain != owner {
@@ -682,7 +683,7 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := target.CatalogRead()
-	for _, receiver := range []*Engine{source, target} {
+	for _, receiver := range []*core.Engine{source, target} {
 		stateBefore := receiver.CatalogRead()
 		if _, err := receiver.ReplaceCatalog(context.Background(), source, sourceView); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatalf("stale source replacement: %v", err)
@@ -713,7 +714,7 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()})
+	changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()})
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || changes.Replacement || e.CatalogRead().State() != base.State() {
 		t.Fatalf("canceled publication changed authority: %#v, %v", changes, err)
 	}
@@ -807,7 +808,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatalf("canceled replacement fenced eligible stage: %v", err)
 	}
 }
@@ -830,7 +831,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 				t.Fatal(err)
 			}
 			if published {
-				changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()})
+				changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()})
 				if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != d.Address() {
 					t.Fatalf("initial publication = %#v, %v", changes, err)
 				}
@@ -869,7 +870,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			rejectPublication := func() {
 				t.Helper()
-				changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
+				changes, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
 				assertOrdinaryError(err)
 				if len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 					t.Fatalf("rejected publication emitted changes: %#v", changes)
@@ -881,7 +882,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			for range 2 {
 				e.DiscardCatalogStage(stage)
-				if published && stage.Lifecycle != CatalogPublished || !published && stage.Lifecycle != CatalogDiscarded {
+				if published && stage.Lifecycle != core.CatalogPublished || !published && stage.Lifecycle != core.CatalogDiscarded {
 					t.Fatalf("discard lifecycle = %v", stage.Lifecycle)
 				}
 				assertUnchanged()
@@ -896,7 +897,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 }
 
 // replaceWithFreshCatalog replaces e's catalog with a new engine's.
-func replaceWithFreshCatalog(ctx context.Context, e *Engine) (ChangeSet, error) {
+func replaceWithFreshCatalog(ctx context.Context, e *core.Engine) (core.ChangeSet, error) {
 	fresh := New()
 	return e.ReplaceCatalog(ctx, fresh, fresh.CatalogRead())
 }

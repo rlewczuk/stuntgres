@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -18,7 +19,7 @@ import (
 // The fixture publishes a normally cooked generation through the catalog stage,
 // then grants only column privileges through the immutable internal ACL seam.
 // No SQL parser, public execution API, or substitute authorization is involved.
-func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *session.Operation, ids.ObjectRef) {
+func generatedAuthorizationFixture(t *testing.T) (*core.Engine, *session.Operation, *session.Operation, ids.ObjectRef) {
 	t.Helper()
 	e, view, d := generatedUnitDescriptor(t)
 	admin, adminDone := roleOperation(t, e, "postgres")
@@ -40,7 +41,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *
 		err = bindCreateGenerations(e, admin, auth, d, []analyze.ColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
 	}
 	if err == nil {
-		err = table.AssignDefinitionOIDs(DDLHost{E: e}, d)
+		err = table.AssignDefinitionOIDs(core.DDLHost{E: e}, d)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -54,7 +55,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(e, publication, PublicationToken{Epoch: view.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, publication, core.PublicationToken{Epoch: view.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
@@ -65,7 +66,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *
 	return e, admin, actor, ref
 }
 
-func generatedAuthorizationGrant(t *testing.T, e *Engine, admin, actor *session.Operation, ref ids.ObjectRef, attribute int32, privileges authorization.Privileges) {
+func generatedAuthorizationGrant(t *testing.T, e *core.Engine, admin, actor *session.Operation, ref ids.ObjectRef, attribute int32, privileges authorization.Privileges) {
 	t.Helper()
 	ref.Address.SubID = attribute
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{
@@ -120,7 +121,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			auth, err := e.AuthorizationLocked(actor)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = Describe(context.Background(), e.AnalysisHost(actor), tc.stmt, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+				bound, err = core.Describe(context.Background(), e.AnalysisHost(actor), tc.stmt, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}
 			e.Mu.Unlock()
 			if err != nil {
@@ -137,7 +138,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 					t.Fatalf("source %d reads=%v; want %v", i, source.Uses, tc.sourceUses[i])
 				}
 			}
-			check := func(authority AuthorizationView, denied bool) {
+			check := func(authority core.AuthorizationView, denied bool) {
 				t.Helper()
 				err := analyze.CheckBinding(authority, bound, tc.stmt)
 				if !denied {
@@ -153,7 +154,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 				}
 			}
 			check(auth, tc.denied)
-			ownerAuth, err := OperationAuthorization(admin)
+			ownerAuth, err := core.OperationAuthorization(admin)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -161,7 +162,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			if tc.denied {
 				before := auth.Catalog.State()
 				generatedAuthorizationGrant(t, e, admin, actor, ref, tc.grantOn, tc.grant)
-				granted, err := OperationAuthorization(actor)
+				granted, err := core.OperationAuthorization(actor)
 				if err != nil {
 					t.Fatal(err)
 				}

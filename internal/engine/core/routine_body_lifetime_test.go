@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -35,7 +36,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	binder := engine.NewExpressionBinder(context.Background(), e, input, reader, nil)
+	binder := core.NewExpressionBinder(context.Background(), e, input, reader, nil)
 	binder.Query.Auth = &auth
 	binder.Query.Namespace = &analyze.QueryNamespace{}
 	node, err := binder.Bind(parser.FunctionExpr{Name: preparedBoundaryName("bit_length"), Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "abc"}}}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
@@ -112,7 +113,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		refs     []ids.ObjectRef
 		checks   []catalog.ExpressionDependency
 	}
-	capture := func(e *engine.Engine) []recipe {
+	capture := func(e *core.Engine) []recipe {
 		view := e.CatalogRead()
 		table := view.MustRelation(enginetest.RoleTableRef(t, e, "body_defaults").Address)
 		persisted := view.MustRelation(enginetest.RoleTableRef(t, e, "body_view").Address)
@@ -122,7 +123,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			{consumer: persisted, node: stored.ViewOf(persisted).Query().Root.(*plan.ProjectNode).Expressions[0], checks: stored.ViewOf(persisted).Dependencies()},
 		}
 	}
-	authority := func(e *engine.Engine) engine.AuthorizationView {
+	authority := func(e *core.Engine) core.AuthorizationView {
 		op, done := enginetest.RoleOperation(t, e, "postgres")
 		defer done()
 		e.Mu.Lock()
@@ -327,7 +328,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := engine.NewExpressionBinder(context.Background(), e, input, reader, nil)
+			binder := core.NewExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 			bindTestTargetNamespace(binder)
@@ -359,8 +360,4 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			}
 		})
 	}
-}
-
-func preparedBoundaryName(name string) parser.ObjectName {
-	return parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}
 }

@@ -3,7 +3,6 @@ package core_test
 import (
 	"context"
 	"errors"
-	"runtime"
 	"testing"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
 )
 
 func TestTransactionIsolationConflicts(t *testing.T) {
@@ -205,37 +203,4 @@ func TestTransactionIsolationStatementTimeout(t *testing.T) {
 	enginetest.SessionSQL(t, b, "ROLLBACK")
 	enginetest.TransactionRows(t, b, "SELECT v FROM t", 1)
 	enginetest.LockEmpty(t, e)
-}
-
-func timeoutPendingRequest(t *testing.T, e *engine.Engine, op *session.Operation) *lock.Request {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		lockState := e.Locks.Inspect()
-		var found *lock.Request
-		for _, entry := range lockState.Resources {
-			for _, request := range entry.Pending {
-				if request.Policy.TimeoutSlot == &op.LockWait && !request.Terminal {
-					found = request.Request
-				}
-			}
-		}
-		if found != nil {
-			return found
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("exact operation did not queue behind holder")
-		}
-		runtime.Gosched()
-	}
-}
-
-func timeoutPendingPublish(t *testing.T, e *engine.Engine, request *lock.Request, now time.Time) {
-	t.Helper()
-	// The real cancellation callback may already own terminal publication
-	// after a failing lifecycle assertion. Only the manager's first terminal
-	// transition owns notification; never overwrite or renotify its result.
-	if err := e.Locks.ExpireWait(request, now); err == nil && !request.Terminal() {
-		t.Fatal("explicit due instant did not produce queued ERROR")
-	}
 }

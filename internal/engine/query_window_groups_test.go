@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -307,7 +308,7 @@ func TestQueryWindowGroupsDomainRemap(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	description, err := Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	description, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -408,7 +409,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 				grant(column(i), rights)
 			}
 			auth := catalogAuthorization(e, e.CatalogRead())
-			b := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+			b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			_, err := b.BindSelect(statement(t, tc.query).(*parser.Select), false)
 			if err != nil || len(b.Query.Sources) != 1 {

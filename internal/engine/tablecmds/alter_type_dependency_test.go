@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -46,7 +47,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+				if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -94,7 +95,7 @@ func TestAlterTypeGrowingDependencyClosure(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: table.Epoch}); err != nil {
+				if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: table.Epoch}); err != nil {
 					t.Fatal(err)
 				}
 				added = next.Address()

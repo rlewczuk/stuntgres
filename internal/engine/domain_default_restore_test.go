@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -28,7 +29,7 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,11 +78,11 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	normal := New()
 	normalOp, normalDone := roleOperation(t, normal, "postgres")
 	defer normalDone()
-	normalAuth, err := OperationAuthorization(normalOp)
+	normalAuth, err := core.OperationAuthorization(normalOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := captureDomainReplay(normal, &StatementScope{Op: normalOp}, source, valid, normalAuth, nil); err == nil {
+	if _, err := captureDomainReplay(normal, &core.StatementScope{Op: normalOp}, source, valid, normalAuth, nil); err == nil {
 		t.Fatal("ordinary engine acquired native replay authority")
 	}
 }
@@ -107,7 +108,7 @@ func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
 	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +141,7 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	if err := scope.Gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +149,7 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	if !ok {
 		t.Fatal("missing timestamp")
 	}
-	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
+	c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	value, count, err := typedef.RestoreDomainReplayNode(domainReplayEnv(e, &c, op, auth), typ.Usage(), &typedef.DomainReplayNode{Kind: "scalar", Scalar: &text})

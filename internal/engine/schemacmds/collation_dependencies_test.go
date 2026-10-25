@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -37,7 +38,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	}
 	snapshot := e.StageRead(stage)
 	closureStage := e.BeginCatalogStage(snapshot)
-	edges, err := engine.DomainDependencyClosure(context.Background(), closureStage, []ids.ObjectAddress{d.Address()})
+	edges, err := core.DomainDependencyClosure(context.Background(), closureStage, []ids.ObjectAddress{d.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +61,7 @@ func TestCollationDependencyClosureStableAttributes(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err = engine.DomainDependencyClosure(ctx, closureStage, []ids.ObjectAddress{d.Address()}); !errors.Is(err, context.Canceled) {
+	if _, err = core.DomainDependencyClosure(ctx, closureStage, []ids.ObjectAddress{d.Address()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("closure ignored cancellation", err)
 	}
 }

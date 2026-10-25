@@ -5,13 +5,14 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgClassUnitSource(t *testing.T, e *Engine) *catalog.Relation {
+func pgClassUnitSource(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
 	return e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 }
@@ -31,7 +32,7 @@ func TestPgClassProjection(t *testing.T) {
 		}
 	}
 	relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "projection", Owner: e.RoleStore.Domain.Principal(10), RowType: 200002, OfType: ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 200003}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, History: catalog.PublicationHistory{HasIndexes: true, HasSubclasses: true}, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}, Constraints: catalog.RelationConstraints{Check: make([]catalog.CheckConstraint, 2)}}
-	row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, relation)
+	row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, relation)
 	if err != nil || len(row) != 34 {
 		t.Fatal(row, err)
 	}
@@ -77,7 +78,7 @@ func TestPgClassProjection(t *testing.T) {
 	}
 	for _, oid := range []ids.OID{1213, 1262, 2396} {
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
-		row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, d)
+		row, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Engine: e})}, d)
 		if err != nil {
 			t.Fatal(err)
 		}

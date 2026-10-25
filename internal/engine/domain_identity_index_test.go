@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -37,7 +38,7 @@ func TestDomainIdentityIndexClosure(t *testing.T) {
 	parent := before.MustRelation(address("identity_retire"))
 	domain := domainUnitType(t, before, "d")
 	stage := domainUnitStage(t, e, op, "DROP DOMAIN public.d CASCADE")
-	edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{domain.Address()})
+	edges, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{domain.Address()})
 	if err != nil {
 		t.Fatal(err)
 	}

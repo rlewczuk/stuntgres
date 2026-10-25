@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -71,7 +72,7 @@ func (f ccuUnitFixture) input(t *testing.T, state *catalog.State, actor authoriz
 	auth := dtpUnitAuthority(t, f.f, view)
 	auth.State.CurrentUser = actor
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.ConstraintColumnUsageOID})
-	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engine.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
+	return pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: auth.Roles, Owner: view.Owner(), Ref: view.Owner().Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: core.EngineCatalogRuntime{Auth: auth, Database: "unit_database"}}
 }
 
 func ccuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
@@ -80,7 +81,7 @@ func ccuUnitRows(t *testing.T, in pgcatalog.Input) [][]sqltype.Value {
 	if !ok {
 		t.Fatal("missing producer")
 	}
-	source, err := engine.CaptureCatalogSourceRows(in, produce)
+	source, err := core.CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +268,7 @@ func TestInfoConstraintColumnUsageCapture(t *testing.T) {
 		func(in *pgcatalog.Input) { in.Ref.Address.SubID = 1 },
 		func(in *pgcatalog.Input) { copy := *in.Source; in.Source = &copy },
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
@@ -329,7 +330,7 @@ func (c *ccuCancelContext) Err() error {
 }
 
 type ccuCancelRuntime struct {
-	engine.EngineCatalogRuntime
+	core.EngineCatalogRuntime
 	ctx *ccuCancelContext
 }
 
@@ -356,7 +357,7 @@ func TestInfoConstraintColumnUsageCancellation(t *testing.T) {
 		in := base
 		ctx := &ccuCancelContext{Context: t.Context(), remaining: remaining}
 		in.Context = ctx
-		in.Runtime = ccuCancelRuntime{EngineCatalogRuntime: in.Runtime.(engine.EngineCatalogRuntime), ctx: ctx}
+		in.Runtime = ccuCancelRuntime{EngineCatalogRuntime: in.Runtime.(core.EngineCatalogRuntime), ctx: ctx}
 		// The fourth post-dependency check starts the second reference, after
 		// the first member has been fully wrapped and appended. No traversal
 		// order, sleep, fake dependency answers or checkpoint sweep is needed.

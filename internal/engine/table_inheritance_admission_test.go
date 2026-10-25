@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -60,7 +61,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if !exact {
 		t.Fatal("parent admission did not queue exact SUE")
 	}
-	if e.Catalog.State.Get(child.Address()) != nil || StageTableOrZero(stage).LikeSources[0] != parent {
+	if e.Catalog.State.Get(child.Address()) != nil || core.StageTableOrZero(stage).LikeSources[0] != parent {
 		t.Fatal("canceled admission published or changed parent capture")
 	}
 }
@@ -70,13 +71,13 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 	base := inheritanceUnitView(e, parent)
 	stage := e.BeginCatalogStage(base)
 	tableStage(stage).CaptureLikeSource(parent)
-	if err := StageValidateLikeSources(stage, base); err != nil {
+	if err := core.StageValidateLikeSources(stage, base); err != nil {
 		t.Fatal(err)
 	}
 	replacement := *parent
 	replacement.ObjectRevision++
 	for _, current := range []catalog.Read{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
-		if err := StageValidateLikeSources(stage, current); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if err := core.StageValidateLikeSources(stage, current); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("stale parent capture accepted", err)
 		}
 	}

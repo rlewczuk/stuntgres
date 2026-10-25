@@ -2,38 +2,39 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func pairRestoredGeneration(e *Engine, op *session.Operation, raw *parser.AlterTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) error {
+func pairRestoredGeneration(e *core.Engine, op *session.Operation, raw *parser.AlterTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
 	if !table.RestoredGenerationShape(raw) {
-		return SQLError("0A000", table.RestoreGenerationBoundary)
+		return core.SQLError("0A000", table.RestoreGenerationBoundary)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return err
 	}
 	e.Mu.Lock()
-	trusted := PartitionConstraintReplayImport(e, op, auth)
+	trusted := core.PartitionConstraintReplayImport(e, op, auth)
 	e.Mu.Unlock()
 	if !trusted {
-		return SQLError("0A000", table.RestoreGenerationBoundary)
+		return core.SQLError("0A000", table.RestoreGenerationBoundary)
 	}
 	ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 	if err != nil {
 		return err
 	}
-	return table.PairRestoredGeneration(auth.Catalog, RelationProvider, ref, raw, origins)
+	return table.PairRestoredGeneration(auth.Catalog, core.RelationProvider, ref, raw, origins)
 }
 
-func captureRestoredGeneration(e *Engine, op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
-	auth, err := OperationAuthorization(op)
+func captureRestoredGeneration(e *core.Engine, op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredGenerationRecipe{}, err
 	}
@@ -49,7 +50,7 @@ func captureRestoredGeneration(e *Engine, op *session.Operation, raw *parser.Alt
 // Recursive generation replay retains connected repair authority. Fresh
 // recursive declarations require absent names throughout the affected closure.
 // Binding, ownership, row validation and publication belong to ordinary ALTER.
-func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
+func restoreCheck(e *core.Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
@@ -62,8 +63,8 @@ func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repa
 	if err != nil {
 		return err
 	}
-	if !PartitionConstraintReplayImport(e, op, auth) {
-		return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+	if !core.PartitionConstraintReplayImport(e, op, auth) {
+		return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 	}
 	ref, err := e.ResolveRelationReference(auth, raw.Name, false)
 	if err != nil {
@@ -71,22 +72,22 @@ func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repa
 	}
 	target, ok := auth.Catalog.Relation(ref.Address)
 	if !ok || target.RelationKind != catalog.TableRelation || target.Partition != nil || target.Membership != nil {
-		return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+		return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 	}
 	namespace, exists := auth.Catalog.Namespace(target.Namespace())
 	if !exists || namespace.Temporary != (ids.SessionToken{}) {
-		return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+		return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 	}
 	inherited := catalog.InheritanceParticipant(auth.Catalog, target)
 	if raw.Only {
 		if !inherited || !raw.Actions[0].Check.NoInherit && catalog.InheritanceHasChildren(auth.Catalog, target.Address()) {
-			return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+			return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 		}
 		for _, check := range target.Constraints.Check {
 			if check.Name == raw.Actions[0].Check.Name.Text {
 				// An existing inherited CHECK must not be merged into a local
 				// declaration merely to authorize a historical replay window.
-				return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+				return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 			}
 		}
 		return table.ValidateInheritance(auth.Catalog, target)
@@ -110,9 +111,9 @@ func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repa
 			}
 			namespace, exists := auth.Catalog.Namespace(member.Namespace())
 			if member.RelationKind != catalog.TableRelation || member.Partition != nil || member.Membership != nil || !exists || namespace.Temporary != (ids.SessionToken{}) {
-				return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+				return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 			}
-			if err := RelationProvider.Validate(auth.Catalog, member); err != nil {
+			if err := core.RelationProvider.Validate(auth.Catalog, member); err != nil {
 				return err
 			}
 			if err := table.ValidateInheritance(auth.Catalog, member); err != nil {
@@ -120,7 +121,7 @@ func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repa
 			}
 			for _, check := range member.Constraints.Check {
 				if check.Name == raw.Actions[0].Check.Name.Text {
-					return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+					return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 				}
 			}
 		}
@@ -131,13 +132,13 @@ func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repa
 		return err
 	}
 	if !actor.Superuser {
-		return SQLError("0A000", table.RestoreInheritedCheckBoundary)
+		return core.SQLError("0A000", table.RestoreInheritedCheckBoundary)
 	}
-	return table.InheritedCheckRecipe(auth.Catalog, RelationProvider, ref, repairs)
+	return table.InheritedCheckRecipe(auth.Catalog, core.RelationProvider, ref, repairs)
 }
 
-func closeRestoredRecipesForData(e *Engine, op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {
-	auth, err := OperationAuthorization(op)
+func closeRestoredRecipesForData(e *core.Engine, op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}

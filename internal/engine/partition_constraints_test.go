@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -22,7 +23,7 @@ import (
 )
 
 type partitionConstraintUnit struct {
-	e                         *Engine
+	e                         *core.Engine
 	root, leaf, parent, child *catalog.Relation
 	view                      catalog.Read
 }
@@ -411,7 +412,7 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.Mu.Lock()
-	clone, err := index.StagePartitionIndexChild(TableHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -626,7 +627,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.Mu.Lock()
-	clone, err := index.StagePartitionIndexChild(TableHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -645,7 +646,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	}
 }
 
-func partitionConstraintAttachStage(t *testing.T, e *Engine, op *session.Operation) *CatalogStage {
+func partitionConstraintAttachStage(t *testing.T, e *core.Engine, op *session.Operation) *core.CatalogStage {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
@@ -659,7 +660,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *session.Operati
 	op.Session.Mu.Unlock()
 	e.Mu.Lock()
 	stage.RoleRevision = e.RoleStore.Published.Revision
-	err := index.StagePartitionIndexAttach(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, child)
+	err := index.StagePartitionIndexAttach(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, child)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -667,7 +668,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *session.Operati
 	return stage
 }
 
-func partitionConstraintPublicationTree(t *testing.T) *Engine {
+func partitionConstraintPublicationTree(t *testing.T) *core.Engine {
 	t.Helper()
 	e := New()
 	for _, query := range []string{"CREATE TABLE root(k INT) PARTITION BY RANGE(k)", "CREATE TABLE leaf PARTITION OF root DEFAULT", "CREATE UNIQUE INDEX parent_idx ON ONLY root(k)", "CREATE UNIQUE INDEX child_idx ON leaf(k)", "INSERT INTO root VALUES(1)", "CREATE ROLE actor"} {
@@ -703,7 +704,7 @@ func TestPartitionConstraintsPublicationFences(t *testing.T) {
 				}
 			}
 			before := indexMaintenanceCapture(e)
-			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			switch change {
 			case "epoch":
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -739,7 +740,7 @@ func TestPartitionConstraintsPreservesNewestPhysicalRoot(t *testing.T) {
 	if latest == original {
 		t.Fatal("fixture did not publish a newer key root")
 	}
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if e.Storage.IndexRoots[child.Address] != latest || e.Storage.IndexRoots[roleTableRef(t, e, "parent_idx").Address] != nil {
@@ -760,7 +761,7 @@ func TestPartitionConstraintsFinalPublicationCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(first, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := publishCatalog(first, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	polls := counting.checks.Load()
@@ -779,7 +780,7 @@ func TestPartitionConstraintsFinalPublicationCancellation(t *testing.T) {
 		t.Fatal("canceled before final publication boundary", err)
 	}
 	before := indexMaintenanceCapture(second)
-	_, err = publishCatalog(second, prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
+	_, err = publishCatalog(second, prepared, core.PublicationToken{Epoch: candidate.Base.Epoch()})
 	if !errors.Is(err, context.Canceled) || final.checks.Load() != polls {
 		t.Fatal("final cancellation not fenced", polls, final.checks.Load(), err)
 	}
@@ -970,7 +971,7 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	}
 }
 
-func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *CatalogStage) {
+func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*core.Engine, *core.CatalogStage) {
 	t.Helper()
 	e := New()
 	names := []string{"parent_idx", "child_idx"}
@@ -1034,7 +1035,7 @@ func TestPartitionConstraintsDropFinalPublicationCancellation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = publishCatalog(first, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+			if _, err = publishCatalog(first, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			polls := counting.checks.Load()
@@ -1050,7 +1051,7 @@ func TestPartitionConstraintsDropFinalPublicationCancellation(t *testing.T) {
 				t.Fatal("drop canceled before final boundary", err)
 			}
 			before := indexMaintenanceCapture(second)
-			_, err = publishCatalog(second, prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
+			_, err = publishCatalog(second, prepared, core.PublicationToken{Epoch: candidate.Base.Epoch()})
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal("late drop cancellation not fenced", err)
 			}

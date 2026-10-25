@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -13,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func routineAlterBuiltin(t *testing.T, e *Engine) *catalog.Procedure {
+func routineAlterBuiltin(t *testing.T, e *core.Engine) *catalog.Procedure {
 	t.Helper()
 	view := e.CatalogRead()
 	for _, address := range view.State().ProceduresNamed(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, "abs") {
@@ -82,7 +83,7 @@ func TestRoutineAlterProviderOverrideIndex(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	reader := &sqlRoutineLookupReader{sqlRoutineLookupSource: StageDefinitions(stage)}
+	reader := &sqlRoutineLookupReader{sqlRoutineLookupSource: core.StageDefinitions(stage)}
 	renamed := *original
 	renamed.ObjectName = "routine_alter_abs"
 	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}

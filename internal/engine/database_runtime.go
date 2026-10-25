@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/storage"
@@ -12,15 +13,15 @@ import (
 // newDatabaseRuntime allocates only database-local execution state. Immutable
 // host provider configuration is retained; ReplaceCatalog remints the real seed
 // catalog and storage before this runtime can be registered.
-func newDatabaseRuntime(e *Engine, seed *Engine, name string, owner authorization.PrincipalRef) *Engine {
-	target := &Engine{Mu: e.Mu, RoleStore: e.RoleStore, Settings: e.Settings, Foreign: seed.Foreign, DatabaseName: name, DatabaseFrozenXID: 3, Statements: e.Statements, Factory: e.Factory}
+func newDatabaseRuntime(e *core.Engine, seed *core.Engine, name string, owner authorization.PrincipalRef) *core.Engine {
+	target := &core.Engine{Mu: e.Mu, RoleStore: e.RoleStore, Settings: e.Settings, Foreign: seed.Foreign, DatabaseName: name, DatabaseFrozenXID: 3, Statements: e.Statements, Factory: e.Factory}
 	target.Catalog = catalog.NewStore(catalog.Owner{Principals: &e.RoleStore.Domain, ACLAuthority: &e.RoleStore.ACLAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.Catalog.Providers)), Extensions: e.Catalog.Extensions}, seed.Catalog.NextOID(), seed.Catalog.NextRevision())
 	for class, provider := range e.Catalog.Providers {
 		target.Catalog.Providers[class] = provider
 	}
 	target.Catalog.Providers[ids.ParameterClassID] = role.ParameterProvider{Settings: &target.Settings}
-	target.Analysis = BindingHost{Engine: target}
-	target.Authority = AuthorityInputs{Domain: target.Catalog.Domain, Settings: &target.Settings, Storage: &target.Storage}
+	target.Analysis = core.BindingHost{Engine: target}
+	target.Authority = core.AuthorityInputs{Domain: target.Catalog.Domain, Settings: &target.Settings, Storage: &target.Storage}
 	target.Visibility = visibility.NewRegistry(e.Visibility.TracksCommitTimestamps())
 	target.Locks = e.Cluster.Locks
 	target.Storage.ReplaceRelationsLocked(make(map[ids.ObjectAddress]*storage.Relation))

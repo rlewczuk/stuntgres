@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -18,7 +19,7 @@ import (
 	"testing"
 )
 
-func pgUserUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) {
+func pgUserUnitSource(t *testing.T, e *core.Engine) (*catalog.Relation, ids.ObjectRef) {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12014}
 	d, ok := e.Catalog.State.Relation(address)
@@ -57,7 +58,7 @@ func pgUserUnitRows(t *testing.T, source *exec.Source) map[uint32][]sqltype.Valu
 	return bag
 }
 
-func pgUserUnitRole(e *Engine, state *access.RoleRecord, id uint64, name string) authorization.PrincipalRef {
+func pgUserUnitRole(e *core.Engine, state *access.RoleRecord, id uint64, name string) authorization.PrincipalRef {
 	e.RoleStore.InstallPrincipalFrontierLocked(id)
 	ref, err := e.RoleStore.PrincipalCandidateLocked()
 	if err != nil {
@@ -86,7 +87,7 @@ func TestPGUserDescriptor(t *testing.T) {
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("PUBLIC SELECT")
 	}
-	if err := (RelationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (core.RelationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	if d.RowType != 12016 {
@@ -123,7 +124,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 	role.ValidUntil = 123456789
 	role.ConnectionLimit = 0
 	putFixtureRole(state, role)
-	source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{}}, capturePGUser)
+	source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGUser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestPGUserTypedProjectionAndIdentityWidth(t *testing.T) {
 		t.Fatal("detached expiry changed")
 	}
 	retireFixtureRole(updated, low)
-	fresh, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), updated), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{}}, capturePGUser)
+	fresh, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), updated), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGUser)
 	if err != nil || pgUserUnitRows(t, fresh)[20000] != nil {
 		t.Fatal("high identity resurrected removed low", err)
 	}
@@ -185,7 +186,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	e.RoleStore.PublishLocked(old)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope := &StatementScope{Op: op, Owner: op.Session.Transactions}
+	scope := &core.StatementScope{Op: op, Owner: op.Session.Transactions}
 	e.Mu.Lock()
 	err := e.CaptureCommentSnapshotLocked(scope)
 	e.Mu.Unlock()
@@ -195,7 +196,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	open := func(r ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.Mu.Lock()
-		source, err := EngineOpenRelationSourceLocked(e, scope, r, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+		source, err := core.EngineOpenRelationSourceLocked(e, scope, r, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -238,7 +239,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	if flag {
 		t.Fatal("nested provider resampled roles")
 	}
-	fresh := &StatementScope{Op: op, Owner: op.Session.Transactions}
+	fresh := &core.StatementScope{Op: op, Owner: op.Session.Transactions}
 	e.Mu.Lock()
 	err = e.CaptureCommentSnapshotLocked(fresh)
 	e.Mu.Unlock()
@@ -246,7 +247,7 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	current, err := EngineOpenRelationSourceLocked(e, fresh, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+	current, err := core.EngineOpenRelationSourceLocked(e, fresh, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,14 +266,14 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, roles := range []authorization.Read{e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), emptyRoleFixture(e)), e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state)} {
-		source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Roles: roles, Ref: ref, Source: d, Runtime: EngineCatalogRuntime{}}, capturePGUser)
+		source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Roles: roles, Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGUser)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("canceled admission published rows", err)
 		}
 	}
 	for _, at := range []int{2, 3, 5} {
 		ctx := &pgShDescriptionCancelContext{Context: context.Background(), cancelAt: at}
-		source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{}}, capturePGUser)
+		source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: d, Runtime: core.EngineCatalogRuntime{}}, capturePGUser)
 		if source != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("iteration/final cancellation published partial rows", at, err)
 		}
@@ -280,7 +281,7 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[1].Usage.Type = testUsage(e, sqltype.Int4).Type
-	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: EngineCatalogRuntime{}}, capturePGUser); err == nil || source != nil {
+	if source, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.RoleStore.Read(&e.Catalog.Owner, e.Catalog.Current(), state), Ref: ref, Source: &invalid, Runtime: core.EngineCatalogRuntime{}}, capturePGUser); err == nil || source != nil {
 		t.Fatal("invalid OID construction published rows")
 	}
 	unknown := *d
@@ -288,9 +289,9 @@ func TestPGUserCancellationAndUnknownProvider(t *testing.T) {
 	e.Catalog.State.SetDescriptor(unknown.Address(), &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope := &StatementScope{Op: op, Owner: op.Session.Transactions}
+	scope := &core.StatementScope{Op: op, Owner: op.Session.Transactions}
 	e.Mu.Lock()
-	source, err := EngineOpenRelationSourceLocked(e, scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), unknown.Address()), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+	source, err := core.EngineOpenRelationSourceLocked(e, scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), unknown.Address()), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

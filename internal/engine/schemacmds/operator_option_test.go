@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -69,7 +70,7 @@ func TestUserOperatorArgumentValidationOrder(t *testing.T) {
 			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.Catalog)
 			e.Mu.Lock()
-			err = routine.StageCreateOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s)
+			err = routine.StageCreateOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s)
 			e.Mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, tc.detail)
 			if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
@@ -98,7 +99,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 	// must accumulate on the same actual private peer rather than stale copies.
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err := routine.StageAlterOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#@#),hashes,merges")})
+	err := routine.StageAlterOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#@#),hashes,merges")})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -139,7 +140,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 			before := e.CatalogRead().State()
 			stage := e.BeginCatalogStage(auth.Catalog)
 			e.Mu.Lock()
-			err := routine.StageAlterOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+			err := routine.StageAlterOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.Mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
 			if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
@@ -161,7 +162,7 @@ func TestUserOperatorAlterSemanticCheckpoints(t *testing.T) {
 		t.Run(tc.options, func(t *testing.T) {
 			stage := e.BeginCatalogStage(auth.Catalog)
 			e.Mu.Lock()
-			err := routine.StageAlterOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+			err := routine.StageAlterOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 			e.Mu.Unlock()
 			operatorOptionDiagnostic(t, err, tc.code, tc.message, "")
 			if e.CatalogRead().State() != auth.Catalog.State() || stage.DescriptorCount() != 0 {
@@ -196,7 +197,7 @@ func TestUserOperatorCreationCheckpoints(t *testing.T) {
 				definition.Options = append(definition.Options, operatorParsedOptions(t, tc.options)...)
 				stage := e.BeginCatalogStage(auth.Catalog)
 				e.Mu.Lock()
-				err := routine.StageCreateOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, definition)
+				err := routine.StageCreateOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, definition)
 				e.Mu.Unlock()
 				code, message := tc.code, tc.message
 				if symbol == "invalid" && code == "42P13" {
@@ -242,10 +243,10 @@ func TestUserOperatorParameterCheckpoints(t *testing.T) {
 				e.Mu.Lock()
 				var err error
 				if alter {
-					err = routine.StageAlterOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
+					err = routine.StageAlterOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: operatorParsedOptions(t, tc.options)})
 				} else {
 					definition := &parser.CreateOperator{Name: operatorUnitName("public", "##?"), Options: operatorParsedOptions(t, "rightarg=int4,function=int4um,"+tc.options)}
-					err = routine.StageCreateOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, definition)
+					err = routine.StageCreateOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, definition)
 				}
 				e.Mu.Unlock()
 				operatorOptionDiagnostic(t, err, "42P13", tc.message, "")
@@ -308,7 +309,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 	failed.Options = append(failed.Options, operatorParsedOptions(t, "commutator=OPERATOR(public.#@#),negator=OPERATOR(public.#=#)")...)
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err := routine.StageCreateOperator(engine.RoutineHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, failed)
+	err := routine.StageCreateOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, failed)
 	e.Mu.Unlock()
 	operatorOptionDiagnostic(t, err, "42P13", "negator operator #=# is already the negator of operator #!#", "")
 	staged = e.StageRead(stage)
@@ -327,7 +328,7 @@ func TestUserOperatorPeerSetupStagedRoots(t *testing.T) {
 
 // withPublicSchemaUnitOwner provisions only a positive CREATE or owner-successor
 // precondition. It leaves the tested operation's identity and object ACLs alone.
-func withPublicSchemaUnitOwner(t *testing.T, e *engine.Engine, owner string, body func()) {
+func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body func()) {
 	t.Helper()
 	view := e.CatalogRead()
 	addresses := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})

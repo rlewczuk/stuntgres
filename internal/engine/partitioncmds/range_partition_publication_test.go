@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 )
@@ -49,7 +50,7 @@ func (c *rangePartitionPhaseContext) Err() error {
 // the number of context checks. No other goroutine mutates this owned stage.
 type partitionStagedCancelContext struct {
 	context.Context
-	scope         *engine.StatementScope
+	scope         *core.StatementScope
 	first, second ids.ObjectAddress
 	cancel        context.CancelFunc
 	entered       atomic.Bool

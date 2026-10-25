@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -34,7 +35,7 @@ func TestDomainCheckNominalLiteralAdmissionInternal(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			binder := NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+			binder := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 			binder.Query.Auth = &auth
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			e.Mu.Unlock()

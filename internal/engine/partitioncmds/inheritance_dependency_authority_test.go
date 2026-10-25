@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -103,7 +104,7 @@ func TestInheritanceDependencyAuthority(t *testing.T) {
 						return nil
 					}
 					if definition == "column" || authority == "whole" {
-						err = engine.StageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, project, ids.ObjectAddress{})
+						err = core.StageExpressionDependencies(context.Background(), stage, roots, mode, nil, nil, project, ids.ObjectAddress{})
 					} else if definition == "default" {
 						var edges []table.DefaultDependencyEdge
 						edges, err = stageDefaultDependents(stage, roots, mode)
@@ -192,14 +193,14 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 				}
 				enginetest.LockEmpty(t, e)
 			}()
-			scope := &engine.StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
+			scope := &core.StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
 			if err := stage.Remove(ref); err != nil {
 				t.Fatal(err)
 			}
-			if err := engine.StageExpressionDependencies(op.Context(), stage, []ids.ObjectAddress{q.Address()}, parser.DropCascade, scope, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := core.StageExpressionDependencies(op.Context(), stage, []ids.ObjectAddress{q.Address()}, parser.DropCascade, scope, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			removedQ, hasQ := stage.Removal(q.Address())
@@ -214,7 +215,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			if !ok || next == p || len(next.Columns) != len(p.Columns) {
 				t.Fatal("retained parent definition mutation not staged")
 			}
-			if len(next.ColumnMeta.Defaults) != 0 || len(next.Constraints.Check) != 0 || engine.StageDropProvider(nil, stage, nil, nil, nil).InheritanceAlterGuard(next) != nil {
+			if len(next.ColumnMeta.Defaults) != 0 || len(next.Constraints.Check) != 0 || core.StageDropProvider(nil, stage, nil, nil, nil).InheritanceAlterGuard(next) != nil {
 				t.Fatal("retained parent did not become standalone with consumed definition")
 			}
 			if e.Catalog.State != base.State() || e.Catalog.State.Get(q.Address()) != q || e.Catalog.State.Get(p.Address()) != p || e.Catalog.State.Get(c.Address()) != c || len(c.Inheritance.Parents) != 2 || c.Inheritance.Parents[0].Relation != q.Address() || c.Inheritance.Parents[1].Relation != p.Address() {
@@ -233,7 +234,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 
 // Descriptor-only fixture: these tests exercise dependency/control algorithms,
 // not SQL parsing/execution or public driver behavior.
-func inheritanceLifecycleTable(e *engine.Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *catalog.Relation {
+func inheritanceLifecycleTable(e *core.Engine, id ids.OID, name string, parents ...ids.ObjectAddress) *catalog.Relation {
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), RelationKind: catalog.TableRelation, Index: map[string]int{}}
 	if len(parents) != 0 {
 		table.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parents...), Columns: map[int32]catalog.InheritedColumn{}, Checks: map[string]catalog.InheritedConstraint{}, NotNull: map[int32]catalog.InheritedConstraint{}}
@@ -241,7 +242,7 @@ func inheritanceLifecycleTable(e *engine.Engine, id ids.OID, name string, parent
 	return table
 }
 
-func inheritanceLifecycleInstall(e *engine.Engine, tables ...*catalog.Relation) {
+func inheritanceLifecycleInstall(e *core.Engine, tables ...*catalog.Relation) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
@@ -253,14 +254,14 @@ func inheritanceLifecycleInstall(e *engine.Engine, tables ...*catalog.Relation) 
 }
 
 // stageDefaultDependents lists the column defaults that depend on targets.
-func stageDefaultDependents(stage *engine.CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.DefaultDependencyEdge, error) {
-	return table.DefaultDependents(engine.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+func stageDefaultDependents(stage *core.CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.DefaultDependencyEdge, error) {
+	return table.DefaultDependents(core.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }
 
 // Provider references join the incumbent dependency stage. Owner-local column
 // dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
-func stageCheckDependents(stage *engine.CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.CheckDependencyEdge, error) {
-	return table.CheckDependents(engine.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+func stageCheckDependents(stage *core.CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.CheckDependencyEdge, error) {
+	return table.CheckDependents(core.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
 }
 
 func inheritanceUnitParents(parents ...ids.ObjectAddress) []catalog.InheritanceParent {

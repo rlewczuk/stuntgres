@@ -2,31 +2,32 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
 )
 
-func executeComment(e *Engine, scope *StatementScope, s *parser.Comment, count int) (Result, error) {
+func executeComment(e *core.Engine, scope *core.StatementScope, s *parser.Comment, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	op := scope.Op
 	e.Mu.Lock()
 	stage, err := stageCommentLocked(e, scope, s)
 	e.Mu.Unlock()
 	if err != nil || stage == nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	defer e.DiscardCatalogStage(stage)
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
-	return Result{}, err
+	_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+	return core.Result{}, err
 }
 
-func stageCommentLocked(e *Engine, scope *StatementScope, s *parser.Comment) (*CatalogStage, error) {
+func stageCommentLocked(e *core.Engine, scope *core.StatementScope, s *parser.Comment) (*core.CatalogStage, error) {
 	op := scope.Op
 	if err := scope.ValidateLockedRelation(e); err != nil {
 		return nil, err
@@ -49,10 +50,10 @@ func stageCommentLocked(e *Engine, scope *StatementScope, s *parser.Comment) (*C
 		}
 		op.Session.Mu.Lock()
 		defer op.Session.Mu.Unlock()
-		if err := PublicationOperationLocked(e, op); err != nil {
+		if err := core.PublicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}
-		return nil, InstallOperationRolesLocked(e, op, roles)
+		return nil, core.InstallOperationRolesLocked(e, op, roles)
 	}
 	updated, err := role.PlanObjectComment(auth.View, auth, e.Catalog.Domain, s, scope.LockedRef, text, e.Catalog.RevisionLocked)
 	if err != nil {

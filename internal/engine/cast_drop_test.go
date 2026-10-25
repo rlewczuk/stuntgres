@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func TestCastDefinitionDropPublicationTransition(t *testing.T) {
 	if len(drop.DomainTargets) != 1 || drop.DomainTargets[0] != original.Address() {
 		t.Fatal("DROP did not select directed edge", drop.DomainTargets)
 	}
-	if err := StageExpressionDependencies(context.Background(), drop, drop.DomainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+	if err := core.StageExpressionDependencies(context.Background(), drop, drop.DomainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	if removal, ok := drop.Removal(original.Address()); !ok || removal.Descriptor != original {
@@ -113,14 +114,14 @@ func TestCastDefinitionDropDependencyTransitions(t *testing.T) {
 			}
 			restrict := domainUnitStage(t, e, op, query+" RESTRICT")
 			defer e.DiscardCatalogStage(restrict)
-			err := StageExpressionDependencies(context.Background(), restrict, restrict.DomainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{})
+			err := core.StageExpressionDependencies(context.Background(), restrict, restrict.DomainTargets, parser.DropRestrict, nil, nil, nil, ids.ObjectAddress{})
 			state(t, err, "2BP01")
 			if _, removed := restrict.Removal(cast.Address()); removed || e.CatalogRead().State() != base.State() {
 				t.Fatal("RESTRICT retired cast or published")
 			}
 			cascade := domainUnitStage(t, e, op, query+" CASCADE")
 			defer e.DiscardCatalogStage(cascade)
-			if err := StageExpressionDependencies(context.Background(), cascade, cascade.DomainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := core.StageExpressionDependencies(context.Background(), cascade, cascade.DomainTargets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			if _, removed := cascade.Removal(cast.Address()); !removed {

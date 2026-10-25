@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +31,7 @@ func IndependentFinalRows(original exec.RowResult) *exec.FinalRows {
 
 // Tuples reads every row of r through an independent cursor and exports each
 // value with Export.
-func Tuples(r engine.Result) [][]driver.Value {
+func Tuples(r core.Result) [][]driver.Value {
 	cursor := IndependentFinalRows(r.Rows)
 	defer cursor.Close()
 	rows := make([][]driver.Value, 0, cursor.Count)
@@ -91,7 +91,7 @@ func Export(v sqltype.Value) driver.Value {
 }
 
 // Usage returns the usage of the published type id.
-func Usage(e *engine.Engine, id sqltype.ID) sqltype.Usage {
+func Usage(e *core.Engine, id sqltype.ID) sqltype.Usage {
 	d, ok := e.CatalogRead().LookupType(id)
 	if !ok {
 		panic("missing type")

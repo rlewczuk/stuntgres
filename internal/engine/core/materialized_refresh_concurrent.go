@@ -1,0 +1,33 @@
+package core
+
+import (
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/view"
+)
+
+type materializedSourceFence struct {
+	ref      ids.ObjectRef
+	relation *catalog.Relation
+	storage  *storage.Relation
+}
+
+func (materializedSourceFence) Kind() session.FenceKind { return fenceMaterializedSource }
+
+func (f materializedSourceFence) CurrentLocked(e *Engine, _ *session.Journal) error {
+	if !e.materializedSourceFenceCurrent(f) {
+		return catalog.Conflict{}
+	}
+	return nil
+}
+
+func (e *Engine) materializedSourceFenceCurrent(f materializedSourceFence) bool {
+	if f.ref.Domain() != e.Catalog.Domain || f.ref.Epoch != e.Catalog.State.Epoch() || f.relation == nil || f.storage == nil || f.ref.Address != f.relation.Address() || f.relation.RelationKind != catalog.MaterializedViewRelation {
+		return false
+	}
+	current, _ := e.Catalog.State.Relation(f.ref.Address)
+	store := e.Storage.Relations[f.ref.Address]
+	return current == f.relation && store == f.storage || view.SameMaterializedLineage(f.relation, current, f.storage, store)
+}

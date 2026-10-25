@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -108,7 +108,7 @@ func TestTimestampSeriesRoutineAuthority(t *testing.T) {
 				}
 			}
 			probe := evaluation
-			foreignAuth := *engine.RoutineAuthorityView(&foreign)
+			foreignAuth := *core.RoutineAuthorityView(&foreign)
 			probe.RoutineAuthority = &foreignAuth
 			if err := exec.AdmitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
@@ -129,7 +129,7 @@ func TestTimestampSeriesRoutineAuthority(t *testing.T) {
 			if err := exec.AdmitRoutineCall(&probe, remapped, false, false); err == nil {
 				t.Fatal("foreign retag manufactured original authority")
 			}
-			changed := *engine.RoutineAuthorityView(&evaluation)
+			changed := *core.RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false

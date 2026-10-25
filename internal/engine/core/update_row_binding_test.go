@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func updateRowTestBinding(t *testing.T, q string) (*engine.Engine, analyze.Binding) {
+func updateRowTestBinding(t *testing.T, q string) (*core.Engine, analyze.Binding) {
 	t.Helper()
 	e := engine.New()
 	enginetest.Run(t, e, "CREATE TABLE t(id INT,a INT,b INT,c INT,d INT)")
@@ -38,7 +39,7 @@ func updateRowTestBinding(t *testing.T, q string) (*engine.Engine, analyze.Bindi
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := engine.Describe(op.Context(), e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := core.Describe(op.Context(), e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

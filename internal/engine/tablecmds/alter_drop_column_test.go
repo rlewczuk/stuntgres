@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -66,7 +67,7 @@ func TestAlterDropColumnIdentityAndSnapshots(t *testing.T) {
 	zero.Rows.Close()
 }
 
-func alterDropTestStage(t *testing.T, e *engine.Engine) (*engine.CatalogStage, ids.ObjectRef, *catalog.Relation) {
+func alterDropTestStage(t *testing.T, e *core.Engine) (*core.CatalogStage, ids.ObjectRef, *catalog.Relation) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, "t")
 	old := e.Catalog.State.MustRelation(ref.Address)
@@ -99,7 +100,7 @@ func TestAlterDropColumnStageRejectsConcurrentInsert(t *testing.T) {
 		t.Fatal(err)
 	}
 	enginetest.Run(t, e, "INSERT INTO t VALUES(2,'two')")
-	change, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch})
+	change, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(change.Definitions) != 0 || e.Catalog.State.Get(ref.Address) != old {
 		t.Fatal(change, err)
@@ -171,7 +172,7 @@ func TestAlterDropColumnStageCancellationAndReplacement(t *testing.T) {
 		} else {
 			cancel()
 		}
-		changes, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch})
+		changes, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch})
 		cancel()
 		if len(changes.Definitions) != 0 || err == nil {
 			t.Fatal(changes, err)
@@ -311,7 +312,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = enginetest.Execute(e, context.Background(), enginetest.Statement(t, "ALTER TABLE t DROP b"), nil)

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -67,7 +68,7 @@ func TestCatalogSourceRuntimeViewReferencesConsumer(t *testing.T) {
 
 	// pg_depend calls this seam without an authorization capture. The explicit
 	// catalog, not runtime.auth.Catalog, owns the descriptor/definition frontier.
-	runtime := engine.EngineCatalogRuntime{}
+	runtime := core.EngineCatalogRuntime{}
 	for _, tc := range []struct {
 		name     string
 		view     catalog.Read
@@ -143,13 +144,13 @@ func TestCatalogSourceRuntimeViewReferencesRetainedTemporary(t *testing.T) {
 			if len(definition.Sources()) != 1 || definition.Sources()[0].Ref.Epoch != before.Epoch() {
 				t.Fatal("fixture lost the retained source manifest")
 			}
-			refs, err := (engine.EngineCatalogRuntime{}).ViewReferences(t.Context(), current, consumer)
+			refs, err := (core.EngineCatalogRuntime{}).ViewReferences(t.Context(), current, consumer)
 			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{target}) {
 				t.Fatal("retained TEMP definition lost direct references", refs, err)
 			}
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
-			if refs, err := (engine.EngineCatalogRuntime{}).ViewReferences(ctx, current, consumer); refs != nil || !errors.Is(err, context.Canceled) {
+			if refs, err := (core.EngineCatalogRuntime{}).ViewReferences(ctx, current, consumer); refs != nil || !errors.Is(err, context.Canceled) {
 				t.Fatal("retained TEMP cancellation exposed references", refs, err)
 			}
 		})
@@ -181,7 +182,7 @@ func newDefaultUnitFixture(t *testing.T) defaultUnitFixture {
 }
 
 type defaultUnitFixture struct {
-	e                     *engine.Engine
+	e                     *core.Engine
 	op                    *session.Operation
 	owner, reader, member authorization.PrincipalRef
 	schema                ids.ObjectAddress

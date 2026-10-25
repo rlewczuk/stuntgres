@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
@@ -18,7 +19,7 @@ import (
 // physical NOT NULL repair sequence.
 func beforeRestorePhysicalBoundary(r *restoreRun, _ *session.Operation, stmt parser.Statement) (bool, error) {
 	if r.pairedPhysical != nil && !r.pairedPhysical.Admits(stmt) {
-		return false, SQLError("0A000", table.RestorePhysicalNotNullBoundary)
+		return false, core.SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return false, nil
 }
@@ -199,7 +200,7 @@ func afterRestoreDefault(r *restoreRun, op *session.Operation, stmt parser.State
 // physical NOT NULL repair sequence.
 func finishRestorePhysicalBoundary(r *restoreRun, _ context.Context, _ *session.Operation) error {
 	if r.pairedPhysical != nil {
-		return SQLError("0A000", table.RestorePhysicalNotNullBoundary)
+		return core.SQLError("0A000", table.RestorePhysicalNotNullBoundary)
 	}
 	return nil
 }

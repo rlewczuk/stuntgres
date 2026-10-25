@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -16,12 +17,12 @@ import (
 )
 
 type vacuumPhaseNativeOutcome struct {
-	result  engine.Result
+	result  core.Result
 	notices []sqlstate.Error
 	err     error
 }
 
-func vacuumPhaseNativeStart(t *testing.T, e *engine.Engine, s *session.Session, q string) func() vacuumPhaseNativeOutcome {
+func vacuumPhaseNativeStart(t *testing.T, e *core.Engine, s *session.Session, q string) func() vacuumPhaseNativeOutcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	ast := enginetest.Statement(t, q)
@@ -61,7 +62,7 @@ func vacuumPhaseNativeStart(t *testing.T, e *engine.Engine, s *session.Session, 
 		return vacuumPhaseNativeOutcome{}
 	}
 }
-func vacuumPhaseNativePending(t *testing.T, e *engine.Engine, ref ids.ObjectRef, holder *lock.Ticket) {
+func vacuumPhaseNativePending(t *testing.T, e *core.Engine, ref ids.ObjectRef, holder *lock.Ticket) {
 	t.Helper()
 	enginetest.LockPending(t, e, 1)
 	entry := e.Locks.Inspect().Resources[lock.Resource{ObjectRef: ref}]

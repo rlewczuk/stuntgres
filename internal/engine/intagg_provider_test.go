@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -11,7 +12,7 @@ import (
 	"testing"
 )
 
-func intaggUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
+func intaggUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -73,7 +74,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

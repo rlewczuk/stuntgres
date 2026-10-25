@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -52,7 +53,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		bound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(tc.q, err)
@@ -168,15 +169,15 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, first, nil, nil)
+		bound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, first, nil, nil)
 		if err != nil {
 			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		desc := engine.StatementDescription{Temporals: bound.Prepared.Temporals}
+		desc := core.StatementDescription{Temporals: bound.Prepared.Temporals}
 		before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 		for range 2 {
-			rebound, err := engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, later, &desc, nil)
+			rebound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, later, &desc, nil)
 			if err != nil {
 				e.Mu.Unlock()
 				t.Fatal(err)

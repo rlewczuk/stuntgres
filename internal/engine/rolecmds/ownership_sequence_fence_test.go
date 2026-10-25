@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
@@ -25,7 +25,7 @@ import (
 // Reuse the ownership roles and real sequence constructor, not a mock stage.
 // Only the selected database descriptor supplies the source-owner privilege;
 // the separate SET-only edge supplies successor eligibility, not source INHERIT.
-func ownershipSequenceFenceFixture(t *testing.T, private bool) (*engine.Engine, *session.Session, ids.ObjectRef, authorization.PrincipalRef, catalog.Descriptor, *session.Journal) {
+func ownershipSequenceFenceFixture(t *testing.T, private bool) (*core.Engine, *session.Session, ids.ObjectRef, authorization.PrincipalRef, catalog.Descriptor, *session.Journal) {
 	t.Helper()
 	e, bootstrap, actor, target, reader := ownershipUnitRoles()
 	roles := cloneRoleFixture(e.RoleStore.Published)
@@ -107,7 +107,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if private {
 					session.Transactions.Catalog = changes
 				}
-				auth, err := engine.OperationAuthorization(message.op)
+				auth, err := core.OperationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -157,8 +157,8 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				generator := e.Storage.Sequences[ref.Address]
 				generatorValue := *generator
-				memory := engine.PayloadOf(session).Sequences.Memory(ref.Address)
-				memoryValue, lastSequence := *memory, engine.PayloadOf(session).Sequences.Last()
+				memory := core.PayloadOf(session).Sequences.Memory(ref.Address)
+				memoryValue, lastSequence := *memory, core.PayloadOf(session).Sequences.Last()
 				if !generator.Called || generator.Last != 42 || !currvalIs(memory, 40) || memory.CachedTail() != 2 {
 					t.Fatal("fixture lacks actual reserved counter/currval/cache state")
 				}
@@ -268,7 +268,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if e.RoleStore.Published != oldRoles || session.Authorization.Revision != sessionRevision || e.Catalog.State.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.Catalog.Get(ref.Address) != old || auth.Catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.DatabasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
 					t.Fatal("publication mutated immutable retained authority or sequence roots")
 				}
-				if e.Storage.Sequences[ref.Address] != generator || *generator != generatorValue || engine.PayloadOf(session).Sequences.Memory(ref.Address) != memory || *memory != memoryValue || engine.PayloadOf(session).Sequences.Last() != lastSequence {
+				if e.Storage.Sequences[ref.Address] != generator || *generator != generatorValue || core.PayloadOf(session).Sequences.Memory(ref.Address) != memory || *memory != memoryValue || core.PayloadOf(session).Sequences.Last() != lastSequence {
 					t.Fatal("OWNER publication changed actual nontransactional counter/cache/currval")
 				}
 				for address, g := range generators {

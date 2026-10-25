@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -61,7 +62,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			b.Returning = &analyze.Returning{Expressions: []expr.Expr{probe}, Schema: []catalog.Column{{Name: "v", Usage: integer.Usage()}}}
 			if phase == "sequence_error" {
 				e.Mu.Lock()
-				binder := engine.NewExpressionBinder(ctx, e, scope.Input, scope.Op, nil)
+				binder := core.NewExpressionBinder(ctx, e, scope.Input, scope.Op, nil)
 				output, err := binder.BindReturning(enginetest.Statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning, analyze.ReturningDelete)
 				e.Mu.Unlock()
 				if err != nil {
@@ -139,10 +140,10 @@ func TestDeleteReturningCancellation(t *testing.T) {
 	}
 }
 
-func deleteProbeScope(t *testing.T, s *session.Session) (*engine.StatementScope, analyze.Binding, *exec.Source) {
+func deleteProbeScope(t *testing.T, s *session.Session) (*core.StatementScope, analyze.Binding, *exec.Source) {
 	t.Helper()
 	op := enginetest.TransactionOperation(t, s)
-	scope, err := engine.EngineOf(s).StartStatement(op)
+	scope, err := core.EngineOf(s).StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,10 +173,6 @@ func deleteProbeScope(t *testing.T, s *session.Session) (*engine.StatementScope,
 	return scope, analyze.Binding{Ref: ref, Relation: relation, Storage: scope.LockedStorage}, source
 }
 
-func queryProbe(usage sqltype.Usage, eval func(*exec.Context) (sqltype.Value, error)) expr.Expr {
-	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
-}
-
 type deleteCancelAfterCheck struct {
 	context.Context
 	cancel context.CancelFunc
@@ -190,13 +187,4 @@ func (c *deleteCancelAfterCheck) Err() error {
 		c.cancel()
 	}
 	return err
-}
-
-type queryProbeExpression struct {
-	expr.Info
-	eval func(*exec.Context) (sqltype.Value, error)
-}
-
-func (e queryProbeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	return e.eval(evalContext(ctx))
 }

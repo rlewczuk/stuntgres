@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -32,7 +33,7 @@ func partitionAttachUnitRange(t *testing.T, parent *catalog.Relation, lower, upp
 	return &catalog.PartitionMembership{Parent: parent.Address(), Lower: []catalog.PartitionDatum{{Value: lo}}, Upper: []catalog.PartitionDatum{{Value: hi}}}
 }
 
-func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode lock.Mode) {
+func partitionAttachUnitGrant(t *testing.T, scope *core.StatementScope, ref ids.ObjectRef, mode lock.Mode) {
 	t.Helper()
 	request, err := scope.Engine().Locks.StartAcquire(scope.Op.Context(), scope.LockTicket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{NoWait: true})
 	if err != nil || request != nil {
@@ -40,7 +41,7 @@ func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.Objec
 	}
 }
 
-func partitionAttachUnitQueued(t *testing.T, e *Engine, ref ids.ObjectRef, waiter *lock.Ticket, mode lock.Mode) {
+func partitionAttachUnitQueued(t *testing.T, e *core.Engine, ref ids.ObjectRef, waiter *lock.Ticket, mode lock.Mode) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -64,7 +65,7 @@ func partitionAttachUnitQueued(t *testing.T, e *Engine, ref ids.ObjectRef, waite
 	}
 }
 
-func partitionAttachUnitWorker(t *testing.T, scope *StatementScope, action func() error) func() error {
+func partitionAttachUnitWorker(t *testing.T, scope *core.StatementScope, action func() error) func() error {
 	t.Helper()
 	done := make(chan error, 1)
 	joined := false
@@ -138,7 +139,7 @@ func TestPartitionAttachGrowth(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+			if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			current := e.Catalog.State.MustRelation(parent.Address())

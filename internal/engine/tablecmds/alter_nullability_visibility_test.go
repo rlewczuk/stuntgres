@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
@@ -28,7 +29,7 @@ func TestAlterNullabilityPeerCommitVisibility(t *testing.T) {
 				t.Fatal("private descriptor published early")
 			}
 			done := make(chan struct {
-				result engine.Result
+				result core.Result
 				err    error
 			}, 1)
 			go func() {
@@ -36,14 +37,14 @@ func TestAlterNullabilityPeerCommitVisibility(t *testing.T) {
 				r, err := e.Execute(op, enginetest.Statement(t, "SELECT * FROM t ORDER BY a"), 0, nil)
 				op.Done()
 				done <- struct {
-					result engine.Result
+					result core.Result
 					err    error
 				}{r, err}
 			}()
 			enginetest.LockPending(t, e, 1)
 			enginetest.TransactionEnd(t, a, tx, commit)
 			var outcome struct {
-				result engine.Result
+				result core.Result
 				err    error
 			}
 			select {

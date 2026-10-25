@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -38,7 +38,7 @@ type sequenceDeletePublicationSnapshot struct {
 	memoryValues            map[ids.ObjectAddress]sequence.Memory
 }
 
-func captureSequenceDeletePublication(e *engine.Engine, s *session.Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
+func captureSequenceDeletePublication(e *core.Engine, s *session.Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
 	p := sequenceDeletePublicationSnapshot{
 		state: e.Catalog.State, catalog: *e.Catalog.State,
 		descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
@@ -48,7 +48,7 @@ func captureSequenceDeletePublication(e *engine.Engine, s *session.Session, tabl
 		generators:      make(map[ids.ObjectAddress]*storage.SequenceGenerator),
 		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		store:           e.Storage.Relations[table], frontier: e.Visibility.CommitSeq(),
-		temporary: s.TemporaryNamespace, last: engine.PayloadOf(s).Sequences.Last(),
+		temporary: s.TemporaryNamespace, last: core.PayloadOf(s).Sequences.Last(),
 		memory: make(map[ids.ObjectAddress]*sequence.Memory), memoryValues: make(map[ids.ObjectAddress]sequence.Memory),
 	}
 	for a, d := range e.Catalog.State.Descriptors() {
@@ -63,7 +63,7 @@ func captureSequenceDeletePublication(e *engine.Engine, s *session.Session, tabl
 	for a, g := range e.Storage.Sequences {
 		p.generators[a], p.generatorValues[a] = g, *g
 	}
-	for a, m := range engine.PayloadOf(s).Sequences.All() {
+	for a, m := range core.PayloadOf(s).Sequences.All() {
 		p.memory[a], p.memoryValues[a] = m, *m
 	}
 	p.root, p.ends = p.store.Versions, p.store.Ends
@@ -80,7 +80,7 @@ func captureSequenceDeletePublication(e *engine.Engine, s *session.Session, tabl
 	return p
 }
 
-func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *engine.Engine, s *session.Session) {
+func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *core.Engine, s *session.Session) {
 	t.Helper()
 	if e.Catalog.State != p.state || !reflect.DeepEqual(*e.Catalog.State, p.catalog) || !reflect.DeepEqual(maps.Collect(e.Catalog.State.Descriptors()), p.descriptors) || !reflect.DeepEqual(maps.Collect(e.Catalog.State.Names()), p.names) {
 		t.Fatal("failed combined publication changed catalog authority, descriptor/name bindings or namespace generation")
@@ -104,11 +104,11 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *engi
 	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {
 		t.Fatal("changed committed deletion entries")
 	}
-	if s.TemporaryNamespace != p.temporary || engine.PayloadOf(s).Sequences.Last() != p.last || engine.PayloadOf(s).Sequences.Len() != len(p.memory) {
+	if s.TemporaryNamespace != p.temporary || core.PayloadOf(s).Sequences.Last() != p.last || core.PayloadOf(s).Sequences.Len() != len(p.memory) {
 		t.Fatal("failed combined publication changed session temporary handle or sequence memory container")
 	}
 	for a, m := range p.memory {
-		if engine.PayloadOf(s).Sequences.Memory(a) != m || *m != p.memoryValues[a] {
+		if core.PayloadOf(s).Sequences.Memory(a) != m || *m != p.memoryValues[a] {
 			t.Fatal("changed session sequence memory", a)
 		}
 	}
@@ -121,7 +121,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *session.Session, table, s
 		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
 	}
 	g := tx.Catalog.Generators[sequence]
-	if g == nil || g.Last != 100 || g.Called || g == engine.EngineOf(s).Storage.Sequences[sequence] {
+	if g == nil || g.Last != 100 || g.Called || g == core.EngineOf(s).Storage.Sequences[sequence] {
 		t.Fatal("fixture must contain a private restarted generator")
 	}
 	if firstTemp {
@@ -132,13 +132,13 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *session.Session, table, s
 		for a, d := range tx.Catalog.Descriptors {
 			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.SessionToken {
 				namespaces++
-				if tx.Catalog.Originals[a] != nil || engine.EngineOf(s).Catalog.State.Get(a) != nil {
+				if tx.Catalog.Originals[a] != nil || core.EngineOf(s).Catalog.State.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
 				}
 			}
 			if r, ok := d.(*catalog.Relation); ok && r.Name() == "first_temp" {
 				temps++
-				if tx.Catalog.Generators[a] == nil || engine.EngineOf(s).Storage.Sequences[a] != nil {
+				if tx.Catalog.Generators[a] == nil || core.EngineOf(s).Storage.Sequences[a] != nil {
 					t.Fatal("TEMP generator is not private")
 				}
 			}
@@ -149,7 +149,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *session.Session, table, s
 	}
 }
 
-func assertSequenceDeleteEndCleanup(t *testing.T, e *engine.Engine, s *session.Session, old *lock.Ticket) {
+func assertSequenceDeleteEndCleanup(t *testing.T, e *core.Engine, s *session.Session, old *lock.Ticket) {
 	t.Helper()
 	tx := s.Transactions
 	if tx.State != session.TxIdle || tx.Ref != (ids.TxRef{}) || tx.Command != 0 || !tx.Start.IsZero() || tx.Writes != nil || tx.Deletes != nil || tx.Catalog != nil || tx.Ticket != nil {

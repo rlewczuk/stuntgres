@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -26,15 +27,15 @@ import (
 // providers. The witnesses below drive real scopes/controller/cache functions;
 // no driver SQL, mocked binder, sleep or production observer is involved.
 type inheritanceAlterAdmissionCase struct {
-	e      *Engine
+	e      *core.Engine
 	op     *session.Operation
-	scope  *StatementScope
+	scope  *core.StatementScope
 	raw    *parser.AlterTable
-	auth   AuthorizationView
+	auth   core.AuthorizationView
 	cancel context.CancelFunc
 }
 
-func inheritanceAlterAdmissionScope(t *testing.T, e *Engine, role, sql string) *inheritanceAlterAdmissionCase {
+func inheritanceAlterAdmissionScope(t *testing.T, e *core.Engine, role, sql string) *inheritanceAlterAdmissionCase {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -89,7 +90,7 @@ func (c *inheritanceAlterAdmissionCase) run() error {
 	_, err = alterInheritanceLocked(c.e, c.scope, c.op, c.auth, &command, 0, prepared.Destination, prepared.Types)
 	return err
 }
-func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *catalog.Relation) *StatementScope {
+func inheritanceAlterAXHolder(t *testing.T, e *core.Engine, table *catalog.Relation) *core.StatementScope {
 	t.Helper()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
@@ -110,7 +111,7 @@ func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *catalog.Relation) 
 	}
 	return scope
 }
-func inheritanceAlterWorker(t *testing.T, c *inheritanceAlterAdmissionCase, holder *StatementScope) (<-chan error, func()) {
+func inheritanceAlterWorker(t *testing.T, c *inheritanceAlterAdmissionCase, holder *core.StatementScope) (<-chan error, func()) {
 	t.Helper()
 	result := make(chan error, 1)
 	joined := false
@@ -139,7 +140,7 @@ func inheritanceAlterJoin(t *testing.T, result <-chan error, joined func()) erro
 		return nil
 	}
 }
-func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, table *catalog.Relation) *InheritanceAlterState {
+func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, table *catalog.Relation) *core.InheritanceAlterState {
 	t.Helper()
 	lockPending(t, c.e, 1)
 	ref := c.e.Catalog.Domain.Ref(c.e.CatalogRead().Epoch(), table.Address())
@@ -186,14 +187,14 @@ func inheritanceAlterPending(t *testing.T, c *inheritanceAlterAdmissionCase, tab
 	}
 	return state
 }
-func inheritanceAlterAssertRows(t *testing.T, e *Engine, table *catalog.Relation, want []sqltype.Value) {
+func inheritanceAlterAssertRows(t *testing.T, e *core.Engine, table *catalog.Relation, want []sqltype.Value) {
 	t.Helper()
 	store := e.Storage.Relations[table.Address()]
 	if store == nil || len(store.Versions) != 1 || !reflect.DeepEqual(store.Versions[0].Values, want) {
 		t.Fatal("wrong physical replacement row", table.Name(), store)
 	}
 }
-func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]storage.RowVersion {
+func inheritanceAlterRowRoots(e *core.Engine) map[ids.ObjectAddress][]storage.RowVersion {
 	roots := make(map[ids.ObjectAddress][]storage.RowVersion, len(e.Storage.Relations))
 	for address, store := range e.Storage.Relations {
 		rows := slices.Clone(store.Versions)
@@ -204,7 +205,7 @@ func inheritanceAlterRowRoots(e *Engine) map[ids.ObjectAddress][]storage.RowVers
 	}
 	return roots
 }
-func inheritanceAlterGrandchild(t *testing.T, e *Engine, c *catalog.Relation) *catalog.Relation {
+func inheritanceAlterGrandchild(t *testing.T, e *core.Engine, c *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	stage, g := queryCreateStage(t, e, "g", 1)
 	g.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(c.Address()), Columns: map[int32]catalog.InheritedColumn{g.Attributes[0]: {Origins: []catalog.InheritanceOrigin{{Parent: c.Address(), Attribute: c.Attributes[0]}}}}, NotNull: map[int32]catalog.InheritedConstraint{}, Checks: map[string]catalog.InheritedConstraint{}}

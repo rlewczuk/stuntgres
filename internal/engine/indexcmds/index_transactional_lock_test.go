@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
 
-func transactionalIndexAsync(t *testing.T, e *engine.Engine, s *session.Session, q string) <-chan error {
+func transactionalIndexAsync(t *testing.T, e *core.Engine, s *session.Session, q string) <-chan error {
 	t.Helper()
 	stmt := enginetest.Statement(t, q)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

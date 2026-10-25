@@ -1,0 +1,413 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/sqlstate"
+)
+
+// Observe the existing cooperative boundaries, including publication preflight,
+// without changing cancellation or introducing a production callback.
+type deleteAdmissionContext struct {
+	context.Context
+	engine *core.Engine
+	checks int
+	lost   bool
+}
+
+func (c *deleteAdmissionContext) Err() error {
+	c.checks++
+	a := &c.engine.ReplacementMu
+	core.ReplacementAdmissionMuRef(a).Lock()
+	c.lost = c.lost || core.ReplacementAdmissionReaders(a) != 1 || core.ReplacementAdmissionWriting(a)
+	core.ReplacementAdmissionMuRef(a).Unlock()
+	return c.Context.Err()
+}
+
+func deleteReplacementAdmissionEmpty(t *testing.T, e *core.Engine) {
+	t.Helper()
+	a := &e.ReplacementMu
+	core.ReplacementAdmissionMuRef(a).Lock()
+	readers, writers, writing := core.ReplacementAdmissionReaders(a), core.ReplacementAdmissionWriters(a), core.ReplacementAdmissionWriting(a)
+	core.ReplacementAdmissionMuRef(a).Unlock()
+	if readers != 0 || writers != 0 || writing {
+		t.Fatalf("residual replacement admission: readers=%d writers=%d writing=%t", readers, writers, writing)
+	}
+	if !a.TryLock() {
+		t.Fatal("replacement writer cannot enter after DELETE cleanup")
+	}
+	a.Unlock()
+}
+
+func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
+	e := engine.New()
+	s := sessionStart(t, e, nil)
+	peer := sessionStart(t, e, nil)
+	sessionSQL(t, s, "CREATE TABLE t(v INT)")
+	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2),(3)")
+	op := transactionOperation(t, s)
+	defer op.Done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = scope.Finish(errors.New("test cleanup")) }()
+	stmt := enginetest.Statement(t, "DELETE FROM t WHERE v<=2")
+	if err = scope.Gate(stmt); err != nil {
+		t.Fatal(err)
+	}
+	probe := &deleteAdmissionContext{Context: op.Context(), engine: e}
+	op.Ctx = probe
+	result, err := scope.Execute(stmt, 0, nil)
+	if err != nil || result.Count != 2 || result.Rows != nil || !scope.ReplacementRead {
+		t.Fatal("immediate DELETE failed", result, err)
+	}
+	ref := scope.LockedRef
+	rows := 0
+	for resource, entry := range e.Locks.Inspect().Resources {
+		if resource.ObjectRef == ref && resource.Row != 0 && entry.Holders[scope.LockTicket].Mode == lock.ForUpdate && len(entry.Pending) == 0 {
+			rows++
+		}
+	}
+	if rows != 2 {
+		t.Fatal("immediate DELETE lacks exact row grants", rows)
+	}
+	if e.ReplacementMu.TryLock() {
+		e.ReplacementMu.Unlock()
+		t.Fatal("immediate row grants lost continuous replacement reservation")
+	}
+	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 3)
+	frontier := e.Visibility.CommitSeq()
+	writer := make(chan bool, 1)
+	go func() {
+		e.ReplacementMu.Lock()
+		e.Mu.Lock()
+		root := e.Storage.Relations[ref.Address].Ends
+		published := root != nil && len(root.Rows) == 2 && e.Visibility.CommitSeq() == frontier+1
+		e.Mu.Unlock()
+		e.ReplacementMu.Unlock()
+		writer <- published
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		core.ReplacementAdmissionMuRef(&e.ReplacementMu).Lock()
+		waiting := core.ReplacementAdmissionWriters(&e.ReplacementMu) == 1 && core.ReplacementAdmissionReaders(&e.ReplacementMu) == 1 && !core.ReplacementAdmissionWriting(&e.ReplacementMu)
+		core.ReplacementAdmissionMuRef(&e.ReplacementMu).Unlock()
+		if waiting {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("replacement writer did not wait behind immediate DELETE")
+		}
+		runtime.Gosched()
+	}
+	checksBeforeFinish := probe.checks
+	if err = scope.Finish(nil); err != nil {
+		t.Fatal(err)
+	}
+	if probe.lost || checksBeforeFinish == 0 || probe.checks <= checksBeforeFinish {
+		t.Fatal("reservation not observed across execution and publication", probe)
+	}
+	select {
+	case published := <-writer:
+		if !published {
+			t.Fatal("replacement writer admitted before successful DELETE publication")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Finish did not release replacement writer")
+	}
+	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 3)
+	enginetest.LockEmpty(t, e)
+	deleteReplacementAdmissionEmpty(t, e)
+}
+
+// Capture the exact DELETE row request, not just a goroutine-start signal or a
+// relation waiter. All observations use the manager's existing protected journal.
+func deleteReplacementQueued(t *testing.T, e *core.Engine, resource lock.Resource, holder, waiter *lock.Ticket) *lock.Request {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		lockState := e.Locks.Inspect()
+		entry := lockState.Resources[resource]
+		var request *lock.Request
+		if entry != nil && entry.Holders[holder].Mode == lock.ForUpdate && len(entry.Pending) == 1 {
+			r := entry.Pending[0]
+			if r.Ticket == waiter && r.Resource == resource && r.Mode == lock.ForUpdate && !r.Terminal {
+				request = r.Request
+			}
+		}
+		if request != nil {
+			return request
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("exact DELETE row request did not queue behind active holder")
+		}
+		runtime.Gosched()
+	}
+}
+
+func deleteReplacementScope(t *testing.T, e *core.Engine, s *session.Session) (*core.StatementScope, *lock.Ticket, <-chan deleteOutcome) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	op, err := s.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(op.Done)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	stmt := enginetest.Statement(t, "DELETE FROM t WHERE v<=2")
+	if err = scope.Gate(stmt); err != nil {
+		_ = scope.Finish(err)
+		op.Done()
+		t.Fatal(err)
+	}
+	ticket := scope.LockTicket
+	done := make(chan deleteOutcome, 1)
+	stopped := make(chan struct{})
+	t.Cleanup(func() {
+		cancel()
+		<-stopped
+		if !scope.Finished {
+			_ = scope.Finish(context.Canceled)
+		}
+	})
+	go func() {
+		defer close(stopped)
+		result, err := scope.Execute(stmt, 0, nil)
+		done <- deleteOutcome{result, err}
+	}()
+	return scope, ticket, done
+}
+
+func deleteReplacementReject(t *testing.T, scope *core.StatementScope, done <-chan deleteOutcome) {
+	t.Helper()
+	var outcome deleteOutcome
+	select {
+	case outcome = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("stale DELETE did not leave row wait/readmission")
+	}
+	var diagnostic *sqlstate.Error
+	if !errors.Is(outcome.err, ids.ErrCatalogReplaced) || errors.As(outcome.err, &diagnostic) || outcome.result.Count != 0 || outcome.result.Rows != nil {
+		t.Fatal("replacement must return ordinary ErrCatalogReplaced and no successful result", outcome)
+	}
+	ticket := scope.LockTicket
+	if err := scope.Finish(outcome.err); !errors.Is(err, ids.ErrCatalogReplaced) {
+		t.Fatal(err)
+	}
+	scope.Op.Done()
+	manager := scope.Engine().Locks
+	lockState := manager.Inspect(ticket)
+	resources := len(lockState.Journals[ticket])
+	_, registered := lockState.Owners[ticket.Ref()]
+	if resources != 0 || registered {
+		t.Fatal("stale DELETE ticket retained lock journal", resources, registered)
+	}
+	if scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.View != nil || scope.LockTicket != nil || scope.ReplacementRead {
+		t.Fatal("stale DELETE retained stage/view/grants/reservation")
+	}
+	owner := scope.Owner
+	if owner.Writes != nil || owner.Deletes != nil || owner.Ticket != nil {
+		t.Fatal("stale DELETE retained prior private work")
+	}
+}
+
+func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
+	for _, replacement := range []string{"reset", "restore"} {
+		for _, explicit := range []bool{false, true} {
+			t.Run(replacement+"/"+map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
+				e := engine.New()
+				holder := sessionStart(t, e, nil)
+				waiter := sessionStart(t, e, nil)
+				peer := sessionStart(t, e, nil)
+				sessionSQL(t, peer, "CREATE TABLE t(v INT)")
+				sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
+				ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
+				oldStorage := e.Storage.Relations[ref.Address]
+				resource := lock.Resource{ObjectRef: ref, Row: oldStorage.Versions[1].Row}
+				hr := transactionBegin(t, holder)
+				deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
+				var wr ids.TxRef
+				if explicit {
+					wr = transactionBegin(t, waiter)
+					sessionSQL(t, waiter, "INSERT INTO t VALUES(7)")
+					deleteCount(t, waiter, "DELETE FROM t WHERE v=3", 1)
+				}
+				scope, ticket, done := deleteReplacementScope(t, e, waiter)
+				request := deleteReplacementQueued(t, e, resource, holder.Transactions.Ticket, ticket)
+				root := scope.Stage.Deletes[ref.Address]
+				first := oldStorage.Versions[0].Row
+				if root == nil || len(root.Rows) != 1 || root.Rows[first].Row != first {
+					t.Fatal("earlier matching row was not privately staged before wait")
+				}
+				if explicit {
+					prior := waiter.Transactions.Deletes[ref.Address]
+					if len(waiter.Transactions.Writes[ref.Address]) != 1 || prior == nil || len(prior.Rows) != 1 {
+						t.Fatal("explicit prior INSERT/DELETE work absent before replacement")
+					}
+				}
+				// The holder has not ended. Real replacement can complete only if
+				// the implicit row waiter relinquished its admission reservation.
+				if replacement == "reset" {
+					if err := engine.Reset(context.Background(), e); err != nil {
+						t.Fatal(err)
+					}
+					sessionSQL(t, peer, "CREATE TABLE t(v INT)")
+					sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(2),(91)")
+				} else if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(1),(2),(2),(91)")); err != nil {
+					t.Fatal(err)
+				}
+				if holder.TransactionState() != session.TxActive || e.CatalogRead().Epoch() != ref.Epoch+1 {
+					t.Fatal("replacement did not complete with old holder active")
+				}
+				deleteReplacementReject(t, scope, done)
+				fenced := request.Terminal() && errors.Is(request.Err(), ids.ErrCatalogReplaced)
+				if !fenced || oldStorage.Ends != nil {
+					t.Fatal("queued request not fenced or private deletion published")
+				}
+				if explicit {
+					if waiter.TransactionState() != session.TxAborted {
+						t.Fatal("explicit stale DELETE did not abort")
+					}
+					transactionEnd(t, waiter, wr, false)
+				} else if waiter.TransactionState() != session.TxIdle {
+					t.Fatal("implicit stale DELETE did not clear transaction")
+				}
+				enginetest.LockEmpty(t, e)
+				deleteReplacementAdmissionEmpty(t, e)
+				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
+				transactionEnd(t, holder, hr, false)
+				transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
+				enginetest.LockEmpty(t, e)
+			})
+		}
+	}
+}
+
+func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
+	e := engine.New()
+	holder := sessionStart(t, e, nil)
+	waiter := sessionStart(t, e, nil)
+	peer := sessionStart(t, e, nil)
+	sessionSQL(t, peer, "CREATE TABLE t(v INT)")
+	sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(3)")
+	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
+	oldStorage := e.Storage.Relations[ref.Address]
+	first, blocked := oldStorage.Versions[0].Row, oldStorage.Versions[1].Row
+	resource := lock.Resource{ObjectRef: ref, Row: blocked}
+	hr := transactionBegin(t, holder)
+	deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
+	scope, ticket, done := deleteReplacementScope(t, e, waiter)
+	request := deleteReplacementQueued(t, e, resource, holder.Transactions.Ticket, ticket)
+	// Use the existing final-install seam with a genuine independently seeded
+	// foreign generation. Whole Reset/Restore calls are covered above; invoking
+	// them while already holding this writer reservation would be reentrant.
+	source := engine.New()
+	enginetest.Run(t, source, "CREATE TABLE t(v INT)")
+	enginetest.Run(t, source, "INSERT INTO t VALUES(1),(2),(2),(91)")
+	replacement := source.CatalogRead()
+	sourceRoles, targetRoles := source.Roles(), e.Roles()
+	relations := make(map[ids.ObjectAddress]*storage.Relation)
+	source.Mu.Lock()
+	for address, relation := range source.Storage.Relations {
+		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
+	}
+	sequences, sequenceErr := sequence.CopyGenerators(replacement, source.Storage.Sequences)
+	indexes, indexErr := core.EngineCaptureIndexSnapshot(source, context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
+	source.Mu.Unlock()
+	if sequenceErr != nil {
+		t.Fatal(sequenceErr)
+	}
+	if indexErr != nil {
+		t.Fatal(indexErr)
+	}
+	e.ReplacementMu.Lock()
+	writerHeld := true
+	defer func() {
+		// Also release on assertion failure, so a blocked readmission can finish.
+		if writerHeld {
+			e.ReplacementMu.Unlock()
+		}
+	}()
+	transactionEnd(t, holder, hr, false)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		lockState := e.Locks.Inspect(ticket)
+		entry := lockState.Resources[resource]
+		granted := request.Terminal() && request.Err() == nil && entry != nil && entry.Holders[ticket].Mode == lock.ForUpdate && len(entry.Pending) == 0
+		_, journaled := lockState.Journals[ticket][resource]
+		if granted && journaled {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("actual DELETE row transfer absent before readmission")
+		}
+		runtime.Gosched()
+	}
+	// The writer excludes implicit readmission: row one was staged before the
+	// wait, but the newly granted row two must not reach the stage/publication.
+	root := scope.Stage.Deletes[ref.Address]
+	if root == nil || len(root.Rows) != 1 || root.Rows[first].Row != first || oldStorage.Ends != nil {
+		t.Fatal("DELETE advanced past readmission or failed to stage earlier private row")
+	}
+	select {
+	case outcome := <-done:
+		t.Fatal("DELETE returned while writer excluded readmission", outcome)
+	default:
+	}
+	e.Mu.Lock()
+	next, _, err := core.EngineRemapPreparedCatalog(e, catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
+	if err == nil {
+		nextRevision := e.Catalog.NextRevision()
+		for _, descriptor := range next.Descriptors() {
+			if err = access.ValidateACL(e.RoleStore.PublishedRead(&e.Catalog.Owner, e.Catalog.Read(next)), descriptor); err != nil {
+				break
+			}
+			nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
+		}
+		if err == nil {
+			var prepared index.RemintedIndexStorage
+			prepared, err = core.EnginePrepareForeignIndexStorage(e, context.Background(), next, relations, indexes)
+			if err == nil {
+				err = core.EngineInstallForeignCatalogLocked(e, context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
+			}
+		}
+	}
+	epoch := e.Catalog.State.Epoch()
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	e.Locks.Fence(e.Catalog.Domain, epoch)
+	e.ReplacementMu.Unlock()
+	writerHeld = false
+	deleteReplacementReject(t, scope, done)
+	if epoch != ref.Epoch+1 || oldStorage.Ends != nil || waiter.TransactionState() != session.TxIdle {
+		t.Fatal("stale granted DELETE published or retained implicit work")
+	}
+	enginetest.LockEmpty(t, e)
+	deleteReplacementAdmissionEmpty(t, e)
+	transactionRows(t, peer, "SELECT v FROM t ORDER BY v", 1, 2, 2, 91)
+	enginetest.LockEmpty(t, e)
+}

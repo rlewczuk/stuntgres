@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -12,21 +13,21 @@ import (
 
 // Metadata-only graph evolution shares the same one-stage atomic publication
 // contract as shape ALTER, without running a physical row rewrite.
-func renameInheritanceColumnLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
+func renameInheritanceColumnLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, root *catalog.Relation, column, destination string, only bool) (core.Result, error) {
 	candidate, err := table.RenameInheritanceColumnPrecheck(auth.Catalog, root, column, destination, only)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	targets, auth, err := acquireInheritanceDefinitions(scope, root, !only)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if current := targets[0]; current != root {
 		candidate, err = table.RenameColumnCandidate(current, column, destination)
 		if err != nil {
 			e.Mu.Unlock()
-			return Result{}, err
+			return core.Result{}, err
 		}
 		root = current
 	}
@@ -41,35 +42,35 @@ func renameInheritanceColumnLocked(e *Engine, scope *StatementScope, op *session
 	for _, old := range targets {
 		next, err := table.RenameInheritanceColumn(selected, root, candidate, old, column, destination)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if err := stage.Replace(next); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
 		scope.Completed = true
 	}
-	return Result{}, err
+	return core.Result{}, err
 }
 
-func renameInheritanceConstraintLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (Result, error) {
+func renameInheritanceConstraintLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (core.Result, error) {
 	name := raw.Constraint.Text
 	recurse, err := table.RenameInheritanceConstraintPrecheck(auth.Catalog, root, name, kind, raw.Only)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	targets, auth, err := acquireInheritanceDefinitions(scope, root, recurse)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	root = targets[0]
 	stage := e.BeginCatalogStage(auth.Catalog)
@@ -83,32 +84,32 @@ func renameInheritanceConstraintLocked(e *Engine, scope *StatementScope, op *ses
 	for _, old := range targets {
 		next, err := table.RenameInheritanceConstraint(selected, root, old, name, raw.NewName.Text, kind)
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if err := stage.Replace(next); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	prepared, err := e.ValidateCatalogStage(op.Context(), stage)
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 	}
 	if err == nil {
 		scope.Completed = true
 	}
-	return Result{}, err
+	return core.Result{}, err
 }
 
 // The caller holds Engine.mu. Success retains it so the caller can create its
 // sole stage from the returned authentic authorization/catalog without a gap;
 // every error returns unlocked. AX waits always run outside Engine.mu.
-func acquireInheritanceDefinitions(scope *StatementScope, root *catalog.Relation, recurse bool) ([]*catalog.Relation, AuthorizationView, error) {
+func acquireInheritanceDefinitions(scope *core.StatementScope, root *catalog.Relation, recurse bool) ([]*catalog.Relation, core.AuthorizationView, error) {
 	e := scope.Engine()
 	epoch := scope.LockedRef.Epoch
 	captured := map[ids.ObjectAddress]*catalog.Relation{root.Address(): root}
-	fail := func(err error) ([]*catalog.Relation, AuthorizationView, error) {
+	fail := func(err error) ([]*catalog.Relation, core.AuthorizationView, error) {
 		e.Mu.Unlock()
-		return nil, AuthorizationView{}, err
+		return nil, core.AuthorizationView{}, err
 	}
 	for {
 		if err := scope.Op.Context().Err(); err != nil {
@@ -157,7 +158,7 @@ func acquireInheritanceDefinitions(scope *StatementScope, root *catalog.Relation
 		ref.Address = pending.Address()
 		e.Mu.Unlock()
 		if err := scope.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
-			return nil, AuthorizationView{}, err
+			return nil, core.AuthorizationView{}, err
 		}
 		e.Mu.Lock()
 	}

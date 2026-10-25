@@ -7,12 +7,13 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
-func sequenceTempMoveCommand(t *testing.T, e *engine.Engine, s *session.Session, query string, prepared bool) error {
+func sequenceTempMoveCommand(t *testing.T, e *core.Engine, s *session.Session, query string, prepared bool) error {
 	t.Helper()
 	if prepared {
 		ast, description := sequencePreparedDescription(t, e, s, query)
@@ -73,8 +74,8 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				catalog := e.Catalog.State
 				descriptor := catalog.MustRelation(ref.Address)
 				generator := *e.Storage.Sequences[ref.Address]
-				memory := *engine.PayloadOf(a).Sequences.Memory(ref.Address)
-				last, namespace, peerNamespace := engine.PayloadOf(a).Sequences.Last(), a.TemporaryNamespace, b.TemporaryNamespace
+				memory := *core.PayloadOf(a).Sequences.Memory(ref.Address)
+				last, namespace, peerNamespace := core.PayloadOf(a).Sequences.Last(), a.TemporaryNamespace, b.TemporaryNamespace
 				cell := held.Sequences
 				peerDescriptor := catalog.Get(peerNamespace)
 				peerGenerator := *e.Storage.Sequences[NameAddressForTempMove(t, e, peerNamespace, "peer_temp")]
@@ -88,7 +89,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				} else {
 					sequenceOwnerDiagnostic(t, err, "0A000", "cannot move objects into or out of temporary schemas", "")
 				}
-				if e.Catalog.State != catalog || e.Catalog.State.Get(ref.Address) != descriptor || *e.Storage.Sequences[ref.Address] != generator || *engine.PayloadOf(a).Sequences.Memory(ref.Address) != memory || engine.PayloadOf(a).Sequences.Last() != last || a.TemporaryNamespace != namespace || b.TemporaryNamespace != peerNamespace || held.Sequences != cell {
+				if e.Catalog.State != catalog || e.Catalog.State.Get(ref.Address) != descriptor || *e.Storage.Sequences[ref.Address] != generator || *core.PayloadOf(a).Sequences.Memory(ref.Address) != memory || core.PayloadOf(a).Sequences.Last() != last || a.TemporaryNamespace != namespace || b.TemporaryNamespace != peerNamespace || held.Sequences != cell {
 					t.Fatal("rejected move changed catalog, identity, stamp, generator, cache, held binding or session ownership")
 				}
 				if e.Catalog.State.Get(peerNamespace) != peerDescriptor || *e.Storage.Sequences[NameAddressForTempMove(t, e, peerNamespace, "peer_temp")] != peerGenerator {
@@ -115,7 +116,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 						}
 					}
 				}
-				if a.TemporaryNamespace != (ids.ObjectAddress{}) || engine.PayloadOf(a).Sequences.Len() != 0 || engine.PayloadOf(a).Sequences.Last() != (ids.ObjectAddress{}) {
+				if a.TemporaryNamespace != (ids.ObjectAddress{}) || core.PayloadOf(a).Sequences.Len() != 0 || core.PayloadOf(a).Sequences.Last() != (ids.ObjectAddress{}) {
 					t.Fatal("physical end retained session namespace or memory")
 				}
 				if e.Catalog.State.Get(peerNamespace) != peerDescriptor {
@@ -138,7 +139,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 	}
 }
 
-func NameAddressForTempMove(t *testing.T, e *engine.Engine, namespace ids.ObjectAddress, name string) ids.ObjectAddress {
+func NameAddressForTempMove(t *testing.T, e *core.Engine, namespace ids.ObjectAddress, name string) ids.ObjectAddress {
 	t.Helper()
 	a, ok := e.Catalog.State.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 	if !ok {
@@ -165,12 +166,12 @@ func TestSequenceTemporaryMovePrecedenceAndPersistentMove(t *testing.T) {
 			ref := held.Sequences.Constants[0].Ref
 			sequenceScalar(t, s, "SELECT nextval('persistent')", 1)
 			before := e.Catalog.State.MustRelation(ref.Address)
-			generator, memory := *e.Storage.Sequences[ref.Address], *engine.PayloadOf(s).Sequences.Memory(ref.Address)
+			generator, memory := *e.Storage.Sequences[ref.Address], *core.PayloadOf(s).Sequences.Memory(ref.Address)
 			if err := sequenceTempMoveCommand(t, e, s, "ALTER SEQUENCE persistent SET SCHEMA moved", prepared); err != nil {
 				t.Fatal("ordinary persistent move", err)
 			}
 			after := e.Catalog.State.MustRelation(ref.Address)
-			if after.Address() != before.Address() || after.Namespace() == before.Namespace() || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Sequence, before.Sequence) || *e.Storage.Sequences[ref.Address] != generator || *engine.PayloadOf(s).Sequences.Memory(ref.Address) != memory {
+			if after.Address() != before.Address() || after.Namespace() == before.Namespace() || after.SequencePlanStamp == before.SequencePlanStamp || !reflect.DeepEqual(after.Sequence, before.Sequence) || *e.Storage.Sequences[ref.Address] != generator || *core.PayloadOf(s).Sequences.Memory(ref.Address) != memory {
 				t.Fatal("persistent move changed identity/options/cache or failed to invalidate")
 			}
 			_, err = sequencePreparedExecute(e, s, ast, &held)
@@ -197,10 +198,10 @@ func TestSequenceTemporaryMoveCreatePermissionPrecedence(t *testing.T) {
 			_, held := sequencePreparedDescription(t, e, s, "SELECT nextval('own_temp')")
 			ref := held.Sequences.Constants[0].Ref
 			catalog, namespace := e.Catalog.State, s.TemporaryNamespace
-			generator, memory := *e.Storage.Sequences[ref.Address], *engine.PayloadOf(s).Sequences.Memory(ref.Address)
+			generator, memory := *e.Storage.Sequences[ref.Address], *core.PayloadOf(s).Sequences.Memory(ref.Address)
 			err := sequenceTempMoveCommand(t, e, s, "ALTER SEQUENCE own_temp SET SCHEMA denied", prepared)
 			sequenceOwnerDiagnostic(t, err, "42501", "permission denied for schema denied", "")
-			if e.Catalog.State != catalog || s.TemporaryNamespace != namespace || *e.Storage.Sequences[ref.Address] != generator || *engine.PayloadOf(s).Sequences.Memory(ref.Address) != memory {
+			if e.Catalog.State != catalog || s.TemporaryNamespace != namespace || *e.Storage.Sequences[ref.Address] != generator || *core.PayloadOf(s).Sequences.Memory(ref.Address) != memory {
 				t.Fatal("destination permission rejection published effects")
 			}
 			sequenceScalar(t, s, "SELECT nextval('own_temp')", 2)

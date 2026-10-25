@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -64,7 +65,7 @@ func TestQueryJoinsEverySourceACL(t *testing.T) {
 				grant(value, authorization.SelectPrivilege)
 				enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION join_reader")
 				ast := enginetest.Statement(t, tc.query)
-				var expected *engine.StatementDescription
+				var expected *core.StatementDescription
 				if prepared {
 					description, err := e.Describe(op, ast)
 					if err != nil {

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/table"
@@ -20,12 +21,12 @@ import (
 
 // rebuildPrimaryKeyTypeLocked rebuilds the unique backings and then the NOT
 // NULL constraints of an ALTER COLUMN TYPE, in the ALTER TABLE order.
-func rebuildPrimaryKeyTypeLocked(e *engine.Engine, stage *engine.CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
-	next, err := index.RebuildAlterUniques(engine.TableHost{DDLHost: engine.DDLHost{E: e, CatalogStage: stage}}, parent, transformations)
+func rebuildPrimaryKeyTypeLocked(e *core.Engine, stage *core.CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
+	next, err := index.RebuildAlterUniques(engine.TableHost{DDLHost: core.DDLHost{E: e, CatalogStage: stage}}, parent, transformations)
 	if err != nil {
 		return nil, err
 	}
-	return table.RebuildAlterNotNulls(engine.DDLHost{E: e, CatalogStage: stage}, next, transformations)
+	return table.RebuildAlterNotNulls(core.DDLHost{E: e, CatalogStage: stage}, next, transformations)
 }
 
 func TestPrimaryKeyTypeCandidateIdentity(t *testing.T) {
@@ -86,7 +87,7 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	source := primaryKeyUnitRelation(t, e, "pk")

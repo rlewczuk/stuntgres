@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -185,7 +186,7 @@ func putFixtureRole(r *access.RoleRecord, d authorization.RoleDescriptor) {
 	r.Root = root
 }
 
-func databaseAdmissionPolicyLocked(e *engine.Engine, acl authorization.ACLValue) {
+func databaseAdmissionPolicyLocked(e *core.Engine, acl authorization.ACLValue) {
 	candidate := catalog.CloneState(e.Catalog.State)
 	db := *candidate.MustDatabase(catalog.CurrentDatabaseAddress)
 	db.ObjectRevision++

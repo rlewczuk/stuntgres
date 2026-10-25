@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
@@ -15,9 +16,9 @@ import (
 // executeRule alternates canonical locked definition phases with unlocked lock
 // admission. The partial definition and lexical manifests are statement-local;
 // neither held handles nor the Host cache authority or wait under Engine.mu.
-func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeRule(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	e.Mu.Lock()
-	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
@@ -25,7 +26,7 @@ func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count 
 	if err != nil {
 		return fail(err)
 	}
-	host := ViewHost{TableHost{DDLHost{E: e, Op: scope.Op}}}
+	host := ViewHost{TableHost{core.DDLHost{E: e, Op: scope.Op}}}
 	definition, err := view.BeginRule(host, auth, stmt, scope.LockedRef)
 	if err != nil {
 		return fail(err)
@@ -44,7 +45,7 @@ func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count 
 		event.AdmittedTargetName, event.AdmittedTargetLexical = creation.Table, lexical
 		scope.MutationTarget = event
 	}
-	targets := []MutationTarget{event}
+	targets := []core.MutationTarget{event}
 	var admissions []analyze.LockAdmission
 	var consumed []exec.Leaf
 	retain := func(source exec.Leaf) {
@@ -88,11 +89,11 @@ func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count 
 			}
 		}
 		for _, source := range consumed {
-			current, err := CurrentQuerySourceLocked(e, auth.Catalog, scope.Owner.Catalog, source)
+			current, err := core.CurrentQuerySourceLocked(e, auth.Catalog, scope.Owner.Catalog, source)
 			if err != nil {
 				return err
 			}
-			if PreparedDefinitionStamp(current, scope.Op.Session) != PreparedDefinitionStamp(source.Relation, scope.Op.Session) {
+			if core.PreparedDefinitionStamp(current, scope.Op.Session) != core.PreparedDefinitionStamp(source.Relation, scope.Op.Session) {
 				return ids.ErrCatalogReplaced
 			}
 		}
@@ -180,7 +181,7 @@ func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count 
 		for ordinal, action := range creation.Actions {
 			e.Mu.Unlock()
 			err := parser.VisitMutationTargets(action, func(command parser.Statement) error {
-				scope.MutationTarget = MutationTarget{}
+				scope.MutationTarget = core.MutationTarget{}
 				defer func() { scope.MutationTarget = event }()
 				if err := scope.AcquireRelationTarget(command, stmt, true, false); err != nil {
 					return err
@@ -247,7 +248,7 @@ func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count 
 // fenced NOTICE; otherwise the change is staged with its query sources and,
 // after the unlock, replaced, validated and published against the epoch of
 // the relation reference.
-func publishRelationChangeLocked(e *Engine, scope *StatementScope, auth AuthorizationView, change view.RelationChange) (Result, error) {
+func publishRelationChangeLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, change view.RelationChange) (core.Result, error) {
 	if change.Skip != "" {
 		return finishPolicyNoticeLocked(e, scope, change.Skip)
 	}
@@ -263,15 +264,15 @@ func publishRelationChangeLocked(e *Engine, scope *StatementScope, auth Authoriz
 	}
 	err := stage.Replace(change.Next)
 	if err == nil {
-		var prepared *PreparedCatalogPublication
+		var prepared *core.PreparedCatalogPublication
 		prepared, err = e.ValidateCatalogStage(scope.Op.Context(), stage)
 		if err == nil {
-			_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: change.Ref.Epoch})
+			_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: change.Ref.Epoch})
 		}
 	}
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	scope.Completed = true
-	return Result{}, nil
+	return core.Result{}, nil
 }

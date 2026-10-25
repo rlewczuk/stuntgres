@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -14,7 +15,7 @@ import (
 )
 
 type batchUnitMessage struct {
-	scope  *engine.StatementScope
+	scope  *core.StatementScope
 	op     *session.Operation
 	ended  bool
 	result error
@@ -26,7 +27,7 @@ func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batc
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := engine.EngineOf(s).StartStatement(op)
+	scope, err := core.EngineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -38,11 +39,11 @@ func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batc
 	}
 	return &batchUnitMessage{scope: scope, op: op}
 }
-func (m *batchUnitMessage) step(stmt parser.Statement) (engine.Result, error) {
+func (m *batchUnitMessage) step(stmt parser.Statement) (core.Result, error) {
 	if m.scope.Finished {
 		next, err := m.scope.NextStatement()
 		if err != nil {
-			return engine.Result{}, err
+			return core.Result{}, err
 		}
 		m.scope = next
 	}

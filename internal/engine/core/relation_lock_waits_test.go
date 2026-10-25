@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -134,7 +135,7 @@ func TestRelationLockWaitsTimeoutPrecedence(t *testing.T) {
 	}
 }
 
-func waitsCommandAsync(e *engine.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
+func waitsCommandAsync(e *core.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		op, _, err := s.AcquireCommand(ctx)
@@ -142,7 +143,7 @@ func waitsCommandAsync(e *engine.Engine, s *session.Session, ctx context.Context
 			if prepare {
 				_, err = e.Describe(op, mustLockStatement(q))
 			} else {
-				var r engine.Result
+				var r core.Result
 				r, err = e.Execute(op, mustLockStatement(q), 0, nil)
 				if r.Rows != nil {
 					r.Rows.Close()

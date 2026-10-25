@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -65,7 +66,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 		t.Fatal("source authority copied", destination)
 	}
 	captured := false
-	for _, descriptor := range StageTableOrZero(stage).LikeSources {
+	for _, descriptor := range core.StageTableOrZero(stage).LikeSources {
 		captured = captured || descriptor == e.CatalogRead().Get(source.Address)
 	}
 	if !captured {

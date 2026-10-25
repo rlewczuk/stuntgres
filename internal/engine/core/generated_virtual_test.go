@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -132,7 +132,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	base := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
 	node := b.QueryColumnAt(analyze.QueryColumn{Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}, parser.Position{})
 	if len(b.Query.Sources[0].Uses) != 1 || b.Query.Sources[0].Uses[0] != 1 {

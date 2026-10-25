@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 )
 
-func replacementForeignFixture(t *testing.T, callback func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error) (*Engine, *catalog.Procedure) {
+func replacementForeignFixture(t *testing.T, callback func(context.Context, catalog.ForeignObjectKind, []catalog.ForeignOption) error) (*core.Engine, *catalog.Procedure) {
 	t.Helper()
 	e := New()
 	name := catalog.ForeignFunctionName{Schema: "public", Name: "replacement_validator"}

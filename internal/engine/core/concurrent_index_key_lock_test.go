@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -133,7 +134,7 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 	}
 }
 
-func concurrentUnitSnapshotScope(t *testing.T, e *engine.Engine, s *session.Session) (*engine.StatementScope, *session.Operation, context.CancelFunc) {
+func concurrentUnitSnapshotScope(t *testing.T, e *core.Engine, s *session.Session) (*core.StatementScope, *session.Operation, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -18,7 +19,7 @@ import (
 
 // SQL only constructs the ordinary internal catalog fixture. Assertions exercise
 // real binders, frozen presentation, provider validation and publication directly.
-func policyUnitFixture(t *testing.T) (*Engine, *session.Operation, func(), *catalog.Relation) {
+func policyUnitFixture(t *testing.T) (*core.Engine, *session.Operation, func(), *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -28,7 +29,7 @@ func policyUnitFixture(t *testing.T) (*Engine, *session.Operation, func(), *cata
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
 	return e, op, done, d.(*catalog.Relation)
 }
-func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
+func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
 	t.Helper()
 	raw := statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
 	e.Mu.Lock()
@@ -37,7 +38,7 @@ func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ViewHost{TableHost{DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return ViewHost{TableHost{core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }
 func TestRLSPolicyFrozenExpression(t *testing.T) {
 	for _, condition := range []string{
@@ -159,8 +160,8 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	SetPreparedCatalogPublicationCtx(prepared, ctx)
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
+	core.SetPreparedCatalogPublicationCtx(prepared, ctx)
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled stage published")
 	}
 	if e.CatalogRead().State() != base.State() || len(d.Security.Policies) != 0 {
@@ -196,7 +197,7 @@ func TestRLSPolicyRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	imported := New()
@@ -276,7 +277,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			edges, err := DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{target})
+			edges, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{target})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -293,7 +294,7 @@ func TestRLSPolicyDependencyClosure(t *testing.T) {
 			if strings.Join(labels, "\n") != want {
 				t.Fatal("incomplete or unordered closure", labels)
 			}
-			if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+			if err := core.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 				t.Fatal(err)
 			}
 			survivor, ok := stage.Get(owner.Address()).(*catalog.Relation)

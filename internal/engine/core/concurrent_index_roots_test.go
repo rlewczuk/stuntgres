@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -22,7 +23,7 @@ import (
 
 // The phase witness is an actual completion request owned by the builder, not
 // worker start, a timing delay, or descriptor visibility standing in for a queue.
-func concurrentUnitCompletion(t *testing.T, e *engine.Engine, owner *lock.Ticket, builder *session.Session) *lock.Request {
+func concurrentUnitCompletion(t *testing.T, e *core.Engine, owner *lock.Ticket, builder *session.Session) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -46,7 +47,7 @@ func concurrentUnitCompletion(t *testing.T, e *engine.Engine, owner *lock.Ticket
 	}
 }
 
-func concurrentUnitIndex(t *testing.T, e *engine.Engine, name string, ready, valid bool) (*catalog.Relation, *storage.IndexRoot) {
+func concurrentUnitIndex(t *testing.T, e *core.Engine, name string, ready, valid bool) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -66,7 +67,7 @@ func concurrentUnitError(t *testing.T, s *session.Session, query, code string) e
 		t.Fatal(err)
 	}
 	defer op.Done()
-	result, err := engine.EngineOf(s).Execute(op, enginetest.Statement(t, query), 0, nil)
+	result, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, query), 0, nil)
 	if result.Rows != nil {
 		result.Rows.Close()
 	}
@@ -77,7 +78,7 @@ func concurrentUnitError(t *testing.T, s *session.Session, query, code string) e
 	return err
 }
 
-func concurrentUnitRootMatchesStorage(t *testing.T, e *engine.Engine, idx *catalog.Relation) {
+func concurrentUnitRootMatchesStorage(t *testing.T, e *core.Engine, idx *catalog.Relation) {
 	t.Helper()
 	e.Mu.Lock()
 	parent := e.Catalog.State.MustRelation(idx.SQLIndex.Parent)

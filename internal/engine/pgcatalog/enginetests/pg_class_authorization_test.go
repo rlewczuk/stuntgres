@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -26,7 +27,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	reader, readerDone := enginetest.RoleOperation(t, e, role.Name)
 	defer readerDone()
 	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
-	retained, err := engine.OperationAuthorization(reader)
+	retained, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +37,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := engine.OperationAuthorization(reader)
+	denied, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := engine.OperationAuthorization(reader)
+	restored, err := core.OperationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	}
 }
 
-func pgClassUnitSource(t *testing.T, e *engine.Engine) *catalog.Relation {
+func pgClassUnitSource(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
 	return e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
 }

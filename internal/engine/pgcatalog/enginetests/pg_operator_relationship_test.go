@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -21,7 +22,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func pgOperatorRelationshipBind(t *testing.T, e *engine.Engine, name string, left, right *sqltype.Descriptor) (expr.Expr, error) {
+func pgOperatorRelationshipBind(t *testing.T, e *core.Engine, name string, left, right *sqltype.Descriptor) (expr.Expr, error) {
 	t.Helper()
 	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Target.Relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l", Usage: left.Usage()}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}

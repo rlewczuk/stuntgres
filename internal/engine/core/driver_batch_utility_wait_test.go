@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
@@ -30,7 +31,7 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 			joined := make(chan struct{})
 			received := false
 			type outcome struct {
-				result engine.Result
+				result core.Result
 				err    error
 			}
 			finished := make(chan outcome, 1)
@@ -52,7 +53,7 @@ func TestDriverBatchUtilityQueuedReaderPublicationOrder(t *testing.T) {
 			go func() {
 				defer close(joined)
 				op, err := peer.Acquire(ctx)
-				var result engine.Result
+				var result core.Result
 				if err == nil {
 					result, err = e.Execute(op, stmt, 0, nil)
 					op.Done()

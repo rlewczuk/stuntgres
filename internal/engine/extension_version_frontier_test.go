@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -17,8 +18,8 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 			e, publisher, ext := extensionVersionUnitInstalled(t, "1.1")
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			capture := func() *StatementScope {
-				s := &StatementScope{Op: op, Owner: op.Session.Transactions}
+			capture := func() *core.StatementScope {
+				s := &core.StatementScope{Op: op, Owner: op.Session.Transactions}
 				e.Mu.Lock()
 				err := e.CaptureCommentSnapshotLocked(s)
 				e.Mu.Unlock()
@@ -27,10 +28,10 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 				}
 				return s
 			}
-			open := func(s *StatementScope, oid ids.OID) *exec.Source {
+			open := func(s *core.StatementScope, oid ids.OID) *exec.Source {
 				_, ref := availableUnitSource(e, oid)
 				e.Mu.Lock()
-				source, err := EngineOpenRelationSourceLocked(e, s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+				source, err := core.EngineOpenRelationSourceLocked(e, s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

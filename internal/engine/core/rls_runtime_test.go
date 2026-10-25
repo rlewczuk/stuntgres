@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -355,7 +356,7 @@ func TestRLSPolicyImportedViewDemand(t *testing.T) {
 	}
 }
 
-func policyUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
+func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
 	t.Helper()
 	raw := enginetest.Statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
 	e.Mu.Lock()
@@ -364,5 +365,5 @@ func policyUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, d *ca
 	if err != nil {
 		t.Fatal(err)
 	}
-	return engine.ViewHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return engine.ViewHost{TableHost: engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }

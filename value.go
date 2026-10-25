@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -178,7 +178,7 @@ func timetzParameterText(v time.Time) string {
 
 // Arguments have already acquired immutable ownership; no Valuer/user callback
 // runs here. Sequential codec/CHECK completion runs outside the engine mutex.
-func frameImporter(values []driver.Value) engine.FrameImporter {
+func frameImporter(values []driver.Value) core.FrameImporter {
 	return func(ctx context.Context, parameters analyze.ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 		for i, raw := range values {
 			parameterInput := input

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -57,7 +58,7 @@ func TestTransactionalDefinitionLockResources(t *testing.T) {
 	retirement := domainUnitStage(t, e, op, "DROP FUNCTION retirement_score(retirement_src)")
 	retirement, err = admitDefinitionMutation(scope, retirement, drop, sqltype.InputEnvironment{}, len(op.Notices))
 	if err == nil {
-		err = StageExpressionDependencies(op.Context(), retirement, retirement.DomainTargets, parser.DropRestrict, scope, nil, nil, ids.ObjectAddress{})
+		err = core.StageExpressionDependencies(op.Context(), retirement, retirement.DomainTargets, parser.DropRestrict, scope, nil, nil, ids.ObjectAddress{})
 	}
 	if err == nil {
 		_, err = e.ValidateCatalogStage(op.Context(), retirement)

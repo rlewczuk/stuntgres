@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -22,7 +23,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	input, _ := op.Session.Settings.Presentation()
 	input.ExactSnapshot = true
 	for _, id := range []sqltype.ID{sqltype.Timestamp, sqltype.Time, sqltype.Timestamptz} {
-		b := NewExpressionBinder(context.Background(), e, input, op, nil)
+		b := core.NewExpressionBinder(context.Background(), e, input, op, nil)
 		u, _, err := b.Type(id).ResolveModifiers(3)
 		if err != nil {
 			t.Fatal(err)
@@ -41,7 +42,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 			t.Fatal("failed input installed temporal capture")
 		}
 	}
-	b := NewExpressionBinder(context.Background(), e, input, op, nil)
+	b := core.NewExpressionBinder(context.Background(), e, input, op, nil)
 	u, _, err := b.Type(sqltype.Numeric).ResolveModifiers(5, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +141,7 @@ func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
 	domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_leaf(c circle)")
 	relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_nested(v public.snapshot_leaf[])")
 	holder := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_holder(v public.snapshot_nested)")
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,20 +258,20 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_provider(v integer[])")
-			auth, err := OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
 			declaration := statement(t, sample.definition).(*parser.CreateFunction)
 			e.Mu.Lock()
 			stage := e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(RoutineHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("private callable declaration", err)
 			}
 			domainUnitPublish(t, e, stage)
-			auth, err = OperationAuthorization(op)
+			auth, err = core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}

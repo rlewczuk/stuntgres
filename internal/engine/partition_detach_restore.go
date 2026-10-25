@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
@@ -13,7 +14,7 @@ import (
 
 // Only the private importer records exact empty DEFAULT identities before an
 // emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
-func capturePartitionReplayTeardown(e *Engine, op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
+func capturePartitionReplayTeardown(e *core.Engine, op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
 	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partition.ReplayStem) {
 		return partition.ReplayTeardown{}, nil
 	}
@@ -46,7 +47,7 @@ func capturePartitionReplayTeardown(e *Engine, op *session.Operation, s *parser.
 	return partition.ReplayTeardown{Child: child, Parent: parent}, nil
 }
 
-func validatePartitionReplayTeardown(e *Engine, op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
+func validatePartitionReplayTeardown(e *core.Engine, op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)
@@ -59,16 +60,16 @@ func validatePartitionReplayTeardown(e *Engine, op *session.Operation, name pars
 	}
 	record, ok := records[ref.Address]
 	if !ok || record.Child != ref || e.ImportTargets == nil {
-		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	child, ok := auth.Catalog.Relation(ref.Address)
 	parent, live := auth.Catalog.Relation(record.Parent.Address)
 	if !ok || !live || record.Parent.Epoch != auth.Catalog.Epoch() || child.Membership != nil || child.Partition != nil || parent.Partition == nil || len(parent.Partition.Children) != 0 {
-		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	store := e.Storage.Relations[ref.Address]
 	if store == nil || len(store.Versions) != 0 {
-		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
@@ -77,5 +78,5 @@ func validatePartitionReplayTeardown(e *Engine, op *session.Operation, name pars
 			return nil
 		}
 	}
-	return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
+	return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 }

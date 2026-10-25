@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/table"
@@ -14,7 +15,7 @@ import (
 // captureDumpLocked reads the catalog, roles, storage and sequence state Dump
 // needs and runs the Collect tables (control.Collect) over it. The caller
 // holds Engine.mu and releases it once on return.
-func captureDumpLocked(e *Engine, ctx context.Context) (*control.Capture, error) {
+func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
@@ -109,7 +110,7 @@ func TestAlterTypeOuterTransactionAXPublication(t *testing.T) {
 			tx := enginetest.TransactionBegin(t, a)
 			enginetest.SessionSQL(t, a, "ALTER TABLE t ALTER c TYPE BIGINT USING c+1")
 			type outcome struct {
-				result engine.Result
+				result core.Result
 				err    error
 			}
 			done := make(chan outcome, 1)
@@ -126,7 +127,7 @@ func TestAlterTypeOuterTransactionAXPublication(t *testing.T) {
 			}()
 			enginetest.LockPending(t, e, 1)
 			enginetest.TransactionEnd(t, a, tx, commit)
-			var result engine.Result
+			var result core.Result
 			select {
 			case out := <-done:
 				if out.err != nil {

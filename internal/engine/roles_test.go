@@ -7,13 +7,14 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func roleExecute(t *testing.T, e *Engine, op *session.Operation, sql string) Result {
+func roleExecute(t *testing.T, e *core.Engine, op *session.Operation, sql string) core.Result {
 	t.Helper()
 	r, err := e.Execute(op, statement(t, sql), 0, nil)
 	if err != nil {
@@ -29,12 +30,12 @@ func roleExecute(t *testing.T, e *Engine, op *session.Operation, sql string) Res
 	return r
 }
 
-func roleError(t *testing.T, e *Engine, op *session.Operation, sql, code, message, detail string) {
+func roleError(t *testing.T, e *core.Engine, op *session.Operation, sql, code, message, detail string) {
 	t.Helper()
 	roleErrorPosition(t, e, op, sql, code, message, detail, "")
 }
 
-func roleErrorPosition(t *testing.T, e *Engine, op *session.Operation, sql, code, message, detail, position string) {
+func roleErrorPosition(t *testing.T, e *core.Engine, op *session.Operation, sql, code, message, detail, position string) {
 	t.Helper()
 	_, err := e.Execute(op, statement(t, sql), 0, nil)
 	var d *sqlstate.Error
@@ -47,7 +48,7 @@ func roleErrorPosition(t *testing.T, e *Engine, op *session.Operation, sql, code
 	}
 }
 
-func roleOperation(t *testing.T, e *Engine, name string) (*session.Operation, func()) {
+func roleOperation(t *testing.T, e *core.Engine, name string) (*session.Operation, func()) {
 	t.Helper()
 	ref, err := e.ResolveLogin(name)
 	if err != nil {
@@ -70,7 +71,7 @@ func roleOperation(t *testing.T, e *Engine, name string) (*session.Operation, fu
 	}
 }
 
-func roleIdentity(t *testing.T, e *Engine, op *session.Operation, want string) {
+func roleIdentity(t *testing.T, e *core.Engine, op *session.Operation, want string) {
 	t.Helper()
 	r := roleExecute(t, e, op, "SELECT session_user,current_user")
 	values := tuples(r)

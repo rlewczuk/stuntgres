@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 )
 
@@ -37,7 +38,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			if !originalSequence.Sequence.Identity || originalSequence.Sequence.Owned != originalOwned {
 				t.Fatal("source identity lacks reciprocal ownership")
 			}
-			tempDefinition, tempGenerator, tempMemory := dest.Catalog.State.Get(tempRef), dest.Storage.Sequences[tempRef], engine.PayloadOf(b).Sequences.Memory(tempRef)
+			tempDefinition, tempGenerator, tempMemory := dest.Catalog.State.Get(tempRef), dest.Storage.Sequences[tempRef], core.PayloadOf(b).Sequences.Memory(tempRef)
 			generatorState, memoryState := *tempGenerator, *tempMemory
 			if mode == "Restore" {
 				var dump bytes.Buffer
@@ -52,7 +53,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if dest.Catalog.State.Get(tempRef) != tempDefinition || dest.Storage.Sequences[tempRef] != tempGenerator || engine.PayloadOf(b).Sequences.Memory(tempRef) != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
+			if dest.Catalog.State.Get(tempRef) != tempDefinition || dest.Storage.Sequences[tempRef] != tempGenerator || core.PayloadOf(b).Sequences.Memory(tempRef) != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
 				t.Fatal("retained TEMP authority changed")
 			}
 			ref := enginetest.RoleTableRef(t, dest, "portable.i").Address

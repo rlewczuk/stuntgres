@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -200,7 +201,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	}
 }
 
-func strictNullUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, scope *engine.StatementScope, text string) (expr.Expr, *analyze.Binder, exec.Context) {
+func strictNullUnitBind(t *testing.T, e *core.Engine, op *session.Operation, scope *core.StatementScope, text string) (expr.Expr, *analyze.Binder, exec.Context) {
 	t.Helper()
 	raw := enginetest.Statement(t, "SELECT "+text).(*parser.Select).Targets[0]
 	ref := enginetest.RoleTableRef(t, e, "strict_null_rows")
@@ -210,7 +211,7 @@ func strictNullUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, s
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b := engine.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+	b := core.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
 	b.Query.Auth, b.Target.Ref = &auth, ref
 	b.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 	bindTestTargetNamespace(b)
@@ -220,7 +221,7 @@ func strictNullUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, s
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)
 	}
-	return node, b, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: engine.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
+	return node, b, exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 }
 
 // Scalar unit fixtures explicitly admit their input row, just like production owners.

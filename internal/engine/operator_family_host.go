@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
@@ -17,7 +18,7 @@ func (h RoutineHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectNam
 		parts[0].Pos = parser.Position{}
 		name.Parts = parts[:]
 	}
-	v := DDLAuthorityOf(a)
+	v := core.DDLAuthorityOf(a)
 	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return catalog.RoutineIdentity{}, 0, err
@@ -31,7 +32,7 @@ func (h RoutineHost) CheckFamilyMemberDrop(auth ddl.Authority, target ids.Object
 		return err
 	}
 	targets := []ids.ObjectAddress{target}
-	edges, err := DomainDependencyClosure(h.Op.Context(), h.CatalogStage, targets)
+	edges, err := core.DomainDependencyClosure(h.Op.Context(), h.CatalogStage, targets)
 	if err != nil {
 		return err
 	}

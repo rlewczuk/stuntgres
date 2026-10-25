@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 )
@@ -49,7 +50,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	// Type ACLs use the same validated immutable descriptor staging as domain
 	// fixtures; this does not expand the production SetObjectACL capability.
 	setACL := func(ref ids.ObjectRef, acl authorization.ACLValue) error {
-		view, err := engine.OperationAuthorization(op)
+		view, err := core.OperationAuthorization(op)
 		if err != nil {
 			return err
 		}
@@ -75,12 +76,12 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 		return err
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, ref := range refs {
-		view, err := engine.OperationAuthorization(op)
+		view, err := core.OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -104,7 +105,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err := setACL(ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal(err)
 		}
-		view, err = engine.OperationAuthorization(op)
+		view, err = core.OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -125,7 +126,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	roleExecute(t, e, op, "REVOKE INHERIT OPTION FOR owner FROM reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, ref := range refs {
-		view, err := engine.OperationAuthorization(op)
+		view, err := core.OperationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -7,33 +7,34 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
-func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
+func executeForeignTableAlter(e *core.Engine, scope *core.StatementScope, s *parser.ForeignDDL) (core.Result, error) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
-	h := TableHost{DDLHost{E: e, Op: scope.Op}}
+	h := TableHost{core.DDLHost{E: e, Op: scope.Op}}
 	old, ref, err := fdw.AlterTarget(h, auth, s, scope.LockedRef)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if old == nil {
 		e.Mu.Unlock()
 		scope.Completed = true
-		return Result{}, nil
+		return core.Result{}, nil
 	}
 	if s.Owner != nil {
 		target, identity := access.OwnershipRoleOperand(*s.Owner)
 		e.Mu.Unlock()
-		return ExecuteRelationOwnership(e, scope, s.Name, target, identity, "foreign table", s.IfExists, 0)
+		return core.ExecuteRelationOwnership(e, scope, s.Name, target, identity, "foreign table", s.IfExists, 0)
 	}
 	if s.Inner != nil {
 		switch inner := s.Inner.(type) {
@@ -52,7 +53,7 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	next := fdw.AlterCandidate(old)
 	var jobs []fdw.Validation
@@ -77,14 +78,14 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 				continue
 			}
 			if err := scope.Op.Context().Err(); err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 			if action.Options != nil {
 				e.Mu.Lock()
 				job, er := fdw.AlterOptions(h, &next, wrapper, action)
 				e.Mu.Unlock()
 				if er != nil {
-					return Result{}, er
+					return core.Result{}, er
 				}
 				jobs = append(jobs, job)
 				continue
@@ -93,7 +94,7 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 				a := action.Default
 				slot, er := fdw.AlterColumn(&next, a.Column.Text)
 				if er != nil {
-					return Result{}, er
+					return core.Result{}, er
 				}
 				next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
 				attribute := next.Attributes[slot]
@@ -104,7 +105,7 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 					definition, er := cookAlterDefaultLocked(e, scope, scope.Op, auth, &next, slot, a.Expression)
 					e.Mu.Unlock()
 					if er != nil {
-						return Result{}, er
+						return core.Result{}, er
 					}
 					if next.ColumnMeta.Defaults == nil {
 						next.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault)
@@ -114,7 +115,7 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 				continue
 			}
 			if action.Ordinary == nil {
-				return Result{}, fmt.Errorf("stuntgres: empty foreign table action")
+				return core.Result{}, fmt.Errorf("stuntgres: empty foreign table action")
 			}
 			a := *action.Ordinary
 			var candidate *catalog.Relation
@@ -131,7 +132,7 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 				candidate, err = dropColumnCandidate(scope, stage, &next, ref, a, nil)
 			case parser.AddColumn:
 				if err = fdw.CheckAddedColumn(a.Definition); err != nil {
-					return Result{}, err
+					return core.Result{}, err
 				}
 				var added table.AddedColumn
 				candidate, added, err = addColumnCandidate(e, scope, scope.Op, auth, &next, a, nil)
@@ -158,7 +159,7 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 						job, er := fdw.AddedColumnOptions(h, candidate, wrapper, a.Column.Text, action.ColumnOptions)
 						e.Mu.Unlock()
 						if er != nil {
-							return Result{}, er
+							return core.Result{}, er
 						}
 						jobs = append(jobs, job)
 					}
@@ -168,16 +169,16 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 				prepared, prepareErr := prepareAlterTypeLocked(e, scope, scope.Op, auth, old, ref, a, nil)
 				e.Mu.Unlock()
 				if prepareErr != nil {
-					return Result{}, prepareErr
+					return core.Result{}, prepareErr
 				}
 				candidate, _, err = alterTypeCandidate(e, scope, scope.Op, auth, stage, old, &next, ref, a, prepared)
 			case parser.SetExpression, parser.DropExpression:
 				candidate, _, err = generationCandidate(e, scope, scope.Op, auth, &next, a)
 			default:
-				return Result{}, fdw.UnsupportedAlter()
+				return core.Result{}, fdw.UnsupportedAlter()
 			}
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 			next = *candidate
 		}
@@ -192,35 +193,35 @@ func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.Foreig
 			}
 		}
 		if err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 	}
 	e.Mu.Lock()
 	next.ObjectRevision, err = e.Catalog.RevisionLocked()
 	if err == nil {
-		err = table.AssignDefinitionOIDs(DDLHost{E: e}, &next)
+		err = table.AssignDefinitionOIDs(core.DDLHost{E: e}, &next)
 	}
 	e.Mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = stage.Replace(&next); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
 	if err = fdw.RunValidations(scope.Op.Context(), jobs); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: ref.Epoch})
-	return Result{}, err
+	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: ref.Epoch})
+	return core.Result{}, err
 }

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -22,7 +23,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func infoCardinalNumberUnitCatalog(t *testing.T, e *engine.Engine, view catalog.Read) *catalog.Type {
+func infoCardinalNumberUnitCatalog(t *testing.T, e *core.Engine, view catalog.Read) *catalog.Type {
 	t.Helper()
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 13243}
 	d, ok := view.Type(address)
@@ -201,7 +202,7 @@ func TestInfoCardinalNumberLogicalDescriptions(t *testing.T) {
 	check("SELECT NULL::information_schema.cardinal_number AS v")
 }
 
-func domainUnitTable(t *testing.T, e *engine.Engine, op *session.Operation, q string) *catalog.Relation {
+func domainUnitTable(t *testing.T, e *core.Engine, op *session.Operation, q string) *catalog.Relation {
 	t.Helper()
 	raw := enginetest.Statement(t, q).(*parser.CreateTable)
 	e.Mu.Lock()
@@ -223,12 +224,12 @@ func domainUnitTable(t *testing.T, e *engine.Engine, op *session.Operation, q st
 	return view.MustRelation(addresses[0])
 }
 
-func domainUnitBindSelect(t *testing.T, e *engine.Engine, op *session.Operation, q string) *plan.Query {
+func domainUnitBindSelect(t *testing.T, e *core.Engine, op *session.Operation, q string) *plan.Query {
 	t.Helper()
 	raw := enginetest.Statement(t, q).(*parser.Select)
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	b := engine.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	b := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.Query.Auth = &auth
 	var query *plan.Query
 	if err == nil {
@@ -241,13 +242,13 @@ func domainUnitBindSelect(t *testing.T, e *engine.Engine, op *session.Operation,
 	return query
 }
 
-func domainUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

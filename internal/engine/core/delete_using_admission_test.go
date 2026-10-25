@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -75,10 +76,10 @@ func deleteUsingAsync(t *testing.T, s *session.Session, ctx context.Context, que
 	go func() {
 		defer close(done)
 		op, err := s.Acquire(ctx)
-		var result engine.Result
+		var result core.Result
 		if err == nil {
 			defer op.Done()
-			result, err = engine.EngineOf(s).Execute(op, ast, 0, nil)
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
 		}
 		done <- deleteOutcome{result: result, err: err}
 	}()

@@ -1,11 +1,12 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/sqltype"
 )
 
-func sumUnitProvider(e *Engine, id sqltype.ID) (functions.AggregateProvider, *sqltype.Descriptor) {
+func sumUnitProvider(e *core.Engine, id sqltype.ID) (functions.AggregateProvider, *sqltype.Descriptor) {
 	input, _ := e.CatalogRead().LookupType(id)
 	switch id {
 	case sqltype.Int2, sqltype.Int4:

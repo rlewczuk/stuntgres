@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -157,10 +158,10 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	frozen := []sqltype.Value{integer(1), integer(7)}
 	current := [][]sqltype.Value{{integer(2)}}
 	inputs := &exec.Source{Occurrence: 0}
-	scope := &engine.StatementScope{QueryLockContext: &exec.LockContext{Leaves: []exec.QueryLockLeaf{{}}}}
+	scope := &core.StatementScope{QueryLockContext: &exec.LockContext{Leaves: []exec.QueryLockLeaf{{}}}}
 	scratch := make([]sqltype.Value, exec.QueryLockRecheckWidth(join, inputs))
 	offset := 0
-	row, present, err := exec.RecheckLockedQuery(join, inputs, current, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: engine.HostOf(scope)}}, scratch, &offset, frozen)
+	row, present, err := exec.RecheckLockedQuery(join, inputs, current, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: core.HostOf(scope)}}, scratch, &offset, frozen)
 	if err != nil || !present || calls != 0 {
 		t.Fatal(row, present, err, calls)
 	}

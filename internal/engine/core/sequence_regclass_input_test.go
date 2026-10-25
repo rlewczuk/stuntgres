@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -16,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func sequenceInputExecute(t *testing.T, e *engine.Engine, op *session.Operation, query string, args ...any) (engine.Result, error) {
+func sequenceInputExecute(t *testing.T, e *core.Engine, op *session.Operation, query string, args ...any) (core.Result, error) {
 	t.Helper()
 	ast := enginetest.Statement(t, query)
 	description, err := e.Describe(op, ast)

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -31,12 +32,12 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 	view := f.e.Catalog.Read(state)
 	auth := dtpUnitAuthority(t, f, view)
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingsOID})
-	input := func(v catalog.Read, a engine.AuthorizationView) pgcatalog.Input {
-		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: engine.EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
+	input := func(v catalog.Read, a core.AuthorizationView) pgcatalog.Input {
+		return pgcatalog.Input{Context: t.Context(), Catalog: v, Roles: a.Roles, Owner: v.Owner(), Ref: v.Owner().Domain.Ref(v.Epoch(), source.Address()), Source: v.MustRelation(source.Address()), Runtime: core.EngineCatalogRuntime{Auth: a, Database: "captured_database"}}
 	}
 	checkRows := func(in pgcatalog.Input, want map[string]int) [][]sqltype.Value {
 		t.Helper()
-		captured, err := engine.CaptureCatalogSourceRows(in, produce)
+		captured, err := core.CaptureCatalogSourceRows(in, produce)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +163,7 @@ func TestInfoUserMappingsProducer(t *testing.T) {
 		func(in *pgcatalog.Input) {
 			a := grantedAuth
 			a.RoleRecord = nil
-			in.Runtime = engine.EngineCatalogRuntime{Auth: a}
+			in.Runtime = core.EngineCatalogRuntime{Auth: a}
 		},
 	} {
 		in := input(grantedView, grantedAuth)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -58,7 +59,7 @@ func TestAggregateLifecycleDescriptor(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: after.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: after.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().State() != after.State() || e.CatalogRead().MustProcedure(original.Address()) != current {

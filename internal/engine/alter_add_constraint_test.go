@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -29,7 +30,7 @@ func alterConstraintOperation(t *testing.T, s *session.Session) *session.Operati
 	t.Cleanup(op.Done)
 	return op
 }
-func alterConstraintExecuteScope(t *testing.T, e *Engine, s *session.Session, q string) (*StatementScope, error) {
+func alterConstraintExecuteScope(t *testing.T, e *core.Engine, s *session.Session, q string) (*core.StatementScope, error) {
 	t.Helper()
 	op := alterConstraintOperation(t, s)
 	scope, err := e.StartStatement(op)
@@ -47,7 +48,7 @@ func alterConstraintExecuteScope(t *testing.T, e *Engine, s *session.Session, q 
 	}
 	return scope, err
 }
-func alterConstraintDescriptor(t *testing.T, e *Engine, name string) *catalog.Relation {
+func alterConstraintDescriptor(t *testing.T, e *core.Engine, name string) *catalog.Relation {
 	t.Helper()
 	view := e.CatalogRead()
 	return view.MustRelation(catalogRef(t, e, view, name).Address)
@@ -61,7 +62,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	original := alterConstraintDescriptor(t, e, "t")
 	before, store := e.Catalog.State, e.Storage.Relations[original.Address()]
 	op := alterConstraintOperation(t, s)
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	before, store := e.Catalog.State, e.Storage.Relations[original.Address()]
 	root := e.Storage.IndexRoots[original.Constraints.Unique[0].Index]
 	op := alterConstraintOperation(t, s)
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +186,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = index.ValidateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, auth.View, DisclosureEnv(&auth), e.StageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ids.ObjectAddress{next.Constraints.Unique[1].Index}, false)
+	_, err = index.ValidateAlterIndexBuilds(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, auth.View, core.DisclosureEnv(&auth), e.StageRead(stage), next, store, nil, nil, "public", sqltype.OutputEnvironment{}, nil, nil, []ids.ObjectAddress{next.Constraints.Unique[1].Index}, false)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23505" {
 		t.Fatal("no real private root validation", err)
@@ -265,7 +266,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	sourceStore := e.Storage.Relations[source.Address()]
 	sourceNN, sourceCK, sourceFK := source.Constraints.NotNull[0].OID, source.Constraints.Check[0].OID, source.Constraints.ForeignKeys[0].OID
 	op := alterConstraintOperation(t, s)
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

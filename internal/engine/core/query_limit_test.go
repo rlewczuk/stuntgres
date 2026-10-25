@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -16,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func queryLimitBound(t *testing.T, e *engine.Engine, value int64) expr.Expr {
+func queryLimitBound(t *testing.T, e *core.Engine, value int64) expr.Expr {
 	t.Helper()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
 	v, err := sqltype.Integer(typ, value)

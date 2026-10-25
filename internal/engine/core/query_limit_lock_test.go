@@ -6,27 +6,27 @@ import (
 	"testing"
 	"time"
 
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
 
-func queryLimitAsync(t *testing.T, e *engine.Engine, s *session.Session, q string, prepared bool) <-chan deleteOutcome {
+func queryLimitAsync(t *testing.T, e *core.Engine, s *session.Session, q string, prepared bool) <-chan deleteOutcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	ast := enginetest.Statement(t, q)
 	done := make(chan deleteOutcome, 1)
 	go func() {
 		op, _, err := s.AcquireCommand(ctx)
-		var result engine.Result
+		var result core.Result
 		if err == nil {
-			var description engine.StatementDescription
+			var description core.StatementDescription
 			if prepared {
 				description, err = e.Describe(op, ast)
 			}
 			if err == nil {
-				var scope *engine.StatementScope
+				var scope *core.StatementScope
 				scope, err = e.StartStatement(op)
 				if err == nil {
 					if prepared {
@@ -151,7 +151,7 @@ func TestQueryLimitLockCancellation(t *testing.T) {
 	enginetest.LockEmpty(t, e)
 }
 
-func queryLimitGrants(t *testing.T, e *engine.Engine, ticket *lock.Ticket, tables map[string][]int) {
+func queryLimitGrants(t *testing.T, e *core.Engine, ticket *lock.Ticket, tables map[string][]int) {
 	t.Helper()
 	want := make(map[lock.Resource]bool)
 	for table, ids := range tables {

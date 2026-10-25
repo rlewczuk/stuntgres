@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -106,7 +106,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			probe := evaluation
-			foreignAuth := *engine.RoutineAuthorityView(&foreign)
+			foreignAuth := *core.RoutineAuthorityView(&foreign)
 			probe.RoutineAuthority = &foreignAuth
 			if err := exec.AdmitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("foreign original descriptor admitted")
@@ -126,7 +126,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			}
 			// A catalog-local replacement with an incompatible declaration is
 			// not rescued by an equal numeric address either.
-			changed := *engine.RoutineAuthorityView(&evaluation)
+			changed := *core.RoutineAuthorityView(&evaluation)
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
@@ -168,8 +168,8 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			}
 			raw := enginetest.Statement(t, text).(*parser.Select)
 			e.Mu.Lock()
-			binder := engine.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
-			binder.Query.Auth = engine.RoutineAuthorityView(&evaluation)
+			binder := core.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+			binder.Query.Auth = core.RoutineAuthorityView(&evaluation)
 			query, err := binder.BindSelect(raw, false)
 			e.Mu.Unlock()
 			if err != nil {
@@ -366,8 +366,8 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		}
 		raw := enginetest.Statement(t, "SELECT * FROM "+text+" WITH ORDINALITY").(*parser.Select)
 		e.Mu.Lock()
-		sourceBinder := engine.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
-		sourceBinder.Query.Auth = engine.RoutineAuthorityView(&evaluation)
+		sourceBinder := core.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+		sourceBinder.Query.Auth = core.RoutineAuthorityView(&evaluation)
 		query, bindErr := sourceBinder.BindSelect(raw, false)
 		e.Mu.Unlock()
 		if bindErr != nil {
@@ -405,8 +405,8 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		for _, suffix := range []string{"", " WHERE FALSE"} {
 			raw := enginetest.Statement(t, "SELECT * FROM "+text+suffix).(*parser.Select)
 			e.Mu.Lock()
-			sourceBinder := engine.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
-			sourceBinder.Query.Auth = engine.RoutineAuthorityView(&evaluation)
+			sourceBinder := core.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+			sourceBinder.Query.Auth = core.RoutineAuthorityView(&evaluation)
 			query, bindErr := sourceBinder.BindSelect(raw, false)
 			e.Mu.Unlock()
 			if bindErr != nil {
@@ -496,8 +496,8 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				raw := enginetest.Statement(t, text).(*parser.Select)
 				_, _, evaluation := strictNullUnitBind(t, e, op, scope, "1")
 				e.Mu.Lock()
-				binder := engine.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
-				binder.Query.Auth = engine.RoutineAuthorityView(&evaluation)
+				binder := core.NewExpressionBinder(context.Background(), e, scope.Input, op, nil)
+				binder.Query.Auth = core.RoutineAuthorityView(&evaluation)
 				query, err := binder.BindSelect(raw, false)
 				e.Mu.Unlock()
 				if err != nil {

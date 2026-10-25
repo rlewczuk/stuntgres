@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -195,7 +196,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+					if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 						t.Fatal(err)
 					}
 					if e.CatalogRead().Get(destination.Address()) != destination {

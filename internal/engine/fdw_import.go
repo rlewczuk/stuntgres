@@ -1,28 +1,29 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
 
-func executeForeignImport(e *Engine, scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
-	if err := CheckRestoreEffect(scope.Op); err != nil {
-		return Result{}, err
+func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.ForeignDDL) (core.Result, error) {
+	if err := core.CheckRestoreEffect(scope.Op); err != nil {
+		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
-	importer, request, err := fdw.PlanImport(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s)
+	importer, request, err := fdw.PlanImport(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s)
 	e.Mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if scope.ReplacementRead {
 		e.ReplacementMu.RUnlock()
@@ -30,19 +31,19 @@ func executeForeignImport(e *Engine, scope *StatementScope, s *parser.ForeignDDL
 	}
 	definitions, err := importer.ImportForeignSchema(scope.Op.Context(), request)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	var jobs []fdw.Validation
 	for _, definition := range definitions {
 		if err := scope.Op.Context().Err(); err != nil {
-			return Result{}, err
+			return core.Result{}, err
 		}
 		if !fdw.ImportSelected(s, definition.Name) {
 			continue
 		}
 		table, err := fdw.ImportedTable(scope.Op.Context(), definition, s)
 		if err != nil {
-			return Result{}, fdw.ImportError(err, definition.Name)
+			return core.Result{}, fdw.ImportError(err, definition.Name)
 		}
 		e.Mu.Lock()
 		_, currentErr := e.AuthorizationLocked(scope.Op)
@@ -51,11 +52,11 @@ func executeForeignImport(e *Engine, scope *StatementScope, s *parser.ForeignDDL
 		}
 		var validations []fdw.Validation
 		if currentErr == nil {
-			validations, _, currentErr = fdw.StageTable(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, table, scope.Input)
+			validations, _, currentErr = fdw.StageTable(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, table, scope.Input)
 		}
 		e.Mu.Unlock()
 		if currentErr != nil {
-			return Result{}, fdw.ImportError(currentErr, definition.Name)
+			return core.Result{}, fdw.ImportError(currentErr, definition.Name)
 		}
 		for i := range validations {
 			validations[i].ImportTable = definition.Name
@@ -63,15 +64,15 @@ func executeForeignImport(e *Engine, scope *StatementScope, s *parser.ForeignDDL
 		jobs = append(jobs, validations...)
 	}
 	if err = fdw.RunValidations(scope.Op.Context(), jobs); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = scope.AcquireDefinitionProviders(stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
-	return Result{}, err
+	_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+	return core.Result{}, err
 }

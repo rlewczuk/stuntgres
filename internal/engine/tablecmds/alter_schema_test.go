@@ -11,12 +11,13 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
-func alterSchemaEngineFixture(t *testing.T, e *engine.Engine) {
+func alterSchemaEngineFixture(t *testing.T, e *core.Engine) {
 	t.Helper()
 	for _, q := range []string{"CREATE SCHEMA s1", "CREATE SCHEMA s2", "CREATE TABLE s1.t(id INT CONSTRAINT nn_id NOT NULL,note TEXT DEFAULT 'fallback')", "INSERT INTO s1.t VALUES(7,'keep'),(9,NULL)", "COMMENT ON TABLE s1.t IS 'table comment'", "COMMENT ON COLUMN s1.t.id IS 'id comment'", "CREATE SEQUENCE s1.q1 START 10 CACHE 7 OWNED BY s1.t.id", "CREATE SEQUENCE s1.q2 START 100 CACHE 7 OWNED BY s1.t.id", "CREATE SEQUENCE s1.free", "CREATE VIEW v AS SELECT id,note FROM s1.t"} {
 		enginetest.Run(t, e, q)
@@ -51,10 +52,10 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	sequenceScalar(t, s, "SELECT nextval('s1.q1')", 10)
 	generator := e.Storage.Sequences[addresses[1]]
 	generatorValue := *generator
-	memory := engine.PayloadOf(s).Sequences.Memory(addresses[1])
+	memory := core.PayloadOf(s).Sequences.Memory(addresses[1])
 	memoryValue := *memory
 	sequenceScalar(t, peer, "SELECT nextval('s1.q1')", 17)
-	peerMemory := engine.PayloadOf(peer).Sequences.Memory(addresses[1])
+	peerMemory := core.PayloadOf(peer).Sequences.Memory(addresses[1])
 	peerValue := *peerMemory
 	generatorValue = *generator
 	free := NameAddressForTempMove(t, e, source, "free")
@@ -79,10 +80,10 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 			t.Fatal("move changed nonnamespace definition", before[i], after)
 		}
 	}
-	if e.Storage.Relations[addresses[0]] != storage || e.Storage.Sequences[addresses[1]] != generator || *generator != generatorValue || engine.PayloadOf(s).Sequences.Memory(addresses[1]) != memory || *memory != memoryValue || e.Catalog.State.Get(free) != freeDescriptor {
+	if e.Storage.Relations[addresses[0]] != storage || e.Storage.Sequences[addresses[1]] != generator || *generator != generatorValue || core.PayloadOf(s).Sequences.Memory(addresses[1]) != memory || *memory != memoryValue || e.Catalog.State.Get(free) != freeDescriptor {
 		t.Fatal("move replaced data/generator/cache/independent sequence")
 	}
-	if engine.PayloadOf(peer).Sequences.Memory(addresses[1]) != peerMemory || *peerMemory != peerValue {
+	if core.PayloadOf(peer).Sequences.Memory(addresses[1]) != peerMemory || *peerMemory != peerValue {
 		t.Fatal("move replaced peer cache")
 	}
 	sequenceScalar(t, peer, "SELECT nextval('s2.q1')", 18)

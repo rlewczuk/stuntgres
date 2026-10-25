@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -20,14 +21,14 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func intarrayUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema string) *CatalogStage {
+func intarrayUnitStage(t *testing.T, e *core.Engine, op *session.Operation, name, schema string) *core.CatalogStage {
 	t.Helper()
 	creation := &parser.CreateExtension{Name: parser.Identifier{Text: name}}
 	if schema != "" {
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
 	e.Mu.Lock()
-	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, creation)
+	stage, err := stageExtensionLocked(e, &core.StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +37,7 @@ func intarrayUnitStage(t *testing.T, e *Engine, op *session.Operation, name, sch
 	return stage
 }
 
-func intarrayUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.Type) {
+func intarrayUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension, *catalog.Type) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -83,7 +84,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	edges, err := pgcatalog.CollectDepend(context.Background(), view, EngineCatalogRuntime{})
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +186,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		before := e.Catalog.State
 		e.Mu.Lock()
-		_, err = stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "intarray"}})
+		_, err = stageExtensionLocked(e, &core.StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "intarray"}})
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: extension.IntarrayTypeContext}
@@ -242,7 +243,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 
 // Construct the namespace through the actual physical-session creation path,
 // then validate/publish it. No fabricated TEMP token or helper-script parity.
-func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *session.Operation) *catalog.Namespace {
+func intarrayUnitTemporaryNamespace(t *testing.T, e *core.Engine, op *session.Operation) *catalog.Namespace {
 	t.Helper()
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)

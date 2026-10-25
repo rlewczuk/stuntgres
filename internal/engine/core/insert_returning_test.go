@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -25,7 +26,7 @@ import (
 
 // This fixture binds the real INSERT plan and starts its private output owner;
 // the tests replace only the producer/projection seam that they observe.
-func insertReturningAnalyzedScope(t *testing.T, e *engine.Engine, s *session.Session, query string) (*session.Operation, *engine.StatementScope, analyze.Binding) {
+func insertReturningAnalyzedScope(t *testing.T, e *core.Engine, s *session.Session, query string) (*session.Operation, *core.StatementScope, analyze.Binding) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -54,7 +55,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *engine.Engine, s *session.Ses
 	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = engine.Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
+		b, err = core.Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -63,7 +64,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *engine.Engine, s *session.Ses
 	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
 	scope.InsertConflict = conflict
 	if conflict != nil {
-		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: engine.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if err := conflict.SelectArbiters(&c, b.Relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
@@ -220,7 +221,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		one, _ := sqltype.Integer(b.Relation.Columns[0].Usage.Type, 1)
 		ten, _ := sqltype.Integer(b.Relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: engine.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		admitted, err := dml.AdmitInsertRow(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: row}, index.WriteBatch{}, &evaluation)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)
@@ -241,7 +242,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+		if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
 		accepted, retry, err := dml.AppendAcceptedInsert(scope.WriteHost(), b.Ref, &index.WriteCandidate{Values: row})
@@ -429,7 +430,7 @@ func TestInsertReturningAuthorizationAfterWait(t *testing.T) {
 	}
 }
 
-func generatedUnitDescriptor(t *testing.T) (*engine.Engine, catalog.Read, *catalog.Relation) {
+func generatedUnitDescriptor(t *testing.T) (*core.Engine, catalog.Read, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
 	view := e.CatalogRead()

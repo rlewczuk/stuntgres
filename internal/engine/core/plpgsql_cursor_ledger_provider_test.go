@@ -1,22 +1,17 @@
 package core_test
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func TestPLpgSQLCursorDiagnosticLedgerProvider(t *testing.T) {
@@ -103,45 +98,4 @@ func TestPLpgSQLCursorDiagnosticLedgerProvider(t *testing.T) {
 			}
 		})
 	}
-}
-
-func plUnitScope(t *testing.T) (*engine.Engine, *engine.StatementScope) {
-	t.Helper()
-	e := engine.New()
-	op, done, err := enginetest.Operation(e, context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(done)
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { scope.Finish(nil) })
-	return e, scope
-}
-
-func cursorOwnerRoutine(t *testing.T, e *engine.Engine, s *engine.StatementScope, source string) *catalog.Procedure {
-	t.Helper()
-	read := e.CatalogRead()
-	integer, _ := read.LookupType(sqltype.Int4)
-	language, err := catalog.LookupLanguage(read, "plpgsql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := parser.ParsePLpgSQL(source, proc.PLReturnPolicy(integer.Usage(), 0, false))
-	if err != nil {
-		t.Fatal(err)
-	}
-	d := &catalog.Procedure{ObjectName: "cursor_owner_unit", Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "cursor_owner_unit", Source: source, Result: integer.Usage(), PLSyntax: raw}}
-	e.Mu.Lock()
-	auth, err := e.AuthorizationLocked(s.Op)
-	if err == nil {
-		err = e.CompilePLRoutineLocked(s.Op, auth, d)
-	}
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return d
 }

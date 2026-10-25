@@ -10,12 +10,13 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 )
 
-func rowLockViewExecute(t *testing.T, e *engine.Engine, s *session.Session, q string, prepared bool) (engine.Result, error) {
+func rowLockViewExecute(t *testing.T, e *core.Engine, s *session.Session, q string, prepared bool) (core.Result, error) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -23,16 +24,16 @@ func rowLockViewExecute(t *testing.T, e *engine.Engine, s *session.Session, q st
 	}
 	defer op.Done()
 	ast := enginetest.Statement(t, q)
-	var description engine.StatementDescription
+	var description core.StatementDescription
 	if prepared {
 		description, err = e.Describe(op, ast)
 		if err != nil {
-			return engine.Result{}, err
+			return core.Result{}, err
 		}
 	}
 	scope, err := e.StartStatement(op)
 	if err != nil {
-		return engine.Result{}, err
+		return core.Result{}, err
 	}
 	if prepared {
 		scope.Expected = &description
@@ -40,7 +41,7 @@ func rowLockViewExecute(t *testing.T, e *engine.Engine, s *session.Session, q st
 	result, err := scope.Execute(ast, 0, nil)
 	return result, scope.Finish(err)
 }
-func rowLockViewRows(t *testing.T, e *engine.Engine, s *session.Session, q string, prepared bool, want ...int64) {
+func rowLockViewRows(t *testing.T, e *core.Engine, s *session.Session, q string, prepared bool, want ...int64) {
 	t.Helper()
 	result, err := rowLockViewExecute(t, e, s, q, prepared)
 	if err != nil {
@@ -58,7 +59,7 @@ func rowLockViewRows(t *testing.T, e *engine.Engine, s *session.Session, q strin
 		t.Fatal(q, got, expected)
 	}
 }
-func rowLockViewGrants(t *testing.T, e *engine.Engine, ticket *lock.Ticket, table string, ids ...int) {
+func rowLockViewGrants(t *testing.T, e *core.Engine, ticket *lock.Ticket, table string, ids ...int) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, table)
 	e.Mu.Lock()
@@ -85,9 +86,9 @@ func rowLockViewAsync(t *testing.T, s *session.Session, parent context.Context, 
 	done := make(chan deleteOutcome, 1)
 	go func() {
 		op, _, err := s.AcquireCommand(ctx)
-		var result engine.Result
+		var result core.Result
 		if err == nil {
-			result, err = engine.EngineOf(s).Execute(op, ast, 0, nil)
+			result, err = core.EngineOf(s).Execute(op, ast, 0, nil)
 			err = op.CommandError(err)
 			op.Done()
 		}
@@ -110,7 +111,7 @@ func rowLockViewAsync(t *testing.T, s *session.Session, parent context.Context, 
 
 // Capture the physical target before launching a waiter; queue assertions must
 // identify the source row, including after native layout remapping.
-func rowLockViewFirstResource(t *testing.T, e *engine.Engine, table string) lock.Resource {
+func rowLockViewFirstResource(t *testing.T, e *core.Engine, table string) lock.Resource {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, table)
 	e.Mu.Lock()
@@ -118,7 +119,7 @@ func rowLockViewFirstResource(t *testing.T, e *engine.Engine, table string) lock
 	return lock.Resource{ObjectRef: ref, Row: e.Storage.Relations[ref.Address].Versions[0].Row}
 }
 
-func rowLockViewFixture(t *testing.T) (*engine.Engine, *session.Session, *session.Session, *session.Session) {
+func rowLockViewFixture(t *testing.T) (*core.Engine, *session.Session, *session.Session, *session.Session) {
 	e, a, b, c := rowLockEngineFixture(t)
 	enginetest.SessionSQL(t, c, "INSERT INTO t VALUES(3,30)")
 	enginetest.SessionSQL(t, c, "CREATE VIEW v AS SELECT id,v FROM t WHERE id<3")

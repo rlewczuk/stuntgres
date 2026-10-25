@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -182,7 +183,7 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	}
 }
 
-func aclUnitType(t *testing.T, e *engine.Engine, id sqltype.ID) *sqltype.Descriptor {
+func aclUnitType(t *testing.T, e *core.Engine, id sqltype.ID) *sqltype.Descriptor {
 	t.Helper()
 	d, ok := e.CatalogRead().LookupType(id)
 	if !ok {
@@ -191,11 +192,11 @@ func aclUnitType(t *testing.T, e *engine.Engine, id sqltype.ID) *sqltype.Descrip
 	return d
 }
 
-func queryCreatePublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err != nil {
 		t.Fatal(err)

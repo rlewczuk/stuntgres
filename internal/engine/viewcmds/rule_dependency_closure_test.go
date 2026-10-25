@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -52,7 +53,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 	}
 	closure := func(target ids.ObjectAddress) []table.DomainDependency {
 		t.Helper()
-		edges, err := engine.DomainDependencyClosure(context.Background(), e.BeginCatalogStage(catalogView), []ids.ObjectAddress{target})
+		edges, err := core.DomainDependencyClosure(context.Background(), e.BeginCatalogStage(catalogView), []ids.ObjectAddress{target})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -85,7 +86,7 @@ func TestRuleViewExpressionDependencyClosure(t *testing.T) {
 		t.Fatal("view SELECT definition disappeared from the same canonical closure")
 	}
 	stage := e.BeginCatalogStage(catalogView)
-	if err := engine.StageDropProvider(context.Background(), stage, nil, nil, nil).ApplyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
+	if err := core.StageDropProvider(context.Background(), stage, nil, nil, nil).ApplyViewDependents([]ids.ObjectAddress{provider}, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	current := e.StageRead(stage).MustRelation(event.Address())

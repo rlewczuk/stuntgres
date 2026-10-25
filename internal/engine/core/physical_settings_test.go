@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
@@ -89,7 +89,7 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 		}
 		current := state
 		current.CurrentUser = principal.Ref
-		view := engine.AuthorizationView{View: access.View{Roles: roles, State: current}}
+		view := core.AuthorizationView{View: access.View{Roles: roles, State: current}}
 		allowed, err := view.CanReadRestrictedSettings()
 		if err != nil || allowed != tc.allowed {
 			t.Fatal(tc.role, allowed, err)
@@ -141,12 +141,12 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 		}
 	}
 	for _, current := range []authorization.PrincipalRef{{}, domain.Principal(99999), (&authorization.Domain{}).Principal(10)} {
-		view := engine.AuthorizationView{View: access.View{Roles: roles, State: authorization.RoleState{CurrentUser: current}}}
+		view := core.AuthorizationView{View: access.View{Roles: roles, State: authorization.RoleState{CurrentUser: current}}}
 		if _, err := view.CanReadRestrictedSettings(); err == nil {
 			t.Fatal("invalid authority accepted", current)
 		}
 	}
-	if allowed, err := (engine.AuthorizationView{}).CanReadRestrictedSettings(); allowed || err == nil {
+	if allowed, err := (core.AuthorizationView{}).CanReadRestrictedSettings(); allowed || err == nil {
 		t.Fatal("absent authority must not grant restricted reads", allowed, err)
 	}
 	restricted, ok := roles.Lookup("pg_read_all_settings")
@@ -154,7 +154,7 @@ func TestPhysicalSettingsReadAccess(t *testing.T) {
 		t.Fatal("fixture missing restricted-read role")
 	}
 	incomplete := root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{restricted.Ref: restricted})
-	broken := engine.AuthorizationView{View: access.View{Roles: incomplete.Read(bootstrap), State: state}}
+	broken := core.AuthorizationView{View: access.View{Roles: incomplete.Read(bootstrap), State: state}}
 	if allowed, err := broken.CanReadRestrictedSettings(); allowed || err == nil {
 		t.Fatal("missing restricted-read role must remain an authority error", allowed, err)
 	}

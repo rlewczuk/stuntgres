@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
@@ -12,11 +13,11 @@ import (
 
 // This origin belongs to one private-import operation and one captured definition,
 // target and subtree, after its intended plain tree is already attached.
-func beginPartitionUniqueReplay(e *Engine, op *session.Operation, raw *parser.AlterTable) error {
+func beginPartitionUniqueReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition unique operation")
 	}
-	OperationReplay(op).PartitionUnique = nil
+	core.OperationReplay(op).PartitionUnique = nil
 	if raw == nil || raw.Only || raw.IfExists || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique || raw.Actions[0].Unique == nil {
 		return nil
 	}
@@ -30,7 +31,7 @@ func beginPartitionUniqueReplay(e *Engine, op *session.Operation, raw *parser.Al
 	if err != nil {
 		return err
 	}
-	if !PartitionConstraintReplayImport(e, op, auth) {
+	if !core.PartitionConstraintReplayImport(e, op, auth) {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition unique authority")
 	}
 	ref, err := e.ResolveRelationReference(auth, raw.Name, true)
@@ -45,6 +46,6 @@ func beginPartitionUniqueReplay(e *Engine, op *session.Operation, raw *parser.Al
 	if err != nil {
 		return err
 	}
-	OperationReplay(op).PartitionUnique = captured
+	core.OperationReplay(op).PartitionUnique = captured
 	return nil
 }

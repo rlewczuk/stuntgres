@@ -3,39 +3,40 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
 
-func executeConcurrentIndex(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, initial *catalog.Relation) (Result, error) {
+func executeConcurrentIndex(e *core.Engine, scope *core.StatementScope, syntax *parser.CreateIndex, initial *catalog.Relation) (core.Result, error) {
 	if err := waitIndexWriters(scope, initial.Address()); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if _, err := publishConcurrentIndexRoot(e, scope, syntax, initial.Address(), true); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err := waitIndexWriters(scope, initial.Address()); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	xmin, err := publishConcurrentIndexRoot(e, scope, syntax, initial.Address(), false)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err := waitOlderIndexSnapshots(scope, xmin, initial.Address()); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err := publishConcurrentIndexValid(e, scope, syntax, initial.Address()); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	scope.Completed = true
-	return Result{}, nil
+	return core.Result{}, nil
 }
 
-func concurrentIndexAuthorityLocked(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) (*catalog.Relation, *catalog.Relation, AuthorizationView, error) {
+func concurrentIndexAuthorityLocked(e *core.Engine, scope *core.StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) (*catalog.Relation, *catalog.Relation, core.AuthorizationView, error) {
 	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
-		return nil, nil, AuthorizationView{}, err
+		return nil, nil, core.AuthorizationView{}, err
 	}
 	auth, err := e.StatementAuthorizationLocked(scope.Op, syntax)
 	if err != nil {
@@ -58,7 +59,7 @@ func concurrentIndexAuthorityLocked(e *Engine, scope *StatementScope, syntax *pa
 	return index, parent, auth, nil
 }
 
-func publishConcurrentIndexRoot(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress, first bool) (uint64, error) {
+func publishConcurrentIndexRoot(e *core.Engine, scope *core.StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress, first bool) (uint64, error) {
 	for {
 		e.Mu.Lock()
 		idx, parent, auth, err := concurrentIndexAuthorityLocked(e, scope, syntax, address)
@@ -105,11 +106,11 @@ func publishConcurrentIndexRoot(e *Engine, scope *StatementScope, syntax *parser
 		stage.Indexes().Parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.Mu.Unlock()
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		evaluation.RoutineAuthority = &auth
 		root, err := index.BuildIndexRoot(&evaluation, parent, &definition, &snapshot, nil)
 		if err == nil {
-			err = index.ValidateUniqueRoot(scope.Op.Context(), parent, &next, root, namespace, scope.Output, &auth.View, DisclosureEnv(&auth), first)
+			err = index.ValidateUniqueRoot(scope.Op.Context(), parent, &next, root, namespace, scope.Output, &auth.View, core.DisclosureEnv(&auth), first)
 		}
 		if err != nil {
 			e.DiscardCatalogStage(stage)
@@ -118,10 +119,10 @@ func publishConcurrentIndexRoot(e *Engine, scope *StatementScope, syntax *parser
 		stage.Indexes().Candidates = map[ids.ObjectAddress]index.RootCandidate{address: {Root: root, Index: &next, Storage: store, Generation: snapshot.Generation, Ends: snapshot.Ends, Length: len(snapshot.Versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
-			var prepared *PreparedCatalogPublication
+			var prepared *core.PreparedCatalogPublication
 			prepared, err = e.ValidateCatalogStage(scope.Op.Context(), stage)
 			if err == nil {
-				_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+				_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 			}
 		}
 		e.DiscardCatalogStage(stage)
@@ -143,7 +144,7 @@ func publishConcurrentIndexRoot(e *Engine, scope *StatementScope, syntax *parser
 	}
 }
 
-func publishConcurrentIndexValid(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) error {
+func publishConcurrentIndexValid(e *core.Engine, scope *core.StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) error {
 	for {
 		e.Mu.Lock()
 		index, parent, auth, err := concurrentIndexAuthorityLocked(e, scope, syntax, address)
@@ -173,10 +174,10 @@ func publishConcurrentIndexValid(e *Engine, scope *StatementScope, syntax *parse
 		e.Mu.Unlock()
 		err = stage.Replace(&next)
 		if err == nil {
-			var prepared *PreparedCatalogPublication
+			var prepared *core.PreparedCatalogPublication
 			prepared, err = e.ValidateCatalogStage(scope.Op.Context(), stage)
 			if err == nil {
-				_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()})
+				_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: auth.Catalog.Epoch()})
 			}
 		}
 		e.DiscardCatalogStage(stage)

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/storage"
@@ -22,7 +23,7 @@ func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), "DELETE FROM t USING s WHERE id=k")
 	v := target.VersionAt(target.RawIndex(0))
 	candidate := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: v.Row, Version: v.Version, Ordinal: target.RawIndex(0)}
-	if err := ScopeAcquireRow(scope, candidate); err != nil {
+	if err := core.ScopeAcquireRow(scope, candidate); err != nil {
 		t.Fatal(err)
 	}
 	for _, bad := range []visibility.DeleteCandidate{

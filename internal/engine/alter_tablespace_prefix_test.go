@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -76,10 +77,10 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
 	third := old.ColumnMeta.Identities[old.Attributes[2]].Sequence
 	generatorC := e.Storage.Sequences[third]
-	valueC, cacheC := *generatorC, *PayloadOf(c.op.Session).Sequences.Memory(third)
+	valueC, cacheC := *generatorC, *core.PayloadOf(c.op.Session).Sequences.Memory(third)
 	generatorA, generatorB := e.Storage.Sequences[a], e.Storage.Sequences[b]
 	valueA, valueB := *generatorA, *generatorB
-	memoryA, memoryB := PayloadOf(c.op.Session).Sequences.Memory(a), PayloadOf(c.op.Session).Sequences.Memory(b)
+	memoryA, memoryB := core.PayloadOf(c.op.Session).Sequences.Memory(a), core.PayloadOf(c.op.Session).Sequences.Memory(b)
 	cacheB := *memoryB
 	if memoryA.CachedTail() != 4 || memoryB.CachedTail() != 4 {
 		t.Fatal("fixture did not reserve actual cache tails", memoryA, memoryB)
@@ -102,7 +103,7 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.Sequence.Generator(a))
 	}
 	prior := stage.Get(third).(*catalog.Relation)
-	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.Sequence.Generator(third) == nil || stage.Sequence.Generator(third).Generation != prior.Revision() || cacheC.CachedTail() != 4 || PayloadOf(c.op.Session).Sequences.Memory(third).CachedTail() != 0 {
+	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.Sequence.Generator(third) == nil || stage.Sequence.Generator(third).Generation != prior.Revision() || cacheC.CachedTail() != 4 || core.PayloadOf(c.op.Session).Sequences.Memory(third).CachedTail() != 0 {
 		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.Sequence.Generator(third))
 	}
 	if stage.Get(b) != nil || stage.Sequence.Generator(b) != nil || memoryA.CachedTail() != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
@@ -112,7 +113,7 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 		t.Fatal("private AS published catalog/storage/generator state")
 	}
 	e.DiscardCatalogStage(stage)
-	if stage.Lifecycle != CatalogDiscarded {
+	if stage.Lifecycle != core.CatalogDiscarded {
 		t.Fatal("ordinary stage owner failed to discard")
 	}
 	if err := scope.Finish(completionErr); err == nil {
@@ -148,7 +149,7 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 			}
 			before := c.e.Catalog.State
 			a := original.ColumnMeta.Identities[original.Attributes[0]].Sequence
-			memory := *PayloadOf(c.op.Session).Sequences.Memory(a)
+			memory := *core.PayloadOf(c.op.Session).Sequences.Memory(a)
 			generator := *c.e.Storage.Sequences[a]
 			prepared, err := tablespacePrefixPrepare(c, old, c.raw.Actions)
 			tablespacePrefixCode(t, err, tc.code)
@@ -156,7 +157,7 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 				t.Fatal("admission failure exposed a stageable prefix", prepared.Types)
 			}
 			stage, stageErr := stageAlterIdentityTypes(c.e, c.scope, c.op, c.auth, original, c.raw.Actions, prepared.Types)
-			if stage != nil || stageErr != nil || *PayloadOf(c.op.Session).Sequences.Memory(a) != memory || *c.e.Storage.Sequences[a] != generator || c.e.Catalog.State != before {
+			if stage != nil || stageErr != nil || *core.PayloadOf(c.op.Session).Sequences.Memory(a) != memory || *c.e.Storage.Sequences[a] != generator || c.e.Catalog.State != before {
 				t.Fatal("failed admission staged AS", stage, stageErr)
 			}
 			c.scope.Finish(err)
@@ -188,17 +189,17 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 				b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
 				generatorA, generatorB := e.Storage.Sequences[a], e.Storage.Sequences[b]
 				valueA, valueB := *generatorA, *generatorB
-				memoryA, memoryB := PayloadOf(c.op.Session).Sequences.Memory(a), PayloadOf(c.op.Session).Sequences.Memory(b)
+				memoryA, memoryB := core.PayloadOf(c.op.Session).Sequences.Memory(a), core.PayloadOf(c.op.Session).Sequences.Memory(b)
 				cacheA, cacheB := *memoryA, *memoryB
 				_, saved := tablespacePrefixPrepare(c, old, c.raw.Actions)
 				tablespacePrefixCode(t, saved, "42804")
-				var stage *CatalogStage
+				var stage *core.CatalogStage
 				if shared {
 					// Supply the existing shared-stage contract at descendant
 					// reentry: this branch must leave disposal to its outer owner.
 					stage = e.BeginCatalogStage(c.auth.Catalog)
 					stage.AuthorizeLocked(c.auth, c.op.Session)
-					scope.Inheritance.Alter = &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Descendant: true}}
+					scope.Inheritance.Alter = &core.InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Descendant: true}}
 					t.Cleanup(func() { scope.Inheritance.Alter = nil; e.DiscardCatalogStage(stage) })
 				}
 				e.Mu.Lock()
@@ -218,7 +219,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					t.Fatal("failed controller published a prefix or visited later TYPE")
 				}
 				if shared {
-					if stage.Lifecycle == CatalogDiscarded || stage.Lifecycle == CatalogPublished {
+					if stage.Lifecycle == core.CatalogDiscarded || stage.Lifecycle == core.CatalogPublished {
 						t.Fatal("inner failure took shared cleanup ownership", stage.Lifecycle)
 					}
 					if !invalidAS && (stage.Sequence.Generator(a) == nil || stage.Get(a).(*catalog.Relation).Sequence.SQLType != sqltype.Int2) {
@@ -228,7 +229,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					// descendant, owns this private stage's transition.
 					scope.Inheritance.Alter = nil
 					e.DiscardCatalogStage(stage)
-					if stage.Lifecycle != CatalogDiscarded {
+					if stage.Lifecycle != core.CatalogDiscarded {
 						t.Fatal("shared owner failed to dispose")
 					}
 				}

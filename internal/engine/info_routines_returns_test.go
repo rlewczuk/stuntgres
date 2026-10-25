@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -77,14 +78,14 @@ func TestInfoRoutinesDeclaredReturnGenerations(t *testing.T) {
 				resultName, dataType = "_ir_result_base", "ARRAY"
 				resultSQL = "public.ir_result_base[]"
 			}
-			auth, err := OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
 			declaration := statement(t, "CREATE FUNCTION public.ir_result() RETURNS "+resultSQL+" LANGUAGE SQL AS 'SELECT NULL::"+resultSQL+"'").(*parser.CreateFunction)
 			f.e.Mu.Lock()
 			stage := f.e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(RoutineHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(RoutineHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
 			f.e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

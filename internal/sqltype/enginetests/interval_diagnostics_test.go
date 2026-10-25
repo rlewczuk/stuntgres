@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 func TestIntervalLiteralOverflowPosition(t *testing.T) {
 	e := engine.New()
 	d, _ := e.CatalogRead().LookupType(sqltype.Interval)
-	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "2147483648 days", Pos: parser.Position{Offset: 22, Character: 23}}}
 	_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment})
 	var got *sqlstate.Error

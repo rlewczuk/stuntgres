@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
@@ -9,21 +10,21 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executePartitionExclusionAddLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
+func executePartitionExclusionAddLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (core.Result, error) {
 	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	e.Mu.Unlock()
 	if err := scope.AcquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	auth, err := e.StatementAuthorizationLocked(op, raw)
 	if err != nil {
 		e.Mu.Unlock()
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if auth.Catalog.Get(table.Address()) != table {
 		e.Mu.Unlock()
-		return Result{}, ids.ErrCatalogReplaced
+		return core.Result{}, ids.ErrCatalogReplaced
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
@@ -31,14 +32,14 @@ func executePartitionExclusionAddLocked(e *Engine, scope *StatementScope, op *se
 	for _, descriptor := range scope.PartitionRelations {
 		stage.DomainBases = append(stage.DomainBases, descriptor)
 	}
-	err = partition.StageExclusions(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, scope.Input, table, raw)
+	err = partition.StageExclusions(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, scope.Input, table, raw)
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if _, err = e.ValidateCatalogStage(op.Context(), stage); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
-	return Result{}, e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
+	return core.Result{}, e.StageCatalogOverlay(scope, stage, scope.Owner.Catalog.Clone())
 }

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
@@ -29,7 +30,7 @@ func TestDomainDefaultViewSQLDependenciesInternal(t *testing.T) {
 	domain := domainUnitType(t, catalogView, "dd_view_domain")
 	stage := e.BeginCatalogStage(catalogView)
 	defer e.DiscardCatalogStage(stage)
-	provider := StageDropProvider(op.Context(), stage, nil, nil, nil)
+	provider := core.StageDropProvider(op.Context(), stage, nil, nil, nil)
 	for _, tc := range []struct {
 		name    string
 		passive bool
@@ -84,7 +85,7 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	if err := scope.AcquireSequence(sourceRef, lock.AccessExclusive, true); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

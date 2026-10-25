@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
@@ -17,18 +18,18 @@ import (
 )
 
 // These fixtures exercise private staging/publication, never SQL execution.
-func domainUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) *CatalogStage {
+func domainUnitStage(t *testing.T, e *core.Engine, op *session.Operation, q string) *core.CatalogStage {
 	t.Helper()
 	ast := statement(t, q)
 	e.Mu.Lock()
-	var stage *CatalogStage
+	var stage *core.CatalogStage
 	var err error
 	if enum, ok := ast.(*parser.CreateEnum); ok {
-		var auth AuthorizationView
+		var auth core.AuthorizationView
 		auth, err = e.AuthorizationLocked(op)
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			err = typedef.StageCreateEnumLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, enum)
+			err = typedef.StageCreateEnumLocked(TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, enum)
 		}
 	} else {
 		stage, err = stageSchemaLocked(e, op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
@@ -39,13 +40,13 @@ func domainUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) *
 	}
 	return stage
 }
-func domainUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
+func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -134,12 +135,12 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	domainUnitPublish(t, e, change)
 	before := e.CatalogRead().State()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: chain.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: chain.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("base authorization generation lost", err)
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.DomainTargets = []ids.ObjectAddress{a.Address()}
-	if err = StageRemoveObject(drop, e.Catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
+	if err = core.StageRemoveObject(drop, e.Catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)
@@ -159,7 +160,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	domainUnitPublish(t, e, table)
 	before = e.CatalogRead().State()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: drop.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: drop.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("DROP lost new dependent column", err)
 	}
 	canceled := domainUnitStage(t, e, op, "CREATE DOMAIN public.canceled AS integer")
@@ -169,7 +170,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
+	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 		t.Fatal("canceled domain published", err)
 	}
 }
@@ -215,7 +216,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
 		e.Mu.Lock()
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err := typedef.StageCreateDomainLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		err := typedef.StageCreateDomainLocked(TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.Mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
 		if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
@@ -259,7 +260,7 @@ func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 	auth := catalogAuthorization(e, e.CatalogRead())
 	var dependencies []access.RoleDependency
 	access.DescriptorRoleDependencies(d, d.Owner, &dependencies)
-	if len(dependencies) == 0 || (RoleHost{DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
+	if len(dependencies) == 0 || (RoleHost{core.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}
 }

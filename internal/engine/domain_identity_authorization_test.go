@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/parser"
@@ -51,10 +52,10 @@ func TestDomainIdentityPlanStamp(t *testing.T) {
 	replacementOwner := roleAttributeCreate(t, e, op, "identity_stamp_owner", true, parser.RoleOptions{}).Ref
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.d AS integer CONSTRAINT positive CHECK(VALUE>0)"))
 	old := domainUnitType(t, e.CatalogRead(), "d")
-	stamp := PreparedDefinitionStamp(old, op.Session)
+	stamp := core.PreparedDefinitionStamp(old, op.Session)
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER DOMAIN public.d RENAME TO renamed"))
 	current := e.CatalogRead().MustType(old.Address())
-	if current.Revision() == old.Revision() || PreparedDefinitionStamp(current, op.Session) != stamp {
+	if current.Revision() == old.Revision() || core.PreparedDefinitionStamp(current, op.Session) != stamp {
 		t.Fatal("identity edit invalidated executable stamp")
 	}
 	// Reinstalling another generation at that SAME staged revision must not
@@ -69,7 +70,7 @@ func TestDomainIdentityPlanStamp(t *testing.T) {
 	if err := stage.Replace(&refresh); err != nil {
 		t.Fatal(err)
 	}
-	if PreparedDefinitionStamp(stage.Get(next.Address()), op.Session) != stamp {
+	if core.PreparedDefinitionStamp(stage.Get(next.Address()), op.Session) != stamp {
 		t.Fatal("same-revision refresh lost normalized stamp")
 	}
 	e.DiscardCatalogStage(stage)
@@ -83,7 +84,7 @@ func TestDomainIdentityPlanStamp(t *testing.T) {
 	if err := stage.Replace(&changed); err != nil {
 		t.Fatal(err)
 	}
-	if PreparedDefinitionStamp(stage.Get(changed.Address()), op.Session) == stamp || stage.Get(changed.Address()).(*catalog.Type).DomainPlanStamp != 0 {
+	if core.PreparedDefinitionStamp(stage.Get(changed.Address()), op.Session) == stamp || stage.Get(changed.Address()).(*catalog.Type).DomainPlanStamp != 0 {
 		t.Fatal("CHECK change reused identity-only stamp")
 	}
 	e.DiscardCatalogStage(stage)
@@ -111,14 +112,14 @@ func TestDomainIdentityArrayPlanStamp(t *testing.T) {
 	old := domainUnitType(t, e.CatalogRead(), "d")
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.Array)}
 	oldArray := e.CatalogRead().MustType(address)
-	stamp := PreparedDefinitionStamp(oldArray, op.Session)
-	elementStamp := PreparedDefinitionStamp(old, op.Session)
+	stamp := core.PreparedDefinitionStamp(oldArray, op.Session)
+	elementStamp := core.PreparedDefinitionStamp(old, op.Session)
 	// This rename first displaces the domain's OWN array. Both certified
 	// identity boundaries must preserve the same original effective stamp.
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER DOMAIN public.d RENAME TO _d"))
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER DOMAIN public._d SET SCHEMA identity_dst"))
 	current := e.CatalogRead().MustType(address)
-	if current.Revision() == oldArray.Revision() || PreparedDefinitionStamp(current, op.Session) != stamp || oldArray.EffectiveDomainPlanStamp() != stamp {
+	if current.Revision() == oldArray.Revision() || core.PreparedDefinitionStamp(current, op.Session) != stamp || oldArray.EffectiveDomainPlanStamp() != stamp {
 		t.Fatal("companion identity edit changed semantic stamp or retained root")
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
@@ -131,7 +132,7 @@ func TestDomainIdentityArrayPlanStamp(t *testing.T) {
 	if err := stage.Replace(&refresh); err != nil {
 		t.Fatal(err)
 	}
-	if PreparedDefinitionStamp(stage.Get(address), op.Session) != stamp {
+	if core.PreparedDefinitionStamp(stage.Get(address), op.Session) != stamp {
 		t.Fatal("companion generation refresh lost identity preservation")
 	}
 	e.DiscardCatalogStage(stage)
@@ -148,7 +149,7 @@ func TestDomainIdentityArrayPlanStamp(t *testing.T) {
 		}
 	}
 	usingIndexUnitExecute(t, e, sessionStart(t, e, nil), statement(t, "ALTER DOMAIN identity_dst._d ADD CONSTRAINT upper_bound CHECK(VALUE<10)"))
-	if PreparedDefinitionStamp(e.CatalogRead().MustType(old.Address()), op.Session) == elementStamp {
+	if core.PreparedDefinitionStamp(e.CatalogRead().MustType(old.Address()), op.Session) == elementStamp {
 		t.Fatal("element CHECK change kept the captured semantic dependency valid")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
@@ -36,7 +37,7 @@ func TestPGRulesProducer(t *testing.T) {
 	if !ok {
 		t.Fatal("missing rule producer")
 	}
-	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Presentation: stored.Presentation{Deparse: true}, Auth: AuthorizationView{}})}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: view, Source: source, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Presentation: stored.Presentation{Deparse: true}, Auth: core.AuthorizationView{}})}
 	rows, err := produce(input)
 	if err != nil {
 		t.Fatal(err)

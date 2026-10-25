@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
@@ -26,17 +27,17 @@ func (h TableHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
 }
 
 func (h TableHost) DefinitionReader() catalog.DefinitionReader {
-	return StageDefinitions(h.CatalogStage)
+	return core.StageDefinitions(h.CatalogStage)
 }
 
 func (h TableHost) ValidityTarget() index.ValidityTarget {
-	return StageDropProvider(context.Background(), h.CatalogStage, nil, nil, nil)
+	return core.StageDropProvider(context.Background(), h.CatalogStage, nil, nil, nil)
 }
 
 func (h TableHost) BindIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error) {
-	return bindIndexExpression(h.E, h.Op, input, DDLAuthorityOf(a), parent, raw, literals)
+	return bindIndexExpression(h.E, h.Op, input, core.DDLAuthorityOf(a), parent, raw, literals)
 }
 
 func (h TableHost) BindIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error) {
-	return bindIndexPredicate(h.E, h.Op, input, DDLAuthorityOf(a), parent, raw)
+	return bindIndexPredicate(h.E, h.Op, input, core.DDLAuthorityOf(a), parent, raw)
 }

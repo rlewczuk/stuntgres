@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -13,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func avgUnitProvider(e *engine.Engine, id sqltype.ID) (functions.AggregateProvider, *sqltype.Descriptor) {
+func avgUnitProvider(e *core.Engine, id sqltype.ID) (functions.AggregateProvider, *sqltype.Descriptor) {
 	input, _ := e.CatalogRead().LookupType(id)
 	if id == sqltype.Float4 || id == sqltype.Float8 {
 		result, _ := e.CatalogRead().LookupType(sqltype.Float8)

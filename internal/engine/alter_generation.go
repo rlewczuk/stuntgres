@@ -2,14 +2,15 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
 // generationCandidate binds the replacement under Engine.mu.
-func generationCandidate(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
+func generationCandidate(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.GenerationCandidate(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, old, action)
+	return table.GenerationCandidate(alterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, action)
 }

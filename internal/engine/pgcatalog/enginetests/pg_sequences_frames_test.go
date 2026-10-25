@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -125,7 +126,7 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 	raw := enginetest.Statement(t, "SELECT sequencename FROM (SELECT sequencename FROM pg_sequences) s WHERE sequencename='a' FOR UPDATE").(*parser.Select)
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	binder := engine.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+	binder := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	binder.Query.Auth = &auth
 	var query *plan.Query
 	if err == nil {

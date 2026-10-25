@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -45,7 +46,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					if len(providers) != 1 {
 						t.Fatal(providers)
 					}
-					var scope *engine.StatementScope
+					var scope *core.StatementScope
 					if authority == "sql" {
 						tx, err := e.Begin(op, session.TxOptions{})
 						if err != nil {
@@ -57,7 +58,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 							}
 							enginetest.LockEmpty(t, e)
 						}()
-						scope = &engine.StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
+						scope = &core.StatementScope{Op: op, Owner: op.Session.Transactions, TxRef: tx, LockTicket: op.Session.Transactions.Ticket}
 					}
 					stage := e.BeginCatalogStage(base)
 					defer e.DiscardCatalogStage(stage)
@@ -69,7 +70,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 						}
 						return nil
 					}
-					if err := engine.StageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project, ids.ObjectAddress{}); err != nil {
+					if err := core.StageExpressionDependencies(context.Background(), stage, providers, parser.DropCascade, scope, nil, project, ids.ObjectAddress{}); err != nil {
 						t.Fatal(err)
 					}
 					wantProjected := 0

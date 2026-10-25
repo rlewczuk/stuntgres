@@ -2,14 +2,12 @@ package core_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/sqlstate"
 )
 
 func TestQueryDistinctOnPhysicalACLAndHeldRebind(t *testing.T) {
@@ -87,14 +85,5 @@ func TestQueryDistinctOnPhysicalACLAndHeldRebind(t *testing.T) {
 			grant(id, authorization.SelectPrivilege)
 			execute(false)
 		})
-	}
-}
-
-func assertDistinctACLFailure(t *testing.T, result engine.Result, err error) {
-	t.Helper()
-	var got *sqlstate.Error
-	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for table acl_t"}
-	if !errors.As(err, &got) || *got != want || result.Rows != nil || result.Count != 0 {
-		t.Fatal(result, got, err)
 	}
 }

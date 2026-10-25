@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
@@ -11,7 +12,7 @@ import (
 
 // Apply only to Restore's isolated catalog. Named target identities were
 // captured before reading; final replacement fences their remapping again.
-func importExtensionOwners(e *Engine, ctx context.Context, op *session.Operation, records []extension.OwnerRecord) error {
+func importExtensionOwners(e *core.Engine, ctx context.Context, op *session.Operation, records []extension.OwnerRecord) error {
 	if len(records) == 0 {
 		return nil
 	}

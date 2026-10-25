@@ -1,0 +1,316 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"maps"
+	"slices"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/partition"
+	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqltype"
+)
+
+type partitionDetachUnit struct {
+	e                        *core.Engine
+	parent, child, def, leaf *catalog.Relation
+}
+
+func partitionDetachUnitTree(t *testing.T, nested bool) partitionDetachUnit {
+	t.Helper()
+	e := engine.New()
+	parent := partitionAttachUnitRoot(t, e, "detach_unit_parent", 46500)
+	child := inheritanceUnitRelation(e, "detach_unit_child", 46501, "k")
+	child.RelationKind = catalog.TableRelation
+	if nested {
+		child = partitionAttachUnitRoot(t, e, child.Name(), child.Address().ObjectID)
+	}
+	child.Membership = partitionAttachUnitRange(t, parent, 1, 3)
+	def := inheritanceUnitRelation(e, "detach_unit_default", 46502, "k")
+	def.RelationKind = catalog.TableRelation
+	def.Membership = &catalog.PartitionMembership{Parent: parent.Address(), DefaultBound: true}
+	parent.Partition.Children = []ids.ObjectAddress{child.Address(), def.Address()}
+	parent.Partition.DefaultChild = def.Address()
+	relations := []*catalog.Relation{parent, child, def}
+	leaf := child
+	if nested {
+		leaf = inheritanceUnitRelation(e, "detach_unit_leaf", 46503, "k")
+		leaf.RelationKind = catalog.TableRelation
+		leaf.Membership = &catalog.PartitionMembership{Parent: child.Address(), DefaultBound: true}
+		child.Partition.Children = []ids.ObjectAddress{leaf.Address()}
+		child.Partition.DefaultChild = leaf.Address()
+		relations = append(relations, leaf)
+	}
+	partitionAttachUnitInstall(t, e, relations...)
+	get := func(d *catalog.Relation) *catalog.Relation {
+		return e.Catalog.State.MustRelation(d.Address())
+	}
+	return partitionDetachUnit{e, get(parent), get(child), get(def), get(leaf)}
+}
+
+func TestPartitionDetachDescriptor(t *testing.T) {
+	for _, kind := range []string{"leaf", "default", "nested"} {
+		t.Run(kind, func(t *testing.T) {
+			f := partitionDetachUnitTree(t, kind == "nested")
+			child := f.child
+			if kind == "default" {
+				child = f.def
+			}
+			before := f.e.Catalog.State
+			stores := maps.Clone(f.e.Storage.Relations)
+			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
+			defer f.e.DiscardCatalogStage(stage)
+			if err := partition.StageDetach(stage, stage.Base, f.parent, child); err != nil {
+				t.Fatal(err)
+			}
+			view := f.e.StageRead(stage)
+			p := view.MustRelation(f.parent.Address())
+			c := view.MustRelation(child.Address())
+			if p == f.parent || c == child || c.Membership != nil || slices.Contains(p.Partition.Children, child.Address()) || c.Address() != child.Address() || c.RowType != child.RowType || c.Partition != child.Partition {
+				t.Fatal("immediate graph/identity/subtree changed incorrectly")
+			}
+			if &c.Columns[0] != &child.Columns[0] || &c.Attributes[0] != &child.Attributes[0] || c.Index == nil {
+				t.Fatal("stable physical shape was copied or lost")
+			}
+			if p.Revision() != f.parent.Revision()+1 || c.Revision() != child.Revision()+1 {
+				t.Fatal("revision invalidation missing")
+			}
+			if (p.Partition.DefaultChild == (ids.ObjectAddress{})) != (kind == "default") {
+				t.Fatal("wrong DEFAULT pointer")
+			}
+			if f.e.Catalog.State != before || !maps.Equal(f.e.Storage.Relations, stores) || len(f.parent.Partition.Children) != 2 || child.Membership == nil {
+				t.Fatal("private stage mutated published graph/store")
+			}
+			if kind == "nested" && view.Get(f.leaf.Address()) != f.leaf {
+				t.Fatal("subordinate descriptor replaced")
+			}
+			if _, err := f.e.ValidateCatalogStage(context.Background(), stage); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestPartitionDetachDependencies(t *testing.T) {
+	for _, valid := range []bool{false, true} {
+		t.Run(map[bool]string{false: "invalid_complete", true: "valid"}[valid], func(t *testing.T) {
+			f := partitionConstraintDescriptors(t)
+			f.child.SQLIndex.PartitionParent = f.parent.Address()
+			f.parent.SQLIndex.Valid = valid
+			f.parent.SQLIndex.Include = nil
+			f.child.SQLIndex.Include = nil
+			// Build genuine inline-UNIQUE tuple descriptors, not the covering
+			// index fixture's extra payload or nondefault key ordering.
+			for _, index := range [2]*catalog.Relation{f.parent, f.child} {
+				index.Columns = index.Columns[:2]
+				index.Attributes = index.Attributes[:2]
+				index.ColumnMeta.HighWater = 2
+				index.Index = map[string]int{"a": 0, "b": 1}
+				index.SQLIndex.Keys[1].Desc = false
+				index.SQLIndex.Keys[1].NullsFirst = false
+			}
+			rootKey := catalog.UniqueConstraint{OID: 46600, Name: f.parent.Name(), Index: f.parent.Address(), Attributes: []int32{10, 20}, IsLocal: true}
+			childKey := catalog.UniqueConstraint{OID: 46601, Name: f.child.Name(), Index: f.child.Address(), Attributes: []int32{22, 11}, Parent: rootKey.OID}
+			f.root.Constraints.Unique = []catalog.UniqueConstraint{rootKey}
+			f.leaf.Constraints.Unique = []catalog.UniqueConstraint{childKey}
+			f.parent.SQLIndex.Constraint = index.UniqueBacking(&rootKey)
+			f.child.SQLIndex.Constraint = index.UniqueBacking(&childKey)
+			f.leaf.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 46602, Name: "own_nn", Attribute: 22}}
+			stage := f.e.BeginCatalogStage(f.view)
+			defer f.e.DiscardCatalogStage(stage)
+			if err := partition.StageDetach(stage, stage.Base, f.root, f.leaf); err != nil {
+				t.Fatal(err)
+			}
+			view := f.e.StageRead(stage)
+			idx := view.MustRelation(f.child.Address())
+			table := view.MustRelation(f.leaf.Address())
+			if idx.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || idx.SQLIndex.Constraint != f.child.SQLIndex.Constraint || idx.SQLIndex.Valid != f.child.SQLIndex.Valid || table.Constraints.Unique[0].Parent != 0 || !table.Constraints.Unique[0].IsLocal || table.Constraints.NotNull[0].PartitionOrigin != nil {
+				t.Fatal("top edge/provenance/backing identity wrong")
+			}
+			if table.Constraints.Unique[0].OID != childKey.OID || table.Constraints.NotNull[0].OID != 46602 || f.leaf.Constraints.Unique[0].Parent != rootKey.OID || f.child.SQLIndex.PartitionParent != f.parent.Address() {
+				t.Fatal("own identity or predecessor changed")
+			}
+			if view.Get(f.parent.Address()) != f.parent || f.parent.SQLIndex.Valid != valid {
+				t.Fatal("detach promoted or replaced former parent index")
+			}
+			if err := index.ValidatePartitionIndex(view, f.parent, view.MustRelation(f.root.Address())); err != nil {
+				t.Fatal("invalid-complete must be admitted", err)
+			}
+			if err := index.ValidateIndexDefinition(view, idx); err != nil {
+				t.Fatal(err)
+			}
+			if !index.SameIndexKeySemantics(f.child, idx) {
+				t.Fatal("metadata-only detach would rebuild physical keys")
+			}
+		})
+	}
+}
+
+func TestPartitionDetachPublication(t *testing.T) {
+	for _, veto := range []string{"cancel", "revision", "authority", "complete_then_cancel"} {
+		t.Run(veto, func(t *testing.T) {
+			f := partitionDetachUnitTree(t, false)
+			stage := f.e.BeginCatalogStage(f.e.CatalogRead())
+			defer f.e.DiscardCatalogStage(stage)
+			if err := partition.StageDetach(stage, stage.Base, f.parent, f.child); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var authority *session.Session
+			if veto == "authority" {
+				op, done := enginetest.RoleOperation(t, f.e, "postgres")
+				defer done()
+				f.e.Mu.Lock()
+				auth, err := f.e.AuthorizationLocked(op)
+				if err == nil {
+					stage.AuthorizeLocked(auth, op.Session)
+				}
+				f.e.Mu.Unlock()
+				if err != nil {
+					t.Fatal(err)
+				}
+				authority = op.Session
+			}
+			prepared, err := f.e.ValidateCatalogStage(ctx, stage)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if authority != nil {
+				authority.Mu.Lock()
+				authority.Authorization.Revision++
+				authority.Mu.Unlock()
+			}
+			if veto == "revision" {
+				next := catalog.CloneState(f.e.Catalog.State)
+				p := *f.parent
+				p.ObjectRevision++
+				next.SetDescriptor(p.Address(), &p)
+				f.e.Catalog.PublishLocked(next)
+			}
+			before := f.e.Catalog.State
+			stores, roots := maps.Clone(f.e.Storage.Relations), maps.Clone(f.e.Storage.IndexRoots)
+			if veto == "cancel" {
+				cancel()
+			}
+			_, err = enginetest.PublishCatalog(f.e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+			if veto == "complete_then_cancel" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				cancel()
+				if f.e.Catalog.State.MustRelation(f.child.Address()).Membership != nil || !maps.Equal(stores, f.e.Storage.Relations) {
+					t.Fatal("completed metadata publication lost store or attachment removal")
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("publication veto did not reject")
+			}
+			if veto == "cancel" && !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			if f.e.Catalog.State != before || !maps.Equal(stores, f.e.Storage.Relations) || !maps.Equal(roots, f.e.Storage.IndexRoots) {
+				t.Fatal("veto partially published")
+			}
+		})
+	}
+	// Exhaustion must not mutate any live descriptor or allocate a new identity.
+	f := partitionConstraintDescriptors(t)
+	f.child.SQLIndex.PartitionParent = f.parent.Address()
+	f.child.ObjectRevision = ids.DefinitionRevision(^uint64(0))
+	stage := f.e.BeginCatalogStage(f.view)
+	defer f.e.DiscardCatalogStage(stage)
+	if err := partition.StageDetach(stage, stage.Base, f.root, f.leaf); err == nil || f.leaf.Membership == nil || len(f.root.Partition.Children) != 1 {
+		t.Fatal("exhaustion changed original graph", err)
+	}
+}
+
+// A ready-invalid virtual descriptor never needs a physical logical root, even
+// when no members remain and coverage is vacuously complete.
+func TestPartitionDetachVirtualRoots(t *testing.T) {
+	f := partitionConstraintDescriptors(t)
+	stage := f.e.BeginCatalogStage(f.view)
+	defer f.e.DiscardCatalogStage(stage)
+	f.child.SQLIndex.PartitionParent = f.parent.Address()
+	if err := partition.StageDetach(stage, stage.Base, f.root, f.leaf); err != nil {
+		t.Fatal(err)
+	}
+	next := f.e.StageRead(stage)
+	next.State().RemoveDescriptor(f.child.Address())
+	next.State().RemoveDescriptor(f.leaf.Address())
+	roots, err := core.EnginePrepareIndexRoots(f.e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: next}}, catalog.NewState(0), next.State(), nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	if err != nil || roots[f.parent.Address()] != nil || f.parent.SQLIndex.Valid {
+		t.Fatal("virtual invalid-complete required root or promotion", err)
+	}
+}
+
+func partitionAttachUnitRoot(t *testing.T, e *core.Engine, name string, id ids.OID) *catalog.Relation {
+	t.Helper()
+	d := inheritanceUnitRelation(e, name, id, "k")
+	d.RelationKind = catalog.PartitionedRelation
+	class, _ := sqltype.DefaultIndexClass(d.Columns[0].Usage.Type)
+	comparison, err := operatorFamilyTestOrdering(d.Columns[0].Usage, class)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Partition = &catalog.PartitionDefinition{Keys: []catalog.PartitionKeyEntry{{Attribute: 1, Usage: d.Columns[0].Usage, Class: class, Comparison: comparison, Label: "k"}}}
+	return d
+}
+
+func inheritanceUnitRelation(e *core.Engine, name string, id ids.OID, names ...string) *catalog.Relation {
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: id}, Owner: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: name, ObjectRevision: 1, Index: make(map[string]int)}
+	for i, name := range names {
+		d.Index[name] = i
+		d.Attributes = append(d.Attributes, int32(i+1))
+		d.Columns = append(d.Columns, catalog.Column{Name: name, Usage: enginetest.Usage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true, OriginTable: uint32(id), OriginAttribute: int16(i + 1)})
+	}
+	d.ColumnMeta.HighWater = int32(len(names))
+	return d
+}
+
+func partitionAttachUnitRange(t *testing.T, parent *catalog.Relation, lower, upper int64) *catalog.PartitionMembership {
+	t.Helper()
+	lo, err := sqltype.Integer(parent.Columns[0].Usage.Type, lower)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hi, err := sqltype.Integer(parent.Columns[0].Usage.Type, upper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &catalog.PartitionMembership{Parent: parent.Address(), Lower: []catalog.PartitionDatum{{Value: lo}}, Upper: []catalog.PartitionDatum{{Value: hi}}}
+}
+
+// All setup uses catalog/transaction functions, not a public SQL executor.
+func partitionAttachUnitInstall(t *testing.T, e *core.Engine, relations ...*catalog.Relation) {
+	t.Helper()
+	stage := e.BeginCatalogStage(e.CatalogRead())
+	defer e.DiscardCatalogStage(stage)
+	for _, d := range relations {
+		if err := stage.Create(d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func operatorFamilyTestOrdering(usage sqltype.Usage, class sqltype.IndexClass) (sqltype.IndexComparison, error) {
+	return routine.BindIndexOrdering(operatorFamilyTestRead(), usage, class)
+}

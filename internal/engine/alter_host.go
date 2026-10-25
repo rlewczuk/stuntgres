@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -21,7 +22,7 @@ import (
 // Engine.mu and never waits.
 type alterHost struct {
 	TableHost
-	scope *StatementScope
+	scope *core.StatementScope
 }
 
 var _ table.AlterHost = alterHost{}
@@ -29,7 +30,7 @@ var _ table.AlterHost = alterHost{}
 func (h alterHost) Input() sqltype.InputEnvironment { return h.scope.Input }
 
 func (h alterHost) CaptureTypeDiagnosticName(a ddl.Authority) error {
-	name, err := CaptureTypeDiagnosticName(DDLAuthorityOf(a))
+	name, err := core.CaptureTypeDiagnosticName(core.DDLAuthorityOf(a))
 	if err != nil {
 		return err
 	}
@@ -47,23 +48,23 @@ func (h alterHost) CaptureCheckSnapshots(relation *catalog.Relation, visibility 
 }
 
 func (h alterHost) BindDefault(a ddl.Authority, relation *catalog.Relation, column catalog.Column, raw parser.Expr) (expr.Expr, error) {
-	auth := DDLAuthorityOf(a)
-	binder := NewExpressionBinder(h.Op.Context(), h.E, h.scope.Input, h.Op, nil)
+	auth := core.DDLAuthorityOf(a)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, h.scope.Input, h.Op, nil)
 	binder.Query.Auth = &auth
 	binder.Consumer.DefaultTemporary = auth.Catalog.MustNamespace(relation.Namespace()).Temporary
 	return binder.BindDefault(raw, column)
 }
 
 func (h alterHost) BindGeneration(a ddl.Authority, relation *catalog.Relation, slot int, raw parser.Expr) (catalog.ColumnGeneration, error) {
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	namespace := GenerationNamespace(h.E, auth, relation)
 	return BindGeneration(h.E, h.Op, auth, relation, slot, raw, h.scope.Input, &namespace)
 }
 
 func (h alterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error) {
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	namespace := analyze.RelationNamespace(auth.Catalog, relation, ref, 0)
-	binder := NewExpressionBinder(h.Op.Context(), h.E, h.scope.Input, h.Op, nil)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, h.scope.Input, h.Op, nil)
 	binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
 	binder.Stored.CheckLiterals = literals
 	binder.Query.Namespace = &namespace
@@ -72,8 +73,8 @@ func (h alterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref 
 }
 
 func (h alterHost) BindAlterTypeUsing(a ddl.Authority, original *catalog.Relation, ref ids.ObjectRef, using parser.Expr, usage sqltype.Usage) (expr.Expr, []catalog.ExpressionDependency, error) {
-	auth := DDLAuthorityOf(a)
-	binder := NewExpressionBinder(h.scope.Op.Context(), h.E, h.scope.Input, h.scope.Op, nil)
+	auth := core.DDLAuthorityOf(a)
+	binder := core.NewExpressionBinder(h.scope.Op.Context(), h.E, h.scope.Input, h.scope.Op, nil)
 	binder.Target.Relation, binder.Target.Ref, binder.Params.NoParameters, binder.Query.Auth = original, ref, true, &auth
 	namespace := analyze.RelationNamespace(auth.Catalog, original, ref, analyze.QueryTargetLeaf)
 	binder.Query.Namespace = &namespace
@@ -88,15 +89,15 @@ func (h alterHost) BindAlterTypeUsing(a ddl.Authority, original *catalog.Relatio
 // TypeChangeDependents reads the stage's dependent views when one is begun;
 // before that, the authority's catalog alone.
 func (h alterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddress, column string) error {
-	auth := DDLAuthorityOf(a)
+	auth := core.DDLAuthorityOf(a)
 	if err := view.PolicyTypeChangeError(auth.Catalog, target); err != nil {
 		return err
 	}
-	path, err := LookupPath(auth, analyze.RelationLookup)
+	path, err := core.LookupPath(auth, analyze.RelationLookup)
 	if err != nil {
 		return err
 	}
-	return view.TypeChangeError(&DropProvider{Base: auth.Catalog, SearchPath: path, Stage: h.CatalogStage}, target, column)
+	return view.TypeChangeError(&core.DropProvider{Base: auth.Catalog, SearchPath: path, Stage: h.CatalogStage}, target, column)
 }
 
 func (h alterHost) StageIdentitySequenceOptions(relation *catalog.Relation, attribute int32, sequence ids.ObjectAddress, raw []parser.SequenceOption) error {

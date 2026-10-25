@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
@@ -13,12 +14,12 @@ import (
 
 // identityCandidate applies ADD, SET or DROP identity. SET acquires the
 // identity sequence between the table decisions; ADD stages under Engine.mu.
-func identityCandidate(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, error) {
+func identityCandidate(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, error) {
 	switch action.Action {
 	case parser.DropIdentity:
-		return table.DropIdentity(StageDropProvider(scope.Op.Context(), stage, scope, nil, nil), old, action)
+		return table.DropIdentity(core.StageDropProvider(scope.Op.Context(), stage, scope, nil, nil), old, action)
 	case parser.AddIdentity:
-		h := TableHost{DDLHost{E: e, CatalogStage: stage}}
+		h := TableHost{core.DDLHost{E: e, CatalogStage: stage}}
 		if scope != nil {
 			h.Op = scope.Op
 		}
@@ -36,7 +37,7 @@ func identityCandidate(e *Engine, scope *StatementScope, auth AuthorizationView,
 			return old, err
 		}
 		e.Mu.Lock()
-		err := (alterHost{TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
+		err := (alterHost{TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
 		e.Mu.Unlock()
 		if err != nil {
 			return old, err
@@ -47,7 +48,7 @@ func identityCandidate(e *Engine, scope *StatementScope, auth AuthorizationView,
 
 // Both identity SET and TYPE AS use the sequence owner's migration/state rules.
 // Caller holds Engine.mu after the exact linked sequence's operation lock grant.
-func stageIdentitySequenceOptionsLocked(e *Engine, scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, raw []parser.SequenceOption) error {
+func stageIdentitySequenceOptionsLocked(e *core.Engine, scope *core.StatementScope, stage *core.CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, raw []parser.SequenceOption) error {
 	if err := e.RefreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
 		return err
 	}
@@ -90,7 +91,7 @@ func stageIdentitySequenceOptionsLocked(e *Engine, scope *StatementScope, stage 
 	return nil
 }
 
-func alterIdentityTypeSequence(e *Engine, scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
+func alterIdentityTypeSequence(e *core.Engine, scope *core.StatementScope, stage *core.CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
 	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
 	if err := scope.AcquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 		return err
@@ -106,7 +107,7 @@ func alterIdentityTypeSequence(e *Engine, scope *StatementScope, stage *CatalogS
 	}
 	// AS discards this backend's tail even if a later table pass rolls back.
 	// currval/lastval and unseen peer caches are physical-session authorities.
-	if memory := PayloadOf(scope.Op.Session).Sequences.Memory(address); memory != nil {
+	if memory := core.PayloadOf(scope.Op.Session).Sequences.Memory(address); memory != nil {
 		memory.DiscardTailLocked()
 	}
 	return nil

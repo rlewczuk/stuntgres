@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
@@ -15,12 +16,12 @@ import (
 // transformed in demand order; every Eval occurs outside Engine.mu.
 type pendingPartitionDefinition struct {
 	partition.Definition
-	stage *CatalogStage
-	auth  AuthorizationView
+	stage *core.CatalogStage
+	auth  core.AuthorizationView
 	view  *visibility.View
 }
 
-func schemaPartitionTableLocked(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*pendingPartitionDefinition, error) {
+func schemaPartitionTableLocked(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*pendingPartitionDefinition, error) {
 	op := scope.Op
 	if err := partition.RejectForeignKeys(syntax); err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func schemaPartitionTableLocked(e *Engine, scope *StatementScope, auth Authoriza
 			return nil, err
 		}
 	}
-	definition, err := partition.StageCreate(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, foreignKeysOrZero(scope).KeyTargets)
+	definition, err := partition.StageCreate(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, foreignKeysOrZero(scope).KeyTargets)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +70,7 @@ func schemaPartitionTableLocked(e *Engine, scope *StatementScope, auth Authoriza
 	return pending, nil
 }
 
-func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
+func (p *pendingPartitionDefinition) finish(scope *core.StatementScope) error {
 	if p == nil {
 		return nil
 	}
@@ -80,7 +81,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return partition.CheckSupported(&p.Definition)
 	}
 	ctx := scope.Op.Context()
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Input: scope.Input, Output: scope.Output}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
 	if !p.Bound.DefaultBound {
 		if err := partition.EvaluateBounds(ctx, &p.Definition, partitionBoundBinder{scope: scope, pending: p}, &evaluation); err != nil {
 			return err
@@ -112,5 +113,5 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e := scope.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return partition.StageIndexChildren(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: p.stage}}, p.Parent, p.Child.Address(), false)
+	return partition.StageIndexChildren(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: p.stage}}, p.Parent, p.Child.Address(), false)
 }

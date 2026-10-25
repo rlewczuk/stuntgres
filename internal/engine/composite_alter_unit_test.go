@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -16,7 +17,7 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,7 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			}}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if err == nil {
-				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
+				_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()})
 			}
 			if calls == 0 || err == nil {
 				t.Fatal("provider phase did not reject publication", calls, err)

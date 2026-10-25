@@ -3,9 +3,11 @@ package engine
 import (
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/core"
 )
 
-func tablespaceInfoUnitScope(t *testing.T, e *Engine) *StatementScope {
+func tablespaceInfoUnitScope(t *testing.T, e *core.Engine) *core.StatementScope {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)

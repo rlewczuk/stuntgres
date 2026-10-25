@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
@@ -19,7 +20,7 @@ import (
 // Direct descriptor/stage fixtures deliberately do not construct the condition
 // through SQL. They independently exercise the historical issuer and exact
 // current composite-key/Usage validation, without a second physical provider.
-func physicalNotNullFixture(t *testing.T) (*engine.Engine, *engine.CatalogStage, *catalog.Relation, *catalog.Relation) {
+func physicalNotNullFixture(t *testing.T) (*core.Engine, *core.CatalogStage, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := engine.New()
 	base := e.CatalogRead()
@@ -238,7 +239,7 @@ func TestPhysicalNotNullLocalHistoryActualRemint(t *testing.T) {
 	}
 	before := local.Constraints.NotNull[0]
 	archive := provenance.Retired[0]
-	rebuilt, err := table.RebuildAlterNotNulls(engine.DDLHost{E: e, CatalogStage: stage}, &local, []index.ColumnTransformation{{Attribute: 1}})
+	rebuilt, err := table.RebuildAlterNotNulls(core.DDLHost{E: e, CatalogStage: stage}, &local, []index.ColumnTransformation{{Attribute: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +318,7 @@ func inheritanceUnitParents(parents ...ids.ObjectAddress) []catalog.InheritanceP
 
 // These are package fixtures: SQL constructs physical descriptors through the
 // real providers; assertions exercise the issuer and catalog validator directly.
-func retiredUnitTable(t *testing.T, e *engine.Engine, name string) *catalog.Relation {
+func retiredUnitTable(t *testing.T, e *core.Engine, name string) *catalog.Relation {
 	t.Helper()
 	for _, d := range e.CatalogRead().Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok && r.Name() == name {

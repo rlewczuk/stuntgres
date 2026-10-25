@@ -5,6 +5,7 @@ import (
 	"iter"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
@@ -35,7 +36,7 @@ func (r *sqlRoutineLookupReader) Descriptors() iter.Seq2[ids.ObjectAddress, cata
 func TestSQLRoutineStagedLookup(t *testing.T) {
 	e := New()
 	emptyStage := e.BeginCatalogStage(e.CatalogRead())
-	emptyReader := StageDefinitions(emptyStage)
+	emptyReader := core.StageDefinitions(emptyStage)
 	if emptyReader.HasDynamicProcedureName("abs") {
 		t.Fatal("empty SQL index promoted builtin")
 	}
@@ -55,7 +56,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	added := current.MustProcedure(current.State().ProceduresNamed(namespace, "routine_unit_added")[0])
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	reader := &sqlRoutineLookupReader{sqlRoutineLookupSource: StageDefinitions(stage)}
+	reader := &sqlRoutineLookupReader{sqlRoutineLookupSource: core.StageDefinitions(stage)}
 	check := func(namespace ids.ObjectAddress, name string, want ...*catalog.Procedure) {
 		t.Helper()
 		found := make(map[ids.ObjectAddress]*catalog.Procedure)

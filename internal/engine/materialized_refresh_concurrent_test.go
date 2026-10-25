@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
@@ -20,7 +21,7 @@ import (
 )
 
 // Fixtures call the real private binder/stager/root builders, not SQL execution.
-func concurrentUnitRelation(t *testing.T, e *Engine) *catalog.Relation {
+func concurrentUnitRelation(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -36,12 +37,12 @@ func concurrentUnitRelation(t *testing.T, e *Engine) *catalog.Relation {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := Describe(context.Background(), e.AnalysisHost(op), stmt, auth, ids.ObjectRef{}, input, nil, nil)
+	b, err := core.Describe(context.Background(), e.AnalysisHost(op), stmt, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, d, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, stmt, b)
+	stage, d, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, stmt, b)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal("materialized stage", err, skipped)
@@ -74,7 +75,7 @@ func concurrentUnitRows(t *testing.T, d *catalog.Relation, payloads ...any) [][]
 	return rows
 }
 
-func concurrentUnitReplace(t *testing.T, e *Engine, d *catalog.Relation, rows [][]sqltype.Value, concurrent, populated bool) *catalog.Relation {
+func concurrentUnitReplace(t *testing.T, e *core.Engine, d *catalog.Relation, rows [][]sqltype.Value, concurrent, populated bool) *catalog.Relation {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
@@ -86,7 +87,7 @@ func concurrentUnitReplace(t *testing.T, e *Engine, d *catalog.Relation, rows []
 	return e.Catalog.State.MustRelation(d.Address())
 }
 
-func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *catalog.Relation, name, keys, suffix string) *catalog.Relation {
+func materializedConcurrentUnitIndex(t *testing.T, e *core.Engine, parent *catalog.Relation, name, keys, suffix string) *catalog.Relation {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
@@ -102,7 +103,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *catalog.Re
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, columns, attributes, lookup, err := index.BindAttributes(TableHost{DDLHost{E: e, Op: op}}, auth, input, parent, stmt)
+	definition, columns, attributes, lookup, err := index.BindAttributes(TableHost{core.DDLHost{E: e, Op: op}}, auth, input, parent, stmt)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)
@@ -439,7 +440,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 					e.Visibility.SetCommitSeqLocked(ids.CommitSeq(math.MaxUint64))
 				}
 				beforeCatalog, beforeStore, beforeFrontier := e.Catalog.State, e.Storage.Relations[d.Address()], e.Visibility.CommitSeq()
-				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 				if e.Catalog.State != beforeCatalog || e.Storage.Relations[d.Address()] != beforeStore || e.Visibility.CommitSeq() != beforeFrontier {
 					t.Fatal("veto changed publication")
 				}
@@ -472,7 +473,7 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 		materializedStage(stage).Replacement.Concurrent = concurrent
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
-			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 		}
 		message := fmt.Sprintf(`could not create unique index "%s"`, index.Name())
 		if concurrent {
@@ -503,23 +504,23 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	if len(stage.IndexesOrZero().Rebuilds) != 0 {
 		t.Fatal("replacement forged REINDEX intent")
 	}
-	if err := StageValidateIndexMaintenance(stage, e.Catalog.State); err != nil {
+	if err := core.StageValidateIndexMaintenance(stage, e.Catalog.State); err != nil {
 		t.Fatal("exact replacement membership rejected", err)
 	}
 	maintenance := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(maintenance)
 	maintenance.Indexes().Sets = map[ids.ObjectAddress]int{d.Address(): 1}
-	if err := StageValidateIndexMaintenance(maintenance, e.Catalog.State); !errors.As(err, new(catalog.Conflict)) {
+	if err := core.StageValidateIndexMaintenance(maintenance, e.Catalog.State); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}
 	current := catalog.CloneState(e.Catalog.State)
 	changed := *index
 	changed.ObjectRevision++
 	current.SetDescriptor(index.Address(), &changed)
-	if err := StageValidateIndexMaintenance(stage, current); !errors.As(err, new(catalog.Conflict)) {
+	if err := core.StageValidateIndexMaintenance(stage, current); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("same-count replacement accepted changed index identity", err)
 	}
-	if err := StageMaterializedReplacementCurrent(stage, current, e.Storage.Relations[d.Address()]); !errors.As(err, new(catalog.Conflict)) {
+	if err := core.StageMaterializedReplacementCurrent(stage, current, e.Storage.Relations[d.Address()]); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("replacement lost final exact index identity fence", err)
 	}
 }

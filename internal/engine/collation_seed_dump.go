@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 )
 
-func validateTemporaryCollationDump(e *Engine, ctx context.Context, view catalog.Read) error {
+func validateTemporaryCollationDump(e *core.Engine, ctx context.Context, view catalog.Read) error {
 	var roots []ids.ObjectAddress
 	for a, d := range view.Descriptors() {
 		if _, ok := d.(*catalog.Collation); !ok {
@@ -22,7 +23,7 @@ func validateTemporaryCollationDump(e *Engine, ctx context.Context, view catalog
 	}
 	stage := e.BeginCatalogStage(view)
 	defer e.DiscardCatalogStage(stage)
-	edges, err := DomainDependencyClosure(ctx, stage, roots)
+	edges, err := core.DomainDependencyClosure(ctx, stage, roots)
 	if err != nil {
 		return err
 	}

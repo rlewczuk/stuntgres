@@ -10,12 +10,13 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 )
 
 func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
-	checkRename := func(t *testing.T, e *engine.Engine, name string) {
+	checkRename := func(t *testing.T, e *core.Engine, name string) {
 		t.Helper()
 		before := e.CatalogRead()
 		ref := schemaRef(t, e, name)

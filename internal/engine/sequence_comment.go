@@ -3,15 +3,16 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 )
 
-func executeSequenceComment(e *Engine, scope *StatementScope, s *parser.Comment, count int) (Result, error) {
+func executeSequenceComment(e *core.Engine, scope *core.StatementScope, s *parser.Comment, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: COMMENT takes no arguments")
+		return core.Result{}, fmt.Errorf("stuntgres: COMMENT takes no arguments")
 	}
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
@@ -27,28 +28,28 @@ func executeSequenceComment(e *Engine, scope *StatementScope, s *parser.Comment,
 	}
 	e.Mu.Unlock()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = scope.AcquireSequence(ref, lock.ShareUpdateExclusive, true); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err = e.AuthorizationLocked(scope.Op)
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	old, ok := auth.Catalog.Relation(ref.Address)
 	if !ok {
-		return Result{}, ids.ErrCatalogReplaced
+		return core.Result{}, ids.ErrCatalogReplaced
 	}
 	next := *old
 	next.ObjectRevision, err = e.Catalog.RevisionLocked()
 	if err != nil {
-		return Result{}, err
+		return core.Result{}, err
 	}
 	next.Comment = s.Text
 	if s.Null {
@@ -58,5 +59,5 @@ func executeSequenceComment(e *Engine, scope *StatementScope, s *parser.Comment,
 	e.CatalogChangeLocked(changes, ref.Address, &next)
 	scope.CatalogAuthority = auth.CatalogAuthorityLocked(ref, e.Catalog.State.Get(ref.Address))
 	scope.Catalog = changes
-	return Result{}, nil
+	return core.Result{}, nil
 }

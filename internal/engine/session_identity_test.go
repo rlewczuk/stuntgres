@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -34,7 +35,7 @@ func TestSessionIdentityTypedStableBinding(t *testing.T) {
 		}
 	}
 	e.Mu.Lock()
-	binder := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	binder := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	bound, err := binder.Bind(parser.IdentityExpr{Name: "current_user", Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	e.Mu.Unlock()
 	if err != nil || bound.Properties() != (expr.Properties{Volatility: expr.Stable}) {

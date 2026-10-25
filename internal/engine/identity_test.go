@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -27,7 +28,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	if len(old.ColumnMeta.Identities) != 2 || old.ColumnMeta.Identities[1].Sequence == old.ColumnMeta.Identities[2].Sequence {
 		t.Fatal(old.ColumnMeta.Identities)
 	}
-	if err := (RelationProvider).Validate(read, old); err != nil {
+	if err := (core.RelationProvider).Validate(read, old); err != nil {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*catalog.Relation){
@@ -51,7 +52,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 		next := *old
 		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
 		mutate(&next)
-		if err := (RelationProvider).Validate(read, &next); err == nil {
+		if err := (core.RelationProvider).Validate(read, &next); err == nil {
 			t.Fatal("invalid identity admitted")
 		}
 	}
@@ -60,7 +61,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	options := *sequence.Sequence
 	options.Owned = ids.ObjectAddress{}
 	next.Sequence = &options
-	if err := (RelationProvider).Validate(read, &next); err == nil {
+	if err := (core.RelationProvider).Validate(read, &next); err == nil {
 		t.Fatal("unowned internal sequence admitted")
 	}
 }
@@ -187,7 +188,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			auth, err := e.AuthorizationLocked(op)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = Describe(op.Ctx, e.AnalysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
+				bound, err = core.Describe(op.Ctx, e.AnalysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}
 			e.Mu.Unlock()
 			if err != nil {

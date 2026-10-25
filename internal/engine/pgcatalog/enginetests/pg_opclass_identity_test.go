@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -64,7 +65,7 @@ func TestPGOpclassJSONBHashIdentity(t *testing.T) {
 	}
 }
 
-func hashRoot(t *testing.T, e *engine.Engine, name string) (*catalog.Relation, *storage.HashRoot) {
+func hashRoot(t *testing.T, e *core.Engine, name string) (*catalog.Relation, *storage.HashRoot) {
 	t.Helper()
 	index, carrier := btreeRoot(t, e, name)
 	if index.SQLIndex.Method != catalog.HashMethod || carrier.Hash == nil || len(carrier.Entries) != 0 {
@@ -94,7 +95,7 @@ func hashKeys(t *testing.T, root *storage.HashRoot) []string {
 	return keys
 }
 
-func hashImplicitQuery(t *testing.T, e *engine.Engine, q string) (*plan.Query, *exec.Source, func()) {
+func hashImplicitQuery(t *testing.T, e *core.Engine, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	op, done, err := enginetest.Operation(e, context.Background())
 	if err != nil {
@@ -115,7 +116,7 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, param
 		t.Fatal("fixture has no top-level filter")
 	}
 	state := &exec.State{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := engine.ScopeOf(source.LiveHost()); scope != nil {
+	if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.Input, scope.Output
 	}
 	stage, err := exec.OpenNode(context.Background(), state, filter)
@@ -125,7 +126,7 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, param
 	return stage
 }
 
-func indexMaintenanceMetadata(t *testing.T, e *engine.Engine, catalog catalog.Read, name string) (index.Metadata, index.IndexesMetadata) {
+func indexMaintenanceMetadata(t *testing.T, e *core.Engine, catalog catalog.Read, name string) (index.Metadata, index.IndexesMetadata) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, name)
 	m, n, err := index.ProjectIndexMetadata(context.Background(), catalog, ref)
@@ -135,7 +136,7 @@ func indexMaintenanceMetadata(t *testing.T, e *engine.Engine, catalog catalog.Re
 	return m, n
 }
 
-func btreeRoot(t *testing.T, e *engine.Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
+func btreeRoot(t *testing.T, e *core.Engine, name string) (*catalog.Relation, *storage.IndexRoot) {
 	t.Helper()
 	ref := enginetest.RoleTableRef(t, e, name)
 	idx := e.Catalog.State.MustRelation(ref.Address)
@@ -151,7 +152,7 @@ func btreeRoot(t *testing.T, e *engine.Engine, name string) (*catalog.Relation, 
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
 // owner's engine. No public adapter or testing-only production switch is used.
-func hashCaptureQuery(t *testing.T, e *engine.Engine, op *session.Operation, q string) (*plan.Query, *exec.Source, func()) {
+func hashCaptureQuery(t *testing.T, e *core.Engine, op *session.Operation, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	ast := enginetest.Statement(t, q)
 	scope, err := e.StartStatement(op)
@@ -166,7 +167,7 @@ func hashCaptureQuery(t *testing.T, e *engine.Engine, op *session.Operation, q s
 	auth, err := e.AuthorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = engine.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
+		bound, err = core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, scope.LockedRef, scope.Input, nil, &scope.QueryLockAdmission)
 	}
 	var source *exec.Source
 	if err == nil {

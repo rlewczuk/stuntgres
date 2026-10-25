@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -121,7 +122,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						}
 					}
 					ast := enginetest.Statement(t, query)
-					var expected *engine.StatementDescription
+					var expected *core.StatementDescription
 					if prepared {
 						description, err := e.Describe(op, ast)
 						if err != nil || len(description.Parameters.Types) != 1 || description.Parameters.Types[0].Type.ID() != sqltype.Int4 {
@@ -144,7 +145,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 							t.Fatal(err)
 						}
 						scope.Expected = expected
-						var result engine.Result
+						var result core.Result
 						var executionErr error
 						if prepared {
 							result, executionErr = scope.Execute(ast, 1, func(ctx context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {

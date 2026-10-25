@@ -9,6 +9,7 @@ import (
 	"errors"
 	"runtime"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -30,7 +31,7 @@ type DriverConfig struct {
 // Logical databases live for the lifetime of their Driver, not their connections.
 type Driver struct {
 	mu                sync.Mutex
-	engines           map[string]*engine.Engine
+	engines           map[string]*core.Engine
 	lastSession       ids.SessionID
 	settings          []settings.Definition
 	settingsFrozen    bool
@@ -64,7 +65,7 @@ func (d *Driver) OpenConnectorAs(name, authenticatedRole string) (driver.Connect
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.engines == nil {
-		d.engines = make(map[string]*engine.Engine)
+		d.engines = make(map[string]*core.Engine)
 	}
 	e := d.engines[name]
 	if e == nil {
@@ -91,7 +92,7 @@ func (d *Driver) OpenDatabaseConnector(dsn, database string) (driver.Connector, 
 // Connector configures new physical connections without changing existing ones.
 type Connector struct {
 	owner             *Driver
-	engine            *engine.Engine
+	engine            *core.Engine
 	noticeHandler     func(Error)
 	authenticatedRole string
 	database          string

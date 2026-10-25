@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -19,7 +20,7 @@ import (
 	"testing"
 )
 
-func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationView, *catalog.Relation) {
+func alterAddUnitScope(t *testing.T) (*core.Engine, *core.StatementScope, core.AuthorizationView, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -29,7 +30,7 @@ func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationVie
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = scope.Finish(errors.New("unit candidate discarded")) })
-	auth, err := OperationAuthorization(op)
+	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

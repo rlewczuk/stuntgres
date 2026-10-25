@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -32,7 +33,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			defer m.end(context.Canceled)
 			t.Cleanup(func() {
 				e.Mu.Lock()
-				pending := EnginePreparedRef(e).Lookup("batch_detached") != nil
+				pending := core.EnginePreparedRef(e).Lookup("batch_detached") != nil
 				e.Mu.Unlock()
 				if pending {
 					if err := controlsExecute(t, peer, "ROLLBACK PREPARED 'batch_detached'"); err != nil {
@@ -48,7 +49,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			if err := m.end(nil); err != nil {
 				t.Fatal(err)
 			}
-			entry := EnginePreparedRef(e).Lookup("batch_detached")
+			entry := core.EnginePreparedRef(e).Lookup("batch_detached")
 			if entry == nil || entry.Catalog == nil || entry.Catalog.Roles == nil || owner.Authorization.State.CurrentUser != entry.Owner || owner.Authorization.State.SessionUser != original.SessionUser || owner.Transactions.Catalog != nil {
 				t.Fatal("prepared role authority was lost or retained by session")
 			}
@@ -56,7 +57,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			auth, err := OperationAuthorization(op)
+			auth, err := core.OperationAuthorization(op)
 			op.Done()
 			if err != nil || auth.RoleRecord != e.RoleStore.Published || auth.State.CurrentUser != entry.Owner || auth.MissingCurrent != entry.Owner {
 				t.Fatal("numeric authority did not admit missing effective name", err)
@@ -83,7 +84,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT v FROM t"), "42501", "permission denied for table t")
 			transactionRows(t, owner, "SELECT 1", 1)
 			controlsRequire(t, peer, finish+" PREPARED 'batch_detached'")
-			if EnginePreparedRef(e).Lookup("batch_detached") != nil {
+			if core.EnginePreparedRef(e).Lookup("batch_detached") != nil {
 				t.Fatal("prepared completion retained registry")
 			}
 			if finish == "COMMIT" {

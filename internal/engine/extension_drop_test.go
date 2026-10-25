@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -192,7 +193,7 @@ func TestExtensionDropPublication(t *testing.T) {
 				owner := extensionDropUnitConsumer(t, e, peer, consumer, target)
 				before := e.CatalogRead()
 				unchanged := extensionDropUnitStorage(t, e)
-				_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 				extensionDropUnitRejected(t, e, before, ext, owner, err)
 				unchanged()
 			})
@@ -200,7 +201,7 @@ func TestExtensionDropPublication(t *testing.T) {
 	}
 }
 
-func extensionDropUnitProvider(t *testing.T, consumer string) (*Engine, *session.Operation, *catalog.Extension, ids.ObjectAddress) {
+func extensionDropUnitProvider(t *testing.T, consumer string) (*core.Engine, *session.Operation, *catalog.Extension, ids.ObjectAddress) {
 	t.Helper()
 	if consumer == "query_int_column" || consumer == "query_int_array_column_unsupported" {
 		e, ext, base := intarrayUnitInstalled(t)
@@ -228,16 +229,16 @@ func extensionDropUnitProvider(t *testing.T, consumer string) (*Engine, *session
 	return nil, nil, nil, ids.ObjectAddress{}
 }
 
-func extensionDropUnitRetirement(t *testing.T, e *Engine, ext *catalog.Extension) *CatalogStage {
+func extensionDropUnitRetirement(t *testing.T, e *core.Engine, ext *catalog.Extension) *core.CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	roots := extension.RemovalRoots(stage.Base, []ids.ObjectAddress{ext.Address()})
 	for _, address := range roots {
-		if err := StageRemoveObject(stage, e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
+		if err := core.StageRemoveObject(stage, e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := StageExpressionDependencies(context.Background(), stage, roots, parser.DropCascade, nil, nil, nil, ext.Address()); err != nil {
+	if err := core.StageExpressionDependencies(context.Background(), stage, roots, parser.DropCascade, nil, nil, nil, ext.Address()); err != nil {
 		t.Fatal(err)
 	}
 	return stage
@@ -253,7 +254,7 @@ func extensionDropUnitCaptured(t *testing.T, observations []session.DependencyOb
 	t.Fatal("authentic provider omitted from retirement observation", target)
 }
 
-func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *session.Operation, ext *catalog.Extension, target ids.ObjectAddress) {
+func extensionDropUnitArrayBoundary(t *testing.T, e *core.Engine, op *session.Operation, ext *catalog.Extension, target ids.ObjectAddress) {
 	t.Helper()
 	before := e.CatalogRead()
 	alias := before.MustType(target)
@@ -261,7 +262,7 @@ func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *session.Operati
 	raw := statement(t, "CREATE TABLE ext_drop_late(v query_int[])").(*parser.CreateTable)
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	var stage *CatalogStage
+	var stage *core.CatalogStage
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
 		err = SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
@@ -278,7 +279,7 @@ func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *session.Operati
 	unchanged()
 }
 
-func extensionDropUnitConsumer(t *testing.T, e *Engine, op *session.Operation, consumer string, target ids.ObjectAddress) catalog.Descriptor {
+func extensionDropUnitConsumer(t *testing.T, e *core.Engine, op *session.Operation, consumer string, target ids.ObjectAddress) catalog.Descriptor {
 	t.Helper()
 	if consumer == "domain_check" {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN ext_drop_late AS text CONSTRAINT ext_drop_late_check CHECK (unaccent(VALUE)=VALUE)"))
@@ -312,7 +313,7 @@ func extensionDropUnitConsumer(t *testing.T, e *Engine, op *session.Operation, c
 	return r
 }
 
-func extensionDropUnitRejected(t *testing.T, e *Engine, before catalog.Read, ext *catalog.Extension, owner catalog.Descriptor, err error) {
+func extensionDropUnitRejected(t *testing.T, e *core.Engine, before catalog.Read, ext *catalog.Extension, owner catalog.Descriptor, err error) {
 	t.Helper()
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
@@ -321,7 +322,7 @@ func extensionDropUnitRejected(t *testing.T, e *Engine, before catalog.Read, ext
 	extensionDropUnitPreserved(t, e, before, ext, owner)
 }
 
-func extensionDropUnitPreserved(t *testing.T, e *Engine, before catalog.Read, ext *catalog.Extension, owner catalog.Descriptor) {
+func extensionDropUnitPreserved(t *testing.T, e *core.Engine, before catalog.Read, ext *catalog.Extension, owner catalog.Descriptor) {
 	t.Helper()
 	after := e.CatalogRead()
 	if after.State() != before.State() || after.Epoch() != before.Epoch() {
@@ -337,7 +338,7 @@ func extensionDropUnitPreserved(t *testing.T, e *Engine, before catalog.Read, ex
 	}
 }
 
-func extensionDropUnitStorage(t *testing.T, e *Engine) func() {
+func extensionDropUnitStorage(t *testing.T, e *core.Engine) func() {
 	t.Helper()
 	relations := maps.Clone(e.Storage.Relations)
 	shapes := make(map[ids.ObjectAddress]session.StorageChange, len(relations))
@@ -375,7 +376,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 				extensionDropUnitCaptured(t, stage.Sequence.IdentityDependencyList(), target)
 				if control == "unrelated" {
 					domainUnitTable(t, e, op, "CREATE TABLE ext_drop_unrelated(v integer)")
-					if _, err := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+					if _, err := e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 						t.Fatal("unrelated peer publication rejected", err)
 					}
 					return
@@ -406,7 +407,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 						if control == "rewired" {
 							rewire := e.BeginCatalogStage(current)
 							defer e.DiscardCatalogStage(rewire)
-							if err := (TypeHost{TableHost{DDLHost{CatalogStage: rewire}}}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
+							if err := (TypeHost{TableHost{core.DDLHost{CatalogStage: rewire}}}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
 								t.Fatal(err)
 							}
 							candidate.SetDescriptor(d.Address(), rewire.Get(d.Address()))
@@ -449,11 +450,11 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 					}
 					domainUnitPublish(t, e, changed)
 					before := e.CatalogRead()
-					_, err = publishCatalog(e, stalePrepared, PublicationToken{Epoch: stale.Base.Epoch()})
+					_, err = publishCatalog(e, stalePrepared, core.PublicationToken{Epoch: stale.Base.Epoch()})
 					extensionDropUnitRejected(t, e, before, ext, before.Get(owner.Address()), err)
 					return
 				}
-				err = CatalogDependencyPreflight(current.State(), candidate, stage.Sequence.IdentityDependencyList(), nil)
+				err = core.CatalogDependencyPreflight(current.State(), candidate, stage.Sequence.IdentityDependencyList(), nil)
 				var conflict catalog.Conflict
 				if control == "still_dependent" {
 					if !errors.As(err, &conflict) {
@@ -500,14 +501,14 @@ func extensionDropUnitViewStatement() *parser.CreateView {
 	return &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_drop_late"}}}, Query: &parser.Select{Targets: []parser.Expr{call}, Labels: []parser.Identifier{{Text: "v"}}}}
 }
 
-func extensionDropUnitLateView(t *testing.T, e *Engine, op *session.Operation) {
+func extensionDropUnitLateView(t *testing.T, e *core.Engine, op *session.Operation) {
 	t.Helper()
 	if err := extensionUnitExecute(t, e, op, extensionDropUnitViewStatement()); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func extensionDropUnitWaitingView(t *testing.T, e *Engine, dropper *session.Operation, tx ids.TxRef, ext *catalog.Extension, target ids.ObjectAddress) {
+func extensionDropUnitWaitingView(t *testing.T, e *core.Engine, dropper *session.Operation, tx ids.TxRef, ext *catalog.Extension, target ids.ObjectAddress) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

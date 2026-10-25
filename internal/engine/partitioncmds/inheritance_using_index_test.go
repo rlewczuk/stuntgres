@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqlstate"
@@ -141,7 +142,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 	}
 }
 
-func ownershipUnitExec(t *testing.T, e *engine.Engine, q string) {
+func ownershipUnitExec(t *testing.T, e *core.Engine, q string) {
 	t.Helper()
 	if _, err := enginetest.Execute(e, context.Background(), enginetest.Statement(t, q), nil); err != nil {
 		t.Fatal(q, err)

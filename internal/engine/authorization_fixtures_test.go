@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -13,7 +14,7 @@ import (
 func cloneRoleFixture(r *access.RoleRecord) *access.RoleRecord {
 	return &access.RoleRecord{Root: r.Root, Revision: r.Revision + 1}
 }
-func emptyRoleFixture(e *Engine) *access.RoleRecord {
+func emptyRoleFixture(e *core.Engine) *access.RoleRecord {
 	root := authorization.Seed(&e.RoleStore.Domain)
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor)
 	for ref, d := range root.Read(authorization.PrincipalRef{}).RoleEntries() {
@@ -134,7 +135,7 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 
 // setObjectACL publishes acl on ref directly, outside GRANT and REVOKE,
 // with the validation, revision and publication steps of a grant.
-func setObjectACL(e *Engine, ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
+func setObjectACL(e *core.Engine, ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() {

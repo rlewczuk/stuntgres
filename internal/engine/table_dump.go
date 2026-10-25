@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
@@ -8,7 +9,7 @@ import (
 
 // Replay uses the ordinary binder/publication path, then admits the same
 // validated captured-reference and selected regclass definitions Dump defers.
-func validateRestoredDefault(e *Engine, op *session.Operation, s *parser.AlterTableDefault) error {
+func validateRestoredDefault(e *core.Engine, op *session.Operation, s *parser.AlterTableDefault) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)

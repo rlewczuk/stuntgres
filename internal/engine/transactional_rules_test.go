@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -91,7 +92,7 @@ func TestTransactionalRulesDependencyPreflight(t *testing.T) {
 					candidate = catalog.CloneState(current)
 					candidate.SetDescriptor(sink.Address(), nil)
 				}
-				err = CatalogDependencyPreflight(current, candidate, []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{target}}}, nil)
+				err = core.CatalogDependencyPreflight(current, candidate, []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{target}}}, nil)
 				var conflict catalog.Conflict
 				if control == "dependent" {
 					if !errors.As(err, &conflict) {

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -18,7 +19,7 @@ import (
 
 // All waits are observed through the actual manager queue. Register cancellation
 // and joining after session cleanup so workers finish before their sessions end.
-func indexMaintenanceAsync(t *testing.T, e *engine.Engine, s *session.Session, q string) (context.CancelFunc, func() error) {
+func indexMaintenanceAsync(t *testing.T, e *core.Engine, s *session.Session, q string) (context.CancelFunc, func() error) {
 	t.Helper()
 	stmt := enginetest.Statement(t, q)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -191,7 +192,7 @@ func TestIndexMaintenanceGrantIncludesCommittedWriterOnly(t *testing.T) {
 // Low-level catalog publication deliberately changes metadata while a SQL
 // utility sleeps. This exercises exact-incarnation/grant fences without asking
 // a second SQL utility to bypass the same conflicting relation locks.
-func indexMaintenancePublishIndexClone(t *testing.T, e *engine.Engine, name, newName string, remove bool) {
+func indexMaintenancePublishIndexClone(t *testing.T, e *core.Engine, name, newName string, remove bool) {
 	t.Helper()
 	old, _ := btreeRoot(t, e, name)
 	if old.SQLIndex.Unique {
@@ -230,7 +231,7 @@ func indexMaintenancePublishIndexClone(t *testing.T, e *engine.Engine, name, new
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -393,7 +394,7 @@ func TestIndexMaintenanceGrantCompatibleRevision(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+			if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			if e.Storage.IndexRoots[index.Address()] != oldRoot {

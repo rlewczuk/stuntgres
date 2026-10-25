@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
@@ -72,27 +73,27 @@ func testRoutinePrivilegesCapture(t *testing.T, f roleRoutineGrantsFixture) {
 			in.Ref = in.Owner.Domain.Ref(in.Catalog.Epoch(), in.Source.Address())
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.RoleRecord = nil
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.RoleRecord = foreign.RoleStore.Published
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.PairedCatalog = foreign.CatalogRead()
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.State.CurrentUser = foreign.Roles().LookupRef("postgres")
 			in.Runtime = runtime
 		},
 		func(in *pgcatalog.Input) {
-			runtime := in.Runtime.(engine.EngineCatalogRuntime)
+			runtime := in.Runtime.(core.EngineCatalogRuntime)
 			runtime.Auth.State.CurrentUser = f.f.e.RoleStore.Domain.Principal(999999)
 			in.Runtime = runtime
 		},

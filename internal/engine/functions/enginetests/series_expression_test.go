@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -283,7 +284,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 }
 
-func seriesUnitProject(t *testing.T, eng *engine.Engine, bound plan.SeriesExpr) *plan.ProjectNode {
+func seriesUnitProject(t *testing.T, eng *core.Engine, bound plan.SeriesExpr) *plan.ProjectNode {
 	t.Helper()
 	root, outputs, err := regexpSetUnitLower(eng, &plan.SingletonNode{}, []expr.Expr{bound}, 1)
 	if err != nil {
@@ -451,7 +452,7 @@ func TestSeriesFinalization(t *testing.T) {
 	}
 }
 
-func regexpSetUnitLower(eng *engine.Engine, root plan.Node, expressions []expr.Expr, frame uint32) (plan.Node, []expr.Expr, error) {
+func regexpSetUnitLower(eng *core.Engine, root plan.Node, expressions []expr.Expr, frame uint32) (plan.Node, []expr.Expr, error) {
 	found := false
 	for _, expression := range expressions {
 		found = found || exec.QuerySetDepth(expression) != 0

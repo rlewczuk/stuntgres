@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/sqltype"
@@ -188,7 +189,7 @@ func TestDomainCheckIndexSnapshotAliasKeyOutput(t *testing.T) {
 	}
 }
 
-func aclUnitType(t *testing.T, e *engine.Engine, id sqltype.ID) *sqltype.Descriptor {
+func aclUnitType(t *testing.T, e *core.Engine, id sqltype.ID) *sqltype.Descriptor {
 	t.Helper()
 	d, ok := e.CatalogRead().LookupType(id)
 	if !ok {

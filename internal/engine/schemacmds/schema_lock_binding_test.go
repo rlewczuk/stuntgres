@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -34,7 +35,7 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 				query = "INSERT INTO t VALUES($1)"
 			}
 			ast := enginetest.Statement(t, query)
-			var expected *engine.StatementDescription
+			var expected *core.StatementDescription
 			if kind == "held-select" || kind == "held-insert" {
 				op := enginetest.TransactionOperation(t, waiter)
 				info, err := e.Describe(op, ast)
@@ -65,7 +66,7 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 				var out outcome
 				op, err := waiter.Acquire(ctx)
 				if err == nil {
-					var scope *engine.StatementScope
+					var scope *core.StatementScope
 					scope, err = e.StartStatement(op)
 					if err == nil {
 						scope.Expected = expected

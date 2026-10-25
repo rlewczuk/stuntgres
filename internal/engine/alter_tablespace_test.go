@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/table"
@@ -101,7 +102,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	SetScopeWorked(scope, true)
+	core.SetScopeWorked(scope, true)
 	cancel()
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("no-op bypassed cancellation", err)

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func conflictUpdateAnalyzedScope(t *testing.T, e *engine.Engine, s *session.Session, q string) (*session.Operation, *engine.StatementScope, analyze.Binding) {
+func conflictUpdateAnalyzedScope(t *testing.T, e *core.Engine, s *session.Session, q string) (*session.Operation, *core.StatementScope, analyze.Binding) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -45,13 +46,13 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *engine.Engine, s *session.Sess
 	auth, err := e.AuthorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = engine.Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
+		b, err = core.Describe(op.Context(), e.AnalysisHost(op), stmt, auth, ref, scope.Input, nil, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: engine.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	conflict := dml.NewInsertConflictState(b.Insert.Conflict)
 	if err := conflict.SelectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
@@ -104,7 +105,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if err != nil {
 			return analyze.Binding{}, err
 		}
-		bound, err := engine.Describe(op.Context(), e.AnalysisHost(op), statements[0], auth, b.Ref, scope.Input, nil, nil)
+		bound, err := core.Describe(op.Context(), e.AnalysisHost(op), statements[0], auth, b.Ref, scope.Input, nil, nil)
 		if err == nil {
 			scope.RoutineAuth, scope.RoutineDependencies = auth, bound.Dependencies
 		}
@@ -124,7 +125,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal("SET precedes WHERE, with shared parameter captures", tc, err)
 		}
 	}
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Parameters: []sqltype.Value{integer(1)}, Input: scope.Input, Output: scope.Output, Host: engine.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Parameters: []sqltype.Value{integer(1)}, Input: scope.Input, Output: scope.Output, Host: core.HostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	for _, tc := range []struct {
 		name, query string
 		error       bool

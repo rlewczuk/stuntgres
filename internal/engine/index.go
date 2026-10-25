@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex, count int) (Result, error) {
+func executeCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.CreateIndex, count int) (core.Result, error) {
 	if count != 0 {
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
+		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	if OperationReplayOrZero(scope.Op).TableDestination && s.Concurrent.Character != 0 {
-		return Result{}, fmt.Errorf("stuntgres: restore cannot execute concurrent index phases")
+	if core.OperationReplayOrZero(scope.Op).TableDestination && s.Concurrent.Character != 0 {
+		return core.Result{}, fmt.Errorf("stuntgres: restore cannot execute concurrent index phases")
 	}
 	scope.Owner.Mu.Lock()
 	explicit := scope.Owner.InBlock()
@@ -32,11 +33,11 @@ func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex,
 			var err error
 			reservedNames, err = e.Locks.AppendRelationNameClaims(nameScratch[:0], scope.LockTicket, namespace)
 			if err != nil {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		e.Mu.Lock()
-		fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
+		fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 		if err := scope.RefreshRelationGrantsLocked(e); err != nil {
 			return fail(err)
 		}
@@ -55,12 +56,12 @@ func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex,
 		stage := e.BeginCatalogStage(base)
 		stage.AuthorizeLocked(auth, scope.Op.Session)
 		stage.Indexes().Output = scope.Output
-		failStage := func(err error) (Result, error) {
+		failStage := func(err error) (core.Result, error) {
 			e.Mu.Unlock()
 			e.DiscardCatalogStage(stage)
-			return Result{}, err
+			return core.Result{}, err
 		}
-		h := TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
+		h := TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 		created, err := index.PrepareCreate(h, auth, parent, s, scope.Input, reservedNames)
 		if err != nil {
 			return failStage(err)
@@ -71,7 +72,7 @@ func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex,
 			e.DiscardCatalogStage(stage)
 			scope.Op.ExistingRelationNotice(name)
 			scope.Completed = true
-			return Result{}, nil
+			return core.Result{}, nil
 		}
 		d := created.Relation
 		if s.Concurrent.Character != 0 {
@@ -83,14 +84,14 @@ func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex,
 		e.Mu.Unlock()
 		if err != nil {
 			e.DiscardCatalogStage(stage)
-			return Result{}, index.DefaultClassDiagnostic(h, auth, err)
+			return core.Result{}, index.DefaultClassDiagnostic(h, auth, err)
 		}
 		prepared, err := e.ValidateCatalogStage(scope.Op.Context(), stage)
 		if err != nil {
 			e.DiscardCatalogStage(stage)
-			return Result{}, err
+			return core.Result{}, err
 		}
-		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, PublicationToken{Epoch: base.Epoch()})
+		_, err = e.PublishCatalogOperation(scope.Op, scope, prepared, core.PublicationToken{Epoch: base.Epoch()})
 		e.DiscardCatalogStage(stage)
 		_, conflict := err.(catalog.Conflict)
 		if err != nil && !conflict && (s.Name.Text == "" || s.IfNotExists) {
@@ -101,12 +102,12 @@ func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex,
 				diagnostic.Schema == "pg_catalog" && diagnostic.Table == "pg_class" &&
 				diagnostic.Constraint == "pg_class_relname_nsp_index"
 			if conflict && explicit && s.Name.Text != "" {
-				return Result{}, err
+				return core.Result{}, err
 			}
 		}
 		if conflict {
 			if contextErr := scope.Op.Context().Err(); contextErr != nil {
-				return Result{}, contextErr
+				return core.Result{}, contextErr
 			}
 			if s.Name.Text == "" {
 				continue
@@ -125,15 +126,15 @@ func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex,
 				}
 				e.Mu.Unlock()
 				if authErr != nil {
-					return Result{}, authErr
+					return core.Result{}, authErr
 				}
 				if same && exists {
 					scope.Op.ExistingRelationNotice(name)
 					scope.Completed = true
-					return Result{}, nil
+					return core.Result{}, nil
 				}
 			}
-			return Result{}, SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
+			return core.Result{}, core.SQLError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 		}
 		if err == nil && s.Concurrent.Character != 0 {
 			e.Mu.Lock()
@@ -144,6 +145,6 @@ func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex,
 		if err == nil {
 			scope.Completed = true
 		}
-		return Result{}, err
+		return core.Result{}, err
 	}
 }

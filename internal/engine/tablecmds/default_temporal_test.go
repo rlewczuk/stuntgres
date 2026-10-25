@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -38,7 +39,7 @@ func TestDefaultTemporalConstructorAndRestoreCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	var dump bytes.Buffer
@@ -48,7 +49,7 @@ func TestDefaultTemporalConstructorAndRestoreCapture(t *testing.T) {
 	if strings.Contains(dump.String(), "'now'") || !strings.Contains(dump.String(), "2020-02-03 04:05:06") {
 		t.Fatal("relative alias not captured", dump.String())
 	}
-	check := func(eng *engine.Engine) {
+	check := func(eng *core.Engine) {
 		t.Helper()
 		session := enginetest.StartSession(t, eng, nil)
 		enginetest.SessionSQL(t, session, `BEGIN`)

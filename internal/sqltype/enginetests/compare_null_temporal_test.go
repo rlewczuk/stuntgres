@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
@@ -37,7 +38,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		if len(b.Prepared.Temporals) != 2 || b.Prepared.Temporals[0].Offset >= b.Prepared.Temporals[1].Offset {
 			t.Fatal("symmetric contextualization must retain sorted source captures", b.Prepared.Temporals)
 		}
-		description := engine.StatementDescription{Temporals: b.Prepared.Temporals}
+		description := core.StatementDescription{Temporals: b.Prepared.Temporals}
 		later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(25 * time.Hour)}
 		rebound := enginetest.ExpressionBinder(t, ctx, e, later, &description)
 		bound, err = rebound.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})

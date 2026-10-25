@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -136,7 +137,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	for _, index := range copied {
@@ -297,7 +298,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 		var predicate *catalog.IndexPredicate
 		predicate, err = bindIndexPredicate(e, op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
 		if err == nil {
-			definition, columns, attributes, lookup, bindErr := index.BindAttributes(TableHost{DDLHost{E: e, Op: op}}, auth, sqltype.InputEnvironment{}, source, raw)
+			definition, columns, attributes, lookup, bindErr := index.BindAttributes(TableHost{core.DDLHost{E: e, Op: op}}, auth, sqltype.InputEnvironment{}, source, raw)
 			err = bindErr
 			if err == nil {
 				definition.Predicate = predicate
@@ -327,8 +328,8 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(StageTableOrZero(stage).LikeSources) != 2 {
-		t.Fatal("private source/index not captured", StageTableOrZero(stage).LikeSources)
+	if len(core.StageTableOrZero(stage).LikeSources) != 2 {
+		t.Fatal("private source/index not captured", core.StageTableOrZero(stage).LikeSources)
 	}
 	if err := scope.AcquireDefinitionProviders(stage); err != nil {
 		t.Fatal(err)

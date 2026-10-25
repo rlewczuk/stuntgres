@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 
@@ -9,24 +10,24 @@ import (
 
 // Engine.mu is held. This observes a frozen coordinator cohort, not registration
 // of an individual lock-manager request.
-func admitIndexBuildWaitLocked(e *Engine, index ids.ObjectAddress, owner ids.TxRef, kind index.BuildWaitKind) error {
+func admitIndexBuildWaitLocked(e *core.Engine, index ids.ObjectAddress, owner ids.TxRef, kind index.BuildWaitKind) error {
 	if index == (ids.ObjectAddress{}) {
 		return nil
 	}
-	if owner.Domain() != DomainOf(e) || owner.Epoch() != e.Catalog.State.Epoch() {
+	if owner.Domain() != core.DomainOf(e) || owner.Epoch() != e.Catalog.State.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
 	e.IndexWaits.AdmitLocked(index, owner, kind)
 	return nil
 }
 
-func clearIndexBuildWait(e *Engine, index ids.ObjectAddress, owner ids.TxRef, kind index.BuildWaitKind) {
+func clearIndexBuildWait(e *core.Engine, index ids.ObjectAddress, owner ids.TxRef, kind index.BuildWaitKind) {
 	e.Mu.Lock()
 	e.IndexWaits.ClearLocked(index, owner, kind)
 	e.Mu.Unlock()
 }
 
-func waitIndexWriters(s *StatementScope, idx ids.ObjectAddress) error {
+func waitIndexWriters(s *core.StatementScope, idx ids.ObjectAddress) error {
 	e := s.Engine()
 	owners, err := e.Locks.IndexWriters(s.LockTicket, s.LockedRef)
 	if err != nil {

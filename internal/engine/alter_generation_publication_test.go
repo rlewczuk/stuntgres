@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -14,7 +15,7 @@ import (
 	"testing"
 )
 
-func alterGenerationPopulate(t *testing.T, e *Engine, op *session.Operation) {
+func alterGenerationPopulate(t *testing.T, e *core.Engine, op *session.Operation) {
 	t.Helper()
 	insert := &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "g"}}}, Targets: []parser.InsertTarget{{Name: "a"}}, Rows: [][]parser.Expr{{alterGenerationLiteral(1)}, {alterGenerationLiteral(2)}}}
 	if _, err := e.Execute(op, insert, 0, nil); err != nil {
@@ -181,7 +182,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := publishCatalog(e, validated, PublicationToken{Epoch: ref.Epoch}); err != nil {
+					if _, err := publishCatalog(e, validated, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -250,7 +251,7 @@ func TestAlterGeneratedExpressionRevisionExhaustion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := publishCatalog(e, validated, PublicationToken{Epoch: ref.Epoch}); err != nil {
+	if _, err := publishCatalog(e, validated, core.PublicationToken{Epoch: ref.Epoch}); err != nil {
 		t.Fatal(err)
 	}
 	catalog, store, oid := e.Catalog.State, e.Storage.Relations[ref.Address], e.Catalog.NextOID()

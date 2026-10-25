@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/role"
 	"stuntgres/internal/engine/session"
@@ -15,7 +16,7 @@ import (
 
 // These units construct immutable candidates and exercise the owning package
 // publication/restoration functions, not the parser or public SQL adapter.
-func roleTransactionalCandidate(t *testing.T, e *Engine, base *access.RoleRecord, name string) (*access.RoleRecord, authorization.RoleDescriptor) {
+func roleTransactionalCandidate(t *testing.T, e *core.Engine, base *access.RoleRecord, name string) (*access.RoleRecord, authorization.RoleDescriptor) {
 	t.Helper()
 	ref, err := e.RoleStore.PrincipalCandidateLocked()
 	if err != nil {
@@ -57,7 +58,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 				original := e.RoleStore.Published
 				first, created := roleTransactionalCandidate(t, e, original, "unit_private")
 				d = created
-				if err := InstallOperationRolesLocked(e, op, first); err != nil {
+				if err := core.InstallOperationRolesLocked(e, op, first); err != nil {
 					t.Fatal(err)
 				}
 				e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
@@ -68,7 +69,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				second := &access.RoleRecord{Root: root}
-				if err := InstallOperationRolesLocked(e, op, second); err != nil {
+				if err := core.InstallOperationRolesLocked(e, op, second); err != nil {
 					t.Fatal(err)
 				}
 				if old, _ := first.Root.Read(authorization.PrincipalRef{}).Find(d.Ref); old.Login || old.AuthIDVersion == d.AuthIDVersion {
@@ -119,7 +120,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 			s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			ref := transactionBegin(t, s)
 			op, peerOp := transactionOperation(t, s), transactionOperation(t, peer)
-			var stage *CatalogStage
+			var stage *core.CatalogStage
 			defer func() { e.DiscardCatalogStage(stage) }()
 			var ownFirst, ownSecond, peerFirst, peerSecond authorization.RoleDescriptor
 			var peerRoot *access.RoleRecord
@@ -140,9 +141,9 @@ func TestRoleTransactionalPublication(t *testing.T) {
 					// Carry an existing producer obligation through later metadata.
 					// The actual producer-routing matrix is covered independently
 					// by TestDriverBatchProducerRoleAuthorityLifetime/Savepoint.
-					authorityOnly.AddFence(NewCatalogRoleReadFence(CatalogRoleReadFenceFields{Roles: base}))
+					authorityOnly.AddFence(core.NewCatalogRoleReadFence(core.CatalogRoleReadFenceFields{Roles: base}))
 				}
-				if err := EngineCaptureCatalogStageLocked(e, stage, authorityOnly, e.Catalog.State, auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)); err != nil {
+				if err := core.EngineCaptureCatalogStageLocked(e, stage, authorityOnly, e.Catalog.State, auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)); err != nil {
 					t.Fatal(err)
 				}
 				if authorityOnly.RolesBase != nil || authorityOnly.Roles != nil {
@@ -151,7 +152,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 				s.Transactions.Catalog = authorityOnly
 				put := func(operation *session.Operation, predecessor *access.RoleRecord, name string) authorization.RoleDescriptor {
 					next, d := roleTransactionalCandidate(t, e, predecessor, name)
-					if err := InstallOperationRolesLocked(e, operation, next); err != nil {
+					if err := core.InstallOperationRolesLocked(e, operation, next); err != nil {
 						t.Fatal(err)
 					}
 					e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
@@ -208,7 +209,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 		func() {
 			defer e.Mu.Unlock()
 			next, d := roleTransactionalCandidate(t, e, base, "unit_canceled")
-			if err := InstallOperationRolesLocked(e, op, next); err != nil {
+			if err := core.InstallOperationRolesLocked(e, op, next); err != nil {
 				t.Fatal(err)
 			}
 			e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
@@ -248,13 +249,13 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 		defer e.Mu.Unlock()
 		first, createdA := roleTransactionalCandidate(t, e, e.RoleStore.Published, "unit_retire_a")
 		a = createdA
-		if err := InstallOperationRolesLocked(e, op, first); err != nil {
+		if err := core.InstallOperationRolesLocked(e, op, first); err != nil {
 			t.Fatal(err)
 		}
 		e.RoleStore.InstallPrincipalFrontierLocked(a.Ref.ID() + 1)
 		second, createdB := roleTransactionalCandidate(t, e, first, "unit_retire_b")
 		b = createdB
-		if err := InstallOperationRolesLocked(e, op, second); err != nil {
+		if err := core.InstallOperationRolesLocked(e, op, second); err != nil {
 			t.Fatal(err)
 		}
 		e.RoleStore.InstallPrincipalFrontierLocked(b.Ref.ID() + 1)
@@ -274,12 +275,12 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 		}
 	}
 	drop(a)
-	mark := CaptureSavepoint(s.Transactions, "retirement")
+	mark := core.CaptureSavepoint(s.Transactions, "retirement")
 	drop(b)
 	if len(mark.Catalog.RetiredRoles) != 1 || len(s.Transactions.Catalog.RetiredRoles) != 2 {
 		t.Fatal("retirement set shared across candidates")
 	}
-	RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
+	core.RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
 	e.Locks.Restore(s.Transactions.Ticket, mark.Locks)
 	if len(s.Transactions.Catalog.RetiredRoles) != 1 || s.Transactions.Catalog.Roles.Root.Read(authorization.PrincipalRef{}).LookupRef(b.Name) != b.Ref {
 		t.Fatal("savepoint lost retirement obligation or surviving exact principal")
@@ -300,7 +301,7 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 	peerRoot.BindName(catalog.DescriptorNameKey(dependency), dependency.Address())
 	target.Catalog.PublishLocked(peerRoot)
 	localRoot, frontier := e.Catalog.State, e.Visibility.CommitSeq()
-	err := EngineRoleRetirementPreflightLocked(e, mark.Catalog, e.PrivateCatalogLocked(mark.Catalog).State())
+	err := core.EngineRoleRetirementPreflightLocked(e, mark.Catalog, e.PrivateCatalogLocked(mark.Catalog).State())
 	unchanged := e.Catalog.State == localRoot && target.Catalog.State == peerRoot && e.RoleStore.Published == published && e.Visibility.CommitSeq() == frontier
 	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) || !unchanged {

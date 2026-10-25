@@ -6,10 +6,11 @@ import (
 	"io"
 
 	"stuntgres/internal/engine/control"
+	"stuntgres/internal/engine/core"
 )
 
 // Reset replaces e's persistent catalog with a freshly composed engine's.
-func Reset(ctx context.Context, e *Engine) error {
+func Reset(ctx context.Context, e *core.Engine) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -28,7 +29,7 @@ func Reset(ctx context.Context, e *Engine) error {
 // Dump reads engine state only in captureDumpLocked, under Engine.mu, through
 // the Collect tables (dumpCollectors). It then hands the capture to
 // control.Dump, which orders the captured graph and writes the script.
-func Dump(ctx context.Context, e *Engine, dst io.Writer) error {
+func Dump(ctx context.Context, e *core.Engine, dst io.Writer) error {
 	if dst == nil {
 		return fmt.Errorf("stuntgres: nil dump writer")
 	}
@@ -48,7 +49,7 @@ func Dump(ctx context.Context, e *Engine, dst io.Writer) error {
 // Partitioned key/index references are reminted against retained live TEMP
 // objects; failed or canceled replacement leaves the old tree usable.
 // Native replacement is not a PostgreSQL control API.
-func Restore(ctx context.Context, e *Engine, src io.Reader) error {
+func Restore(ctx context.Context, e *core.Engine, src io.Reader) error {
 	if src == nil {
 		return fmt.Errorf("stuntgres: nil restore reader")
 	}

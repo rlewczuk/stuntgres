@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/table"
@@ -15,7 +16,7 @@ import (
 // Resolve semantics only when this misc action is reached. Initial absence is
 // still an observation: a newly visible same-name object is never its target.
 // Caller holds Engine.mu; neither lookup nor this comparison waits for grants.
-func currentInheritanceRelationshipLocked(s *StatementScope, e *Engine, capture *InheritanceRelationshipAdmission) (AuthorizationView, *catalog.Relation, error) {
+func currentInheritanceRelationshipLocked(s *core.StatementScope, e *core.Engine, capture *core.InheritanceRelationshipAdmission) (core.AuthorizationView, *catalog.Relation, error) {
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return auth, nil, err
@@ -48,7 +49,7 @@ func currentInheritanceRelationshipLocked(s *StatementScope, e *Engine, capture 
 	return auth, actual, nil
 }
 
-func admitInheritanceRelationship(s *StatementScope, capture *InheritanceRelationshipAdmission) error {
+func admitInheritanceRelationship(s *core.StatementScope, capture *core.InheritanceRelationshipAdmission) error {
 	if capture.Admitted {
 		return nil
 	}
@@ -81,7 +82,7 @@ func admitInheritanceRelationship(s *StatementScope, capture *InheritanceRelatio
 	return err
 }
 
-func inheritanceRelationshipCandidate(s *StatementScope, stage *CatalogStage, child *catalog.Relation, _ int, action parser.AlterTableAction) (*catalog.Relation, error) {
+func inheritanceRelationshipCandidate(s *core.StatementScope, stage *core.CatalogStage, child *catalog.Relation, _ int, action parser.AlterTableAction) (*catalog.Relation, error) {
 	if err := table.RelationshipChildKind(child, action.Action); err != nil {
 		return nil, err
 	}

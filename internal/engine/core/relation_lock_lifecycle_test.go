@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -62,7 +63,7 @@ func (c *lockObservedDeadlineContext) arm(timeout time.Duration) {
 	c.mu.Unlock()
 }
 
-func lockLifecycleAsync(t *testing.T, e *engine.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
+func lockLifecycleAsync(t *testing.T, e *core.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
 	t.Helper()
 	ctx, cancel := context.WithCancel(ctx)
 	done := enginetest.LockAsync(e, s, ctx, q, prepare)
@@ -85,7 +86,7 @@ func lockLifecycleAsync(t *testing.T, e *engine.Engine, s *session.Session, ctx 
 	return result
 }
 
-func lockObservedRequest(t *testing.T, e *engine.Engine, s *session.Session, resource lock.Resource, mode lock.Mode) {
+func lockObservedRequest(t *testing.T, e *core.Engine, s *session.Session, resource lock.Resource, mode lock.Mode) {
 	t.Helper()
 	state := e.Locks.Inspect()
 	entry := state.Resources[resource]

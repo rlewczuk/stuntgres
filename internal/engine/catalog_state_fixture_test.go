@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -19,13 +20,13 @@ func catalogStateFixture(epoch ids.CatalogEpoch, descriptors map[ids.ObjectAddre
 }
 
 // validateObjectRef checks, under Engine.mu, that view and ref belong to e.
-func validateObjectRef(e *Engine, view catalog.Read, ref ids.ObjectRef) error {
+func validateObjectRef(e *core.Engine, view catalog.Read, ref ids.ObjectRef) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return e.Catalog.ValidateObjectRefLocked(view, ref)
 }
 
 // publishCatalog publishes p outside any operation or statement.
-func publishCatalog(e *Engine, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+func publishCatalog(e *core.Engine, p *core.PreparedCatalogPublication, token core.PublicationToken) (core.ChangeSet, error) {
 	return e.PublishPreparedCatalog(nil, nil, p, token)
 }

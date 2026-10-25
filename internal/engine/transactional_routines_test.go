@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 )
 
-func transactionalRoutineDescriptor(t *testing.T, e *Engine, name string) catalog.Descriptor {
+func transactionalRoutineDescriptor(t *testing.T, e *core.Engine, name string) catalog.Descriptor {
 	t.Helper()
 	for _, d := range e.CatalogRead().Descriptors() {
 		if d.Name() == name && d.Namespace().ObjectID == ids.PublicNamespaceOID {
@@ -49,12 +50,12 @@ func TestTransactionalRoutineDependencyPreflight(t *testing.T) {
 			candidate := catalog.CloneState(current)
 			candidate.RemoveDescriptor(provider.Address())
 			observations := []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{provider.Address()}}}
-			if err := CatalogDependencyPreflight(current, candidate, observations, nil); err == nil {
+			if err := core.CatalogDependencyPreflight(current, candidate, observations, nil); err == nil {
 				t.Fatal("new surviving hard edge escaped retirement")
 			}
 			// Expression observations also protect retained-message admission
 			// before its removals are overlaid; type edges require absence.
-			existingErr := CatalogDependencyPreflight(current, current, observations, nil)
+			existingErr := core.CatalogDependencyPreflight(current, current, observations, nil)
 			if provider.Address().ClassID == ids.TypeClassID {
 				if existingErr != nil {
 					t.Fatal("type edge fenced a still-present target", existingErr)
@@ -64,14 +65,14 @@ func TestTransactionalRoutineDependencyPreflight(t *testing.T) {
 			}
 			removed := catalog.CloneState(candidate)
 			removed.RemoveDescriptor(child.Address())
-			if err := CatalogDependencyPreflight(current, removed, observations, nil); err != nil {
+			if err := core.CatalogDependencyPreflight(current, removed, observations, nil); err != nil {
 				t.Fatal("removed owner still fenced", err)
 			}
-			if err := CatalogDependencyPreflight(current, candidate, []session.DependencyObservation{{Base: current, Targets: []ids.ObjectAddress{provider.Address()}}}, nil); err != nil {
+			if err := core.CatalogDependencyPreflight(current, candidate, []session.DependencyObservation{{Base: current, Targets: []ids.ObjectAddress{provider.Address()}}}, nil); err != nil {
 				t.Fatal("unchanged committed survivor treated as late", err)
 			}
 			unrelated := []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{{ClassID: ids.ProcedureClassID, ObjectID: 999999}}}}
-			if err := CatalogDependencyPreflight(current, candidate, unrelated, nil); err != nil {
+			if err := core.CatalogDependencyPreflight(current, candidate, unrelated, nil); err != nil {
 				t.Fatal("unrelated change fenced", err)
 			}
 			// Rewire the candidate owner to a descriptor with no provider edge;
@@ -88,7 +89,7 @@ func TestTransactionalRoutineDependencyPreflight(t *testing.T) {
 				n.Function, n.Left, n.Right, n.Result = 0, 23, 23, 23
 				rewired.SetDescriptor(n.Address(), &n)
 			}
-			if err := CatalogDependencyPreflight(current, rewired, observations, nil); err != nil {
+			if err := core.CatalogDependencyPreflight(current, rewired, observations, nil); err != nil {
 				t.Fatal("legitimate candidate rewire rejected", err)
 			}
 		})
@@ -102,7 +103,7 @@ func TestTransactionalRoutineDependencyPreflight(t *testing.T) {
 		current.SetDescriptor(child.Address(), child)
 		candidate := catalog.CloneState(current)
 		candidate.RemoveDescriptor(target.Address())
-		if err := CatalogDependencyPreflight(current, candidate, []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{target.Address()}}}, nil); err != nil {
+		if err := core.CatalogDependencyPreflight(current, candidate, []session.DependencyObservation{{Base: base, Targets: []ids.ObjectAddress{target.Address()}}}, nil); err != nil {
 			t.Fatal("reciprocal metadata became dependency", err)
 		}
 	})

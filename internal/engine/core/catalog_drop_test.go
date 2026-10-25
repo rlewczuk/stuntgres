@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 )
@@ -43,7 +44,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changes, err := enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()})
+	changes, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestCatalogDropPublicationAndRetainedReads(t *testing.T) {
 		t.Fatal("retained generation lost")
 	}
 	retained.Rows.Close()
-	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: now.Epoch()}); err == nil {
+	if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: now.Epoch()}); err == nil {
 		t.Fatal("publication replay accepted")
 	}
 	enginetest.Run(t, e, "CREATE TABLE a(other TEXT)")
@@ -116,7 +117,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	}
 	enginetest.Run(t, e, "DROP TABLE a")
 	enginetest.Run(t, e, "CREATE TABLE a(id INT)")
-	changes, err := enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()})
+	changes, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 {
 		t.Fatal(changes, err)
@@ -133,7 +134,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	changes, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: current.Epoch()})
+	changes, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: current.Epoch()})
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || enginetest.RoleTableRef(t, e, "a") != fresh {
 		t.Fatal(changes, err)
 	}
@@ -152,7 +153,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	if err = engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE bad(id no_such_type)")); err == nil {
 		t.Fatal("invalid restore accepted")
 	}
-	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: current.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: current.Epoch()}); err != nil {
 		t.Fatal("failed restore invalidated stage", err)
 	}
 	enginetest.Run(t, e, "CREATE TABLE a(id INT)")
@@ -169,7 +170,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	if err = engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 }
@@ -195,10 +196,10 @@ func TestCatalogDropChangedDescriptorAndUnrelatedRemoval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, pa, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, pa, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, pb, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, pb, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal("unrelated removal conflicted", err)
 	}
 	enginetest.Run(t, e, "CREATE TABLE a(id INT)")
@@ -215,7 +216,7 @@ func TestCatalogDropChangedDescriptorAndUnrelatedRemoval(t *testing.T) {
 	if err = enginetest.SetObjectACL(e, context.Background(), a, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	changes, err := enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()})
+	changes, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 {
 		t.Fatal("changed ACL target lost", changes, err)
@@ -246,8 +247,8 @@ func TestCatalogDropCanceledGroupAndRestoreEpochFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	changes, err := enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()})
-	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(changes, engine.ChangeSet{}) || e.CatalogRead().State() != base.State() {
+	changes, err := enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()})
+	if !errors.Is(err, context.Canceled) || !reflect.DeepEqual(changes, core.ChangeSet{}) || e.CatalogRead().State() != base.State() {
 		t.Fatal(changes, err)
 	}
 	if enginetest.RoleTableRef(t, e, "a") != a || enginetest.RoleTableRef(t, e, "b") != b {
@@ -267,8 +268,8 @@ func TestCatalogDropCanceledGroupAndRestoreEpochFence(t *testing.T) {
 	if err = engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE replacement(id INT); INSERT INTO replacement VALUES(99)")); err != nil {
 		t.Fatal(err)
 	}
-	changes, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()})
-	if !errors.Is(err, ids.ErrCatalogReplaced) || !reflect.DeepEqual(changes, engine.ChangeSet{}) {
+	changes, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()})
+	if !errors.Is(err, ids.ErrCatalogReplaced) || !reflect.DeepEqual(changes, core.ChangeSet{}) {
 		t.Fatal(changes, err)
 	}
 	if enginetest.Tuples(enginetest.Run(t, e, "SELECT * FROM replacement"))[0][0] != int64(99) {
@@ -292,7 +293,7 @@ func TestCatalogDropRejectsBuiltinAndCustomProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, p, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	base = e.CatalogRead()

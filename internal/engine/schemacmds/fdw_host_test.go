@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
@@ -40,13 +41,13 @@ func TestFDWStageTable(t *testing.T) {
 	enginetest.SessionSQL(t, s, "CREATE FOREIGN TABLE host_old(id integer) SERVER host_server")
 	op, auth := conversionUnitAuth(t, e)
 	before := e.Catalog.State
-	stageTable := func(sql string) (*engine.CatalogStage, []fdw.Validation, []ids.ObjectAddress, error) {
+	stageTable := func(sql string) (*core.CatalogStage, []fdw.Validation, []ids.ObjectAddress, error) {
 		stage := e.BeginCatalogStage(auth.Catalog)
 		t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
 		stage.AuthorizeLocked(auth, op.Session)
-		jobs, roots, err := fdw.StageTable(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, enginetest.Statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
+		jobs, roots, err := fdw.StageTable(engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, enginetest.Statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
 		return stage, jobs, roots, err
 	}
 

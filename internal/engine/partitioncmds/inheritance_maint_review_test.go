@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -115,7 +116,7 @@ func TestInheritanceMaintReviewTemporaryHistory(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(current)
 			defer e.DiscardCatalogStage(stage)
-			beforeDetach, err := engine.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
+			beforeDetach, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
 			if err != nil || !slices.ContainsFunc(beforeDetach, func(edge table.DomainDependency) bool {
 				return edge.Address == child.Address() && edge.Target == parent.Address() && !edge.Automatic
 			}) {
@@ -124,7 +125,7 @@ func TestInheritanceMaintReviewTemporaryHistory(t *testing.T) {
 			if err := stage.Replace(candidate); err != nil {
 				t.Fatal(err)
 			}
-			edges, err := engine.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
+			edges, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{parent.Address()})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -239,7 +240,7 @@ func TestInheritanceMaintReviewContributionLimit(t *testing.T) {
 
 // These are package fixtures: SQL constructs physical descriptors through the
 // real providers; assertions exercise the issuer and catalog validator directly.
-func retiredUnitTable(t *testing.T, e *engine.Engine, name string) *catalog.Relation {
+func retiredUnitTable(t *testing.T, e *core.Engine, name string) *catalog.Relation {
 	t.Helper()
 	for _, d := range e.CatalogRead().Descriptors() {
 		if r, ok := d.(*catalog.Relation); ok && r.Name() == name {

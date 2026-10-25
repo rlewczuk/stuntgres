@@ -6,6 +6,7 @@ import (
  "testing"
 
  "stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
  "stuntgres/internal/engine/expr"
  "stuntgres/internal/engine/extension"
  "stuntgres/internal/engine/functions"
@@ -32,7 +33,7 @@ func TestCitextRegexpProvider(t *testing.T) {
  for i,member:=range extension.CitextRegexpMembers {
  p:=view.MustProcedure(installation.Members[42+i]);symbol,err:=extension.ProcedureSymbol(view,p)
  if err!=nil||symbol!=member.Name||p.Signature!=member.Signature(base.SQLType.ID())||p.Result!=member.Result||p.Installed!=member.Declaration||p.Builtin!=nil||p.SQL!=nil {t.Fatal("wrong declaration",i,p,symbol,err)}
- if ProcedureReturnsSet(p)!=member.Declaration.ReturnsSet {t.Fatal("routine admission lost set status",i)}
+ if core.ProcedureReturnsSet(p)!=member.Declaration.ReturnsSet {t.Fatal("routine admission lost set status",i)}
  }
  if err:=extension.StockCitext.ValidateExtension(view,installation);err!=nil{t.Fatal(err)}
  t.Run("late_conflict",citextRegexpLateConflict)

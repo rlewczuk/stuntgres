@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
@@ -19,18 +20,18 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func collationUnitPublish(t *testing.T, e *engine.Engine, stage *engine.CatalogStage) {
+func collationUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func collationUnitDefinition(e *engine.Engine, id ids.OID, name string) *catalog.Collation {
+func collationUnitDefinition(e *core.Engine, id ids.OID, name string) *catalog.Collation {
 	owner, _ := e.Roles().Lookup("postgres")
 	return &catalog.Collation{OID: id, ObjectName: name, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectRevision: 1, Owner: owner.Ref, Provider: "c", Deterministic: true, Encoding: -1, Collate: catalog.CollationText("C"), CType: catalog.CollationText("C"), Semantics: 950}
 }
@@ -102,7 +103,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
 		t.Fatal("cancellation published a collation", err)
 	}
 }
@@ -183,7 +184,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 		}
 	}
 	collationUnitPublish(t, e, stage)
-	auth, err := engine.OperationAuthorization(admin)
+	auth, err := core.OperationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +192,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	stage = e.BeginCatalogStage(auth.Catalog)
 	change := &parser.AlterCollation{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "private"}, {Text: "owned"}}}, Action: "owner", Target: parser.Identifier{Text: "target"}}
 	e.Mu.Lock()
-	err = typedef.StageAlterCollationLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
+	err = typedef.StageAlterCollationLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: core.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || stage.DescriptorCount() != 0 {
@@ -200,7 +201,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	auth.State.CurrentUser = bootstrap.Ref
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err = typedef.StageAlterCollationLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
+	err = typedef.StageAlterCollationLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: core.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("superuser failed owner transfer", err)
@@ -218,7 +219,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 
 // Fixtures use the real private command planner, with checked identities and
 // explicit options; there is no second append-only membership publication path.
-func grantMembership(t *testing.T, e *engine.Engine, m authorization.Membership) error {
+func grantMembership(t *testing.T, e *core.Engine, m authorization.Membership) error {
 	t.Helper()
 	r := e.Roles()
 	names := make([]string, 3)

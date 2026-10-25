@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -130,7 +131,7 @@ func TestPartitionPruningExecution(t *testing.T) {
 			witness := pruningDemandWitness{Info: expr.InfoOf(filter.Predicate), key: comparison.Left, demand: &demand, rowOwners: rowOwners, physical: &physical}
 			filter.Predicate = plan.LogicalExpr{Info: expr.InfoOf(filter.Predicate), Op: parser.LogicalAnd, Left: witness, Right: filter.Predicate}
 			state := &exec.State{Source: source, Frame: project.Frame}
-			if scope := engine.ScopeOf(source.LiveHost()); scope != nil {
+			if scope := core.ScopeOf(source.LiveHost()); scope != nil {
 				state.Input, state.Output = scope.Input, scope.Output
 			}
 			stage, err := exec.OpenNode(context.Background(), state, filter)

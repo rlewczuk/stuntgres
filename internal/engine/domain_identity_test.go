@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -44,7 +45,7 @@ func TestDomainIdentityStage(t *testing.T) {
 	checkOID := old.DomainChecks[0].OID
 	for _, q := range []string{"ALTER DOMAIN public.d RENAME TO renamed", "ALTER DOMAIN public.renamed SET SCHEMA moved"} {
 		stage := domainUnitStage(t, e, op, q)
-		if StageDomainAlter(stage).AlterContext() != nil {
+		if core.StageDomainAlter(stage).AlterContext() != nil {
 			t.Fatal("identity edit used executable CHECK alteration")
 		}
 		domainUnitPublish(t, e, stage)
@@ -91,7 +92,7 @@ func TestDomainIdentityDropStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER DOMAIN public.d RENAME TO winner"))
-	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil {
+	if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: before.Epoch()}); err == nil {
 		t.Fatal("stale stage published")
 	}
 	if current := e.CatalogRead().MustType(old.Address()); current.Name() != "winner" || current.Array != old.Array {

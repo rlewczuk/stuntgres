@@ -8,6 +8,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -24,15 +25,15 @@ import (
 // stage publishes a new descendant while a real descendant AX request is queued.
 // No SQL executor, fake catalog pointer, observer hook or sleep drives the race.
 type inheritanceMetadataAdmissionCase struct {
-	e      *Engine
+	e      *core.Engine
 	op     *session.Operation
-	scope  *StatementScope
+	scope  *core.StatementScope
 	raw    parser.Statement
-	auth   AuthorizationView
+	auth   core.AuthorizationView
 	cancel context.CancelFunc
 }
 
-func inheritanceMetadataScope(t *testing.T, e *Engine, role, sql string) *inheritanceMetadataAdmissionCase {
+func inheritanceMetadataScope(t *testing.T, e *core.Engine, role, sql string) *inheritanceMetadataAdmissionCase {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -94,7 +95,7 @@ func (command *inheritanceMetadataAdmissionCase) run() error {
 	return err
 }
 
-func inheritanceMetadataFixture(t *testing.T, actor string) (*Engine, *catalog.Relation, *catalog.Relation) {
+func inheritanceMetadataFixture(t *testing.T, actor string) (*core.Engine, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e, p, c := inheritanceDMLPublishedGraph(t)
 	// Use the actual shape provider to install allocated, validated NN facts and
@@ -123,7 +124,7 @@ func inheritanceMetadataFixture(t *testing.T, actor string) (*Engine, *catalog.R
 	return e, view.MustRelation(p.Address()), view.MustRelation(c.Address())
 }
 
-func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation, name string, value int64, owner authorization.PrincipalRef) *catalog.Relation {
+func inheritanceMetadataChild(t *testing.T, e *core.Engine, parent *catalog.Relation, name string, value int64, owner authorization.PrincipalRef) *catalog.Relation {
 	t.Helper()
 	// The genuine CREATE provider remaps inherited recipes, allocates fresh
 	// stored-definition identities/fact generations and records dependencies.
@@ -133,7 +134,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 	raw := statement(t, "CREATE TABLE public."+catalog.QuoteIdentifier(name)+" () INHERITS (public."+catalog.QuoteIdentifier(parent.Name())+")").(*parser.CreateTable)
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
-	var stage *CatalogStage
+	var stage *core.CatalogStage
 	var child *catalog.Relation
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
@@ -158,7 +159,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 	return e.CatalogRead().MustRelation(child.Address())
 }
 
-func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissionCase, holder *StatementScope, child *catalog.Relation) (<-chan error, func()) {
+func inheritanceMetadataWorker(t *testing.T, command *inheritanceMetadataAdmissionCase, holder *core.StatementScope, child *catalog.Relation) (<-chan error, func()) {
 	t.Helper()
 	result := make(chan error, 1)
 	joined := false
@@ -192,7 +193,7 @@ var inheritanceMetadataActions = []struct{ name, sql string }{
 	{"constraint_rename", "ALTER TABLE p RENAME CONSTRAINT metadata_nn TO renamed_nn"},
 }
 
-func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, current *catalog.Relation) {
+func inheritanceMetadataAssert(t *testing.T, e *core.Engine, action string, old, current *catalog.Relation) {
 	t.Helper()
 	if current == nil || current == old || current.Owner != old.Owner || !slices.Equal(current.Attributes, old.Attributes) || current.ColumnMeta.HighWater != old.ColumnMeta.HighWater || current.Columns[0].Usage != old.Columns[0].Usage || len(current.Constraints.NotNull) != 1 || current.Constraints.NotNull[0].OID != old.Constraints.NotNull[0].OID || current.Constraints.NotNull[0].Attribute != old.Constraints.NotNull[0].Attribute || current.Constraints.NotNull[0].NotValid || current.Constraints.NotNull[0].NoInherit {
 		t.Fatal("metadata operation lost actual attribute/owner/fact identity", old.Name(), current)

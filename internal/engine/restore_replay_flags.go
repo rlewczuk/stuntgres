@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/largeobject"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -11,7 +12,7 @@ import (
 // partitionAttach and commentAuthority after execution; tableDestination
 // and insertAuthority stay set until the next statement's prepare.
 func prepareRestoreReplayFlags(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
-	replay := OperationReplay(op)
+	replay := core.OperationReplay(op)
 	replay.TableDestination = restoreTableDestination(stmt)
 	_, replay.InsertAuthority = stmt.(*parser.Insert)
 	_, replay.CommentAuthority = stmt.(*parser.Comment)
