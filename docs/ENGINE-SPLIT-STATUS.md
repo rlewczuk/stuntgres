@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `a8dba82b3` (item 194 rebased on it).
+Last verified against `master` at `3e950d893` (item 195 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 195.
+- 196.
 
 ## Linear plan
 
@@ -205,8 +205,25 @@ ENGINE-SPLIT.md §4.
      no test; root tests 778 files and 6.28 MB (+40 KB), production +12 KB
      (`inspect.go`); quickcheck passed; `REFERENCE=1` and bench skipped (no
      behavior change), racecheck and finalcheck skipped at user request
-195. [ ] Core move — [core](ENGINE-SPLIT-core.md#item-195--core-move) · needs
-     194 · S, bench · 3.7 MB
+195. [x] Core move — [core](ENGINE-SPLIT-core.md#item-195--core-move) · needs
+     194 · S, bench · 3.7 MB (`03ed14c16`, `81d1b498f`, `1d21c79fb`,
+     `ee8877a2b`, `21c38045c`, `e815e2687`, docs commit) · the runtime core (283
+     root production files, 28.3k declaration lines by `closure`) moved to
+     `internal/engine/core` with the `Statements` and `EngineFactory` hooks and
+     `inspect.go`, by the type-checked `coremv` tool; before it, 23 core names
+     that family code uses were exported (and
+     `AcquireRelationTarget`/`AcquireBoundViewRelationModes` entry points that
+     keep the reference-matched frames), the Restore and test-file `Engine`
+     methods became functions and 14 mixed test files were split by function;
+     308 core-only root test files moved as `core_test`, the 22 accessor files
+     became `export_<area>_test.go` and 4 pure units core internal tests, none
+     deleted; the README split into core and composition; root production 167
+     files and 0.57 MB (−1.22 MB), root tests 495 files and 3.48 MB (−2.81 MB);
+     bench (`BenchmarkOpenDatabase`, `BenchmarkUpdateCoreSparse/512`,
+     `BenchmarkInsertConflictCommittedOmissions`) showed no new allocation;
+     quickcheck, the §3 `go list` import check and the library `make deps` check
+     passed; `REFERENCE=1` `sessions`, `dml` and `tables` selections passed in
+     the merge chain; racecheck and finalcheck skipped at user request
 196. [ ] `tablecmds`: tables —
      [cmds](ENGINE-SPLIT-cmds.md#item-196--tablecmds-tables) · needs 195 · S ·
      0.35 MB
