@@ -10,9 +10,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// BeginPartitionUsingIndexReplay records on a private Restore operation the
+// USING INDEX origin its ALTER TABLE replays, or clears the record.
+//
 // Capture the existing physical schema/index origin on the private import lease.
 // The ordinary USING INDEX binder owns eligibility, allocation and publication.
-func beginPartitionUsingIndexReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
+func BeginPartitionUsingIndexReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition index operation")
 	}

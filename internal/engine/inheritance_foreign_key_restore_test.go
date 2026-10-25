@@ -131,7 +131,7 @@ func TestRestoreInheritedForeignKeyBoundary(t *testing.T) {
 			e, op, created := inheritedForeignKeyImportFixture(t)
 			before := e.Catalog.State
 			raw := statement(t, trial).(*parser.AlterTable)
-			_, admitted, err := captureInheritedForeignKey(e, op, raw, created)
+			_, admitted, err := CaptureInheritedForeignKey(e, op, raw, created)
 			state(t, err, "0A000")
 			if admitted || e.Catalog.State != before {
 				t.Fatal("unpaired public/general valid FK import gained authority", admitted, err)
@@ -145,7 +145,7 @@ func TestRestoreInheritedForeignKeyBoundary(t *testing.T) {
 		raw := statement(t, canonical).(*parser.AlterTable)
 		raw.IfExists = true
 		before := e.Catalog.State
-		_, admitted, err := captureInheritedForeignKey(e, op, raw, created)
+		_, admitted, err := CaptureInheritedForeignKey(e, op, raw, created)
 		state(t, err, "0A000")
 		if admitted || e.Catalog.State != before {
 			t.Fatal("IF EXISTS gained import authority", admitted, err)
@@ -156,17 +156,17 @@ func TestRestoreInheritedForeignKeyBoundary(t *testing.T) {
 	for _, missing := range []string{"p", "c"} {
 		bad := maps.Clone(created)
 		delete(bad, roleTableRef(t, e, missing).Address)
-		if _, admitted, err := captureInheritedForeignKey(e, op, raw, bad); admitted || err == nil {
+		if _, admitted, err := CaptureInheritedForeignKey(e, op, raw, bad); admitted || err == nil {
 			t.Fatal("nonfresh endpoint gained import authority", missing, admitted, err)
 		}
 	}
 	ordinary := New()
 	ordinaryOp, ordinaryDone := roleOperation(t, ordinary, "postgres")
 	defer ordinaryDone()
-	if _, admitted, err := captureInheritedForeignKey(ordinary, ordinaryOp, raw, created); admitted || err == nil {
+	if _, admitted, err := CaptureInheritedForeignKey(ordinary, ordinaryOp, raw, created); admitted || err == nil {
 		t.Fatal("ordinary engine gained private import authority", admitted, err)
 	}
-	if _, admitted, err := captureInheritedForeignKey(e, ordinaryOp, raw, created); admitted || err == nil {
+	if _, admitted, err := CaptureInheritedForeignKey(e, ordinaryOp, raw, created); admitted || err == nil {
 		t.Fatal("foreign operation gained private import authority", admitted, err)
 	}
 }
@@ -181,7 +181,7 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 		t.Run(mutation, func(t *testing.T) {
 			e, op, created := inheritedForeignKeyImportFixture(t)
 			raw := statement(t, "ALTER TABLE ONLY public.p ADD CONSTRAINT forward_fk FOREIGN KEY(a) REFERENCES public.c(k)").(*parser.AlterTable)
-			pending, admitted, err := captureInheritedForeignKey(e, op, raw, created)
+			pending, admitted, err := CaptureInheritedForeignKey(e, op, raw, created)
 			if err != nil || !admitted {
 				t.Fatal("genuine source/target/provider preparation rejected", admitted, err)
 			}
@@ -195,7 +195,7 @@ func TestRestoreInheritedForeignKeyObservations(t *testing.T) {
 	t.Run("canceled_after_loaded_rows", func(t *testing.T) {
 		e, op, created := inheritedForeignKeyImportFixture(t)
 		raw := statement(t, "ALTER TABLE ONLY public.p ADD CONSTRAINT forward_fk FOREIGN KEY(a) REFERENCES public.c(k)").(*parser.AlterTable)
-		pending, admitted, err := captureInheritedForeignKey(e, op, raw, created)
+		pending, admitted, err := CaptureInheritedForeignKey(e, op, raw, created)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)
 		}

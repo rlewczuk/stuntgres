@@ -10,10 +10,13 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// BeginPartitionCheckReplay records on a private Restore operation the
+// partition whose CHECK its ALTER TABLE replays, or clears the record.
+//
 // This capability is an exact private-import target, not a public hierarchy
 // ALTER policy. The ordinary ALTER binder, providers, stage and Finish still own
 // every definition and publication check.
-func beginPartitionCheckReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
+func BeginPartitionCheckReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}

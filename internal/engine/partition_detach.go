@@ -14,9 +14,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// DetachPartitionLocked runs ALTER TABLE ... DETACH PARTITION.
+//
 // Engine.mu is consumed on every return. The execution scope owns parent AX;
 // DEFAULT, candidate and descendant waits use the same ticket without Engine.mu.
-func detachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (core.Result, error) {
+func DetachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))

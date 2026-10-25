@@ -8,7 +8,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func restoreRetiredConstraint(e *core.Engine, op *session.Operation, raw *parser.Update, authority *table.RestoredHistoryAuthority) error {
+// RestoreRetiredConstraint publishes a private Restore's pg_constraint repair
+// of retired inherited constraint origins and commits it to authority.
+func RestoreRetiredConstraint(e *core.Engine, op *session.Operation, raw *parser.Update, authority *table.RestoredHistoryAuthority) error {
 	repair, err := table.RestoreRetiredSyntax(raw)
 	if err != nil {
 		return err

@@ -183,7 +183,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 						f.e.Mu.Unlock()
 						return err
 					}
-					_, err = detachPartitionLocked(f.e, worker, op, auth, raw, 0)
+					_, err = DetachPartitionLocked(f.e, worker, op, auth, raw, 0)
 					return err
 				})
 				partitionAttachUnitQueued(t, f.e, ref, worker.LockTicket, lock.AccessExclusive)

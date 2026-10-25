@@ -22,7 +22,7 @@ func beforeRestoreInheritedForeignKey(r *restoreRun, op *session.Operation, stmt
 	if !ok || r.cur.physicalConstructor != nil {
 		return false, nil
 	}
-	declaration, admitted, err := captureInheritedForeignKey(r.stage, op, alteration, r.historicalRefs)
+	declaration, admitted, err := CaptureInheritedForeignKey(r.stage, op, alteration, r.historicalRefs)
 	if err != nil || !admitted {
 		return false, err
 	}
@@ -40,7 +40,7 @@ func prepareRestoreRecipeData(r *restoreRun, op *session.Operation, stmt parser.
 		return nil
 	}
 	var err error
-	r.generationRepairs, err = closeRestoredRecipesForData(r.stage, op, insertion, r.generationRepairs)
+	r.generationRepairs, err = CloseRestoredRecipesForData(r.stage, op, insertion, r.generationRepairs)
 	return err
 }
 
@@ -48,7 +48,7 @@ func prepareRestoreRecipeData(r *restoreRun, op *session.Operation, stmt parser.
 // placeholder.
 func prepareRestoreGenerationPair(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
 	if alteration, ok := restoreSetExpression(stmt); ok {
-		return pairRestoredGeneration(r.stage, op, alteration, r.placeholderOrigins)
+		return PairRestoredGeneration(r.stage, op, alteration, r.placeholderOrigins)
 	}
 	return nil
 }
@@ -80,7 +80,7 @@ func afterRestoreInheritedOwner(r *restoreRun, op *session.Operation, stmt parse
 		return nil
 	}
 	var err error
-	r.pairedOwner, err = captureInheritedOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate)
+	r.pairedOwner, err = CaptureInheritedOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate)
 	return err
 }
 
@@ -102,7 +102,7 @@ func afterRestoreGeneration(r *restoreRun, op *session.Operation, stmt parser.St
 	if !ok {
 		return nil
 	}
-	record, err := captureRestoredGeneration(r.stage, op, alteration)
+	record, err := CaptureRestoredGeneration(r.stage, op, alteration)
 	if err != nil {
 		return err
 	}

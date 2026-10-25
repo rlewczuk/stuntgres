@@ -9,10 +9,14 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// CaptureInheritedForeignKey captures an inherited FOREIGN KEY that a
+// private Restore ALTER TABLE adds, for binding at finish; it reports false
+// for any other ALTER.
+//
 // This is not a general valid ALTER whitelist. Only a successful isolated
 // import of both actual relations, with a strict ordinary inheritance edge,
 // can issue a receipt. The incumbent pending binder remains the sole FK binder.
-func captureInheritedForeignKey(e *core.Engine, op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
+func CaptureInheritedForeignKey(e *core.Engine, op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
 	if handled, err := table.InheritedForeignKeyShape(raw); !handled || err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}

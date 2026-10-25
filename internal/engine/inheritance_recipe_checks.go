@@ -9,7 +9,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func pairRestoredGeneration(e *core.Engine, op *session.Operation, raw *parser.AlterTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) error {
+// PairRestoredGeneration admits a private Restore SET EXPRESSION only when it
+// pairs a captured generation placeholder.
+func PairRestoredGeneration(e *core.Engine, op *session.Operation, raw *parser.AlterTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
@@ -33,7 +35,9 @@ func pairRestoredGeneration(e *core.Engine, op *session.Operation, raw *parser.A
 	return table.PairRestoredGeneration(auth.Catalog, core.RelationProvider, ref, raw, origins)
 }
 
-func captureRestoredGeneration(e *core.Engine, op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
+// CaptureRestoredGeneration records the generation recipe a private Restore
+// SET EXPRESSION left.
+func CaptureRestoredGeneration(e *core.Engine, op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
 	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredGenerationRecipe{}, err
@@ -45,12 +49,12 @@ func captureRestoredGeneration(e *core.Engine, op *session.Operation, raw *parse
 	return table.CaptureRestoredGeneration(auth.Catalog, ref, raw)
 }
 
-// restoreCheck admits real valid CHECK additions in the private restore stage.
+// RestoreCheck admits real valid CHECK additions in the private restore stage.
 // ONLY local additions cannot propagate to descendants or merge inherited checks.
 // Recursive generation replay retains connected repair authority. Fresh
 // recursive declarations require absent names throughout the affected closure.
 // Binding, ownership, row validation and publication belong to ordinary ALTER.
-func restoreCheck(e *core.Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
+func RestoreCheck(e *core.Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
@@ -137,7 +141,9 @@ func restoreCheck(e *core.Engine, op *session.Operation, raw *parser.AlterTable,
 	return table.InheritedCheckRecipe(auth.Catalog, core.RelationProvider, ref, repairs)
 }
 
-func closeRestoredRecipesForData(e *core.Engine, op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {
+// CloseRestoredRecipesForData drops the generation recipes connected to the
+// target of a private Restore INSERT, whose data is about to load.
+func CloseRestoredRecipesForData(e *core.Engine, op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {
 	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return nil, err

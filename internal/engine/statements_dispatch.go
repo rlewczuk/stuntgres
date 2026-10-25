@@ -158,9 +158,9 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	case *parser.AlterTableOf:
 		return dispatched(alterTableOfLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAttachPartition:
-		return dispatched(attachPartitionLocked(e, scope, op, auth, s, count))
+		return dispatched(AttachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableDetachPartition:
-		return dispatched(detachPartitionLocked(e, scope, op, auth, s, count))
+		return dispatched(DetachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableRenameConstraint:
 		return dispatched(tablecmds.RenameConstraintLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableSetSchema:

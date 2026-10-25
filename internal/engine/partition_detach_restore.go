@@ -12,9 +12,13 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// CapturePartitionReplayTeardown records the empty generated DEFAULT
+// partition a Restore DETACH PARTITION leaves for a later DROP TABLE; any
+// other detachment yields the zero record.
+//
 // Only the private importer records exact empty DEFAULT identities before an
 // emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
-func capturePartitionReplayTeardown(e *core.Engine, op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
+func CapturePartitionReplayTeardown(e *core.Engine, op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
 	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partition.ReplayStem) {
 		return partition.ReplayTeardown{}, nil
 	}
@@ -47,7 +51,9 @@ func capturePartitionReplayTeardown(e *core.Engine, op *session.Operation, s *pa
 	return partition.ReplayTeardown{Child: child, Parent: parent}, nil
 }
 
-func validatePartitionReplayTeardown(e *core.Engine, op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
+// ValidatePartitionReplayTeardown admits a Restore DROP TABLE only of a
+// teardown partition its DETACH recorded, and consumes the record.
+func ValidatePartitionReplayTeardown(e *core.Engine, op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)

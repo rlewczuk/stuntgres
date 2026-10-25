@@ -15,9 +15,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// AttachPartitionLocked runs ALTER TABLE ... ATTACH PARTITION.
+//
 // Engine.mu is held on entry and consumed on every return. The parent SUE grant
 // is already admitted. All bound/provider work and manager waits run unlocked.
-func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableAttachPartition, count int) (core.Result, error) {
+func AttachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableAttachPartition, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))

@@ -11,9 +11,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// BeginPartitionUniqueReplay records on a private Restore operation the
+// partition key UNIQUE origin its ALTER TABLE replays, or clears the record.
+//
 // This origin belongs to one private-import operation and one captured definition,
 // target and subtree, after its intended plain tree is already attached.
-func beginPartitionUniqueReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
+func BeginPartitionUniqueReplay(e *core.Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition unique operation")
 	}
