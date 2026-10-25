@@ -23,7 +23,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   parameter lookups, other databases' role dependencies and the DROP ROLE
   dependency text); `StageHost` is `ddl.Host` plus `AddDomainBase`,
   `RemoveObject` and `OwnerStage` for REASSIGN and DROP OWNED staging. The
-  engine's `ddlHost` implements both (`role_host.go`); for `Host` it has no
+  engine's `DDLHost` implements both (`role_host.go`); for `Host` it has no
   stage.
 - **GRANT/REVOKE on objects** (`grant_plan.go`, `grant_targets.go`,
   `grant_objects.go`): `ObjectGrantRequest(h, auth, s)` validates grantor,
@@ -76,7 +76,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   `CanonicalGrantParameter` accepts registered and custom dotted names
   (42704 otherwise); `GrantParameterDescriptorLocked` returns the existing
   identity or a baseline one owned by the bootstrap superuser, with an OID
-  and revision from the engine's allocators. `ddlHost`'s `CanonicalParameter`
+  and revision from the engine's allocators. `DDLHost`'s `CanonicalParameter`
   and `GrantParameter` call them.
 - **COMMENT** (`comment.go`): `PlanRoleComment` checks COMMENT ON ROLE
   (42704, the superuser rule) and returns the next role record;
@@ -116,7 +116,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   existing role lifecycle/membership or ownership policies, enable ALTER SYSTEM
   or language execution/ABI capabilities, or admit SQL PREPARE of these utilities.
 - **No locks, no publication.** The package adds no mutex and publishes
-  nothing. Every `Host` and `StageHost` method runs with `Engine.mu` held;
+  nothing. Every `Host` and `StageHost` method runs with `Engine.Mu` held;
   none takes, releases or waits on a lock. Plans return candidates and
   warnings; the engine emits the warnings (in statement order, also before a
   returned error), allocates OIDs and revisions and installs the result.
@@ -132,7 +132,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
 
 ## What stays in the engine
 
-`Engine.mu` and its unlock/relock windows, lock waits, `AuthorizationView`
+`Engine.Mu` and its unlock/relock windows, lock waits, `AuthorizationView`
 capture, `access.RoleStore` publication and `installOperationRolesLocked`, the host
 adapter (`role_host.go`) and the
 `*CatalogStage` adapters (`owned_stage.go`), the `ParameterProvider`
@@ -173,7 +173,7 @@ Pending query-derived rows and materialized replacements keep their separate
 producer role-read fence until publication; actual role deltas retain exact
 touched descriptor, name and membership preconditions.
 Role object, tuple and name admission uses the cluster's canonical lock manager
-outside `Engine.mu`. Session authorization changes only the physical owner's
+outside `Engine.Mu`. Session authorization changes only the physical owner's
 identity; commit retains it, while full or savepoint rollback restores it.
 Dump omits shared roles, and Reset/Restore preserve their committed state.
 
@@ -186,7 +186,7 @@ and live in `internal/engine` (`role_*_test.go`, `ownership*_test.go`,
 `parameter_tablespace_grant_test.go`; `default_privileges_catalog_test.go`
 for the retirement preflight).
 `TestRoleHostStageless` (`role_host_test.go`) pins the host seam: a
-stage-less `ddlHost` as `Host`. Add `RACE=1` for the connection-limit and role
+stage-less `DDLHost` as `Host`. Add `RACE=1` for the connection-limit and role
 switch tests.
 
 ```sh

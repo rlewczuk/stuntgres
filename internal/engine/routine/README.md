@@ -180,11 +180,11 @@ Missing zero-input errors render `(*)`, while missing notices retain `()`.
 
 ## The DDL host
 
-The handlers run under `Engine.mu` without a statement scope and reach the
+The handlers run under `Engine.Mu` without a statement scope and reach the
 engine only through `DDLHost` (`host.go`): the shared
 [`ddl.Host`](../ddl/README.md) plus `DefinitionType`, `DefinitionLookup`,
 `SelectFunction`, `SelectAggregateSupport`, `ResolveRegtype`, `BindSQLRoutine`
-and `BindSQLDefaults`. The engine implements it on `ddlHost`, built once per
+and `BindSQLDefaults`. The engine implements it on `DDLHost`, built once per
 DDL statement (`routine_host.go`).
 
 - **`ddl.Authority`** is an opaque value kept by value. Host methods that change
@@ -195,11 +195,11 @@ DDL statement (`routine_host.go`).
 - Namespace, routine and type-name selection and SQL body binding stay behind
   the host because they need `analyze`. OIDs and revisions come from
   `AllocateOID` and `Revision` in the order the handlers ask. Every host method
-  runs with `Engine.mu` held and takes no lock.
+  runs with `Engine.Mu` held and takes no lock.
 
 ## What stays in the engine
 
-`ddlHost` and schema statement dispatch (`ddl_host.go`, `routine_host.go`,
+`DDLHost` and schema statement dispatch (`ddl_host.go`, `routine_host.go`,
 `schema.go`); SQL routine binding, Restore validation and invocation
 (`sql_routine*.go`); seed installation (`builtin_catalog.go`); call resolution
 (`function*.go`, `operator*_binding.go`) and routine call inquiry admission;
@@ -212,7 +212,7 @@ DDL statement (`routine_host.go`).
 Package units cover inventory and operator lookups, seeded metadata, option
 extraction, index support and exclusion binding, routine drop selection,
 aggregate binary feasibility and the dump seams; engine units exercise the seed
-and the handlers behind `ddlHost`. Reduced internal fixtures must install
+and the handlers behind `DDLHost`. Reduced internal fixtures must install
 operator-class authority as well as family and routine authority. Dump changes
 must also keep the [`dump`](../dump/README.md#testing) selections passing.
 Public SQL lives in [reference/operators](../../../reference/operators/README.md#testing),

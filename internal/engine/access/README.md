@@ -114,7 +114,7 @@ No parallel language-permission table or cached grant decision exists.
   `RawObjectACL` and `ObjectACLClass`. `CheckDatabaseConnect`
   (`database_connect.go`) is the CONNECT check of physical session start.
 
-`access` keeps its own `sqlError`. Type and identifier names in its messages
+`access` keeps its own `SQLError`. Type and identifier names in its messages
 come from the `catalog` diagnostic name helpers it shares with the engine.
 
 ## Invariants
@@ -134,7 +134,7 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
 - `AuthorizationView`: statement-level authority that embeds `View` and adds
   the session, settings, definition reader and path inputs. It holds no
   engine: one constructor gives it a pointer to the engine's
-  `authorityInputs` (the engine's domain for path references and the TEMP
+  `AuthorityInputs` (the engine's domain for path references and the TEMP
   token check, the settings registry for the boot `search_path`, and
   the published storage that `StorageLocked` reads under the engine mutex),
   and statement identity checks compare the view's catalog owner. Its `Check`,
@@ -142,7 +142,7 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   that pass the view itself as the `Environment`. It implements
   `analyze.Privileges` for the binding walkers.
 - View capture (`authorizationLocked`, `statementAuthorizationLocked`,
-  `operationAuthorization`), `Engine.roles` (the cluster's `*RoleStore`),
+  `OperationAuthorization`), `Engine.RoleStore` (the cluster's `*RoleStore`),
   the session role overlays (`sessionRolesLocked`,
   `installOperationRolesLocked`, `preparedActorLocked`) and the catalog
   authority fences.

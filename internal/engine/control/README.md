@@ -18,7 +18,7 @@ pointer and no state between calls.
 
 ## Dump
 
-The root's capture window (`captureDumpLocked`, under `Engine.mu`) calls
+The root's capture window (`captureDumpLocked`, under `Engine.Mu`) calls
 `CheckPortable` and `PreflightACLItems`, fills `Source` and calls
 `Collect(ctx, source)`; nothing in `Source` is read after the unlock.
 `Dump(ctx, capture, dst)` (`dump.go`) then sorts and completes the `Capture` in
@@ -168,7 +168,7 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   second DDL in a window, or a statement after finish is invalid. A marked
   statement returns `execute`, and the root runs it with no other entry.
   `After` hands the bound window's check to the root, which captures its
-  authorization under `Engine.mu`, checks USAGE on the namespace and calls
+  authorization under `Engine.Mu`, checks USAGE on the namespace and calls
   `ValidateComparisonBinding`; `Bound` then closes the window. Only
   definitions this statement published, with expressions at or after its
   position, count as a receipt. `Finish` rejects unconsumed markers and an
@@ -200,7 +200,7 @@ contract; every entry runs on the stage, never on the target engine.
 
 ## Catalog replacement
 
-The root's `preserveTemporaryLocked` holds `Engine.mu` for identity planning and
+The root's `preserveTemporaryLocked` holds `Engine.Mu` for identity planning and
 publication. Provider repair uses the existing isolated candidate/session with
 the target mutex released and publication fences rechecked. On the private
 candidate, these owning operations retain the engine's error contracts:
@@ -240,7 +240,7 @@ candidate, these owning operations retain the engine's error contracts:
 
 ## What stays in the engine
 
-`Engine.mu`, the capture window (`dump_capture.go`), the OID allocator and
+`Engine.Mu`, the capture window (`dump_capture.go`), the OID allocator and
 `preserveTemporaryLocked`; the restore stage (`restoreStage`) and atomic
 publication (`replaceCatalog`) with their lock order and fences; `restoreRun`,
 `restoreHost`, `restoreHooks` and every hook that reads the run (the

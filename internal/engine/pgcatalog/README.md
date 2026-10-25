@@ -196,14 +196,14 @@ registration order and differs from the registry order.
 2. Write a `Producer` in its own file, named after the relation.
 3. Add `{OID, producer}` to the registry, keeping it sorted.
 4. If the producer needs engine state, add a value-taking method to `Runtime`
-   and implement it on the engine's `engineCatalogRuntime`. If the engine must
+   and implement it on the engine's `EngineCatalogRuntime`. If the engine must
    choose a different catalog, role read or unlock policy for the OID, add a
    case to `openCatalogSourceLocked` in the engine.
 
 ## Runtime capability
 
 `Runtime` is the narrow interface the engine implements per call
-(`engineCatalogRuntime`). Methods take and return values, never engine structs.
+(`EngineCatalogRuntime`). Methods take and return values, never engine structs.
 Building the adapter reads nothing; only the selected producer calls the
 methods it needs. Rule facts, view options and policy conditions are read from
 catalog payloads directly (`Relation.HasRules`, `Relation.VisitRules`,

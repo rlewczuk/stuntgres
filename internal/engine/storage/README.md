@@ -11,7 +11,7 @@ and never the engine.
 
 - **`Store`** (`store.go`): the published maps `Relations`, `Sequences` and
   `IndexRoots`, and the row and version identity allocators. The engine
-  holds one store by value (`Engine.storage`) and never replaces it whole.
+  holds one store by value (`Engine.Storage`) and never replaces it whole.
   The counters are private: read them with `RowFrontier`/`VersionFrontier`,
   reserve with `AllocateRowVersionsLocked` (one row and version per row, in
   order, with the exhaustion diagnostics), `AllocateRowLocked` and
@@ -55,9 +55,9 @@ and never the engine.
 
 ## Invariants
 
-- **One lock authority.** The package has no mutex. `Engine.mu` guards every
+- **One lock authority.** The package has no mutex. `Engine.Mu` guards every
   `Store` field and every lineage token. Mutating store methods carry the
-  `Locked` suffix; the caller holds `Engine.mu`.
+  `Locked` suffix; the caller holds `Engine.Mu`.
   This includes bootstrap and isolated replacement engines; standalone storage
   unit fixtures instead own their store exclusively.
 - **Minimal map writes.** Install retains the supplied pointer, remove is an
@@ -68,10 +68,10 @@ and never the engine.
   methods without changing preflight, allocator or catalog publication order.
 - **Immutable published roots.** Published `Relation` vectors, end roots and
   index roots are immutable and shared copy-on-write. Publication swaps the
-  store's maps together with the catalog state under `Engine.mu`. Snapshots
+  store's maps together with the catalog state under `Engine.Mu`. Snapshots
   retain roots by pointer and never copy row values.
 - **Publication values take no lock.** `RowShape`, `Publication` and the
-  stamping methods are value code the engine runs under `Engine.mu` inside
+  stamping methods are value code the engine runs under `Engine.Mu` inside
   `publishCatalog`; the visibility calls, retry loop and installation stay
   in the engine.
 - **Allocation order.** Row and version identities are globally nonreused

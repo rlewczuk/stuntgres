@@ -121,7 +121,7 @@ private frames, not catalog authority.
   `candidate_apply.go`, `relation_history.go`,
   `default_privileges_catalog.go`). Unlike the reads above, these scan the
   current state and validate or build publication; the root calls them under
-  `Engine.mu`, except `ApplyTo`, which runs with nothing held. The fences
+  `Engine.Mu`, except `ApplyTo`, which runs with nothing held. The fences
   (`DefaultPreflight`, `AccessMethodsCurrent`, `DomainBasesCurrent`,
   `DescriptorsCurrent`) compare the candidate's base inputs with the current
   state and have no side effects. `ApplyTo` projects the candidate onto the
@@ -259,10 +259,10 @@ private frames, not catalog authority.
 - Structural sharing: clones and merged states share maps and indexes until they
   change; a change copies only what it touches. No deep copies on publication or
   capture.
-- The package has no mutex. `Engine.mu` guards the published state and every
+- The package has no mutex. `Engine.Mu` guards the published state and every
   unpublished state shared between goroutines, including every `Store` field.
   Revision frontiers are pure and saturating; `Store` commits them under
-  `Engine.mu` only at successful installation.
+  `Engine.Mu` only at successful installation.
 - Provenance: a `Read` belongs to the engine whose `Owner` it carries; validators
   compare domains through the owner, never the engine.
 - Identity is never inferred from names or numbers. Relation identities, sparse
@@ -283,10 +283,10 @@ private frames, not catalog authority.
 
 ## What stays in the engine
 
-DDL commands, `CatalogStage` and publication (taking `Engine.mu`, the storage,
+DDL commands, `CatalogStage` and publication (taking `Engine.Mu`, the storage,
 index and materialized-view fences including the extension materialized-view
 recheck, the relations map and the post-apply validators), the engine's
-`Store` field and every acquisition of `Engine.mu`, the journal and
+`Store` field and every acquisition of `Engine.Mu`, the journal and
 `AuthorizationView` wrappers around the store, the seed order in `newEngine`
 with its capacity, the process-level `SeedShare`, builtin domain checks, catalog
 source descriptors and extension registration, the transaction catalog

@@ -26,7 +26,7 @@ builds a binder.
   diagnostics use the declared method name.
   These definitions share the canonical Journal/Finish path in autocommit,
   SQL/Go transactions and retained messages. Stagers do not wait under
-  `Engine.mu`; root admission owns exact provider/name locks and predecessor
+  `Engine.Mu`; root admission owns exact provider/name locks and predecessor
   fences before publication. Private reads include earlier successful definitions.
   User-defined type diagnostics use the executing private catalog and current
   search-path visibility. Exact-default ambiguity names the domain's base type;
@@ -37,15 +37,15 @@ builds a binder.
   `BindHashIndex`, `BuildHashIndexRoot`, `MergeHashIndexRoot`, `BindIndexKeys`
   (GiST), `PrepareIndexRecipe`, `ResolveIndexMethod`, the clause and option
   validators, and `CaptureHashIndexesLocked` (published hash roots that exactly
-  cover a plain table query source; caller holds `Engine.mu`).
+  cover a plain table query source; caller holds `Engine.Mu`).
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `row_publication.go`, `layout_*.go`, `snapshot*.go`, `remint.go`,
   `effective_root.go`, `alter_type.go`): `PrepareIndexPublication` over
-  `RowPublication` (materialized by `PrepareRowPublication` outside `Engine.mu`
+  `RowPublication` (materialized by `PrepareRowPublication` outside `Engine.Mu`
   over private roots), `ValidatePrivateExpressions`, `EvolveIndex*`,
   `CaptureLayouts`, `CaptureSnapshot`, `RemintStorage`, `EffectiveRoot` (a
   transaction's private root, else the committed one), `AlterIndexBuild` and
-  `RebindExclusionOperators`. The engine fills capture inputs under `Engine.mu`
+  `RebindExclusionOperators`. The engine fills capture inputs under `Engine.Mu`
   after its epoch checks and holds the lock across the call.
 - **Catalog publication captures** (`publication_stores.go`,
   `overlay_capture.go`): `CandidatesMatch` (the concurrent root-candidate
@@ -55,7 +55,7 @@ builds a binder.
   set and source roots over a `storage.Publication`) and
   `SelectOverlayCapturesLocked` (the indexes a transaction overlay rebuilds,
   with their read fences). They take no lock; the engine calls them under
-  `Engine.mu` and keeps the fence order and the `Conflict` it returns.
+  `Engine.Mu` and keeps the fence order and the `Conflict` it returns.
 - **Write-time records and enforcement** (`write_candidate.go`, `insertion.go`,
   `unique*.go`, `exclusion_*.go`, `constraint.go`): `WriteCandidate`,
   `UniqueWriteBinding`, `UniqueKeyHash` (the opaque key the engine pins in the
@@ -77,17 +77,17 @@ builds a binder.
 staging for one statement: `ddl.Host` plus object removal, diagnostics, the
 stage and its index slot, `ACLOutput`, `DefinitionReader`, `ValidityTarget` and
 the binders `BindIndexExpression`/`BindIndexPredicate` (the engine builds
-binders; this package never does). The engine's `ddlHost` (`index_host.go`)
-implements it. **Every method runs with `Engine.mu` held, never takes or
+binders; this package never does). The engine's `DDLHost` (`index_host.go`)
+implements it. **Every method runs with `Engine.Mu` held, never takes or
 releases it, and never waits.** Narrower contracts:
 
 - `KeyHost`: key binding and operator class lookup, no stage (the analysis host
-  and partition key binding pass a stage-less `ddlHost`).
+  and partition key binding pass a stage-less `DDLHost`).
 - `DropStage` (`*CatalogStage`): DROP INDEX staging, which runs without
-  `Engine.mu`; the removal takes it.
+  `Engine.Mu`; the removal takes it.
 - `ValidityTarget`: the partitioned-index validity pass. `UsingIndexStage`:
   attaching a prepared USING INDEX, no lock (`PrepareUsingIndex` takes only a
-  `ddl.Allocator` and runs under `Engine.mu`).
+  `ddl.Allocator` and runs under `Engine.Mu`).
 
 Entry points:
 
@@ -130,8 +130,8 @@ Entry points:
 ## The write host
 
 `WriteHost` (implemented by `*statementHost`, `statement_host_index.go`) wraps
-write-time unique and exclusion enforcement in `Engine.mu` windows and lock
-waits. **Each method either takes `Engine.mu` itself for one window and never
+write-time unique and exclusion enforcement in `Engine.Mu` windows and lock
+waits. **Each method either takes `Engine.Mu` itself for one window and never
 waits (the caller must not hold it), or waits with the caller holding nothing;
 none takes a callback or evaluation context.**
 
@@ -167,9 +167,9 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
 
 - **Registries.** `WaitRegistry` (CONCURRENTLY build waits) and
   `ExclusionRegistry` (each open lock owner's dirty exclusion projection plus a
-  generation) have no mutex: `Engine.mu` guards them and every method has the
-  `Locked` suffix. The engine holds one of each (`Engine.indexWaits`,
-  `Engine.exclusions`). Every projection change advances the generation, so a
+  generation) have no mutex: `Engine.Mu` guards them and every method has the
+  `Locked` suffix. The engine holds one of each (`Engine.IndexWaits`,
+  `Engine.Exclusions`). Every projection change advances the generation, so a
   scan captured with `ScanLocked` fails `CurrentLocked` and is retaken; the maps
   stay private so nothing changes a projection without advancing it.
 - **Journal slot.** `Journal` implements `session.IndexSlot` (private logical
@@ -226,11 +226,11 @@ authority retention, not predicate/expression evaluation during transport.
 
 ## What stays in the engine
 
-Orchestration: the `Engine.mu` and capture windows, CONCURRENTLY phases, lock
+Orchestration: the `Engine.Mu` and capture windows, CONCURRENTLY phases, lock
 admission (`acquireIndexMaintenance` over the grant plan), unique key pins, the
 registry instances, savepoint capture/restore, Finish order, publication and
 Restore storage (`prepareIndexCatalog`), and `executeCreateIndex`/
-`executeIndexMaintenance`. Thin wrappers build a `ddlHost` for production
+`executeIndexMaintenance`. Thin wrappers build a `DDLHost` for production
 callers; tests call `index` functions directly with one. The write-time loops
 (unique probe/claim, exclusion probe/admission, ON CONFLICT arbiters) are
 `dml`'s and reach this host through `dml.Host`.

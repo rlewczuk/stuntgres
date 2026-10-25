@@ -42,7 +42,7 @@ import this package directly.
 ## Invariants
 
 - **Immutable registry.** A `Registry` is built once and never changed. The
-  engine holds one by value (`Engine.settings`) and parameter providers
+  engine holds one by value (`Engine.Settings`) and parameter providers
   borrow a pointer to it. `Definitions`, `Order`, enum values and boot
   `Value.Path` slices are borrowed without copies; callers must not mutate
   them. Reads need no lock.

@@ -44,15 +44,15 @@ it. It never builds a binder.
 
 ## Host and lock contract
 
-The package holds no engine state and no mutex; the root owns `Engine.mu`, lock
+The package holds no engine state and no mutex; the root owns `Engine.Mu`, lock
 waits and publication.
 
 - `Host` is `table.Host` plus `BindKeyExpression`, implemented by the root
-  `ddlHost`. Every method runs with `Engine.mu` held, never takes or releases
+  `DDLHost`. Every method runs with `Engine.Mu` held, never takes or releases
   it and never waits.
-- `BoundBinder` is self-locking: callers hold nothing, it takes `Engine.mu` for
+- `BoundBinder` is self-locking: callers hold nothing, it takes `Engine.Mu` for
   one window, and bound evaluation follows unlocked.
-- Under `Engine.mu`: `RejectForeignKeys`, `StageCreate`, `BindKeys`,
+- Under `Engine.Mu`: `RejectForeignKeys`, `StageCreate`, `BindKeys`,
   `StageIndexChildren`, `StageExclusions` and `CaptureInsertLocked` (whose
   snapshot callbacks never wait).
 - With nothing held: `EvaluateBounds`, `ValidateBounds`, `CheckOverlap`,
@@ -88,7 +88,7 @@ Orchestration and everything that holds `Engine`, `StatementScope` or
 (checks in diagnostic order), `attachPartitionLocked`, `detachPartitionLocked`,
 lock admission (`partition_locks.go`), authorization and Restore trust checks
 (`partition*ReplayAllowed`), the Restore executors, storage-read fences and
-shared DML routing capture. `partition_host.go` holds `ddlHost.BindKeyExpression`
+shared DML routing capture. `partition_host.go` holds `DDLHost.BindKeyExpression`
 and the `partitionBoundBinder` adapter; `partition_info_runtime.go` holds the
 `statementHost` inquiry methods, which check the retained catalog's owner.
 
@@ -117,7 +117,7 @@ and the `partitionBoundBinder` adapter; `partition_info_runtime.go` holds the
 - **Lock order.** ATTACH: the parent keeps SHARE UPDATE EXCLUSIVE; the
   candidate, its descendants and the incumbent DEFAULT take ACCESS EXCLUSIVE.
   DETACH: parent, incumbent DEFAULT, candidate, then descendants, all ACCESS
-  EXCLUSIVE. Real waits run without `Engine.mu`.
+  EXCLUSIVE. Real waits run without `Engine.Mu`.
 - **Constraint origins.** CHECK/NOT NULL descriptors own exact `PartitionOrigin`
   metadata (CREATE and ATTACH populate it, DETACH removes the top contribution);
   catalog output never infers locality from a matching parent name.

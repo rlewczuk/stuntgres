@@ -34,7 +34,7 @@ engine.
   family/pair/slot keys. Other name classes forbid signatures. There is no
   default-class absence lock. Procedure and nonpinned method/family/class
   providers use ordinary AS/AX object grants, not relation aliases. The engine
-  acquires and waits outside `Engine.mu`, then rechecks original identities;
+  acquires and waits outside `Engine.Mu`, then rechecks original identities;
   definition DROP holds AX before capturing its complete dependent closure.
   Catalog ACL writer claims use a real catalog-object address; default ACL
   claims use the actual creator ID, namespace/global scope and default class.
@@ -110,7 +110,7 @@ engine.
   excludes pending requests and projects current top-level PID ownership
   (ended/detached owners are zero). The output contains owned scalars only,
   never tickets or queues. Capture assigns nothing, settles nothing and runs
-  no callbacks. The engine releases Engine.mu before entering this manager.
+  no callbacks. The engine releases Engine.Mu before entering this manager.
   `HasAccessShare`/`ReleaseAddedAccessShare` remove only the function-added
   exact-relation contribution, preserving earlier SELECT grants.
 
@@ -149,29 +149,29 @@ under it.
 - `mu` is innermost. It may be taken while the engine holds `replacementMu`
   (admission reservation) or a `session.TransactionOwner.Mu` (savepoint
   checkpoint and restore, finish).
-- It is never taken while holding `Engine.mu`, `Session.Mu`,
-  `SettingsStore.Mu` or `Engine.sessionMu`. Callers release `Engine.mu`
+- It is never taken while holding `Engine.Mu`, `Session.Mu`,
+  `SettingsStore.Mu` or `Engine.sessionMu`. Callers release `Engine.Mu`
   before calling the manager.
 - While `mu` is held, no other mutex is taken, no callback runs and nothing
   blocks. Unique-key comparers run outside it (`PinUniqueKey` releases `mu`
   around every comparison).
 
 For reference, the surrounding engine order takes `replacementMu` and
-`TransactionOwner.Mu` before `Engine.mu`, and `Engine.mu` before `Session.Mu`,
+`TransactionOwner.Mu` before `Engine.Mu`, and `Engine.Mu` before `Session.Mu`,
 `SettingsStore.Mu` and `Engine.sessionMu`; `Session.Mu` comes before
 `Engine.sessionMu`. Session code reaches the engine only through
 `session.Host`: `Unregister` runs under `Session.Mu` and takes only
 `Engine.sessionMu`; `EndMaintenance` runs with no session lock held, outside
-every `SessionResource` callback, and may take `Engine.mu`; `NewOperation` only
+every `SessionResource` callback, and may take `Engine.Mu`; `NewOperation` only
 allocates and takes no lock. The session-layer mutexes are exported fields of
 `session` types (`Session.Mu`, `TransactionOwner.Mu` and `Admission`,
 `SettingsStore.Mu`). The LISTEN/NOTIFY registry and listener fields
 (`session.NotificationRegistry`, `session.NotificationListener`) belong to
-`Engine.mu`; only root code takes it around their `…Locked` methods, and the
+`Engine.Mu`; only root code takes it around their `…Locked` methods, and the
 root `notificationSessionEnd` resource callback takes it to end a listener.
 
 Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are
-readable without `mu`; the engine updates them under `Engine.mu`, which is why
+readable without `mu`; the engine updates them under `Engine.Mu`, which is why
 `PGLocks` samples each ticket's XID once per capture.
 
 ## Cancellation and teardown

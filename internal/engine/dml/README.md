@@ -25,11 +25,11 @@ The engine's `statementHost` implements them (`statement_host_dml.go`,
   disclosure environment and `Operation`. It never locks or waits and is read
   at call time.
 - `Stage`: `Active` (checked before any candidate validation),
-  `ReadmitRevalidation` (recaptures write authority under `Engine.mu`, then
+  `ReadmitRevalidation` (recaptures write authority under `Engine.Mu`, then
   readmits programs unlocked after a stale binding) and the write windows
   `PrepareReplacement`, `StageInsert`, `StageReplacement`,
   `AppendAcceptedInsert` and `Delete`. Each window takes the owner mutex and
-  `Engine.mu` itself and never waits.
+  `Engine.Mu` itself and never waits.
 - `RowLocks`: `AcquireRow`, `AcquireUpdateRow` and `AcquirePartitionLock` wait
   with the caller holding nothing; `LatestRow` reads one row per `RowKind`
   under one lock.
@@ -149,7 +149,7 @@ Package-internal helpers keep lower-case names.
 
 - The package holds no engine state and no mutex. It waits only through `Host`
   methods (`ClaimUniqueKey`, `WaitTransaction`, the row locks) with the caller
-  holding nothing; executors run after `Engine.mu` is released.
+  holding nothing; executors run after `Engine.Mu` is released.
 - No pointer to a per-row stack value (a probe candidate, a one-row batch array)
   crosses a `Host` method: through the interface it escapes to the heap for
   every row. Pass a copy and apply the result here (`PublishExclusion`,
@@ -173,7 +173,7 @@ Package-internal helpers keep lower-case names.
 
 ## What stays in the engine
 
-- Statement dispatch, source capture under `Engine.mu`, `WriteStage` with the
+- Statement dispatch, source capture under `Engine.Mu`, `WriteStage` with the
   `Stage` windows and row publication, writable-CTE orchestration, and the
   locked prologues that turn an `Outcome` into a `Result`
   (`executeInsertLocked`, `execute_bound.go`, `executeForeignCommandLocked`).

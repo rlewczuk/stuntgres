@@ -79,7 +79,7 @@ and ACL DDL decisions are in [`role`](../role/README.md).
 
 ## What stays in the engine
 
-- **Publication:** `Engine.roles`, the cluster's
+- **Publication:** `Engine.RoleStore`, the cluster's
   [`access.RoleStore`](../access/README.md), holds the domain, the
   committed record with the current `Root` and its revision headroom, and
   principal allocation. Cancellation fences, journals and savepoints stay

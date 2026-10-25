@@ -166,13 +166,13 @@ on `statementHost`, a defined type over `StatementScope`.
 |---|---|---|
 | Environment | `Context`, `Environments`, `StatementStart`, `CTEInvocation` | Read where the runtime reads them; a held cursor detaches the host between fetches. |
 | Presentation | the nine `sqltype` formatters | Read the statement's comment/deparse snapshot. With no host, output uses `DetachedPresentation`. |
-| Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks` | `AcquireQueryRow` may block in the lock manager; it releases the replacement read lock across the wait, then takes `Engine.mu`. `LatestQueryRow` takes `Engine.mu` and records the physical row event after releasing it. |
+| Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks` | `AcquireQueryRow` may block in the lock manager; it releases the replacement read lock across the wait, then takes `Engine.Mu`. `LatestQueryRow` takes `Engine.Mu` and records the physical row event after releasing it. |
 | Foreign owner | `ReleaseReplacementRead`, `TouchForeignScan`, `EnlistForeign`, `AsyncAppendEnabled` | Release the replacement read lock before external I/O; enlist the statement's foreign transaction participant. Async eligibility reads the immutable admission snapshot once. |
 | Admission | `RoutineAdmission` | Reads statement-owned routine authority and dependency manifest without a lock; fails once the statement has finished. |
-| Sequences | `CompletePGSequence` | Acquires the sequence lock, then reads the generator under `Engine.mu`. |
-| Capabilities | the function, expression and plan runtime bodies | Take `Engine.mu`, read session state or have side effects (advisory locks, XID assignment, sequence calls, notices). |
+| Sequences | `CompletePGSequence` | Acquires the sequence lock, then reads the generator under `Engine.Mu`. |
+| Capabilities | the function, expression and plan runtime bodies | Take `Engine.Mu`, read session state or have side effects (advisory locks, XID assignment, sequence calls, notices). |
 
-Every method is called without `Engine.mu` held, and none returns an engine
+Every method is called without `Engine.Mu` held, and none returns an engine
 struct. Records store the host once, never per row. A record with no statement
 scope holds an untyped nil host (`LiveHost` never returns a typed nil). Optional
 host capabilities such as `PgcryptoNotice` are resolved through `LiveHost` per
@@ -220,7 +220,7 @@ NULL VARIADIC array and the strict single-range overload retain NULL results.
 
 - **No mutexes.** The package adds no lock. Lock order, modes and waits belong to
   the engine host bodies and the `lock` manager; the lock manager's mutex is
-  never taken under `Engine.mu`.
+  never taken under `Engine.Mu`.
 - **Snapshots.** Records borrow immutable published snapshots and catalog reads;
   no snapshot copies row values. Stable isolation retains its public value and
   tuple roots/frontier during the first snapshot-requiring analysis. Ordinary RC
@@ -290,7 +290,7 @@ policy/view occurrence tree before the first data capture, and physical capture
 consumes it without another policy selection.
 
 Statement Finish releases imported query states and nested pins outside
-`Engine.mu`; cursor or portal publication instead transfers the programs to the
+`Engine.Mu`; cursor or portal publication instead transfers the programs to the
 producer, which releases them on every exit before clearing authority. Borrowed
 sources never close them.
 

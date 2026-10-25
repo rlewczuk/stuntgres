@@ -47,7 +47,7 @@ call live here.
   `FinishAlterCandidate` (the after-loop finish, with the inheritance finish
   as a callback and the stage's emptiness as a `bool`), `BumpAlterRevision`,
   `AlterRewrites` and `AlterStorageShape`. The row passes take no
-  lock, but expressions may reach host methods that take `Engine.mu`, so
+  lock, but expressions may reach host methods that take `Engine.Mu`, so
   callers hold nothing. `AlterCookingError` clones public diagnostics without
   mutating the source.
 - **NOT NULL, CHECK, DEFAULT and generated columns** (`not_null_*.go`,
@@ -66,13 +66,13 @@ call live here.
 - **DROP dependency decisions** (`composite_field_dependency.go`,
   `owned_sequences.go`, `drop_removal.go`, the CHECK, DEFAULT, foreign-key and
   identity drop files): passes over `DropDependencyReader`, the drop stage the
-  root `dropProvider` implements. `OrdinaryColumnDrop`, `CheckDependents`,
+  root `DropProvider` implements. `OrdinaryColumnDrop`, `CheckDependents`,
   `DefaultDependents`, `ForeignKeyDependents`, `DropIdentity`,
   `CompositeFieldDependencies` (CHECKs that use a dropped composite field),
   `RemoveDomainCheck`, `OwnedSequences` and `OwnedExpressionDependencies` (the
   AUTO sequences of the targets, including removed inheritance owners) keep
   the reader's call order, so prepared-drop effects and notices keep theirs.
-  `CheckRemovalLocked` admits a whole-object removal under `Engine.mu`
+  `CheckRemovalLocked` admits a whole-object removal under `Engine.Mu`
   (objects the system requires, then the registered class provider);
   `ClosureTargetClass` and `RetiredProviderClass` are the class lists of the
   root's expression-dependency pass; `CascadeColumnDrops` is that pass's
@@ -88,7 +88,7 @@ call live here.
   fences those captures and the statement, transaction, domain and epoch
   against a catalog; additive members are not replacements. `RewindNotices`
   positions index effects, not notices. `DropPreparationView` is the root
-  `dropProvider`'s prepared-mode reads (replacement, removal, enumeration,
+  `DropProvider`'s prepared-mode reads (replacement, removal, enumeration,
   index layouts, input descriptors) over a base, a preparation (nil for a bare
   provider) and the identity sequence captured at its grant;
   `DescriptorsOver` enumerates over a base that may change while it runs. The preparing
@@ -105,19 +105,19 @@ call live here.
   over a `VacuumCapture` (`CaptureIndexesLocked`, `SameLocked`), plus
   `DatabaseFrozenXIDLocked` and `VacuumReport`. Selection and gates return
   `VacuumWarning`s, which the root emits after unlocking, in order. The pass's
-  `phase` callback takes `Engine.mu` once per progress update, so callers hold
+  `phase` callback takes `Engine.Mu` once per progress update, so callers hold
   nothing.
 - **Foreign keys** (`foreign_key*.go`): declarations and comparison binding,
   diagnostics over `access.View`, the probe (`FindForeignKeyParent`,
   `ProbeForeignKeyIndex`), OID-ordered provider walks, initial row scans and
   Restore (`RestoredForeignKeys`). A `ForeignKeyScan` carries a
-  `ForeignKeyRowsCapture` callback that takes `Engine.mu`, so callers hold
+  `ForeignKeyRowsCapture` callback that takes `Engine.Mu`, so callers hold
   nothing.
 - **Inheritance** (`inheritance_*.go`, `typed_inheritance.go`,
   `partition_alter*.go`): the host-less recursion plan
   (`InheritanceAlterPlan`, `PlanInheritanceAlter`), `PrepareInheritanceNode`
   (cooks one node's phases before the sole stage exists through `PrepareHost`,
-  whose methods take `Engine.mu`; prepared drops cross as `PreparedDrop` and
+  whose methods take `Engine.Mu`; prepared drops cross as `PreparedDrop` and
   may wait), `InheritanceDefinitionReader`, `InheritanceDropClosure` (the
   OID-ordered tables a DROP locks), the query helpers
   `InheritanceQueryLeaves`/`InheritancePendingGrants`, and the partition
@@ -132,7 +132,7 @@ call live here.
   (`QueryTableColumns`), `RelationProvider` (its `RelationValidators` slots run
   in fixed order), `RecomputeRemappedGenerations`, `Stage.DefinitionProviders`
   (OID-ordered provider lock requests the root takes and rechecks under
-  `Engine.mu`), `Deparse` (`pg_get_constraintdef`, `pg_get_expr`,
+  `Engine.Mu`), `Deparse` (`pg_get_constraintdef`, `pg_get_expr`,
   `pg_get_indexdef`, `pg_get_viewdef`, `pg_get_serial_sequence`),
   `ValidateSelectedDomainRows`, `Target`/`AdmitTarget` (each statement kind
   belongs to exactly one `TargetEntry`, so entry order cannot change a result),
@@ -150,7 +150,7 @@ PARTITION OF children, ADD IDENTITY and FOREIGN KEY staging: `index.Host` (and
 through it `ddl.Host`), `ddl.TypeStaging`, type and collation resolution, the
 table and sequence stage slots, relation resolution, the binders
 `BindColumnDefaults`, `BindGenerations`, `BindCheckExpression`,
-`OperationDefinition` and `LiveEpoch`. The root `ddlHost` (`table_host.go`)
+`OperationDefinition` and `LiveEpoch`. The root `DDLHost` (`table_host.go`)
 implements it. `Resolver` and `RestoreResolver` are its stage-less parts.
 
 `AlterHost` adds one ALTER statement's bindings: the live `Input` (captures
@@ -160,11 +160,11 @@ binders `BindDefault`, `BindGeneration`, `RebindCheck`, `BindAlterTypeUsing`,
 `alterHost{ddlHost; scope}` (`alter_host.go`) implements it, one per call,
 because the ALTER loop begins its stage lazily.
 
-**Every `Host` and `AlterHost` method runs with `Engine.mu` held, never takes or
+**Every `Host` and `AlterHost` method runs with `Engine.Mu` held, never takes or
 releases it, and never waits.** The authority is an opaque `ddl.Authority`, so
 code here re-reads `AccessView` after every `Recapture`. `DropDependencyReader`
 is called with callers holding nothing; its comment marks the methods that wait
-or take `Engine.mu`.
+or take `Engine.Mu`.
 
 ## Inheritance attach and detach fences
 
@@ -180,7 +180,7 @@ ALTER stage.
 - Post-wait admission compares the original parent before refreshing it and
   rejects replacement or newly shadowing targets. An unstaged parent's admitted
   marker can be consumed into the stage, never reminted, and `Stage.Base` is
-  never rebased. The same endpoint fence runs under `Engine.mu` at implicit
+  never rebased. The same endpoint fence runs under `Engine.Mu` at implicit
   publication and explicit journal installation; its authorization capture
   precedes `Session.Mu`.
 - `catalog.InheritanceParent` stores identity plus a live sparse ordinal. Last
@@ -199,15 +199,15 @@ Orchestration: `createTableLocked`, `dropTableLocked`, `alterTableLocked` with
 its pass loop, the lazy stage (`authorizedStage`), the stage-to-journal merge
 (`mergeStageJournalLocked`) and the IF EXISTS no-op
 (`skipMissingRelationLocked`), and the other statement handlers; the wrappers that take
-`Engine.mu` across a `table` call and build the host; the row evaluation
+`Engine.Mu` across a `table` call and build the host; the row evaluation
 template; lock admission and post-wait checks (`acquireDefinitionProviders`,
 `admitInheritanceAlter`, `acquireRelationTarget` around `AdmitTarget`, ...);
 identity sequence waits; the prepare host and prepared-drop consumers; the
-DROP pipeline (`dropProvider`'s stage mode and lock waits, the prepared-drop
+DROP pipeline (`DropProvider`'s stage mode and lock waits, the prepared-drop
 admission and the `consumePreparedDrop` replay into the stage, and the lock
 waits and projection of `ExpressionDependencies`); Finish;
-VACUUM's lock loop, `Engine.mu` windows, retry, install and progress map;
-the binder bodies; and the Restore hook bodies (authorization, the `Engine.mu`
+VACUUM's lock loop, `Engine.Mu` windows, retry, install and progress map;
+the binder bodies; and the Restore hook bodies (authorization, the `Engine.Mu`
 window, trust checks, `publishRestoreRepairLocked`, `restore_replay.go`).
 
 Permanent CREATE/DROP and the shipped ALTER forms consume the owner's private
@@ -234,7 +234,7 @@ recaptures exact identities after waits before publishing their candidates.
   binding, ownership, propagation, row validation and cancellation, never a
   replay marker, and never promotes NOT VALID constraints.
 - The package holds no engine state and no mutex. Functions here never wait;
-  root callers own `Engine.mu` and lock waits.
+  root callers own `Engine.Mu` and lock waits.
 
 ## Testing
 

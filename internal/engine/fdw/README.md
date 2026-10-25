@@ -74,7 +74,7 @@ driver import it.
   `grant.go`, `import.go`, `table_stage.go`, `table_alter.go`). `Host` is
   `table.Host` (and through it `ddl.Host` and `AddDomainBase`) plus
   `RemoveObject` and the utility `ResolveRelation`; the engine's one staging
-  adapter `ddlHost` implements it.
+  adapter `DDLHost` implements it.
   - `StageDDL` stages CREATE, ALTER and DROP of wrappers, servers and user
     mappings in this order: actor, owner operand, wrapper superuser gate, the
     foreign-table route, then the drop or definition path with its IF [NOT]
@@ -135,10 +135,10 @@ provider's own async capability policy; Dump/Restore never starts requests.
 ## Invariants
 
 - **No locks, no callbacks under locks.** The package adds no mutex.
-  `Engine.mu` guards the `Registry`; the transaction owner's mutex and
+  `Engine.Mu` guards the `Registry`; the transaction owner's mutex and
   admission guard a `Transaction`. Functions that call application code
   (`RunValidations`, the `Modification` and `Transaction` methods,
-  `Rollback`) run only after the engine released `Engine.mu` and
+  `Rollback`) run only after the engine released `Engine.Mu` and
   `replacementMu`. Rollback uses `context.WithoutCancel`.
 - **Commit order.** `Transaction.Commit` commits each open participant once.
   A failed Commit has an unknown outcome: it is never retried, and the other
@@ -152,11 +152,11 @@ provider's own async capability policy; Dump/Restore never starts requests.
 
 ## What stays in the engine
 
-The DDL orchestration, because it holds `Engine.mu`, begins and discards
+The DDL orchestration, because it holds `Engine.Mu`, begins and discards
 stages, releases `replacementMu` before callbacks and publishes:
 
 - `executeForeignDDL` (DROP dependents, validations, publication) and
-  `stageForeignLocked` (a wrapper over `StageDDL` on `ddlHost`);
+  `stageForeignLocked` (a wrapper over `StageDDL` on `DDLHost`);
 - `executeForeignImport` (the importer callback, the per-table relock,
   re-authorization and epoch check, provider acquisition);
 - `executeForeignGrant` (the journal clone, emitting the warnings and
@@ -178,7 +178,7 @@ stages, releases `replacementMu` before callbacks and publishes:
 
 Foreign INSERT, UPDATE and DELETE execution is `dml.ExecuteForeign`; its
 locked prologue (`executeForeignCommandLocked`), foreign TRUNCATE (the source
-captures under `Engine.mu` and the participant admission around
+captures under `Engine.Mu` and the participant admission around
 `GroupTruncate`) and COPY FROM stay in the engine.
 
 ## Testing

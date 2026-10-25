@@ -70,7 +70,7 @@ library, and never `analyze`, `exec` or the engine.
   [`storage`](../storage/README.md) with its rules. Never use per-CACHE
   arrays: a memory holds one cache tail (`next`, `remaining`) and the
   generator generation it came from.
-- `Engine.mu` guards every `SessionMemory`, generator and `Stage`; functions
+- `Engine.Mu` guards every `SessionMemory`, generator and `Stage`; functions
   that change them carry the `Locked` suffix. Physical-session admission also
   serializes the path cache. This package adds no mutex.
 - TEMP sequence lifetime follows the physical session, not pooled borrowing:
@@ -99,8 +99,8 @@ caller's exact live TEMP provenance.
 
 | Rule | Enforced by |
 |---|---|
-| Private description analysis cell | `StatementDescription.sequences` (engine `statement_description.go`), non-nil only when the statement has literals; built by `NewAnalysis` in the describe path (`engine.go`) and republished at Execute (`execute.go`); held by `analyze.Expected.Sequences` |
-| Distinct relation plan stamp | `catalog.Relation.SequencePlanStamp`: set by `NewRelation`, bumped per `AlterEffects`, identity options, rename, ownership, ALTER SCHEMA, role grants and TRUNCATE RESTART IDENTITY; read by `DefinitionStamp` through the engine's `preparedDefinitionStamp`, adding the session memory's `SourceStamp` |
+| Private description analysis cell | `StatementDescription.Sequences` (engine `statement_description.go`), non-nil only when the statement has literals; built by `NewAnalysis` in the describe path (`engine.go`) and republished at Execute (`execute.go`); held by `analyze.Expected.Sequences` |
+| Distinct relation plan stamp | `catalog.Relation.SequencePlanStamp`: set by `NewRelation`, bumped per `AlterEffects`, identity options, rename, ownership, ALTER SCHEMA, role grants and TRUNCATE RESTART IDENTITY; read by `DefinitionStamp` through the engine's `PreparedDefinitionStamp`, adding the session memory's `SourceStamp` |
 | Physical-session effective namespace cache | `SessionMemory.CachedPath`/`StorePathLocked`, keyed by `PathKey` and filled by the engine's shared `sequenceEnvironmentLocked` |
 | Whole-group reanalysis at Execute start | `execute.go`: `Analysis.Valid` (through `sequenceAnalysisValidLocked`) clears `candidate.sequences`, and the republish rebuilds the analysis from every `callerSequences` literal |
 | Immutable temporal, signature and result contracts | `checkStatementSignature` before the republish in `execute.go` (engine, `analyze.CheckSignature`) |
@@ -117,16 +117,16 @@ builds it in `sequenceObservationLocked` only for statements with literals.
 ## What stays in the engine
 
 The orchestration of sequence DDL and COMMENT (`sequence.go`,
-`sequence_comment.go`: `Engine.mu`, lock waits, authorization refresh, OID and
+`sequence_comment.go`: `Engine.Mu`, lock waits, authorization refresh, OID and
 revision allocation, the journal and stage install, scope fields and
 notices), `ownedSequenceLocked`, `statementHost.Sequence`
 (`sequence_runtime.go`) and `clearPersistentSequenceMemoryLocked`;
-`StatementScope.acquireSequence` (the scope's object lock),
+`StatementScope.AcquireSequence` (the scope's object lock),
 `checkSequenceAny` and `index.RelationDropOwner`; `sequenceEnvironmentLocked`,
-`journalOf` and `preparedDefinitionStamp`, shared with ordinary prepared SQL;
+`journalOf` and `PreparedDefinitionStamp`, shared with ordinary prepared SQL;
 the ALTER identity staging and the identity DROP flow (table DDL; CREATE
 identity and serial staging is `table.StageCreateIdentities` and
-`table.StageCreateSerials`); `CatalogStage.sequenceState`; and regclass
+`table.StageCreateSerials`); `CatalogStage.SequenceState`; and regclass
 input and output. The generic relation diagnostic is
 `catalog.RelationDiagnosticKind`.
 

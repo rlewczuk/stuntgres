@@ -39,7 +39,7 @@ library, and never the root engine or `session`. The engine, the root driver
   occurrences to canonical inputs for frozen-literal capture.
 - **`Host`** (`host.go`): the engine services the binder calls (name and type
   resolution, privileges, definition reads, captures, stored views). The engine
-  implements it as `bindingHost`.
+  implements it as `BindingHost`.
   Relabelled builtin/installed calls select through current catalog name buckets,
   then bind their checked immutable provider symbol. COW source/destination
   provider-name overrides prevent registry fallback from resurrecting vacated
@@ -154,7 +154,7 @@ library, and never the root engine or `session`. The engine, the root driver
 - **Byte-identical stored SQL.** Capture maps keep their contents and iteration
   rules so views, rules, policies, defaults and checks deparse byte-identically.
 - **No mutexes, no engine state.** The binder reaches engine state only through
-  `Host`. Binding runs with `Engine.mu` held by the caller; host methods never
+  `Host`. Binding runs with `Engine.Mu` held by the caller; host methods never
   take or release it.
 - **Authorities.** Only the host interprets a binding authority; engine code
   recovers stored authorities with `authorizationOf`, which rejects binding
@@ -234,9 +234,9 @@ library, and never the root engine or `session`. The engine, the root driver
 
 ## What stays in the engine
 
-Search-path wrappers (`schema_path.go`) and `pathInput` (reads `search_path`
+Search-path wrappers (`schema_path.go`) and `PathInput` (reads `search_path`
 under the session settings mutex only for unqualified resolution); the binder
-construction point (`newExpressionBinder`), the host (`bindingHost`,
+construction point (`NewExpressionBinder`), the host (`BindingHost`,
 `analysis_host.go`), the `describe*` wrappers and authority adapters
 (`analysis_authority.go`); DDL that drives its own binder (rule/policy
 conditions, defaults, checks, index and partition expressions); `expectedOf`,
@@ -248,7 +248,7 @@ Binder tests need an engine host, so most live in `internal/engine` and name
 `analyze.Binder` directly; package tests here cover the pure seams. Public
 binding behavior belongs in `reference/`; follow
 [docs/TESTING.md](../../../docs/TESTING.md). To find engine units that build
-bindings, grep `internal/engine/*_test.go` for `describe(` and the payload names.
+bindings, grep `internal/engine/*_test.go` for `Describe(` and the payload names.
 
 - Package seams: `RUN='^Test(SQLCallableParameterMapping|RelationNamespaceShape|InsertConflictClone|ExpectedCheckLifetime|CheckQuerySources|CheckBindingDelete|DomainIdentityCaptureRetirement)'`
 - Host, slots and authorities (engine): `RUN='^Test(AnalysisHost|ExpectedOfCopiesHeldInputs|CapturedInputsRetargetOnlyTheirSinks|BindingSlotsKeepNilAbsent)'`

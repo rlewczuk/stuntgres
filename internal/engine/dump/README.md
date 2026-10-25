@@ -68,7 +68,7 @@ standard library, and holds no state, no mutex and no engine callback.
   `Presenter`: those of `routine`, `typedef`, `partition`, `table`
   (`PhysicalNotNullDumpDependencies`) and `regobj`
   (`DomainInvalidDumpEvents`). The table dump record is `table.DumpRelation`.
-- **Capture (root).** `Engine.Dump` takes `Engine.mu`, calls
+- **Capture (root).** `Engine.Dump` takes `Engine.Mu`, calls
   `captureDumpLocked` (`dump_capture.go`) and unlocks once. Inside that window
   the root reads engine state and runs `control.Collect` (the Collect tables)
   over a `control.Source`; it returns a `control.Capture` and hands it to
@@ -92,7 +92,7 @@ make check RUN='^TestReferenceControl'
 ```
 
 Dump output must stay byte-identical. Changes to the root Collect tables,
-`control`'s Emit table or the `Engine.mu` window also need
+`control`'s Emit table or the `Engine.Mu` window also need
 `make check RACE=1 RUN='^TestReferenceControl'` and a baseline comparison: a
 throwaway program under `.cswd/tmp/<task>/` (never committed) opens a database
 with the root driver, runs a fixed corpus covering every object kind, calls

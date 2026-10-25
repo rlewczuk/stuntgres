@@ -152,7 +152,7 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
   current execution, never of the capture: a resolver bound to an
   `exec.Authority` asserts `Host.(NoticeHost)` at each call and emits nothing
   when the host takes no notices; otherwise it emits to the captured operation.
-- No mutex; nothing takes `Engine.mu`. Callers that need the engine lock
+- No mutex; nothing takes `Engine.Mu`. Callers that need the engine lock
   (`Engine.capture*`) hold it themselves, and the callbacks they pass
   (`CaptureRowsOutput`'s collation path, `LookupPaths`) run under it.
 
@@ -162,7 +162,7 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
   `StatementScope.Format*` methods behind `exec.Host`, keyed by `exec` keys and
   filled through the spellings above.
 - The constructors that read engine state: `Engine.captureRegclassOutput`,
-  `Engine.captureACLItemInput`, `Engine.captureRegObjectRowsValueLocked`,
+  `Engine.CaptureACLItemInput`, `Engine.captureRegObjectRowsValueLocked`,
   `Engine.regclassLocked`, the `Engine.capture*Input` methods and
   `captureRegObjectsOnPath` with the `inputCapture` helper (which drops the
   session and settings from the captured `AuthorizationView`), and the
@@ -172,7 +172,7 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
   `visibility_inquiry.go`): snapshot checks, `admitInquiryBody`, the
   `addressLookup` builder (its `Namespace` is `analyze.LookupNamespaces` over the
   deparse authority, which reads the engine's TEMP ownership and domain), the
-  `Engine.mu` `pg_import_system_collations` branch and
+  `Engine.Mu` `pg_import_system_collations` branch and
   `captureVisibilitySnapshotLocked`.
 - `deparse_function.go`: only the missing-snapshot check and the
   `table.DeparseInputs` builder. The `pg_get_*def`, `pg_get_expr` and

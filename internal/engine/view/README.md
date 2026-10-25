@@ -28,12 +28,12 @@ imports `view`.
   `Host` (stage-less: allocation, the access view, relation resolution, the
   temporary owner, function selection and the root-built rule, policy and
   trigger WHEN binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
-  both implemented by the root's `ddlHost`. CREATE OR REPLACE VIEW is
+  both implemented by the root's `DDLHost`. CREATE OR REPLACE VIEW is
   `CreateTarget`, `CheckCreate` and `StageCreate`; ALTER VIEW is `AlterChange`;
   DROP VIEW is `DropTargets`, then `RecheckDropTargets` after the waits. RULE DDL
   uses `BeginRule` and `RulePlan.BindCondition`, `BindAction`, `Finish`; POLICY
   uses `PlanPolicy`. They produce a `RelationChange` for root staging/publication.
-  Each rule phase holds Engine.mu and never waits. The root admits event AX
+  Each rule phase holds Engine.Mu and never waits. The root admits event AX
   first, binds the qualification, then interleaves unlocked provider admission
   with each action's canonical binding in order. TRIGGER DDL (CREATE [OR
   REPLACE], ALTER TRIGGER RENAME and [NO] DEPENDS ON EXTENSION, DROP) is
@@ -118,7 +118,7 @@ imports `view`.
 - **Stored view sources** (`stored_sources.go`): `FreezeStoredSources` installs
   the frozen-layout bridges and stored references of captured sources.
 - **DROP read side** (`drop_*.go`, `dependents.go`): `DropReader` is the drop
-  stage that the root's `dropProvider` implements. `DropClosure` is the
+  stage that the root's `DropProvider` implements. `DropClosure` is the
   dependency closure (edges are `table.DomainDependency`); `DependentViews`,
   `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents;
   `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view. For the
@@ -151,7 +151,7 @@ imports `view`.
 
 ## What stays in the engine
 
-Dispatch, `Engine.mu`, lock waits (`view_locks.go`) and `prepareViewCreation`.
+Dispatch, `Engine.Mu`, lock waits (`view_locks.go`) and `prepareViewCreation`.
 The handler skeletons (`executeCreateView`, `executeAlterView`,
 `executeDropView`, `executeRule`, `executePolicy`) keep the statement authority,
 the IF EXISTS NOTICEs, the stage lifecycle, the waits and publication. Also the
@@ -159,7 +159,7 @@ host bodies (`view_host.go`), rule program execution (it runs DML), view source
 opening (`view_source.go`), refresh row production and staging,
 `importMaterializedSnapshots` and the per-row statement scope and binder, the
 policy import's storage, lock waits, authority refresh, snapshots and source
-preparation, the row-security authority wrappers and `dropProvider`. The
+preparation, the row-security authority wrappers and `DropProvider`. The
 `SynchronizeTriggersLocked` call stays in `ValidateCatalogStage` (`catalog.go`).
 
 ## Invariants
@@ -192,10 +192,10 @@ preparation, the row-security authority wrappers and `dropProvider`. The
 - Concurrent refresh keeps the unique-index requirement, duplicate detection and
   source lineage checks. Snapshot comments (`stuntgres-matview-v1`) are
   byte-stable and decode the same way.
-- `Host` and `StageHost` methods run with `Engine.mu` held, never take or release
+- `Host` and `StageHost` methods run with `Engine.Mu` held, never take or release
   it and never wait; the decisions never begin, publish or discard a stage.
   `StageCreate` writes only to the stage it is given.
-- `SynchronizeTriggersLocked` runs under `Engine.mu` on every publication and
+- `SynchronizeTriggersLocked` runs under `Engine.Mu` on every publication and
   takes no lock. Its first step is the exit for publications in which no
   relation has or inherits triggers, so those publications pay nothing; the
   root passes a pointer-shaped allocator for the same reason. Clones keep
@@ -204,7 +204,7 @@ preparation, the row-security authority wrappers and `dropProvider`. The
   along the `TriggerReplacement` lineage.
 - The package holds no engine state and no mutex, and its functions never wait.
   `RuleRewriter.ExpandLocked` reads live storage through the rule authority, so
-  its caller (and `NormalizeRuleCTEsLocked`'s) holds `Engine.mu`.
+  its caller (and `NormalizeRuleCTEsLocked`'s) holds `Engine.Mu`.
 - **Snapshot import admission.** Import binds every scalar through the ordinary
   typed binder and accepts only the closed shapes the emitter writes, with a full
   destination-ordered column list; anything else is rejected. Admitted array

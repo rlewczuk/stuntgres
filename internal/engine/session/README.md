@@ -57,7 +57,7 @@ implement its slots, so either import would form a cycle.
   `SnapshotSet` also records that RC execution has acquired a snapshot, closing
   the transaction-characteristics window without retaining a transaction pair.
 - **2PC registry** (`prepared_registry.go`): `PreparedRegistry` of
-  `PreparedTransaction` entries by GID, under `Engine.mu`, with `Lookup`,
+  `PreparedTransaction` entries by GID, under `Engine.Mu`, with `Lookup`,
   `Len`, `All`, `ReserveLocked` (before the callback-free install),
   `InstallLocked`, `RemoveLocked`, `ClaimLocked`/`ReleaseLocked` and
   `PublicationPreflightLocked` over a `PreparedPublication`.
@@ -138,7 +138,7 @@ implement its slots, so either import would form a cycle.
   immutable global page positions, `NotificationListener` (in the root payload),
   `NotificationRegistry` and publication (`CaptureLocked`, unlocked `Prepare`,
   `OldestPrepared`, `UnchangedLocked`, `InstallLocked`). Every mutable field but
-  the listener's `Used` hint belongs to the cluster-shared `Engine.mu`, which the
+  the listener's `Used` hint belongs to the cluster-shared `Engine.Mu`, which the
   root takes around the `…Locked` methods. A state's optional unread position
   retains the oldest global boundary, including cursor-only foreign traffic;
   Pending owns local unprocessed batches and Ready owns client-ready events.
@@ -154,7 +154,7 @@ implement its slots, so either import would form a cycle.
   `Clone`, `AddFence`, `PrivateRead`, `RecordDescriptor`, `RecordDefaultACL`,
   `RecordCandidateDefaults` and `MergeCandidate` (a `catalog.Candidate`
   checked and recorded against the published base). The root's `…Locked`
-  wrappers pass the published base under `Engine.mu`.
+  wrappers pass the published base under `Engine.Mu`.
   Object/default ACLs, role mutations and comments share the immutable role
   overlay. The first actual role delta captures its committed predecessor as
   `RolesBase`; later private deltas preserve that base until a successful immutable
@@ -187,7 +187,7 @@ implement its slots, so either import would form a cycle.
   `PreflightLocked` fence over the committed catalog, the session and
   published role records and the database address. It expires at the
   statement's successful Finish, never at the outer Commit. The root captures
-  it from its authorization view and passes those values under `Engine.mu`
+  it from its authorization view and passes those values under `Engine.Mu`
   and the session mutex; it takes no lock.
 - **Journal capture** (`journal_capture.go`): `JournalCapture` turns a
   validated stage's `catalog.Candidate` into the retained transaction's
@@ -205,7 +205,7 @@ implement its slots, so either import would form a cycle.
   snapshots, dynamic pgrowlocks roots, own writes and deletes);
   `PrivateStorage`, `CommittedRoots` and
   `TransactionOwner.NeedsSnapshotProjection`. The root fills the input under
-  `Engine.mu` after its epoch checks and snapshot step and passes it by
+  `Engine.Mu` after its epoch checks and snapshot step and passes it by
   pointer; `SameLineage` and `SameRowShape` are static func fields because
   `session` imports neither `view` nor `index`.
 - **Fences** (`fence.go`, `journal_fences.go`): `Fence` with `Kind()`, and
@@ -233,10 +233,10 @@ implement its slots, so either import would form a cycle.
   `TransactionOwner.Mu` and `Admission`, `SettingsStore.Mu`, and the leaf
   mutexes of `RandomState` and the UUID clocks; their order is in the
   [`lock` README](../lock/README.md#mutex-ownership-and-lock-order). Code here
-  never takes `Engine.mu`; it reaches the engine only through `Host`.
+  never takes `Engine.Mu`; it reaches the engine only through `Host`.
 - **No orchestration.** The transaction owner holds the journal; statement
   admission serializes writers, and the root validates and publishes it under
-  `Engine.mu`. The journal itself takes no lock.
+  `Engine.Mu`. The journal itself takes no lock.
 - **Copy-on-write.** A statement writes a `Clone` and installs it; savepoint
   marks keep older journals. `Clone` copies the maps, clones each non-nil slot
   and shares fences (immutable once recorded) in recording order.
@@ -265,19 +265,19 @@ implement its slots, so either import would form a cycle.
 ## What stays in the engine
 
 The statement scope and dispatch, and all orchestration across catalog, storage
-and visibility: the `Engine.mu` windows of begin, commit, rollback and CHAIN
+and visibility: the `Engine.Mu` windows of begin, commit, rollback and CHAIN
 (`transaction*.go`), of PREPARE and COMMIT/ROLLBACK PREPARED with the role read,
 SSI and lock-manager calls (`transaction_prepared.go`), and of savepoints
 (`savepoints.go`, with `restoreSavepointLocked` shared by ROLLBACK TO and
 failed-statement or PL/pgSQL rollback), publication and preflight, session start,
-the `Engine.mu` → `Settings.Mu` → `Session.Mu` windows of settings application,
+the `Engine.Mu` → `Settings.Mu` → `Session.Mu` windows of settings application,
 setting calls and DISCARD (`setting_apply.go`, `setting_calls.go`,
 `discard.go`), the data-view shell (`transaction_visibility.go`: epoch
 checks, `visibilitySnapshotLocked`, the pgrowlocks dependency flag and storing
 the view), the protocol Parse,
 Bind, Describe, Execute and fastpath steps (`protocol_*.go`, with
 `ProtocolStatement`, `ProtocolPortalDescription` and `ProtocolExecution`,
-which carry `StatementDescription`), the `Engine.mu`
+which carry `StatementDescription`), the `Engine.Mu`
 windows of notification publication and polling, the `…Locked` journal
 wrappers, the root fence types and the fence check order, and the root slot
 types.

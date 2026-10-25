@@ -224,7 +224,7 @@ these roles to the actual destination descriptors, never a same-named loose type
   passes (`ImportOwners` writes only its private clone).
 - **Lock contract.** The engine calls `StageCreate`, `StageUpdate`,
   `DropTargets`, `ImportOwners`, `AuthorityObservation.Current`,
-  `Installer.Stage`, the update actions and `StagePath` with `Engine.mu` held,
+  `Installer.Stage`, the update actions and `StagePath` with `Engine.Mu` held,
   and its `Host` and `Stage` implementation (`extensionHost`) runs under that
   lock too; nothing here may call anything that takes it. Provider validation
   (`ValidateExtension`) runs later, outside the lock. Allocation and check order
@@ -249,7 +249,7 @@ The `extension.Host` and `extension.Stage` adapter `extensionHost`
 back); the closed-registry check of `registerExtension` and the startup list in
 `engine.go`; the snapshot check of `statementHost.OpenExtensionPaths`; the
 orchestration of the handlers (`extension_install.go`, `extension_update.go`,
-`extension_drop.go`, `extension_owner_import.go`): argument count, `Engine.mu`,
+`extension_drop.go`, `extension_owner_import.go`): argument count, `Engine.Mu`,
 authorization capture, publication (`publishExtensionStage`), DROP's removal
 pipeline and its multi-target 2BP01 text and cascade notice, and the owner
 import's authority check, clone, expression reown and publish; the fence wrapper

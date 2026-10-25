@@ -8,7 +8,7 @@ standard library. It never imports the root engine. Layering is in
 
 ## What it owns
 
-- **`Registry`**, held by value as `Engine.visibility` and never replaced
+- **`Registry`**, held by value as `Engine.Visibility` and never replaced
   whole. It contains the commit frontier (`CommitSeq`); writer ordering
   identities (visibility XIDs) and per-incarnation `Entry` records; the
   canonical full-XID allocator with its `History` and `LowIDs`; the TxRef
@@ -49,15 +49,15 @@ standard library. It never imports the root engine. Layering is in
 ## Contract
 
 - **One lock authority.** The registry has no mutex. The caller holds
-  `Engine.mu` for every read and write, including the getters, so commit
+  `Engine.Mu` for every read and write, including the getters, so commit
   ordering and publication stay atomic with the catalog and storage.
   Mutating methods carry the `Locked` suffix or say that the caller holds
-  `Engine.mu`.
+  `Engine.Mu`.
 - **Lock order.** Registry methods never take another mutex, never block and
   never call back into the engine. They touch only ticket atomics
   (`MirrorFullXID`, `MirrorCompletion`, `OwnershipEnded`, `AssignedFullXID`),
   never `lock.Manager` state, so the manager mutex is never taken under
-  `Engine.mu`. The full order is in
+  `Engine.Mu`. The full order is in
   [lock/README.md](../lock/README.md#mutex-ownership-and-lock-order).
 - **One isolation owner.** Transaction isolation has one owner,
   `session.TransactionOwner`. Never cache an owner on prepared statements or
@@ -102,7 +102,7 @@ standard library. It never imports the root engine. Layering is in
   ends only its own handle, and a forged or copied handle can neither retain,
   release nor read (`Data` panics; `Load` returns the raw pointer).
 - **VACUUM retention and freezing** (`maintenance.go`, `Registry` methods that
-  run under `Engine.mu` and never allocate).
+  run under `Engine.Mu` and never allocate).
   - `VacuumRetirementAllowedLocked` excludes the caller's own canonical
     maintenance owner and gates current dead-head retirement on any other
     same-epoch registered snapshot/builder/writer/live ticket, rechecking that
@@ -112,7 +112,7 @@ standard library. It never imports the root engine. Layering is in
     clamped by the actual in-progress assigned full XIDs. CommitSeq, writer
     order and low-32 XIDs are separate ordering domains; special low-32 values
     are skipped by the canonical allocator. Ticket liveness reads atomics only,
-    never manager metadata under `Engine.mu`.
+    never manager metadata under `Engine.Mu`.
   - The same safe cutoff initializes empty relation incarnations
     (`InitializeMaintenanceLocked`), because an already assigned older READ
     COMMITTED publisher may later insert into a newly created relation.
@@ -144,12 +144,12 @@ standard library. It never imports the root engine. Layering is in
   `AbandonSafeSnapshotLocked`. Abandonment also clears capture/ready evidence;
   the engine withdraws registry advertisement and the owner's retained roots
   and public snapshot. The engine's wait loop (`acquireSerializableSnapshot`)
-  calls `SafeSnapshotWait` and `SafeSnapshotOutcome` and waits with `Engine.mu`
+  calls `SafeSnapshotWait` and `SafeSnapshotOutcome` and waits with `Engine.Mu`
   released. That loop also drops and retakes `replacementMu` while its caller
   holds `session.TransactionOwner.Mu`; this package takes no part in that ordering.
 
 - **Public snapshots.** `CurrentSnapshotLocked` captures full transaction IDs
-  under `Engine.mu`, with a latest-completed frontier distinct from writer
+  under `Engine.Mu`, with a latest-completed frontier distinct from writer
   ordering and assignment. Self lowers xmin but is omitted from membership;
   active peers below xmax include detached prepared owners. Completion history
   wins over stale entry/ticket mirrors, and commit and abort both advance xmax.

@@ -1,7 +1,7 @@
 # internal/engine
 
 The root engine is the analysis host and owns transactions, settings and
-lifecycle publication: `Engine.mu`, the catalog store (`catalog.Store`, see
+lifecycle publication: `Engine.Mu`, the catalog store (`catalog.Store`, see
 [its README](catalog/README.md)), statement scopes and admission,
 catalog/storage/visibility installation, and the orchestration of native
 Dump/Restore and the wire protocol. Subsystem logic lives in layered
@@ -15,7 +15,7 @@ each DML activation captures the current owner-private trigger list, not a list
 cached by its prepared handle. CREATE/REPLACE admits ShareRowExclusive on the
 root and descendants; rename admits AccessExclusive before mutation. Addressed
 DROP and extension metadata use the generic AccessShare target admission;
-`view.PlanTrigger` then decides the change under `Engine.mu`. Clone
+`view.PlanTrigger` then decides the change under `Engine.Mu`. Clone
 synchronization (`view.SynchronizeTriggersLocked`, called from
 `ValidateCatalogStage`) preserves exact Parent/OID identity and fails a
 descendant name collision before publication. Extension x
@@ -114,7 +114,7 @@ that handoff; PL-local, parameter, row, domain and volatile demand barriers rema
 
 ## Cluster and logical database ownership
 
-Each exact Driver DSN owns one `databaseCluster`: a pointer-stable metadata mutex,
+Each exact Driver DSN owns one `DatabaseCluster`: a pointer-stable metadata mutex,
 shared [`access.RoleStore`](access/README.md) (principal domain, ACL authority,
 committed roles) and database registry with a
 stable default target and monotonic identities. Local Engine runtimes borrow
@@ -188,11 +188,11 @@ subpackage types directly (no aliases).
 | Root type | Implements |
 | --- | --- |
 | `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `SequenceRuntime`, `TransactionInquiryRuntime`, `LargeObjectRuntime`, `PgrowlocksRuntime`, `FTSQueryRuntime`) that `*exec.Context` forwards |
-| `ddlHost` | `ddl.Host`, `ddl.SchemaHost`, `routine.DDLHost`, `typedef.StageHost`, `table.Host`, `index.Host`, `index.KeyHost`, `fdw.Host`, `role.Host`, `role.StageHost`, `partition.Host`, `view.Host`, `view.StageHost` |
+| `DDLHost` | `ddl.Host`, `ddl.SchemaHost`, `routine.DDLHost`, `typedef.StageHost`, `table.Host`, `index.Host`, `index.KeyHost`, `fdw.Host`, `role.Host`, `role.StageHost`, `partition.Host`, `view.Host`, `view.StageHost` |
 | `alterHost` | `table.AlterHost` |
 | `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
-| `bindingHost` (`analysis_host.go`) | `analyze.Host` |
-| `engineCatalogRuntime` (`catalog_source_runtime.go`) | `pgcatalog.Runtime` |
+| `BindingHost` (`analysis_host.go`) | `analyze.Host` |
+| `EngineCatalogRuntime` (`catalog_source_runtime.go`) | `pgcatalog.Runtime` |
 | `enginePreparation` (`exec_preparation.go`) | `exec.Preparation`, installed with `exec.InstallPreparation` |
 | `restoreHost` (`restore_run.go`) | `control.Host` |
 | `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
@@ -207,15 +207,15 @@ owned records; no user constraints, codecs or physical block mapping run.
 
 ## Lock order
 
-`replacementMu` and `TransactionOwner.Mu` precede `Engine.mu`, which precedes
+`replacementMu` and `TransactionOwner.Mu` precede `Engine.Mu`, which precedes
 `Session.Mu`, `SettingsStore.Mu` and `Engine.sessionMu`; the lock manager's
-mutex is innermost and never taken under `Engine.mu`. Callbacks and external I/O
+mutex is innermost and never taken under `Engine.Mu`. Callbacks and external I/O
 run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-order)).
 
 ## Prepared statements
 
 - Ordinary prepared SQL keeps one private analysis-identity cell
-  (`preparedAnalysis` in `prepared_rebind.go`, owned by `Engine.mu` and
+  (`preparedAnalysis` in `prepared_rebind.go`, owned by `Engine.Mu` and
   physical-session admission), not an executable plan, data or permission cache.
 - While the cell is valid, admission preserves per-occurrence target, nested,
   view and unused-CTE identities. Only dependency, effective-path, namespace or
@@ -292,7 +292,7 @@ run outside these locks ([full rules](lock/README.md#mutex-ownership-and-lock-or
   is AlterView; collation/conversion OWNER is included. Procedure creation,
   language lifecycle and concurrent index variants keep their independent restrictions.
   Definition mutation admission captures original identities, waits outside
-  `Engine.mu`, then builds at most one final stage from current authority when
+  `Engine.Mu`, then builds at most one final stage from current authority when
   needed. ALTER retains its original target independently of DROP roots, even for
   no-op actions; neither final replacements nor removals may expand that set.
   A renamed or relocated original cannot redirect an unqualified ALTER to a
@@ -437,7 +437,7 @@ a dropped provider. Type and definition-source reads join ordinary stage/journal
 fences. Quoted bodies do not acquire hard edges by scanning their source.
 Schema DROP carries an ordered namespace/name manifest, including conditional
 absences, across admission. Current bindings and ownership are validated in the
-same Engine.mu section that constructs its identity-bound stage; any changed
+same Engine.Mu section that constructs its identity-bound stage; any changed
 binding fences the whole statement instead of adding or retargeting a victim.
 Conditional skip re-resolves the original creation namespace with current
 USAGE/CREATE and source position; a changed destination cannot authorize a skip.
@@ -453,7 +453,7 @@ Query-derived creation claims its destination before producer evaluation.
 
 ## Immutable settings registry
 
-`Engine.settings` holds one [`settings`](settings/README.md) `Registry` by value,
+`Engine.Settings` holds one [`settings`](settings/README.md) `Registry` by value,
 built before provider registration and publication; providers borrow a pointer
 to it, and descriptor validation and grant-name canonicalization use the same
 registry. Notice levels, physical-session values, the settings journal and
@@ -468,9 +468,9 @@ Producers, the OID registry and descriptor specs live in
   `pgcatalog.ProducerFor` and chooses the per-OID catalog/role roots,
   presentation and unlock timing; it is not a second dispatcher. Only `pg_locks`
   and lazy `pg_sequences` bypass producers.
-- `engineCatalogRuntime` exposes values per call, never Engine, StatementScope,
+- `EngineCatalogRuntime` exposes values per call, never Engine, StatementScope,
   AuthorizationView or bindings. Settings rows capture one coherent
-  physical-session snapshot after unlocking `Engine.mu`; `pg_locks_capture.go`
+  physical-session snapshot after unlocking `Engine.Mu`; `pg_locks_capture.go`
   keeps an unlock/capture/relock epoch fence.
 - `catalog_sources.go` registers descriptors from `pgcatalog.Specs`, preserving
   registration order, OIDs, columns and row/array links.
@@ -481,7 +481,7 @@ Producers, the OID registry and descriptor specs live in
 
 - `catalog.RevisionFrontier` is pure and saturating and never reserves
   the global allocator; publication commits its local frontier only at
-  successful installation under `Engine.mu`.
+  successful installation under `Engine.Mu`.
 - Persistent replacement reserves OIDs with an operation-local base/next cursor
   through the same `catalog.Store.AllocateOIDFromLocked` checks as ordinary
   issuance. All preservation OID users share it. Only final catalog installation
@@ -601,9 +601,9 @@ remapping, prepared invalidation and catalog-replacement fences.
 
 ### Other runtimes
 
-- Ordinary blocking reads never nest `Engine.mu` and manager mutexes.
+- Ordinary blocking reads never nest `Engine.Mu` and manager mutexes.
   Safe-snapshot capture and transaction-inquiry XID/timestamp sampling run under
-  `Engine.mu`; members are packed from the manager's snapshot clone outside it.
+  `Engine.Mu`; members are packed from the manager's snapshot clone outside it.
 - `sequence_runtime.go` runs the catalog epoch fence (with TEMP epoch
   revalidation) before and after RowExclusive `acquireSequence`, then the ACL
   and read-only checks; call semantics belong to [`sequence`](sequence/README.md).
@@ -640,7 +640,7 @@ portable ownership records and identity replay.
 - MultiXact records, counters and history belong to the lock manager. CHECK and
   branch admission precede the physical event; index and RETURNING evaluation
   follow it. Shared mutations journal successor/deletion events while private
-  roots are locked and flush after the engine/owner unlock. No `Engine.mu` →
+  roots are locked and flush after the engine/owner unlock. No `Engine.Mu` →
   manager-mutex acquisition exists. Finish discards private stages on failure.
 
 ## Server protocol and timeouts
@@ -664,7 +664,7 @@ session, transaction, prepared-analysis and typed-frame authorities.
 ## Native Dump and Restore
 
 Drivers, the Emit table and hook entry types live in [`control`](control/README.md);
-the root keeps Dump's `Engine.mu` window and Collect tables, the restore stage,
+the root keeps Dump's `Engine.Mu` window and Collect tables, the restore stage,
 `restoreRun` with every `restoreHooks` entry, and the atomic `replaceCatalog`.
 
 Private Restore definition lookups capture the live authenticated bootstrap

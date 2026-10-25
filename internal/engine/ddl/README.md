@@ -93,11 +93,11 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   ROLE rule. `CheckCreateDatabase(name, options, exists)` runs the admission
   checks in PostgreSQL's order: template, encoding, LC_COLLATE/LC_CTYPE, the
   unsupported capability, then the duplicate name. `exists` answers whether a
-  database name is registered. Both run under `Engine.mu` and take no lock.
+  database name is registered. Both run under `Engine.Mu` and take no lock.
 
 ## Lock rule
 
-Every `Host` method runs with `Engine.mu` held. None takes or releases it,
+Every `Host` method runs with `Engine.Mu` held. None takes or releases it,
 and none waits on the lock manager. The package adds no mutex.
 
 ## Who embeds it
@@ -107,8 +107,8 @@ and none waits on the lock manager. The package adds no mutex.
   embeds `Allocator` and `TypeStaging`. The extension handlers take an
   `Authority` and check it through the `access.View` passed beside it.
 - In the engine, `AuthorizationView` is the only `Authority`
-  (`ddlAuthorityOf` recovers it and panics on another kind). There is one
-  staging adapter, `ddlHost` (engine, operation, catalog stage): its `Host`
+  (`DDLAuthorityOf` recovers it and panics on another kind). There is one
+  staging adapter, `DDLHost` (engine, operation, catalog stage): its `Host`
   methods are in `ddl_host.go`, the `routine.DDLHost` methods in
   `routine_host.go`, the `typedef.StageHost` and `TypeStaging` methods in
   `typedef_host.go`, the `fdw.Host` method in `fdw_host.go`, the `role.Host`
@@ -118,12 +118,12 @@ and none waits on the lock manager. The package adds no mutex.
   Neither adapter is a defined type over `CatalogStage`, so its unchecked
   `Create`/`Replace` are never promoted.
 - **Adding a feature host:** embed `Host` and declare no `Authority` or
-  `Stage` of your own. The root adapter either embeds `ddlHost` (Go promotes
-  the shared methods) or is `ddlHost` itself. Never copy a shared method body.
+  `Stage` of your own. The root adapter either embeds `DDLHost` (Go promotes
+  the shared methods) or is `DDLHost` itself. Never copy a shared method body.
 
 ## What stays in the engine
 
-`Engine.mu`, authority capture, stage begin and publication, and the schema
+`Engine.Mu`, authority capture, stage begin and publication, and the schema
 statement dispatch (`schema.go`): `executeSchema` (partition 0A000
 pre-checks, locks, publication and the cascade notice), `stageSchemaLocked`
 (capture, the early actor read that gates every staged statement, one call
@@ -134,10 +134,10 @@ exact staged destination-name claims. It publishes schema/table/dependency
 candidates through the ordinary journal, with no separate schema undo path.
 `executeCreateTablespace` keeps the argument count
 check, the lock and the authority capture; `alterAllTablespaceLocked` keeps
-the argument count check and the deferred `Engine.mu` unlock, and
+the argument count check and the deferred `Engine.Mu` unlock, and
 `statementHost.TablespaceLocation`/`TablespaceDatabase` keep the retained
 snapshot and owner check and emit the returned warning.
-`executeCreateDatabase` keeps the argument count check, `Engine.mu`, the
+`executeCreateDatabase` keeps the argument count check, `Engine.Mu`, the
 authority capture (`databaseCreateOwnerLocked`), the `exists` answer from
 `e.cluster.targets` and the context check; `createDatabaseTarget` (private
 construction and the owner re-check), `publishDatabaseTargetLocked` and the
