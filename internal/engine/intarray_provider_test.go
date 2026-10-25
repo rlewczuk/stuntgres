@@ -251,7 +251,7 @@ func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *session.Operati
 		t.Fatal(err)
 	}
 	var changes session.Journal
-	ref, err := e.creationNamespaceStagedLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "component"}}}, true, &changes, false)
+	ref, err := e.RelationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "component"}}}, "temporary", &changes)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)

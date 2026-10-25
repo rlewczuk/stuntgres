@@ -50,7 +50,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, q := range []string{"CREATE SCHEMA hidden", "CREATE SCHEMA visible"} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
+		roleExecute(t, e, op, q)
 	}
 	e.Mu.Lock()
 	reader := e.RoleStore.Domain.Principal(e.RoleStore.NextPrincipal())

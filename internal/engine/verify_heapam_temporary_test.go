@@ -58,14 +58,14 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 						request, err := e.Locks.StartAcquire(context.Background(), scope.LockTicket, resource, lock.AccessShare, lock.Policy{})
 						if request != nil || err != nil { t.Fatal(request, err) }
 					}
-					rows, err := (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, target, false), n.Usage.Type)
+					rows, err := scope.WriteHost().VerifyHeapam(heapUnitArgs(t, e, target, false), n.Usage.Type)
 					var diagnostic *sqlstate.Error
 					want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
 					if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || len(rows) != 0 { t.Fatal("foreign TEMP must be denied before materialization", rows, err) }
 					if e.Locks.HasAccessShare(scope.LockTicket, resource) != prior { t.Fatal("foreign rejection changed prior AccessShare contribution", prior) }
 					if !peer.Transactions.AccessedTemporary || peer.TemporaryNamespace != namespace { t.Fatal("foreign rejection omitted TEMP-attempt footprint or changed caller namespace") }
 					unchanged(t)
-					rows, err = (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, persistent, false), n.Usage.Type)
+					rows, err = scope.WriteHost().VerifyHeapam(heapUnitArgs(t, e, persistent, false), n.Usage.Type)
 					if err != nil || len(rows) != 0 || !peer.Transactions.AccessedTemporary { t.Fatal("persistent admission failed or erased sticky TEMP-attempt footprint", rows, err) }
 				})
 			}
@@ -76,7 +76,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 				missing := *target
 				missing.ObjectAddress.ObjectID = e.Catalog.NextOID()+999
 				for _, tc := range []struct { target *catalog.Relation; code string }{{&missing, "XX000"}, {wrong, "42809"}} {
-					_, err := (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, tc.target, false), n.Usage.Type)
+					_, err := scope.WriteHost().VerifyHeapam(heapUnitArgs(t, e, tc.target, false), n.Usage.Type)
 					var diagnostic *sqlstate.Error
 					if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || owner.Transactions.AccessedTemporary { t.Fatal("rejected target changed own TEMP footprint", err) }
 				}
@@ -87,7 +87,7 @@ func TestVerifyHeapamTemporaryAdmission(t *testing.T) {
 			sessionSQL(t, owner, "SAVEPOINT heap_before")
 			t.Run("own-admitted", func(t *testing.T) {
 				scope := pgrowlocksUnitScope(t, e, owner)
-				rows, err := (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, target, false), n.Usage.Type)
+				rows, err := scope.WriteHost().VerifyHeapam(heapUnitArgs(t, e, target, false), n.Usage.Type)
 				if err != nil || len(rows) != 0 || !owner.Transactions.AccessedTemporary { t.Fatal("own TEMP admission omitted sticky transaction accounting", rows, err) }
 				resource := lock.Resource{ObjectRef: e.Catalog.Domain.Ref(view.Epoch(), target.Address())}
 				if e.Locks.HasAccessShare(scope.LockTicket, resource) { t.Fatal("own TEMP verification retained added AccessShare") }

@@ -42,17 +42,16 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			// Stage each declaration independently, as the private staging seam
-			// deliberately receives one parser statement rather than executing SQL.
+			// Create each declaration with its own statement.
 			if family.name == "pair" {
-				domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE public.leaf AS ENUM ('a','b')"))
-				domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE public.pair AS(v leaf)"))
+				roleExecute(t, e, op, "CREATE TYPE public.leaf AS ENUM ('a','b')")
+				roleExecute(t, e, op, "CREATE TYPE public.pair AS(v leaf)")
 			} else if family.extension != "" {
-				domainUnitPublish(t, e, cubeUnitStage(t, e, op, family.extension, ""))
+				roleExecute(t, e, op, "CREATE EXTENSION "+family.extension)
 			} else {
-				domainUnitPublish(t, e, domainUnitStage(t, e, op, family.setup))
+				roleExecute(t, e, op, family.setup)
 			}
-			domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE SCHEMA identity_dst"))
+			roleExecute(t, e, op, "CREATE SCHEMA identity_dst")
 			old := domainUnitType(t, e.CatalogRead(), family.name)
 			raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: family.name, Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 11, Character: 12}}, Syntax: parser.PostfixCast}
 			if array {
@@ -99,8 +98,8 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 				}
 			}
 			expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: first.Prepared.Types, analysis: analysis}
-			domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public."+family.name+" RENAME TO renamed"))
-			domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public.renamed SET SCHEMA identity_dst"))
+			roleExecute(t, e, op, "ALTER TYPE public."+family.name+" RENAME TO renamed")
+			roleExecute(t, e, op, "ALTER TYPE public.renamed SET SCHEMA identity_dst")
 			current := e.CatalogRead().MustType(old.Address())
 			next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			node, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})

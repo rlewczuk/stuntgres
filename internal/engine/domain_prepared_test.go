@@ -13,7 +13,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.d AS integer"))
+	roleExecute(t, e, op, "CREATE DOMAIN public.d AS integer")
 	old := domainUnitType(t, e.CatalogRead(), "d")
 	raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1, Pos: parser.Position{Offset: 7, Character: 8}}, TypeName: parser.TypeName{Name: "d", Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 11, Character: 12}}, Syntax: parser.PostfixCast}
 	first := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
@@ -25,7 +25,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 		t.Fatal("cast source identity not captured")
 	}
 	expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{old.SQLType.Usage()}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: first.Prepared.Types, analysis: &preparedAnalysis{}}
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER DOMAIN public.d RENAME TO renamed"))
+	roleExecute(t, e, op, "ALTER DOMAIN public.d RENAME TO renamed")
 	current := e.CatalogRead().MustType(old.Address())
 	next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	node, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
@@ -65,8 +65,8 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.d AS integer"))
-			domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE SCHEMA identity_dst"))
+			roleExecute(t, e, op, "CREATE DOMAIN public.d AS integer")
+			roleExecute(t, e, op, "CREATE SCHEMA identity_dst")
 			old := domainUnitType(t, e.CatalogRead(), "d")
 			oldArray := e.CatalogRead().MustType(old.Address()).Array
 			raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "d", Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 12, Character: 13}, ArrayBounds: []int32{-1, -1}}, Syntax: parser.PostfixCast}
@@ -122,8 +122,8 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 				return e.preparedAnalysisValidLocked(auth, analysis, analysis.path)
 			}
 			expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: first.Prepared.Types, analysis: analysis}
-			domainUnitPublish(t, e, domainUnitStage(t, e, op, `ALTER DOMAIN public.d RENAME TO "renamed array domain"`))
-			domainUnitPublish(t, e, domainUnitStage(t, e, op, `ALTER DOMAIN public."renamed array domain" SET SCHEMA identity_dst`))
+			roleExecute(t, e, op, `ALTER DOMAIN public.d RENAME TO "renamed array domain"`)
+			roleExecute(t, e, op, `ALTER DOMAIN public."renamed array domain" SET SCHEMA identity_dst`)
 			current := e.CatalogRead().MustType(old.Address())
 			next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			annotation, err := next.TypeCastAnnotation(raw)

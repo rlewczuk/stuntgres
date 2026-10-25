@@ -23,11 +23,21 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// unaccentSQLInstalled installs unaccent through SQL.
+func unaccentSQLInstalled(t *testing.T) (*Engine, *session.Operation, *catalog.Extension) {
+	t.Helper()
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	roleExecute(t, e, op, "CREATE EXTENSION unaccent")
+	return e, op, e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
+}
+
 // Algorithm snapshots clone real installed descriptors. The extra names/IDs
 // are private unit inputs, never published providers or public dictionary DDL.
 func regTSUnitSnapshot(t *testing.T) (*Engine, *session.Operation, catalog.Read, AuthorizationView, []ids.ObjectAddress) {
 	t.Helper()
-	e, op, ext := extensionUnitInstalled(t)
+	e, op, ext := unaccentSQLInstalled(t)
 	view := e.CatalogRead()
 	view = view.WithState(catalog.CloneState(view.State()))
 	var installed *catalog.TSDictionary
@@ -252,7 +262,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 }
 
 func TestRegTSPreparedCapture(t *testing.T) {
-	e, op, _ := extensionUnitInstalled(t)
+	e, op, _ := unaccentSQLInstalled(t)
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()
@@ -335,7 +345,7 @@ func TestRegTSCapturedNamespaceACL(t *testing.T) {
 }
 
 func TestRegTSStoredDependencyProviders(t *testing.T) {
-	e, _, extension := extensionUnitInstalled(t)
+	e, _, extension := unaccentSQLInstalled(t)
 	view := e.CatalogRead()
 	var dictionary *catalog.TSDictionary
 	for _, address := range extension.Members {

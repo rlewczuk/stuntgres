@@ -187,7 +187,7 @@ func TestPLpgSQLCompositeAssignmentAtomicity(t *testing.T) {
 		"CREATE TYPE pl_atomic_pair AS (a integer)",
 		"CREATE DOMAIN pl_atomic_positive AS pl_atomic_pair CHECK((VALUE).a>0)",
 	} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, declaration))
+		roleExecute(t, e, op, declaration)
 	}
 	s, err := e.StartStatement(op)
 	if err != nil {

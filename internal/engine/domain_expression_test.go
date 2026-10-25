@@ -23,7 +23,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, q := range []string{"CREATE DOMAIN public.a AS integer", "CREATE DOMAIN public.b AS integer", "CREATE DOMAIN public.label AS text", "CREATE DOMAIN public.flag AS boolean"} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
+		roleExecute(t, e, op, q)
 	}
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	a := domainUnitType(t, e.CatalogRead(), "a")
@@ -125,7 +125,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS integer"))
+	roleExecute(t, e, op, "CREATE DOMAIN public.a AS integer")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	ast := statement(t, "SELECT 7::public.a FROM public.one").(*parser.Select)
@@ -138,7 +138,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	}
 	renderer := stored.QueryRenderer{View: stored.NewView(stored.ViewParts{Literals: b.Capture.Literals, CastUsages: b.Capture.CastUsages}), Frame: b.FrameID()}
 	old := e.CatalogRead()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER SCHEMA public RENAME TO moved"))
+	roleExecute(t, e, op, "ALTER SCHEMA public RENAME TO moved")
 	text, err := renderer.ExpressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != `CAST(7 AS "moved"."a")` {
 		t.Fatal(text, err)
@@ -164,7 +164,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.short AS varchar(3)"))
+	roleExecute(t, e, op, "CREATE DOMAIN public.short AS varchar(3)")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	target := domainUnitType(t, e.CatalogRead(), "short").SQLType.Usage()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
@@ -202,7 +202,7 @@ func TestDomainQualifiedBuiltinNameModifierIdentity(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.uuid AS integer"))
+	roleExecute(t, e, op, "CREATE DOMAIN public.uuid AS integer")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT 1::public.uuid(3) FROM public.one").(*parser.Select).Targets[0]
@@ -214,7 +214,7 @@ func TestDomainRegclassQueryOutputCapturesFormatter(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.relation_name AS regclass"))
+	roleExecute(t, e, op, "CREATE DOMAIN public.relation_name AS regclass")
 	domainUnitTable(t, e, op, "CREATE TABLE public.t(v public.relation_name)")
 	query := domainUnitBindSelect(t, e, op, "SELECT v FROM public.t")
 	if !query.RegclassOutput {
@@ -226,7 +226,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.relation_name AS regclass"))
+	roleExecute(t, e, op, "CREATE DOMAIN public.relation_name AS regclass")
 	domain := domainUnitType(t, e.CatalogRead(), "relation_name")
 	table := domainUnitTable(t, e, op, "CREATE TABLE public.t(v public.relation_name)")
 	regclass, _ := e.CatalogRead().LookupType(sqltype.Regclass)
@@ -266,7 +266,7 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.a AS name[]"))
+	roleExecute(t, e, op, "CREATE DOMAIN public.a AS name[]")
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT '[1:0]={}'::public.a FROM public.one").(*parser.Select).Targets[0]
@@ -308,7 +308,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 		{"range_clock", "interval minute to second(2)", "1:30.126", "00:01:30.13"},
 		{"chain", "public.days", "1", "1 day"},
 	} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public."+tc.name+" AS "+tc.base))
+		roleExecute(t, e, op, "CREATE DOMAIN public."+tc.name+" AS "+tc.base)
 		target := domainUnitType(t, e.CatalogRead(), tc.name).SQLType.Usage()
 		for _, expression := range []string{"'" + tc.input + "'::public." + tc.name, "CAST('" + tc.input + "' AS public." + tc.name + ")"} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)

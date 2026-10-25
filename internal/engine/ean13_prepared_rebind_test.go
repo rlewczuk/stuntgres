@@ -17,19 +17,30 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// isnSQLInstalled installs isn through SQL.
+func isnSQLInstalled(t *testing.T) (*Engine, *catalog.Extension) {
+	t.Helper()
+	e := New()
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	roleExecute(t, e, op, "CREATE EXTENSION isn")
+	return e, e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "isn"}))
+}
+
 func TestEan13PreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "ean13", 0) }
 func TestIsbnPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "isbn", 3) }
 func TestIsmnPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "ismn", 9) }
 func TestIsmn13PreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "ismn13", 12) }
 func TestIssnPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "issn", 15) }
 func TestIssn13PreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "issn13", 18) }
+func TestUpcPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "upc", 21) }
 
 func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
-	e, ext, _ := isnUnitInstalled(t)
+	e, ext := isnSQLInstalled(t)
 	base := e.CatalogRead().MustType(ext.Members[slot])
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public."+family+" RENAME TO moved"))
+	roleExecute(t, e, op, "ALTER TYPE public."+family+" RENAME TO moved")
 	current := e.CatalogRead().MustType(base.Address())
 	raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: family, Schema: &parser.Identifier{Text: "public"}, Pos: parser.Position{Offset: 11, Character: 12}}, Syntax: parser.PostfixCast}
 	key := analyze.PreparedTypeKey{Offset: 11, Kind: analyze.IdentityCast}
@@ -165,9 +176,10 @@ func TestIsmnPreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t,
 func TestIsmn13PreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "ismn13", 12) }
 func TestIssnPreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "issn", 15) }
 func TestIssn13PreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "issn13", 18) }
+func TestUpcPreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "upc", 21) }
 
 func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
-	e, ext, _ := isnUnitInstalled(t)
+	e, ext := isnSQLInstalled(t)
 	base := e.CatalogRead().MustType(ext.Members[slot])
 	inputs := []string{"1234567890120!", "0123456789012"}
 	outputs := []string{"123-456789012-8!", "012-345678901-2", ""}
@@ -220,9 +232,9 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 		{Offset: 83, TypeID: sqltype.Date, Typmod: -1, Scalar: 42},
 	}
 	saved := append([]analyze.TemporalConstant(nil), original...)
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE SCHEMA ean_literal"))
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public."+family+" RENAME TO moved"))
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public.moved SET SCHEMA ean_literal"))
+	roleExecute(t, e, op, "CREATE SCHEMA ean_literal")
+	roleExecute(t, e, op, "ALTER TYPE public."+family+" RENAME TO moved")
+	roleExecute(t, e, op, "ALTER TYPE public.moved SET SCHEMA ean_literal")
 	current := e.CatalogRead().MustType(base.Address())
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)

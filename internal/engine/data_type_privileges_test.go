@@ -92,7 +92,7 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 		}
 	}
 	// A real staged user domain cannot inherit the seeded builtin exemption.
-	domainUnitPublish(t, f.e, domainUnitStage(t, f.e, f.op, "CREATE DOMAIN public.dtp_ownerless AS integer"))
+	roleExecute(t, f.e, f.op, "CREATE DOMAIN public.dtp_ownerless AS integer")
 	state := catalog.CloneState(f.e.Catalog.State)
 	domain := *domainUnitType(t, f.e.Catalog.Read(state), "dtp_ownerless")
 	domain.Owner = authorization.PrincipalRef{}

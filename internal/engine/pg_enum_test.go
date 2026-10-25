@@ -41,7 +41,7 @@ func TestPGEnumAllocatorLifecycle(t *testing.T) {
 		t.Fatal("Reset recycled reservation", got, err)
 	}
 	op, done = roleOperation(t, e, "postgres")
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE restored AS ENUM ('a')"))
+	roleExecute(t, e, op, "CREATE TYPE restored AS ENUM ('a')")
 	done()
 	var dump bytes.Buffer
 	if err := Dump(context.Background(), e, &dump); err != nil {
@@ -135,7 +135,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	}
 	domainUnitDiagnostic(t, currentAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}), "42501", "permission denied for table pg_enum")
 	for _, q := range []string{"CREATE TYPE mood AS ENUM ('z','q')", "CREATE TYPE empty AS ENUM ()", "CREATE DOMAIN wrapped AS mood"} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
+		roleExecute(t, e, op, q)
 	}
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
 	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.RoleStore.PublishedRead(&e.Catalog.Owner, e.CatalogRead()), ref, d)

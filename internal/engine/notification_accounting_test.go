@@ -17,7 +17,11 @@ func notificationAccountingBatch() []session.Notification {
 func TestNotificationQueueAccountingPublication(t *testing.T) {
 	t.Run("global-roots", func(t *testing.T) {
 		e := New()
-		foreign := databaseCreateUnitInstall(t, e, New(), "queue_foreign")
+		run(t, e, "CREATE DATABASE queue_foreign")
+		foreign, err := e.SelectDatabase(context.Background(), "queue_foreign")
+		if err != nil {
+			t.Fatal(err)
+		}
 		local, remote, sender := sessionStart(t, e, nil), sessionStart(t, foreign, nil), sessionStart(t, e, nil)
 		notificationUnitListen(t, local)
 		notificationUnitListen(t, remote)

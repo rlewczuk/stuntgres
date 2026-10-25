@@ -207,8 +207,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	stage := extensionUnitStage(t, e, op)
-	extensionUnitPublish(t, e, op, stage)
+	roleExecute(t, e, op, "CREATE EXTENSION unaccent")
 	address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	ext := e.Catalog.State.MustExtension(address)
 	d = pgExtensionUnitShape(t, e)

@@ -13,10 +13,40 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
+
+// plUnitTypeStage stages one CREATE DOMAIN or composite CREATE TYPE through
+// the typedef decisions, unpublished.
+func plUnitTypeStage(t *testing.T, e *Engine, op *session.Operation, q string) *CatalogStage {
+	t.Helper()
+	syntax := statement(t, q)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(q, err)
+	}
+	stage := e.BeginCatalogStage(auth.Catalog)
+	stage.AuthorizeLocked(auth, op.Session)
+	host := TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}
+	switch s := syntax.(type) {
+	case *parser.CreateDomain:
+		err = typedef.StageCreateDomainLocked(host, auth, s, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	case *parser.CreateComposite:
+		err = typedef.StageCreateCompositeLocked(host, auth, s)
+	default:
+		t.Fatalf("unsupported type fixture %T", s)
+	}
+	if err != nil {
+		t.Fatal(q, err)
+	}
+	return stage
+}
 
 func plUnitAssignmentTarget(t *testing.T, path string) proc.PLTarget {
 	t.Helper()
@@ -128,7 +158,7 @@ func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
 				"CREATE TYPE pa_unit_box AS (items integer[], sibling integer)",
 				"CREATE DOMAIN pa_unit_box_domain AS pa_unit_box CHECK((VALUE).items[1]>0)",
 			} {
-				domainUnitPublish(t, e, domainUnitStage(t, e, op, ddl))
+				roleExecute(t, e, op, ddl)
 			}
 			s, err := e.StartStatement(op)
 			if err != nil {
@@ -232,7 +262,7 @@ func TestPLpgSQLAssignmentTargetUsage(t *testing.T) {
 	}
 	t.Run("local_composite_array_admission", func(t *testing.T) {
 		e, s := plUnitScope(t)
-		domainUnitPublish(t, e, domainUnitStage(t, e, s.Op, "CREATE TYPE pa_unit_local AS (n integer)"))
+		domainUnitPublish(t, e, plUnitTypeStage(t, e, s.Op, "CREATE TYPE pa_unit_local AS (n integer)"))
 		read := e.CatalogRead()
 		integer, _ := read.LookupType(sqltype.Int4)
 		language, err := catalog.LookupLanguage(read, "plpgsql")
@@ -425,7 +455,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		}
 		domainUnitPublish(t, e, stage)
 	}
-	domainUnitPublish(t, e, domainUnitStage(t, e, s.Op, "CREATE DOMAIN pa_origin_domain AS integer CHECK(pa_origin_quoted()>0)"))
+	domainUnitPublish(t, e, plUnitTypeStage(t, e, s.Op, "CREATE DOMAIN pa_origin_domain AS integer CHECK(pa_origin_quoted()>0)"))
 	read := e.CatalogRead()
 	integer, _ := read.LookupType(sqltype.Int4)
 	frame := &proc.PLFrame{Program: &proc.PLProgram{}}
@@ -633,7 +663,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 		"CREATE DOMAIN pa_unit_card_root AS integer[] NOT NULL",
 		"CREATE DOMAIN pa_unit_card_element AS integer NOT NULL",
 	} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, s.Op, ddl))
+		domainUnitPublish(t, e, plUnitTypeStage(t, e, s.Op, ddl))
 	}
 	read = e.CatalogRead()
 	rootDomain := domainUnitType(t, read, "pa_unit_card_root").SQLType

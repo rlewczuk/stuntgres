@@ -26,7 +26,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		"CREATE TYPE public.acl_provenance_enum AS ENUM ('one')",
 		"CREATE TYPE public.acl_provenance_composite AS (a integer)",
 	} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, definition))
+		roleExecute(t, e, op, definition)
 	}
 	view := e.CatalogRead()
 	for _, name := range []string{"acl_provenance_domain", "acl_provenance_enum", "acl_provenance_composite"} {
@@ -167,7 +167,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					e := New()
 					op, done := roleOperation(t, e, "postgres")
 					defer done()
-					domainUnitPublish(t, e, domainUnitStage(t, e, op, kind.definition))
+					roleExecute(t, e, op, kind.definition)
 					oldView := e.CatalogRead()
 					old := domainUnitType(t, oldView, "acl_setter_type")
 					oldACL := authorization.ACLValue{

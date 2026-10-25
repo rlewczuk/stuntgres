@@ -15,7 +15,7 @@ func TestTypeLifecycleRestoreLookupAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, q := range []string{"CREATE SCHEMA tl_private", "CREATE TYPE tl_private.previous AS ENUM ('a')", "ALTER TYPE tl_private.previous RENAME TO current_name"} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
+		roleExecute(t, e, op, q)
 	}
 	named, ok := e.Roles().Lookup("pg_signal_backend")
 	if !ok {

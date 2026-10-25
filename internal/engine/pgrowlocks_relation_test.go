@@ -45,7 +45,7 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 					t.Fatal(request, err)
 				}
 			}
-			rows, err := (*statementHost)(scope).Pgrowlocks("typed", n.Usage.Type)
+			rows, err := scope.WriteHost().Pgrowlocks("typed", n.Usage.Type)
 			if err != nil || len(rows) != 0 {
 				t.Fatal(rows, err)
 			}

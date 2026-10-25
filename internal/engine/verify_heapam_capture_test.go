@@ -83,7 +83,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		resource := lock.Resource{ObjectRef: ref}
 		want := [][]any{{nil, nil, int64(7), "logical row 11 version 101: attribute 7 has an invalid typed value"}, {nil, nil, nil, "logical row 12 version 102: row has 1 values but relation has 2 columns"}}
 		for _, stop := range []bool{false, true} {
-			rows, err := (*statementHost)(scope).VerifyHeapam(heapUnitArgs(t, e, d, stop), n.Usage.Type)
+			rows, err := scope.WriteHost().VerifyHeapam(heapUnitArgs(t, e, d, stop), n.Usage.Type)
 			expected := want
 			if stop { expected = want[:1] }
 			if err != nil || !reflect.DeepEqual(heapUnitRows(t, rows), expected) { t.Fatal("unfiltered exact findings", rows, err, expected) }
@@ -107,7 +107,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		if err != nil || request != nil { t.Fatal(request, err) }
 		args := heapUnitArgs(t, e, d, false)
 		args[2] = sqltype.Boolean(testUsage(e, sqltype.Bool).Type, true)
-		_, err = (*statementHost)(scope).VerifyHeapam(args, n.Usage.Type)
+		_, err = scope.WriteHost().VerifyHeapam(args, n.Usage.Type)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || !e.Locks.HasAccessShare(ticket, resource) { t.Fatal("prior contribution/error release", err) }
 	})
@@ -153,7 +153,7 @@ func TestVerifyHeapamCaptureWait(t *testing.T) {
 			defer func() { if held { transactionEnd(t, holderSession, holder.Ref(), false) } }()
 			args := heapUnitArgs(t, e, d, false)
 			done := make(chan error, 1)
-			go func() { _, err := (*statementHost)(scope).VerifyHeapam(args, n.Usage.Type); done <- err }()
+			go func() { _, err := scope.WriteHost().VerifyHeapam(args, n.Usage.Type); done <- err }()
 			joined := false
 			defer func() {
 				if !joined { scope.Op.Cancel(context.Canceled); <-done }

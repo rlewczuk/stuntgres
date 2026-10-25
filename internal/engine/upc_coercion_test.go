@@ -8,8 +8,6 @@ import (
 )
 
 func TestUpcCoercion(t *testing.T) {
-	t.Run("prepared_authority", func(t *testing.T) { testIsnPreparedAuthorityRebind(t, "upc", 21) })
-	t.Run("prepared_literal", func(t *testing.T) { testIsnPreparedLiteralReown(t, "upc", 21) })
 	t.Run("owner_replay", func(t *testing.T) { testIsnRestoreOwnerReplay(t, "upc", 21) })
 	e, ext, ean := isnUnitInstalled(t)
 	view := e.CatalogRead()

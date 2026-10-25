@@ -106,7 +106,7 @@ func TestVerifyHeapamAuthorityCatalogKinds(t *testing.T) {
 		for _, physical := range []bool{false, true} {
 			args := heapUnitArgs(t, e, d, false)
 			args[2] = sqltype.Boolean(testUsage(e, sqltype.Bool).Type, physical)
-			_, err := (*statementHost)(scope).VerifyHeapam(args, n.Usage.Type)
+			_, err := scope.WriteHost().VerifyHeapam(args, n.Usage.Type)
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Detail: tc.detail}
 			if !reflect.DeepEqual(err, want) { t.Fatal("projected kind/availability precedence", tc.name, physical, err, want) }
 		}

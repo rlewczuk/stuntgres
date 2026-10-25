@@ -13,7 +13,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('z','q')"))
+	roleExecute(t, e, op, "CREATE TYPE mood AS ENUM ('z','q')")
 	old := domainUnitType(t, e.CatalogRead(), "mood")
 	description, err := e.Describe(op, statement(t, "SELECT 'q'::mood AS v"))
 	if err != nil {
@@ -76,7 +76,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE TYPE mood AS ENUM ('old')"))
+	roleExecute(t, e, op, "CREATE TYPE mood AS ENUM ('old')")
 	old := domainUnitType(t, e.CatalogRead(), "mood")
 	description, err := e.Describe(op, statement(t, "SELECT $1::mood AS v"))
 	if err != nil {
