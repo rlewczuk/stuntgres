@@ -139,6 +139,7 @@ type Descriptor struct {
 	ismn13                           bool
 	issn                             bool
 	issn13                           bool
+	upc                              bool
 	composite                        *compositeDefinition
 	rangeSubtype                     *Descriptor
 	customRange                      *RangeDefinition
@@ -174,7 +175,7 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 	if d.IsEnum() {
 		return 4
 	}
-	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() {
+	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
 		return 8
 	}
 	if d.IsArray() || d.IsComposite() || d.rangeSubtype != nil || d.multirangeRange != nil {
@@ -497,6 +498,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if fromEnum.IsIssn13() != toEnum.IsIssn13() || fromEnum.IsIssn13() && (fromEnum != toEnum || !v.null && !v.validIssn13()) {
 		return Value{}, fmt.Errorf("incompatible issn13 generation")
 	}
+	if fromEnum.IsUpc() != toEnum.IsUpc() || fromEnum.IsUpc() && (fromEnum != toEnum || !v.null && !v.validUpc()) {
+		return Value{}, fmt.Errorf("incompatible upc generation")
+	}
 	if fromEnum.IsEnum() != toEnum.IsEnum() {
 		return Value{}, fmt.Errorf("incompatible enum declaration")
 	}
@@ -790,7 +794,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -821,6 +825,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.IsIssn() || d.IsIssn13() {
 		return d.issnInput(text)
 	}
+	if d.IsUpc() { return d.upcInput(text) }
 	if d.IsRange() {
 		return d.rangeInput(ctx, text, env)
 	}
@@ -1144,6 +1149,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsIssn13() {
 		return d.issn13Output(v)
 	}
+	if d.IsUpc() { return d.upcOutput(v) }
 	if d.IsRange() {
 		return v.rangeOutput(ctx, env)
 	}
@@ -1412,6 +1418,7 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	if d.IsIssn() || d.IsIssn13() {
 		return d.issnSQLLiteral(v)
 	}
+	if d.IsUpc() { return d.upcSQLLiteral(v) }
 	switch d.id {
 	case Path:
 		text, err := formatPath(v, OutputEnvironment{}, true)
@@ -1620,6 +1627,7 @@ const (
 	intervalTimeConversion
 	geometryCastConversion
 	rangeMultirangeConversion
+	upcEanConversion
 )
 
 type CoercionPlan struct {
@@ -1688,6 +1696,8 @@ func (p CoercionPlan) FunctionCastShortcut() bool {
 // well as its input, so an element function can establish an accepted shape.
 func (p CoercionPlan) FunctionExpression() bool {
 	switch p.method {
+	case upcEanConversion:
+		return p.source.Type.IsEan13() && p.target.Type.IsUpc()
 	case arrayConversion:
 		return p.element != nil && p.element.FunctionExpression()
 	case viaIO, jsonFormattedInput, jsonReturningOutput:
@@ -1903,6 +1913,11 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, err
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
+	if source.Type.IsUpc() && target.Type.IsEan13() || source.Type.IsEan13() && target.Type.IsUpc() {
+		if context < Assignment || target.Type.IsUpc() && context != Explicit { return p, failure("42804", "incompatible source and destination types") }
+		p.method = upcEanConversion
+		return p, nil
+	}
 	if source.Type == target.Type {
 		return p, nil
 	}
@@ -1989,6 +2004,8 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 		return Null(p.target.Type), nil
 	}
 	switch p.method {
+	case upcEanConversion:
+		return p.applyUpcEan(v)
 	case integerByteaConversion, integerBitConversion, internalCharConversion,
 		macConversion, jsonbScalarConversion, intervalTimeConversion,
 		geometryCastConversion, rangeMultirangeConversion:

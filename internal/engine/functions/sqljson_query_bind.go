@@ -116,10 +116,8 @@ func BindSQLJSONQuery(b Binder, raw parser.SQLJSONQueryExpr) (expr.Expr, error) 
 			return nil, err
 		}
 		arg := operand.Expression
-		if raw.TableColumn != "" {
-			if err := b.ValidateSQLJSONDefault(behavior.Default, arg); err != nil {
-				return nil, err
-			}
+		if err := b.ValidateSQLJSONDefault(behavior.Default, arg); err != nil {
+			return nil, err
 		}
 		if sqlJSONDefaultSet(arg) {
 			return nil, expr.ErrorAt("42804", "DEFAULT expression must not return a set", behavior.Default.SourcePosition())

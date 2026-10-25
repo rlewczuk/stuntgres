@@ -31,6 +31,39 @@ docker exec -i pg-regress psql -U postgres -X < repro.sql
 docker rm -f pg-regress
 ```
 
+## UPC output discards invalid markers
+
+The UPC reference scenarios observed short-output marker loss on 2026-10-25
+with PostgreSQL 18.6 (`PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2)`), using
+`postgres:18.6-bookworm@sha256:afc7e2d441324c0388fa80c3d24f733b4194a4eb7f47dd8ee2b08eb1a24a647c`,
+UTF8 encoding, C locale and English messages. No claim about another release
+is implied. The following SQL reproduces the independently asserted fixtures:
+
+```sql
+CREATE EXTENSION isn;
+SELECT '123456789010!'::upc AS corrected,
+       '123456789012!'::upc AS marked,
+       '12345678901?!'::upc AS computed;
+SELECT '0123456789010!'::ean13::upc::ean13 AS retained_flag;
+```
+
+PostgreSQL displays `123456789012` for each of the first three columns.
+The last expression returns `012-345678901-2!`, proving that the UPC conversion
+retains the packed invalid-input flag even though short output hides it.
+The [ISN manual](https://www.postgresql.org/docs/18/isn.html) describes the
+trailing invalid marker. In
+[18.6 `ean2UPC`](https://github.com/postgres/postgres/blob/REL_18_6/contrib/isn/isn.c),
+dehyphenation is followed by unconditional termination at byte twelve,
+cropping the appended marker.
+
+Native UPC output retains `123456789012!` for both marked fixtures and returns
+`123456789012` for the computed fixture: the scanner's `?!` form computes the
+check digit without marking the value invalid. SQL serialization keeps the
+complete compact thirteen-digit EAN and any marker. Shared UPC scenarios
+independently assert native marker retention and the PostgreSQL display
+difference, including actual native dump replay; EAN13 projections independently
+assert that the packed flag survives conversions and control round trips.
+
 ## ISSN output discards invalid markers and nonzero issue digits
 
 PostgreSQL 18.6's `isn` extension emits short ISSN output even when that output

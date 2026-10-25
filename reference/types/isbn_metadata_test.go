@@ -49,7 +49,7 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 	t.Helper()
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 	seen := map[int64]string{}
-	for _, role := range []struct{ scalar, input, output string }{{"ean13", "ean13_in", "ean13_out"}, {"isbn", "isbn_in", "isn_out"}, {"isbn13", "isbn13_in", "ean13_out"}, {"ismn", "ismn_in", "isn_out"}, {"ismn13", "ismn13_in", "ean13_out"}, {"issn", "issn_in", "isn_out"}, {"issn13", "issn13_in", "ean13_out"}} {
+	for _, role := range []struct{ scalar, input, output string }{{"ean13", "ean13_in", "ean13_out"}, {"isbn", "isbn_in", "isn_out"}, {"isbn13", "isbn13_in", "ean13_out"}, {"ismn", "ismn_in", "isn_out"}, {"ismn13", "ismn13_in", "ean13_out"}, {"issn", "issn_in", "isn_out"}, {"issn13", "issn13_in", "ean13_out"}, {"upc", "upc_in", "isn_out"}} {
 		name := ns + "." + role.scalar
 		var oid, array, input, output int64
 		if err := c.QueryRowContext(p.Ctx, "SELECT oid,typarray,typinput::oid,typoutput::oid FROM pg_type WHERE oid="+ean13Literal(name)+"::regtype::oid").Scan(&oid, &array, &input, &output); err != nil {
@@ -106,6 +106,15 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 			}
 			run(fixture.Select(fmt.Sprintf("SELECT refobjid=(SELECT oid FROM pg_extension WHERE extname='isn') AS own_extension,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=3079", array), []string{"own_extension", "deptype"}, []string{"BOOL", "CHAR"}, companionMembership))
 		}
+		if role.scalar == "upc" {
+			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"Universal Product Code (UPC)"}}))
+			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"upc_in"}}))
+			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", output), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"isn_out"}}))
+			run(fixture.Select(fmt.Sprintf("SELECT refobjid=%d::oid AS own_scalar,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=1247", oid, array), []string{"own_scalar", "deptype"}, []string{"BOOL", "CHAR"}, [][]any{{true, "i"}}))
+			membership := [][]any{}
+			if b.PG { membership = [][]any{{true, "e"}} }
+			run(fixture.Select(fmt.Sprintf("SELECT refobjid=(SELECT oid FROM pg_extension WHERE extname='isn') AS own_extension,deptype FROM pg_depend WHERE classid=1247 AND objid=%d AND refclassid=3079", array), []string{"own_extension", "deptype"}, []string{"BOOL", "CHAR"}, membership))
+		}
 		run(fixture.Select(fmt.Sprintf("SELECT t.typnamespace=e.extnamespace AS same_namespace,t.typowner=e.extowner AS same_owner,d.deptype,e.extversion FROM (SELECT * FROM pg_type WHERE oid=%d) t JOIN (SELECT * FROM pg_depend WHERE objid=%d AND classid=1247 AND refclassid=3079) d ON d.objid=t.oid JOIN (SELECT * FROM pg_extension WHERE extname='isn') e ON e.oid=d.refobjid", oid, oid), []string{"same_namespace", "same_owner", "deptype", "extversion"}, []string{"BOOL", "BOOL", "CHAR", "TEXT"}, [][]any{{true, true, "e", "1.3"}}))
 		for _, codec := range []struct {
 			id int64
@@ -119,7 +128,7 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 		}
 	}
 	if !b.PG {
-		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}, {"ismn_in"}, {"isn_out"}, {"ismn13_in"}, {"ean13_out"}, {"issn_in"}, {"isn_out"}, {"issn13_in"}, {"ean13_out"}})
+		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}, {"ismn_in"}, {"isn_out"}, {"ismn13_in"}, {"ean13_out"}, {"issn_in"}, {"isn_out"}, {"issn13_in"}, {"ean13_out"}, {"upc_in"}, {"isn_out"}})
 		s.Bag = true
 		run(s)
 	}

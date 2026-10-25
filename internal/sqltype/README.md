@@ -41,7 +41,7 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   requires the same type ID, domain/base identity and constraints, and rejects
   foreign citext/ISN generations and enum members even for equal OIDs; only
   source-authorized catalog import remaps explicitly (`RemapCitext`,
-  `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`, `RemapIssn13`).
+  `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`, `RemapIssn13`, `RemapUpc`).
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -189,7 +189,7 @@ or widen it.
 
 ## ISN identifiers
 
-`Ean13`, `Isbn`, `Isbn13`, `Ismn`, `Ismn13`, `Issn` and `Issn13` descriptors own distinct scalar roles with packed
+`Ean13`, `Isbn`, `Isbn13`, `Ismn`, `Ismn13`, `Issn`, `Issn13` and `Upc` descriptors own distinct scalar roles with packed
 thirteen-digit identifiers and independent invalid-input flags. Their shared
 scanner preserves raw character lookahead and ASCII separator rules. ISBN and
 ISBN13 share ISBN-family input validation: short input validates its weighted
@@ -207,7 +207,12 @@ independently of display notation.
 Leading zeros, computed check digits, marked corrected inputs and typed NULLs
 retain distinct identities. Explicit text I/O and assignment to text reuse the
 shared coercion planner; typed text needs an explicit conversion to an installed
-ISN role. Neither equal OIDs nor shared physical storage authorize family interchange;
+ISN role. UPC owns the leading-zero EAN subset and emits twelve compact digits
+plus any retained marker. The shared packed conversion permits UPC to EAN13
+assignment and explicit checked EAN13 to UPC, preserving the marker without
+text I/O. UPC to EAN13 is a function-free relabel; only the checked reverse
+direction contributes a cast function to expression-shape and evaluation counts.
+Neither equal OIDs nor shared physical storage authorize other family interchange;
 imports require exact source/destination descriptor authorization.
 
 ## Type families

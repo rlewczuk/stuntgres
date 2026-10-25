@@ -197,6 +197,11 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 		outputs = []string{"977-1234-567-89-8!", "977-1234-567-00-3", ""}
 		constructor = sqltype.Issn13
 	}
+	if family == "upc" {
+		inputs = []string{"123456789010!", "220356483481"}
+		outputs = []string{"123456789012!", "220356483481", ""}
+		constructor = sqltype.Upc
+	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	before := e.CatalogRead()

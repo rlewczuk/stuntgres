@@ -32,13 +32,14 @@ func (s *isnReservedStage) AllocateOID() (ids.OID, error) {
 }
 
 func TestIsnProviderStageCollisions(t *testing.T) {
-	for _, family := range []string{"isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
+	for _, family := range []string{"isbn", "isbn13", "ismn", "ismn13", "issn", "issn13", "upc"} {
 	slot, inputName, outputName := 3, "isbn_in", "isn_out"
 	if family == "isbn13" { slot, inputName, outputName = 6, "isbn13_in", "ean13_out" }
 	if family == "ismn" { slot, inputName, outputName = 9, "ismn_in", "isn_out" }
 	if family == "ismn13" { slot, inputName, outputName = 12, "ismn13_in", "ean13_out" }
 	if family == "issn" { slot, inputName, outputName = 15, "issn_in", "isn_out" }
 	if family == "issn13" { slot, inputName, outputName = 18, "issn13_in", "ean13_out" }
+	if family == "upc" { slot, inputName, outputName = 21, "upc_in", "isn_out" }
 	for _, tc := range []struct {
 		name string
 		output, existingType bool
@@ -80,7 +81,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 					return err
 				}
 				host := &extensionHost{engine: e, op: op, auth: auth}
-				var reserved [21]ids.OID
+				var reserved [24]ids.OID
 				for i := range reserved {
 					reserved[i], err = host.AllocateOID()
 					if err != nil {
@@ -186,6 +187,11 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 				if output { argument, result, source, line = family, "cstring", "'$libdir/isn'", 84 }
 				want.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS %s\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line %d", original.Name(), argument, result, source, line)
 			}
+			if family == "upc" {
+				argument, result, line := "cstring", family, 160
+				if output { argument, result, line = family, "cstring", 166 }
+				want.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS '$libdir/isn'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line %d", original.Name(), argument, result, line)
+			}
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatal("genuine signature collision", err)
 			}
@@ -206,7 +212,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 }
 
 func TestIsnGeneratedArrayDisplacement(t *testing.T) {
-	for _, occupied := range []string{"isbn", "_isbn", "isbn13", "_isbn13", "ismn", "_ismn", "ismn13", "_ismn13", "issn", "_issn", "issn13", "_issn13"} {
+	for _, occupied := range []string{"isbn", "_isbn", "isbn13", "_isbn13", "ismn", "_ismn", "ismn13", "_ismn13", "issn", "_issn", "issn13", "_issn13", "upc", "_upc"} {
 		t.Run(occupied, func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
@@ -261,6 +267,7 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 			if occupied == "ismn13" || occupied == "_ismn13" { slot = 12 }
 			if occupied == "issn" || occupied == "_issn" { slot = 15 }
 			if occupied == "issn13" || occupied == "_issn13" { slot  = 18 }
+			if occupied == "upc" || occupied == "_upc" { slot = 21 }
 			isbn := view.MustType(ext.Members[slot])
 			companion := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(isbn.Array)})
 			if err := extension.StockIsn.ValidateExtension(view, ext); err != nil {

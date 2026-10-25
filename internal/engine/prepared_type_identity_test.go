@@ -31,6 +31,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 		{"ismn13", "", "isn", false},
 		{"issn", "", "isn", false},
 		{"issn13", "", "isn", false},
+		{"upc", "", "isn", false},
 	} {
 		array := family.array
 		name := family.name
@@ -132,7 +133,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			if catalog.SamePreparedTypeDefinition(old, &changed) {
 				t.Fatal("owner change concealed")
 			}
-			if current.SQLType.IsEan13() || current.SQLType.IsIsbn() || current.SQLType.IsIsbn13() || current.SQLType.IsIsmn() || current.SQLType.IsIsmn13() || current.SQLType.IsIssn() || current.SQLType.IsIssn13() {
+			if current.SQLType.IsEan13() || current.SQLType.IsIsbn() || current.SQLType.IsIsbn13() || current.SQLType.IsIsmn() || current.SQLType.IsIsmn13() || current.SQLType.IsIssn() || current.SQLType.IsIssn13() || current.SQLType.IsUpc() {
 				changed = *current
 				changed.SQLType, err = sqltype.Citext(current.SQLType.ID(), current.Name(), current.SQLType.SQLName())
 				if err != nil {

@@ -12,6 +12,13 @@ foreign storage is rejected; EXECUTE denial occurs before that accounting.
 Native ACL replay preserves delegated nonowner grantors, cascading grant-option
 revocation and PUBLIC execution authority across independent role domains.
 
+Installed isn now provides genuine UPC columns with compact twelve-digit
+output, retained invalid markers, exact metadata and literal/string/byte/NULL
+input. Checked EAN13-to-UPC casts and UPC-to-EAN13 assignment preserve the packed
+flag through prepared execution, extension recreation and native controls.
+UPC-to-EAN13 relabeling does not legalize a bare SQL/JSON DEFAULT parameter;
+the checked reverse conversion remains a cast-function expression.
+
 Installed isn now provides independently identified issn13 columns with short
 or long textual input and always-long canonical output. Literal and bound
 values retain check-digit validity, invalid markers, issue digits and NULLs

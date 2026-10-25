@@ -57,6 +57,7 @@ func SameDatum(a, b Value) bool {
 	if a.typ.BaseType().IsIssn13() {
 		return a.validIssn13() && b.validIssn13() && a.integer == b.integer
 	}
+	if a.typ.BaseType().IsUpc() { return a.validUpc() && b.validUpc() && a.integer == b.integer }
 	if a.typ.BaseType().IsEnum() {
 		d := a.typ.BaseType()
 		_, present := d.enum.ranks[a.integer]

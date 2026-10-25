@@ -70,6 +70,8 @@ func SamePreparedTypeDefinition(old, current *Type) bool {
 		return b.IsIssn()
 	case a.IsIssn13():
 		return b.IsIssn13()
+	case a.IsUpc():
+		return b.IsUpc()
 	}
 	return false
 }

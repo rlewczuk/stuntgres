@@ -93,7 +93,7 @@ func (e *Engine) preparedIsnLiteralTemporalsLocked(auth AuthorizationView, expec
 	checked := false
 	for i, capture := range original {
 		source := capture.Value.Type()
-		if source == nil || !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() {
+		if source == nil || !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() && !source.IsUpc() {
 			continue
 		}
 		if !checked {
@@ -115,7 +115,7 @@ func (e *Engine) preparedIsnLiteralTemporalsLocked(auth AuthorizationView, expec
 			}
 		}
 		current, ok := auth.Catalog.Type(address)
-		if !captured || !ok || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || source.IsIsbn13() != current.SQLType.IsIsbn13() || source.IsIsmn() != current.SQLType.IsIsmn() || source.IsIsmn13() != current.SQLType.IsIsmn13() || source.IsIssn() != current.SQLType.IsIssn() || source.IsIssn13() != current.SQLType.IsIssn13() || old.Extension != current.Extension || old.Array != current.Array {
+		if !captured || !ok || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || source.IsIsbn13() != current.SQLType.IsIsbn13() || source.IsIsmn() != current.SQLType.IsIsmn() || source.IsIsmn13() != current.SQLType.IsIsmn13() || source.IsIssn() != current.SQLType.IsIssn() || source.IsIssn13() != current.SQLType.IsIssn13() || source.IsUpc() != current.SQLType.IsUpc() || old.Extension != current.Extension || old.Array != current.Array {
 			return original
 		}
 		nominal := *old
@@ -172,14 +172,14 @@ func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, 
 			if !ok {
 				return false
 			}
-			if isnAuthorityRebind && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() {
+			if isnAuthorityRebind && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() && !current.SQLType.IsUpc() {
 				return false
 			}
 			old := analysis.types[dep.Ref.Address]
 			if catalog.SamePreparedTypeDefinition(old, current) {
 				continue
 			}
-			if !isnAuthorityRebind || old == nil || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || old.SQLType.IsIsbn13() != current.SQLType.IsIsbn13() || old.SQLType.IsIsmn() != current.SQLType.IsIsmn() || old.SQLType.IsIsmn13() != current.SQLType.IsIsmn13() || old.SQLType.IsIssn() != current.SQLType.IsIssn() || old.SQLType.IsIssn13() != current.SQLType.IsIssn13() || !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() && !old.SQLType.IsIsbn13() && !old.SQLType.IsIsmn() && !old.SQLType.IsIsmn13() && !old.SQLType.IsIssn() && !old.SQLType.IsIssn13() {
+			if !isnAuthorityRebind || old == nil || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || old.SQLType.IsIsbn13() != current.SQLType.IsIsbn13() || old.SQLType.IsIsmn() != current.SQLType.IsIsmn() || old.SQLType.IsIsmn13() != current.SQLType.IsIsmn13() || old.SQLType.IsIssn() != current.SQLType.IsIssn() || old.SQLType.IsIssn13() != current.SQLType.IsIssn13() || old.SQLType.IsUpc() != current.SQLType.IsUpc() || !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() && !old.SQLType.IsIsbn13() && !old.SQLType.IsIsmn() && !old.SQLType.IsIsmn13() && !old.SQLType.IsIssn() && !old.SQLType.IsIssn13() && !old.SQLType.IsUpc() {
 				return false
 			}
 			// Compare the same immutable definition while deliberately leaving

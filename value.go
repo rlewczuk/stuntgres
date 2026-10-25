@@ -102,7 +102,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.BaseType().ID() == sqltype.PgSnapshot {
 			return sqltype.Null(target.Type), nil
 		}
-		if target.Type.IsEan13() || target.Type.IsIsbn() || target.Type.IsIsbn13() || target.Type.IsIsmn() || target.Type.IsIsmn13() || target.Type.IsIssn() || target.Type.IsIssn13() || target.Type.IsCitext() || target.Type.IsCube() || target.Type.IsQueryInt() || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
+		if target.Type.IsEan13() || target.Type.IsIsbn() || target.Type.IsIsbn13() || target.Type.IsIsmn() || target.Type.IsIsmn13() || target.Type.IsIssn() || target.Type.IsIssn13() || target.Type.IsUpc() || target.Type.IsCitext() || target.Type.IsCube() || target.Type.IsQueryInt() || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
 			return sqltype.Null(target.Type), nil
 		}
 		if target.Type.ContainsACLItem() || sqltype.IsNetwork(target.Type.ID()) || target.Type.IsRange() || target.Type.IsMultirange() || target.Type.ID() == sqltype.Money || target.Type.ID() == sqltype.Bytea || target.Type.ID() == sqltype.JSON || target.Type.ID() == sqltype.JSONB || target.Type.ID() == sqltype.JSONPath || target.Type.ID() == sqltype.Bit || target.Type.ID() == sqltype.VarBit {
@@ -227,7 +227,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 			return nil, err
 		}
 	}
-	if v.Type().IsEan13() || v.Type().IsIsbn() || v.Type().IsIsbn13() || v.Type().IsIsmn() || v.Type().IsIsmn13() || v.Type().IsIssn() || v.Type().IsIssn13() || v.Type().IsCitext() || v.Type().IsCube() || v.Type().IsQueryInt() || v.Type().IsArray() || v.Type().IsEnum() || v.Type().IsComposite() || v.Type().IsRange() || v.Type().IsMultirange() {
+	if v.Type().IsEan13() || v.Type().IsIsbn() || v.Type().IsIsbn13() || v.Type().IsIsmn() || v.Type().IsIsmn13() || v.Type().IsIssn() || v.Type().IsIssn13() || v.Type().IsUpc() || v.Type().IsCitext() || v.Type().IsCube() || v.Type().IsQueryInt() || v.Type().IsArray() || v.Type().IsEnum() || v.Type().IsComposite() || v.Type().IsRange() || v.Type().IsMultirange() {
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	}
 	switch v.Type().ID() {
@@ -289,7 +289,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 	if d.Usage().CatalogNullUsage() {
 		return reflect.TypeFor[any]()
 	}
-	if d.BaseType().IsEan13() || d.BaseType().IsIsbn() || d.BaseType().IsIsbn13() || d.BaseType().IsIsmn() || d.BaseType().IsIsmn13() || d.BaseType().IsIssn() || d.BaseType().IsIssn13() || d.BaseType().IsCitext() || d.BaseType().IsCube() || d.BaseType().IsQueryInt() || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() || d.BaseType().IsRange() || d.BaseType().IsMultirange() || d.IsDeferredRecord() {
+	if d.BaseType().IsEan13() || d.BaseType().IsIsbn() || d.BaseType().IsIsbn13() || d.BaseType().IsIsmn() || d.BaseType().IsIsmn13() || d.BaseType().IsIssn() || d.BaseType().IsIssn13() || d.BaseType().IsUpc() || d.BaseType().IsCitext() || d.BaseType().IsCube() || d.BaseType().IsQueryInt() || d.BaseType().IsArray() || d.BaseType().IsEnum() || d.BaseType().IsComposite() || d.BaseType().IsRange() || d.BaseType().IsMultirange() || d.IsDeferredRecord() {
 		return reflect.TypeFor[string]()
 	}
 	switch d.BaseType().ID() {

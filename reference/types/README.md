@@ -8,7 +8,7 @@ nullability, CHECK and identity lifecycle); composite types (declarations, field
 expressions, ALTER TYPE attributes); enums (values, ALTER TYPE, support
 functions); integer, numeric, date, timestamp and timestamptz ranges, custom range
 definitions and their multiranges (operators, inspection, `multirange`/`unnest`); text search types and
-operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `lo`); ACL values
+operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc`, `lo`); ACL values
 (`aclitem`, `makeaclitem`, `acldefault`, `aclexplode`); TID; UUID (values,
 `gen_random_uuid`/`uuidv4`/`uuidv7`, extraction); BOOLEAN diagnostics and
 aggregates; the `information_schema` domains; and scalar comparison operators and
@@ -124,11 +124,14 @@ these are shared across families:
 - `ean13_helpers_test.go`: shared installed-ISN scenario, raw string/byte
   transport, exact diagnostics and metadata checks for installed ISN scalar roles.
   ISBN helpers share relational manifest identity and owner-record mutation
-  checks across all seven roles. ISSN and ISSN13 expectations preserve invalid markers and
+  checks across all eight roles. ISSN and ISSN13 expectations preserve invalid markers and
   nonzero issue digits, including full-number serialization in native controls.
   ISSN13 always displays the long form, independently of ISSN short output.
+  UPC expectations retain compact twelve-digit values and markers natively;
+  independently specified PostgreSQL short display cropping never masks native
+  marker loss. Typed EAN13 conversions witness the retained packed flag.
   The reusable family selector is
-  `RUN='^TestReference(Ean13|Isbn|Ismn|Issn)'`; controls retain readers across replacement,
+  `RUN='^TestReference(Ean13|Isbn|Ismn|Issn|Upc)'`; controls retain readers across replacement,
   validate whole-script diagnostic positions and rollback with identical failing
   SQL on PostgreSQL, and replay actual emitted SQL on PostgreSQL.
   Relational identity witnesses filter catalog inputs to the installed

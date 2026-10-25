@@ -202,14 +202,14 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | `json` | `string` (exact input text) |
 | `jsonb`, `uuid`, network, geometric, bit strings, text search | canonical `string` |
 | arrays, composites, ranges, multiranges, enums | canonical `string` |
-| installed `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13` | canonical `string`, including retained invalid marker |
+| installed `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` | canonical `string`, including retained invalid marker |
 | `reg*` types | symbolic `string` |
 
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
 
-After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13, ISSN and ISSN13 columns
+After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13, ISSN, ISSN13 and UPC columns
 accept textual literals and bound strings or bytes, including NULL. Results
 expose the corresponding uppercase database type name and string scan type.
 ISBN13, ISMN13 and ISSN13 format the long thirteen-digit value, including expanded
@@ -218,7 +218,9 @@ ISMN accepts M-prefixed or modern 9790 input and returns hyphenated M notation.
 ISSN accepts short or 977-prefixed input, keeps its invalid marker in short output,
 and uses long output when nonzero issue digits cannot fit in the short form.
 An already-typed text expression requires an explicit conversion to its installed
-scalar type; the driver does not add implicit conversions between installed
+scalar type. UPC emits twelve compact digits plus a retained `!`; typed UPC
+assigns to EAN13, and EAN13 converts explicitly to UPC after a subset check.
+The driver does not add implicit conversions between other installed
 families. Native Reset/Dump/Restore preserves full values, validity flags, issue
 digits, NULLs and independent type identities.
 

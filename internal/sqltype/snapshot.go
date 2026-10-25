@@ -31,7 +31,7 @@ func (p CoercionPlan) applyExactSnapshot(ctx context.Context, v Value, input Inp
 	// These are the persisted literal codecs and physical retags, not arbitrary
 	// semantic SQL conversions (numeric-to-integer, timestamp-to-date, etc.).
 	switch p.method {
-	case identity, integerConversion, stringConversion:
+	case identity, integerConversion, stringConversion, upcEanConversion:
 	case oidConversion:
 		if !snapshotOIDIdentity(p.source.Type.id) || !snapshotOIDIdentity(p.target.Type.id) {
 			return Value{}, snapshotDatumLoss()

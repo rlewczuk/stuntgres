@@ -207,6 +207,9 @@ reviewed decision:
   `SequenceArgument` / `SequenceTemporary`: statement-analysis state for
   SQL-bodied builtins, SQL/JSON RETURNING and DEFAULT shape, and sequence
   regclass input with prepared-literal capture and TEMP provenance.
+  Scalar query functions and JSON_TABLE validate analyzed DEFAULT shapes through
+  the same hook before RETURNING fallback coercion; relabels and I/O wrappers
+  cannot confer function-expression status on a bare parameter.
 
 `AggregateBinder` adds what is valid only while a `parser.AggregateExpr` binds,
 where the engine owns grouping state: `AnalyzeAggregateFilter`,

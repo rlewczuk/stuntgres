@@ -80,15 +80,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   dependency removal and remap use the shared extension lifecycle; no lock state
   is serialized.
 - **isn** (`isn_provider.go`, `isn_stage.go`): the trusted, relocatable 1.3
-  provider installs `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn` and `issn13`, each with a
+  provider installs `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13` and `upc`, each with a
   reciprocal lookup-only associated array and immutable strict C-language codecs.
-  Twenty-one append-only manifest slots bind `ean13_in(cstring)`/`ean13_out(ean13)`,
+  Twenty-four append-only manifest slots bind `ean13_in(cstring)`/`ean13_out(ean13)`,
   `isbn_in(cstring)`/`isn_out(isbn)`,
   `isbn13_in(cstring)`/`ean13_out(isbn13)`,
   `ismn_in(cstring)`/`isn_out(ismn)`,
   `ismn13_in(cstring)`/`ean13_out(ismn13)`,
   `issn_in(cstring)`/`isn_out(issn)` and
-  `issn13_in(cstring)`/`ean13_out(issn13)` to their own scalars. The ISBN13,
+  `issn13_in(cstring)`/`ean13_out(issn13)` and
+  `upc_in(cstring)`/`isn_out(upc)` to their own scalars. The ISBN13,
   ISMN13 and ISSN13 input SQL identities have immutable source symbols `isbn_in`,
   `ismn_in` and `issn_in`; output overloads are
   distinguished by their own scalar signature. Owner metadata records
