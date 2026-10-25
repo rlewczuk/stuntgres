@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -34,6 +35,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	in := pgcatalog.Input{Context: scope.Op.Context(), Owner: &e.Catalog.Owner, Ref: ref, Source: source}
 	runtime := EngineCatalogRuntime{engine: e}
 	unlockBefore := false
+	var sharedRoles *access.RoleRecord // Set only where in.Roles derives from it alone.
 	switch oid {
 	case pgcatalog.ProgressVacuumOID, pgcatalog.StatAllTablesOID, pgcatalog.StatSysTablesOID, pgcatalog.StatUserTablesOID:
 		auth, err := e.AuthorizationLocked(scope.Op)
@@ -109,7 +111,8 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		if oid == ids.ParameterClassID {
 			in.Roles = scope.Inquiry.commentRoles
 		} else {
-			in.Roles = e.RoleStore.Read(&e.Catalog.Owner, in.Catalog, scope.Inquiry.deparseAuth.RoleRecord)
+			sharedRoles = scope.Inquiry.deparseAuth.RoleRecord
+			in.Roles = e.RoleStore.Read(&e.Catalog.Owner, in.Catalog, sharedRoles)
 		}
 		if oid == 12002 {
 			auth, err := e.AuthorizationLocked(scope.Op)
@@ -131,7 +134,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		e.Mu.Unlock()
 		return CaptureCatalogSourceRows(in, produce)
 	}
-	result, err := CaptureCatalogSourceRows(in, produce)
+	result, err := e.captureCatalogSourceRowsLocked(in, produce, sharedRoles)
 	e.Mu.Unlock()
 	return result, err
 }

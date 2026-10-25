@@ -63,6 +63,7 @@ type Engine struct {
 	Foreign           fdw.Registry
 	DatabaseFrozenXID uint64
 	VacuumProgress    map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
+	catalogCaptures   catalogCaptureCache          // Engine.mu; latest shared pg_type/pg_proc rows.
 	Statements        Statements                   // Family dispatch; set by the composition, shared by every target.
 	Factory           EngineFactory                // Composed constructor; set by the composition, shared by every target.
 }

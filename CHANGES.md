@@ -1,3 +1,7 @@
+Repeated `pg_type`, `pg_proc` and `pg_depend` reads between catalog changes
+reuse one captured row set instead of rebuilding the whole catalog per
+statement.
+
 Compatibility settings now cover all nine names through the typed registry,
 including hidden backslash_quote aliases, sighup mutation precedence and
 lo_compat_privileges parameter SET authority. Seven newly exposed switches are
