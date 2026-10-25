@@ -44,6 +44,7 @@ imports the root and lower packages, and nothing imports it except tests.
 | `PublishCatalog`, `ValidateObjectRef` | `Engine.PublishCatalog`, `Engine.ValidateObjectRef` | catalog publication and reference checks outside an operation |
 | `ExpressionBinder` | `newTestExpressionBinder` | scalar binder over a postgres session |
 | `SetObjectACL(e, ctx, ref, acl)` | `Engine.SetObjectACL` | publish an object or column ACL directly, outside GRANT and REVOKE |
+| `Comment(e, r, ref)` | `Engine.Comment` | comment metadata of a namespace, type, relation or column, without ACL |
 
 ## Stages
 
@@ -55,7 +56,7 @@ fills the package in two stages:
    destinations use (role errors, session SQL and transactions, lock and
    catalog inspection, table refs, binders), built on the names the export
    pass made public. The test waves add helpers their files share, such as
-   `SetObjectACL`.
+   `SetObjectACL` and `Comment`.
 
 ## Testing
 
