@@ -14,9 +14,10 @@ this package orchestrates them over core's runtime.
 It imports [`core`](../core/README.md), [`tablecmds`](../tablecmds/README.md)
 (`TypeHost` and `TableHost`, the ALTER column candidates, row evaluation,
 check and index captures and type rebinds, `PrepareAlterTypeLocked` and
-`AcquireTypedSources`) and the decision packages, never the root. Only the
-root composition imports it; by rule 6 `viewcmds` may, for the domain replay
-that the materialized snapshot import shares.
+`AcquireTypedSources`) and the decision packages, never the root. The root
+composition and, by rule 6, [`viewcmds`](../viewcmds/README.md) import it;
+`viewcmds` for the domain replay that the materialized snapshot import
+shares.
 
 Stays elsewhere: CREATE DOMAIN, the other CREATE TYPE forms, CREATE
 COLLATION and CONVERSION, and ALTER DOMAIN RENAME and SET SCHEMA dispatch

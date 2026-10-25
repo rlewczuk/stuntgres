@@ -26,15 +26,16 @@ imports `view`.
 - **DDL decisions** (`host.go`, `create.go`, `alter_drop.go`, `rule_ddl.go`,
   `policy_ddl.go`, `trigger_ddl.go`, `trigger_lifecycle.go`, `definition.go`):
   `Host` (stage-less: allocation, the access view, relation resolution, the
-  temporary owner, function selection and the root-built rule, policy and
-  trigger WHEN binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
-  both implemented by the root's `ViewHost`. CREATE OR REPLACE VIEW is
+  temporary owner, function selection and the rule, policy and trigger WHEN
+  binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
+  both implemented by [`viewcmds`](../viewcmds/README.md)' `ViewHost`. CREATE
+  OR REPLACE VIEW is
   `CreateTarget`, `CheckCreate` and `StageCreate`; ALTER VIEW is `AlterChange`;
   DROP VIEW is `DropTargets`, then `RecheckDropTargets` after the waits. RULE DDL
   uses `BeginRule` and `RulePlan.BindCondition`, `BindAction`, `Finish`; POLICY
-  uses `PlanPolicy`. They produce a `RelationChange` for root staging/publication.
-  Each rule phase holds Engine.Mu and never waits. The root admits event AX
-  first, binds the qualification, then interleaves unlocked provider admission
+  uses `PlanPolicy`. They produce a `RelationChange` for `viewcmds` staging
+  and publication. Each rule phase holds Engine.Mu and never waits.
+  `viewcmds.ExecuteRule` admits event AX first, binds the qualification, then interleaves unlocked provider admission
   with each action's canonical binding in order. TRIGGER DDL (CREATE [OR
   REPLACE], ALTER TRIGGER RENAME and [NO] DEPENDS ON EXTENSION, DROP) is
   `PlanTrigger`; its `RelationChange.Replacement` names the definition an OR
@@ -157,16 +158,19 @@ imports `view`.
 
 ## What stays in the engine
 
-Dispatch, `Engine.Mu`, lock waits (`view_locks.go`) and `prepareViewCreation`.
-The handler skeletons (`executeCreateView`, `executeAlterView`,
-`executeDropView`, `executeRule`, `executePolicy`) keep the statement authority,
-the IF EXISTS NOTICEs, the stage lifecycle, the waits and publication. Also the
-host bodies (`view_host.go`), rule program execution (it runs DML), view source
-opening (`view_source.go`), refresh row production and staging,
-`importMaterializedSnapshots` and the per-row statement scope and binder, the
-policy import's storage, lock waits, authority refresh, snapshots and source
-preparation, the row-security authority wrappers and `DropProvider`. The
-`SynchronizeTriggersLocked` call stays in `ValidateCatalogStage` (`catalog.go`).
+Dispatch is the root's. [`viewcmds`](../viewcmds/README.md) holds the
+statement executors (`ExecuteCreateView`, `ExecuteAlterView`,
+`ExecuteDropView`, `ExecuteRule`, `ExecutePolicy`, `ExecuteTrigger` and
+`RefreshMaterializedLocked`), which keep the statement authority, the IF EXISTS
+NOTICEs, the stage lifecycle, the waits and publication; the host bodies
+(`view_host.go`); refresh row production and staging; and
+`ImportMaterializedSnapshots` with the per-row statement scope and binder.
+Core holds `Engine.Mu`, the lock waits (`view_locks.go`),
+`prepareViewCreation`, rule program execution (it runs DML), view source
+opening (`view_source.go`), the policy import's storage, lock waits, authority
+refresh, snapshots and source preparation, the row-security authority wrappers
+and `DropProvider`. The `SynchronizeTriggersLocked` call stays in core's
+`ValidateCatalogStage` (`catalog.go`).
 
 ## Invariants
 
@@ -182,8 +186,8 @@ preparation, the row-security authority wrappers and `DropProvider`. The
   storage. Replacements retain exact typed action-provider dependencies; ordinary
   rules and the implicit view `_RETURN` payload remain separate. Savepoint
   restoration selects the restored live slot without borrowing recipe authority.
-  Across unlocked definition admission, the root retains the initial authorization
-  epoch and event-name observation separately from the granted event identity.
+  Across unlocked definition admission, `viewcmds.ExecuteRule` retains the
+  initial authorization epoch and event-name observation separately from the granted event identity.
   Later phases validate both through the existing publication and admission
   fences; refreshed private provider views cannot restamp earlier authority or
   retarget an event whose lexical resolution changed.
@@ -222,9 +226,10 @@ preparation, the row-security authority wrappers and `DropProvider`. The
 
 Package units cover the slot helpers and the target-admission entry. Every other
 view, rule, policy, trigger DDL, materialized-view and query preflight unit builds an
-engine and names the code as `view.X`: view, policy and rule DDL units live in
-`internal/engine/viewcmds`, RLS, rule expansion and row-lock view units in
-`internal/engine/core`, and the rest in `internal/engine`. `TestViewHostSeam`
+engine and names the code as `view.X`: view, policy, rule DDL and
+materialized-view units live in `internal/engine/viewcmds`, RLS, rule
+expansion and row-lock view units in `internal/engine/core`, and trigger DDL
+units in `internal/engine`. `TestViewHostSeam`
 and `TestDropReaderSeam` pin the two seams, and the
 `TestMaterializedViewSnapshot*` units cover snapshot import admission. Public SQL
 lives in [reference/views](../../../reference/views/README.md#testing) and RLS in

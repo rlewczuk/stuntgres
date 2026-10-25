@@ -8,10 +8,12 @@ The root is the composition layer ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SP
 identity and VACUUM statements are [`tablecmds`](tablecmds/README.md)'s,
 index statements [`indexcmds`](indexcmds/README.md)'s, ATTACH and DETACH
 PARTITION with the partition and inheritance Restore repairs
-[`partitioncmds`](partitioncmds/README.md)'s, and ALTER DOMAIN, ALTER TYPE,
-enum and range DDL and ALTER TABLE OF [`typecmds`](typecmds/README.md)'s.
-Runtime state, admission, publication and the transaction lifecycle are
-core's. No package imports the root except tests and `enginetest`.
+[`partitioncmds`](partitioncmds/README.md)'s, ALTER DOMAIN, ALTER TYPE, enum
+and range DDL and ALTER TABLE OF [`typecmds`](typecmds/README.md)'s, and
+view, REFRESH MATERIALIZED VIEW, rule, policy and trigger DDL with the
+materialized snapshot import [`viewcmds`](viewcmds/README.md)'s. Runtime
+state, admission, publication and the transaction lifecycle are core's. No
+package imports the root except tests and `enginetest`.
 
 ## Composition
 
@@ -23,39 +25,27 @@ implements `Execute` and `ExecuteLocked` in the historical case order, and
 and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
 `*core.Engine`.
 
-Family statement code still in the root (views, rules, policies, triggers,
-roles, schema objects, routines, extensions and FDW) is written as
-receiver-first functions over core types (`executeSchema(e, ...)`,
-`executeAlterView(e, ...)`), so that it can leave with its family; it names
-only exported core, `tablecmds` and `typecmds` members. A root file holds one
-family's declarations and nothing else.
+Family statement code still in the root (roles, schema objects, routines,
+extensions and FDW) is written as receiver-first functions over core types
+(`executeSchema(e, ...)`, `executeRole(e, ...)`), so that it can leave with
+its family; it names only exported core, `tablecmds` and `typecmds` members.
+A root file holds one family's declarations and nothing else.
 
-Trigger definitions and lifecycle utilities publish immutable relation payloads
-through the ordinary catalog stage and transaction journal. Definitions,
-dependencies and row effects commit together or restore at rollback/savepoints;
-each DML activation captures the current owner-private trigger list, not a list
-cached by its prepared handle. CREATE/REPLACE admits ShareRowExclusive on the
-root and descendants; rename admits AccessExclusive before mutation. Addressed
-DROP and extension metadata use the generic AccessShare target admission;
-`view.PlanTrigger` then decides the change under `Engine.Mu`. Clone
-synchronization (`view.SynchronizeTriggersLocked`, called from
-`ValidateCatalogStage`) preserves exact Parent/OID identity and fails a
-descendant name collision before publication. Extension x
-retirement uses the shared dependency closure, including the partition-owner
-deletion guard; CASCADE does not grant upward partition deletion authority.
-Dump emits current definitions post-data followed by local dependency metadata.
-Restore admits only qualified positive trigger dependency ALTERs, never arbitrary
-rename/drop utilities.
+Trigger DDL is [`viewcmds`](viewcmds/README.md#triggers)'s. Each DML
+activation captures the current owner-private trigger list, not a list cached
+by its prepared handle. Dump emits current trigger definitions post-data
+followed by local dependency metadata; Restore admits only qualified positive
+trigger dependency ALTERs, never arbitrary rename/drop utilities.
 
 ## Family hosts
 
 Each family host embeds core's `DDLHost` with its `{E, Op, CatalogStage}`
 layout and is built by family code; each carries a compile-time assertion.
-`TableHost`, `AlterHost` and `TypeHost` are [`tablecmds`](tablecmds/README.md#hosts)'s.
+`TableHost`, `AlterHost` and `TypeHost` are [`tablecmds`](tablecmds/README.md#hosts)'s,
+and `ViewHost` is [`viewcmds`](viewcmds/README.md#entry-points)'s.
 
 | Root type | Implements |
 | --- | --- |
-| `ViewHost` (over `tablecmds.TableHost`; `view_host.go`, `policy_expression.go`) | `view.Host`, `view.StageHost` |
 | `RoutineHost` (`routine_host.go`, `operator_family_host.go`) | `routine.DDLHost`, `index.FamilyDDLHost` |
 | `RoleHost` (`role_host.go`) | `role.Host`, `role.StageHost` |
 | `SchemaHost` (`schema_host.go`) | `ddl.SchemaHost` |

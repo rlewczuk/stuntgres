@@ -19,8 +19,8 @@ It imports [`core`](../core/README.md) and the decision packages, never the
 root or another family. The root composition (dispatch and Restore hooks),
 [`indexcmds`](../indexcmds/README.md),
 [`partitioncmds`](../partitioncmds/README.md),
-[`typecmds`](../typecmds/README.md) and the families still in the root
-import it; by rule 6 every later family except `rolecmds` may. Code that
+[`typecmds`](../typecmds/README.md), [`viewcmds`](../viewcmds/README.md) and
+the families still in the root import it; by rule 6 every later family except `rolecmds` may. Code that
 tables share with those families lives here: renames, SET SCHEMA, typed
 sources, the IF EXISTS skip, the ALTER column candidates and type rebinds,
 `PrepareAlterTypeLocked`, and the hosts, `TypeHost` among them (typecmds and
@@ -52,7 +52,8 @@ TEMP preservation, relation admission and publication.
   `AcquirePartitionValidationViewsLocked`, `PendingPartitionDefinition` and
   `PartitionBoundBinder` (`partitioncmds`' ATTACH PARTITION), and the ALTER
   column candidates, `AlterRowEvaluation`, the check and index captures and
-  type rebinds (`typecmds`' ALTER TYPE on composites).
+  type rebinds (`typecmds`' ALTER TYPE on composites); `RenameRelationLocked`
+  and `AlterSchemaLocked` also serve `viewcmds`' ALTER VIEW.
 
 `Engine` (`inheritance_alter_admission.go`) is a defined type over
 `core.Engine` that carries only `admitInheritanceAlter`, whose
@@ -80,7 +81,7 @@ waiting.
 | `AlterHost{TableHost; Scope}` (`alter_host.go`) | `table.AlterHost`, one per call: the ALTER loop begins its stage lazily |
 | `TypeHost{TableHost}` (`typedef_host.go`, `domain_default_snapshot.go`) | `typedef.StageHost`, built by `typecmds` and the schema statements; `BindRestoredDomainDefault` binds a trusted Restore domain default snapshot |
 
-The root's `ViewHost` embeds `TableHost` too.
+`viewcmds`' `ViewHost` embeds `TableHost` too.
 
 ## Testing
 
