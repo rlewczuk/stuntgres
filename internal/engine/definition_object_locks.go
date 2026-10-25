@@ -24,7 +24,7 @@ func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
 }
 
 // Use the genuine catalog relation descriptor, not a synthetic lock identity.
-func (s *StatementScope) acquireCollationCatalog(base catalog.Read) error {
+func acquireCollationCatalog(s *StatementScope, base catalog.Read) error {
 	if base.Domain() != s.Engine().Catalog.Domain || base.Epoch() != s.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
@@ -40,7 +40,7 @@ func (s *StatementScope) acquireCollationCatalog(base catalog.Read) error {
 // Capture stages are effect-free catalog candidates. Hold their original object
 // identities before dependency discovery, then construct at most one final stage
 // from current authority. This is admission recapture, not a command retry.
-func (s *StatementScope) admitDefinitionMutation(stage *CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment, noticeMark int) (*CatalogStage, error) {
+func admitDefinitionMutation(s *StatementScope, stage *CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment, noticeMark int) (*CatalogStage, error) {
 	if stage == nil || stage.Owner != s.Engine() || stage.Base.Domain() != s.Engine().Catalog.Domain || stage.Base.Epoch() != s.TxRef.Epoch() {
 		return stage, ids.ErrCatalogReplaced
 	}
@@ -93,7 +93,7 @@ func (s *StatementScope) admitDefinitionMutation(stage *CatalogStage, stmt parse
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	auth, err := e.schemaAuthorizationLocked(s.Op)
+	auth, err := schemaAuthorizationLocked(e, s.Op)
 	if err != nil {
 		return stage, err
 	}
@@ -123,7 +123,7 @@ func (s *StatementScope) admitDefinitionMutation(stage *CatalogStage, stmt parse
 	// No notice from provisional construction is delivered twice. Notices from
 	// earlier statements in a retained message remain owned by that message.
 	s.Op.Notices = s.Op.Notices[:noticeMark]
-	current, err := e.stageSchemaLocked(s.Op, stmt, input, s.Output)
+	current, err := stageSchemaLocked(e, s.Op, stmt, input, s.Output)
 	if err != nil {
 		return stage, err
 	}

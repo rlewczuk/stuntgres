@@ -31,7 +31,7 @@ func domainUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) *
 			err = typedef.StageCreateEnumLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, enum)
 		}
 	} else {
-		stage, err = e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		stage, err = stageSchemaLocked(e, op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -91,7 +91,7 @@ func TestDomainCatalogIdentityBaseAndImmutableReads(t *testing.T) {
 	before := e.CatalogRead().State()
 	duplicate := statement(t, "CREATE DOMAIN public.amount AS missing_base")
 	e.Mu.Lock()
-	_, err := e.stageSchemaLocked(op, duplicate, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	_, err := stageSchemaLocked(e, op, duplicate, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.Mu.Unlock()
 	domainUnitDiagnostic(t, err, "42710", `type "amount" already exists`)
 	if e.CatalogRead().State() != before {
@@ -244,7 +244,7 @@ func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 		raw := statement(t, q)
 		before := e.CatalogRead().State()
 		e.Mu.Lock()
-		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		_, err := stageSchemaLocked(e, op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.Mu.Unlock()
 		domainUnitDiagnostic(t, err, "42601", tc.message)
 		if e.CatalogRead().State() != before {
@@ -290,7 +290,7 @@ func TestDomainUniqueASTRejectedWithoutPublication(t *testing.T) {
 			// position to another real token to catch incorrect outer provenance.
 			ast.Constraints[0].Pos = ast.Pos
 			e.Mu.Lock()
-			_, err := e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+			_, err := stageSchemaLocked(e, op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 			e.Mu.Unlock()
 			domainUnitDiagnostic(t, err, "42601", "unique constraints not possible for domains")
 			var diagnostic *sqlstate.Error

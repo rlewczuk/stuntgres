@@ -29,7 +29,7 @@ func TestDomainIdentityAuthorization(t *testing.T) {
 	actor, closeActor := roleOperation(t, e, schemaOwner.Name)
 	defer closeActor()
 	e.Mu.Lock()
-	_, err := e.stageSchemaLocked(actor, statement(t, "ALTER DOMAIN owned.d RENAME TO denied"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	_, err := stageSchemaLocked(e, actor, statement(t, "ALTER DOMAIN owned.d RENAME TO denied"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.Mu.Unlock()
 	domainUnitDiagnostic(t, err, "42501", "must be owner of type owned.d")
 	drop := domainUnitStage(t, e, actor, "DROP DOMAIN owned.d")

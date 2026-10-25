@@ -27,7 +27,7 @@ import (
 func extensionUnitStage(t *testing.T, e *Engine, op *session.Operation) *CatalogStage {
 	t.Helper()
 	e.Mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
+	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +239,7 @@ func TestExtensionProviderConflicts(t *testing.T) {
 			extensionUnitPublish(t, e, op, loose)
 			before := e.Catalog.State
 			e.Mu.Lock()
-			_, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
+			_, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
 			e.Mu.Unlock()
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) {
@@ -380,7 +380,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 			t.Fatal("registered implementation is not the stock installer", tc.name)
 		}
 		e.Mu.Lock()
-		stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: tc.name}})
+		stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: tc.name}})
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(tc.name, err)

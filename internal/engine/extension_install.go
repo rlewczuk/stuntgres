@@ -23,22 +23,22 @@ func (e *Engine) registerExtension(name string, implementation extension.Install
 	return nil
 }
 
-func (e *Engine) executeExtension(scope *StatementScope, s *parser.CreateExtension, count int) (Result, error) {
+func executeExtension(e *Engine, scope *StatementScope, s *parser.CreateExtension, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
-	stage, err := e.stageExtensionLocked(scope, s)
+	stage, err := stageExtensionLocked(e, scope, s)
 	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
-	return e.publishExtensionStage(scope, stage)
+	return publishExtensionStage(e, scope, stage)
 }
 
 // CREATE and UPDATE publish through the same validated statement-owned changes.
 // Provider callbacks run in ValidateCatalogStage outside the engine mutex.
-func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStage) (Result, error) {
+func publishExtensionStage(e *Engine, scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
 	if _, err := e.ValidateCatalogStage(scope.Op.Context(), stage); err != nil {
 		return Result{}, err
@@ -72,7 +72,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	return Result{}, nil
 }
 
-func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExtension) (*CatalogStage, error) {
+func stageExtensionLocked(e *Engine, scope *StatementScope, s *parser.CreateExtension) (*CatalogStage, error) {
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return nil, err

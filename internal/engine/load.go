@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeLoad(op *session.Operation, stmt *parser.Load, count int) (Result, error) {
+func executeLoad(e *Engine, op *session.Operation, stmt *parser.Load, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

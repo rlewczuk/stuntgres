@@ -55,7 +55,7 @@ func TestTransactionalDefinitionLockResources(t *testing.T) {
 	}
 	// Exercise candidate staging and journal admission independently of SQL dispatch.
 	retirement := domainUnitStage(t, e, op, "DROP FUNCTION retirement_score(retirement_src)")
-	retirement, err = scope.admitDefinitionMutation(retirement, drop, sqltype.InputEnvironment{}, len(op.Notices))
+	retirement, err = admitDefinitionMutation(scope, retirement, drop, sqltype.InputEnvironment{}, len(op.Notices))
 	if err == nil {
 		err = StageExpressionDependencies(op.Context(), retirement, retirement.DomainTargets, parser.DropRestrict, scope, nil, nil, ids.ObjectAddress{})
 	}

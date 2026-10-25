@@ -219,7 +219,7 @@ func TestExtensionVersionPublication(t *testing.T) {
 		e, op, ext := extensionVersionUnitInstalled(t, "1.1")
 		members := extensionVersionUnitMembers(t, e.CatalogRead(), ext)
 		e.Mu.Lock()
-		stage, err := e.stageExtensionUpdateLocked(&StatementScope{Op: op}, extensionVersionUnitUpdate())
+		stage, err := stageExtensionUpdateLocked(e, &StatementScope{Op: op}, extensionVersionUnitUpdate())
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

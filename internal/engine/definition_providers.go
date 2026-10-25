@@ -59,7 +59,7 @@ func (s *StatementScope) AcquireDefinitionProviders(stage *CatalogStage) error {
 // Routine DROP has only captured identity roots at this point. Hold those
 // objects before discovering dependents, then use grant-time metadata without
 // resolving the original names again or repeating conditional notices.
-func (s *StatementScope) acquireRoutineRetirementRoots(stage *CatalogStage) error {
+func acquireRoutineRetirementRoots(s *StatementScope, stage *CatalogStage) error {
 	var scratch [8]ids.ObjectAddress
 	addresses := append(scratch[:0], stage.DomainTargets...)
 	slices.SortFunc(addresses, func(a, b ids.ObjectAddress) int { return cmp.Compare(a.ObjectID, b.ObjectID) })
@@ -71,7 +71,7 @@ func (s *StatementScope) acquireRoutineRetirementRoots(stage *CatalogStage) erro
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	auth, err := e.schemaAuthorizationLocked(s.Op)
+	auth, err := schemaAuthorizationLocked(e, s.Op)
 	if err != nil {
 		return err
 	}

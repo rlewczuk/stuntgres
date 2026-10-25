@@ -13,8 +13,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) executeSQLRoutineDDL(scope *StatementScope, s parser.Statement, count int) (Result, error) {
-	result, err := e.executeSchema(scope, scope.Op, s, count, scope.Input)
+func executeSQLRoutineDDL(e *Engine, scope *StatementScope, s parser.Statement, count int) (Result, error) {
+	result, err := executeSchema(e, scope, scope.Op, s, count, scope.Input)
 	if err == nil {
 		scope.Completed = true
 	}
@@ -23,7 +23,7 @@ func (e *Engine) executeSQLRoutineDDL(scope *StatementScope, s parser.Statement,
 
 // CREATE and Restore inspect the complete body without opening any producer.
 // Runtime text binding uses only the reached command, never this validator.
-func (e *Engine) BindSQLRoutineLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (last analyze.Binding, resultPlan sqltype.CoercionPlan, err error) {
+func BindSQLRoutineLocked(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (last analyze.Binding, resultPlan sqltype.CoercionPlan, err error) {
 	if d.SQLBody != nil {
 		if err := d.SQLBody.ValidateDefinition(d); err != nil {
 			return last, resultPlan, err

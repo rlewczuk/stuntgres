@@ -178,14 +178,14 @@ func extensionOwnershipImportUnits(t *testing.T) {
 		case "missing_member":
 			records[0].Members = records[0].Members[1:]
 		}
-		if err := stage.importExtensionOwners(context.Background(), op, records); err == nil {
+		if err := importExtensionOwners(stage, context.Background(), op, records); err == nil {
 			t.Fatal("invalid ownership import accepted", kind)
 		}
 		if stage.Catalog.State != before {
 			t.Fatal("failed ownership import changed staged identities", kind)
 		}
 	}
-	if err := stage.importExtensionOwners(context.Background(), op, []extension.OwnerRecord{record}); err != nil {
+	if err := importExtensionOwners(stage, context.Background(), op, []extension.OwnerRecord{record}); err != nil {
 		t.Fatal(err)
 	}
 	// Central DROP dependencies include extension and every owned member, plus
@@ -228,7 +228,7 @@ func extensionOwnershipImportUnits(t *testing.T) {
 	for i := range ownerRecord.Members {
 		ownerRecord.Members[i].Owner = originalOwner.Name
 	}
-	if err := imported.importExtensionOwners(context.Background(), replay, []extension.OwnerRecord{ownerRecord}); err != nil {
+	if err := importExtensionOwners(imported, context.Background(), replay, []extension.OwnerRecord{ownerRecord}); err != nil {
 		t.Fatal(err)
 	}
 	roleAttributeApply(t, target, admin, &parser.DropRole{Names: []string{originalOwner.Name}})

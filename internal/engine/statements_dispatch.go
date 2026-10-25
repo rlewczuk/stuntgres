@@ -17,9 +17,9 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
 		return dispatched(executeTrigger(e, scope, stmt, count))
 	case *parser.CreateFunction, *parser.CreateAggregate:
-		return dispatched(e.executeSQLRoutineDDL(scope, stmt, count))
+		return dispatched(executeSQLRoutineDDL(e, scope, stmt, count))
 	case *parser.ForeignDDL:
-		result, err := e.executeForeignDDL(scope, stmt.(*parser.ForeignDDL), count)
+		result, err := executeForeignDDL(e, scope, stmt.(*parser.ForeignDDL), count)
 		if err == nil {
 			scope.Completed = true
 		}
@@ -27,17 +27,17 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.CreateDatabaseStmt:
 		return dispatched(executeCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
 	case *parser.CreateTablespace:
-		return dispatched(e.executeCreateTablespace(op, stmt.(*parser.CreateTablespace), count))
+		return dispatched(executeCreateTablespace(e, op, stmt.(*parser.CreateTablespace), count))
 	case *parser.Load:
-		return dispatched(e.executeLoad(op, stmt.(*parser.Load), count))
+		return dispatched(executeLoad(e, op, stmt.(*parser.Load), count))
 	case *parser.Vacuum:
 		return dispatched(executeVacuum(e, scope, stmt.(*parser.Vacuum), count))
 	case *parser.CreateExtension:
-		return dispatched(e.executeExtension(scope, stmt.(*parser.CreateExtension), count))
+		return dispatched(executeExtension(e, scope, stmt.(*parser.CreateExtension), count))
 	case *parser.DropExtension:
-		return dispatched(e.executeDropExtension(scope, stmt.(*parser.DropExtension), count))
+		return dispatched(executeDropExtension(e, scope, stmt.(*parser.DropExtension), count))
 	case *parser.AlterExtensionUpdate:
-		return dispatched(e.executeExtensionUpdate(scope, stmt.(*parser.AlterExtensionUpdate), count))
+		return dispatched(executeExtensionUpdate(e, scope, stmt.(*parser.AlterExtensionUpdate), count))
 	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return dispatched(executeRule(e, scope, stmt, count))
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
@@ -72,7 +72,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		var result Result
 		var err error
 		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
-			result, err = e.executeSchema(scope, op, stmt, count, scope.Input)
+			result, err = executeSchema(e, scope, op, stmt, count, scope.Input)
 		} else {
 			result, err = executeAlterDomain(e, scope, domain, count)
 		}
@@ -86,25 +86,25 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
 			return dispatched(executeSequenceComment(e, scope, c, count))
 		}
-		result, err := e.executeComment(scope, stmt.(*parser.Comment), count)
+		result, err := executeComment(e, scope, stmt.(*parser.Comment), count)
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.CreateSchema, *parser.CreateLanguage, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.AlterType, *parser.DropType, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
+		result, err := executeSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
+		result, err := executeSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
-		result, err := e.executeSchema(scope, op, stmt, count, scope.Input)
+		result, err := executeSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.Completed = true
 		}
@@ -118,7 +118,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.ObjectGrant:
 		grant := stmt.(*parser.ObjectGrant)
 		if session.ForeignGrantKind(grant.Kind) {
-			return dispatched(e.executeForeignGrant(scope, grant, count))
+			return dispatched(executeForeignGrant(e, scope, grant, count))
 		}
 		if grant.Kind == "database" {
 			return dispatched(executeDatabaseGrant(e, scope, grant, count))
@@ -149,7 +149,7 @@ func (familyStatements) ExecuteLocked(e *Engine, scope *StatementScope, auth Aut
 	case *parser.AlterTableDefault:
 		return dispatched(alterDefaultLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAllInTablespace:
-		return dispatched(e.alterAllTablespaceLocked(scope, auth, s, count))
+		return dispatched(alterAllTablespaceLocked(e, scope, auth, s, count))
 	case *parser.RefreshMaterializedView:
 		return dispatched(refreshMaterializedLocked(e, scope, auth, s, count))
 	case *parser.AlterTableOf:

@@ -110,7 +110,7 @@ func TestLoProviderConflicts(t *testing.T) {
 			before := e.Catalog.State
 			e.Mu.Lock()
 			e.Catalog.InstallOIDFrontierLocked(frontier)
-			stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
+			stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "lo"}})
 			e.Mu.Unlock()
 			if stage != nil {
 				e.DiscardCatalogStage(stage)
@@ -429,7 +429,7 @@ func TestLoOwnerMetadata(t *testing.T) {
 		for i := range r.Members {
 			r.Members[i].Owner = original.Name
 		}
-		if err := staged.importExtensionOwners(context.Background(), replay, []extension.OwnerRecord{r}); err != nil {
+		if err := importExtensionOwners(staged, context.Background(), replay, []extension.OwnerRecord{r}); err != nil {
 			t.Fatal(err)
 		}
 		roleAttributeApply(t, target, admin, &parser.DropRole{Names: []string{original.Name}})

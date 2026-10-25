@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
+func executeForeignImport(e *Engine, scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
 	if err := CheckRestoreEffect(scope.Op); err != nil {
 		return Result{}, err
 	}

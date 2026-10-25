@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeCreateTablespace(op *session.Operation, stmt *parser.CreateTablespace, count int) (Result, error) {
+func executeCreateTablespace(e *Engine, op *session.Operation, stmt *parser.CreateTablespace, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

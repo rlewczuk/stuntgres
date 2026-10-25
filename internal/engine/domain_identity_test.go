@@ -111,7 +111,7 @@ func TestDomainIdentityDropStage(t *testing.T) {
 	if err := scope.Gate(statement(t, "DROP DOMAIN public.winner")); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.stageDomainDependents(drop, parser.DropRestrict); err != nil {
+	if err := stageDomainDependents(scope, drop, parser.DropRestrict); err != nil {
 		t.Fatal(err)
 	}
 	if drop.RemovalCount() != 2 {

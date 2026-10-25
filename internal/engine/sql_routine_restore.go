@@ -35,7 +35,7 @@ func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Op
 				}
 				continue
 			}
-			binding, _, bindErr := e.BindSQLRoutineLocked(op, auth, d, input, nil)
+			binding, _, bindErr := BindSQLRoutineLocked(e, op, auth, d, input, nil)
 			if bindErr != nil && !binding.UnresolvedCallable {
 				return bindErr
 			}

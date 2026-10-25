@@ -76,14 +76,14 @@ func extensionVersionOwnerImports(t *testing.T) {
 				case "swapped_slots":
 					records[0].Members[0].Slot, records[0].Members[1].Slot = records[0].Members[1].Slot, records[0].Members[0].Slot
 				}
-				if err := stage.importExtensionOwners(context.Background(), op, records); err == nil {
+				if err := importExtensionOwners(stage, context.Background(), op, records); err == nil {
 					t.Fatal("invalid version owners admitted", kind)
 				}
 				if stage.Catalog.State != before {
 					t.Fatal("failed version owner import mutated destination", kind)
 				}
 			}
-			if err := stage.importExtensionOwners(context.Background(), op, []extension.OwnerRecord{record}); err != nil {
+			if err := importExtensionOwners(stage, context.Background(), op, []extension.OwnerRecord{record}); err != nil {
 				t.Fatal(err)
 			}
 			a := stage.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"})

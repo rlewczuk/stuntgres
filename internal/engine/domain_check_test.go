@@ -55,7 +55,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 	} {
 		raw := statement(t, q)
 		e.Mu.Lock()
-		_, err := e.stageSchemaLocked(op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		_, err := stageSchemaLocked(e, op, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) {

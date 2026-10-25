@@ -27,7 +27,7 @@ func domainRestrictError(stage *CatalogStage, targets []ids.ObjectAddress, edges
 	return view.RestrictError(StageDropProvider(context.Background(), stage, nil, nil, nil), targets, edges, originalRootCount, subject)
 }
 
-func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode parser.DropMode) error {
+func stageDomainDependents(scope *StatementScope, stage *CatalogStage, mode parser.DropMode) error {
 	start := len(stage.DropCascadeNames)
 	if err := scope.StageExpressionDependents(stage, stage.DomainTargets, mode, nil); err != nil {
 		return err
@@ -164,7 +164,7 @@ func (provider *DropProvider) ExpressionDependencies(roots []ids.ObjectAddress, 
 	return nil
 }
 
-func (e *Engine) stageSchemaDomainsLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
+func stageSchemaDomainsLocked(e *Engine, op *session.Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
 	var contained []catalog.Descriptor
 	for _, r := range relations {
 		contained = append(contained, r)

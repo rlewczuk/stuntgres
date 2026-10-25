@@ -89,7 +89,7 @@ func (s *StatementScope) acquireDefinitionDependencyLocks(stage *CatalogStage) e
 // creator which already owns the provider's AccessShare lock can publish new
 // AUTO members while DROP waits. Once granted, capture a fresh closure of the
 // same object; never retry a lookup against a replacement or renamed object.
-func (s *StatementScope) admitDefinitionRetirement(stage *CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment) (*CatalogStage, error) {
+func admitDefinitionRetirement(s *StatementScope, stage *CatalogStage, stmt parser.Statement, input sqltype.InputEnvironment) (*CatalogStage, error) {
 	switch stmt.(type) {
 	case *parser.DropAccessMethod, *parser.DropOperatorFamily, *parser.DropOperatorClass:
 	default:
@@ -122,7 +122,7 @@ func (s *StatementScope) admitDefinitionRetirement(stage *CatalogStage, stmt par
 			return stage, ids.ErrCatalogReplaced
 		}
 	}
-	fresh, err := e.stageSchemaLocked(s.Op, stmt, input, s.Output)
+	fresh, err := stageSchemaLocked(e, s.Op, stmt, input, s.Output)
 	if err != nil {
 		return stage, err
 	}

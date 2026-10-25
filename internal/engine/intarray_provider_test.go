@@ -27,7 +27,7 @@ func intarrayUnitStage(t *testing.T, e *Engine, op *session.Operation, name, sch
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
 	e.Mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, creation)
+	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		extensionUnitPublish(t, e, op, stage)
 		before := e.Catalog.State
 		e.Mu.Lock()
-		_, err = e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "intarray"}})
+		_, err = stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "intarray"}})
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: extension.IntarrayTypeContext}

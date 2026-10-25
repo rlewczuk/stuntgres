@@ -91,10 +91,10 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
 			stage.AuthorizeLocked(auth, scope.Op.Session)
-			_, roots, err = e.stageForeignLocked(scope, auth, stage, foreign)
+			_, roots, err = stageForeignLocked(e, scope, auth, stage, foreign)
 		}
 	} else {
-		stage, err = e.stageSchemaLocked(scope.Op, stmt, sqltype.InputEnvironment{}, scope.Output)
+		stage, err = stageSchemaLocked(e, scope.Op, stmt, sqltype.InputEnvironment{}, scope.Output)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -104,7 +104,7 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 	if len(roots) != 0 {
 		err = scope.StageExpressionDependents(stage, roots, parser.DropCascade, nil)
 	} else {
-		err = scope.stageDomainDependents(stage, parser.DropCascade)
+		err = stageDomainDependents(scope, stage, parser.DropCascade)
 	}
 	if err != nil {
 		t.Fatal(err)

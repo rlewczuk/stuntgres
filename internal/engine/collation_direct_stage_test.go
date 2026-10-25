@@ -70,7 +70,7 @@ func TestCollationDirectStageTemporaryAuthority(t *testing.T) {
 			ast := statement(t, query)
 			e.Mu.Lock()
 			oid, revision := e.Catalog.NextOID(), e.Catalog.NextRevision()
-			stage, err := e.stageSchemaLocked(creator, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+			stage, err := stageSchemaLocked(e, creator, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 			e.Mu.Unlock()
 			if stage != nil {
 				defer e.DiscardCatalogStage(stage)

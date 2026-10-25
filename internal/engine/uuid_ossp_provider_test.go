@@ -34,7 +34,7 @@ func uuidOsspUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
 	e.Mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "uuid-ossp"}})
+	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "uuid-ossp"}})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -78,7 +78,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 		}
 	}
 	e.Mu.Lock()
-	stage, err := e.stageExtensionUpdateLocked(&StatementScope{Op: op}, extensionVersionUnitUpdate())
+	stage, err := stageExtensionUpdateLocked(e, &StatementScope{Op: op}, extensionVersionUnitUpdate())
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

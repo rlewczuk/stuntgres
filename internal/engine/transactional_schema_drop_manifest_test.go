@@ -33,7 +33,7 @@ func captureSchemaDropUnit(t *testing.T, e *Engine, op *session.Operation, stmt 
 func constructSchemaDropUnit(e *Engine, op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*CatalogStage, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return e.stageSchemaDropLocked(op, stmt, manifest)
+	return stageSchemaDropLocked(e, op, stmt, manifest)
 }
 
 func TestTransactionalSchemaDropManifest(t *testing.T) {

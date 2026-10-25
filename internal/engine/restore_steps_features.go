@@ -114,7 +114,7 @@ func afterRestoreTypeOwner(r *restoreRun, op *session.Operation, stmt parser.Sta
 
 // finishRestoreExtensionOwners imports the decoded extension owners.
 func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return r.stage.importExtensionOwners(ctx, op, r.extensionOwners)
+	return importExtensionOwners(r.stage, ctx, op, r.extensionOwners)
 }
 
 // finishRestoreMaterializedSnapshots populates materialized views from the

@@ -69,7 +69,7 @@ func TestRoutineDropReplayClassification(t *testing.T) {
 		}
 		d := &catalog.Procedure{ObjectName: "rd_unit_replay", SQL: definition, Result: 23}
 		before := auth.Catalog.State()
-		binding, _, err := e.BindSQLRoutineLocked(op, auth, d, input, nil)
+		binding, _, err := engine.BindSQLRoutineLocked(e, op, auth, d, input, nil)
 		var diagnostic *sqlstate.Error
 		if tc.code == "" {
 			if err != nil {

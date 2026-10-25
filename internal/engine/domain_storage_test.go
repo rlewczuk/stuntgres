@@ -79,13 +79,13 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	restrict := domainUnitStage(t, e, op, "DROP DOMAIN public.a RESTRICT")
 	before := e.CatalogRead().State()
-	err = scope.stageDomainDependents(restrict, parser.DropRestrict)
+	err = stageDomainDependents(scope, restrict, parser.DropRestrict)
 	domainUnitDiagnostic(t, err, "2BP01", "cannot drop type a because other objects depend on it")
 	if e.CatalogRead().State() != before || e.Storage.Relations[table.Address()] != source {
 		t.Fatal("RESTRICT changed roots")
 	}
 	cascade := domainUnitStage(t, e, op, "DROP DOMAIN public.a CASCADE")
-	if err = scope.stageDomainDependents(cascade, parser.DropCascade); err != nil {
+	if err = stageDomainDependents(scope, cascade, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, cascade)

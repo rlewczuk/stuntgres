@@ -27,7 +27,7 @@ func definitionUnitStage(t *testing.T, e *Engine, owner *session.Session, q stri
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("discard definition unit scope"))
-	_, err = e.executeSchema(scope, op, ast, 0, sqltype.InputEnvironment{})
+	_, err = executeSchema(e, scope, op, ast, 0, sqltype.InputEnvironment{})
 	if err == nil {
 		err = scope.Finish(nil)
 	}

@@ -143,10 +143,10 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	stage, err = e.stageSchemaLocked(op, raw, scope.Input, scope.Output)
+	stage, err = stageSchemaLocked(e, op, raw, scope.Input, scope.Output)
 	e.Mu.Unlock()
 	if err == nil {
-		err = scope.stageDomainDependents(stage, parser.DropCascade)
+		err = stageDomainDependents(scope, stage, parser.DropCascade)
 	}
 	if err != nil {
 		scope.Finish(err)

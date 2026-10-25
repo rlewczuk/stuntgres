@@ -11,7 +11,7 @@ import (
 
 // Apply only to Restore's isolated catalog. Named target identities were
 // captured before reading; final replacement fences their remapping again.
-func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operation, records []extension.OwnerRecord) error {
+func importExtensionOwners(e *Engine, ctx context.Context, op *session.Operation, records []extension.OwnerRecord) error {
 	if len(records) == 0 {
 		return nil
 	}

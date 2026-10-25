@@ -67,7 +67,7 @@ func TestDomainIdentityIndexClosure(t *testing.T) {
 	if err := scope.Gate(statement(t, "DROP DOMAIN public.d CASCADE")); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.stageDomainDependents(stage, parser.DropCascade); err != nil {
+	if err := stageDomainDependents(scope, stage, parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"identity_key", "identity_include", "identity_expression", "identity_predicate"} {

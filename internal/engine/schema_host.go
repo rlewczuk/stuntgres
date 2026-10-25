@@ -29,7 +29,7 @@ func (h SchemaHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddres
 }
 
 func (h SchemaHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {
-	return h.E.stageSchemaDomainsLocked(h.Op, DDLAuthorityOf(a), h.CatalogStage, schemas, relations, others, cascade)
+	return stageSchemaDomainsLocked(h.E, h.Op, DDLAuthorityOf(a), h.CatalogStage, schemas, relations, others, cascade)
 }
 
 func (h SchemaHost) AddCascadeNotice(line string) {

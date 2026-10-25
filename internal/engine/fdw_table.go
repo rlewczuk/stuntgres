@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
+func executeForeignTableAlter(e *Engine, scope *StatementScope, s *parser.ForeignDDL) (Result, error) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {

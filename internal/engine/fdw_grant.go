@@ -11,7 +11,7 @@ import (
 
 // The class-specific target adapter uses the same role closure, grant-source,
 // ACL transformation and transactional publication authorities as other GRANTs.
-func (e *Engine) executeForeignGrant(scope *StatementScope, s *parser.ObjectGrant, count int) (Result, error) {
+func executeForeignGrant(e *Engine, scope *StatementScope, s *parser.ObjectGrant, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

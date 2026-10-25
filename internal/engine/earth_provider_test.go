@@ -77,7 +77,7 @@ func TestEarthProviderConflicts(t *testing.T) {
 	defer done()
 	before := e.Catalog.State
 	e.Mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
+	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "earthdistance"}})
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42704" || stage != nil || e.Catalog.State != before {

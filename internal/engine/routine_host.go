@@ -85,7 +85,7 @@ func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input
 	if d.SQL.Kind == proc.PLpgSQLBody {
 		return h.E.CompilePLRoutineLocked(h.Op, auth, d)
 	}
-	_, _, err := h.E.BindSQLRoutineLocked(h.Op, auth, d, input, nil)
+	_, _, err := BindSQLRoutineLocked(h.E, h.Op, auth, d, input, nil)
 	return err
 }
 

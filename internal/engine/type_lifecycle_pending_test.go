@@ -110,7 +110,7 @@ func TestTypeLifecyclePendingDropClosure(t *testing.T) {
 						_ = scope.Finish(err)
 						t.Fatal(err)
 					}
-					err = scope.stageDomainDependents(stage, parser.DropRestrict)
+					err = stageDomainDependents(scope, stage, parser.DropRestrict)
 					if dependent {
 						domainUnitDiagnostic(t, err, "2BP01", "cannot drop desired object(s) because other objects depend on them")
 						if stage.RemovalCount() != 0 || e.CatalogRead().State() != before.State() {

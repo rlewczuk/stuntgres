@@ -228,7 +228,7 @@ func TestTypeLifecycleDropClosure(t *testing.T) {
 	if err := scope.Gate(statement(t, "DROP TYPE public.mood")); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.stageDomainDependents(stage, parser.DropRestrict); err != nil {
+	if err := stageDomainDependents(scope, stage, parser.DropRestrict); err != nil {
 		t.Fatal(err)
 	}
 	if stage.RemovalCount() != 2 {

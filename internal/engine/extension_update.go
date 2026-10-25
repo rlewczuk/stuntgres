@@ -6,20 +6,20 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeExtensionUpdate(scope *StatementScope, s *parser.AlterExtensionUpdate, count int) (Result, error) {
+func executeExtensionUpdate(e *Engine, scope *StatementScope, s *parser.AlterExtensionUpdate, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	e.Mu.Lock()
-	stage, err := e.stageExtensionUpdateLocked(scope, s)
+	stage, err := stageExtensionUpdateLocked(e, scope, s)
 	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
-	return e.publishExtensionStage(scope, stage)
+	return publishExtensionStage(e, scope, stage)
 }
 
-func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.AlterExtensionUpdate) (*CatalogStage, error) {
+func stageExtensionUpdateLocked(e *Engine, scope *StatementScope, s *parser.AlterExtensionUpdate) (*CatalogStage, error) {
 	if err := scope.Op.Context().Err(); err != nil {
 		return nil, err
 	}

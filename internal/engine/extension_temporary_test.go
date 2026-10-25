@@ -613,7 +613,7 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	base := e.Catalog.State
 	restrictStmt := statement(t, "DROP SCHEMA public")
 	e.Mu.Lock()
-	stage, err := e.stageSchemaLocked(op, restrictStmt, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	stage, err := stageSchemaLocked(e, op, restrictStmt, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || !strings.Contains(diagnostic.Detail, "extension unaccent depends on schema public") || stage != nil || e.Catalog.State != base {
@@ -622,7 +622,7 @@ func TestExtensionSchemaClosure(t *testing.T) {
 	// Prepare a real CASCADE candidate, then introduce a late dependent. The
 	// publication token must reject the entire predecessor rather than prune it.
 	e.Mu.Lock()
-	candidate, err := e.stageSchemaLocked(op, statement(t, "DROP SCHEMA public CASCADE"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	candidate, err := stageSchemaLocked(e, op, statement(t, "DROP SCHEMA public CASCADE"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

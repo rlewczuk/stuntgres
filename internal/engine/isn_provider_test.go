@@ -24,7 +24,7 @@ func isnUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema s
 		creation.Options = []parser.ExtensionOption{{Name: "schema", Value: parser.Identifier{Text: schema}}}
 	}
 	e.Mu.Lock()
-	stage, err := e.stageExtensionLocked(&StatementScope{Op: op}, creation)
+	stage, err := stageExtensionLocked(e, &StatementScope{Op: op}, creation)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

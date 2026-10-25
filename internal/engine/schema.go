@@ -19,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
+func executeSchema(e *Engine, scope *StatementScope, op *session.Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -38,17 +38,17 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	noticeMark := len(op.Notices)
 	if drop, ok := stmt.(*parser.DropSchema); ok {
 		var manifest ddl.SchemaDropManifest
-		manifest, err = scope.acquireSchemaDrop(drop)
+		manifest, err = acquireSchemaDrop(scope, drop)
 		if err != nil {
 			return Result{}, err
 		}
 		e.Mu.Lock()
-		stage, err = e.stageSchemaDropLocked(op, drop, manifest)
+		stage, err = stageSchemaDropLocked(e, op, drop, manifest)
 		e.Mu.Unlock()
 	} else if create, ok := stmt.(*parser.CreateCollation); ok {
 		var plan typedef.CollationCreatePlan
 		e.Mu.Lock()
-		stage, plan, err = e.prepareCollationCreateLocked(op, create)
+		stage, plan, err = prepareCollationCreateLocked(e, op, create)
 		e.Mu.Unlock()
 		if err != nil || !plan.NeedsCatalogLock() {
 			e.DiscardCatalogStage(stage)
@@ -56,13 +56,13 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		}
 		// Only the protected cross-encoding/insertion phase waits. Preparation
 		// retains the original exact-key absence for concurrent index errors.
-		if err = scope.acquireCollationCatalog(stage.Base); err != nil {
+		if err = acquireCollationCatalog(scope, stage.Base); err != nil {
 			op.Notices = op.Notices[:noticeMark]
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
 		e.Mu.Lock()
-		stage, err = e.completeCollationCreateLocked(op, stage, &plan)
+		stage, err = completeCollationCreateLocked(e, op, stage, &plan)
 		e.Mu.Unlock()
 		if err != nil {
 			op.Notices = op.Notices[:noticeMark]
@@ -71,15 +71,15 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 		}
 	} else {
 		e.Mu.Lock()
-		stage, err = e.stageSchemaLocked(op, stmt, input, scope.Output)
+		stage, err = stageSchemaLocked(e, op, stmt, input, scope.Output)
 		e.Mu.Unlock()
 	}
 	if err != nil || stage == nil {
 		return Result{}, err
 	}
-	stage, err = scope.admitDefinitionMutation(stage, stmt, input, noticeMark)
+	stage, err = admitDefinitionMutation(scope, stage, stmt, input, noticeMark)
 	if err == nil {
-		stage, err = scope.admitDefinitionRetirement(stage, stmt, input)
+		stage, err = admitDefinitionRetirement(scope, stage, stmt, input)
 	}
 	if err != nil {
 		e.DiscardCatalogStage(stage)
@@ -98,7 +98,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	}
 	defer e.DiscardCatalogStage(stage)
 	if _, droppingRoutine := stmt.(*parser.DropRoutine); droppingRoutine {
-		if err := scope.acquireRoutineRetirementRoots(stage); err != nil {
+		if err := acquireRoutineRetirementRoots(scope, stage); err != nil {
 			return Result{}, err
 		}
 	}
@@ -206,7 +206,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	if err := scope.StageExpressionDependents(stage, removedRelations, parser.DropCascade, nil); err != nil {
 		return Result{}, err
 	}
-	if err = scope.stageDomainDependents(stage, domainMode); err != nil {
+	if err = stageDomainDependents(scope, stage, domainMode); err != nil {
 		return Result{}, err
 	}
 	if err := scope.StageOwnedSequences(stage, removedRelations, parser.DropCascade, nil); err != nil {
@@ -235,7 +235,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	}
 	_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if creation, ok := stmt.(*parser.CreateSchema); ok && creation.IfNotExists && err != nil {
-		skipped, failure := scope.skipConcurrentSchema(stage, creation, err)
+		skipped, failure := skipConcurrentSchema(scope, stage, creation, err)
 		if skipped {
 			return Result{}, nil
 		}
@@ -268,8 +268,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 
 // Preparation owns the normal candidate, including any newly materialized TEMP
 // namespace. No collation OID or provider instance is allocated before admission.
-func (e *Engine) prepareCollationCreateLocked(op *session.Operation, stmt *parser.CreateCollation) (*CatalogStage, typedef.CollationCreatePlan, error) {
-	auth, err := e.schemaAuthorizationLocked(op)
+func prepareCollationCreateLocked(e *Engine, op *session.Operation, stmt *parser.CreateCollation) (*CatalogStage, typedef.CollationCreatePlan, error) {
+	auth, err := schemaAuthorizationLocked(e, op)
 	if err != nil {
 		return nil, typedef.CollationCreatePlan{}, err
 	}
@@ -279,8 +279,8 @@ func (e *Engine) prepareCollationCreateLocked(op *session.Operation, stmt *parse
 	return stage, plan, err
 }
 
-func (e *Engine) completeCollationCreateLocked(op *session.Operation, prepared *CatalogStage, plan *typedef.CollationCreatePlan) (*CatalogStage, error) {
-	auth, err := e.schemaAuthorizationLocked(op)
+func completeCollationCreateLocked(e *Engine, op *session.Operation, prepared *CatalogStage, plan *typedef.CollationCreatePlan) (*CatalogStage, error) {
+	auth, err := schemaAuthorizationLocked(e, op)
 	if err != nil {
 		return prepared, err
 	}
@@ -306,7 +306,7 @@ func (e *Engine) completeCollationCreateLocked(op *session.Operation, prepared *
 
 // schemaAuthorizationLocked supplies the same current authority and early
 // context/actor gates to both ordinary schema staging and admitted schema DROP.
-func (e *Engine) schemaAuthorizationLocked(op *session.Operation) (AuthorizationView, error) {
+func schemaAuthorizationLocked(e *Engine, op *session.Operation) (AuthorizationView, error) {
 	auth, err := e.AuthorizationLocked(op)
 	if err != nil {
 		return AuthorizationView{}, err
@@ -322,8 +322,8 @@ func (e *Engine) schemaAuthorizationLocked(op *session.Operation) (Authorization
 
 // stageSchemaDropLocked recaptures authority, validates the whole admitted
 // manifest and constructs its exact target stage without an unlocked handoff.
-func (e *Engine) stageSchemaDropLocked(op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*CatalogStage, error) {
-	auth, err := e.schemaAuthorizationLocked(op)
+func stageSchemaDropLocked(e *Engine, op *session.Operation, stmt *parser.DropSchema, manifest ddl.SchemaDropManifest) (*CatalogStage, error) {
+	auth, err := schemaAuthorizationLocked(e, op)
 	if err != nil {
 		return nil, err
 	}
@@ -335,8 +335,8 @@ func (e *Engine) stageSchemaDropLocked(op *session.Operation, stmt *parser.DropS
 	return stage, nil
 }
 
-func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*CatalogStage, error) {
-	auth, err := e.schemaAuthorizationLocked(op)
+func stageSchemaLocked(e *Engine, op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*CatalogStage, error) {
+	auth, err := schemaAuthorizationLocked(e, op)
 	if err != nil {
 		return nil, err
 	}

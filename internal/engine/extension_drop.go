@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExtension, count int) (Result, error) {
+func executeDropExtension(e *Engine, scope *StatementScope, s *parser.DropExtension, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

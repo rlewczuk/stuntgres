@@ -178,7 +178,7 @@ func (s *StatementScope) AcquireCatalogNamespace(base catalog.Read, address ids.
 
 // Schema removal protects the captured namespace before constructing its
 // dependency closure. Rename/owner changes deliberately do not take this AX.
-func (s *StatementScope) acquireSchemaDrop(stmt *parser.DropSchema) (ddl.SchemaDropManifest, error) {
+func acquireSchemaDrop(s *StatementScope, stmt *parser.DropSchema) (ddl.SchemaDropManifest, error) {
 	e := s.Engine()
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(s.Op)
@@ -248,7 +248,7 @@ func (s *StatementScope) SkipConcurrentRelation(base catalog.Read, key ids.NameK
 	return true, nil
 }
 
-func (s *StatementScope) skipConcurrentSchema(stage *CatalogStage, stmt *parser.CreateSchema, failure error) (bool, error) {
+func skipConcurrentSchema(s *StatementScope, stage *CatalogStage, stmt *parser.CreateSchema, failure error) (bool, error) {
 	var diagnostic *sqlstate.Error
 	if !errors.As(failure, &diagnostic) || diagnostic.Code != "23505" {
 		return false, failure

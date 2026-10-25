@@ -6,13 +6,13 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeComment(scope *StatementScope, s *parser.Comment, count int) (Result, error) {
+func executeComment(e *Engine, scope *StatementScope, s *parser.Comment, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	op := scope.Op
 	e.Mu.Lock()
-	stage, err := e.stageCommentLocked(scope, s)
+	stage, err := stageCommentLocked(e, scope, s)
 	e.Mu.Unlock()
 	if err != nil || stage == nil {
 		return Result{}, err
@@ -26,7 +26,7 @@ func (e *Engine) executeComment(scope *StatementScope, s *parser.Comment, count 
 	return Result{}, err
 }
 
-func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*CatalogStage, error) {
+func stageCommentLocked(e *Engine, scope *StatementScope, s *parser.Comment) (*CatalogStage, error) {
 	op := scope.Op
 	if err := scope.ValidateLockedRelation(e); err != nil {
 		return nil, err
