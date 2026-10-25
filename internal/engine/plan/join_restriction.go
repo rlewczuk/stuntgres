@@ -7,9 +7,68 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// A conjunct can move only when its dependencies and evaluation properties
-// already satisfy the whole-predicate predecessor rule.
-func FunctionFromRestriction(join *JoinNode, predicate expr.Expr) bool {
+// InnerJoinRestriction moves the WHERE conditions that read only the left
+// input of an inner join below the join, as PostgreSQL evaluates a condition
+// on one relation at that relation's scan: rows it rejects are never paired,
+// and a correlated right input never runs for them. Conditions that are
+// volatile, read the right input or another frame, or have an unsupported
+// form stay in a residual filter above the join. The result is an
+// execution-private copy: the canonical and view trees are unchanged, and
+// ScanOwner keeps the original join's foreign-scan identity. Nil declines.
+func InnerJoinRestriction(root Node, predicate expr.Expr) Node {
+	join, ok := root.(*JoinNode)
+	if !ok || join.Kind != parser.JoinInner || len(join.Merges) != 0 {
+		return nil
+	}
+	before, after := PartitionJoinConjuncts(join, predicate)
+	if before == nil {
+		return nil
+	}
+	copy := *join
+	if copy.ScanOwner == nil {
+		copy.ScanOwner = join
+	}
+	copy.Left = &FilterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: before}
+	if after == nil {
+		return &copy
+	}
+	return &FilterNode{QuerySchema: join.Schema(), Child: &copy, Predicate: after}
+}
+
+// PartitionJoinConjuncts splits a top-level conjunction into the conjuncts
+// JoinLeftRestriction admits and the rest; any other expression moves or stays
+// whole. Ordinary Boolean evaluation of each part is unchanged.
+func PartitionJoinConjuncts(join *JoinNode, predicate expr.Expr) (before, after expr.Expr) {
+	if logical, ok := predicate.(LogicalExpr); ok && logical.Op == parser.LogicalAnd && !logical.QueryRight {
+		leftBefore, leftAfter := PartitionJoinConjuncts(join, logical.Left)
+		rightBefore, rightAfter := PartitionJoinConjuncts(join, logical.Right)
+		combine := func(left, right expr.Expr) expr.Expr {
+			if left == nil {
+				return right
+			}
+			if right == nil {
+				return left
+			}
+			copy := logical
+			copy.Left, copy.Right = left, right
+			copy.Property = expr.MergeProperties(left.Properties(), right.Properties())
+			return copy
+		}
+		return combine(leftBefore, rightBefore), combine(leftAfter, rightAfter)
+	}
+	if JoinLeftRestriction(join, predicate) {
+		return predicate, nil
+	}
+	return nil, predicate
+}
+
+// JoinLeftRestriction reports whether predicate may run on the join's left
+// input instead of on joined rows: it reads only left columns of the join's own
+// frame, and its evaluation properties do not depend on where it runs.
+func JoinLeftRestriction(join *JoinNode, predicate expr.Expr) bool {
+	if logical, ok := predicate.(LogicalExpr); ok && logical.QueryRight {
+		return false
+	}
 	properties := predicate.Properties()
 	if properties.Volatility == expr.Volatile || properties.StageDependent || properties.DomainDependent || properties.RuntimeDomainConversion {
 		return false
@@ -30,60 +89,6 @@ func FunctionFromRestriction(join *JoinNode, predicate expr.Expr) bool {
 		return false
 	}
 	return true
-}
-
-// functionFromConjuncts partitions only the immediate function join's WHERE
-// conjunction. Volatile/unsafe residuals stay after expansion; ordinary Boolean
-// evaluation and the canonical tree remain unchanged. Nil declines.
-func FunctionFromConjuncts(root Node, predicate expr.Expr) Node {
-	join, ok := root.(*JoinNode)
-	if !ok || join.Kind != parser.JoinInner || len(join.Merges) != 0 {
-		return nil
-	}
-	if _, ok := join.Right.(*FunctionFromNode); !ok {
-		return nil
-	}
-	conjunction, ok := predicate.(LogicalExpr)
-	if !ok || conjunction.Op != parser.LogicalAnd || conjunction.QueryRight {
-		return nil
-	}
-	before, after := PartitionFunctionConjuncts(join, predicate)
-	if before == nil {
-		return nil
-	}
-	copy := *join
-	copy.Left = &FilterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: before}
-	if after == nil {
-		return &copy
-	}
-	return &FilterNode{QuerySchema: join.Schema(), Child: &copy, Predicate: after}
-}
-
-func PartitionFunctionConjuncts(join *JoinNode, predicate expr.Expr) (before, after expr.Expr) {
-	if logical, ok := predicate.(LogicalExpr); ok {
-		if logical.Op != parser.LogicalAnd || logical.QueryRight {
-			return nil, predicate
-		}
-		leftBefore, leftAfter := PartitionFunctionConjuncts(join, logical.Left)
-		rightBefore, rightAfter := PartitionFunctionConjuncts(join, logical.Right)
-		combine := func(left, right expr.Expr) expr.Expr {
-			if left == nil {
-				return right
-			}
-			if right == nil {
-				return left
-			}
-			copy := logical
-			copy.Left, copy.Right = left, right
-			copy.Property = expr.MergeProperties(left.Properties(), right.Properties())
-			return copy
-		}
-		return combine(leftBefore, rightBefore), combine(leftAfter, rightAfter)
-	}
-	if FunctionFromRestriction(join, predicate) {
-		return predicate, nil
-	}
-	return nil, predicate
 }
 
 // Slots, including descendant synthetic merged slots, belong to child frames.
