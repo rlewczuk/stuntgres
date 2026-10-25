@@ -299,9 +299,8 @@ func ApplyIndexEvolution(provider EvolutionTarget, address ids.ObjectAddress, in
 // fences every build against row publication, even when catalog is unchanged.
 func CaptureIndexStores(relations map[ids.ObjectAddress]*storage.Relation, snapshot *catalog.State) map[ids.ObjectAddress]*storage.Relation {
 	var captured map[ids.ObjectAddress]*storage.Relation
-	for _, d := range snapshot.Descriptors() {
-		index, ok := d.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
+	for _, index := range snapshot.Relations() {
+		if index.SQLIndex == nil {
 			continue
 		}
 		if parent, ok := snapshot.Relation(index.SQLIndex.Parent); ok && parent.Partition != nil {
@@ -327,9 +326,8 @@ func StoresUnchanged(relations, captured map[ids.ObjectAddress]*storage.Relation
 	if len(prepared) == 0 && len(captured) == 0 {
 		return true
 	}
-	for address, d := range next.Descriptors() {
-		index, ok := d.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil || prepared != nil && prepared[address] == previous[address] {
+	for address, index := range next.Relations() {
+		if index.SQLIndex == nil || prepared != nil && prepared[address] == previous[address] {
 			continue
 		}
 		a := index.SQLIndex.Parent
@@ -364,9 +362,8 @@ func PrepareIndexPublication(evaluation *exec.Context, current, next *catalog.St
 		local.RoutineAuthority = env
 		evaluation = &local
 	}
-	for a, descriptor := range next.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
+	for a, index := range next.Relations() {
+		if index.SQLIndex == nil {
 			continue
 		}
 		parent := next.MustRelation(index.SQLIndex.Parent)

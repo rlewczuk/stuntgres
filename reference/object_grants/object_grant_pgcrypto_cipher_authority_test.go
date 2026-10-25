@@ -184,7 +184,7 @@ func TestReferenceObjectGrantPGCryptoCipherAuthority(t *testing.T) {
 					controls = append(controls, value("og_cipher."+sibling.name+"("+operands+"'"+sibling.scheme+"')", " WHERE id=1", string(bytes(sibling.output))))
 				}
 				target := "og_cipher." + tc.name + "(" + tc.signature + ")"
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 
 				// Immutable stored generation and BYTEA btree expression index use
 				// existing native capabilities. Old stored values need no new call.

@@ -58,6 +58,6 @@ func TestReferenceObjectGrantParseIdentAuthority(t *testing.T) {
 		controls := []fixture.Step{
 			fixture.Select("SELECT quote_ident(s) AS v FROM og_parse_ident_source WHERE id=4", []string{"v"}, []string{"TEXT"}, [][]any{{`"Foo.Bar[]"`}}),
 		}
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.parse_ident(text,boolean)", "function", "parse_ident", cases, controls)
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.parse_ident(text,boolean)", "function", "parse_ident", cases, controls)
 	})
 }

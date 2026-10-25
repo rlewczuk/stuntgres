@@ -167,7 +167,7 @@ func TestReferenceObjectGrantPGCryptoPasswordAuthority(t *testing.T) {
 					controls = append(controls, fixture.Select(`SELECT regexp_like(og_password.gen_salt(a,n),'^\$2a\$04\$[./A-Za-z0-9]{21}[.Oeu]$') AS v FROM og_password_source WHERE id=1`, []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
 				}
 				target := "og_password." + tc.name + "(" + tc.signature + ")"
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 				// The lifecycle helper restores PUBLIC as it returns.
 				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+target+" FROM PUBLIC", 0))
 

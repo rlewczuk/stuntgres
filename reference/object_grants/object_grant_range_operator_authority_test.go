@@ -217,7 +217,7 @@ func TestReferenceObjectGrantRangeOperatorAuthority(t *testing.T) {
 				}
 				controls := []fixture.Step{fixture.Select("SELECT cr "+controlOp+" cs AS v FROM og_range_operator_source WHERE id=1", []string{"v"}, []string{"BOOL"}, [][]any{{controlValue}})}
 				target := "pg_catalog." + v.name + "(" + formal[v.left] + "," + formal[v.right] + ")"
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", v.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", v.name, cases, controls)
 			})
 		})
 	}

@@ -204,7 +204,7 @@ func TestReferenceObjectGrantACLValueAuthority(t *testing.T) {
 				// Reading captured ACL data/codecs/role-name output is not a new
 				// makeaclitem/acldefault invocation or a grant of actual rights.
 				controls = append(controls, fixture.Select("SELECT aa,a FROM og_acl_values.source WHERE id=1", []string{"aa", "a"}, []string{"_ACLITEM", "ACLITEM"}, [][]any{{array, item}}))
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 
 				defer objectGrantRoutineCleanup(t, p, c, []string{target})
 				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+target+" FROM PUBLIC", 0))

@@ -65,7 +65,7 @@ func TestReferenceObjectGrantINETSubnetAuthority(t *testing.T) {
 								cases = append(cases, objectGrantProviderCase{fixture.Select("SELECT a "+tc.op+" b AS v FROM og_subnet.source"+tail, []string{"v"}, []string{"BOOL"}, nil), true, true})
 							}
 							controls := []fixture.Step{value("pg_catalog."+tc.sibling+"(a,b)", "", tc.siblingWant), fixture.Select("SELECT a FROM og_subnet.source", []string{"a"}, []string{"INET"}, [][]any{{"192.168.1.5"}})}
-							objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+							objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 						})
 					}
 				})

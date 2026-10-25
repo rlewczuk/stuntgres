@@ -101,7 +101,7 @@ func objectGrantExtractProviderAuthority(t *testing.T, documentType string) {
 					otherRHS = "'{s}'::TEXT[]"
 				}
 				control := fixture.Select("SELECT j "+otherOp+" "+otherRHS+" AS v FROM og_jextract_source WHERE id=1", []string{"v"}, []string{otherType}, [][]any{{otherValue}})
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"("+formalDocument+","+tc.formal+")", "function", name, cases, []fixture.Step{control})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"("+formalDocument+","+tc.formal+")", "function", name, cases, []fixture.Step{control})
 			})
 		})
 	}

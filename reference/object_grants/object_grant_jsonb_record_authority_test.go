@@ -238,7 +238,7 @@ func TestReferenceObjectGrantJSONBRecordAuthority(t *testing.T) {
 						controls = append(controls, pair("SELECT n,s FROM "+invocation+" ORDER BY n NULLS LAST", want))
 					}
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, family.target, "function", family.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, family.target, "function", family.name, cases, controls)
 
 				if !family.valid {
 					// Real write consumer: denied initialization cannot publish a prefix.

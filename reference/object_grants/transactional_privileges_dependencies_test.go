@@ -3,7 +3,6 @@ package reference_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"testing"
 	"time"
 
@@ -29,11 +28,7 @@ func TestReferenceTransactionalPrivilegesNonTableDelegation(t *testing.T) {
 					defer peer.Close()
 					run := func(e fixture.Executor, s fixture.Step) {
 						t.Helper()
-						if !t.Run(fmt.Sprintf("%T/%s", e, s.Query), func(t *testing.T) {
-							fixture.RunStep(t, p.Ctx, e, b.Recorder, s)
-						}) {
-							t.FailNow()
-						}
+						objectGrantStep(t, p.Ctx, e, b.Recorder, s)
 					}
 					defer func() {
 						ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

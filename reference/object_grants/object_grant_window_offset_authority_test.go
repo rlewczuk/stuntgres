@@ -112,7 +112,7 @@ func objectGrantWindowOffsetAuthority(t *testing.T, name string) {
 					controlValues = []any{nil, int64(30), nil}
 				}
 				controls = append(controls, vector(name+"("+controlArgs+") OVER(ORDER BY id)", "", controlValues))
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"("+formal+")", "function", name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"("+formal+")", "function", name, cases, controls)
 			})
 		})
 	}

@@ -143,7 +143,7 @@ func TestReferenceObjectGrantPGCryptoRandomAuthority(t *testing.T) {
 					controls = append(controls, fixture.Select("SELECT og_random.fips_mode() AS v", []string{"v"}, []string{"BOOL"}, [][]any{{wantFIPS}}))
 				}
 				target := "og_random." + tc.name + "(" + tc.signature + ")"
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 
 				// Reverse the UUID isolation witness: denying core3432 must not
 				// deny the installed wrapper, even though they share V4 packing.
@@ -151,7 +151,7 @@ func TestReferenceObjectGrantPGCryptoRandomAuthority(t *testing.T) {
 					core := proof("pg_catalog.gen_random_uuid()", from, nil)
 					run(fixture.Exec("CREATE VIEW og_random_core_view AS SELECT pg_catalog.gen_random_uuid() AS v"+from, 0))
 					run(fixture.Exec("GRANT SELECT ON og_random_core_view TO og_object_reader", 0))
-					objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.gen_random_uuid()", "function", "gen_random_uuid", []objectGrantProviderCase{
+					objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.gen_random_uuid()", "function", "gen_random_uuid", []objectGrantProviderCase{
 						{core, true, true},
 						{proof("v", " FROM og_random_core_view", nil), true, true},
 					}, []fixture.Step{proof(call, from, nil), proof("v", " FROM og_random_view", nil)})

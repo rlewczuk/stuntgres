@@ -21,10 +21,9 @@ func TestReferenceObjectGrantSQLCursorAuthority(t *testing.T) {
 				}
 				defer admin.Close()
 				adminRun := func(s fixture.Step) {
+					t.Helper()
 					s.Prepared = prepared
-					if !t.Run(s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, admin, b.Recorder, s) }) {
-						t.FailNow()
-					}
+					objectGrantStep(t, p.Ctx, admin, b.Recorder, s)
 				}
 				defer func() {
 					if _, err := c.ExecContext(p.Ctx, "ROLLBACK"); err != nil {
@@ -103,10 +102,9 @@ func TestReferenceObjectGrantSQLCursorHoldAuthority(t *testing.T) {
 				}
 				defer admin.Close()
 				adminRun := func(s fixture.Step) {
+					t.Helper()
 					s.Prepared = prepared
-					if !t.Run(s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, admin, b.Recorder, s) }) {
-						t.FailNow()
-					}
+					objectGrantStep(t, p.Ctx, admin, b.Recorder, s)
 				}
 				defer func() {
 					if _, err := c.ExecContext(p.Ctx, "ROLLBACK"); err != nil {

@@ -121,7 +121,7 @@ func TestReferenceObjectGrantNumericSeriesAuthority(t *testing.T) {
 					selectRows("SELECT "+other+" AS v ORDER BY v", otherRows),
 					fixture.Select("SELECT generate_series(1,2) AS v ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(1)}, {int64(2)}}),
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", "generate_series", cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", "generate_series", cases, controls)
 
 				// INSERT SELECT uses the same physical warmed statement through all
 				// ACL phases; denial publishes neither a result nor a partial prefix.

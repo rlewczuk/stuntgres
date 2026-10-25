@@ -79,7 +79,7 @@ func TestReferenceObjectGrantSoundexProviderAuthority(t *testing.T) {
 				if tc.name == "difference" {
 					control = fixture.Select("SELECT public.soundex(source) AS v FROM og_soundex_source WHERE id=1", []string{"v"}, []string{"TEXT"}, [][]any{{"A500"}})
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, tc.target, "function", tc.name, cases, []fixture.Step{control})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, tc.target, "function", tc.name, cases, []fixture.Step{control})
 				// The lifecycle helper restores PUBLIC access on return.
 				// Revoke again before proving fresh preparation is effect-free
 				// admission, with EXECUTE checked only when the call is run.

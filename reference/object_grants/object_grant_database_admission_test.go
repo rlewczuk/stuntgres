@@ -145,9 +145,7 @@ func TestReferenceObjectGrantDatabaseAdmission(t *testing.T) {
 		use := func(s fixture.Step) {
 			t.Helper()
 			s.Prepared = prepared
-			if !t.Run("authenticated/"+s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, admitted, authenticatedRecord, s) }) {
-				t.FailNow()
-			}
+			objectGrantStep(t, p.Ctx, admitted, authenticatedRecord, s)
 		}
 		identity := func(effective string) {
 			use(fixture.Select("SELECT session_user,current_user", []string{"session_user", "current_user"}, []string{"NAME", "NAME"}, [][]any{{login, effective}}))

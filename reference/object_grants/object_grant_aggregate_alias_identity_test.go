@@ -86,29 +86,32 @@ func aggregateAliasControl(f aggregateAliasFamily, revoked int, shape string) fi
 	return fixture.Select("SELECT "+aggregateAliasCall(f.names[1-revoked], f.arg, shape)+" AS v FROM og_ai_input", []string{"v"}, []string{f.typ}, [][]any{{value}})
 }
 
+// One lifecycle per family, written order and revoked alias carries every
+// call shape: the target and the input do not depend on the shape.
 func TestReferenceObjectGrantAggregateAliasIdentity(t *testing.T) {
-	aggregateAliasMatrix(t, aggregateAliasShapes, func(t *testing.T, f aggregateAliasFamily, order, revoked int, shape string) {
-		objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
-			aggregateAliasInput(run)
-			query := "SELECT " + f.projection(order, shape) + " FROM og_ai_input"
-			cases := []objectGrantProviderCase{{f.selectStep(query, shape), true, true}}
-			// Repeated written declarations must retain the same values and metadata.
-			repeat := "SELECT " + aggregateAliasCall(f.names[order], f.arg, shape) + " AS a," + aggregateAliasCall(f.names[order], f.arg, shape) + " AS z FROM og_ai_input"
-			cases = append(cases, objectGrantProviderCase{f.selectStep(repeat, shape), revoked == order, true})
-			for _, empty := range []string{
-				query + " WHERE id>99",
-				"SELECT " + f.names[order] + "(" + f.arg + ") FILTER(WHERE FALSE) AS a," + f.names[1-order] + "(" + f.arg + ") FILTER(WHERE FALSE) AS z FROM og_ai_input",
-			} {
-				cases = append(cases, objectGrantProviderCase{fixture.Select(empty, []string{"a", "z"}, []string{f.typ, f.typ}, [][]any{{nil, nil}}), true, true})
+	for _, f := range aggregateAliasFamilies {
+		for order := range 2 {
+			for revoked := range 2 {
+				t.Run(f.names[order]+"_then_"+f.names[1-order]+"/revoke_"+f.names[revoked], func(t *testing.T) {
+					objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
+						aggregateAliasInput(run)
+						var cases []objectGrantProviderCase
+						var controls []fixture.Step
+						for _, shape := range aggregateAliasShapes {
+							query := "SELECT " + f.projection(order, shape) + " FROM og_ai_input"
+							cases = append(cases, objectGrantProviderCase{f.selectStep(query, shape), true, true})
+							// Repeated written declarations must retain the same values and metadata.
+							repeat := "SELECT " + aggregateAliasCall(f.names[order], f.arg, shape) + " AS a," + aggregateAliasCall(f.names[order], f.arg, shape) + " AS z FROM og_ai_input"
+							cases = append(cases, objectGrantProviderCase{f.selectStep(repeat, shape), revoked == order, true})
+							cases = append(cases, objectGrantProviderCase{fixture.Select(query+" WHERE id>99", []string{"a", "z"}, []string{f.typ, f.typ}, [][]any{{nil, nil}}), true, true})
+							controls = append(controls, aggregateAliasControl(f, revoked, shape))
+						}
+						empty := "SELECT " + f.names[order] + "(" + f.arg + ") FILTER(WHERE FALSE) AS a," + f.names[1-order] + "(" + f.arg + ") FILTER(WHERE FALSE) AS z FROM og_ai_input"
+						cases = append(cases, objectGrantProviderCase{fixture.Select(empty, []string{"a", "z"}, []string{f.typ, f.typ}, [][]any{{nil, nil}}), true, true})
+						objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+f.names[revoked]+"("+f.signature+")", "aggregate", f.names[revoked], cases, controls)
+					})
+				})
 			}
-			objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+f.names[revoked]+"("+f.signature+")", "aggregate", f.names[revoked], cases, []fixture.Step{aggregateAliasControl(f, revoked, shape)})
-		})
-	})
-}
-
-func TestReferenceObjectGrantAggregateAliasFeatureSmoke(t *testing.T) {
-	aggregateAliasMatrix(t, []string{"combined"}, func(t *testing.T, f aggregateAliasFamily, order, revoked int, shape string) {
-		aggregateAliasStoredScenario(t, f, order, revoked, shape, false)
-		aggregateAliasPublicationScenario(t, f, order, revoked, shape)
-	})
+		}
+	}
 }

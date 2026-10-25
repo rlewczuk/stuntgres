@@ -114,12 +114,8 @@ func BuildUniqueWriteBinding(ref ids.ObjectRef, parent *catalog.Relation, view c
 		ConstraintEffectsRelevant: len(parent.Constraints.ForeignKeys) != 0 || len(parent.Constraints.Exclusion) != 0}
 	var indexes []*catalog.Relation
 	var checkedNonunique []*catalog.Relation
-	for _, descriptor := range view.Descriptors() {
-		idx, ok := descriptor.(*catalog.Relation)
-		if !ok {
-			continue
-		}
-		// Reuse this admission's descriptor walk for incoming FK relevance.
+	for _, idx := range view.Relations() {
+		// Reuse this admission's relation walk for incoming FK relevance.
 		// NOT VALID still enforces new writes; standalone unique indexes may
 		// support the referenced key, independently of Unique constraints.
 		if !b.ConstraintEffectsRelevant {

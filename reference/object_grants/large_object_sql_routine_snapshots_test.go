@@ -23,11 +23,10 @@ func TestReferenceLargeObjectSQLRoutineSnapshots(t *testing.T) {
 					defer conn.Close()
 					defer largeObjectCleanup(t, p, conn, 910081, 910082, 910083)
 					run := func(s fixture.Step) {
+						t.Helper()
 						s.Prepared = prepared
 						s = largeObjectBackendStep(s, backend)
-						if !t.Run(s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s) }) {
-							t.FailNow()
-						}
+						objectGrantStep(t, p.Ctx, conn, backend.Recorder, s)
 					}
 					run(fixture.Exec("CREATE TABLE public.og_lo_snapshot_guard(x integer)", 0))
 					run(fixture.Exec("INSERT INTO public.og_lo_snapshot_guard VALUES(1)", 1))

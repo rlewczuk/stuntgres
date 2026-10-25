@@ -19,12 +19,9 @@ func TestReferenceObjectGrantSequences(t *testing.T) {
 					}
 					defer conn.Close()
 					run := func(s fixture.Step) {
+						t.Helper()
 						s.Prepared = prepared
-						if !t.Run(s.Query, func(t *testing.T) {
-							fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
-						}) {
-							t.FailNow()
-						}
+						objectGrantStep(t, p.Ctx, conn, backend.Recorder, s)
 					}
 					actor := func(role string, body func()) {
 						run(fixture.Exec("SET SESSION AUTHORIZATION "+role, 0))

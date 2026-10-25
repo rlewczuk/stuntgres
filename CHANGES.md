@@ -1,3 +1,7 @@
+Table queries, writes, commits and index publication no longer scan every
+routine, operator and type in the catalog to find a table's inheritance
+children, partial indexes or unique indexes; they visit relations only.
+
 A WHERE condition that reads only the left input of an inner join is evaluated
 on that input before the join, as in PostgreSQL. It now raises its error (for
 example division by zero) for rows without a join partner, and catalog joins

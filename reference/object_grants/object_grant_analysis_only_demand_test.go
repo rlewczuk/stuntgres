@@ -40,6 +40,6 @@ func TestReferenceObjectGrantAnalysisOnlyDemand(t *testing.T) {
 			q := "SELECT pg_catalog.abs(n) AS v FROM admission_input WHERE " + predicate
 			cases = append(cases, objectGrantProviderCase{fixture.Select(q, []string{"v"}, []string{"INT4"}, nil), true, true})
 		}
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.abs(integer)", "function", "abs", cases, nil)
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.abs(integer)", "function", "abs", cases, nil)
 	})
 }

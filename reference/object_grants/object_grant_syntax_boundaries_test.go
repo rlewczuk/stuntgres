@@ -41,10 +41,9 @@ func TestReferenceObjectGrantSyntaxDiagnostics(t *testing.T) {
 		for _, tc := range cases {
 			if !t.Run(tc.label, func(t *testing.T) {
 				run := func(s fixture.Step) {
+					t.Helper()
 					s.Prepared = prepared
-					if !t.Run(s.Query, func(t *testing.T) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }) {
-						t.FailNow()
-					}
+					objectGrantStep(t, p.Ctx, c, b.Recorder, s)
 				}
 				defer objectGrantRoutineCleanup(t, p, c, []string{tc.canonical})
 				want := fixture.Select(tc.query, []string{"v"}, []string{tc.typ}, [][]any{{tc.value}})

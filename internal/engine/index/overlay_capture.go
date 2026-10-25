@@ -26,9 +26,8 @@ type OverlayCapture struct {
 // parent or store, or a candidate that no longer matches.
 func SelectOverlayCapturesLocked(published *storage.Store, view catalog.Read, staged *catalog.Candidate, stage Stage, owner, c *session.Journal) ([]OverlayCapture, error) {
 	var captures []OverlayCapture
-	for a, d := range view.Descriptors() {
-		idx, ok := d.(*catalog.Relation)
-		if !ok || idx.SQLIndex == nil {
+	for a, idx := range view.Relations() {
+		if idx.SQLIndex == nil {
 			continue
 		}
 		parent, ok := view.Relation(idx.SQLIndex.Parent)

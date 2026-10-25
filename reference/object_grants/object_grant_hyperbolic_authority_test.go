@@ -62,7 +62,7 @@ func TestReferenceObjectGrantHyperbolicAuthority(t *testing.T) {
 					sibling, siblingWant = "cosh(z)", 1
 				}
 				controls := []fixture.Step{value(sibling, " WHERE id=1", siblingWant)}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.name+"(double precision)", "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.name+"(double precision)", "function", tc.name, cases, controls)
 			})
 		})
 	}

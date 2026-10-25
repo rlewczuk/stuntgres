@@ -59,7 +59,7 @@ func TestReferenceObjectGrantRecentRegressionAuthority(t *testing.T) {
 					fixture.Select("SELECT "+other+"(y,x) AS v FROM og_recent_pairs", []string{"v"}, []string{otherType}, [][]any{{otherValue}}),
 					fixture.Select("SELECT count(*) AS n FROM og_recent_pairs", []string{"n"}, []string{"INT8"}, [][]any{{int64(5)}}),
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.name+"(double precision,double precision)", "aggregate", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.name+"(double precision,double precision)", "aggregate", tc.name, cases, controls)
 			})
 		})
 	}
@@ -91,7 +91,7 @@ func TestReferenceObjectGrantRecentNtileAuthority(t *testing.T) {
 		controls := []fixture.Step{
 			fixture.Select("SELECT id,row_number() OVER(ORDER BY id) AS v FROM og_recent_ntile ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}, {int64(3), int64(3)}, {int64(4), int64(4)}, {int64(5), int64(5)}}),
 		}
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.ntile(integer)", "function", "ntile", cases, controls)
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.ntile(integer)", "function", "ntile", cases, controls)
 	})
 }
 
@@ -153,7 +153,7 @@ func TestReferenceObjectGrantRecentMultirangeAuthority(t *testing.T) {
 					fixture.Select("SELECT isempty(r) AS v FROM og_recent_range ORDER BY id", []string{"v"}, []string{"BOOL"}, [][]any{{false}, {true}, {nil}}),
 					fixture.Select("SELECT upper('ok'::TEXT) AS v", []string{"v"}, []string{"TEXT"}, [][]any{{"OK"}}),
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.multirange(anyrange)", "function", "multirange", cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.multirange(anyrange)", "function", "multirange", cases, controls)
 			})
 		})
 	}

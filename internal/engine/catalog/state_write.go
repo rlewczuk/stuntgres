@@ -20,6 +20,7 @@ func (s *State) SetDescriptor(a ids.ObjectAddress, d Descriptor) {
 	old, _ := s.findDescriptor(a)
 	s.updateCastIndex(old, d)
 	s.putDescriptor(a, d)
+	s.updateRelations(a, old, d)
 	s.updateDefaultClasses(old, d)
 }
 
@@ -28,6 +29,7 @@ func (s *State) RemoveDescriptor(a ids.ObjectAddress) {
 	old, _ := s.findDescriptor(a)
 	s.updateCastIndex(old, nil)
 	s.updateDefaultClasses(old, nil)
+	s.updateRelations(a, old, nil)
 	s.dropDescriptor(a)
 }
 
@@ -41,6 +43,7 @@ func (s *State) UnbindName(k ids.NameKey) { s.dropName(k) }
 func (s *State) ResetDescriptors() {
 	s.mustNotBulkLoad()
 	s.descriptors = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
+	s.relations = util.PersistentMap[ids.ObjectAddress, *Relation]{}
 	s.procedureNames = nil
 	s.castPairs = nil
 	s.defaultClasses = util.PersistentMap[defaultClassPair, []ids.OID]{}
@@ -52,6 +55,7 @@ func (s *State) ResetMaps() iter.Seq2[ids.ObjectAddress, Descriptor] {
 	s.mustNotBulkLoad()
 	previous := s.descriptors
 	s.descriptors = util.PersistentMap[ids.ObjectAddress, Descriptor]{}
+	s.relations = util.PersistentMap[ids.ObjectAddress, *Relation]{}
 	s.names = util.PersistentMap[ids.NameKey, ids.ObjectAddress]{}
 	s.procedureNames = nil
 	s.castPairs = nil

@@ -89,8 +89,11 @@ func TestReferenceObjectGrantMathLogPowerAuthority(t *testing.T) {
 					}
 				}
 				target := "pg_catalog." + tc.target
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
-				if len(wrapperHeld) == 0 {
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
+				// The lifecycle already ran these cases fresh in the same ACL states;
+				// the held block below repeats only the held executions, which do
+				// not depend on the route, so only the prepared route runs it.
+				if len(wrapperHeld) == 0 || !prepared {
 					return
 				}
 				// The common lifecycle restores PUBLIC and clears actor grants
@@ -124,22 +127,14 @@ func TestReferenceObjectGrantMathLogPowerAuthority(t *testing.T) {
 					}
 					fixture.RoleGrantActor(run, "og_object_reader", func() {
 						for i, wc := range wrapperHeld {
-							fresh, warm := wc.step, wc.step
-							if !allowed && wc.needed {
-								fresh = fixture.ImplicitError(wc.step.Query, fixture.Diagnostic{Code: "42501", Message: "permission denied for function " + tc.name}, wc.step.Args...)
-								fresh.SelectRows, fresh.ErrorStage = true, "execute"
-								// Parameterized PostgreSQL custom plans reanalyze the
-								// wrapper; only its cached parameter-free body survives.
-								if !b.PG || len(wc.step.Args) != 0 {
-									warm = fresh
-								}
+							warm := wc.step
+							// Parameterized PostgreSQL custom plans reanalyze the
+							// wrapper; only its cached parameter-free body survives.
+							if !allowed && wc.needed && (!b.PG || len(wc.step.Args) != 0) {
+								warm = fixture.ImplicitError(wc.step.Query, fixture.Diagnostic{Code: "42501", Message: "permission denied for function " + tc.name}, wc.step.Args...)
+								warm.SelectRows, warm.ErrorStage = true, "execute"
 							}
-							run(fresh)
-							if !t.Run("held/"+wc.step.Query, func(t *testing.T) {
-								fixture.RunStep(t, p.Ctx, held[i], b.Recorder, warm)
-							}) {
-								t.FailNow()
-							}
+							objectGrantStep(t, p.Ctx, held[i], b.Recorder, warm)
 						}
 					})
 				}
@@ -277,7 +272,7 @@ func TestReferenceObjectGrantMathLogPowerAuthority(t *testing.T) {
 				s.SelectRows, s.ErrorStage = true, "execute"
 				cases = append(cases, objectGrantProviderCase{s, true, true})
 			}
-			objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.width_bucket(anycompatible,anycompatiblearray)", "function", "width_bucket", cases, []fixture.Step{
+			objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.width_bucket(anycompatible,anycompatiblearray)", "function", "width_bucket", cases, []fixture.Step{
 				value("width_bucket(i::NUMERIC,0::NUMERIC,20::NUMERIC,4)", " WHERE id=1", int64(3)),
 			})
 		})

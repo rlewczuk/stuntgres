@@ -37,7 +37,7 @@ func TestReferenceObjectGrantJSONBElementsAuthority(t *testing.T) {
 					fixture.Select("SELECT value FROM "+sibling+"($1::JSONB)", []string{"value"}, []string{siblingType}, [][]any{{"7"}}, "[7]"),
 					fixture.Select("SELECT value FROM json_array_elements($1::JSON)", []string{"value"}, []string{"JSON"}, [][]any{{"7"}}, "[7]"),
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"(jsonb)", "function", name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"(jsonb)", "function", name, cases, controls)
 			})
 		})
 	}
@@ -66,7 +66,7 @@ func TestReferenceObjectGrantJSONBElementsAuthorityDemand(t *testing.T) {
 					{fixture.Select("SELECT value FROM "+name+"('[1]'::JSONB) WHERE FALSE", []string{"value"}, []string{typ}, nil), false, true},
 					{fixture.Select("SELECT e.value FROM og_jbe_null s CROSS JOIN LATERAL "+name+"(s.j) AS e WHERE FALSE", []string{"value"}, []string{typ}, nil), false, true},
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"(jsonb)", "function", name, cases, nil)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"(jsonb)", "function", name, cases, nil)
 			})
 		})
 	}

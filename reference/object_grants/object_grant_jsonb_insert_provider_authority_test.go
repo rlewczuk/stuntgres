@@ -70,6 +70,6 @@ func TestReferenceObjectGrantJSONBInsertProviderAuthority(t *testing.T) {
 		controls := []fixture.Step{
 			selectValue("jsonb_set(j,p,replacement,a)", " WHERE id=1", `[0, "x", 2]`),
 		}
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.jsonb_insert(jsonb,text[],jsonb,boolean)", "function", "jsonb_insert", cases, controls)
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.jsonb_insert(jsonb,text[],jsonb,boolean)", "function", "jsonb_insert", cases, controls)
 	})
 }

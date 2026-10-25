@@ -84,7 +84,7 @@ func TestReferenceObjectGrantJSONBConcatDeleteAuthority(t *testing.T) {
 					controls = append(controls, value("j - idx", " WHERE id=1", `[1, "x", "x"]`))
 				}
 				target := "pg_catalog." + tc.name + "(jsonb," + tc.formal + ")"
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 			})
 		})
 	}

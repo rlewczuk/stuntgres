@@ -118,9 +118,8 @@ func (p JournalCapture) FenceNames(indexParents iter.Seq[ids.ObjectAddress]) err
 		}
 	}
 	for parent := range indexParents {
-		for address, descriptor := range p.Current.Descriptors() {
-			index, ok := descriptor.(*catalog.Relation)
-			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
+		for address, index := range p.Current.Relations() {
+			if index.SQLIndex != nil && index.SQLIndex.Parent == parent {
 				if err := p.Observe(address, index); err != nil {
 					return err
 				}

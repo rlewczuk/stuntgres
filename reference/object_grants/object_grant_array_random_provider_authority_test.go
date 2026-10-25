@@ -80,7 +80,7 @@ func TestReferenceObjectGrantArrayRandomProviderAuthority(t *testing.T) {
 				// Exactly one sibling control: necessary to distinguish target-specific
 				// authority from an accidental deny of the entire shared provider family.
 				control := fixture.Select("SELECT "+tc.sibling+" AS v", []string{"v"}, []string{"_INT4"}, [][]any{{"{7}"}})
-				objectGrantProviderLifecycle(t, p, b, c, run, tc.target, "function", tc.name, cases, []fixture.Step{control})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, tc.target, "function", tc.name, cases, []fixture.Step{control})
 			})
 		})
 	}

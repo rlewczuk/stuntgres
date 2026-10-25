@@ -162,7 +162,7 @@ func TestReferenceObjectGrantAddressAuthority(t *testing.T) {
 				if b.PG {
 					run(full)
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", d.name, cases, []fixture.Step{control, identifyingControl})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", d.name, cases, []fixture.Step{control, identifyingControl})
 
 				// Additional error/effect witnesses reuse actual providers and SQL
 				// state. Each denied write leaves the original table unchanged.
@@ -358,7 +358,8 @@ func TestReferenceObjectGrantAddressAuthority(t *testing.T) {
 				// Original SAME held handle: ordinary native precancellation occurs
 				// before a known-NULL shortcut; the next call still works. The PG
 				// cancellation transport contract is covered by the address baseline.
-				if !b.PG {
+				// It does not depend on the route, so only the prepared route runs it.
+				if !b.PG && prepared {
 					q := "SELECT " + call(parameters) + " AS v"
 					stmt, err := c.PrepareContext(p.Ctx, q)
 					if err != nil {

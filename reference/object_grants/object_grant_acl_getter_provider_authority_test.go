@@ -44,6 +44,6 @@ func TestReferenceObjectGrantACLGetterProviderAuthority(t *testing.T) {
 			{fixture.Select("SELECT "+call+" AS v FROM og_acl_provider WHERE FALSE", []string{"v"}, []string{"_ACLITEM"}, nil), true, true},
 		}
 		control := fixture.Select("SELECT pg_has_role('og_object_reader','MEMBER') AS v", []string{"v"}, []string{"BOOL"}, [][]any{{true}})
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.pg_get_acl(oid,oid,integer)", "function", "pg_get_acl", cases, []fixture.Step{control})
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.pg_get_acl(oid,oid,integer)", "function", "pg_get_acl", cases, []fixture.Step{control})
 	})
 }
