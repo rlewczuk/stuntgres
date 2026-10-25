@@ -13,7 +13,7 @@ import (
 )
 
 // Called only by the existing binder against its current coherent catalog.
-func (e *Engine) resolveType(raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
+func (e *Engine) ResolveType(raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
 	u, err := e.resolveAnnotationType(raw, op, false)
 	if err != nil {
 		return sqltype.Usage{}, err
@@ -37,7 +37,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *session.Operation) (sqltyp
 // Only the isolated Restore caller reconstructs those private declarations;
 // transaction identifiers and regclass use ordinary public type admission.
 func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
-	u, err := e.resolveType(raw, op)
+	u, err := e.ResolveType(raw, op)
 	privateScalar := sqltype.ID(0)
 	if err != nil && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
 		if raw.Name == "char" && raw.Quoted {
@@ -70,10 +70,10 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *session.Operati
 }
 
 func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *session.Operation, unknownNull bool) (sqltype.Usage, error) {
-	return e.resolveAnnotationTypeMode(raw, op, unknownNull, false)
+	return e.ResolveAnnotationTypeMode(raw, op, unknownNull, false)
 }
 
-func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *session.Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
+func (e *Engine) ResolveAnnotationTypeMode(raw parser.TypeName, op *session.Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
 	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false, false, false)
 }
 
@@ -99,7 +99,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Ope
 	if raw.Schema != nil {
 		object.Parts = []parser.Identifier{*raw.Schema, {Text: name, Pos: raw.Pos}}
 	}
-	path, err := e.lookupNamespaces(auth, object, analyze.TypeLookup)
+	path, err := e.LookupNamespaces(auth, object, analyze.TypeLookup)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}

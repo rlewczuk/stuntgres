@@ -41,7 +41,7 @@ func TestPGCollationShapeAndOwnership(t *testing.T) {
 			t.Error("release attribute", i+1, column)
 		}
 	}
-	if err := (RelationProvider()).Validate(view, d); err != nil {
+	if err := (RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {

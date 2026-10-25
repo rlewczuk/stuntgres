@@ -12,9 +12,9 @@ import (
 // its fence type next to its code.
 type catalogFence interface {
 	session.Fence
-	// currentLocked reports whether the fence still holds. Caller holds
+	// CurrentLocked reports whether the fence still holds. Caller holds
 	// Engine.mu.
-	currentLocked(e *Engine, c *session.Journal) error
+	CurrentLocked(e *Engine, c *session.Journal) error
 }
 
 // The root fence kinds follow the session kinds. catalogPreflightLocked checks
@@ -40,7 +40,7 @@ func (e *Engine) catalogFencesCurrentLocked(c *session.Journal, kinds ...session
 			case session.CommittedFence:
 				err = fence.Current(e.Catalog.State, e.Storage.Relations)
 			case catalogFence:
-				err = fence.currentLocked(e, c)
+				err = fence.CurrentLocked(e, c)
 			default:
 				return fmt.Errorf("stuntgres: foreign catalog fence %T", f)
 			}

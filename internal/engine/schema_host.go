@@ -24,7 +24,7 @@ var _ ddl.SchemaHost = SchemaHost{}
 func (h SchemaHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddress, owner authorization.PrincipalRef, table *parser.CreateTable, input sqltype.InputEnvironment) error {
 	v := DDLAuthorityOf(a)
 	v.State.CurrentUser = owner
-	v.pathPrefix = namespace
+	v.PathPrefix = namespace
 	return SchemaTableLocked(h.E, h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
 }
 

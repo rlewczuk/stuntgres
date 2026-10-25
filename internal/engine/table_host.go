@@ -119,11 +119,11 @@ func (h TableHost) CreationTypeACL(owner authorization.PrincipalRef, schema ids.
 }
 
 func (h TableHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
-	return h.E.resolveType(raw, h.Op)
+	return h.E.ResolveType(raw, h.Op)
 }
 
 func (h TableHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
-	return h.E.resolveColumnCollation(u, raw, h.Op)
+	return h.E.ResolveColumnCollation(u, raw, h.Op)
 }
 
 func (h TableHost) DisplaceAssociatedArray(namespace ids.ObjectAddress, name string) (bool, error) {

@@ -80,7 +80,7 @@ func executeAlterDomain(e *Engine, scope *StatementScope, raw *parser.AlterDomai
 			if err != nil {
 				return Result{}, err
 			}
-			if err := prepareOwnDomainChecks(&evaluation, &chosen); err != nil {
+			if err := PrepareOwnDomainChecks(&evaluation, &chosen); err != nil {
 				return Result{}, err
 			}
 		}

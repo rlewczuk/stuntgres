@@ -131,7 +131,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 	b, err := Describe(op.Ctx, e.AnalysisHost(op), statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, nil, nil)
 	var defaults map[int32]catalog.ColumnDefault
 	if err == nil {
-		defaults, err = BindCreateDefaults(NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
+		defaults, err = bindCreateDefaults(NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -250,7 +250,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			// preflight. No flag or execution-folded node leaks into the catalog.
 			_, _, err = exec.PreflightCoercions(c, original.Expression)
 			state(t, err, "22P02")
-			if err := (RelationProvider()).Validate(view, d); err != nil {
+			if err := (RelationProvider).Validate(view, d); err != nil {
 				t.Fatal("execution planning changed the stored definition", err)
 			}
 			if !reflect.DeepEqual(d.ColumnMeta.Defaults[d.Attributes[0]], original) {

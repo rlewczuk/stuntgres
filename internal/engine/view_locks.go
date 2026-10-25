@@ -95,6 +95,13 @@ func (s *StatementScope) AcquireViewSources(retainProviders bool) (providers []e
 	return providers, nil
 }
 
+// AcquireBoundViewRelationModes acquires the bound view relations refs in
+// modes for family code. The body stays acquireBoundViewRelationModes:
+// read-only reference fixtures wait on that frame.
+func (s *StatementScope) AcquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]lock.Mode) error {
+	return s.acquireBoundViewRelationModes(refs, modes)
+}
+
 func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]lock.Mode) error {
 	e := s.Engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })

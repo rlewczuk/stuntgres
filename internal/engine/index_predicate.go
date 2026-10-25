@@ -20,7 +20,7 @@ func bindIndexPredicate(e *Engine, op *session.Operation, input sqltype.InputEnv
 	if raw == nil {
 		return nil, nil
 	}
-	binder := e.indexExpressionBinder(op, input, auth, parent)
+	binder := e.IndexExpressionBinder(op, input, auth, parent)
 	binder.Consumer.IndexPredicateConsumer = true
 	definition, err := binder.BindBoolean(raw, analyze.FilterContext, "WHERE")
 	if err != nil {

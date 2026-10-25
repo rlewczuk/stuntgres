@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/table"
 )
 
 // CatalogRoleReadFence names catalogRoleReadFence.
@@ -17,9 +16,6 @@ type CatalogRoleReadFence = catalogRoleReadFence
 
 // FenceCatalogRoleRead is fenceCatalogRoleRead.
 const FenceCatalogRoleRead = fenceCatalogRoleRead
-
-// RelationProvider returns relationProvider.
-func RelationProvider() table.RelationProvider { return relationProvider }
 
 // SetStageInitialTables sets x.initialTables.
 func SetStageInitialTables(x *CatalogStage, v map[ids.ObjectAddress]*storage.Relation) {

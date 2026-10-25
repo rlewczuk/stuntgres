@@ -16,7 +16,7 @@ func executeOwnership(e *Engine, scope *StatementScope, s *parser.AlterOwner, co
 		return executeDatabaseOwnership(e, scope, s, name, identity, count)
 	}
 	if s.Kind != "type" && s.Kind != "domain" {
-		return executeRelationOwnership(e, scope, s.Name, name, identity, s.Kind, s.IfExists, count)
+		return ExecuteRelationOwnership(e, scope, s.Name, name, identity, s.Kind, s.IfExists, count)
 	}
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -36,7 +36,7 @@ func executeOwnership(e *Engine, scope *StatementScope, s *parser.AlterOwner, co
 		scope.Completed = true
 		return Result{}, scope.Op.Context().Err()
 	}
-	stage := ownershipStage(e, auth, scope.Op)
+	stage := OwnershipStage(e, auth, scope.Op)
 	err = role.StageOwnership(stage, change.Object, change.Target)
 	e.Mu.Unlock()
 	if err == nil {
@@ -54,7 +54,7 @@ func executeOwnership(e *Engine, scope *StatementScope, s *parser.AlterOwner, co
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	return publishOwnership(e, scope, stage)
+	return PublishOwnership(e, scope, stage)
 }
 func executeDatabaseOwnership(e *Engine, scope *StatementScope, s *parser.AlterOwner, name string, identity bool, count int) (Result, error) {
 	if count != 0 {
@@ -75,7 +75,7 @@ func executeDatabaseOwnership(e *Engine, scope *StatementScope, s *parser.AlterO
 		scope.Completed = true
 		return Result{}, scope.Op.Context().Err()
 	}
-	stage := ownershipStage(e, auth, scope.Op)
+	stage := OwnershipStage(e, auth, scope.Op)
 	err = role.StageOwnership(stage, change.Object, change.Target)
 	e.Mu.Unlock()
 	if err != nil {
@@ -86,5 +86,5 @@ func executeDatabaseOwnership(e *Engine, scope *StatementScope, s *parser.AlterO
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
-	return publishOwnership(e, scope, stage)
+	return PublishOwnership(e, scope, stage)
 }

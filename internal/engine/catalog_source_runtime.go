@@ -402,7 +402,7 @@ func (r EngineCatalogRuntime) OperatorDependencies(view catalog.Read, d *catalog
 func (r EngineCatalogRuntime) TypeProviderProcedure(d *catalog.Procedure) bool {
 	return extension.IntarrayProviderOf(d) != nil || extension.CubeProviderOf(d) != nil && !extension.CubeComparisonName(d.Name()) || extension.CitextProviderOf(d) != nil && (d.Signature == "2275" || d.Result == 2275) || extension.IsnProviderOf(d) != nil
 }
-func catalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
+func CatalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
 	if auth.Session != nil {
 		return auth.Session.SessionToken
 	}

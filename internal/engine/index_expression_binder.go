@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) indexExpressionBinder(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *analyze.Binder {
+func (e *Engine) IndexExpressionBinder(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *analyze.Binder {
 	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Address())
 	columns := make([]analyze.QueryColumn, len(parent.Columns))
 	for i, c := range parent.Columns {

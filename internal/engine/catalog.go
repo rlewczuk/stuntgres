@@ -36,9 +36,9 @@ func DomainOf(e *Engine) *ids.Domain {
 	return e.Catalog.Domain
 }
 
-// relationProvider validates relation descriptors; the root supplies the
+// RelationProvider validates relation descriptors; the root supplies the
 // validators of the packages above table, built once.
-var relationProvider = table.RelationProvider{Validators: table.RelationValidators{
+var RelationProvider = table.RelationProvider{Validators: table.RelationValidators{
 	Policies:   view.ValidatePolicies,
 	Partition:  partition.ValidateDescriptor,
 	Definition: view.ValidateViewDefinition,
@@ -112,7 +112,7 @@ type CatalogStage struct {
 	InitialTx         ids.TxRef
 	QuerySources      []catalog.Descriptor
 	definitionSources []catalog.Descriptor // Checked routine/operator definition inputs.
-	tableSlot         *table.Stage
+	TableSlot         *table.Stage
 	indexesSlot       *index.Stage
 	MaterializedSlot  *view.MaterializedStage
 }

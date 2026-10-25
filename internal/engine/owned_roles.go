@@ -36,7 +36,7 @@ func executeOwned(e *Engine, scope *StatementScope, stmt parser.Statement, count
 		return Result{}, scope.Op.Context().Err()
 	}
 	reassign, sources, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Mode, plan.Roots, plan.PrimaryRoot
-	stage := ownershipStage(e, auth, scope.Op)
+	stage := OwnershipStage(e, auth, scope.Op)
 	stage.DependencyPath, _ = ReferencePath(auth)
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -86,7 +86,7 @@ func executeOwned(e *Engine, scope *StatementScope, stmt parser.Statement, count
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
-	result, err := publishOwnership(e, scope, stage)
+	result, err := PublishOwnership(e, scope, stage)
 	if err == nil && !reassign && mode == parser.DropCascade && len(stage.DropCascadeNames) > 0 {
 		message, detail := stage.DropCascadeNames[0], ""
 		if len(stage.DropCascadeNames) > 1 {

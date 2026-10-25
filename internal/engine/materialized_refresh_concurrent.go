@@ -16,7 +16,7 @@ type materializedSourceFence struct {
 
 func (materializedSourceFence) Kind() session.FenceKind { return fenceMaterializedSource }
 
-func (f materializedSourceFence) currentLocked(e *Engine, _ *session.Journal) error {
+func (f materializedSourceFence) CurrentLocked(e *Engine, _ *session.Journal) error {
 	if !e.materializedSourceFenceCurrent(f) {
 		return catalog.Conflict{}
 	}

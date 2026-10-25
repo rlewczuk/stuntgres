@@ -42,11 +42,11 @@ func (h TypeHost) RemoveDomainCheck(d *catalog.Type, oid ids.OID) error {
 }
 
 func (h TypeHost) FindCollation(a ddl.Authority, name parser.ObjectName) (*catalog.Collation, error) {
-	return h.E.findCollation(DDLAuthorityOf(a), name)
+	return h.E.FindCollation(DDLAuthorityOf(a), name)
 }
 
 func (h TypeHost) ResolveDomainBase(raw parser.TypeName) (sqltype.Usage, error) {
-	return h.E.resolveAnnotationTypeMode(raw, h.Op, false, true)
+	return h.E.ResolveAnnotationTypeMode(raw, h.Op, false, true)
 }
 
 func (h TypeHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {

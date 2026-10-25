@@ -29,7 +29,7 @@ func EngineBootstrapAuthorization(x *Engine, user authorization.PrincipalRef) Au
 
 // EngineLookupNamespaces calls x.lookupNamespaces.
 func EngineLookupNamespaces(x *Engine, auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
-	return x.lookupNamespaces(auth, name, kind)
+	return x.LookupNamespaces(auth, name, kind)
 }
 
 // ScopeSchemaInquiryPathLocked calls x.schemaInquiryPathLocked.

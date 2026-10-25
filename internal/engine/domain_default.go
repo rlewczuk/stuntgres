@@ -16,10 +16,10 @@ import (
 )
 
 func (e *Engine) BindDomainDefault(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
-	return e.bindDomainDefaultUsage(ctx, op, auth, stage, d, raw, d.SQLType.DomainBase(), input, output)
+	return e.BindDomainDefaultUsage(ctx, op, auth, stage, d, raw, d.SQLType.DomainBase(), input, output)
 }
 
-func (e *Engine) bindDomainDefaultUsage(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw parser.Expr, base sqltype.Usage, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func (e *Engine) BindDomainDefaultUsage(ctx context.Context, op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Type, raw parser.Expr, base sqltype.Usage, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	var reader catalog.DefinitionReader
 	if op != nil {
 		reader = op.Definition

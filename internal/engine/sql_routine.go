@@ -150,10 +150,10 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 	s.sqlRoutine.scalar, s.sqlRoutine.result = terminal && selecting, resultUsage
 	e := s.Engine()
 	if _, transaction := statement.(*parser.TransactionControl); transaction {
-		return value, SQLError("0A000", routineCommandTag(statement)+" is not allowed in an SQL function")
+		return value, SQLError("0A000", RoutineCommandTag(statement)+" is not allowed in an SQL function")
 	}
 	if _, savepoint := statement.(*parser.SavepointControl); savepoint {
-		return value, SQLError("0A000", routineCommandTag(statement)+" is not allowed in an SQL function")
+		return value, SQLError("0A000", RoutineCommandTag(statement)+" is not allowed in an SQL function")
 	}
 	if program != nil {
 		if err = s.admitSQLRoutineCommand(d, program, index); err != nil {

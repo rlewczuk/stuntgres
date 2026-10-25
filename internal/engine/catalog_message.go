@@ -58,7 +58,7 @@ type catalogRoleReadFence struct {
 
 func (catalogRoleReadFence) Kind() session.FenceKind { return fenceCatalogRoleRead }
 
-func (f catalogRoleReadFence) currentLocked(e *Engine, _ *session.Journal) error {
+func (f catalogRoleReadFence) CurrentLocked(e *Engine, _ *session.Journal) error {
 	if e.RoleStore.Published != f.roles {
 		return catalog.Conflict{}
 	}

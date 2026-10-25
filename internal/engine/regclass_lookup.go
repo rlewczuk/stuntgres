@@ -8,7 +8,7 @@ import (
 )
 
 func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.ObjectRef, error) {
-	typ, _ := auth.definitionType(sqltype.Oid)
+	typ, _ := auth.DefinitionType(sqltype.Oid)
 	if oid, numeric, err := regobj.ClassNumeric(text, typ); numeric {
 		if err != nil {
 			return ids.ObjectRef{}, err

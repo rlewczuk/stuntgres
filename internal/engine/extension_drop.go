@@ -27,7 +27,7 @@ func executeDropExtension(e *Engine, scope *StatementScope, s *parser.DropExtens
 		return fail(err)
 	}
 	roots := extension.RemovalRoots(auth.Catalog, selected)
-	stage := ownershipStage(e, auth, scope.Op)
+	stage := OwnershipStage(e, auth, scope.Op)
 	stage.DependencyPath, _ = ReferencePath(auth)
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -63,7 +63,7 @@ func executeDropExtension(e *Engine, scope *StatementScope, s *parser.DropExtens
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
-	result, err := publishOwnership(e, scope, stage)
+	result, err := PublishOwnership(e, scope, stage)
 	if err == nil && s.Mode == parser.DropCascade && len(stage.DropCascadeNames) > 0 {
 		message, detail := stage.DropCascadeNames[0], ""
 		if len(stage.DropCascadeNames) > 1 {

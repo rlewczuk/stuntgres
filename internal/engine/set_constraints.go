@@ -117,7 +117,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		candidate.ByConstraint = nil
 	} else {
 		for _, name := range raw.Names {
-			path, err := e.lookupNamespaces(auth, name, analyze.OperatorLookup)
+			path, err := e.LookupNamespaces(auth, name, analyze.OperatorLookup)
 			if err != nil {
 				return Result{}, index.SemanticError(err)
 			}

@@ -59,7 +59,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	evaluation.Input.DomainChecks = prior
 	selected := *child
 	selected.DomainChecks = []catalog.DomainCheckConstraint{child.DomainChecks[1]}
-	if err := prepareOwnDomainChecks(&evaluation, &selected); err != nil {
+	if err := PrepareOwnDomainChecks(&evaluation, &selected); err != nil {
 		t.Fatal("selected preparation initialized unrelated recipe", err)
 	}
 	violation := errors.New("historical column violation")
@@ -78,7 +78,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	}
 	unknown := *child
 	unknown.DomainChecks = []catalog.DomainCheckConstraint{child.DomainChecks[2]}
-	if err := prepareOwnDomainChecks(&evaluation, &unknown); err != nil {
+	if err := PrepareOwnDomainChecks(&evaluation, &unknown); err != nil {
 		t.Fatal(err)
 	}
 	if err := evaluation.EvaluateSelectedDomainCheck(view, &unknown, sqltype.Null(integer), violation); err != nil {

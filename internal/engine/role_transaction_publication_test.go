@@ -57,7 +57,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 				original := e.RoleStore.Published
 				first, created := roleTransactionalCandidate(t, e, original, "unit_private")
 				d = created
-				if err := installOperationRolesLocked(e, op, first); err != nil {
+				if err := InstallOperationRolesLocked(e, op, first); err != nil {
 					t.Fatal(err)
 				}
 				e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
@@ -68,7 +68,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 				second := &access.RoleRecord{Root: root}
-				if err := installOperationRolesLocked(e, op, second); err != nil {
+				if err := InstallOperationRolesLocked(e, op, second); err != nil {
 					t.Fatal(err)
 				}
 				if old, _ := first.Root.Read(authorization.PrincipalRef{}).Find(d.Ref); old.Login || old.AuthIDVersion == d.AuthIDVersion {
@@ -151,7 +151,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 				s.Transactions.Catalog = authorityOnly
 				put := func(operation *session.Operation, predecessor *access.RoleRecord, name string) authorization.RoleDescriptor {
 					next, d := roleTransactionalCandidate(t, e, predecessor, name)
-					if err := installOperationRolesLocked(e, operation, next); err != nil {
+					if err := InstallOperationRolesLocked(e, operation, next); err != nil {
 						t.Fatal(err)
 					}
 					e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
@@ -208,7 +208,7 @@ func TestRoleTransactionalPublication(t *testing.T) {
 		func() {
 			defer e.Mu.Unlock()
 			next, d := roleTransactionalCandidate(t, e, base, "unit_canceled")
-			if err := installOperationRolesLocked(e, op, next); err != nil {
+			if err := InstallOperationRolesLocked(e, op, next); err != nil {
 				t.Fatal(err)
 			}
 			e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
@@ -248,13 +248,13 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 		defer e.Mu.Unlock()
 		first, createdA := roleTransactionalCandidate(t, e, e.RoleStore.Published, "unit_retire_a")
 		a = createdA
-		if err := installOperationRolesLocked(e, op, first); err != nil {
+		if err := InstallOperationRolesLocked(e, op, first); err != nil {
 			t.Fatal(err)
 		}
 		e.RoleStore.InstallPrincipalFrontierLocked(a.Ref.ID() + 1)
 		second, createdB := roleTransactionalCandidate(t, e, first, "unit_retire_b")
 		b = createdB
-		if err := installOperationRolesLocked(e, op, second); err != nil {
+		if err := InstallOperationRolesLocked(e, op, second); err != nil {
 			t.Fatal(err)
 		}
 		e.RoleStore.InstallPrincipalFrontierLocked(b.Ref.ID() + 1)

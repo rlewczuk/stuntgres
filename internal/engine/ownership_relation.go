@@ -13,13 +13,13 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func ownershipStage(e *Engine, auth AuthorizationView, op *session.Operation) *CatalogStage {
+func OwnershipStage(e *Engine, auth AuthorizationView, op *session.Operation) *CatalogStage {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	return stage
 }
 
-func publishOwnership(e *Engine, scope *StatementScope, stage *CatalogStage) (Result, error) {
+func PublishOwnership(e *Engine, scope *StatementScope, stage *CatalogStage) (Result, error) {
 	defer e.DiscardCatalogStage(stage)
 	if stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && stage.DefaultACLCount() == 0 && stage.RoleCandidateRecord == nil {
 		if err := e.ValidateOperation(scope.Op); err != nil {
@@ -38,7 +38,7 @@ func publishOwnership(e *Engine, scope *StatementScope, stage *CatalogStage) (Re
 	return Result{}, err
 }
 
-func executeRelationOwnership(e *Engine, scope *StatementScope, name parser.ObjectName, targetName string, identity bool, kind string, ifExists bool, count int) (Result, error) {
+func ExecuteRelationOwnership(e *Engine, scope *StatementScope, name parser.ObjectName, targetName string, identity bool, kind string, ifExists bool, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -79,7 +79,7 @@ func executeRelationOwnership(e *Engine, scope *StatementScope, name parser.Obje
 		scope.Completed = true
 		return Result{}, scope.Op.Context().Err()
 	}
-	stage := ownershipStage(e, auth, scope.Op)
+	stage := OwnershipStage(e, auth, scope.Op)
 	err = role.StageOwnership(stage, old, change.Target)
 	e.Mu.Unlock()
 	if err == nil {
@@ -100,5 +100,5 @@ func executeRelationOwnership(e *Engine, scope *StatementScope, name parser.Obje
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	return publishOwnership(e, scope, stage)
+	return PublishOwnership(e, scope, stage)
 }

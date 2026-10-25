@@ -16,7 +16,7 @@ func journalOf(c *session.Journal) sequence.JournalIdentity {
 }
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequence.Environment, error) {
-	key := sequence.PathKey{Role: auth.State.CurrentUser, Authorization: auth.Revision, Roles: auth.RoleRecord.Revision, Namespace: auth.Catalog.State().NamespaceGeneration(), Epoch: auth.Catalog.Epoch(), Temp: temporaryNamespace(auth), Prefix: auth.pathPrefix, Database: auth.Catalog.Get(auth.Owner.DatabaseAddress())}
+	key := sequence.PathKey{Role: auth.State.CurrentUser, Authorization: auth.Revision, Roles: auth.RoleRecord.Revision, Namespace: auth.Catalog.State().NamespaceGeneration(), Epoch: auth.Catalog.Epoch(), Temp: temporaryNamespace(auth), Prefix: auth.PathPrefix, Database: auth.Catalog.Get(auth.Owner.DatabaseAddress())}
 	if auth.Session != nil && auth.Session.Transactions != nil {
 		key.Private = journalOf(auth.Session.Transactions.Catalog)
 	}

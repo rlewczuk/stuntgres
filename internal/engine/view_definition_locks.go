@@ -7,7 +7,7 @@ import (
 )
 
 func acquireBoundViewRelations(s *StatementScope, refs []ids.ObjectRef) error {
-	return s.acquireBoundViewRelationModes(refs, nil)
+	return s.AcquireBoundViewRelationModes(refs, nil)
 }
 
 func acquireViewDefinitionReferences(s *StatementScope, b analyze.Binding) error {

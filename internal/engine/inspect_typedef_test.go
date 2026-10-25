@@ -36,7 +36,7 @@ func EngineResolveAnnotationType(x *Engine, raw parser.TypeName, op *session.Ope
 
 // EngineResolveAnnotationTypeMode calls x.resolveAnnotationTypeMode.
 func EngineResolveAnnotationTypeMode(x *Engine, raw parser.TypeName, op *session.Operation, unknownNull bool, domainBase bool) (sqltype.Usage, error) {
-	return x.resolveAnnotationTypeMode(raw, op, unknownNull, domainBase)
+	return x.ResolveAnnotationTypeMode(raw, op, unknownNull, domainBase)
 }
 
 // EngineResolveTableColumnType calls x.resolveTableColumnType.
@@ -46,7 +46,7 @@ func EngineResolveTableColumnType(x *Engine, raw parser.TypeName, op *session.Op
 
 // EngineResolveType calls x.resolveType.
 func EngineResolveType(x *Engine, raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
-	return x.resolveType(raw, op)
+	return x.ResolveType(raw, op)
 }
 
 // ScopeConversionProcedure calls x.conversionProcedure.

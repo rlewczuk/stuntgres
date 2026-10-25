@@ -19,7 +19,7 @@ func PathInput(auth AuthorizationView, searchPath bool) analyze.PathInput[Author
 		Env:             auth,
 		Definition:      auth.Definition,
 		Domain:          engineDomain(auth),
-		Prefix:          auth.pathPrefix,
+		Prefix:          auth.PathPrefix,
 		NamespaceUser:   auth.namespaceUser,
 		StagedTemporary: auth.StagedTemporary,
 		Restricted:      auth.materializedPopulation,
@@ -65,9 +65,9 @@ func EffectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyz
 	return analyze.EffectivePath(PathInput(auth, false), path, kind)
 }
 
-// lookupNamespaces is the shared qualified/unqualified namespace authority
+// LookupNamespaces is the shared qualified/unqualified namespace authority
 // over a validated catalog view (analyze.LookupNamespaces).
-func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
+func (e *Engine) LookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
 	if err := e.Catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return analyze.NamespaceSelection{}, err
 	}

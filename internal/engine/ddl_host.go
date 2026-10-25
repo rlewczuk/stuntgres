@@ -93,7 +93,7 @@ func (h DDLHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class
 	default:
 		return nil, fmt.Errorf("stuntgres: no namespace search for class %d", class)
 	}
-	path, err := h.E.lookupNamespaces(DDLAuthorityOf(a), name, kind)
+	path, err := h.E.LookupNamespaces(DDLAuthorityOf(a), name, kind)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (h DDLHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class
 
 func (h DDLHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {
 	v := DDLAuthorityOf(a)
-	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
+	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (h DDLHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []acc
 
 func (h DDLHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
 	v := DDLAuthorityOf(a)
-	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
+	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return catalog.RoutineIdentity{}, 0, err
 	}

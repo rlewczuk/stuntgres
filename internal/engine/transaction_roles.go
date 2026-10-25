@@ -29,7 +29,7 @@ func (e *Engine) sessionRolesLocked(session *session.Session) *access.RoleRecord
 }
 
 // The operation/session publication preflight has passed before this call.
-func installOperationRolesLocked(e *Engine, op *session.Operation, next *access.RoleRecord) error {
+func InstallOperationRolesLocked(e *Engine, op *session.Operation, next *access.RoleRecord) error {
 	revision, err := e.RoleStore.RevisionCandidateLocked()
 	if err != nil {
 		return err

@@ -129,7 +129,7 @@ func TestPGCursorsCatalog(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
-	if err := (RelationProvider()).Validate(view, d); err != nil {
+	if err := (RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
@@ -189,14 +189,14 @@ func TestPGCursorsCatalog(t *testing.T) {
 	// engine, not just accept a superficially matching OID/schema.
 	invalid := *d
 	invalid.RelationKind = catalog.TableRelation
-	if err := (RelationProvider()).Validate(view, &invalid); err == nil {
+	if err := (RelationProvider).Validate(view, &invalid); err == nil {
 		t.Fatal("virtual table accepted")
 	}
 	invalid = *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Timestamptz)
 	invalid.Columns[5].Usage.Type = foreign
-	if err := (RelationProvider()).Validate(view, &invalid); err == nil {
+	if err := (RelationProvider).Validate(view, &invalid); err == nil {
 		t.Fatal("foreign timestamp owner accepted")
 	}
 }

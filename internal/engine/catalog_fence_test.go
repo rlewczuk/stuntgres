@@ -16,7 +16,7 @@ type orderProbeFence struct {
 
 func (f orderProbeFence) Kind() session.FenceKind { return f.kind }
 
-func (f orderProbeFence) currentLocked(*Engine, *session.Journal) error {
+func (f orderProbeFence) CurrentLocked(*Engine, *session.Journal) error {
 	*f.seen = append(*f.seen, f.name)
 	return f.err
 }

@@ -59,7 +59,7 @@ func (h ViewHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw
 			RegtypeConstants:  b.Prepared.RegtypeConstants,
 		},
 	}
-	frozen, err := stored.FreezeQueryPresentation(auth.Catalog, catalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
+	frozen, err := stored.FreezeQueryPresentation(auth.Catalog, CatalogSourceTemporaryOwner(auth), nil, capture, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}

@@ -36,7 +36,7 @@ func BindSQLRoutineLocked(e *Engine, op *session.Operation, auth AuthorizationVi
 	for i, statement := range d.SQL.Statements {
 		if !sqlRoutineDataCommand(statement) {
 			if d.SQL.Standard {
-				return last, resultPlan, SQLError("0A000", routineCommandTag(statement)+" is not yet supported in unquoted SQL function body")
+				return last, resultPlan, SQLError("0A000", RoutineCommandTag(statement)+" is not yet supported in unquoted SQL function body")
 			}
 			// Transaction statements are syntactically valid in quoted bodies;
 			// PostgreSQL rejects them only when reached at execution.
@@ -60,7 +60,7 @@ func BindSQLRoutineLocked(e *Engine, op *session.Operation, auth AuthorizationVi
 					return last, resultPlan, err
 				}
 			}
-			last, err = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), statement, authorityOf(auth), required, input, analyze.Expected{}, nil, d.SQL, d.Name(), sqltype.CollationRef{})
+			last, err = analyze.DescribeRoutine(op.Context(), e.AnalysisHost(op), statement, AuthorityOf(auth), required, input, analyze.Expected{}, nil, d.SQL, d.Name(), sqltype.CollationRef{})
 			if err != nil {
 				if d.SQL.Standard {
 					return last, resultPlan, err
@@ -76,14 +76,14 @@ func BindSQLRoutineLocked(e *Engine, op *session.Operation, auth AuthorizationVi
 			}
 		}
 		if i == len(d.SQL.Statements)-1 && !d.SQL.Void() {
-			resultPlan, err = validateSQLRoutineTerminal(statement, last, d.SQL.Result)
+			resultPlan, err = ValidateSQLRoutineTerminal(statement, last, d.SQL.Result)
 			if err != nil {
 				return last, resultPlan, exec.SQLRoutineContext(err, d.Name(), false)
 			}
 		}
 	}
 	if len(d.SQL.Statements) == 0 && !d.SQL.Void() {
-		return last, resultPlan, exec.SQLRoutineContext(sqlRoutineFinalError(d.SQL.Result), d.Name(), false)
+		return last, resultPlan, exec.SQLRoutineContext(SQLRoutineFinalError(d.SQL.Result), d.Name(), false)
 	}
 	if d.SQL.Standard {
 		d.SQLBody = stored.NewRoutineProgram(actions)

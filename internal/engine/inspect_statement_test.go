@@ -20,11 +20,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// AuthorityOf calls authorityOf.
-func AuthorityOf(v AuthorizationView) analyze.Authority {
-	return authorityOf(v)
-}
-
 // CheckStatementSignature calls checkStatementSignature.
 func CheckStatementSignature(expected StatementDescription, actual StatementDescription) error {
 	return checkStatementSignature(expected, actual)

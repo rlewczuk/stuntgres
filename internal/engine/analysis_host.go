@@ -114,7 +114,7 @@ func (h *BindingHost) CurrentCatalog() catalog.Read {
 }
 
 func (h *BindingHost) LookupNamespaces(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
-	return h.Engine.lookupNamespaces(h.view(auth), name, kind)
+	return h.Engine.LookupNamespaces(h.view(auth), name, kind)
 }
 
 func (h *BindingHost) LookupNamespacesSnapshot(auth analyze.Authority, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
@@ -146,7 +146,7 @@ func (h *BindingHost) NamedType(auth analyze.Authority, name parser.ObjectName) 
 }
 
 func (h *BindingHost) ResolveType(raw parser.TypeName) (sqltype.Usage, error) {
-	return h.Engine.resolveType(raw, h.Op)
+	return h.Engine.ResolveType(raw, h.Op)
 }
 
 func (h *BindingHost) ResolveAnnotationType(raw parser.TypeName, unknownNull bool) (sqltype.Usage, error) {
@@ -166,7 +166,7 @@ func (h *BindingHost) ResolveTableColumnType(raw parser.TypeName) (sqltype.Usage
 }
 
 func (h *BindingHost) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName) (sqltype.Usage, error) {
-	return h.Engine.resolveColumnCollation(u, raw, h.Op)
+	return h.Engine.ResolveColumnCollation(u, raw, h.Op)
 }
 
 func (h *BindingHost) CaptureElementInput(auth analyze.Authority, input *sqltype.InputEnvironment) error {
@@ -315,7 +315,7 @@ func (h *BindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Auth
 // IndexExpressionBinder builds a nested binder over an index's parent
 // relation under the operation's current context.
 func (h *BindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth analyze.Authority, parent *catalog.Relation) *analyze.Binder {
-	return h.Engine.indexExpressionBinder(h.Op, input, h.view(auth), parent)
+	return h.Engine.IndexExpressionBinder(h.Op, input, h.view(auth), parent)
 }
 
 func (h *BindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {

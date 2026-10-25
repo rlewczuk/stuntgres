@@ -17,7 +17,7 @@ func TestRelationValidatorsOrder(t *testing.T) {
 	materialized := refreshUnitRelation(t, e)
 	read := e.CatalogRead()
 	for _, d := range []*catalog.Relation{source, materialized} {
-		if err := RelationProvider().Validate(read, d); err != nil {
+		if err := RelationProvider.Validate(read, d); err != nil {
 			t.Fatal(d.Name(), err)
 		}
 	}

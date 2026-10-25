@@ -108,7 +108,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *catalog.Re
 		t.Fatal(err)
 	}
 	definition.Unique, definition.NullsNotDistinct = true, stmt.NullsNotDistinct
-	definition.Predicate, err = BindIndexPredicate(e, op, input, auth, parent, stmt.Predicate)
+	definition.Predicate, err = bindIndexPredicate(e, op, input, auth, parent, stmt.Predicate)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)

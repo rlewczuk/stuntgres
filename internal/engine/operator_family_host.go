@@ -18,7 +18,7 @@ func (h RoutineHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectNam
 		name.Parts = parts[:]
 	}
 	v := DDLAuthorityOf(a)
-	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
+	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return catalog.RoutineIdentity{}, 0, err
 	}

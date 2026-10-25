@@ -41,14 +41,14 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 			t.Fatal("descriptor", i, c)
 		}
 	}
-	if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
+	if err := (RelationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
-	if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
+	if err := (RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
 	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ids.ObjectRef{}, Source: &invalid, Owner: (e.CatalogRead()).Owner(), Runtime: EngineCatalogRuntime{}}, capturePGCast); err == nil || rows != nil {

@@ -125,7 +125,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 			t.Fatal("row/array ownership", id, row)
 		}
 	}
-	if err := (RelationProvider()).Validate(view, d); err != nil {
+	if err := (RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	descriptors, names := maps.Collect(e.Catalog.State.Descriptors()), maps.Collect(e.Catalog.State.Names())

@@ -234,7 +234,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ownership_fenced"})
-	stage := ownershipStage(e, auth, op)
+	stage := OwnershipStage(e, auth, op)
 	if err = role.StageOwnership(stage, auth.Catalog.Get(address), target); err != nil {
 		t.Fatal(err)
 	}

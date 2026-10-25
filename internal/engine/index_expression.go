@@ -19,7 +19,7 @@ import (
 // Ordering admission belongs to the caller's final selected class/collation,
 // not an expression-only default comparator.
 func bindIndexExpression(e *Engine, op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
-	binder := e.indexExpressionBinder(op, input, auth, parent)
+	binder := e.IndexExpressionBinder(op, input, auth, parent)
 	binder.Stored.CheckLiterals = literals
 	definition, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {

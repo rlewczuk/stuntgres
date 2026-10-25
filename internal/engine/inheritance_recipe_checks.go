@@ -29,7 +29,7 @@ func pairRestoredGeneration(e *Engine, op *session.Operation, raw *parser.AlterT
 	if err != nil {
 		return err
 	}
-	return table.PairRestoredGeneration(auth.Catalog, relationProvider, ref, raw, origins)
+	return table.PairRestoredGeneration(auth.Catalog, RelationProvider, ref, raw, origins)
 }
 
 func captureRestoredGeneration(e *Engine, op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
@@ -112,7 +112,7 @@ func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repa
 			if member.RelationKind != catalog.TableRelation || member.Partition != nil || member.Membership != nil || !exists || namespace.Temporary != (ids.SessionToken{}) {
 				return SQLError("0A000", table.RestoreInheritedCheckBoundary)
 			}
-			if err := relationProvider.Validate(auth.Catalog, member); err != nil {
+			if err := RelationProvider.Validate(auth.Catalog, member); err != nil {
 				return err
 			}
 			if err := table.ValidateInheritance(auth.Catalog, member); err != nil {
@@ -133,7 +133,7 @@ func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repa
 	if !actor.Superuser {
 		return SQLError("0A000", table.RestoreInheritedCheckBoundary)
 	}
-	return table.InheritedCheckRecipe(auth.Catalog, relationProvider, ref, repairs)
+	return table.InheritedCheckRecipe(auth.Catalog, RelationProvider, ref, repairs)
 }
 
 func closeRestoredRecipesForData(e *Engine, op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {

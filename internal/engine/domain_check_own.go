@@ -10,7 +10,7 @@ import (
 
 // Historical validation initializes only the selected own programme; ordinary
 // conversions retain the ancestor traversal above.
-func prepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
+func PrepareOwnDomainChecks(c *exec.Context, d *catalog.Type) error {
 	scope := ScopeOf(c.LiveHost())
 	if scope != nil {
 		c.PreparedDomainChecks = scope.Domains.PreparedChecks

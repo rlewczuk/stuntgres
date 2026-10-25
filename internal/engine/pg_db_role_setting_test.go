@@ -70,7 +70,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 	if d.Columns[2].Usage.Type.Element().ID() != 25 {
 		t.Fatal("text array element")
 	}
-	if err := (RelationProvider()).Validate(view, d); err != nil {
+	if err := (RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {

@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -82,11 +81,6 @@ func NewCatalogRoleReadFence(f CatalogRoleReadFenceFields) catalogRoleReadFence 
 	return catalogRoleReadFence{roles: f.Roles}
 }
 
-// DomainRestrictError calls domainRestrictError.
-func DomainRestrictError(stage *CatalogStage, targets []ids.ObjectAddress, edges []table.DomainDependency, originalRootCount int, subject ids.ObjectAddress) error {
-	return domainRestrictError(stage, targets, edges, originalRootCount, subject)
-}
-
 // ScopeAcquireRow calls x.acquireRow.
 func ScopeAcquireRow(x *StatementScope, candidate visibility.DeleteCandidate) error {
 	return x.acquireRow(candidate)
@@ -95,19 +89,9 @@ func ScopeAcquireRow(x *StatementScope, candidate visibility.DeleteCandidate) er
 // EnginePreparedRef returns &x.prepared.
 func EnginePreparedRef(x *Engine) *session.PreparedRegistry { return &x.prepared }
 
-// BindIndexPredicate calls bindIndexPredicate.
-func BindIndexPredicate(e *Engine, op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr) (*catalog.IndexPredicate, error) {
-	return bindIndexPredicate(e, op, input, auth, parent, raw)
-}
-
 // PartitionReplayAllowed calls partitionReplayAllowed.
 func PartitionReplayAllowed(op *session.Operation, auth AuthorizationView) func(parser.Statement, *catalog.Relation) bool {
 	return partitionReplayAllowed(op, auth)
-}
-
-// CatalogSourceTemporaryOwner calls catalogSourceTemporaryOwner.
-func CatalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
-	return catalogSourceTemporaryOwner(auth)
 }
 
 // CatalogRuntimeFields holds the EngineCatalogRuntime fields tests set.
@@ -186,11 +170,6 @@ func EnginePrepareQueryTableLocked(x *Engine, op *session.Operation, auth Author
 	return x.prepareQueryTableLocked(op, auth, s, b)
 }
 
-// BindCreateGenerations calls bindCreateGenerations.
-func BindCreateGenerations(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
-	return bindCreateGenerations(e, op, auth, d, declarations, input)
-}
-
 // StageTableOrZero calls x.tableOrZero.
 func StageTableOrZero(x *CatalogStage) table.Stage {
 	return x.tableOrZero()
@@ -222,11 +201,6 @@ func SetScopeWorked(x *StatementScope, v bool) { x.worked = v }
 // ScopeExecuteSavepoint calls x.executeSavepoint.
 func ScopeExecuteSavepoint(x *StatementScope, control *parser.SavepointControl, count int) (Result, error) {
 	return x.executeSavepoint(control, count)
-}
-
-// TypeHostBindRestoredDomainDefault calls x.bindRestoredDomainDefault.
-func TypeHostBindRestoredDomainDefault(x TypeHost, a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
-	return x.bindRestoredDomainDefault(a, d, raw, input, output)
 }
 
 // EngineOpenRelationSourceLocked calls x.openRelationSourceLocked.

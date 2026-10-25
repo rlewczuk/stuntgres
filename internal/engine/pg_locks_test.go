@@ -59,7 +59,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
-	if err := (RelationProvider()).Validate(view, d); err != nil {
+	if err := (RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {

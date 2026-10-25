@@ -74,7 +74,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 			t.Fatal(i, col)
 		}
 	}
-	if err := (RelationProvider()).Validate(c, d); err != nil {
+	if err := (RelationProvider).Validate(c, d); err != nil {
 		t.Fatal(err)
 	}
 	row := c.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.RowType)})

@@ -54,7 +54,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			if len(b.QuerySources) != 0 && (len(stored.ViewOf(d).Columns()) == 0 || len(stored.ViewOf(d).Namespaces()) == 0) {
 				t.Fatal("missing source column/frame analysis")
 			}
-			if err := (RelationProvider()).Validate(e.StageRead(stage), d); err != nil {
+			if err := (RelationProvider).Validate(e.StageRead(stage), d); err != nil {
 				t.Fatal("captured definition is invalid:", err)
 			}
 		})

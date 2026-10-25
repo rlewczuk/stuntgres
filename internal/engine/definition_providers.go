@@ -19,7 +19,7 @@ func (s *StatementScope) AcquireDefinitionProviders(stage *CatalogStage) error {
 	if err := s.acquireForeignKeyDefinitionProviders(stage); err != nil {
 		return err
 	}
-	requests, retained, err := stage.tableSlot.DefinitionProviders(stage.Base, stage, stage.Descriptors(), stage.Owner.Catalog.Domain)
+	requests, retained, err := stage.TableSlot.DefinitionProviders(stage.Base, stage, stage.Descriptors(), stage.Owner.Catalog.Domain)
 	if err != nil {
 		return err
 	}

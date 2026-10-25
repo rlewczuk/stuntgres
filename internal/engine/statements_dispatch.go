@@ -58,7 +58,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 			if owner.Materialized {
 				kind = "materialized view"
 			}
-			return dispatched(executeRelationOwnership(e, scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count))
+			return dispatched(ExecuteRelationOwnership(e, scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count))
 		}
 		return dispatched(executeAlterView(e, scope, stmt.(*parser.AlterView), count))
 	case *parser.DropView:

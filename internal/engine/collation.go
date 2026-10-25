@@ -13,8 +13,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*catalog.Collation, error) {
-	path, err := e.lookupNamespaces(auth, raw, analyze.CollationLookup)
+func (e *Engine) FindCollation(auth AuthorizationView, raw parser.ObjectName) (*catalog.Collation, error) {
+	path, err := e.LookupNamespaces(auth, raw, analyze.CollationLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, catalog.ObjectNameText(raw)), raw.Parts[0].Pos)
 }
 
-func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName, op *session.Operation) (sqltype.Usage, error) {
+func (e *Engine) ResolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName, op *session.Operation) (sqltype.Usage, error) {
 	if raw == nil {
 		return u, nil
 	}
@@ -45,7 +45,7 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	d, err := e.findCollation(auth, *raw)
+	d, err := e.FindCollation(auth, *raw)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
@@ -62,7 +62,7 @@ func (e *Engine) lookupCollation(raw parser.ObjectName, op *session.Operation) (
 	if err != nil {
 		return 0, err
 	}
-	d, err := e.findCollation(auth, raw)
+	d, err := e.FindCollation(auth, raw)
 	if err != nil {
 		return 0, err
 	}

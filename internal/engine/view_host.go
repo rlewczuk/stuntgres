@@ -29,11 +29,11 @@ var (
 )
 
 func (h ViewHost) TemporaryOwner(a ddl.Authority) ids.SessionToken {
-	return catalogSourceTemporaryOwner(DDLAuthorityOf(a))
+	return CatalogSourceTemporaryOwner(DDLAuthorityOf(a))
 }
 
 func (h ViewHost) DescribeRule(a ddl.Authority, stmt parser.Statement, target ids.ObjectRef, input sqltype.InputEnvironment, ns *analyze.RuleNamespace) (analyze.Binding, error) {
-	return describeWithRule(h.Op.Context(), h.E.AnalysisHost(h.Op), stmt, DDLAuthorityOf(a), target, input, nil, nil, ns)
+	return DescribeWithRule(h.Op.Context(), h.E.AnalysisHost(h.Op), stmt, DDLAuthorityOf(a), target, input, nil, nil, ns)
 }
 
 func (h ViewHost) BindRuleCondition(a ddl.Authority, ns *analyze.RuleNamespace, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, *parser.Select, analyze.Binding, error) {

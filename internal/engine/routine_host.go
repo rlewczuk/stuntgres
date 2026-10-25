@@ -27,7 +27,7 @@ var (
 )
 
 func (h RoutineHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return DDLAuthorityOf(a).definitionType(id)
+	return DDLAuthorityOf(a).DefinitionType(id)
 }
 
 func (h RoutineHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
@@ -36,7 +36,7 @@ func (h RoutineHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.Obje
 
 func (h RoutineHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
 	v := DDLAuthorityOf(a)
-	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
+	path, err := h.E.LookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
 		return nil, nil, sqltype.Usage{}, err
 	}

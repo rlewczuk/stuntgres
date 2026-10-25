@@ -113,7 +113,7 @@ func NewEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.NamespaceProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(relationProvider); err != nil {
+	if err := e.RegisterCatalogProvider(RelationProvider); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(stored.TypeProvider{}); err != nil {
@@ -421,11 +421,11 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
 func Describe(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, initial ...[]sqltype.Usage) (analyze.Binding, error) {
-	return describeWithRule(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, initial...)
+	return DescribeWithRule(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, initial...)
 }
 
-func describeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, rule *analyze.RuleNamespace, initial ...[]sqltype.Usage) (analyze.Binding, error) {
-	return analyze.Describe(ctx, host, stmt, authorityOf(auth), requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
+func DescribeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, rule *analyze.RuleNamespace, initial ...[]sqltype.Usage) (analyze.Binding, error) {
+	return analyze.Describe(ctx, host, stmt, AuthorityOf(auth), requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
 }
 
 func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (analyze.Binding, error) {
@@ -433,14 +433,14 @@ func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, au
 		return *scope.sqlRoutine.binding, nil
 	}
 	if scope.sqlRoutine.lexical != nil {
-		return analyze.DescribePL(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, authorityOf(auth), scope.LockedRef, scope.Input, &scope.QueryLockAdmission, scope.sqlRoutine.lexical, scope.sqlRoutine.assignment)
+		return analyze.DescribePL(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, AuthorityOf(auth), scope.LockedRef, scope.Input, &scope.QueryLockAdmission, scope.sqlRoutine.lexical, scope.sqlRoutine.assignment)
 	}
 	if scope.sqlRoutine.definition != nil {
-		return analyze.DescribeRoutine(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, authorityOf(auth), scope.LockedRef, scope.Input, expectedOf(expected), &scope.QueryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.name, scope.sqlRoutine.inputCollation)
+		return analyze.DescribeRoutine(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, AuthorityOf(auth), scope.LockedRef, scope.Input, expectedOf(expected), &scope.QueryLockAdmission, scope.sqlRoutine.definition, scope.sqlRoutine.name, scope.sqlRoutine.inputCollation)
 	}
 	// Dynamic cursor USING is a closed positional frame, not a public
 	// parameter-inference request. Static PL queries returned above.
-	return analyze.Describe(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, authorityOf(auth), scope.LockedRef, scope.Input, expectedOf(expected), &scope.QueryLockAdmission, nil, scope.sqlRoutine.cursor != nil, scope.initialParameters)
+	return analyze.Describe(scope.Op.Context(), e.AnalysisHost(scope.Op), stmt, AuthorityOf(auth), scope.LockedRef, scope.Input, expectedOf(expected), &scope.QueryLockAdmission, nil, scope.sqlRoutine.cursor != nil, scope.initialParameters)
 }
 
 // Resolution helpers run under e.mu, using the supplied coherent view.

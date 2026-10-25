@@ -13,6 +13,6 @@ type extensionAuthorityFence struct {
 
 func (extensionAuthorityFence) Kind() session.FenceKind { return FenceExtensionAuthority }
 
-func (f extensionAuthorityFence) currentLocked(e *Engine, c *session.Journal) error {
+func (f extensionAuthorityFence) CurrentLocked(e *Engine, c *session.Journal) error {
 	return f.observation.Current(c.Names, e.Catalog.State, e.RoleStore.Published.Revision)
 }

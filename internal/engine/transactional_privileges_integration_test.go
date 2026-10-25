@@ -44,7 +44,7 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 					e.Mu.Lock()
 					defer e.Mu.Unlock()
 					next, d := roleTransactionalCandidate(t, e, e.OperationRolesLocked(actor), name)
-					if err := installOperationRolesLocked(e, actor, next); err != nil {
+					if err := InstallOperationRolesLocked(e, actor, next); err != nil {
 						t.Fatal(err)
 					}
 					e.RoleStore.InstallPrincipalFrontierLocked(d.Ref.ID() + 1)
@@ -64,7 +64,7 @@ func TestTransactionalPrivilegesRoleIntegration(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if err := installOperationRolesLocked(e, actor, &access.RoleRecord{Root: root}); err != nil {
+					if err := InstallOperationRolesLocked(e, actor, &access.RoleRecord{Root: root}); err != nil {
 						t.Fatal(err)
 					}
 				}

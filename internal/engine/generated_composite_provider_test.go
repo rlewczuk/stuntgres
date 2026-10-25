@@ -56,7 +56,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	if err := table.ValidateGenerationProviders(view, holder); err != nil {
 		t.Fatal(err)
 	}
-	if err := (RelationProvider()).Validate(view, holder); err != nil {
+	if err := (RelationProvider).Validate(view, holder); err != nil {
 		t.Fatal(err)
 	}
 	result := roleExecute(t, e, op, "SELECT id,g FROM public.gen_holder")
@@ -100,7 +100,7 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 		address.SubID = foreign.Attributes[0]
 		g.Dependencies[selected] = view.Owner().Domain.Ref(view.Epoch(), address)
 	})
-	if err := (RelationProvider()).Validate(view, unrelated); err == nil {
+	if err := (RelationProvider).Validate(view, unrelated); err == nil {
 		t.Fatal("live unrelated metadata attribute replaced genuine expression manifest")
 	}
 	var ownColumn plan.ColumnExpr

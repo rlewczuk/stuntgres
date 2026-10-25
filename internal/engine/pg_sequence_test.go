@@ -84,12 +84,12 @@ func TestPGSequenceShape(t *testing.T) {
 			t.Fatal("invented state column", name)
 		}
 	}
-	if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
+	if err := (RelationProvider).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	physical := *d
 	physical.RelationKind = catalog.TableRelation
-	if err := (RelationProvider()).Validate(e.CatalogRead(), &physical); err == nil {
+	if err := (RelationProvider).Validate(e.CatalogRead(), &physical); err == nil {
 		t.Fatal("physical NOT NULL requires constraint identities")
 	}
 	foreignType, _ := New().CatalogRead().LookupType(sqltype.Oid)
@@ -107,7 +107,7 @@ func TestPGSequenceShape(t *testing.T) {
 			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
-			if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
+			if err := (RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 				t.Fatal("virtual-source exemption bypassed validation")
 			}
 		})

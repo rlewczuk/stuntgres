@@ -88,7 +88,7 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := ownershipStage(e, auth, op)
+	second := OwnershipStage(e, auth, op)
 	reader = auth.Roles.LookupRef("ownership_reader")
 	if err := role.StageOwnedCleanup(context.Background(), second, auth.Roles, auth.RoleRecord, map[authorization.PrincipalRef]bool{reader: true}); err != nil {
 		t.Fatal(err)
@@ -337,7 +337,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			key := ids.NameKey{ClassID: class, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name}
 			address := auth.Catalog.NameAddress(key)
 			captured := auth.Catalog.Get(address)
-			stage := ownershipStage(e, auth, op)
+			stage := OwnershipStage(e, auth, op)
 			defer e.DiscardCatalogStage(stage)
 			e.Mu.Lock()
 			if kind == "type" {

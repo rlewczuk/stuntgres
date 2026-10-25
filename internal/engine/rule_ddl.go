@@ -182,7 +182,7 @@ func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count 
 			err := parser.VisitMutationTargets(action, func(command parser.Statement) error {
 				scope.MutationTarget = MutationTarget{}
 				defer func() { scope.MutationTarget = event }()
-				if err := scope.acquireRelationTarget(command, stmt, true, false); err != nil {
+				if err := scope.AcquireRelationTarget(command, stmt, true, false); err != nil {
 					return err
 				}
 				targets = append(targets, scope.MutationTarget)

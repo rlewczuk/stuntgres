@@ -7,13 +7,13 @@ import (
 
 // tableOrZero reads the table slot; a nil slot reads as zero.
 func (s *CatalogStage) tableOrZero() table.Stage {
-	if s.tableSlot == nil {
+	if s.TableSlot == nil {
 		return table.Stage{}
 	}
-	return *s.tableSlot
+	return *s.TableSlot
 }
 
 // validateLikeSources checks the stage's LIKE sources against current.
 func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
-	return s.tableSlot.ValidateLikeSources(s.Base, s, current)
+	return s.TableSlot.ValidateLikeSources(s.Base, s, current)
 }

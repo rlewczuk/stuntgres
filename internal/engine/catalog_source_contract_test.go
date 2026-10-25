@@ -417,7 +417,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 			if err := PublicationOperationLocked(e, admin); err != nil {
 				return err
 			}
-			installOperationRolesLocked(e, admin, next)
+			InstallOperationRolesLocked(e, admin, next)
 			return nil
 		}(); err != nil {
 			t.Fatal(err)

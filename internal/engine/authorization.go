@@ -83,7 +83,7 @@ type AuthorizationView struct {
 	Definition catalog.DefinitionReader // Cooking-only sparse effects; never SQL execution authority.
 	settings   *session.SettingsStore
 	// Nested schema elements prepend their enclosing namespace without changing settings.
-	pathPrefix ids.ObjectAddress
+	PathPrefix ids.ObjectAddress
 	// Trusted replay permissions may elevate without changing $user semantics.
 	namespaceUser authorization.PrincipalRef
 	// Validated private Restore definition lookup only; it never changes the

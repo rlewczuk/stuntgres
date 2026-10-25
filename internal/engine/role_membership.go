@@ -46,6 +46,6 @@ func membershipLocked(e *Engine, op *session.Operation, v AuthorizationView, s *
 		if err := PublicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
-		return Result{}, installOperationRolesLocked(e, op, &access.RoleRecord{Root: n})
+		return Result{}, InstallOperationRolesLocked(e, op, &access.RoleRecord{Root: n})
 	}
 }

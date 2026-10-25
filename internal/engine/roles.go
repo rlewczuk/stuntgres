@@ -89,7 +89,7 @@ func publishDroppedRolesLocked(e *Engine, op *session.Operation, plan role.DropR
 	if err := PublicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if err := installOperationRolesLocked(e, op, plan.Roles); err != nil {
+	if err := InstallOperationRolesLocked(e, op, plan.Roles); err != nil {
 		return Result{}, err
 	}
 	if t := op.Session.Transactions; t.State == session.TxActive || t.RetainsTransaction() {

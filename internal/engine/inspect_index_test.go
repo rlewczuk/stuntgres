@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -34,11 +33,6 @@ func EnginePrepareIndexCatalog(x *Engine, evaluation *exec.Context, current *cat
 // EnginePrepareIndexRoots calls x.prepareIndexRoots.
 func EnginePrepareIndexRoots(x *Engine, evaluation *exec.Context, current *catalog.State, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, roots map[ids.ObjectAddress]*storage.IndexRoot, rebuildParents map[ids.ObjectAddress]bool, rebuildIndexes map[ids.ObjectAddress]*catalog.Relation, publications []index.RowPublication, materialize bool, output sqltype.OutputEnvironment, auth *AuthorizationView, runtimeOwners map[ids.ObjectAddress]authorization.PrincipalRef, candidates map[ids.ObjectAddress]index.RootCandidate) (map[ids.ObjectAddress]*storage.IndexRoot, error) {
 	return x.prepareIndexRoots(evaluation, current, next, relations, roots, rebuildParents, rebuildIndexes, publications, materialize, output, auth, runtimeOwners, candidates)
-}
-
-// BindIndexExpression calls bindIndexExpression.
-func BindIndexExpression(e *Engine, op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
-	return bindIndexExpression(e, op, input, auth, parent, raw, literals)
 }
 
 // EngineCapturePartialMaskLocked calls x.capturePartialMaskLocked.

@@ -170,7 +170,7 @@ func prepareDomainChecks(c *exec.Context, d *catalog.Type) error {
 			return err
 		}
 	}
-	return prepareOwnDomainChecks(c, d)
+	return PrepareOwnDomainChecks(c, d)
 }
 
 // COPY owns a public transport cursor, rather than an expression node. Its live

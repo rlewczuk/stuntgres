@@ -63,7 +63,7 @@ func (s *StatementScope) rewriteQuerySQL(query sqltype.Value, text string, resul
 	}
 	s.Expected = &description
 	if !rewriteTupleStatement(statement) {
-		return value, SQLError("42P11", "cannot open "+routineCommandTag(statement)+" query as cursor")
+		return value, SQLError("42P11", "cannot open "+RoutineCommandTag(statement)+" query as cursor")
 	}
 	if tag := rewriteReadOnlyViolation(statement); tag != "" {
 		return value, exec.RewriteSQLDiagnostic(SQLError("0A000", tag+" is not allowed in a non-volatile function"), text)
@@ -120,7 +120,7 @@ func rewriteTupleStatement(statement parser.Statement) bool {
 }
 func rewriteReadOnlyViolation(statement parser.Statement) string {
 	if parser.ModifyingStatement(statement) {
-		return routineCommandTag(statement)
+		return RoutineCommandTag(statement)
 	}
 	if parser.HasModifyingCTE(statement) {
 		return "SELECT"

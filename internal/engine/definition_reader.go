@@ -20,7 +20,7 @@ func (a AuthorizationView) DefinitionLookup(key ids.NameKey) ids.ObjectAddress {
 	return a.Catalog.NameAddress(key)
 }
 
-func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
+func (a AuthorizationView) DefinitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return catalog.DefinitionTypeAt(a.Catalog, a.Definition, id)
 }
 

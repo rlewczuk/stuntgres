@@ -76,7 +76,7 @@ func (e *Engine) CompilePLRoutineLocked(op *session.Operation, auth Authorizatio
 			return sqltype.Usage{}, false, SQLError("42704", fmt.Sprintf("variable %q does not exist", parts[0].Text))
 		}
 		name := parser.ObjectName{Parts: parts[:len(parts)-1]}
-		path, err := e.lookupNamespaces(auth, name, analyze.RelationLookup)
+		path, err := e.LookupNamespaces(auth, name, analyze.RelationLookup)
 		if err != nil {
 			return sqltype.Usage{}, false, err
 		}
@@ -120,7 +120,7 @@ func (e *Engine) CompilePLRoutineLocked(op *session.Operation, auth Authorizatio
 				return sqltype.Usage{}, fmt.Errorf("stuntgres: missing PL RECORD type")
 			}
 		}
-		usage, err := e.resolveColumnCollation(usage, raw, op)
+		usage, err := e.ResolveColumnCollation(usage, raw, op)
 		if err == nil {
 			dependency(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(usage.Collation.ID)})
 		}

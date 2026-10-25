@@ -35,7 +35,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 				t.Fatal(i, c)
 			}
 		}
-		if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
+		if err := (RelationProvider).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
 		if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -43,7 +43,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 		}
 		invalid := *d
 		invalid.RelationKind = catalog.TableRelation
-		if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
+		if err := (RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 			t.Fatal("virtual table accepted")
 		}
 		invalid = *d
@@ -53,7 +53,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 			t.Fatal("foreign type missing")
 		}
 		invalid.Columns[0].Usage.Type = foreign
-		if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
+		if err := (RelationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
 			t.Fatal("foreign owner type accepted")
 		}
 	}

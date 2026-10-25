@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
@@ -11,7 +10,6 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -58,16 +56,6 @@ type ForeignEffectAdmissionFields struct {
 // NewForeignEffectAdmission builds a foreignEffectAdmission from f.
 func NewForeignEffectAdmission(f ForeignEffectAdmissionFields) foreignEffectAdmission {
 	return foreignEffectAdmission{}
-}
-
-// BindCreateDefaults calls bindCreateDefaults.
-func BindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declarations []analyze.ColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
-	return bindCreateDefaults(b, columns, declarations)
-}
-
-// TableStage calls tableStage.
-func TableStage(s *CatalogStage) *table.Stage {
-	return tableStage(s)
 }
 
 // EnginePublishQueryTable calls x.publishQueryTable.

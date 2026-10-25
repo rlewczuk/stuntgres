@@ -183,6 +183,13 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 // statement kind belongs to one package's entry.
 var relationTargetEntries = []table.TargetEntry{view.TargetAdmission, table.TargetAdmission, dml.TargetAdmission}
 
+// AcquireRelationTarget admits the relation stmt targets for family code.
+// The body stays acquireRelationTarget: read-only reference fixtures wait on
+// that frame.
+func (s *StatementScope) AcquireRelationTarget(stmt, authorityStmt parser.Statement, execute, source bool) error {
+	return s.acquireRelationTarget(stmt, authorityStmt, execute, source)
+}
+
 func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statement, execute, source bool) error {
 	target, ok, err := table.AdmitTarget(relationTargetEntries, stmt, execute)
 	if err != nil || !ok {

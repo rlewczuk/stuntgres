@@ -27,8 +27,8 @@ type bindingAuthorityView AuthorizationView
 func (*bindingAuthorityView) AnalyzeAuthority()           {}
 func (v *bindingAuthorityView) ReadCatalog() catalog.Read { return v.Catalog }
 
-// authorityOf hands a copy of v to binding, as passing the view by value did.
-func authorityOf(v AuthorizationView) analyze.Authority { return &v }
+// AuthorityOf hands a copy of v to binding, as passing the view by value did.
+func AuthorityOf(v AuthorizationView) analyze.Authority { return &v }
 
 // authorizationOf recovers a stored authority outside the host. Binding
 // authorities never reach engine code; meeting one is a bug.

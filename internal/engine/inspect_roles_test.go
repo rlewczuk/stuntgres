@@ -56,13 +56,13 @@ func AuthorizationNamespaceUser(x *AuthorizationView) authorization.PrincipalRef
 }
 
 // AuthorizationPathPrefix returns x.pathPrefix.
-func AuthorizationPathPrefix(x *AuthorizationView) ids.ObjectAddress { return x.pathPrefix }
+func AuthorizationPathPrefix(x *AuthorizationView) ids.ObjectAddress { return x.PathPrefix }
 
 // AuthorizationSettings returns x.settings.
 func AuthorizationSettings(x *AuthorizationView) *session.SettingsStore { return x.settings }
 
 // SetAuthorizationPathPrefix sets x.pathPrefix.
-func SetAuthorizationPathPrefix(x *AuthorizationView, v ids.ObjectAddress) { x.pathPrefix = v }
+func SetAuthorizationPathPrefix(x *AuthorizationView, v ids.ObjectAddress) { x.PathPrefix = v }
 
 // SetDatabaseClusterNotificationHead sets x.notificationHead.
 func SetDatabaseClusterNotificationHead(x *DatabaseCluster, v *session.NotificationQueuePosition) {

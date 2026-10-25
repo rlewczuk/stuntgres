@@ -58,7 +58,7 @@ func (h TypeHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, ra
 	if _, err := sqltype.PlanCoercion(usage, d.SQLType.DomainBase(), sqltype.Assignment); err != nil {
 		return true, err
 	}
-	if err := h.E.bindDomainDefaultUsage(h.Op.Context(), h.Op, auth, h.CatalogStage, d, raw, usage, input, output); err != nil {
+	if err := h.E.BindDomainDefaultUsage(h.Op.Context(), h.Op, auth, h.CatalogStage, d, raw, usage, input, output); err != nil {
 		return true, err
 	}
 	if d.DomainDefault == nil || d.DomainDefault.Expression.ResultUsage() != usage {

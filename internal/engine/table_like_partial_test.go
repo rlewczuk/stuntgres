@@ -295,7 +295,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	var created *catalog.Relation
 	if err == nil {
 		var predicate *catalog.IndexPredicate
-		predicate, err = BindIndexPredicate(e, op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
+		predicate, err = bindIndexPredicate(e, op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
 		if err == nil {
 			definition, columns, attributes, lookup, bindErr := index.BindAttributes(TableHost{DDLHost{E: e, Op: op}}, auth, sqltype.InputEnvironment{}, source, raw)
 			err = bindErr

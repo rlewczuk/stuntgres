@@ -18,9 +18,9 @@ type truncateGraphFence struct{ dml.TruncateGraph }
 
 func (truncateGraphFence) Kind() session.FenceKind { return fenceTruncateGraph }
 
-// currentLocked checks the admitted graph against the private catalog and the
+// CurrentLocked checks the admitted graph against the private catalog and the
 // published sequence generators. Caller holds Engine.mu.
-func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) error {
+func (fence truncateGraphFence) CurrentLocked(e *Engine, c *session.Journal) error {
 	return fence.CheckCurrent(e.PrivateCatalogLocked(c), c, e.Storage.Sequences)
 }
 

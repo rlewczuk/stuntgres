@@ -80,7 +80,7 @@ func TestPGAttributeShape(t *testing.T) {
 			t.Fatal("column", i, c)
 		}
 	}
-	if err := (RelationProvider()).Validate(view, d); err != nil {
+	if err := (RelationProvider).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 270})
@@ -90,7 +90,7 @@ func TestPGAttributeShape(t *testing.T) {
 	bad := *d
 	bad.Columns = append([]catalog.Column(nil), d.Columns...)
 	bad.Columns[23].Usage = d.Columns[24].Usage
-	if err := (RelationProvider()).Validate(view, &bad); err == nil {
+	if err := (RelationProvider).Validate(view, &bad); err == nil {
 		t.Fatal("pseudo carrier escaped attribute25")
 	}
 }
@@ -370,7 +370,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
 	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.RoleStore.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
-	if err := (RelationProvider()).Validate(view, ordinary); err == nil {
+	if err := (RelationProvider).Validate(view, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}
 	_, err = pgcatalog.ClassACL(&e.Catalog.Owner, New().Roles(), d.Columns[21].Usage.Type, authorization.ACLValue{Explicit: true})

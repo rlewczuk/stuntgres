@@ -63,7 +63,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.Mu.Lock()
-	predicate, err := BindIndexPredicate(f.e, &session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	predicate, err := bindIndexPredicate(f.e, &session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +111,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.Mu.Lock()
-	predicate, err := BindIndexPredicate(f.e, &session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	predicate, err := bindIndexPredicate(f.e, &session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

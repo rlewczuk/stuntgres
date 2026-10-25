@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func routineCommandTag(statement parser.Statement) string {
+func RoutineCommandTag(statement parser.Statement) string {
 	if transaction, ok := statement.(*parser.TransactionControl); ok {
 		switch transaction.Kind {
 		case parser.KindCommit:
@@ -24,18 +24,18 @@ func routineCommandTag(statement parser.Statement) string {
 	return tag
 }
 
-func sqlRoutineFinalError(result sqltype.Usage) error {
+func SQLRoutineFinalError(result sqltype.Usage) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "return type mismatch in function declared to return " + result.Type.DiagnosticName(), Detail: "Function's final statement must be SELECT or INSERT/UPDATE/DELETE/MERGE RETURNING."}
 }
 
-func validateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, result sqltype.Usage) (sqltype.CoercionPlan, error) {
+func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, result sqltype.Usage) (sqltype.CoercionPlan, error) {
 	if _, selecting := statement.(*parser.Select); selecting && b.Query != nil {
 		return validateSQLRoutineResult(b.Query.Root.Schema(), result)
 	}
 	if b.Returning != nil {
 		return validateSQLRoutineResult(b.Returning.Schema, result)
 	}
-	return sqltype.CoercionPlan{}, sqlRoutineFinalError(result)
+	return sqltype.CoercionPlan{}, SQLRoutineFinalError(result)
 }
 
 func validateSQLRoutineResult(columns []catalog.Column, result sqltype.Usage) (sqltype.CoercionPlan, error) {
