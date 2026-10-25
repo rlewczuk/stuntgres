@@ -21,6 +21,11 @@ execution startup, including empty input, rather than during Prepare. Their
 diagnostics use the selected declaration's visibility-aware routine identity,
 including quoted identifiers and multi-input signatures.
 
+Installed isn now provides independently identified ismn13 columns, legacy M
+and long-form input, canonical long ISMN output and ISMN13 result metadata.
+Corrected check digits, retained invalid markers and NULLs survive prepared
+execution, extension recreation and native Reset/Dump/Restore.
+
 The default text-search parser is executable through both text-name and OID
 overloads of ts_parse and ts_token_type, with typed set results, all 23 token
 descriptors, preserved document spelling and ordered URL/hyphen overlaps.

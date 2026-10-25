@@ -136,6 +136,7 @@ type Descriptor struct {
 	isbn                             bool
 	isbn13                           bool
 	ismn                             bool
+	ismn13                           bool
 	composite                        *compositeDefinition
 	rangeSubtype                     *Descriptor
 	customRange                      *RangeDefinition
@@ -171,7 +172,7 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 	if d.IsEnum() {
 		return 4
 	}
-	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() {
+	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() {
 		return 8
 	}
 	if d.IsArray() || d.IsComposite() || d.rangeSubtype != nil || d.multirangeRange != nil {
@@ -485,6 +486,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if fromEnum.IsIsmn() != toEnum.IsIsmn() || fromEnum.IsIsmn() && (fromEnum != toEnum || !v.null && !v.validIsmn()) {
 		return Value{}, fmt.Errorf("incompatible ismn generation")
 	}
+	if fromEnum.IsIsmn13() != toEnum.IsIsmn13() || fromEnum.IsIsmn13() && (fromEnum != toEnum || !v.null && !v.validIsmn13()) {
+		return Value{}, fmt.Errorf("incompatible ismn13 generation")
+	}
 	if fromEnum.IsEnum() != toEnum.IsEnum() {
 		return Value{}, fmt.Errorf("incompatible enum declaration")
 	}
@@ -778,7 +782,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -803,7 +807,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.IsIsbn() || d.IsIsbn13() {
 		return d.isbnInput(text)
 	}
-	if d.IsIsmn() {
+	if d.IsIsmn() || d.IsIsmn13() {
 		return d.ismnInput(text)
 	}
 	if d.IsRange() {
@@ -1120,6 +1124,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsIsmn() {
 		return d.ismnOutput(v)
 	}
+	if d.IsIsmn13() {
+		return d.ismn13Output(v)
+	}
 	if d.IsRange() {
 		return v.rangeOutput(ctx, env)
 	}
@@ -1376,6 +1383,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	if d.IsIsmn() {
 		text, err := d.ismnOutput(v)
 		if err != nil { return "", err }
+		return "'" + text + "'", nil
+	}
+	if d.IsIsmn13() {
+		text, err := d.ismn13Output(v)
+		if err != nil {
+			return "", err
+		}
 		return "'" + text + "'", nil
 	}
 	switch d.id {

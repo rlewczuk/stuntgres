@@ -96,7 +96,7 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 			visited[address], visited[multiAddress] = true, true
 			return nil
 		}
-		if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() {
+		if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() {
 			target, namespace, extension := address, d.Namespace(), d.Extension
 			if to, ok := mapping[address]; ok {
 				target = to
@@ -130,6 +130,7 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 				if d.SQLType.IsIsbn() { constructor = sqltype.Isbn }
 				if d.SQLType.IsIsbn13() { constructor = sqltype.Isbn13 }
 				if d.SQLType.IsIsmn() { constructor = sqltype.Ismn }
+				if d.SQLType.IsIsmn13() { constructor = sqltype.Ismn13 }
 				typ, err := constructor(sqltype.ID(target.ObjectID), d.Name(), declaration)
 				if err != nil {
 					return err
@@ -408,7 +409,7 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 	}
 	if imported := imports[value.Type().BaseType()]; imported != nil {
-		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsQueryInt() && !target.BaseType().IsCube() && !target.BaseType().IsCitext() && !target.BaseType().IsEan13() && !target.BaseType().IsIsbn() && !target.BaseType().IsIsbn13() && !target.BaseType().IsIsmn() {
+		if imported != target.BaseType() || !target.BaseType().IsEnum() && !target.BaseType().IsQueryInt() && !target.BaseType().IsCube() && !target.BaseType().IsCitext() && !target.BaseType().IsEan13() && !target.BaseType().IsIsbn() && !target.BaseType().IsIsbn13() && !target.BaseType().IsIsmn() && !target.BaseType().IsIsmn13() {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: foreign imported scalar destination")
 		}
 		physical, err := value.BaseValue()
@@ -429,6 +430,8 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 			physical, err = physical.RemapIsbn13(target.BaseType())
 		} else if physical.Type().IsIsmn() {
 			physical, err = physical.RemapIsmn(target.BaseType())
+		} else if physical.Type().IsIsmn13() {
+			physical, err = physical.RemapIsmn13(target.BaseType())
 		} else {
 			physical, err = physical.RemapEnum(target.BaseType())
 		}
@@ -454,7 +457,7 @@ func ReownDomainDatum(value sqltype.Value, target *sqltype.Descriptor, collation
 		}
 		from.Collation = mapped
 	}
-	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsQueryInt() && !from.Type.IsCube() && !from.Type.IsCitext() && !from.Type.IsEan13() && !from.Type.IsIsbn() && !from.Type.IsIsbn13() && !from.Type.IsIsmn() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
+	if (!from.Type.IsEnum() && !from.Type.IsComposite() && !from.Type.IsQueryInt() && !from.Type.IsCube() && !from.Type.IsCitext() && !from.Type.IsEan13() && !from.Type.IsIsbn() && !from.Type.IsIsbn13() && !from.Type.IsIsmn() && !from.Type.IsIsmn13() && from.Type.ID() != to.Type.ID()) || from.Typmod != to.Typmod || from.Collation != to.Collation {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: incompatible imported domain base")
 	}
 	physical, err := value.BaseValue()

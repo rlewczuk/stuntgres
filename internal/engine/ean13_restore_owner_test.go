@@ -12,6 +12,7 @@ import (
 func TestEan13RestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ean13", 0) }
 func TestIsbnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "isbn", 3) }
 func TestIsmnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ismn", 9) }
+func TestIsmn13RestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ismn13", 12) }
 
 func testIsnRestoreOwnerReplay(t *testing.T, family string, slot int) {
 	e, ext, _ := isnUnitInstalled(t)

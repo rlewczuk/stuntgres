@@ -41,7 +41,7 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   requires the same type ID, domain/base identity and constraints, and rejects
   foreign citext/ISN generations and enum members even for equal OIDs; only
   source-authorized catalog import remaps explicitly (`RemapCitext`,
-  `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`).
+  `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`).
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -90,7 +90,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed cube/query_int/citext/ean13/isbn/isbn13/ismn/earth/lo retain real codec/manifest roles and earth
+Installed cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -184,15 +184,16 @@ or widen it.
 
 ## ISN identifiers
 
-`Ean13`, `Isbn`, `Isbn13` and `Ismn` descriptors own distinct scalar roles with packed
+`Ean13`, `Isbn`, `Isbn13`, `Ismn` and `Ismn13` descriptors own distinct scalar roles with packed
 thirteen-digit identifiers and independent invalid-input flags. Their shared
 scanner preserves raw character lookahead and ASCII separator rules. ISBN and
 ISBN13 share ISBN-family input validation: short input validates its weighted
 check digit before expansion. ISBN short output computes its own check digit
 instead of reusing the stored EAN digit; ISBN13 and EAN13 share a validated long
-formatter. ISMN accepts short M notation or modern 9790 notation and emits the
-short M form directly from its packed identifier. Formatting uses the attributed
-PostgreSQL 18.6 ranges in `ean13_ranges.go`.
+formatter. ISMN and ISMN13 share short M or modern 9790 input validation.
+ISMN emits short M notation directly from its packed identifier; ISMN13 uses
+the validated long formatter. Formatting uses the attributed PostgreSQL 18.6
+ranges in `ean13_ranges.go`.
 Leading zeros, computed check digits, marked corrected inputs and typed NULLs
 retain distinct identities. Explicit text I/O and assignment to text reuse the
 shared coercion planner; typed text needs an explicit conversion to an installed

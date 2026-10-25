@@ -71,13 +71,15 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   dependency removal and remap use the shared extension lifecycle; no lock state
   is serialized.
 - **isn** (`isn_provider.go`, `isn_stage.go`): the trusted, relocatable 1.3
-  provider installs `ean13`, `isbn`, `isbn13` and `ismn`, each with a reciprocal
-  lookup-only associated array and immutable strict C-language codecs. Twelve
-  append-only manifest slots bind `ean13_in(cstring)`/`ean13_out(ean13)`,
+  provider installs `ean13`, `isbn`, `isbn13`, `ismn` and `ismn13`, each with a
+  reciprocal lookup-only associated array and immutable strict C-language codecs.
+  Fifteen append-only manifest slots bind `ean13_in(cstring)`/`ean13_out(ean13)`,
   `isbn_in(cstring)`/`isn_out(isbn)`,
-  `isbn13_in(cstring)`/`ean13_out(isbn13)` and
-  `ismn_in(cstring)`/`isn_out(ismn)` to their own scalars. The ISBN13 input
-  SQL identity has the immutable source symbol `isbn_in`; output overloads are
+  `isbn13_in(cstring)`/`ean13_out(isbn13)`,
+  `ismn_in(cstring)`/`isn_out(ismn)` and
+  `ismn13_in(cstring)`/`ean13_out(ismn13)` to their own scalars. The ISBN13 and
+  ISMN13 input SQL identities have immutable source symbols `isbn_in` and
+  `ismn_in`; output overloads are
   distinguished by their own scalar signature. Owner metadata records
   each output argument symbolically and remaps it to its destination descriptor.
   Admission follows script order: input signature, output signature, then full
@@ -185,7 +187,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   that is also a source does not trigger another mapping step.
 
 Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledTypes`/`MemberTypeRole` resolve cube/query_int/citext/ean13/isbn/isbn13/ismn/earth/lo through the
+`InstalledTypes`/`MemberTypeRole` resolve cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
 existing manifest/provider and reciprocal array checks. Member ALTER retains
 installation membership; direct DROP remains protected. The owner metadata codec
 keeps canonical type role keys (including earth[] and lo[]) across rename/move, preserving

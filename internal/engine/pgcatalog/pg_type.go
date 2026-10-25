@@ -78,7 +78,7 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 	if !ok {
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
-	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() {
+	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() {
 		ext, ok := catalog.Extension(d.Extension)
 		if !ok || len(ext.Members) < 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")

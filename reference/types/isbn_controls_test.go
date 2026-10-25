@@ -60,7 +60,7 @@ func TestReferenceIsbnControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		run(fixture.Select("SELECT extname FROM pg_extension WHERE extname='isn'", []string{"extname"}, []string{"NAME"}, [][]any{}))
-		run(fixture.Select("SELECT typname FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('ean13','_ean13','isbn','_isbn','isbn13','_isbn13','ismn','_ismn')", []string{"typname"}, []string{"NAME"}, [][]any{}))
+		run(fixture.Select("SELECT typname FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('ean13','_ean13','isbn','_isbn','isbn13','_isbn13','ismn','_ismn','ismn13','_ismn13')", []string{"typname"}, []string{"NAME"}, [][]any{}))
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
@@ -75,9 +75,9 @@ func TestReferenceIsbnControls(t *testing.T) {
 		tb := fixture.Backend{Recorder: target.MemoryRecord, DB: target.Memory}
 		fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE TABLE isbn_allocation_spacer(v integer)", 0))
 		fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE EXTENSION isn", 0))
-		// Displace and prove all four scalar, four companion and eight codec
+		// Displace and prove all five scalar, five companion and ten codec
 		// identities before Restore, not just the old manifest's member zero.
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13"} {
 			var source, dest [4]int64
 			q := "SELECT oid,typarray,typinput::oid,typoutput::oid FROM pg_type WHERE oid=" + ean13Literal(typ) + "::regtype::oid"
 			if err := c.QueryRowContext(p.Ctx, q).Scan(&source[0], &source[1], &source[2], &source[3]); err != nil {
@@ -97,7 +97,7 @@ func TestReferenceIsbnControls(t *testing.T) {
 		}
 		isbnControlVerify(t, target, tb, conn)
 		retainedIdentities := map[string][4]int64{}
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13"} {
 			retainedIdentities[typ] = isbnIdentityStamp(t, target, conn, typ)
 		}
 		// Every failed replacement preserves exact values, column descriptors,

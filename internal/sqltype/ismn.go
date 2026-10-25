@@ -13,10 +13,14 @@ func Ismn(id ID, name, declaration string) (*Descriptor, error) {
 func (d *Descriptor) IsIsmn() bool { return d != nil && d.ismn }
 
 func (v Value) validIsmn() bool {
-	if v.typ == nil || !v.typ.BaseType().IsIsmn() || v.integer < 0 {
+	return v.typ != nil && v.typ.BaseType().IsIsmn() && validIsmnNumber(v.integer)
+}
+
+func validIsmnNumber(packed int64) bool {
+	if packed < 0 {
 		return false
 	}
-	n := v.integer >> 1
+	n := packed >> 1
 	if n < 9790000000000 || n > 9790999999999 {
 		return false
 	}

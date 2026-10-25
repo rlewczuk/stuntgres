@@ -61,11 +61,9 @@ func ean13Identity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn
 		q := fmt.Sprintf("SELECT p.proname,p.pronargs,p.prorettype=%s::regtype::oid AS result_identity,p.proisstrict,p.provolatile,p.proparallel,p.proowner=e.extowner AS same_owner,d.deptype FROM (SELECT * FROM pg_proc WHERE oid=%d) p JOIN (SELECT * FROM pg_depend WHERE classid=1255 AND objid=%d AND refclassid=3079 AND refobjid=%d) d ON d.objid=p.oid JOIN (SELECT * FROM pg_extension WHERE oid=%d) e ON e.oid=d.refobjid", ean13Literal(tc.result), proc, proc, ext, ext)
 		run(fixture.Select(q, []string{"proname", "pronargs", "result_identity", "proisstrict", "provolatile", "proparallel", "same_owner", "deptype"}, []string{"NAME", "INT2", "BOOL", "BOOL", "CHAR", "CHAR", "BOOL", "CHAR"}, [][]any{{tc.name, int64(1), true, true, "i", "s", true, "e"}}))
 	}
-	if !b.PG {
-		s := fixture.Select("SELECT p.proname FROM pg_proc p WHERE p.pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}, {"ismn_in"}, {"isn_out"}})
-		s.Bag = true
-		run(s)
-	}
+	// Keep the complete installed-role and native codec inventory in one
+	// helper; PostgreSQL validates the same five represented roles as well.
+	isbnIdentity(t, p, b, c, ns)
 }
 
 func TestReferenceEan13Metadata(t *testing.T) {

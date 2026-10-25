@@ -68,9 +68,9 @@ func TestReferenceIsmnMetadata(t *testing.T) {
 	ean13Scenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 		run(fixture.Exec("CREATE EXTENSION isn", 0))
-		run(fixture.Exec("CREATE TABLE ismn_siblings(e ean13,s isbn,l isbn13,m ismn)", 0))
-		run(fixture.Exec("INSERT INTO ismn_siblings VALUES('9780123456786','123456789X','123456789X','M123456785')", 1))
-		run(ean13Select(b, "SELECT e,s,l,m FROM ismn_siblings", []string{"e", "s", "l", "m"}, []string{"EAN13", "ISBN", "ISBN13", "ISMN"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X", "978-1-234-56789-7", "M-1234-5678-5"}}, []bool{true, true, true, true}))
+		run(fixture.Exec("CREATE TABLE ismn_siblings(e ean13,s isbn,l isbn13,m ismn,n ismn13)", 0))
+		run(fixture.Exec("INSERT INTO ismn_siblings VALUES('9780123456786','123456789X','123456789X','M123456785','M123456785')", 1))
+		run(ean13Select(b, "SELECT e,s,l,m,n FROM ismn_siblings", []string{"e", "s", "l", "m", "n"}, []string{"EAN13", "ISBN", "ISBN13", "ISMN", "ISMN13"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X", "978-1-234-56789-7", "M-1234-5678-5", "979-0-1234-5678-5"}}, []bool{true, true, true, true, true}))
 		run(fixture.Exec("CREATE TABLE ismn_meta(id integer NOT NULL,e ean13,v ismn,required ismn NOT NULL)", 0))
 		q := "SELECT e,v,required FROM ismn_meta ORDER BY id"
 		held := ean13Held(t, p, c, q)

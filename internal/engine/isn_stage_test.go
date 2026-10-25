@@ -31,10 +31,11 @@ func (s *isnReservedStage) AllocateOID() (ids.OID, error) {
 }
 
 func TestIsnProviderStageCollisions(t *testing.T) {
-	for _, family := range []string{"isbn", "isbn13", "ismn"} {
+	for _, family := range []string{"isbn", "isbn13", "ismn", "ismn13"} {
 	slot, inputName, outputName := 3, "isbn_in", "isn_out"
 	if family == "isbn13" { slot, inputName, outputName = 6, "isbn13_in", "ean13_out" }
 	if family == "ismn" { slot, inputName, outputName = 9, "ismn_in", "isn_out" }
+	if family == "ismn13" { slot, inputName, outputName = 12, "ismn13_in", "ean13_out" }
 	for _, tc := range []struct {
 		name string
 		output, existingType bool
@@ -76,7 +77,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 					return err
 				}
 				host := &extensionHost{engine: e, op: op, auth: auth}
-				var reserved [12]ids.OID
+				var reserved [15]ids.OID
 				for i := range reserved {
 					reserved[i], err = host.AllocateOID()
 					if err != nil {
@@ -167,6 +168,11 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 			} else if family == "ismn" {
 				want.Context = "SQL statement \"CREATE FUNCTION isn_out(ismn)\n\tRETURNS cstring\n\tAS '$libdir/isn'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line 126"
 			}
+			if family == "ismn13" && !output {
+				want.Context = "SQL statement \"CREATE FUNCTION ismn13_in(cstring)\n\tRETURNS ismn13\n\tAS '$libdir/isn', 'ismn_in'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line 58"
+			} else if family == "ismn13" {
+				want.Context = "SQL statement \"CREATE FUNCTION ean13_out(ismn13)\n\tRETURNS cstring\n\tAS '$libdir/isn'\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line 64"
+			}
 			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {
 				t.Fatal("genuine signature collision", err)
 			}
@@ -187,7 +193,7 @@ func TestIsnProviderStageCollisions(t *testing.T) {
 }
 
 func TestIsnGeneratedArrayDisplacement(t *testing.T) {
-	for _, occupied := range []string{"isbn", "_isbn", "isbn13", "_isbn13", "ismn", "_ismn"} {
+	for _, occupied := range []string{"isbn", "_isbn", "isbn13", "_isbn13", "ismn", "_ismn", "ismn13", "_ismn13"} {
 		t.Run(occupied, func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
@@ -239,6 +245,7 @@ func TestIsnGeneratedArrayDisplacement(t *testing.T) {
 			slot := 3
 			if occupied == "isbn13" || occupied == "_isbn13" { slot = 6 }
 			if occupied == "ismn" || occupied == "_ismn" { slot = 9 }
+			if occupied == "ismn13" || occupied == "_ismn13" { slot = 12 }
 			isbn := view.MustType(ext.Members[slot])
 			companion := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(isbn.Array)})
 			if err := extension.StockIsn.ValidateExtension(view, ext); err != nil {

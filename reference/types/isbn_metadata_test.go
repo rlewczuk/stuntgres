@@ -49,7 +49,7 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 	t.Helper()
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 	seen := map[int64]string{}
-	for _, role := range []struct{ scalar, input, output string }{{"ean13", "ean13_in", "ean13_out"}, {"isbn", "isbn_in", "isn_out"}, {"isbn13", "isbn13_in", "ean13_out"}, {"ismn", "ismn_in", "isn_out"}} {
+	for _, role := range []struct{ scalar, input, output string }{{"ean13", "ean13_in", "ean13_out"}, {"isbn", "isbn_in", "isn_out"}, {"isbn13", "isbn13_in", "ean13_out"}, {"ismn", "ismn_in", "isn_out"}, {"ismn13", "ismn13_in", "ean13_out"}} {
 		name := ns + "." + role.scalar
 		var oid, array, input, output int64
 		if err := c.QueryRowContext(p.Ctx, "SELECT oid,typarray,typinput::oid,typoutput::oid FROM pg_type WHERE oid="+ean13Literal(name)+"::regtype::oid").Scan(&oid, &array, &input, &output); err != nil {
@@ -65,6 +65,11 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 		s := fixture.Select(q, []string{"typname", "typtype", "typcategory", "typlen", "typbyval", "typalign", "typstorage", "typtypmod", "typcollation", "reciprocal", "input_identity", "output_identity"}, []string{"NAME", "CHAR", "CHAR", "INT2", "BOOL", "CHAR", "CHAR", "INT4", "INT8", "BOOL", "BOOL", "BOOL"}, [][]any{{role.scalar, "b", "U", int64(8), true, "d", "p", int64(-1), int64(0), true, true, true}})
 		run(s)
 		run(fixture.Prepared(s))
+		if role.scalar == "ismn13" {
+			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"International Standard Music Number 13 (ISMN13)"}}))
+			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"ismn_in"}}))
+			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", output), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"ean13_out"}}))
+		}
 		if role.scalar == "ismn" {
 			run(fixture.Select(fmt.Sprintf("SELECT obj_description(%d::oid,'pg_type') AS description", oid), []string{"description"}, []string{"TEXT"}, [][]any{{"International Standard Music Number (ISMN)"}}))
 			run(fixture.Select(fmt.Sprintf("SELECT prosrc FROM pg_proc WHERE oid=%d", input), []string{"prosrc"}, []string{"TEXT"}, [][]any{{"ismn_in"}}))
@@ -92,7 +97,7 @@ func isbnIdentity(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn,
 		}
 	}
 	if !b.PG {
-		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}, {"ismn_in"}, {"isn_out"}})
+		s := fixture.Select("SELECT proname FROM pg_proc WHERE pronamespace="+ean13Literal(ns)+"::regnamespace", []string{"proname"}, []string{"NAME"}, [][]any{{"ean13_in"}, {"ean13_out"}, {"isbn_in"}, {"isn_out"}, {"isbn13_in"}, {"ean13_out"}, {"ismn_in"}, {"isn_out"}, {"ismn13_in"}, {"ean13_out"}})
 		s.Bag = true
 		run(s)
 	}

@@ -8,7 +8,7 @@ nullability, CHECK and identity lifecycle); composite types (declarations, field
 expressions, ALTER TYPE attributes); enums (values, ALTER TYPE, support
 functions); integer, numeric, date, timestamp and timestamptz ranges, custom range
 definitions and their multiranges (operators, inspection, `multirange`/`unnest`); text search types and
-operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `isbn`, `isbn13`, `ismn`, `lo`); ACL values
+operators; extension types (`cube`, `earth`, `citext`, `query_int`, `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `lo`); ACL values
 (`aclitem`, `makeaclitem`, `acldefault`, `aclexplode`); TID; UUID (values,
 `gen_random_uuid`/`uuidv4`/`uuidv7`, extraction); BOOLEAN diagnostics and
 aggregates; the `information_schema` domains; and scalar comparison operators and

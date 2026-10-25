@@ -33,13 +33,13 @@ func ean13Diagnostic(code, message string) fixture.Diagnostic {
 func ean13Select(b fixture.Backend, q string, names, types []string, expected [][]any, nullable []bool, args ...any) fixture.Step {
 	dbTypes := append([]string(nil), types...)
 	for i, typ := range types {
-		if (typ == "EAN13" || typ == "ISBN" || typ == "ISBN13" || typ == "ISMN") && b.PG {
+		if (typ == "EAN13" || typ == "ISBN" || typ == "ISBN13" || typ == "ISMN" || typ == "ISMN13") && b.PG {
 			dbTypes[i] = ""
 		}
 	}
 	s := fixture.Select(q, names, dbTypes, expected, args...)
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
-		if types[column] != "EAN13" && types[column] != "ISBN" && types[column] != "ISBN13" && types[column] != "ISMN" {
+		if types[column] != "EAN13" && types[column] != "ISBN" && types[column] != "ISBN13" && types[column] != "ISMN" && types[column] != "ISMN13" {
 			return false
 		}
 		if value != nil {
@@ -81,7 +81,7 @@ func ean13ColumnMetadata(t *testing.T, pg bool, columns []*sql.ColumnType, names
 				t.Fatalf("%s nullable = %v/%v, want %v/%v", col.Name(), n, ok, wantNull, wantKnown)
 			}
 		}
-		if types[i] != "EAN13" && types[i] != "ISBN" && types[i] != "ISBN13" && types[i] != "ISMN" {
+		if types[i] != "EAN13" && types[i] != "ISBN" && types[i] != "ISBN13" && types[i] != "ISMN" && types[i] != "ISMN13" {
 			continue
 		}
 		wantName, wantScan := types[i], reflect.TypeFor[string]()

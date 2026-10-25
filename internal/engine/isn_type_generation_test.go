@@ -10,7 +10,7 @@ import (
 )
 
 func TestIsnTypeGenerationIdentity(t *testing.T) {
-	for _, family := range []string{"ean13", "isbn", "isbn13", "ismn"} {
+	for _, family := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13"} {
 		t.Run(family, func(t *testing.T) { testIsnTypeGenerationIdentity(t, family) })
 	}
 }
@@ -21,6 +21,7 @@ func testIsnTypeGenerationIdentity(t *testing.T, family string) {
 	if family == "isbn" { slot, input, output, constructor = 3, "9780123456780!", "0-12-345678-9!", sqltype.Isbn }
 	if family == "isbn13" { slot, input, output, constructor = 6, "9780123456780!", "978-0-12-345678-6!", sqltype.Isbn13 }
 	if family == "ismn" { slot, input, output, constructor = 9, "M123456780!", "M-1234-5678-5!", sqltype.Ismn }
+	if family == "ismn13" { slot, input, output, constructor = 12, "M123456780!", "979-0-1234-5678-5!", sqltype.Ismn13 }
 	base := e.CatalogRead().MustType(ext.Members[slot])
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
