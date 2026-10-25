@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -61,3 +62,6 @@ func ScopeReadmitPreparedPrograms(x *StatementScope, view AuthorizationView) err
 
 // ConversionDefaultConversion returns x.conversion.
 func ConversionDefaultConversion(x conversionDefault) *catalog.Conversion { return x.conversion }
+
+// PrepareDomainChecks calls prepareDomainChecks.
+func PrepareDomainChecks(c *exec.Context, d *catalog.Type) error { return prepareDomainChecks(c, d) }

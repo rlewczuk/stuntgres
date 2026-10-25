@@ -641,3 +641,6 @@ type StatementHostFields struct {
 func NewStatementHost(f StatementHostFields) *statementHost {
 	return &statementHost{Op: f.Op}
 }
+
+// AuthorizationOf calls authorizationOf.
+func AuthorizationOf(a analyze.Authority) *AuthorizationView { return authorizationOf(a) }

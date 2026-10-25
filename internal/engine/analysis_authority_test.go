@@ -63,7 +63,7 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := authorizationOf(fresh); got.State.CurrentUser != current.State.CurrentUser || got.Catalog.Epoch() != current.Catalog.Epoch() || got.Definition != op.Definition {
+	if got := AuthorizationOf(fresh); got.State.CurrentUser != current.State.CurrentUser || got.Catalog.Epoch() != current.Catalog.Epoch() || got.Definition != op.Definition {
 		t.Fatalf("fresh binding authority = %+v, want the operation's current authority", got.State)
 	}
 
@@ -114,8 +114,8 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 	}
 
 	mustPanic(t, "view of a foreign authority", func() { BindingHostView(host, foreignAuthority{}) })
-	mustPanic(t, "authorizationOf an overlay", func() { authorizationOf(overlay) })
-	if authorizationOf(nil) != nil || authorizationOf(raw) != &base {
+	mustPanic(t, "authorizationOf an overlay", func() { AuthorizationOf(overlay) })
+	if AuthorizationOf(nil) != nil || AuthorizationOf(raw) != &base {
 		t.Fatal("authorizationOf does not recover the stored view")
 	}
 }

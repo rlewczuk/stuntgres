@@ -23,7 +23,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 		"CREATE DOMAIN public.advisory_inner AS integer CHECK(VALUE > 0)",
 		"CREATE DOMAIN public.advisory_outer AS integer CHECK(VALUE >= 0)",
 	} {
-		domainUnitPublish(t, e, domainUnitStage(t, e, op, ddl))
+		roleExecute(t, e, op, ddl)
 	}
 	view := e.CatalogRead()
 	outer := domainUnitType(t, view, "advisory_outer")
@@ -34,7 +34,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	// the real active-frame executor instead, replacing only this context's
 	// detached executable recipe after ordinary programme initialization.
 	// Nothing is published or rendered as a supported SQL domain definition.
-	if err := prepareDomainChecks(c, outer); err != nil {
+	if err := PrepareDomainChecks(c, outer); err != nil {
 		t.Fatal(err)
 	}
 	probeBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
