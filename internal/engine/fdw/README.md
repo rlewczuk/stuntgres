@@ -186,8 +186,10 @@ captures under `Engine.Mu` and the participant admission around
 `^TestFDW` runs this package's units (modify identity, option transforms,
 definition validation, IMPORT selection, ALTER candidates, participant
 handshake and statement end, TRUNCATE grouping) and the engine's FDW units,
-which need an `Engine` and live in `internal/engine` (`fdw_*_test.go`,
-including `TestFDWStageTable`, and `transaction_extension_test.go`). Add
+which need an `Engine`: `TestFDWStageTable` lives in
+`internal/engine/schemacmds`, the parallel foreign scan units
+(`TestFDWParallel*`) in `internal/engine/core`, and the other `fdw_*_test.go`
+and `transaction_extension_test.go` in `internal/engine`. Add
 `RACE=1` for the participant tests.
 
 ```sh

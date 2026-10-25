@@ -237,7 +237,10 @@ Package units pin the seeds, replay pairing, the scalar leaf callback contract
 (`TestRestoreDomainReplayScalarLeaf`), enum sort insertion, journal slot
 copy-on-write, default snapshots and storage admission. Engine witnesses in
 `internal/engine` cover the `DDLHost` side, ALTER DOMAIN publication, the replay
-walk with the real leaf and the dump statements.
+walk with the real leaf and the dump statements; collation and conversion DDL
+units live in `internal/engine/schemacmds`, ALTER TYPE on typed tables in
+`internal/engine/typecmds`, CREATE TABLE OF in `internal/engine/tablecmds`, and
+runtime domain checks and type catalog descriptions in `internal/engine/core`.
 Lifecycle units cover provider/companion ownership, pending-root protection,
 retained immutable graphs, publication fences and replay-name cycles.
 Family selector: `RUN='^TestTypeLifecycle'`. Range-type provider, bound,

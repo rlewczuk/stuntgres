@@ -190,10 +190,10 @@ no SQLSTATE-family rule or cause-unwrapping decides recovery.
 
 Package units (captured-input retargeting, notice routing, address lookup cuts,
 collation selection, CBOX and path-measurement literal transport) run without an
-engine. Unit tests that need an `Engine` stay in `internal/engine`
-(`TestObjectAddress*`, `TestCommentInquiry*`, `TestVisibilityInquiry*`, `TestRegTS*`,
-`TestRegOperator*`, `TestRegrole*`, `TestRegclass*`, `TestACLItem*`,
-`TestRegObjectAlias*`). Public scenarios live in
+engine. Unit tests that need an `Engine` live in `internal/engine/core`
+(`TestObjectAddress*`, `TestCommentInquiry*`, `TestACLItem*`) and
+`internal/engine` (`TestVisibilityInquiry*`, `TestRegTS*`, `TestRegOperator*`,
+`TestRegrole*`, `TestRegclass*`, `TestRegObjectAlias*`). Public scenarios live in
 [reference/type_resolution](../../../reference/type_resolution/README.md#testing)
 (reg\* types), [reference/object_address](../../../reference/object_address/README.md#testing)
 and [reference/types](../../../reference/types/README.md#testing) (`aclitem`).

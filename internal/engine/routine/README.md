@@ -212,7 +212,8 @@ DDL statement (`routine_host.go`).
 Package units cover inventory and operator lookups, seeded metadata, option
 extraction, index support and exclusion binding, routine drop selection,
 aggregate binary feasibility and the dump seams; engine units exercise the seed
-and the handlers behind `DDLHost`. Reduced internal fixtures must install
+and the handlers behind `DDLHost` (operator, operator class and routine DDL
+units live in `internal/engine/schemacmds`). Reduced internal fixtures must install
 operator-class authority as well as family and routine authority. Dump changes
 must also keep the [`dump`](../dump/README.md#testing) selections passing.
 Public SQL lives in [reference/operators](../../../reference/operators/README.md#testing),

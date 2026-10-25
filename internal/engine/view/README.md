@@ -215,8 +215,10 @@ preparation, the row-security authority wrappers and `DropProvider`. The
 ## Testing
 
 Package units cover the slot helpers and the target-admission entry. Every other
-view, rule, policy, trigger DDL, materialized-view and query preflight unit builds an engine
-and stays in `internal/engine`, naming the code as `view.X`; `TestViewHostSeam`
+view, rule, policy, trigger DDL, materialized-view and query preflight unit builds an
+engine and names the code as `view.X`: view, policy and rule DDL units live in
+`internal/engine/viewcmds`, RLS, rule expansion and row-lock view units in
+`internal/engine/core`, and the rest in `internal/engine`. `TestViewHostSeam`
 and `TestDropReaderSeam` pin the two seams, and the
 `TestMaterializedViewSnapshot*` units cover snapshot import admission. Public SQL
 lives in [reference/views](../../../reference/views/README.md#testing) and RLS in

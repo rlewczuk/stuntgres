@@ -180,11 +180,13 @@ Dump omits shared roles, and Reset/Restore preserve their committed state.
 ## Testing
 
 `TestCanonicalGrantParameterTargets` (`parameters_test.go`) is the package's
-only unit test: tests of its other plans and staging need an `Engine` fixture
-and live in `internal/engine` (`role_*_test.go`, `ownership*_test.go`,
-`owned_roles_cleanup_test.go`, `object_acl_*_test.go`, `comment_test.go`,
-`parameter_tablespace_grant_test.go`; `default_privileges_catalog_test.go`
-for the retirement preflight).
+only unit test: tests of its other plans and staging need an `Engine` fixture.
+Roles, membership, GRANT and REVOKE, default privileges, ownership and DROP
+OWNED units live in `internal/engine/rolecmds`, COMMENT units in
+`internal/engine/schemacmds`, `object_acl_test.go` in `internal/engine/core`,
+and `object_acl_fixture_test.go`, `parameter_tablespace_grant_test.go` and
+`default_privileges_catalog_test.go` (the retirement preflight) in
+`internal/engine`.
 `TestRoleHostStageless` (`role_host_test.go`) pins the host seam: a
 stage-less `DDLHost` as `Host`. Add `RACE=1` for the connection-limit and role
 switch tests.

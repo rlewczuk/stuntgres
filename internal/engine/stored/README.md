@@ -516,7 +516,8 @@ Package units cover the payload API, rule presentation, routine recipes and aggr
 `Rule` and `RuleAction` field to have a parts twin that round-trips alone and
 `With` to leave its receiver unchanged; extend them when adding a field.
 Renderer-only units use frozen catalog fixtures here; engine capture, retag,
-remap, `pg_depend`, provenance and validator tests live in `internal/engine`.
+remap, `pg_depend`, provenance and validator tests live in `internal/engine`
+and `internal/engine/core`.
 Public behavior belongs in `reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md) and
 add `REFERENCE=1` for the oracle.
 Frozen source-identity captures and remapping use `RUN='^TestStoredTableOID'`.

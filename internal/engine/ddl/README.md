@@ -154,9 +154,10 @@ CREATE DATABASE admission order (`TestCheckCreateDatabaseOrder`). Engine tests p
 `ddl_host_test.go`; `TestDDLHostStageSchemaTableKeepsAuthority` checks that
 `StageSchemaTable` leaves the caller's authority unchanged and stages the
 table with the given owner and namespace), LOAD validation and executor
-non-publication, CREATE TABLESPACE non-publication, the tablespace
-inquiry adapter (`TestTablespaceInfo*`) and CREATE DATABASE publication
-(`TestDatabaseCreate*`).
+non-publication and CREATE TABLESPACE non-publication (in
+`internal/engine/schemacmds`), the tablespace inquiry adapter
+(`TestTablespaceInfo*`, in `internal/engine/core`) and CREATE DATABASE
+publication (`TestDatabaseCreate*`).
 
 ```sh
 make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind|TablespaceDatabaseReturnsWarning|CheckCreateDatabaseOrder)$$'
