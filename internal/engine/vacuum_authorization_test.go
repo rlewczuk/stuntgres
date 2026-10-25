@@ -32,7 +32,7 @@ func vacuumLeaseCheckpoint(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	_, err = executeVacuum(e, scope, raw, 0)
+	_, err = ExecuteVacuum(e, scope, raw, 0)
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)

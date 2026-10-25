@@ -10,7 +10,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeSequenceComment(e *core.Engine, scope *core.StatementScope, s *parser.Comment, count int) (core.Result, error) {
+// ExecuteSequenceComment runs COMMENT ON SEQUENCE: it checks ownership, waits
+// for the sequence lock, rechecks and stages the new comment.
+func ExecuteSequenceComment(e *core.Engine, scope *core.StatementScope, s *parser.Comment, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: COMMENT takes no arguments")
 	}

@@ -49,7 +49,10 @@ func ownedSequenceLocked(e *core.Engine, scope *core.StatementScope, auth *core.
 	}
 	return sequence.CheckOwnedBy(r, d, column)
 }
-func executeSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+
+// ExecuteSequenceDDL runs CREATE, ALTER and DROP SEQUENCE in the statement
+// scope; it takes Engine.Mu itself and releases it around lock waits.
+func ExecuteSequenceDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

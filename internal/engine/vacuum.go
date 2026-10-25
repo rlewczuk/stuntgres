@@ -128,7 +128,11 @@ func vacuumTargets(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, s
 	}
 	return selection.Targets, nil
 }
-func executeVacuum(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, count int) (core.Result, error) {
+
+// ExecuteVacuum runs VACUUM in the statement scope: target selection, then
+// each target under its own lock checkpoint, then the database horizon. It
+// takes Engine.Mu only in short windows and holds nothing across lock waits.
+func ExecuteVacuum(e *core.Engine, s *core.StatementScope, raw *parser.Vacuum, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
