@@ -46,6 +46,9 @@ type Producer func(Input) ([][]sqltype.Value, error)
   column's descriptor. Producers check the expected shape and types and fail
   otherwise.
 - Producers check `Context` between descriptors and return its error.
+- Rows are immutable once returned: the engine may share one capture across
+  statements with the same inputs, so neither producers nor consumers write
+  into returned rows.
 - **Provenance.** `Input.Owner` is the engine's stable `*catalog.Owner`; its
   `Domain`, `Principals` and `ACLAuthority` are compared as the same pointers,
   never as equal names or numbers. `Catalog.Owner()`, `Ref.Domain()`,
