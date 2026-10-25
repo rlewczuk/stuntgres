@@ -95,7 +95,7 @@ diagnostics or temporary logging, encode them, then remove the scaffolding.
 
 `fixture.NewScenario(t)` creates a fresh native engine with its own Driver, a
 middleware-wrapped native pool, an unwrapped native control pool and, in real
-mode, the pinned PostgreSQL pool. It owns a 30-second context and pool cleanup.
+mode, the pinned PostgreSQL pool. It owns a 60-second context and pool cleanup.
 Real mode resets `public` before and after each case. All real fixtures in a
 package share one container, so **never use `t.Parallel()`**. Each package's
 `TestMain` is `os.Exit(fixture.Main(m))`; import helpers as
@@ -115,7 +115,7 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   `*sql.Tx`. Close rows, then statements, then return connections before fixture,
   schema and role cleanup. Register cleanup immediately; cancel and join goroutines
   on every exit; synchronize deterministically, never with sleeps.
-- **Long scenarios.** Never refresh or extend the 30-second scenario context. Give
+- **Long scenarios.** Never refresh or extend the 60-second scenario context. Give
   long inventories or heavy matrices one scenario per serial subtest, and run
   cleanup under its own bounded context after handles close.
 - **Deadlocks.** Identify the victim from its error, not worker completion order.

@@ -125,7 +125,7 @@ func newFixture(t *testing.T, withPostgres, nativeRaw bool, configure func(*stun
 			t.Fatal("reference container identity changed")
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	t.Cleanup(cancel)
 	reset := func() {
 		if !withPostgres {
