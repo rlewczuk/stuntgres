@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `916cac243` (item 198 rebased on it).
+Last verified against `master` at `264a4bca9` (item 199 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 199.
+- 200.
 
 ## Linear plan
 
@@ -276,8 +276,24 @@ ENGINE-SPLIT.md §4.
      `^TestReference(BtreeIndex|IndexClauses|TransactionalIndex)` passed in the
      merge chain; bench skipped (moved code unchanged; the escape diff is
      empty), racecheck and finalcheck skipped at user request
-199. [ ] `partitioncmds` —
-     [cmds](ENGINE-SPLIT-cmds.md#item-199--partitioncmds) · needs 198 · S
+199. [x] `partitioncmds` — [cmds](ENGINE-SPLIT-cmds.md#item-199--partitioncmds)
+     · needs 198 · S (`54f05eb71`, `8a3c0d899`, `f67ce379a`, docs commit) · the
+     partition and inheritance executors (11 root production files, 929 file
+     lines: ATTACH and DETACH PARTITION with their name rechecks, DEFAULT
+     frontier lock callback and storage-read fences, the partition Restore
+     replays and DETACH/DROP teardown, and the inheritance Restore repairs for
+     CHECK recipes, generation pairing, retired origins, inherited foreign keys
+     and owners) moved to `partitioncmds`, which imports `tablecmds`, by `cmdmv`
+     after 15 entries were exported in place; 11 root test files moved as
+     `partitioncmds_test` external tests (one `export_test.go` alias), none
+     deleted; root production 78 files and 0.30 MB (−0.03 MB), root tests 437
+     files and 2.82 MB (−0.11 MB); the family selectors, the `RACE=1` attach and
+     detach overlay and fence tests, quickcheck, the §3 `go list` check and the
+     library deps check passed; `REFERENCE=1`
+     `^TestReferencePartition(Attach|Detach)` and
+     `^TestReferenceInheritanceAlter(Recipe|Retired|GeneratedReplay|PhysicalNotNull)`
+     passed in the merge chain; bench skipped (moved code unchanged; the escape
+     diff is empty), racecheck and finalcheck skipped at user request
 200. [ ] `typecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-200--typecmds) · needs
      199 · S
 201. [ ] `viewcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-201--viewcmds) · needs
