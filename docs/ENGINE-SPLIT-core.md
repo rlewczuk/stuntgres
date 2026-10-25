@@ -174,7 +174,7 @@ extensions and FDW.
 **Gate.** `closure` reports:
 - no family declaration that is a god-struct method;
 - every root file is wholly core, root or one family;
-- the only core→family edges are dispatch and the item-189 hooks.
+- the only core→family edges are dispatch.
 
 ## Item 195 — core move
 
@@ -288,7 +288,36 @@ Needs 203. Mode S.
   189 should keep rule programs in core as planned. `NewEngine` pulls
   `registerExtension`, `initializeDatabase`, `installBuiltinDomainChecks` and
   the catalog-source descriptors into core.
-- 189: not started.
+- 189: done (`5103aae7e`); no hook added (user decision); the only code change
+  raises the reference scenario deadline in `reference/fixture/fixture.go` from
+  30 s to 60 s (user decision, machine load). Measured at `f1d75738c` with a
+  `closure` copy in `.cswd/tmp/PG18-ENGINE-SPLIT-189-CORE-HOOKS/`
+  (`closure-src/`, `bin/closure`, wrapper `closure.sh OUT EXTRA_DISPATCH
+  [flags]` with item 188's `-roots`/`-dispatch`). The copy adds two flags.
+  `-famseed=false` stops seeding exported family-file declarations: after item
+  182 the stock run credits them to `<root export>` and `Engine (engine.go)`.
+  `-fammeth=false` drops type → exported family-file method edges that are not
+  interface implementations, modelling items 191–192. The model (core 28,932)
+  reproduces this section's attribution, with `ValidateCatalogStage` reaching
+  1.0k family lines. The R4 decisions used exclusive reach: the core lines that
+  leave when a candidate is added to `-dispatch` (`exclusive.txt`, all 64
+  first-referrer entries). `ValidateCatalogStage` frees 3, and only 3–6 even
+  with `-nodyn DDLHost,DropProvider` and the TEMP cuts.
+  `EvolveStageIndexesLocked` stays core through `prepareTemporaryCommit` and
+  `installTemporarySessionStageLocked`. `DropProvider` (`ExpressionDependencies`
+  344 lines) stays core through `CatalogStage.RemoveObjectLocked` and
+  `sessionHost.EndMaintenance` → `endTemporaryCollations` →
+  `StageExpressionDependents`. `ReownStagedTypeGenerationsLocked` stays core
+  through `prepareQueryTableLocked` on the bound path. The other candidates are
+  kept: `PublishCatalogOperation` 135 (definition dependency lock acquisition,
+  ddlcommon 126), `DropProvider.removeObjectLocked` 87 (spread over four
+  families), and `catalogDependencyPreflight` and `CatalogPreflightLocked` 0.
+  Only `AcquireRelation` (table 201), `capturePreparedQuerySourcesLocked` (view
+  309), `preserveTemporaryLocked` (table 164) and `executeStatement` (view 160,
+  rule programs) free 150+ lines for one family, and all four are on the keep
+  list. Notes for later items: run `closure` with `-famseed=false
+  -fammeth=false` for core sizes until item 192; item 192's gate is now
+  "dispatch only".
 - 190: not started.
 - 191: not started.
 - 192: not started.

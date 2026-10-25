@@ -32,9 +32,9 @@ unless a column says otherwise.
   - root composition (Restore) 1.2k;
   - unassigned 0.1k.
 
-  Two cuts shrink core to about 26k, about the size of `analyze`: the `ddlHost`
-  split (item 190) moves 1.2k to the families, and the validator table (item 189)
-  about 1.1k.
+  The `ddlHost` split (item 190) shrinks core to about 27k by moving 1.2k to
+  the families. Item 189 measured that a validator table would free none of the
+  1.1k validator lines, which TEMP cleanup and other core paths also reach.
 - **Tests.**
   - 63 files (0.26 MB) reach no root internals, even through helpers.
   - Exporting the 345 names the families need anyway, plus 25 inspection names
@@ -84,10 +84,10 @@ Cuts:
 - **Method to function** (items 191–192): Go keeps methods with their type, so a
   family method on a god struct first becomes a receiver-first root function
   (`meth2fn`).
-- **Hook** (item 189): a core→family edge that is not dispatch becomes a fixed
-  interface field on `Engine`, set by the composition. That is an ordered
-  validator table or a `core.Statements` method; nothing is allocated per
-  statement or row.
+- **Hook** (item 188): a core→family edge that is not dispatch becomes a fixed
+  interface field on `Engine`, set by the composition: a `core.Statements`
+  method or `Engine.Factory`. Nothing is allocated per statement or row. Item
+  189 found no other edge that frees 150 lines for one family.
 - **Host split** (item 190): an adapter serving several families (`ddlHost`
   implements nine host interfaces) becomes a core base plus small family hosts.
 - **Small cuts** as before: state ownership, capability, reader interface,
@@ -211,7 +211,7 @@ Re-run `closure` before planning a move set; the sizes in §4 are approximate.
 | L12 | `engine/role` | GRANT/REVOKE, SET ROLE, DROP and REASSIGN OWNED, default privileges, COMMENT plans |
 | L13 | `engine/dml` | write executors, unique and exclusion probing, FK enforcement and actions, trigger firing contract |
 | L14 | `engine/control` | native Dump and Restore drivers over registered hooks, the Restore comparison context |
-| L15 | `engine/core` (item 195) | `Engine` state and `Engine.mu`, `StatementScope`, `CatalogStage`, admission and lock waits, publication and replacement, the transaction lifecycle, sessions, TEMP, the hosts and binder construction, protocol, prepared SQL, cursors, the bound DML and query path, the procedural runtime, the dispatch and validator hooks |
+| L15 | `engine/core` (item 195) | `Engine` state and `Engine.mu`, `StatementScope`, `CatalogStage`, admission and lock waits, publication and replacement, the transaction lifecycle, sessions, TEMP, the hosts and binder construction, protocol, prepared SQL, cursors, the bound DML and query path, the procedural runtime, the dispatch and factory hooks |
 | L16 | `engine/tablecmds`, `indexcmds`, `partitioncmds`, `typecmds`, `viewcmds`, `rolecmds`, `schemacmds` (items 196–203) | statement executors per family, named after PostgreSQL's `commands/` |
 | L17 | `engine` (root) | the composition: `New*`, both dispatch type switches behind `core.Statements`, the engine factory, `Reset`, `Dump` and `Restore` with the Restore hooks |
 | test | `engine/enginetest` (item 181), `*/enginetests` | test helpers over the exported API, imported only by `_test.go` files; test-only packages holding the engine tests of lower packages |

@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `f24c2358f` (item 187 rebased on it).
+Last verified against `master` at `f1d75738c` (item 189 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 189.
+- 190.
 
 ## Linear plan
 
@@ -117,8 +117,18 @@ ENGINE-SPLIT.md §4.
      allocation; `REFERENCE=1` `^TestReferenceControl` and
      `^TestReferenceDatabaseCreateControls$` passed; racecheck and finalcheck
      skipped at user request
-189. [ ] Core hooks — [core](ENGINE-SPLIT-core.md#item-189--core-hooks) ·
-     needs 188 · P, bench
+189. [x] Core hooks — [core](ENGINE-SPLIT-core.md#item-189--core-hooks) · needs
+     188 · P, bench (`5103aae7e`, docs commit) · No hook added (user decision):
+     by R4 on exclusive reach (`closure` with the edge cut) no candidate frees
+     150 lines for one family outside the keep list;
+     `Engine.ValidateCatalogStage` would free 3 lines, because TEMP cleanup,
+     `CatalogStage.RemoveObjectLocked` and the CREATE TABLE AS bound path reach
+     the same validators; ENGINE-SPLIT.md §1, §2.1, §3, the cmds prompt and the
+     item 192 gate drop the validator table; the reference scenario deadline was
+     raised from 30 s to 60 s (user decision, machine load at 110–130); root
+     bytes unchanged, core by `closure` 29.0k lines (28.9k in the model without
+     family export seeds); quickcheck passed; bench and `REFERENCE=1` skipped
+     (no engine code change); racecheck and finalcheck skipped at user request
 190. [ ] Host and slot splits —
      [core](ENGINE-SPLIT-core.md#item-190--host-and-slot-splits) · needs 189 ·
      P

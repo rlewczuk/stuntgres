@@ -7,11 +7,11 @@ Session prompts for linear items 196–203 of the
 
 A family package holds the statement executors of one group of commands. They
 are free functions over `*core.StatementScope` and `*core.Engine`, after items
-191–192. A family package also holds the family host types (item 190), the
-validators it registers (item 189), its Restore repair functions, and its tests.
+191–192. A family package also holds the family host types (item 190), its
+Restore repair functions, and its tests.
 
-The root composition calls the family from both dispatch switches, the
-validator table and the Restore hooks. Families import core, the decision
+The root composition calls the family from both dispatch switches and the
+Restore hooks. Families import core, the decision
 packages and the families below them (rule 6). Sizes are from `closure` at
 `26f8fea15` (`r2/assign.tsv`, declaration lines).
 
@@ -23,8 +23,8 @@ packages and the families below them (rule 6). Sizes are from `closure` at
    - Move the files (each is wholly one family after item 192) to
      `internal/engine/<family>`.
    - Export what the root composition or a later family calls.
-   - Qualify the root call sites in the dispatch implementation, the validator
-     table and the Restore hooks.
+   - Qualify the root call sites in the dispatch implementation and the
+     Restore hooks.
 3. **Move the tests.**
    - The family's root tests move: pure units as internal tests; engine tests as
      external tests in the family directory, with family internals reached
