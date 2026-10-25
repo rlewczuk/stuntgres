@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `28b10dda4` (item 181 rebased on it).
+Last verified against `master` at `e41707829` (item 182 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 182.
+- 183, 184, 185, 186, 187, 188.
 
 ## Linear plan
 
@@ -43,9 +43,15 @@ ENGINE-SPLIT.md §4.
      fixed by measurement; root tests 1,343 files and 10.74 MB (−0.24 MB);
      quickcheck and deps passed; `REFERENCE=1` and bench skipped (no production
      change), racecheck and finalcheck skipped at user request
-182. [ ] Export pass in place —
-     [core](ENGINE-SPLIT-core.md#item-182--export-pass-in-place) · needs 181 ·
-     S
+182. [x] Export pass in place —
+     [core](ENGINE-SPLIT-core.md#item-182--export-pass-in-place) · needs 181 · S
+     (`d8fd275b0`, `1d44144ab`, `c97bb4911`, docs commit) · 370 root names
+     exported in place (176 fields, 194 declarations: the `closure` export set
+     and 23 test-inspection names; two frame-matched methods kept unexported)
+     and `enginetest` stage 2 (18 helpers) added; root production 1.75 MB (+1.9
+     KB), tests 10.76 MB; quickcheck and the string-literal check passed; bench
+     and `REFERENCE=1` skipped (renames only), racecheck and finalcheck skipped
+     at user request
 183. [ ] Builtin function, operator and type tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-183--builtin-function-operator-and-type-tests)
      · needs 182 · P · 1.25 MB
