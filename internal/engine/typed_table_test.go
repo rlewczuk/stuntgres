@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
-	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/sqltype"
 )
 
@@ -69,22 +68,4 @@ func typedUnitCatalog(t *testing.T, empty bool) (*core.Engine, *catalog.Relation
 	domainUnitPublish(t, e, stage)
 	view := e.CatalogRead()
 	return e, view.MustRelation(source.Address()), view.MustRelation(tbl.Address())
-}
-
-func typedRenameStage(t *testing.T, e *core.Engine, source, tbl *catalog.Relation) *core.CatalogStage {
-	t.Helper()
-	stage := e.BeginCatalogStage(e.CatalogRead())
-	typecmds.TypedStage(stage).Source = tbl.OfType
-	typecmds.TypedStage(stage).Observed = table.TypedClosure(stage.Base, tbl.OfType)
-	for _, old := range []*catalog.Relation{source, tbl} {
-		next, err := table.RenameColumnCandidate(old, "note", "label")
-		if err != nil {
-			t.Fatal(err)
-		}
-		next.ObjectRevision++
-		if err := stage.Replace(next); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return stage
 }

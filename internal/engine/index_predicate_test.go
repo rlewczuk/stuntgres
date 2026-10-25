@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -12,9 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -62,26 +59,4 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	e.Storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{idx.Address(): root})
 	e.Mu.Unlock()
 	return partialIndexFixture{e, parent, idx, column, store}
-}
-
-func partialWantMembership(t *testing.T, root *storage.IndexRoot, want map[ids.RowID]ids.VersionID) {
-	t.Helper()
-	if !reflect.DeepEqual(root.Membership, want) || len(root.Entries) != len(want) {
-		t.Fatal("wrong membership", root.Membership, want, root.Entries)
-	}
-	for _, entry := range root.Entries {
-		if root.Membership[entry.Row] != entry.Version {
-			t.Fatal("entry/lookup disagreement", entry)
-		}
-	}
-}
-
-func partialMaskFixture(t *testing.T) (partialIndexFixture, *core.StatementScope, exec.Leaf, *visibility.View) {
-	f := newPartialIndexFixture(t)
-	scope := &core.StatementScope{Owner: &session.TransactionOwner{Isolation: session.ReadCommitted}}
-	leaf := exec.Leaf{Ref: f.e.Catalog.Domain.Ref(f.e.Catalog.State.Epoch(), f.parent.Address()), Relation: f.parent, Storage: f.store, PartialCandidate: f.index}
-	data := &visibility.Data{Catalog: f.e.CatalogRead(), Frontier: f.e.Visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
-	view := visibility.NewView(data)
-	t.Cleanup(view.Release)
-	return f, scope, leaf, view
 }

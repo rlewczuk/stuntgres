@@ -77,21 +77,3 @@ func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) 
 		t.Fatal(err)
 	}
 }
-
-type queryCreateProbeProvider struct {
-	catalog.Provider
-	e     *core.Engine
-	t     *testing.T
-	check func() error
-}
-
-func (p queryCreateProbeProvider) Validate(view catalog.Read, d catalog.Descriptor) error {
-	if !p.e.Mu.TryLock() {
-		p.t.Fatal("definition callback under Engine.mu")
-	}
-	p.e.Mu.Unlock()
-	if err := p.Provider.Validate(view, d); err != nil {
-		return err
-	}
-	return p.check()
-}

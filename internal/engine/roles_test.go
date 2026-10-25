@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
 	"reflect"
 	"testing"
@@ -11,7 +10,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func roleExecute(t *testing.T, e *core.Engine, op *session.Operation, sql string) core.Result {
@@ -68,14 +66,5 @@ func roleOperation(t *testing.T, e *core.Engine, name string) (*session.Operatio
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
-	}
-}
-
-func roleIdentity(t *testing.T, e *core.Engine, op *session.Operation, want string) {
-	t.Helper()
-	r := roleExecute(t, e, op, "SELECT session_user,current_user")
-	values := tuples(r)
-	if r.Count != 1 || !reflect.DeepEqual(values, [][]driver.Value{{want, want}}) || r.Rows.Schema()[0].Usage.Type.ID() != sqltype.Name || r.Rows.Schema()[1].Usage.Type.ID() != sqltype.Name {
-		t.Fatalf("identity: %#v %#v", values, r.Rows.Schema())
 	}
 }

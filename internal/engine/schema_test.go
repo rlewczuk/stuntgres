@@ -1,12 +1,10 @@
 package engine
 
 import (
-	"context"
 	"testing"
 
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/settings"
 )
 
 func schemaRef(t *testing.T, e *core.Engine, name string) ids.ObjectRef {
@@ -17,13 +15,4 @@ func schemaRef(t *testing.T, e *core.Engine, name string) ids.ObjectRef {
 		t.Fatal("missing namespace", name)
 	}
 	return e.Catalog.Domain.Ref(v.Epoch(), a)
-}
-
-type schemaDefaults struct{ path string }
-
-func (d *schemaDefaults) SessionDefault(_ context.Context, definition settings.Definition) (string, bool, error) {
-	if definition.Name == "search_path" {
-		return d.path, true, nil
-	}
-	return "", false, nil
 }

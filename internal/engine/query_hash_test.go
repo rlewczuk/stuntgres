@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/sqltype"
 )
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
@@ -73,21 +72,4 @@ func hashImplicitQuery(t *testing.T, e *core.Engine, q string) (*plan.Query, *ex
 		release()
 		done()
 	}
-}
-
-func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, parameters []sqltype.Value) exec.Stage {
-	t.Helper()
-	filter := exec.HashQueryFilter(query.Root)
-	if filter == nil {
-		t.Fatal("fixture has no top-level filter")
-	}
-	state := &exec.State{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := core.ScopeOf(source.LiveHost()); scope != nil {
-		state.Input, state.Output = scope.Input, scope.Output
-	}
-	stage, err := exec.OpenNode(context.Background(), state, filter)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return stage
 }

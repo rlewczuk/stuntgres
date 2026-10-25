@@ -1,12 +1,9 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"testing"
 
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -20,26 +17,4 @@ func waitsDiagnostic(t *testing.T, err error, code, message string, position ...
 	if !errors.As(err, &got) || *got != want {
 		t.Fatalf("diagnostic = %#v (%v), want %#v", got, err, want)
 	}
-}
-
-func waitsCommandAsync(e *core.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
-	done := make(chan error, 1)
-	go func() {
-		op, _, err := s.AcquireCommand(ctx)
-		if err == nil {
-			if prepare {
-				_, err = e.Describe(op, mustLockStatement(q))
-			} else {
-				var r core.Result
-				r, err = e.Execute(op, mustLockStatement(q), 0, nil)
-				if r.Rows != nil {
-					r.Rows.Close()
-				}
-			}
-			err = op.CommandError(err)
-			op.Done()
-		}
-		done <- err
-	}()
-	return done
 }

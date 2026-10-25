@@ -1,17 +1,12 @@
 package engine
 
 import (
-	"context"
-	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 	"testing"
 )
 
@@ -87,46 +82,6 @@ func (f defaultUnitFixture) actor(ref authorization.PrincipalRef) {
 	f.op.Session.Mu.Unlock()
 	f.e.Mu.Unlock()
 }
-func defaultUnitDiagnostic(t *testing.T, err error, code, message string) {
-	t.Helper()
-	var d *sqlstate.Error
-	if !errors.As(err, &d) || d.Code != code || d.Message != message || d.Severity != "ERROR" || d.SeverityUnlocalized != "ERROR" {
-		t.Fatalf("diagnostic = %#v; want %s %q", err, code, message)
-	}
-}
 func defaultUnitReaderEntry(f defaultUnitFixture, privileges, options authorization.Privileges) authorization.ACLEntry {
 	return authorization.ACLEntry{Grantor: f.owner, Grantee: authorization.ACLGrantee{Role: f.reader}, Privileges: privileges, GrantOptions: options}
-}
-
-// defaultUnitTable owns Engine.mu; callers must not hold it. Resolve the
-// immutable stage-base carrier first, without a locking Engine.CatalogRead.
-func defaultUnitTable(t *testing.T, f defaultUnitFixture, stage *core.CatalogStage, name string, owner authorization.PrincipalRef) *catalog.Relation {
-	t.Helper()
-	typ, ok := stage.Base.LookupType(sqltype.Int4)
-	if !ok {
-		t.Fatal("stage has no int4 carrier")
-	}
-	f.e.Mu.Lock()
-	d, err := table.NewRelation(core.DDLHost{E: f.e}, f.schema, name, owner, []catalog.Column{{Name: "x", Usage: typ.Usage()}}, nil)
-	if err == nil {
-		d.Security.ACL = stage.CreationACL(owner, f.schema, authorization.DefaultTables)
-		err = f.e.StageRowTypeLocked(stage, d)
-	}
-	f.e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = stage.Create(d); err != nil {
-		t.Fatal(err)
-	}
-	return d
-}
-func defaultUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) error {
-	t.Helper()
-	p, err := e.ValidateCatalogStage(context.Background(), stage)
-	if err != nil {
-		return err
-	}
-	_, err = publishCatalog(e, p, core.PublicationToken{Epoch: stage.Base.Epoch()})
-	return err
 }

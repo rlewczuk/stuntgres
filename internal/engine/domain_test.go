@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -13,7 +12,6 @@ import (
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -59,12 +57,4 @@ func domainUnitType(t *testing.T, view catalog.Read, name string) *catalog.Type 
 		t.Fatal(name, addresses)
 	}
 	return view.MustType(addresses[0])
-}
-
-func domainUnitDiagnostic(t *testing.T, err error, code, message string) {
-	t.Helper()
-	var d *sqlstate.Error
-	if !errors.As(err, &d) || d.Code != code || d.Message != message {
-		t.Fatal(err, code, message)
-	}
 }

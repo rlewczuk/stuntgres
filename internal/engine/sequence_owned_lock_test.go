@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"runtime"
 	"testing"
 	"time"
@@ -9,29 +8,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 )
-
-// The retained description is captured before the competing utility starts.
-func ownedLockAsync(e *core.Engine, s *session.Session, ctx context.Context, ast parser.Statement, description *core.StatementDescription) <-chan error {
-	done := make(chan error, 1)
-	go func() {
-		op, err := s.Acquire(ctx)
-		if err == nil {
-			var scope *core.StatementScope
-			scope, err = e.StartStatement(op)
-			if err == nil {
-				scope.Expected = description
-				_, err = scope.Execute(ast, 0, nil)
-				err = scope.Finish(err)
-			}
-			op.Done()
-		}
-		done <- err
-	}()
-	return done
-}
 
 func ownedLockQueued(t *testing.T, e *core.Engine, ref ids.ObjectRef, mode lock.Mode, done <-chan error) *lock.Request {
 	t.Helper()

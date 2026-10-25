@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 )
 
 func extensionUnitExecute(t *testing.T, e *core.Engine, op *session.Operation, stmt parser.Statement) error {
@@ -28,16 +27,4 @@ func extensionUnitExecute(t *testing.T, e *core.Engine, op *session.Operation, s
 	_, err = scope.Execute(stmt, 0, nil)
 	finished = true
 	return scope.Finish(err)
-}
-
-func extensionUnitGrant(name string, role string) *parser.ObjectGrant {
-	return &parser.ObjectGrant{Kind: "database", Privileges: []parser.GrantPrivilege{{Name: "create"}}, Relations: []parser.ObjectName{{Parts: []parser.Identifier{{Text: name}}}}, Grantees: []parser.GrantGrantee{{Role: parser.RoleSpec{Name: role}}}}
-}
-
-func extensionUnitError(t *testing.T, err error, code string) {
-	t.Helper()
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != code {
-		t.Fatalf("got %v, want SQLSTATE %s", err, code)
-	}
 }
