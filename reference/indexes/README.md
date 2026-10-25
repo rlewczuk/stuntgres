@@ -7,7 +7,7 @@ collation/class, ordering), index property inquiry, maintenance (REINDEX, ALTER
 INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX` and
 exclusion constraints (including GiST), and amcheck heap verification. Related
 families: partitioned-index and partitioned-exclusion hierarchies in
-`reference/tables`; ALTER TABLE ADD
+`reference/partitions`; ALTER TABLE ADD
 CONSTRAINT in `reference/alter`.
 
 ## Testing

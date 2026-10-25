@@ -241,8 +241,10 @@ recaptures exact identities after waits before publishing their candidates.
 Package units run over a fake host or a small catalog; most table tests build an
 engine and stay in `internal/engine`, naming the code as `table.X`. Run the
 inheritance and NOT NULL admission units with `RACE=1`. Public SQL lives in
-[reference/tables](../../../reference/tables/README.md#testing) and ALTER TABLE
-in [reference/alter](../../../reference/alter/README.md#testing); add
+[reference/tables](../../../reference/tables/README.md#testing),
+[reference/inheritance](../../../reference/inheritance/README.md#testing),
+[reference/partitions](../../../reference/partitions/README.md#testing) and ALTER
+TABLE in [reference/alter](../../../reference/alter/README.md#testing); add
 `REFERENCE=1` for the oracle.
 
 ```sh
