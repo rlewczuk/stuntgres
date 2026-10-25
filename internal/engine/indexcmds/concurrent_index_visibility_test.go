@@ -1,15 +1,20 @@
-package engine
+package indexcmds_test
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/indexcmds"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -34,7 +39,7 @@ func concurrentUnitSnapshotScope(t *testing.T, e *core.Engine, s *session.Sessio
 		}
 		op.Done()
 	})
-	if err := scope.Gate(statement(t, "SELECT 1")); err != nil {
+	if err := scope.Gate(enginetest.Statement(t, "SELECT 1")); err != nil {
 		t.Fatal(err)
 	}
 	return scope, op, cancel
@@ -44,7 +49,7 @@ func concurrentUnitOlderWait(t *testing.T, scope *core.StatementScope, xmin uint
 	t.Helper()
 	done := make(chan error, 1)
 	joined := false
-	go func() { done <- waitOlderIndexSnapshots(scope, xmin, ids.ObjectAddress{}) }()
+	go func() { done <- indexcmds.WaitOlderIndexSnapshots(scope, xmin, ids.ObjectAddress{}) }()
 	t.Cleanup(func() {
 		cancel()
 		if !joined {
@@ -69,7 +74,7 @@ func concurrentUnitOlderWait(t *testing.T, scope *core.StatementScope, xmin uint
 }
 
 func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
-	e := New()
+	e := engine.New()
 	writer, reader, rc := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 	sessionSQL(t, writer, "CREATE TABLE t(n INT)")
 	sessionSQL(t, writer, "INSERT INTO t VALUES(1)")
@@ -109,7 +114,7 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	if !sameFrontier || !advanced || w.Snapshot {
 		t.Fatal("write/global-XID/RC-frontier separation", w)
 	}
-	other := New()
+	other := engine.New()
 	other.Mu.Lock()
 	_, foreignErr := other.VisibilitySnapshotLocked(reader.Transactions.Ref, false)
 	other.Mu.Unlock()
@@ -131,7 +136,7 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 }
 
 func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
-	e := New()
+	e := engine.New()
 	writer, builder, late, bare := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 	sessionSQL(t, writer, "CREATE TABLE t(n INT)")
 	sessionSQL(t, writer, "CREATE TABLE u(n INT)")
@@ -196,7 +201,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 }
 
 func TestConcurrentIndexU3GenuinelyNewerXminNotCommitSeq(t *testing.T) {
-	e := New()
+	e := engine.New()
 	writer, builder, newer := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 	sessionSQL(t, writer, "CREATE TABLE t(n INT)")
 	sessionSQL(t, writer, "INSERT INTO t VALUES(1)")
@@ -218,7 +223,7 @@ func TestConcurrentIndexU3GenuinelyNewerXminNotCommitSeq(t *testing.T) {
 		t.Fatal("newer xmin incorrectly tied to CommitSeq", v, boundary)
 	}
 	scope, op, _ := concurrentUnitSnapshotScope(t, e, builder)
-	if err := waitOlderIndexSnapshots(scope, boundary, ids.ObjectAddress{}); err != nil {
+	if err := indexcmds.WaitOlderIndexSnapshots(scope, boundary, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	lockPending(t, e, 0)
@@ -236,7 +241,7 @@ func TestConcurrentIndexU3SafeBuilderClassification(t *testing.T) {
 		safe      bool
 	}{{"simple", "n", true}, {"parenthesized", "(n)", true}, {"collated", `(v COLLATE "C")`, true}, {"expression", "(n+1)", false}, {"coercion", "(n::BIGINT)", false}} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			owner, builder := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			sessionSQL(t, owner, "CREATE TABLE t(n INT,v TEXT)")
 			sessionSQL(t, owner, "CREATE INDEX ix ON t("+tc.key+")")
@@ -275,7 +280,7 @@ func TestConcurrentIndexU3SafeBuilderClassification(t *testing.T) {
 }
 
 func TestConcurrentIndexU3ResetClearsRegistryNotCounter(t *testing.T) {
-	e := New()
+	e := engine.New()
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TABLE t(n INT)")
 	sessionSQL(t, s, "BEGIN ISOLATION LEVEL REPEATABLE READ")
@@ -288,7 +293,7 @@ func TestConcurrentIndexU3ResetClearsRegistryNotCounter(t *testing.T) {
 	if !had {
 		t.Fatal("no real stable snapshot before reset")
 	}
-	if err := Reset(context.Background(), e); err != nil {
+	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
@@ -300,4 +305,67 @@ func TestConcurrentIndexU3ResetClearsRegistryNotCounter(t *testing.T) {
 	}
 	sessionSQL(t, s, "ROLLBACK")
 	lockEmpty(t, e)
+}
+
+func sessionStart(t *testing.T, e *core.Engine, p settings.SessionDefaultProvider) *session.Session {
+	t.Helper()
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		s.RequestEnd(session.CleanClose)
+		if err := s.WaitEnd(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	return s
+}
+
+func sessionSQL(t *testing.T, s *session.Session, q string) core.Result {
+	t.Helper()
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	r, err := core.EngineOf(s).Execute(op, enginetest.Statement(t, q), 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Rows != nil {
+		t.Cleanup(func() {
+			if err := r.Rows.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	return r
+}
+
+func lockEmpty(t *testing.T, e *core.Engine) {
+	t.Helper()
+	lockState := e.Locks.Inspect()
+	if len(lockState.Owners) != 0 || len(lockState.Resources) != 0 {
+		t.Fatalf("residual lock state: owners=%d entries=%d", len(lockState.Owners), len(lockState.Resources))
+	}
+}
+
+func lockPending(t *testing.T, e *core.Engine, n int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		lockState := e.Locks.Inspect()
+		got := 0
+		for _, entry := range lockState.Resources {
+			got += len(entry.Pending)
+		}
+		if got == n {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("pending %d, want %d", got, n)
+		}
+		runtime.Gosched()
+	}
 }

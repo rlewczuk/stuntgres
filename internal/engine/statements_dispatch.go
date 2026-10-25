@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/indexcmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
@@ -45,9 +46,9 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return dispatched(executePolicy(e, scope, stmt, count))
 	case *parser.CreateIndex:
-		return dispatched(ExecuteCreateIndex(e, scope, stmt.(*parser.CreateIndex), count))
+		return dispatched(indexcmds.ExecuteCreateIndex(e, scope, stmt.(*parser.CreateIndex), count))
 	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
-		return dispatched(ExecuteIndexMaintenance(e, scope, stmt, count))
+		return dispatched(indexcmds.ExecuteIndexMaintenance(e, scope, stmt, count))
 	case *parser.CreateView:
 		return dispatched(executeCreateView(e, scope, stmt.(*parser.CreateView), count))
 	case *parser.AlterOwner:

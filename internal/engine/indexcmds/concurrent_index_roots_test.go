@@ -1,4 +1,4 @@
-package engine
+package indexcmds_test
 
 import (
 	"runtime"

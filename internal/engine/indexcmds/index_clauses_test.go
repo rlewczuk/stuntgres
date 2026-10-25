@@ -1,4 +1,4 @@
-package engine
+package indexcmds_test
 
 import (
 	"context"
@@ -7,15 +7,18 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
@@ -325,7 +328,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 			keys := append([]catalog.IndexKey(nil), definition.Keys...)
 			columns := append([]catalog.Column(nil), idx.Columns...)
 			parentColumns := append([]catalog.Column(nil), parent.Columns...)
-			e := New()
+			e := engine.New()
 			stage := e.BeginCatalogStage(e.Catalog.Read(catalogSnapshot))
 			if err := stage.Replace(parent); err != nil {
 				t.Fatal(err)
@@ -370,7 +373,7 @@ func TestIndexClausesSameTypeEvolution(t *testing.T) {
 
 func TestIndexClausesUntouchedStage(t *testing.T) {
 	parent, idx, catalog, _ := indexClausesFixture(t)
-	e := New()
+	e := engine.New()
 	stage := e.BeginCatalogStage(e.Catalog.Read(catalog))
 	transforms := []index.ColumnTransformation{{Attribute: parent.Attributes[0]}}
 	var err error
@@ -440,7 +443,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 		t.Run(map[bool]string{false: "include-type", true: "dependency-type"}[dependencyType], func(t *testing.T) {
 			e, scope, auth, parent := alterAddUnitScope(t)
 			ctx := context.Background()
-			integer, text, varchar := testUsage(e, sqltype.Int4), testUsage(e, sqltype.Text), testUsage(e, sqltype.VarChar)
+			integer, text, varchar := enginetest.Usage(e, sqltype.Int4), enginetest.Usage(e, sqltype.Text), enginetest.Usage(e, sqltype.VarChar)
 			parent.RelationKind = catalog.TableRelation
 			parent.Attributes = []int32{1, 2, 3, 4}
 			parent.ColumnMeta.HighWater = 4
@@ -634,5 +637,80 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				t.Fatal("TYPE/remap mutated retained predecessor trees/roots/Usage")
 			}
 		})
+	}
+}
+
+func operatorFamilyFixtureState(state *catalog.State) *catalog.State {
+	for address, descriptor := range operatorFamilyTestRead().Descriptors() {
+		switch address.ClassID {
+		case ids.AccessMethodClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.ProcedureClassID, ids.OperatorClassID:
+			state.SetDescriptor(address, descriptor)
+			state.BindName(catalog.DescriptorNameKey(descriptor), address)
+		}
+	}
+	return state
+}
+
+// catalogStateFixture builds an unpublished state at epoch that holds
+// descriptors and names, through the state's write API.
+func catalogStateFixture(epoch ids.CatalogEpoch, descriptors map[ids.ObjectAddress]catalog.Descriptor, names map[ids.NameKey]ids.ObjectAddress) *catalog.State {
+	s := catalog.NewState(epoch)
+	for a, d := range descriptors {
+		s.SetDescriptor(a, d)
+	}
+	for k, a := range names {
+		s.BindName(k, a)
+	}
+	return s
+}
+
+func alterAddUnitScope(t *testing.T) (*core.Engine, *core.StatementScope, core.AuthorizationView, *catalog.Relation) {
+	t.Helper()
+	e := engine.New()
+	op, done := roleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = scope.Finish(errors.New("unit candidate discarded")) })
+	auth, err := core.OperationAuthorization(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u := enginetest.Usage(e, sqltype.Int4)
+	old := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "t", ObjectRevision: 1, Owner: auth.State.CurrentUser, Columns: []catalog.Column{{Name: "a", Usage: u, Nullable: true, NullabilityKnown: true, OriginTable: 20000, OriginAttribute: 1}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, Index: map[string]int{"a": 0}}
+	return e, scope, auth, old
+}
+
+func alterAddUnitAction(t *testing.T, query string) parser.AlterTableAction {
+	t.Helper()
+	statements, err := parser.Parse(query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return statements[0].(*parser.AlterTable).Actions[0]
+}
+
+func roleOperation(t *testing.T, e *core.Engine, name string) (*session.Operation, func()) {
+	t.Helper()
+	ref, err := e.ResolveLogin(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	op, err := s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return op, func() {
+		op.Done()
+		s.RequestEnd(session.CleanClose)
+		if err := s.WaitEnd(context.Background()); err != nil {
+			t.Error(err)
+		}
 	}
 }
