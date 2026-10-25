@@ -13,7 +13,7 @@ import (
 
 // Object grants own only their statement candidate. Finish decides whether to
 // retain it privately or publish it with the transaction's other effects.
-func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.ObjectGrant, count int) (Result, error) {
+func executeObjectGrant(e *Engine, scope *StatementScope, statement *parser.ObjectGrant, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -28,7 +28,7 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 	if err != nil {
 		return Result{}, err
 	}
-	if err = scope.admitObjectGrant(request, statement); err != nil {
+	if err = admitObjectGrant(scope, request, statement); err != nil {
 		return Result{}, err
 	}
 	e.Mu.Lock()
@@ -46,7 +46,7 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 			return Result{}, catalog.Conflict{}
 		}
 	}
-	result, err := e.stageObjectGrantLocked(scope, fresh, statement, request, publishedRoles)
+	result, err := stageObjectGrantLocked(e, scope, fresh, statement, request, publishedRoles)
 	if err == nil && scope.CatalogAuthority != nil {
 		scope.CatalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
 		scope.CatalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
@@ -54,7 +54,7 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 	return result, err
 }
 
-func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth AuthorizationView, statement *parser.ObjectGrant, request role.GrantRequest, publishedRoles *access.RoleRecord) (Result, error) {
+func stageObjectGrantLocked(e *Engine, scope *StatementScope, auth AuthorizationView, statement *parser.ObjectGrant, request role.GrantRequest, publishedRoles *access.RoleRecord) (Result, error) {
 	plan, warnings, err := role.ObjectGrantPlan(scope.Op.Context(), auth.View, statement, request, e.Catalog.RevisionLocked)
 	for _, warning := range warnings {
 		scope.Op.EmitNotice(session.LevelWarning, warning)
@@ -102,7 +102,7 @@ func (e *Engine) stageObjectGrantLocked(scope *StatementScope, auth Authorizatio
 	if err := scope.Op.Context().Err(); err != nil {
 		return Result{}, err
 	}
-	if err := e.reserveMixedACLRevisionLocked(changes); err != nil {
+	if err := reserveMixedACLRevisionLocked(e, changes); err != nil {
 		return Result{}, err
 	}
 	if err := e.AssignTransactionXIDLocked(scope.TxRef); err != nil {

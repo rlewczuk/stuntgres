@@ -21,7 +21,7 @@ type privilegeClaim struct {
 // Named relation binding is an admission operation. Re-resolution after an AS
 // wait precedes ACL planning, so a replacement name can legitimately identify a
 // new object. No existing candidate is ever replayed or retargeted.
-func (s *StatementScope) admitGrantRelation(name parser.ObjectName, initial catalog.Descriptor) (catalog.Descriptor, error) {
+func admitGrantRelation(s *StatementScope, name parser.ObjectName, initial catalog.Descriptor) (catalog.Descriptor, error) {
 	e := s.Engine()
 	ref := e.Catalog.Domain.Ref(s.TxRef.Epoch(), initial.Address())
 	for {
@@ -49,12 +49,12 @@ func (s *StatementScope) admitGrantRelation(name parser.ObjectName, initial cata
 	}
 }
 
-func (s *StatementScope) admitObjectGrant(req role.GrantRequest, statement *parser.ObjectGrant) error {
+func admitObjectGrant(s *StatementScope, req role.GrantRequest, statement *parser.ObjectGrant) error {
 	e := s.Engine()
 	targets := req.Targets()
 	if statement.Kind == "" || statement.Kind == "sequence" {
 		for i, name := range statement.Relations {
-			descriptor, err := s.admitGrantRelation(name, targets[i])
+			descriptor, err := admitGrantRelation(s, name, targets[i])
 			if err != nil {
 				return err
 			}
@@ -126,7 +126,7 @@ type defaultPrivilegeClaim struct {
 // Default planning preserves its existing ordered error precedence. Its private
 // immutable outputs are retained only if every claimed predecessor and captured
 // authority survives the unlocked writer wait; no ACL is recomputed after wait.
-func (s *StatementScope) admitDefaultPrivileges(claims []defaultPrivilegeClaim) error {
+func admitDefaultPrivileges(s *StatementScope, claims []defaultPrivilegeClaim) error {
 	e := s.Engine()
 	slices.SortFunc(claims, func(a, b defaultPrivilegeClaim) int {
 		if n := cmp.Compare(a.key.Creator.ID(), b.key.Creator.ID()); n != 0 {

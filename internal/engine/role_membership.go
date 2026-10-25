@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) membershipLocked(op *session.Operation, v AuthorizationView, s *parser.RoleMembership) (Result, error) {
+func membershipLocked(e *Engine, op *session.Operation, v AuthorizationView, s *parser.RoleMembership) (Result, error) {
 	for {
 		n, changed, notices, err := authorization.MembershipCandidate(op.Context(), v.Roles, v.State, s, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
 		if err != nil {
@@ -19,7 +19,7 @@ func (e *Engine) membershipLocked(op *session.Operation, v AuthorizationView, s 
 		}
 		if scope := ScopeOfLease(op.Lease); scope != nil && !scope.Finished {
 			e.Mu.Unlock()
-			lockErr := scope.acquireMembershipLocks(v, s, &n)
+			lockErr := acquireMembershipLocks(scope, v, s, &n)
 			e.Mu.Lock()
 			if lockErr != nil {
 				op.Notices = notices
@@ -46,6 +46,6 @@ func (e *Engine) membershipLocked(op *session.Operation, v AuthorizationView, s 
 		if err := PublicationOperationLocked(e, op); err != nil {
 			return Result{}, err
 		}
-		return Result{}, e.installOperationRolesLocked(op, &access.RoleRecord{Root: n})
+		return Result{}, installOperationRolesLocked(e, op, &access.RoleRecord{Root: n})
 	}
 }

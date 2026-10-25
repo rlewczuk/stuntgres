@@ -28,7 +28,7 @@ func TestCommentRoleInstallerDisposition(t *testing.T) {
 			defer e.Mu.Unlock()
 			base := e.RoleStore.Published
 			next := &access.RoleRecord{Revision: base.Revision + 1, Root: base.Root}
-			e.installOperationRolesLocked(op, next)
+			installOperationRolesLocked(e, op, next)
 			if mode == "autocommit" {
 				if e.RoleStore.Published != next || s.Transactions.Catalog != nil && s.Transactions.Catalog.Roles != nil {
 					t.Fatal("autocommit did not publish exactly once")
@@ -40,7 +40,7 @@ func TestCommentRoleInstallerDisposition(t *testing.T) {
 			}
 			retained := s.Transactions.Catalog
 			last := &access.RoleRecord{Revision: next.Revision + 1, Root: next.Root}
-			e.installOperationRolesLocked(op, last)
+			installOperationRolesLocked(e, op, last)
 			if e.RoleStore.Published != base || retained.Roles != next || retained.RolesBase != base || s.Transactions.Catalog == retained || s.Transactions.Catalog.Roles != last || s.Transactions.Catalog.RolesBase != base {
 				t.Fatal("installer mutated retained journal or recaptured baseline")
 			}

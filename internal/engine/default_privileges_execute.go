@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *parser.AlterDefaultPrivileges, count int) (Result, error) {
+func executeDefaultPrivileges(e *Engine, scope *StatementScope, statement *parser.AlterDefaultPrivileges, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -37,7 +37,7 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 	if len(updates) == 0 {
 		return Result{}, scope.Op.Context().Err()
 	}
-	if err = scope.admitDefaultPrivileges(claims); err != nil {
+	if err = admitDefaultPrivileges(scope, claims); err != nil {
 		return Result{}, err
 	}
 	e.Mu.Lock()
@@ -54,7 +54,7 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 			return Result{}, catalog.Conflict{}
 		}
 	}
-	result, err := e.stageDefaultPrivilegesLocked(scope, fresh, updates, publishedRoles)
+	result, err := stageDefaultPrivilegesLocked(e, scope, fresh, updates, publishedRoles)
 	if err == nil && scope.CatalogAuthority != nil {
 		scope.CatalogAuthority.DatabasePredecessor = auth.DatabasePredecessor
 		scope.CatalogAuthority.DatabaseAuthority = auth.Catalog.Get(auth.Owner.DatabaseAddress())
@@ -62,7 +62,7 @@ func (e *Engine) executeDefaultPrivileges(scope *StatementScope, statement *pars
 	return result, err
 }
 
-func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth AuthorizationView, updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord, publishedRoles *access.RoleRecord) (Result, error) {
+func stageDefaultPrivilegesLocked(e *Engine, scope *StatementScope, auth AuthorizationView, updates map[catalog.DefaultACLKey]*catalog.DefaultACLRecord, publishedRoles *access.RoleRecord) (Result, error) {
 	// Reserve identities only after logical actions and ACL writer admissions.
 	// Existing private/default records keep their actual row identity.
 	for key, record := range updates {
@@ -94,7 +94,7 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 	}
 	changes := scope.Owner.Catalog.Clone()
 	for key, record := range updates {
-		e.defaultACLChangeLocked(changes, key, record)
+		defaultACLChangeLocked(e, changes, key, record)
 	}
 	if changes.RolesBase == nil {
 		changes.RolesBase = e.RoleStore.Published
@@ -116,7 +116,7 @@ func (e *Engine) stageDefaultPrivilegesLocked(scope *StatementScope, auth Author
 	if err := scope.Op.Context().Err(); err != nil {
 		return Result{}, err
 	}
-	if err := e.reserveMixedACLRevisionLocked(changes); err != nil {
+	if err := reserveMixedACLRevisionLocked(e, changes); err != nil {
 		return Result{}, err
 	}
 	if err := e.AssignTransactionXIDLocked(scope.TxRef); err != nil {

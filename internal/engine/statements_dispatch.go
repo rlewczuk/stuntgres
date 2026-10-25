@@ -25,7 +25,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		}
 		return result, true, err
 	case *parser.CreateDatabaseStmt:
-		return dispatched(e.executeCreateDatabase(scope, stmt.(*parser.CreateDatabaseStmt), count))
+		return dispatched(executeCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
 	case *parser.CreateTablespace:
 		return dispatched(e.executeCreateTablespace(op, stmt.(*parser.CreateTablespace), count))
 	case *parser.Load:
@@ -49,16 +49,16 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.CreateView:
 		return dispatched(e.executeCreateView(scope, stmt.(*parser.CreateView), count))
 	case *parser.AlterOwner:
-		return dispatched(e.executeOwnership(scope, stmt.(*parser.AlterOwner), count))
+		return dispatched(executeOwnership(e, scope, stmt.(*parser.AlterOwner), count))
 	case *parser.ReassignOwned, *parser.DropOwned:
-		return dispatched(e.executeOwned(scope, stmt, count))
+		return dispatched(executeOwned(e, scope, stmt, count))
 	case *parser.AlterView:
 		if owner := stmt.(*parser.AlterView); owner.Action == "owner" {
 			kind := "view"
 			if owner.Materialized {
 				kind = "materialized view"
 			}
-			return dispatched(e.executeRelationOwnership(scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count))
+			return dispatched(executeRelationOwnership(e, scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count))
 		}
 		return dispatched(e.executeAlterView(scope, stmt.(*parser.AlterView), count))
 	case *parser.DropView:
@@ -110,7 +110,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		}
 		return result, true, err
 	case *parser.CreateRole, *parser.AlterRole:
-		result, err := e.executeRoleAttributes(scope, stmt, count)
+		result, err := executeRoleAttributes(e, scope, stmt, count)
 		if err == nil {
 			scope.Completed = true
 		}
@@ -121,18 +121,18 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 			return dispatched(e.executeForeignGrant(scope, grant, count))
 		}
 		if grant.Kind == "database" {
-			return dispatched(e.executeDatabaseGrant(scope, grant, count))
+			return dispatched(executeDatabaseGrant(e, scope, grant, count))
 		}
-		return dispatched(e.executeObjectGrant(scope, grant, count))
+		return dispatched(executeObjectGrant(e, scope, grant, count))
 	case *parser.AlterDefaultPrivileges:
-		return dispatched(e.executeDefaultPrivileges(scope, stmt.(*parser.AlterDefaultPrivileges), count))
+		return dispatched(executeDefaultPrivileges(e, scope, stmt.(*parser.AlterDefaultPrivileges), count))
 	case *parser.DropRole, *parser.SessionAuthorization, *parser.RoleSelection, *parser.RoleMembership:
 		if drop, ok := stmt.(*parser.DropRole); ok && count == 0 {
-			if err := scope.acquireRoleRetirementLocks(drop); err != nil {
+			if err := acquireRoleRetirementLocks(scope, drop); err != nil {
 				return Result{}, true, err
 			}
 		}
-		result, err := e.executeRole(op, stmt, count, !scope.Owner.InBlock())
+		result, err := executeRole(e, op, stmt, count, !scope.Owner.InBlock())
 		if err == nil {
 			scope.Completed = true
 		}

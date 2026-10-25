@@ -29,7 +29,7 @@ func (e *Engine) sessionRolesLocked(session *session.Session) *access.RoleRecord
 }
 
 // The operation/session publication preflight has passed before this call.
-func (e *Engine) installOperationRolesLocked(op *session.Operation, next *access.RoleRecord) error {
+func installOperationRolesLocked(e *Engine, op *session.Operation, next *access.RoleRecord) error {
 	revision, err := e.RoleStore.RevisionCandidateLocked()
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func (e *Engine) journalRolePublicationLocked(c *session.Journal, materialize bo
 // its fresh record through the existing allocator, just like actual role
 // installation; ACL-only journals retain their unreserved logical delta.
 // Caller owns Engine.mu and this statement's newly cloned role record.
-func (e *Engine) reserveMixedACLRevisionLocked(c *session.Journal) error {
+func reserveMixedACLRevisionLocked(e *Engine, c *session.Journal) error {
 	if c.Roles.SameAuthority(c.RolesBase) {
 		return nil
 	}

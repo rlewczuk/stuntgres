@@ -60,7 +60,7 @@ func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 			s.Authorization.Revision = ^uint64(0) - 1
 			op := transactionOperation(t, s)
 			e.Mu.Lock()
-			err := e.switchSessionRoleLocked(op, entry.CurrentUser, false, true)
+			err := switchSessionRoleLocked(e, op, entry.CurrentUser, false, true)
 			e.Mu.Unlock()
 			op.Done()
 			if err == nil || s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction {

@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-func (e *Engine) defaultACLChangeLocked(c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
+func defaultACLChangeLocked(e *Engine, c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
 	c.RecordDefaultACL(e.Catalog.State, key, record)
 }
 

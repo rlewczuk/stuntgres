@@ -61,7 +61,7 @@ func (s *StatementScope) RoleStillPresent(ref authorization.PrincipalRef) error 
 	return nil
 }
 
-func (s *StatementScope) roleTupleUnchanged(captured authorization.RoleDescriptor) error {
+func roleTupleUnchanged(s *StatementScope, captured authorization.RoleDescriptor) error {
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -83,7 +83,7 @@ func checkRoleTupleUnchanged(roles authorization.Read, captured authorization.Ro
 	return nil
 }
 
-func (s *StatementScope) acquireRoleAttributeLocks(stmt parser.Statement, target authorization.RoleDescriptor) error {
+func acquireRoleAttributeLocks(s *StatementScope, stmt parser.Statement, target authorization.RoleDescriptor) error {
 	if create, ok := stmt.(*parser.CreateRole); ok {
 		e := s.Engine()
 		resource := lock.Resource{ObjectRef: e.Cluster.RoleDomain.Ref(1, ids.ObjectAddress{}), Name: ids.NameKey{ClassID: ids.RoleClassID, Name: create.Name.Text}}
@@ -106,10 +106,10 @@ func (s *StatementScope) acquireRoleAttributeLocks(stmt parser.Statement, target
 	if err := s.AcquireRolePrincipal(target.Ref, lock.AccessExclusive, true); err != nil {
 		return err
 	}
-	return s.roleTupleUnchanged(target)
+	return roleTupleUnchanged(s, target)
 }
 
-func (s *StatementScope) acquireRoleRetirementLocks(statement *parser.DropRole) error {
+func acquireRoleRetirementLocks(s *StatementScope, statement *parser.DropRole) error {
 	if s.Owner.State != session.TxActive && s.Owner.RetainsTransaction() {
 		return nil
 	}
@@ -133,20 +133,20 @@ func (s *StatementScope) acquireRoleRetirementLocks(statement *parser.DropRole) 
 		if err := s.AcquireRolePrincipal(d.Ref, lock.AccessExclusive, false); err != nil {
 			return err
 		}
-		if err := s.roleRetirementUnchanged(d); err != nil {
+		if err := roleRetirementUnchanged(s, d); err != nil {
 			return err
 		}
 		if err := s.AcquireRolePrincipal(d.Ref, lock.AccessExclusive, true); err != nil {
 			return err
 		}
-		if err := s.roleRetirementUnchanged(d); err != nil {
+		if err := roleRetirementUnchanged(s, d); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *StatementScope) roleRetirementUnchanged(captured authorization.RoleDescriptor) error {
+func roleRetirementUnchanged(s *StatementScope, captured authorization.RoleDescriptor) error {
 	e := s.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -163,7 +163,7 @@ func (s *StatementScope) roleRetirementUnchanged(captured authorization.RoleDesc
 	return checkRoleTupleUnchanged(v.Roles, captured)
 }
 
-func (s *StatementScope) acquireMembershipLocks(v AuthorizationView, statement *parser.RoleMembership, candidate *authorization.Root) error {
+func acquireMembershipLocks(s *StatementScope, v AuthorizationView, statement *parser.RoleMembership, candidate *authorization.Root) error {
 	for _, spec := range statement.Targets {
 		ref, err := authorization.MembershipRole(v.Roles, v.State, spec)
 		if err != nil {
@@ -199,7 +199,7 @@ func (s *StatementScope) acquireMembershipLocks(v AuthorizationView, statement *
 	return s.AcquireRoleDependencies(authorization.AddedMembershipReferences(&v.RoleRecord.Root, candidate))
 }
 
-func (s *StatementScope) acquireInitialMembershipLocks(base, candidate *authorization.Root, created authorization.PrincipalRef) error {
+func acquireInitialMembershipLocks(s *StatementScope, base, candidate *authorization.Root, created authorization.PrincipalRef) error {
 	for edge := range authorization.AddedMemberships(base, candidate) {
 		if edge.Role != created {
 			if err := s.AcquireRolePrincipal(edge.Role, lock.ShareUpdateExclusive, false); err != nil {

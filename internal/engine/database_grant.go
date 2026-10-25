@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeDatabaseGrant(scope *StatementScope, s *parser.ObjectGrant, count int) (Result, error) {
+func executeDatabaseGrant(e *Engine, scope *StatementScope, s *parser.ObjectGrant, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

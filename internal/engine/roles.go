@@ -41,7 +41,7 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 	return target.Ref, nil
 }
 
-func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
+func executeRole(e *Engine, op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -59,25 +59,25 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 	}
 	switch s := stmt.(type) {
 	case *parser.RoleMembership:
-		return e.membershipLocked(op, v, s)
+		return membershipLocked(e, op, v, s)
 	case *parser.RoleSelection:
 		target, err := role.SetRoleTarget(v.View, s)
 		if err != nil {
 			return Result{}, err
 		}
-		return Result{}, e.switchSessionRoleLocked(op, target, s.Local, false)
+		return Result{}, switchSessionRoleLocked(e, op, target, s.Local, false)
 	case *parser.SessionAuthorization:
 		target, err := role.SessionAuthorizationTarget(v.View, s)
 		if err != nil {
 			return Result{}, err
 		}
-		return Result{}, e.switchSessionRoleLocked(op, target, false, true)
+		return Result{}, switchSessionRoleLocked(e, op, target, false, true)
 	case *parser.DropRole:
 		plan, err := role.PlanDropRoles(RoleHost{DDLHost{E: e, Op: op}}, v, s)
 		if err != nil {
 			return Result{}, err
 		}
-		return e.publishDroppedRolesLocked(op, plan)
+		return publishDroppedRolesLocked(e, op, plan)
 	}
 	return Result{}, fmt.Errorf("stuntgres: invalid role statement")
 }
@@ -87,7 +87,7 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 // SET LOCAL ROLE for the role setting's restore point. The caller holds
 // Engine.mu; this takes Settings.Mu, then Session.Mu, and releases both
 // before it returns.
-func (e *Engine) switchSessionRoleLocked(op *session.Operation, target authorization.PrincipalRef, local, sessionUser bool) error {
+func switchSessionRoleLocked(e *Engine, op *session.Operation, target authorization.PrincipalRef, local, sessionUser bool) error {
 	sess := op.Session
 	settings := sess.Settings
 	settings.Mu.Lock()
@@ -114,13 +114,13 @@ func (e *Engine) switchSessionRoleLocked(op *session.Operation, target authoriza
 
 // publishDroppedRolesLocked installs a decided DROP ROLE: the role record
 // joins the operation, and a retained transaction remembers the retired roles.
-func (e *Engine) publishDroppedRolesLocked(op *session.Operation, plan role.DropRolesPlan) (Result, error) {
+func publishDroppedRolesLocked(e *Engine, op *session.Operation, plan role.DropRolesPlan) (Result, error) {
 	op.Session.Mu.Lock()
 	defer op.Session.Mu.Unlock()
 	if err := PublicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if err := e.installOperationRolesLocked(op, plan.Roles); err != nil {
+	if err := installOperationRolesLocked(e, op, plan.Roles); err != nil {
 		return Result{}, err
 	}
 	if t := op.Session.Transactions; t.State == session.TxActive || t.RetainsTransaction() {

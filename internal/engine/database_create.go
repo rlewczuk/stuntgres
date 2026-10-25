@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) databaseCreateOwnerLocked(scope *StatementScope, name string) (authorization.PrincipalRef, error) {
+func databaseCreateOwnerLocked(e *Engine, scope *StatementScope, name string) (authorization.PrincipalRef, error) {
 	auth, err := e.AuthorizationLocked(scope.Op)
 	if err != nil {
 		return authorization.PrincipalRef{}, err
@@ -20,7 +20,7 @@ func (e *Engine) databaseCreateOwnerLocked(scope *StatementScope, name string) (
 	return ddl.CreateDatabaseOwner(auth.Roles, auth.State.CurrentUser, name)
 }
 
-func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.CreateDatabaseStmt, count int) (Result, error) {
+func executeCreateDatabase(e *Engine, scope *StatementScope, statement *parser.CreateDatabaseStmt, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -30,7 +30,7 @@ func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.
 		return Result{}, err
 	}
 	e.Mu.Lock()
-	owner, err := e.databaseCreateOwnerLocked(scope, options.Owner)
+	owner, err := databaseCreateOwnerLocked(e, scope, options.Owner)
 	if err == nil {
 		err = ddl.CheckCreateDatabase(statement.Name, options, func(name string) bool { return e.Cluster.Targets[name] != nil })
 	}
@@ -47,12 +47,12 @@ func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.
 	if err := scope.RoleStillPresent(owner); err != nil {
 		return Result{}, err
 	}
-	return e.createDatabaseTarget(ctx, scope, statement.Name, options.Owner, owner)
+	return createDatabaseTarget(e, ctx, scope, statement.Name, options.Owner, owner)
 }
 
 // createDatabaseTarget constructs storage privately. Only the final no-failure
 // installation below can expose a name, descriptor, target or allocator advance.
-func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope, name, ownerName string, owner authorization.PrincipalRef) (Result, error) {
+func createDatabaseTarget(e *Engine, ctx context.Context, scope *StatementScope, name, ownerName string, owner authorization.PrincipalRef) (Result, error) {
 	e.Cluster.SeedOnce.Do(func() {
 		candidate, err := e.Factory(nil, "template1", e.Visibility.TracksCommitTimestamps())
 		if err == nil {
@@ -64,7 +64,7 @@ func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope
 		return Result{}, e.Cluster.SeedError
 	}
 	seed := e.Cluster.Seed
-	target := e.newDatabaseRuntime(seed, name, owner)
+	target := newDatabaseRuntime(e, seed, name, owner)
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		return Result{}, err
 	}
@@ -73,7 +73,7 @@ func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	currentOwner, err := e.databaseCreateOwnerLocked(scope, ownerName)
+	currentOwner, err := databaseCreateOwnerLocked(e, scope, ownerName)
 	if err != nil {
 		return Result{}, err
 	}
@@ -88,14 +88,14 @@ func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope
 	if scope.TxRef != (ids.TxRef{}) && scope.TxRef.Epoch() != e.Catalog.State.Epoch() {
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	result, err := e.publishDatabaseTargetLocked(ctx, name, target, owner)
+	result, err := publishDatabaseTargetLocked(e, ctx, name, target, owner)
 	if err == nil {
 		scope.Completed = true
 	}
 	return result, err
 }
 
-func (e *Engine) publishDatabaseTargetLocked(ctx context.Context, name string, target *Engine, owner authorization.PrincipalRef) (Result, error) {
+func publishDatabaseTargetLocked(e *Engine, ctx context.Context, name string, target *Engine, owner authorization.PrincipalRef) (Result, error) {
 	if e.Cluster.Targets[name] != nil {
 		return Result{}, SQLError("42P04", fmt.Sprintf(`database "%s" already exists`, name))
 	}

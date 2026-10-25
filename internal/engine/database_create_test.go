@@ -21,7 +21,7 @@ import (
 // independently constructed ASTs. No parser or public SQL adapter is involved.
 func databaseCreateUnitTarget(t *testing.T, e, seed *Engine, name string) *Engine {
 	t.Helper()
-	target := e.newDatabaseRuntime(seed, name, e.Roles().LookupRef("postgres"))
+	target := newDatabaseRuntime(e, seed, name, e.Roles().LookupRef("postgres"))
 	if err := e.Locks.AdmitDomain(target.Catalog.Domain); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func databaseCreateUnitTarget(t *testing.T, e, seed *Engine, name string) *Engin
 func databaseCreateUnitPublish(e *Engine, ctx context.Context, name string, target *Engine) (Result, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return e.publishDatabaseTargetLocked(ctx, name, target, e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID))
+	return publishDatabaseTargetLocked(e, ctx, name, target, e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID))
 }
 
 func databaseCreateUnitInstall(t *testing.T, e, seed *Engine, name string) *Engine {
@@ -364,7 +364,7 @@ func TestDatabaseCreateProvenance(t *testing.T) {
 	candidate := databaseCreateUnitTarget(t, e, seed, "foreign_owner")
 	unchanged := databaseCreateUnitUnchanged(t, e)
 	e.Mu.Lock()
-	_, err := e.publishDatabaseTargetLocked(context.Background(), "foreign_owner", candidate, foreign.Roles().LookupRef("postgres"))
+	_, err := publishDatabaseTargetLocked(e, context.Background(), "foreign_owner", candidate, foreign.Roles().LookupRef("postgres"))
 	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("equal numeric foreign principal accepted")

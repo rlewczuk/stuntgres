@@ -52,7 +52,7 @@ func TestDefaultPrivilegesCloneStage(t *testing.T) {
 	}
 	// A cached descriptor-empty overlay must invalidate when defaults change.
 	f.e.Mu.Lock()
-	f.e.defaultACLChangeLocked(changes, key, record)
+	defaultACLChangeLocked(f.e, changes, key, record)
 	fresh := f.e.PrivateCatalogLocked(changes)
 	f.e.Mu.Unlock()
 	if fresh.State().DefaultACL(key) != record || private.State().DefaultACL(key) != nil {

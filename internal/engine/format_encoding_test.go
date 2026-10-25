@@ -87,7 +87,7 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.executeRoleAttributes(scope, &parser.CreateRole{Name: parser.Identifier{Text: "fe_unit_reader"}, Options: parser.RoleOptions{Present: parser.RoleLogin, Login: true}}, 0)
+	_, err = executeRoleAttributes(e, scope, &parser.CreateRole{Name: parser.Identifier{Text: "fe_unit_reader"}, Options: parser.RoleOptions{Present: parser.RoleLogin, Login: true}}, 0)
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}

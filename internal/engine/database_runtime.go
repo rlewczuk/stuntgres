@@ -12,7 +12,7 @@ import (
 // newDatabaseRuntime allocates only database-local execution state. Immutable
 // host provider configuration is retained; ReplaceCatalog remints the real seed
 // catalog and storage before this runtime can be registered.
-func (e *Engine) newDatabaseRuntime(seed *Engine, name string, owner authorization.PrincipalRef) *Engine {
+func newDatabaseRuntime(e *Engine, seed *Engine, name string, owner authorization.PrincipalRef) *Engine {
 	target := &Engine{Mu: e.Mu, RoleStore: e.RoleStore, Settings: e.Settings, Foreign: seed.Foreign, DatabaseName: name, DatabaseFrozenXID: 3, Statements: e.Statements, Factory: e.Factory}
 	target.Catalog = catalog.NewStore(catalog.Owner{Principals: &e.RoleStore.Domain, ACLAuthority: &e.RoleStore.ACLAuthority, Providers: make(map[ids.OID]catalog.Provider, len(e.Catalog.Providers)), Extensions: e.Catalog.Extensions}, seed.Catalog.NextOID(), seed.Catalog.NextRevision())
 	for class, provider := range e.Catalog.Providers {

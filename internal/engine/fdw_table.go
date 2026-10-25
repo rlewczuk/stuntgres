@@ -33,7 +33,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	if s.Owner != nil {
 		target, identity := access.OwnershipRoleOperand(*s.Owner)
 		e.Mu.Unlock()
-		return e.executeRelationOwnership(scope, s.Name, target, identity, "foreign table", s.IfExists, 0)
+		return executeRelationOwnership(e, scope, s.Name, target, identity, "foreign table", s.IfExists, 0)
 	}
 	if s.Inner != nil {
 		switch inner := s.Inner.(type) {

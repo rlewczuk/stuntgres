@@ -13,7 +13,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeOwned(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -36,7 +36,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		return Result{}, scope.Op.Context().Err()
 	}
 	reassign, sources, mode, roots, primaryRoot := plan.Reassign, plan.Sources, plan.Mode, plan.Roots, plan.PrimaryRoot
-	stage := e.ownershipStage(auth, scope.Op)
+	stage := ownershipStage(e, auth, scope.Op)
 	stage.DependencyPath, _ = ReferencePath(auth)
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -86,7 +86,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		e.ReplacementMu.RUnlock()
 		scope.ReplacementRead = false
 	}
-	result, err := e.publishOwnership(scope, stage)
+	result, err := publishOwnership(e, scope, stage)
 	if err == nil && !reassign && mode == parser.DropCascade && len(stage.DropCascadeNames) > 0 {
 		message, detail := stage.DropCascadeNames[0], ""
 		if len(stage.DropCascadeNames) > 1 {
