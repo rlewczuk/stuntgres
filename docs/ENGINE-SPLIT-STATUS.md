@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `264a4bca9` (item 199 rebased on it).
+Last verified against `master` at `9679f0633` (item 200 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 200.
+- 201.
 
 ## Linear plan
 
@@ -294,8 +294,25 @@ ENGINE-SPLIT.md §4.
      `^TestReferenceInheritanceAlter(Recipe|Retired|GeneratedReplay|PhysicalNotNull)`
      passed in the merge chain; bench skipped (moved code unchanged; the escape
      diff is empty), racecheck and finalcheck skipped at user request
-200. [ ] `typecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-200--typecmds) · needs
-     199 · S
+200. [x] `typecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-200--typecmds) · needs
+     199 · S (`c9eb2629e`, `d6bc0e809`, `88390718a`, `a6d5b288e`, docs commit) ·
+     the type executors (10 root production files, 1,285 file lines: ALTER
+     DOMAIN, ALTER TYPE on composites with the typed-table and inheriting-child
+     row staging, CREATE TYPE AS ENUM and AS RANGE with ALTER TYPE on enums,
+     ALTER TABLE OF and NOT OF, the type owner Restore pairing, the native
+     domain replay shared with views, and Dump's temporary collation check)
+     moved to `typecmds`, which imports `tablecmds`, and `TypeHost` (2 files)
+     moved to `tablecmds`, by `cmdmv` after 19 names were exported in place; 6
+     root test files moved as `typecmds_test` external tests (one
+     `export_test.go` alias), none deleted; root production 66 files and 0.25 MB
+     (−0.05 MB), root tests 432 files and 2.77 MB (−0.04 MB); the family
+     selectors, the `RACE=1` typed publication and ALTER DOMAIN publication
+     tests, quickcheck, the §3 `go list` check and the library deps check
+     passed; `REFERENCE=1`
+     `^TestReference(DomainAlter|CompositeAlter|EnumAlter|DomainDefault)` and
+     `^TestReference(TypedTable|RangeType)` passed in the merge chain; bench
+     skipped (moved code unchanged; the escape diff is empty), racecheck and
+     finalcheck skipped at user request
 201. [ ] `viewcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-201--viewcmds) · needs
      200 · S
 202. [ ] `rolecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-202--rolecmds) · needs
