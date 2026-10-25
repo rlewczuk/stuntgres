@@ -335,7 +335,45 @@ inspection accessors were added.
   `session_timeout`, ...) for item 193's dedupe; 19 free root test files (0.09
   MB) match no wave's prefix list (`access` 8, `like` 2, `dependents`, `eval`,
   `floating`, `name`, `nominal`, `operation`, `predefined`, `public`, `three`).
-- 186: not started.
+- 186: done (`cf462a24b`, `c261ae301`, `664831a86`). Group re-measured at
+  `13ad970b9` (`group.py`,
+  `.cswd/tmp/PG18-ENGINE-SPLIT-186-TABLE-INDEX-PARTITION-SEQUENCE-DDL-TESTS/`):
+  148 transitively free files of the listed areas and prefixes (0.95 MB), plus
+  the 12 free `range_partition_*`/`list_partition_*` files item 183 left. 157
+  moved with `mvtest` as external tests (names and bodies unchanged), by
+  statement under test (`dest.py`): 79 to `tablecmds` (ALTER TABLE forms,
+  constraints, NOT NULL, primary keys, CREATE TABLE LIKE and AS, sequences,
+  identity, serial, VACUUM), 21 to `indexcmds` (index DDL, exclusion and unique
+  index builds), 27 to `partitioncmds` (partition and inheritance DDL), 30 to
+  `core` (relation locks, waits and deadlocks, FK enforcement, unique and
+  exclusion probing, check evaluation on writes, `composite_expr`, virtual
+  generated reads, `pg_partition_*` and sequence functions); `tablecmds`,
+  `indexcmds` and `partitioncmds` start with a `doc.go`. T2: none deleted (every
+  refcover candidate asserts internal state, waits, cancels or publishes ACLs
+  directly). Kept in the root: the helper-only `identity_helpers`,
+  `vacuum_lifecycle` and `vacuum_truncate` (users are non-free root tests); the
+  frame-name `range_partition_publication` moved (its frames are root names,
+  unchanged); `index_hash_cancellation` and `vacuum_concurrency` are not free.
+  T4: added `enginetest.Comment` (follows the test-file method `Engine.Comment`;
+  item 187's `comment_test.go` needs it too). Helper clashes in `core` (item
+  184's note): the earlier copies of `deadlock*`, `waitsCommandAsync`,
+  `waitsDiagnostic`, `mustLockStatement`, `relationFailReader` and
+  `uniqueAsyncUnit`/`uniqueClaimsEmpty`/ `uniqueKeyBucketsEmpty` were deleted in
+  favor of the originals that moved with their files; the moved
+  `relation_lock_test.go` uses enginetest's `Lock*` instead of declaring its
+  own; the copied unique publication fixture dropped its unused `prepare` method
+  (it reaches the unexported `Engine.prepareIndexRoots`). Copied into two or
+  more destinations, candidates for `enginetest`: `withPublicSchemaUnitOwner`,
+  `nullCountUnitDiagnostic`, `testSessionID`, `mustLockStatement`,
+  `waitsCommandAsync`, `cancelAtErrCheck`, `sequencePreparedDescription`,
+  `btreeWantKeys`, `indexClausesTypes`, `inheritanceUnitParents`,
+  `retiredUnitTable`, `operatorFamilyTestRead` and `operatorFamilyUnitSeed`.
+  Root helpers left without root users (for item 193's dedupe):
+  `arrayUnitInteger`, `indexClausesTypes`, `indexHostFixture`,
+  `newPartialUniquePublication`, `operatorFamilyUnitSeed`, `partialUniqueRow`,
+  `partitionConstraintUnit`, `retiredRaw`, `retiredRepairSQL`, `retiredRow` and
+  `serialLeaf`. The non-free group files (about 1 MB, 65 reach core internals)
+  wait for items 193–194.
 - 187: not started.
 - 193: not started.
 - 194: not started.

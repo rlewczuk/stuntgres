@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `a8bd529b1` (item 184 rebased on it).
+Last verified against `master` at `76055784d` (item 186 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 186, 187, 189.
+- 187, 189.
 
 ## Linear plan
 
@@ -81,9 +81,17 @@ ENGINE-SPLIT.md §4.
      root tests 1,114 files and 8.87 MB (−0.79 MB); quickcheck passed;
      `REFERENCE=1` and bench skipped (no production change), racecheck and
      finalcheck skipped at user request
-186. [ ] Table, index, partition and sequence DDL tests —
+186. [x] Table, index, partition and sequence DDL tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-186--table-index-partition-and-sequence-ddl-tests)
-     · needs 182 · P · 0.95 MB
+     · needs 182 · P · 0.95 MB (`cf462a24b`, `c261ae301`, `664831a86`, docs
+     commit) · 157 transitively free table, index, inheritance, partition,
+     sequence, vacuum and DDL-prefix root test files (with the range and list
+     partition files item 183 left) moved as external tests by statement under
+     test (79 to `tablecmds`, 21 to `indexcmds`, 27 to `partitioncmds`, 30
+     runtime files to `core`), none deleted under T2, plus `enginetest.Comment`;
+     root tests 866 files and 6.99 MB (−1.01 MB); quickcheck passed;
+     `REFERENCE=1` and bench skipped (no production change), racecheck and
+     finalcheck skipped at user request
 187. [ ] Type, view, role and schema-object DDL tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-187--type-view-role-and-schema-object-ddl-tests)
      · needs 182 · P · 0.8 MB
