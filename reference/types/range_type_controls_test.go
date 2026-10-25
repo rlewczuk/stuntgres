@@ -92,7 +92,7 @@ func TestReferenceRangeTypeControls(t *testing.T) {
 				want.Position = strconv.Itoa(utf8.RuneCountInString(script[:strings.LastIndex(script, "'[4,1]'")]) + 1)
 			}
 			fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(dump.String()+suffix)), &want)
-			rangeConsumeHeld(t, old, rangeTypeData(targetBackend, rangeTypeRows()))
+			fixture.RangeConsumeHeld(t, old, rangeTypeData(targetBackend, rangeTypeRows()))
 			check(targetBackend, target.Memory)
 			assertDump(target.Native)
 		}
@@ -143,7 +143,7 @@ func TestReferenceRangeTypeControls(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, held, rangeTypeData(b, rangeTypeRows()))
+		fixture.RangeConsumeHeld(t, held, rangeTypeData(b, rangeTypeRows()))
 		check(b, conn)
 		assertDump(p.Native)
 		// Dependency closure must survive destination-provider remapping.

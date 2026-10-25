@@ -25,11 +25,11 @@ func earthControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, db fix
 	t.Helper()
 	fixture.RunStep(t, p.Ctx, db, recorder, fixture.Exec("SET extra_float_digits=3", 0))
 	for _, prepared := range []bool{false, true} {
-		s := earthSelect(b, "SELECT id,v FROM earth_controls ORDER BY id", []string{"id", "v"}, earthControlRows(false))
+		s := fixture.EarthSelect(b, "SELECT id,v FROM earth_controls ORDER BY id", []string{"id", "v"}, earthControlRows(false))
 		s.Prepared = prepared
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, s.Columns, []bool{false, true}) }
 		fixture.RunStep(t, p.Ctx, db, recorder, s)
-		s = earthSelect(b, "SELECT v FROM earth_vacant", []string{"v"}, [][]any{})
+		s = fixture.EarthSelect(b, "SELECT v FROM earth_vacant", []string{"v"}, [][]any{})
 		s.Prepared = prepared
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, []string{"v"}, []bool{false}) }
 		fixture.RunStep(t, p.Ctx, db, recorder, s)

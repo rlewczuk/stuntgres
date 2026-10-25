@@ -76,7 +76,7 @@ func TestReferenceRangeMoreBinds(t *testing.T) {
 					for i := range owned {
 						owned[i] = 'x'
 					}
-					rangeConsumeHeld(t, rows, rangeSelect(b, q, []string{"v"}, []string{typ}, finiteRows, nil))
+					fixture.RangeConsumeHeld(t, rows, rangeSelect(b, q, []string{"v"}, []string{typ}, finiteRows, nil))
 				}()
 			}
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("DROP TABLE more_bind", 0))

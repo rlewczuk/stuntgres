@@ -23,12 +23,12 @@ func cubeBindingResults(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 	t.Helper()
 	for _, s := range []fixture.Step{
 		fixture.Select("SELECT id,member,chosen FROM public.cube_binding_view ORDER BY id", []string{"id", "member", "chosen"}, []string{"INT4", "BOOL", "BOOL"}, [][]any{{int64(1), true, true}, {int64(2), true, false}, {int64(3), nil, false}}),
-		cubeSelect(b, "SELECT id,nullified FROM public.cube_binding_view ORDER BY id", []string{"id", "nullified"}, [][]any{{int64(1), nil}, {int64(2), "(2)"}, {int64(3), nil}}),
-		cubeSelect(b, `SELECT 1 AS id,public.cube_binding_function('2'::"Cube Binding Path".cube) AS value`, []string{"id", "value"}, [][]any{{int64(1), "(2)"}}),
-		cubeSelect(b, "SELECT 1 AS id,v FROM public.cube_binding_defaults", []string{"id", "v"}, [][]any{{int64(1), nil}}),
-		cubeSelect(b, "SELECT 1 AS id,d FROM public.cube_binding_defaults", []string{"id", "d"}, [][]any{{int64(1), nil}}),
-		cubeSelect(b, "SELECT id,g FROM public.cube_binding_data ORDER BY id", []string{"id", "g"}, [][]any{{int64(1), nil}, {int64(2), "(2)"}, {int64(3), nil}}),
-		cubeSelect(b, "SELECT id,value FROM public.cube_binding_materialized ORDER BY id", []string{"id", "value"}, [][]any{{int64(1), nil}, {int64(2), "(2)"}, {int64(3), nil}}),
+		fixture.CubeSelect(b, "SELECT id,nullified FROM public.cube_binding_view ORDER BY id", []string{"id", "nullified"}, [][]any{{int64(1), nil}, {int64(2), "(2)"}, {int64(3), nil}}),
+		fixture.CubeSelect(b, `SELECT 1 AS id,public.cube_binding_function('2'::"Cube Binding Path".cube) AS value`, []string{"id", "value"}, [][]any{{int64(1), "(2)"}}),
+		fixture.CubeSelect(b, "SELECT 1 AS id,v FROM public.cube_binding_defaults", []string{"id", "v"}, [][]any{{int64(1), nil}}),
+		fixture.CubeSelect(b, "SELECT 1 AS id,d FROM public.cube_binding_defaults", []string{"id", "d"}, [][]any{{int64(1), nil}}),
+		fixture.CubeSelect(b, "SELECT id,g FROM public.cube_binding_data ORDER BY id", []string{"id", "g"}, [][]any{{int64(1), nil}, {int64(2), "(2)"}, {int64(3), nil}}),
+		fixture.CubeSelect(b, "SELECT id,value FROM public.cube_binding_materialized ORDER BY id", []string{"id", "value"}, [][]any{{int64(1), nil}, {int64(2), "(2)"}, {int64(3), nil}}),
 	} {
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
@@ -37,7 +37,7 @@ func cubeBindingResults(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 		fixture.Select("SELECT value FROM public.cube_binding_once_in", []string{"value"}, []string{"BOOL"}, [][]any{{true}}),
 		fixture.Select("SELECT value FROM public.cube_binding_once_not_in", []string{"value"}, []string{"BOOL"}, [][]any{{false}}),
 		fixture.Select("SELECT value FROM public.cube_binding_once_case", []string{"value"}, []string{"BOOL"}, [][]any{{true}}),
-		cubeSelect(b, "SELECT 1 AS id,value FROM public.cube_binding_once_nullif", []string{"id", "value"}, [][]any{{int64(1), "(1)"}}),
+		fixture.CubeSelect(b, "SELECT 1 AS id,value FROM public.cube_binding_once_nullif", []string{"id", "value"}, [][]any{{int64(1), "(1)"}}),
 	} {
 		for _, s := range []fixture.Step{once, fixture.Prepared(once)} {
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select(`SELECT setval('"Cube Binding Path".calls',1,false) AS value`, []string{"value"}, []string{"INT8"}, [][]any{{int64(1)}}))

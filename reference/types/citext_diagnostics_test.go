@@ -36,13 +36,13 @@ func TestReferenceCitextDiagnostics(t *testing.T) {
 				for _, input := range []any{string(tc.bytes), tc.bytes} {
 					for _, prepared := range []bool{false, true} {
 						citextError(t, p, b, c, q, prepared, false, false, want, "Early valid", input)
-						run(citextSelect(b, "SELECT id,v FROM citext_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}}))
+						run(fixture.CitextSelect(b, "SELECT id,v FROM citext_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}}))
 					}
 					citextError(t, p, b, held, q, false, false, false, want, "Early valid", input)
-					run(citextSelect(b, "SELECT id,v FROM citext_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}}))
+					run(fixture.CitextSelect(b, "SELECT id,v FROM citext_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}}))
 				}
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 2, "Healthy", "Again"))
-				run(citextSelect(b, "SELECT id,v FROM citext_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}, {int64(2), "Healthy"}, {int64(3), "Again"}}))
+				run(fixture.CitextSelect(b, "SELECT id,v FROM citext_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}, {int64(2), "Healthy"}, {int64(3), "Again"}}))
 			})
 		})
 	}
@@ -78,7 +78,7 @@ func TestReferenceCitextDiagnostics(t *testing.T) {
 			q := "INSERT INTO citext_required VALUES (2,$1),(3,$2)"
 			for _, prepared := range []bool{false, true} {
 				citextError(t, p, b, c, q, prepared, false, false, want, "Early valid", nil)
-				run(citextSelect(b, "SELECT id,v FROM citext_required ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}}))
+				run(fixture.CitextSelect(b, "SELECT id,v FROM citext_required ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Sentinel"}}))
 			}
 		})
 	})
@@ -104,9 +104,9 @@ func TestReferenceCitextDiagnostics(t *testing.T) {
 			if errors.As(err, &state) {
 				t.Fatalf("ordinary adapter error acquired SQLSTATE %q", state.SQLState())
 			}
-			fixture.RunStep(t, p.Ctx, continuation, b.Recorder, citextSelect(b, "SELECT v FROM citext_cancel", []string{"v"}, [][]any{}))
+			fixture.RunStep(t, p.Ctx, continuation, b.Recorder, fixture.CitextSelect(b, "SELECT v FROM citext_cancel", []string{"v"}, [][]any{}))
 			fixture.RunStep(t, p.Ctx, continuation, b.Recorder, fixture.Exec("INSERT INTO citext_cancel VALUES ($1)", 1, "Healthy"))
-			fixture.RunStep(t, p.Ctx, continuation, b.Recorder, citextSelect(b, "SELECT v FROM citext_cancel", []string{"v"}, [][]any{{"Healthy"}}))
+			fixture.RunStep(t, p.Ctx, continuation, b.Recorder, fixture.CitextSelect(b, "SELECT v FROM citext_cancel", []string{"v"}, [][]any{{"Healthy"}}))
 		})
 	})
 	t.Run("coercion_context", func(t *testing.T) {

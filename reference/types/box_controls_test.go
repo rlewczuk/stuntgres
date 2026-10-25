@@ -27,7 +27,9 @@ func boxControlRows(low bool) [][]any {
 
 func boxControlChecks(b fixture.Backend) []fixture.Step {
 	values := boxSelect(b, "SELECT id,b FROM box_controls ORDER BY id", []string{"id", "b"}, []string{"INT4", "BOX"}, boxControlRows(false))
-	values.CheckMetadata = func(t *testing.T, rows *sql.Rows) { boxMetadata(t, b.PG, rows, values.Types, []bool{false, true}) }
+	values.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+		fixture.BoxMetadata(t, b.PG, rows, values.Types, []bool{false, true})
+	}
 	return []fixture.Step{
 		values,
 		boxSelect(b, "SELECT hi FROM box_control_view WHERE id=2", []string{"hi"}, []string{"POINT"}, [][]any{{"(-5,-6)"}}),
@@ -37,7 +39,7 @@ func boxControlChecks(b fixture.Backend) []fixture.Step {
 
 func boxConsumeRetained(t *testing.T, rows *sql.Rows, want [][]any) {
 	t.Helper()
-	boxMetadata(t, false, rows, []string{"INT4", "BOX"}, []bool{false, true})
+	fixture.BoxMetadata(t, false, rows, []string{"INT4", "BOX"}, []bool{false, true})
 	got := make([][]any, 0)
 	for rows.Next() {
 		var id int64
@@ -105,7 +107,7 @@ func TestReferenceBoxControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer retained.Close()
-		boxMetadata(t, false, retained, []string{"INT4", "BOX"}, []bool{false, true})
+		fixture.BoxMetadata(t, false, retained, []string{"INT4", "BOX"}, []bool{false, true})
 		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 			t.Fatal(err)
 		}

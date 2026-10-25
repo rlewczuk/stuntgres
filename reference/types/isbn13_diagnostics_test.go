@@ -47,7 +47,7 @@ func TestReferenceIsbn13Diagnostics(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 				}
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, ean13Select(b, held.SQL, []string{"isbn13"}, []string{"ISBN13"}, [][]any{{"978-1-234-56789-7!"}}, nil, "1234567890!"))
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Ean13Select(b, held.SQL, []string{"isbn13"}, []string{"ISBN13"}, [][]any{{"978-1-234-56789-7!"}}, nil, "1234567890!"))
 			})
 		})
 	}
@@ -79,7 +79,7 @@ func TestReferenceIsbn13Atomicity(t *testing.T) {
 		run(fixture.Exec("INSERT INTO isbn13_atomic VALUES(1,'9780123456786')", 1))
 		q := "INSERT INTO isbn13_atomic VALUES(2,$1),(3,$2)"
 		held := ean13Held(t, p, c, q)
-		seed := ean13Select(b, "SELECT id,v FROM isbn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, [][]any{{int64(1), "978-0-12-345678-6"}}, []bool{false, false})
+		seed := fixture.Ean13Select(b, "SELECT id,v FROM isbn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, [][]any{{int64(1), "978-0-12-345678-6"}}, []bool{false, false})
 		for i, tc := range isbn13BadInputs() {
 			t.Run(fmt.Sprintf("later_%02d", i), func(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
@@ -127,7 +127,7 @@ func TestReferenceIsbn13Atomicity(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.ErrorDiagnostic(q, want, "9780123456786", nil))
 		run(seed)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 2, "9780123456786", "1234567890!"))
-		run(ean13Select(b, "SELECT id,v FROM isbn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, [][]any{{int64(1), "978-0-12-345678-6"}, {int64(2), "978-0-12-345678-6"}, {int64(3), "978-1-234-56789-7!"}}, []bool{false, false}))
+		run(fixture.Ean13Select(b, "SELECT id,v FROM isbn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, [][]any{{int64(1), "978-0-12-345678-6"}, {int64(2), "978-0-12-345678-6"}, {int64(3), "978-1-234-56789-7!"}}, []bool{false, false}))
 	})
 }
 

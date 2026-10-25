@@ -42,7 +42,7 @@ func TestReferenceCubeGrammar(t *testing.T) {
 				run(fixture.Exec("INSERT INTO cube_grammar VALUES (1,"+cubeLiteral(tc.input)+")", 1))
 				run(fixture.Exec("INSERT INTO cube_grammar VALUES (2,$1)", 1, tc.input))
 				run(fixture.Prepared(fixture.Exec("INSERT INTO cube_grammar VALUES (3,$1)", 1, tc.input)))
-				s := cubeSelect(b, "SELECT id,v FROM cube_grammar ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), tc.canonical}, {int64(2), tc.canonical}, {int64(3), tc.canonical}})
+				s := fixture.CubeSelect(b, "SELECT id,v FROM cube_grammar ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), tc.canonical}, {int64(2), tc.canonical}, {int64(3), tc.canonical}})
 				run(s)
 				run(fixture.Prepared(s))
 			})
@@ -52,7 +52,7 @@ func TestReferenceCubeGrammar(t *testing.T) {
 		cubeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 			cubeInstall(t, p, b, c)
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("SET extra_float_digits=0", 0))
-			s := cubeSelect(b, "SELECT $1::cube AS v", []string{"v"}, [][]any{{"(0.1, 1.23456789012346e+15, 4.94065645841247e-324, -0)"}}, "0.10000000000000002,1.234567890123456e15,5e-324,-0")
+			s := fixture.CubeSelect(b, "SELECT $1::cube AS v", []string{"v"}, [][]any{{"(0.1, 1.23456789012346e+15, 4.94065645841247e-324, -0)"}}, "0.10000000000000002,1.234567890123456e15,5e-324,-0")
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 		})

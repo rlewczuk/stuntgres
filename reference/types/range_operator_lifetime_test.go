@@ -38,7 +38,7 @@ func operatorControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, chec
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewBufferString(script)); err != nil {
 		t.Fatal(err)
 	}
-	rangeConsumeHeld(t, rows, check)
+	fixture.RangeConsumeHeld(t, rows, check)
 	want := operatorMissing(q, "text", "@>", "text")
 	bad := fixture.ErrorDiagnostic(q, want)
 	bad.SelectRows = true

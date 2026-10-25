@@ -66,7 +66,7 @@ func TestReferenceEan13Values(t *testing.T) {
 			t.Run(fmt.Sprintf("value_%02d", i), func(t *testing.T) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 				for _, prepared := range []bool{false, true} {
-					s := ean13Select(b, "SELECT "+ean13Literal(tc.input)+"::ean13 AS v", []string{"v"}, []string{"EAN13"}, [][]any{{tc.output}}, nil)
+					s := fixture.Ean13Select(b, "SELECT "+ean13Literal(tc.input)+"::ean13 AS v", []string{"v"}, []string{"EAN13"}, [][]any{{tc.output}}, nil)
 					if prepared {
 						s = fixture.Prepared(s)
 					}
@@ -78,7 +78,7 @@ func TestReferenceEan13Values(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, insert, b.Recorder, fixture.Exec(insert.SQL, 1, id+2, []byte(tc.input)))
 				run(fixture.Prepared(fixture.Exec("INSERT INTO ean_values VALUES($1,$2)", 1, id+3, tc.output)))
 				for n := id; n < id+4; n++ {
-					s := ean13Select(b, read.SQL, []string{"v"}, []string{"EAN13"}, [][]any{{tc.output}}, []bool{true}, n)
+					s := fixture.Ean13Select(b, read.SQL, []string{"v"}, []string{"EAN13"}, [][]any{{tc.output}}, []bool{true}, n)
 					run(s)
 					run(fixture.Prepared(s))
 					fixture.RunStep(t, p.Ctx, read, b.Recorder, s)
@@ -91,7 +91,7 @@ func TestReferenceEan13Values(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, insert, b.Recorder, fixture.Exec(insert.SQL, 1, int64(9001), nil))
 		run(fixture.Prepared(fixture.Exec("INSERT INTO ean_values VALUES($1,$2)", 1, int64(9002), nil)))
 		for _, id := range []int64{9000, 9001, 9002} {
-			s := ean13Select(b, read.SQL, []string{"v"}, []string{"EAN13"}, [][]any{{nil}}, []bool{true}, id)
+			s := fixture.Ean13Select(b, read.SQL, []string{"v"}, []string{"EAN13"}, [][]any{{nil}}, []bool{true}, id)
 			run(s)
 			run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, read, b.Recorder, s)

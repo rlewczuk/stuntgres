@@ -28,7 +28,7 @@ func TestReferenceQueryIntMetadata(t *testing.T) {
 			{"SELECT v,n FROM qi_metadata WHERE id=2", [][]any{{nil, "8"}}},
 		} {
 			for _, prepared := range []bool{false, true} {
-				s := queryIntSelect(b, tc.q, []string{"v", "n"}, tc.rows)
+				s := fixture.QueryIntSelect(b, tc.q, []string{"v", "n"}, tc.rows)
 				s.Prepared = prepared
 				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { queryIntMetadata(t, b.PG, rows, s.Columns, []bool{true, false}) }
 				run(s)
@@ -45,7 +45,7 @@ func TestReferenceQueryIntMetadata(t *testing.T) {
 			{"SELECT v AS alias FROM qi_metadata WHERE id=2", "alias", []bool{true}, [][]any{{nil}}},
 		} {
 			for _, prepared := range []bool{false, true} {
-				s := queryIntSelect(b, tc.q, []string{tc.name}, tc.rows)
+				s := fixture.QueryIntSelect(b, tc.q, []string{tc.name}, tc.rows)
 				s.Prepared = prepared
 				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { queryIntMetadata(t, b.PG, rows, s.Columns, tc.nullable) }
 				run(s)
@@ -62,7 +62,7 @@ func TestReferenceQueryIntMetadata(t *testing.T) {
 			id   int
 			rows [][]any
 		}{{1, [][]any{{"1 & ( 2 | 3 )", "!1"}}}, {2, [][]any{{nil, "8"}}}, {99, [][]any{}}} {
-			s := queryIntSelect(b, q, []string{"v", "n"}, tc.rows, tc.id)
+			s := fixture.QueryIntSelect(b, q, []string{"v", "n"}, tc.rows, tc.id)
 			var retained []*sql.ColumnType
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 				retained = queryIntMetadata(t, b.PG, rows, s.Columns, []bool{true, false})

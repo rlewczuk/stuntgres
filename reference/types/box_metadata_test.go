@@ -22,7 +22,7 @@ func TestReferenceBoxMetadata(t *testing.T) {
 			} {
 				s := boxSelect(b, tc.query, []string{"b", "p"}, []string{"BOX", "POINT"}, tc.rows)
 				s.Prepared = prepared
-				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { boxMetadata(t, b.PG, rows, s.Types, []bool{false, true}) }
+				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { fixture.BoxMetadata(t, b.PG, rows, s.Types, []bool{false, true}) }
 				run(s)
 			}
 			for _, tc := range []struct {

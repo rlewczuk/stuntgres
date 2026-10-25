@@ -79,7 +79,7 @@ func TestReferenceCitextMetadata(t *testing.T) {
 			{"SELECT 'MiXeD'::citext AS v", []string{"v"}, nil, [][]any{{"MiXeD"}}},
 		} {
 			for _, prepared := range []bool{false, true} {
-				s := citextSelect(b, tc.q, tc.names, tc.values)
+				s := fixture.CitextSelect(b, tc.q, tc.names, tc.values)
 				s.Prepared = prepared
 				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { citextMetadata(t, b.PG, rows, tc.names, tc.nulls) }
 				run(s)
@@ -89,7 +89,7 @@ func TestReferenceCitextMetadata(t *testing.T) {
 		citextCatalog(t, p, b, c)
 		run(fixture.Exec("CREATE TABLE citext_collation(id integer,v citext,c citext COLLATE \"C\",p citext COLLATE \"POSIX\")", 0))
 		run(fixture.Exec("INSERT INTO citext_collation VALUES (1,$1,$1,$1)", 1, "  Straße İ Σς é🙂  "))
-		run(citextSelect(b, "SELECT v,c,p FROM citext_collation ORDER BY id", []string{"v", "c", "p"}, [][]any{{"  Straße İ Σς é🙂  ", "  Straße İ Σς é🙂  ", "  Straße İ Σς é🙂  "}}))
+		run(fixture.CitextSelect(b, "SELECT v,c,p FROM citext_collation ORDER BY id", []string{"v", "c", "p"}, [][]any{{"  Straße İ Σς é🙂  ", "  Straße İ Σς é🙂  ", "  Straße İ Σς é🙂  "}}))
 		run(fixture.Select("SELECT a.attname,c.collname FROM pg_attribute a JOIN pg_collation c ON c.oid=a.attcollation WHERE a.attrelid='citext_collation'::regclass::oid AND a.attnum>1 ORDER BY a.attnum", []string{"attname", "collname"}, []string{"NAME", "NAME"}, [][]any{{"v", "default"}, {"c", "C"}, {"p", "POSIX"}}))
 	})
 }

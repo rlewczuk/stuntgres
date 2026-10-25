@@ -56,7 +56,7 @@ func rangeTypeAliasNumericAnchor(t *testing.T, positive bool) {
 		}
 		defer held.Close()
 		if b.PG {
-			rangeConsumeHeld(t, held, sourceCheck)
+			fixture.RangeConsumeHeld(t, held, sourceCheck)
 			return
 		}
 		var script bytes.Buffer
@@ -108,19 +108,19 @@ func rangeTypeAliasNumericAnchor(t *testing.T, positive bool) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rangeConsumeHeld(t, heldOld, old)
+			fixture.RangeConsumeHeld(t, heldOld, old)
 		} else if err != nil {
 			t.Fatal("representable numeric upper was rejected", err)
 		}
-		rangeConsumeHeld(t, oldRows, old)
+		fixture.RangeConsumeHeld(t, oldRows, old)
 		targetRun(fixture.Select("SELECT k FROM alias_atomic_occupied", []string{"k"}, []string{"INT4"}, [][]any{{int64(7)}}))
 		targetRun(collision)
-		rangeConsumeHeld(t, held, sourceCheck)
+		fixture.RangeConsumeHeld(t, held, sourceCheck)
 		heldAgain, err := prepared.QueryContext(p.Ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, heldAgain, sourceCheck)
+		fixture.RangeConsumeHeld(t, heldAgain, sourceCheck)
 		run(sourceCheck)
 		var sourceAfter bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &sourceAfter); err != nil {

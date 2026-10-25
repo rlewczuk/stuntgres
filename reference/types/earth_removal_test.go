@@ -24,7 +24,7 @@ func TestReferenceEarthPrerequisiteRemoval(t *testing.T) {
 			}
 			verify := func() {
 				run(fixture.Select("SELECT extname,extversion FROM pg_extension WHERE extname IN ('cube','earthdistance') ORDER BY extname", []string{"extname", "extversion"}, []string{"NAME", "TEXT"}, [][]any{{"cube", "1.5"}, {"earthdistance", "1.2"}}))
-				s := earthSelect(b, "SELECT id,v FROM earth_removal ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(6378168, 0)"}, {int64(2), nil}})
+				s := fixture.EarthSelect(b, "SELECT id,v FROM earth_removal ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(6378168, 0)"}, {int64(2), nil}})
 				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, s.Columns, []bool{false, true}) }
 				run(s)
 				run(fixture.Prepared(s))

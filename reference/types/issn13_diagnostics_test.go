@@ -47,7 +47,7 @@ func TestReferenceIssn13Diagnostics(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 				}
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, ean13Select(b, held.SQL, []string{"issn13"}, []string{"ISSN13"}, [][]any{{"977-1234-567-00-3!"}}, nil, "12345670!"))
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Ean13Select(b, held.SQL, []string{"issn13"}, []string{"ISSN13"}, [][]any{{"977-1234-567-00-3!"}}, nil, "12345670!"))
 			})
 		})
 	}
@@ -79,7 +79,7 @@ func TestReferenceIssn13Atomicity(t *testing.T) {
 		run(fixture.Exec("INSERT INTO issn13_atomic VALUES(1,'12345679')", 1))
 		q := "INSERT INTO issn13_atomic VALUES(2,$1),(3,$2)"
 		held := ean13Held(t, p, c, q)
-		seed := ean13Select(b, "SELECT id,v FROM issn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISSN13"}, [][]any{{int64(1), "977-1234-567-00-3"}}, []bool{false, false})
+		seed := fixture.Ean13Select(b, "SELECT id,v FROM issn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISSN13"}, [][]any{{int64(1), "977-1234-567-00-3"}}, []bool{false, false})
 		stamps := map[string][4]int64{}
 		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
 			stamps[typ] = isbnIdentityStamp(t, p, c, typ)
@@ -149,6 +149,6 @@ func TestReferenceIssn13Atomicity(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.ErrorDiagnostic(q, want, "12345679", []byte(nil)))
 		checkSeed()
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 2, "12345679", "12345670!"))
-		run(ean13Select(b, "SELECT id,v FROM issn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISSN13"}, [][]any{{int64(1), "977-1234-567-00-3"}, {int64(2), "977-1234-567-00-3"}, {int64(3), "977-1234-567-00-3!"}}, []bool{false, false}))
+		run(fixture.Ean13Select(b, "SELECT id,v FROM issn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISSN13"}, [][]any{{int64(1), "977-1234-567-00-3"}, {int64(2), "977-1234-567-00-3"}, {int64(3), "977-1234-567-00-3!"}}, []bool{false, false}))
 	})
 }

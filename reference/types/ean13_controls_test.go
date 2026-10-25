@@ -28,14 +28,14 @@ const ean13ControlInsert = "INSERT INTO ean_control VALUES(1,'9780123456786'),(2
 
 func ean13ControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, recorder *fixture.Recorder) {
 	t.Helper()
-	s := ean13Select(b, "SELECT id,v FROM ean_control ORDER BY id", []string{"id", "v"}, []string{"INT4", "EAN13"}, ean13ControlRows, []bool{false, true})
+	s := fixture.Ean13Select(b, "SELECT id,v FROM ean_control ORDER BY id", []string{"id", "v"}, []string{"INT4", "EAN13"}, ean13ControlRows, []bool{false, true})
 	fixture.RunStep(t, p.Ctx, db, recorder, s)
 	fixture.RunStep(t, p.Ctx, db, recorder, fixture.Prepared(s))
-	fixture.RunStep(t, p.Ctx, db, recorder, ean13Select(b, "SELECT id,v FROM ean_control WHERE id=99", []string{"id", "v"}, []string{"INT4", "EAN13"}, [][]any{}, []bool{false, true}))
-	required := ean13Select(b, "SELECT v FROM ean_required", []string{"v"}, []string{"EAN13"}, [][]any{{"123-456789012-8!"}}, []bool{false})
+	fixture.RunStep(t, p.Ctx, db, recorder, fixture.Ean13Select(b, "SELECT id,v FROM ean_control WHERE id=99", []string{"id", "v"}, []string{"INT4", "EAN13"}, [][]any{}, []bool{false, true}))
+	required := fixture.Ean13Select(b, "SELECT v FROM ean_required", []string{"v"}, []string{"EAN13"}, [][]any{{"123-456789012-8!"}}, []bool{false})
 	fixture.RunStep(t, p.Ctx, db, recorder, required)
 	fixture.RunStep(t, p.Ctx, db, recorder, fixture.Prepared(required))
-	fixture.RunStep(t, p.Ctx, db, recorder, ean13Select(b, "SELECT v FROM ean_required WHERE false", []string{"v"}, []string{"EAN13"}, [][]any{}, []bool{false}))
+	fixture.RunStep(t, p.Ctx, db, recorder, fixture.Ean13Select(b, "SELECT v FROM ean_required WHERE false", []string{"v"}, []string{"EAN13"}, [][]any{}, []bool{false}))
 }
 
 func ean13ConsumeRetained(t *testing.T, rows *sql.Rows) {
@@ -82,7 +82,7 @@ func TestReferenceEan13Controls(t *testing.T) {
 		restoreWant := ean13Diagnostic("22P02", ean13Failures[0].message)
 		restoreWant.Position = "31"
 		run(fixture.ErrorDiagnostic("INSERT INTO ean_staged VALUES('1234567890120')", restoreWant))
-		run(ean13Select(b, "SELECT v FROM ean_staged", []string{"v"}, []string{"EAN13"}, [][]any{{"978-0-12-345678-6"}}, []bool{true}))
+		run(fixture.Ean13Select(b, "SELECT v FROM ean_staged", []string{"v"}, []string{"EAN13"}, [][]any{{"978-0-12-345678-6"}}, []bool{true}))
 		run(fixture.Exec("DROP TABLE ean_staged", 0))
 		run(fixture.Exec(ean13ControlDDL, 0))
 		run(fixture.Exec(ean13ControlInsert, 6))
@@ -135,7 +135,7 @@ func TestReferenceEan13Controls(t *testing.T) {
 		ean13ControlVerify(t, p, b, c, b.Recorder)
 		ean13Identity(t, p, b, c, "public")
 		ean13ConsumeRetained(t, old)
-		ean13ColumnMetadata(t, false, metadata, []string{"id", "v"}, []string{"INT4", "EAN13"}, []bool{false, true})
+		fixture.Ean13ColumnMetadata(t, false, metadata, []string{"id", "v"}, []string{"INT4", "EAN13"}, []bool{false, true})
 		target := fixture.NewFixture(t, false, true)
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("CREATE TABLE ean_allocator_spacer(v integer)", 0))
 		var sourceOID, displacedOID int64
@@ -165,7 +165,7 @@ func TestReferenceEan13Controls(t *testing.T) {
 		fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(bad)), &want)
 		ean13ControlVerify(t, p, b, target.Memory, target.MemoryRecord)
 		ean13ConsumeRetained(t, retained)
-		ean13ColumnMetadata(t, false, retainedMetadata, []string{"id", "v"}, []string{"INT4", "EAN13"}, []bool{false, true})
+		fixture.Ean13ColumnMetadata(t, false, retainedMetadata, []string{"id", "v"}, []string{"INT4", "EAN13"}, []bool{false, true})
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT relname FROM pg_class WHERE relname='ean_staged'", []string{"relname"}, []string{"NAME"}, [][]any{}))
 		var redump bytes.Buffer
 		if err := stuntgres.Dump(target.Ctx, target.Native, &redump); err != nil {

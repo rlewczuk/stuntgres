@@ -26,7 +26,7 @@ func TestReferenceCubeTransformDiagnostics(t *testing.T) {
 				run := func(s fixture.Step) { fixture.RunStep(t,p.Ctx,c,b.Recorder,s) }
 				run(fixture.Exec("CREATE TABLE cube_transform_diag(id integer NOT NULL,v cube)",0))
 				run(fixture.Exec("INSERT INTO cube_transform_diag VALUES(1,'(7)'::cube),(2,'(8)'::cube)",2))
-				baseline := cubeSelect(b,"SELECT id,v FROM cube_transform_diag ORDER BY id",[]string{"id","v"},[][]any{{int64(1),"(7)"},{int64(2),"(8)"}})
+				baseline := fixture.CubeSelect(b,"SELECT id,v FROM cube_transform_diag ORDER BY id",[]string{"id","v"},[][]any{{int64(1),"(7)"},{int64(2),"(8)"}})
 				literal := "cube_subset("+cubeLiteral(tc.source)+"::cube,"+cubeLiteral(tc.indexes)+"::integer[])"
 				bound := "cube_subset($1::cube,$2::integer[])"
 				for _, prepared := range []bool{false,true} {

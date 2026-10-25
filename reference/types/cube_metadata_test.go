@@ -28,7 +28,7 @@ func TestReferenceCubeMetadata(t *testing.T) {
 			{"SELECT '1'::cube AS v", []string{"v"}, nil, [][]any{{"(1)"}}},
 		} {
 			for _, prepared := range []bool{false, true} {
-				s := cubeSelect(b, tc.q, tc.columns, tc.rows)
+				s := fixture.CubeSelect(b, tc.q, tc.columns, tc.rows)
 				s.Prepared = prepared
 				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, tc.columns, tc.nullable) }
 				run(s)
@@ -45,7 +45,7 @@ func TestReferenceCubeMetadata(t *testing.T) {
 			id   int
 			rows [][]any
 		}{{1, [][]any{{"(3, 1),(1, 4)", "()"}}}, {2, [][]any{{nil, "(-0)"}}}, {99, [][]any{}}} {
-			s := cubeSelect(b, q, []string{"v", "n"}, tc.rows, tc.id)
+			s := fixture.CubeSelect(b, q, []string{"v", "n"}, tc.rows, tc.id)
 			var retained []*sql.ColumnType
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 				retained = cubeMetadata(t, b.PG, rows, s.Columns, []bool{true, false})

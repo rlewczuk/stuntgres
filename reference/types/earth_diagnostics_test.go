@@ -26,7 +26,7 @@ func TestReferenceEarthDiagnostics(t *testing.T) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 				run(fixture.Exec("CREATE TABLE earth_diag(id integer NOT NULL,v earth)", 0))
 				run(fixture.Exec("INSERT INTO earth_diag VALUES (1,'6378168'),(2,'(6378168,0)')", 2))
-				baseline := earthSelect(b, "SELECT id,v FROM earth_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(6378168)"}, {int64(2), "(6378168, 0)"}})
+				baseline := fixture.EarthSelect(b, "SELECT id,v FROM earth_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(6378168)"}, {int64(2), "(6378168, 0)"}})
 				base := earthCheckDiagnostic("public", tc.constraint, true)
 				for _, prepared := range []bool{false, true} {
 					for _, route := range []struct {
@@ -98,7 +98,7 @@ func TestReferenceEarthDiagnostics(t *testing.T) {
 			want.Detail, want.Schema, want.Table, want.Column = "Failing row contains (2, null).", "public", "earth_required", "v"
 			for _, prepared := range []bool{false, true} {
 				cubeError(t, p, b, c, "INSERT INTO earth_required VALUES (1,'6378168'),(2,NULL)", prepared, false, false, want)
-				fixture.RunStep(t, p.Ctx, c, b.Recorder, earthSelect(b, "SELECT v FROM earth_required", []string{"v"}, [][]any{}))
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.EarthSelect(b, "SELECT v FROM earth_required", []string{"v"}, [][]any{}))
 			}
 		})
 	})

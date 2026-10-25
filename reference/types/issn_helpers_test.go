@@ -44,7 +44,7 @@ func issnSelect(b fixture.Backend, q string, names, types []string, expected [][
 			}
 		}
 	}
-	return ean13Select(b, q, names, types, rows, nullable, args...)
+	return fixture.Ean13Select(b, q, names, types, rows, nullable, args...)
 }
 
 func issnBadInputs() []struct{ input, code, message string } {

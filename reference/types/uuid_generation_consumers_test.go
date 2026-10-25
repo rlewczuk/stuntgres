@@ -208,7 +208,7 @@ func uuidGenerationControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c 
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, want)
 	ioFailure := errors.New("UUID generation restore reader failure")
-	if err := stuntgres.Restore(p.Ctx, p.Native, uuidReferenceFailingReader{ioFailure}); !errors.Is(err, ioFailure) {
+	if err := stuntgres.Restore(p.Ctx, p.Native, fixture.UUIDReferenceFailingReader{ioFailure}); !errors.Is(err, ioFailure) {
 		t.Fatalf("restore I/O error %v", err)
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, want)

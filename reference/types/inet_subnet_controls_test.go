@@ -119,7 +119,7 @@ func TestReferenceINETSubnetControls(t *testing.T) {
 			fixture.AssertRawValue(t, false, retained.Types[column], value)
 			return true
 		}
-		rangeConsumeHeld(t, old, retained)
+		fixture.RangeConsumeHeld(t, old, retained)
 		if p.Postgres != nil {
 			for _, q := range []string{"DROP SCHEMA public CASCADE;CREATE SCHEMA public", dump.String()} {
 				if _, err := p.Postgres.ExecContext(p.Ctx, q); err != nil {

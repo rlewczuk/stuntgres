@@ -24,7 +24,7 @@ func TestReferenceEarthFeatureSmoke(t *testing.T) {
 			input[i] = '9'
 		}
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, 3, nil))
-		s := earthSelect(b, "SELECT id,v FROM earth_smoke ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(6378168)"}, {int64(2), "(6378168, 0)"}, {int64(3), nil}})
+		s := fixture.EarthSelect(b, "SELECT id,v FROM earth_smoke ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(6378168)"}, {int64(2), "(6378168, 0)"}, {int64(3), nil}})
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, s.Columns, []bool{false, true}) }
 		run(s)
 		cubeError(t, p, b, c, "INSERT INTO earth_smoke VALUES (4,'6378168'),(5,'(6378168,0,0,0)')", false, false, false, earthCheckDiagnostic("public", "not_3d", true))

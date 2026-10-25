@@ -26,7 +26,7 @@ func TestReferenceCubeInstallation(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 			run(fixture.Exec("CREATE TABLE cube_install(id integer,v cube)", 0))
 			run(fixture.Exec("INSERT INTO cube_install VALUES (1,'(3,1),(1,4)')", 1))
-			run(cubeSelect(b, "SELECT id,v FROM cube_install ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(3, 1),(1, 4)"}}))
+			run(fixture.CubeSelect(b, "SELECT id,v FROM cube_install ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(3, 1),(1, 4)"}}))
 			run(fixture.Select("SELECT extname,extversion,extrelocatable FROM pg_extension WHERE extname='cube'", []string{"extname", "extversion", "extrelocatable"}, []string{"NAME", "TEXT", "BOOL"}, [][]any{{"cube", "1.5", true}}))
 			var oid, qualified, text int64
 			for _, tc := range []struct {
@@ -60,7 +60,7 @@ func TestReferenceCubeInstallation(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 			run(fixture.Exec("BEGIN", 0))
 			cubeInstall(t, p, b, c)
-			run(cubeSelect(b, "SELECT $1::cube AS v", []string{"v"}, [][]any{{"(1, 2)"}}, "1,2"))
+			run(fixture.CubeSelect(b, "SELECT $1::cube AS v", []string{"v"}, [][]any{{"(1, 2)"}}, "1,2"))
 			run(fixture.Exec("ROLLBACK", 0))
 			run(fixture.Select("SELECT extname FROM pg_extension WHERE extname='cube'", []string{"extname"}, []string{"NAME"}, [][]any{}))
 			want := fixture.ControlsReferenceDiagnostic("42704", `type "cube" does not exist`)
@@ -80,7 +80,7 @@ func TestReferenceCubeInstallation(t *testing.T) {
 			run(fixture.Exec("SET search_path=cube_install_namespace,public", 0))
 			run(fixture.Exec("CREATE TABLE public.cube_path(v cube)", 0))
 			run(fixture.Exec("INSERT INTO public.cube_qualified VALUES (1,'(3,1),(1,4)'),(2,NULL)", 2))
-			run(cubeSelect(b, "SELECT id,v FROM public.cube_qualified ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(3, 1),(1, 4)"}, {int64(2), nil}}))
+			run(fixture.CubeSelect(b, "SELECT id,v FROM public.cube_qualified ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(3, 1),(1, 4)"}, {int64(2), nil}}))
 			run(fixture.Select("SELECT t.typname,n.nspname,p.proname AS input,o.proname AS output FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_proc p ON p.oid=t.typinput JOIN pg_proc o ON o.oid=t.typoutput WHERE t.oid=('cube'::regtype)::oid", []string{"typname", "nspname", "input", "output"}, []string{"NAME", "NAME", "NAME", "NAME"}, [][]any{{"cube", "cube_install_namespace", "cube_in", "cube_out"}}))
 		})
 	})

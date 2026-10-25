@@ -81,7 +81,7 @@ func earthPointNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 		t.Fatal(err)
 	}
 	earthPointCurrentVerify(t, p, b, c, moved)
-	pointConsumeRetained(t, old, [][]any{{int64(1), "(0,60)"}, {int64(2), "(0,0)"}, {int64(3), nil}})
+	fixture.PointConsumeRetained(t, old, [][]any{{int64(1), "(0,60)"}, {int64(2), "(0,0)"}, {int64(3), nil}})
 	// A separate Driver plus a consumed allocator identity forces a real remap.
 	target := fixture.NewFixture(t, false, true)
 	if moved {

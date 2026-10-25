@@ -182,13 +182,13 @@ func TestReferenceCitextStringControls(t *testing.T) {
    defer conn.Close()
    sourceIDs:=map[string]int64{"citext":identities[0]}
    for i,d:=range citextStringDeclarations {sourceIDs[d.name]=identities[i+1]}
-   retained:=cubeComparisonForceCollisions(t,target,conn,sourceIDs)
+   retained:=fixture.CubeComparisonForceCollisions(t,target,conn,sourceIDs)
    if err:=stuntgres.Restore(target.Ctx,target.Native,bytes.NewReader(dump.Bytes()));err!=nil {t.Fatal(err)}
    dest:=fixture.Backend{DB:target.Memory,Recorder:target.MemoryRecord}
    citextStringStoredChecks(t,target,dest,target.Memory);citextStringCatalogChecks(t,target,dest,target.Memory)
    mapped:=citextStringIdentities(t,target,conn)
    for i,id:=range identities {if mapped[i]==id {t.Fatal("retained TEMP collision did not remap installed identity",i,id)}}
-   if got:=cubeComparisonTemporaryIDs(t,target,conn);!reflect.DeepEqual(got,retained) {t.Fatal("Restore changed retained TEMP identities",got,retained)}
+   if got:=fixture.CubeComparisonTemporaryIDs(t,target,conn);!reflect.DeepEqual(got,retained) {t.Fatal("Restore changed retained TEMP identities",got,retained)}
    fixture.RunStep(t,target.Ctx,conn,target.MemoryRecord,fixture.Select("SELECT v FROM pg_temp.cube_compare_retained_0",[]string{"v"},[]string{"INT4"},[][]any{{int64(73)}}))
    fixture.RunStep(t,target.Ctx,conn,target.MemoryRecord,fixture.Exec("CREATE ROLE cs_control_reader",0))
    citextStringControlACLChecks(t,target,dest,conn)

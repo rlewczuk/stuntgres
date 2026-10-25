@@ -31,7 +31,7 @@ func cubeConstructorCheckConsumers(t *testing.T, p *fixture.Pair, b fixture.Back
 	t.Helper()
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, db, recorder, s) }
 	run(fixture.Exec("SET extra_float_digits=3", 0))
-	s := cubeSelect(b, "SELECT id,v FROM "+table+" ORDER BY id", []string{"id", "v"}, expected)
+	s := fixture.CubeSelect(b, "SELECT id,v FROM "+table+" ORDER BY id", []string{"id", "v"}, expected)
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, s.Columns, []bool{false, true}) }
 	run(s)
 	run(fixture.Prepared(s))
@@ -41,7 +41,7 @@ func cubeConstructorCheckConsumers(t *testing.T, p *fixture.Pair, b fixture.Back
 	// Execute rebuilt DEFAULT and CHECK expressions, rather than merely reading
 	// values that happened to be constructed before the replacement.
 	run(fixture.Exec("INSERT INTO "+table+"(id) VALUES (90)", 1))
-	run(cubeSelect(b, "SELECT v FROM "+table+" WHERE id=90", []string{"v"}, [][]any{{"(7)"}}))
+	run(fixture.CubeSelect(b, "SELECT v FROM "+table+" WHERE id=90", []string{"v"}, [][]any{{"(7)"}}))
 	run(fixture.Exec("DELETE FROM "+table+" WHERE id=90", 1))
 	check := cubeConstructorDiagnostic("23514", `new row for relation "`+table[strings.LastIndex(table, ".")+1:]+`" violates check constraint "cube_construct_dim"`, "Failing row contains (91, (1, 2, 3, 4)).")
 	check.Schema, check.Table, check.Constraint = table[:strings.LastIndex(table, ".")], table[strings.LastIndex(table, ".")+1:], "cube_construct_dim"

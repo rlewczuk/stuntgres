@@ -49,7 +49,7 @@ func cubeTransformVerifyStored(t *testing.T,p *fixture.Pair,b fixture.Backend,db
 		{int64(2),nil,nil,nil,nil},
 	})
 	run(view); run(fixture.Prepared(view))
-	run(cubeSelect(b,"SELECT id,v FROM cube_transform_precision ORDER BY id",[]string{"id","v"},[][]any{{int64(1),"(0.10000000000000002)"},{int64(2),"(3, 4),(1, 2)"},{int64(3),nil},{int64(4),"(1)"},{int64(5),"()"},{int64(6),"(NaN),(NaN)"},{int64(7),"(-0)"}}))
+	run(fixture.CubeSelect(b,"SELECT id,v FROM cube_transform_precision ORDER BY id",[]string{"id","v"},[][]any{{int64(1),"(0.10000000000000002)"},{int64(2),"(3, 4),(1, 2)"},{int64(3),nil},{int64(4),"(1)"},{int64(5),"()"},{int64(6),"(NaN),(NaN)"},{int64(7),"(-0)"}}))
 	run(fixture.Select("SELECT id,cube_is_point(v) AS point FROM cube_transform_precision WHERE id>=4 ORDER BY id",[]string{"id","point"},[]string{"INT4","BOOL"},[][]any{{int64(4),true},{int64(5),true},{int64(6),false},{int64(7),true}}))
 	run(fixture.Exec("INSERT INTO cube_transform_defaults(id) VALUES(2)",1))
 	run(cubeTransformTable(b,"cube_transform_defaults",[][]any{cubeTransformExpected(1),cubeTransformExpected(2)}))

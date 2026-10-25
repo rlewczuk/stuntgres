@@ -47,7 +47,7 @@ func TestReferenceIsbnValues(t *testing.T) {
 					if expression[0] == '$' || expression == "CAST($1 AS isbn)" {
 						args = []any{tc.input}
 					}
-					s := ean13Select(b, "SELECT "+expression+" AS v", []string{"v"}, []string{"ISBN"}, [][]any{{tc.output}}, nil, args...)
+					s := fixture.Ean13Select(b, "SELECT "+expression+" AS v", []string{"v"}, []string{"ISBN"}, [][]any{{tc.output}}, nil, args...)
 					run(s)
 					run(fixture.Prepared(s))
 				}
@@ -72,11 +72,11 @@ func TestReferenceIsbnValues(t *testing.T) {
 						s.ErrorStage = "prepare"
 					}
 					run(s)
-					run(ean13Select(b, "SELECT v FROM isbn_values WHERE id=9", []string{"v"}, []string{"ISBN"}, [][]any{}, []bool{true}))
+					run(fixture.Ean13Select(b, "SELECT v FROM isbn_values WHERE id=9", []string{"v"}, []string{"ISBN"}, [][]any{}, []bool{true}))
 				}
 				run(fixture.Exec("INSERT INTO isbn_values SELECT 9,CAST(v::text AS isbn) FROM isbn_values WHERE id=1", 1))
 				for id := 1; id <= 9; id++ {
-					s := ean13Select(b, read.SQL, []string{"v"}, []string{"ISBN"}, [][]any{{tc.output}}, []bool{true}, id)
+					s := fixture.Ean13Select(b, read.SQL, []string{"v"}, []string{"ISBN"}, [][]any{{tc.output}}, []bool{true}, id)
 					s.CheckScan = func(t *testing.T, rows *sql.Rows, _ int) {
 						var v sql.NullString
 						if err := rows.Scan(&v); err != nil {
@@ -117,7 +117,7 @@ func TestReferenceIsbnValues(t *testing.T) {
 				}
 			}
 			read := ean13Held(t, p, c, "SELECT v FROM isbn_values ORDER BY id")
-			s := ean13Select(b, read.SQL, []string{"v"}, []string{"ISBN"}, [][]any{{nil}, {nil}, {nil}, {nil}, {nil}, {nil}, {nil}}, []bool{true})
+			s := fixture.Ean13Select(b, read.SQL, []string{"v"}, []string{"ISBN"}, [][]any{{nil}, {nil}, {nil}, {nil}, {nil}, {nil}, {nil}}, []bool{true})
 			s.CheckScan = func(t *testing.T, rows *sql.Rows, _ int) {
 				var v sql.NullString
 				if err := rows.Scan(&v); err != nil {
@@ -131,7 +131,7 @@ func TestReferenceIsbnValues(t *testing.T) {
 			run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, read, b.Recorder, s)
 			for _, value := range []any{nil, []byte(nil)} {
-				s := ean13Select(b, "SELECT $1::isbn AS v", []string{"v"}, []string{"ISBN"}, [][]any{{nil}}, nil, value)
+				s := fixture.Ean13Select(b, "SELECT $1::isbn AS v", []string{"v"}, []string{"ISBN"}, [][]any{{nil}}, nil, value)
 				run(s)
 				run(fixture.Prepared(s))
 			}

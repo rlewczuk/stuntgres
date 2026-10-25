@@ -68,7 +68,7 @@ func TestReferenceRangeTypeOwnership(t *testing.T) {
 			rangeTypeOwnershipPairControls(t, p, roles, check)
 		}
 		rangeTypeRemedyReplay(t, p, b, c, roles, check, fixture.Prepared(fixture.Exec("INSERT INTO range_owner_space.owner_sink VALUES($1::range_owner_space.owner_many)", 1, "{[20,21]}")), []string{"range_owner_space"})
-		rangeConsumeHeld(t, held, saved)
+		fixture.RangeConsumeHeld(t, held, saved)
 		restricted := fixture.ImplicitError("DROP OWNED BY range_owner_first RESTRICT", fixture.Diagnostic{Code: "2BP01", Message: "cannot drop type owner_span because other objects depend on it", Detail: "column m of table owner_saved depends on type owner_many\ncolumn m of table owner_sink depends on type owner_many\ncolumn r of table owner_saved depends on type owner_span", Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
 		restricted.ErrorStage = "execute"
 		rangeTypeRemedyRoutes(t, p, b, c, restricted)
@@ -143,7 +143,7 @@ func rangeTypeOwnershipPairControls(t *testing.T, p *fixture.Pair, roles []strin
 		}
 		run(sentinel)
 	}
-	rangeConsumeHeld(t, held, sentinel)
+	fixture.RangeConsumeHeld(t, held, sentinel)
 	if err := stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(actual)); err != nil {
 		t.Fatal("exact generated owner pair rejected", err)
 	}

@@ -134,12 +134,12 @@ func TestReferenceRangeTypeCapturedMemberOrdering(t *testing.T) {
 						if err != nil {
 							t.Fatal(err)
 						}
-						rangeConsumeHeld(t, again, selectValue("ctor_order_view", ""))
+						fixture.RangeConsumeHeld(t, again, selectValue("ctor_order_view", ""))
 						targetRun(fixture.Exec("INSERT INTO ctor_order_sink(k) VALUES(2)", 1))
 						check(dest, owner, "ctor_order_sink", " WHERE k=2")
 						targetRun(live)
-						rangeConsumeHeld(t, liveRows, live)
-						rangeConsumeHeld(t, held, selectValue("ctor_order_view", ""))
+						fixture.RangeConsumeHeld(t, liveRows, live)
+						fixture.RangeConsumeHeld(t, held, selectValue("ctor_order_view", ""))
 						var unchanged bytes.Buffer
 						if err := stuntgres.Dump(p.Ctx, p.Native, &unchanged); err != nil || !bytes.Equal(script.Bytes(), unchanged.Bytes()) {
 							t.Fatal("definition mapping changed source", err)
@@ -173,7 +173,7 @@ func TestReferenceRangeTypeCapturedMemberOrdering(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					rangeConsumeHeld(t, retained, selectValue("ctor_order_view", ""))
+					fixture.RangeConsumeHeld(t, retained, selectValue("ctor_order_view", ""))
 					// This shared default evaluation occurs only after the first native import,
 					// so its materialized members cannot accidentally certify that import.
 					run(fixture.Prepared(fixture.Exec("INSERT INTO ctor_order_sink(k) VALUES(1)", 1)))

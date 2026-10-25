@@ -61,6 +61,6 @@ func ismn13Cancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 				t.Fatalf("cancellation changed %s identity: %v, want %v", typ, got, stamp)
 			}
 		}
-		fixture.RunStep(t, p.Ctx, c, b.Recorder, ean13Select(b, "SELECT v FROM ismn13_values ORDER BY id", []string{"v"}, []string{"ISMN13"}, [][]any{{nil}, {nil}, {nil}, {nil}, {nil}, {nil}, {nil}}, []bool{true}))
+		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Ean13Select(b, "SELECT v FROM ismn13_values ORDER BY id", []string{"v"}, []string{"ISMN13"}, [][]any{{nil}, {nil}, {nil}, {nil}, {nil}, {nil}, {nil}}, []bool{true}))
 	}
 }

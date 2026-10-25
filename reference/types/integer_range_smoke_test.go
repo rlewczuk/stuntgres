@@ -58,7 +58,7 @@ func TestReferenceIntegerRangeFeatureSmoke(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, held, check)
+		fixture.RangeConsumeHeld(t, held, check)
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, check)
 		if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil || !bytes.Equal(dump.Bytes(), redump.Bytes()) {
 			t.Fatal("smoke redump changed", err)

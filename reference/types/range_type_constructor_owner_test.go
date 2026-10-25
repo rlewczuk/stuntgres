@@ -73,7 +73,7 @@ func TestReferenceRangeTypeConstructorOwnerPortability(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				rangeConsumeHeld(t, callRows, callable)
+				fixture.RangeConsumeHeld(t, callRows, callable)
 				run(fixture.Select("SELECT count(*) AS n FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('constructor_owner_span','_constructor_owner_span','constructor_owner_many','_constructor_owner_many') AND typowner=(SELECT typowner FROM pg_type WHERE oid='bool'::regtype)", []string{"n"}, []string{"INT8"}, [][]any{{int64(4)}}))
 				run(fixture.Select("SELECT count(*) AS n FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('constructor_owner_span','constructor_owner_many') AND proowner=(SELECT oid FROM pg_roles WHERE rolname='"+role+"')", []string{"n"}, []string{"INT8"}, [][]any{{int64(1)}}))
 				run(fixture.Select("SELECT count(*) AS n FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname IN ('constructor_owner_span','constructor_owner_many') AND proowner=(SELECT typowner FROM pg_type WHERE oid='bool'::regtype)", []string{"n"}, []string{"INT8"}, [][]any{{int64(4)}}))
@@ -99,12 +99,12 @@ func TestReferenceRangeTypeConstructorOwnerPortability(t *testing.T) {
 					owner(true)
 					run(saved)
 					rangeTypeRemedyRoutes(t, p, b, c, dependency)
-					rangeConsumeHeld(t, held, saved)
+					fixture.RangeConsumeHeld(t, held, saved)
 					again, err := statement.QueryContext(p.Ctx)
 					if err != nil {
 						t.Fatal(err)
 					}
-					rangeConsumeHeld(t, again, saved)
+					fixture.RangeConsumeHeld(t, again, saved)
 				}
 				run(fixture.Exec("ALTER FUNCTION "+tc.signature+" OWNER TO "+`"`+strings.ReplaceAll(originalOwner, `"`, `""`)+`"`, 0))
 				owner(false)

@@ -50,7 +50,7 @@ func TestReferenceCitextInstallation(t *testing.T) {
 			run(fixture.Exec("BEGIN", 0))
 			defer c.ExecContext(p.Ctx, "ROLLBACK")
 			citextInstall(t, p, b, c)
-			run(citextSelect(b, "SELECT 'Private'::citext AS v", []string{"v"}, [][]any{{"Private"}}))
+			run(fixture.CitextSelect(b, "SELECT 'Private'::citext AS v", []string{"v"}, [][]any{{"Private"}}))
 			peer, err := b.DB.Conn(p.Ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -62,7 +62,7 @@ func TestReferenceCitextInstallation(t *testing.T) {
 			run(fixture.Exec("BEGIN", 0))
 			citextInstall(t, p, b, c)
 			run(fixture.Exec("COMMIT", 0))
-			fixture.RunStep(t, p.Ctx, peer, b.Recorder, citextSelect(b, "SELECT 'Committed'::citext AS v", []string{"v"}, [][]any{{"Committed"}}))
+			fixture.RunStep(t, p.Ctx, peer, b.Recorder, fixture.CitextSelect(b, "SELECT 'Committed'::citext AS v", []string{"v"}, [][]any{{"Committed"}}))
 		})
 	})
 	t.Run("qualified", func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestReferenceCitextInstallation(t *testing.T) {
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0))
 			}
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO public.citext_qualified VALUES (1,'Qualified'),(2,NULL)", 2))
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, citextSelect(b, "SELECT id,v FROM public.citext_qualified ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Qualified"}, {int64(2), nil}}))
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.CitextSelect(b, "SELECT id,v FROM public.citext_qualified ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "Qualified"}, {int64(2), nil}}))
 		})
 	})
 	t.Run("type_conflict", func(t *testing.T) {

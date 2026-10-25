@@ -21,7 +21,7 @@ func pointControlRows(low bool) [][]any {
 func pointControlChecks(b fixture.Backend) []fixture.Step {
 	s := boxSelect(b, "SELECT id,p FROM point_controls ORDER BY id", []string{"id", "p"}, []string{"INT4", "POINT"}, pointControlRows(false))
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-		boxMetadata(t, b.PG, rows, []string{"INT4", "POINT"}, []bool{false, true})
+		fixture.BoxMetadata(t, b.PG, rows, []string{"INT4", "POINT"}, []bool{false, true})
 	}
 	return []fixture.Step{s, fixture.Select("SELECT x,same FROM point_control_view WHERE id=1", []string{"x", "same"}, []string{"FLOAT8", "BOOL"}, [][]any{{float64(-5), true}})}
 }
@@ -51,7 +51,7 @@ func TestReferencePointControls(t *testing.T) {
 		if b.PG {
 			return
 		} // Host logical controls have no PostgreSQL API equivalent.
-		pointConsumeRetained(t, before, [][]any{{int64(1), "(1,2)"}})
+		fixture.PointConsumeRetained(t, before, [][]any{{int64(1), "(1,2)"}})
 		run(fixture.Exec("SET extra_float_digits=0", 0))
 		run(fixture.Exec("BEGIN", 0))
 		run(fixture.Exec("INSERT INTO point_controls VALUES(99,'987654321,1')", 1))
@@ -80,7 +80,7 @@ func TestReferencePointControls(t *testing.T) {
 			run(s)
 			run(fixture.Prepared(s))
 		}
-		pointConsumeRetained(t, old, pointControlRows(true))
+		fixture.PointConsumeRetained(t, old, pointControlRows(true))
 		target := fixture.NewFixture(t, false, true)
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("CREATE TABLE point_control_sentinel(v integer)", 0))
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("INSERT INTO point_control_sentinel VALUES(42)", 1))
@@ -106,7 +106,7 @@ func TestReferencePointControls(t *testing.T) {
 		defer retained.Close()
 		fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(bad)), &d)
 		verify()
-		pointConsumeRetained(t, retained, pointControlRows(false))
+		fixture.PointConsumeRetained(t, retained, pointControlRows(false))
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Exec("SET extra_float_digits=0", 0))
 		var redump bytes.Buffer
 		if err := stuntgres.Dump(target.Ctx, target.Native, &redump); err != nil {

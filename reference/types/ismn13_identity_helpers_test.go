@@ -23,7 +23,7 @@ func ismn13MovedControl(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 	}
 	fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Select(held.SQL, []string{"v"}, []string{"TEXT"}, [][]any{{"979-0-1234-5678-5!"}}, []byte("M123456780!")))
 	verify := func(pair *fixture.Pair, backend fixture.Backend, conn *sql.Conn) {
-		s := ean13Select(backend, "SELECT v,e FROM ismn13_qualified", []string{"v", "e"}, []string{"ISMN13", "EAN13"}, [][]any{{"979-0-1234-5678-5!", "978-0-12-345678-6"}}, []bool{true, true})
+		s := fixture.Ean13Select(backend, "SELECT v,e FROM ismn13_qualified", []string{"v", "e"}, []string{"ISMN13", "EAN13"}, [][]any{{"979-0-1234-5678-5!", "978-0-12-345678-6"}}, []bool{true, true})
 		fixture.RunStep(t, pair.Ctx, conn, backend.Recorder, s)
 		fixture.RunStep(t, pair.Ctx, conn, backend.Recorder, fixture.Prepared(s))
 		fixture.RunStep(t, pair.Ctx, conn, backend.Recorder, fixture.Select("SELECT typinput='public.music_in(cstring)'::regprocedure::oid AS input_identity,typoutput='public.music_out(public.music)'::regprocedure::oid AS output_identity FROM pg_type WHERE oid='public.music'::regtype::oid", []string{"input_identity", "output_identity"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}))

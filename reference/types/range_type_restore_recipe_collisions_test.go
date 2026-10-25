@@ -75,7 +75,7 @@ func TestReferenceRangeTypeRestoreRecipeCollisions(t *testing.T) {
 		if err := stuntgres.Dump(p.Ctx, p.Native, &unchanged); err != nil || !bytes.Equal(original.Bytes(), unchanged.Bytes()) {
 			t.Fatal("nested recipe parameter changed prior dump", err)
 		}
-		rangeConsumeHeld(t, held, saved)
+		fixture.RangeConsumeHeld(t, held, saved)
 		// Existing stored/default SQL bodies keep their authority while the
 		// enclosing INSERT is replayed. The same-name ordinary overload is
 		// forbidden only as a newly supplemental written value above.

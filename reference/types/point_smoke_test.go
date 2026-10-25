@@ -64,6 +64,6 @@ func TestReferencePointFeatureSmoke(t *testing.T) {
 			t.Fatal(err)
 		}
 		check("(-5,2)")
-		pointConsumeRetained(t, old, [][]any{{int64(1), "(1,2)"}, {int64(2), "(1,2)"}})
+		fixture.PointConsumeRetained(t, old, [][]any{{int64(1), "(1,2)"}, {int64(2), "(1,2)"}})
 	})
 }

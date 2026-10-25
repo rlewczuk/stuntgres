@@ -66,7 +66,7 @@ func TestReferenceCitextTemporary(t *testing.T) {
 				t.Fatal(err)
 			}
 			run(fixture.Select("SELECT extname FROM pg_extension WHERE extname='citext'", []string{"extname"}, []string{"NAME"}, [][]any{{"citext"}}))
-			s := citextSelect(b, "SELECT 'TeMp'::"+citextIdentifier(name)+".citext AS v", []string{"v"}, [][]any{{"TeMp"}})
+			s := fixture.CitextSelect(b, "SELECT 'TeMp'::"+citextIdentifier(name)+".citext AS v", []string{"v"}, [][]any{{"TeMp"}})
 			run(s)
 			if !b.PG {
 				var output bytes.Buffer

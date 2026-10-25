@@ -32,10 +32,10 @@ func TestReferenceQueryIntAssignment(t *testing.T) {
 			run(fixture.Prepared(fixture.Exec("UPDATE qi_copy SET v=$1 WHERE id=2", 1, "!(!1|2)")))
 			run(fixture.Exec("UPDATE qi_copy SET v=v WHERE id=1", 1))
 			for _, prepared := range []bool{false, true} {
-				s := queryIntSelect(b, "SELECT id,v FROM qi_assign ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 )"}, {int64(3), "8"}, {int64(4), nil}, {int64(5), nil}})
+				s := fixture.QueryIntSelect(b, "SELECT id,v FROM qi_assign ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 )"}, {int64(3), "8"}, {int64(4), nil}, {int64(5), nil}})
 				s.Prepared = prepared
 				run(s)
-				s = queryIntSelect(b, "SELECT id,v FROM qi_copy ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 | 2 )"}, {int64(3), "8"}, {int64(4), nil}, {int64(5), nil}})
+				s = fixture.QueryIntSelect(b, "SELECT id,v FROM qi_copy ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 | 2 )"}, {int64(3), "8"}, {int64(4), nil}, {int64(5), nil}})
 				s.Prepared = prepared
 				run(s)
 			}
@@ -46,7 +46,7 @@ func TestReferenceQueryIntAssignment(t *testing.T) {
 			queryIntInstall(t, p, b, c)
 			for _, arg := range []any{nil, []byte(nil)} {
 				for _, prepared := range []bool{false, true} {
-					s := queryIntSelect(b, "SELECT $1::query_int AS v", []string{"v"}, [][]any{{nil}}, arg)
+					s := fixture.QueryIntSelect(b, "SELECT $1::query_int AS v", []string{"v"}, [][]any{{nil}}, arg)
 					s.Prepared = prepared
 					s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { queryIntMetadata(t, b.PG, rows, s.Columns, nil) }
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
@@ -68,7 +68,7 @@ func TestReferenceQueryIntAssignment(t *testing.T) {
 				}
 				queryIntError(t, p, b, c, "INSERT INTO qi_required VALUES (2,NULL)", prepared, false, false, want)
 			}
-			fixture.RunStep(t, p.Ctx, c, b.Recorder, queryIntSelect(b, "SELECT id,v FROM qi_required ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1"}}))
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.QueryIntSelect(b, "SELECT id,v FROM qi_required ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1"}}))
 		})
 	})
 	t.Run("to_character_assignment", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestReferenceQueryIntAssignment(t *testing.T) {
 				"SELECT ('1&(2|3)'::text)::query_int AS v",
 				"SELECT ('1&(2|3)'::varchar)::query_int AS v",
 			} {
-				s := queryIntSelect(b, q, []string{"v"}, [][]any{{"1 & ( 2 | 3 )"}})
+				s := fixture.QueryIntSelect(b, q, []string{"v"}, [][]any{{"1 & ( 2 | 3 )"}})
 				run(s)
 				run(fixture.Prepared(s))
 			}
@@ -148,11 +148,11 @@ func TestReferenceQueryIntAssignment(t *testing.T) {
 				run(fixture.Prepared(s))
 			}
 			for _, q := range []string{"SELECT NULL::query_int AS v", "SELECT NULL::text::query_int AS v"} {
-				s := queryIntSelect(b, q, []string{"v"}, [][]any{{nil}})
+				s := fixture.QueryIntSelect(b, q, []string{"v"}, [][]any{{nil}})
 				run(s)
 				run(fixture.Prepared(s))
 			}
-			s := queryIntSelect(b, "SELECT $1::text::query_int AS v", []string{"v"}, [][]any{{"1 & ( 2 | 3 )"}}, "1&(2|3)")
+			s := fixture.QueryIntSelect(b, "SELECT $1::text::query_int AS v", []string{"v"}, [][]any{{"1 & ( 2 | 3 )"}}, "1&(2|3)")
 			run(s)
 			run(fixture.Prepared(s))
 			for _, tc := range []struct{ q, message, position string }{
@@ -183,7 +183,7 @@ func TestReferenceQueryIntAssignment(t *testing.T) {
 					queryIntError(t, p, b, c, tc.q, prepared, false, true, want, tc.args...)
 				}
 			}
-			run(queryIntSelect(b, "SELECT id,v FROM qi_cast ORDER BY id", []string{"id", "v"}, [][]any{}))
+			run(fixture.QueryIntSelect(b, "SELECT id,v FROM qi_cast ORDER BY id", []string{"id", "v"}, [][]any{}))
 		})
 	})
 }

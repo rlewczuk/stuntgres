@@ -39,8 +39,8 @@ func cubeInheritedBindingChecks(t *testing.T, p *fixture.Pair, b fixture.Backend
 		rows = append(rows, []any{int64(3), nil}, []any{int64(4), "(2)"})
 	}
 	for _, s := range []fixture.Step{
-		cubeSelect(b, "SELECT id,d FROM ONLY "+cubeInheritedBindingSchema+".child ORDER BY id", []string{"id", "d"}, rows),
-		cubeSelect(b, "SELECT id,g FROM ONLY "+cubeInheritedBindingSchema+".child ORDER BY id", []string{"id", "g"}, rows),
+		fixture.CubeSelect(b, "SELECT id,d FROM ONLY "+cubeInheritedBindingSchema+".child ORDER BY id", []string{"id", "d"}, rows),
+		fixture.CubeSelect(b, "SELECT id,g FROM ONLY "+cubeInheritedBindingSchema+".child ORDER BY id", []string{"id", "g"}, rows),
 		fixture.Select("SELECT attname,attislocal,attinhcount,attgenerated AS generated_kind,atthasdef FROM pg_attribute WHERE attrelid='"+cubeInheritedBindingSchema+".child'::regclass::oid AND attnum>0 AND NOT attisdropped ORDER BY attnum", []string{"attname", "attislocal", "attinhcount", "generated_kind", "atthasdef"}, []string{"NAME", "BOOL", "INT2", "CHAR", "BOOL"}, [][]any{{"id", false, int64(1), "", false}, {"d", false, int64(1), "", true}, {"g", false, int64(1), "s", true}}),
 		fixture.Select("SELECT inhparent='"+cubeInheritedBindingSchema+".parent'::regclass::oid AS parent_identity,inhseqno FROM pg_inherits WHERE inhrelid='"+cubeInheritedBindingSchema+".child'::regclass::oid", []string{"parent_identity", "inhseqno"}, []string{"BOOL", "INT4"}, [][]any{{true, int64(1)}}),
 	} {

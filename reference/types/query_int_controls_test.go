@@ -13,8 +13,8 @@ import (
 
 func queryIntControlChecks(b fixture.Backend) []fixture.Step {
 	checks := []fixture.Step{
-		queryIntSelect(b, "SELECT id,v FROM qi_controls ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 )"}, {int64(3), "8"}, {int64(4), nil}}),
-		queryIntSelect(b, "SELECT v FROM qi_control_vacant", []string{"v"}, [][]any{}),
+		fixture.QueryIntSelect(b, "SELECT id,v FROM qi_controls ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 )"}, {int64(3), "8"}, {int64(4), nil}}),
+		fixture.QueryIntSelect(b, "SELECT v FROM qi_control_vacant", []string{"v"}, [][]any{}),
 	}
 	for i := range checks {
 		check := &checks[i]
@@ -70,7 +70,7 @@ func queryIntNativeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend
 		t.Fatal(err)
 	}
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("INSERT INTO qi_controls VALUES (99,'987654321')", 1))
-	fixture.RunStep(t, p.Ctx, c, b.Recorder, queryIntSelect(b, checks[0].Query, checks[0].Columns, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 )"}, {int64(3), "8"}, {int64(4), nil}, {int64(99), "987654321"}}))
+	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.QueryIntSelect(b, checks[0].Query, checks[0].Columns, [][]any{{int64(1), "1 & ( 2 | 3 )"}, {int64(2), "!( !1 )"}, {int64(3), "8"}, {int64(4), nil}, {int64(99), "987654321"}}))
 	var dump bytes.Buffer
 	err := stuntgres.Dump(p.Ctx, p.Native, &dump)
 	_, rollbackErr := c.ExecContext(p.Ctx, "ROLLBACK")

@@ -39,7 +39,7 @@ func ismnControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		{ismnControlQuery, ismnControlRows},
 		{"SELECT id,e,v FROM ismn_control WHERE id=99", [][]any{}},
 	} {
-		s := ean13Select(b, tc.query, []string{"id", "e", "v"}, []string{"INT4", "EAN13", "ISMN"}, tc.rows, []bool{false, true, true})
+		s := fixture.Ean13Select(b, tc.query, []string{"id", "e", "v"}, []string{"INT4", "EAN13", "ISMN"}, tc.rows, []bool{false, true, true})
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 		held := ean13Held(t, p, c, tc.query)
@@ -50,7 +50,7 @@ func ismnControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		if empty {
 			q, expected = "SELECT e,l,v FROM ismn_required WHERE false", [][]any{}
 		}
-		s := ean13Select(b, q, []string{"e", "l", "v"}, []string{"ISBN", "ISBN13", "ISMN"}, expected, []bool{false, false, false})
+		s := fixture.Ean13Select(b, q, []string{"e", "l", "v"}, []string{"ISBN", "ISBN13", "ISMN"}, expected, []bool{false, false, false})
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 		held := ean13Held(t, p, c, q)

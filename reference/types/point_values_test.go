@@ -53,7 +53,7 @@ func TestReferencePointValues(t *testing.T) {
 		}
 		defer rows.Close()
 		copy(buf, "9,9")
-		boxMetadata(t, b.PG, rows, []string{"POINT"}, nil)
+		fixture.BoxMetadata(t, b.PG, rows, []string{"POINT"}, nil)
 		if !rows.Next() {
 			t.Fatalf("bound row: %v", rows.Err())
 		}

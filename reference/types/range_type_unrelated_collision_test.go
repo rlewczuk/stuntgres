@@ -50,7 +50,7 @@ func TestReferenceRangeTypeUnrelatedCollisionFeasible(t *testing.T) {
 		}
 		defer held.Close()
 		if b.PG {
-			rangeConsumeHeld(t, held, saved)
+			fixture.RangeConsumeHeld(t, held, saved)
 			return
 		}
 		var script bytes.Buffer
@@ -93,13 +93,13 @@ func TestReferenceRangeTypeUnrelatedCollisionFeasible(t *testing.T) {
 		targetRun(saved)
 		targetRun(fixture.Select("SELECT 'range_feasible_0'::regnamespace::oid::bigint<>$1::bigint AS reminted_namespace,'range_feasible_0.lo'::regclass::oid::bigint=$2::bigint AS retained_endpoint", []string{"reminted_namespace", "retained_endpoint"}, []string{"BOOL", "BOOL"}, [][]any{{true, true}}, firstSchema, lo))
 		targetRun(live)
-		rangeConsumeHeld(t, liveRows, live)
+		fixture.RangeConsumeHeld(t, liveRows, live)
 		targetRun(retainedIDs)
 		preparedLive, err := liveStatement.QueryContext(target.Ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, preparedLive, live)
+		fixture.RangeConsumeHeld(t, preparedLive, live)
 		targetRun(fixture.Exec("INSERT INTO feasible_saved VALUES(2,"+span+","+multi+",ARRAY["+span+"])", 1))
 		var redump bytes.Buffer
 		if err := stuntgres.Dump(target.Ctx, target.Native, &redump); err != nil {
@@ -112,12 +112,12 @@ func TestReferenceRangeTypeUnrelatedCollisionFeasible(t *testing.T) {
 		targetRun(live)
 		targetRun(retainedIDs)
 		targetRun(fixture.Select("SELECT k,r::text AS r,m::text AS m,a[1]::text AS a FROM feasible_saved WHERE k=2", []string{"k", "r", "m", "a"}, []string{"INT4", "TEXT", "TEXT", "TEXT"}, [][]any{{int64(2), text, many, text}}))
-		rangeConsumeHeld(t, held, saved)
+		fixture.RangeConsumeHeld(t, held, saved)
 		again, err := statement.QueryContext(p.Ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, again, saved)
+		fixture.RangeConsumeHeld(t, again, saved)
 		var unchanged bytes.Buffer
 		if err := stuntgres.Dump(p.Ctx, p.Native, &unchanged); err != nil || !bytes.Equal(script.Bytes(), unchanged.Bytes()) {
 			t.Fatal("destination changed source", err)

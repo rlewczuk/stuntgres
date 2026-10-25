@@ -49,7 +49,7 @@ func TestReferenceIntegerRangeControls(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, held, check)
+		fixture.RangeConsumeHeld(t, held, check)
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, check)
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, vacant)
 		var redump bytes.Buffer
@@ -81,7 +81,7 @@ func TestReferenceIntegerRangeControls(t *testing.T) {
 				wantError := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Detail: tc.detail, Position: strconv.Itoa(position)}
 				err = stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(script))
 				fixture.AssertDiagnostic(t, err, &wantError)
-				rangeConsumeHeld(t, held, check)
+				fixture.RangeConsumeHeld(t, held, check)
 				fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, check)
 				fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, vacant)
 				redump.Reset()
@@ -117,7 +117,7 @@ func TestReferenceIntegerRangeControls(t *testing.T) {
 		if err := stuntgres.Restore(target.Ctx, target.Native, strings.NewReader("CREATE TABLE r(v text); INSERT INTO r VALUES ('replacement');")); err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, held, check)
+		fixture.RangeConsumeHeld(t, held, check)
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM r", []string{"v"}, []string{"TEXT"}, [][]any{{"replacement"}}))
 		if p.Postgres != nil {
 			if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {

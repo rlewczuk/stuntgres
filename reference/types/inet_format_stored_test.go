@@ -58,7 +58,7 @@ func TestReferenceINETFormatStored(t *testing.T) {
 			fixture.AssertRawValue(t, false, retained.Types[column], value)
 			return true
 		}
-		rangeConsumeHeld(t, old, retained)
+		fixture.RangeConsumeHeld(t, old, retained)
 		for _, s := range checks {
 			inetFormatBoth(t, p, b, s)
 		}

@@ -41,7 +41,7 @@ func TestReferenceGeometryTransformCorners(t *testing.T) {
 			run(geometryTransformSelect(b, "SELECT b AS v FROM geom_transform_corners", []string{"v"}, []string{"BOX"}, [][]any{{"(-5,-6),(1,2)"}}))
 		}
 		if !b.PG {
-			boxMetadata(t, false, retained, []string{"BOX"}, nil)
+			fixture.BoxMetadata(t, false, retained, []string{"BOX"}, nil)
 			if !retained.Next() {
 				t.Fatal("lost retained BOX row")
 			}

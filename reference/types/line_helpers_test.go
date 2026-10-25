@@ -25,7 +25,7 @@ func lineScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixture.Bac
 
 func lineMetadata(t *testing.T, pg bool, rows *sql.Rows, types []string, declared []bool) {
 	t.Helper()
-	boxMetadata(t, pg, rows, types, declared)
+	fixture.BoxMetadata(t, pg, rows, types, declared)
 	cols, err := rows.ColumnTypes()
 	if err != nil {
 		t.Fatal(err)

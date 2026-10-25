@@ -68,7 +68,7 @@ func TestReferenceTimestampRangeMetadata(t *testing.T) {
   for _, check := range checks {
    for _, prepared := range []bool{false,true} { s := check; s.Prepared = prepared; run(s) }
    rows,err := b.DB.QueryContext(p.Ctx,check.Query); if err != nil { t.Fatal(err) }
-   rangeConsumeHeld(t,rows,check)
+   fixture.RangeConsumeHeld(t,rows,check)
   }
  }
 }

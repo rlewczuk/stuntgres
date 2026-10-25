@@ -53,7 +53,7 @@ func rangeTypeConstructorReplay(t *testing.T, p *fixture.Pair, b fixture.Backend
 	defer retained.Close()
 	want := fixture.ControlsReferenceDiagnostic("42804", `operator class "text_ops" does not accept data type integer`)
 	fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(append(append([]byte(nil), script.Bytes()...), []byte(`CREATE TYPE constructor_late_invalid AS RANGE(SUBTYPE=int4,SUBTYPE_OPCLASS=text_ops);`)...))), &want)
-	rangeConsumeHeld(t, retained, after)
+	fixture.RangeConsumeHeld(t, retained, after)
 	fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, after)
 	var unchanged bytes.Buffer
 	if err := stuntgres.Dump(target.Ctx, target.Native, &unchanged); err != nil || !bytes.Equal(before.Bytes(), unchanged.Bytes()) {
@@ -66,7 +66,7 @@ func rangeTypeConstructorReplay(t *testing.T, p *fixture.Pair, b fixture.Backend
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(script.Bytes())); err != nil {
 		t.Fatal("same-engine constructor Restore", err)
 	}
-	rangeConsumeHeld(t, held, saved)
+	fixture.RangeConsumeHeld(t, held, saved)
 	check(b, conn)
 	if p.Postgres != nil {
 		clear := `DROP SCHEMA IF EXISTS range_ctor_alias CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`
@@ -140,5 +140,5 @@ func rangeTypeConstructorAdmission(t *testing.T, p *fixture.Pair, b fixture.Back
 			}
 		})
 	}
-	rangeConsumeHeld(t, held, sentinel)
+	fixture.RangeConsumeHeld(t, held, sentinel)
 }

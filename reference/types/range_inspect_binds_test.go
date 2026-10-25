@@ -71,7 +71,7 @@ func TestReferenceRangeInspectBinds(t *testing.T) {
 				for i := range owned {
 					owned[i] = 'x'
 				}
-				rangeConsumeHeld(t, rows, s)
+				fixture.RangeConsumeHeld(t, rows, s)
 				fixture.RunStep(t, p.Ctx, queryHeld, b.Recorder, s)
 				failure := errors.New("inspection Valuer boundary")
 				for _, execute := range []func() (sql.Result, error){

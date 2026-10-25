@@ -22,7 +22,7 @@ func TestReferencePointMetadata(t *testing.T) {
 			}
 			s := boxSelect(b, q, []string{"p", "n"}, []string{"POINT", "POINT"}, want)
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-				boxMetadata(t, b.PG, rows, []string{"POINT", "POINT"}, []bool{false, true})
+				fixture.BoxMetadata(t, b.PG, rows, []string{"POINT", "POINT"}, []bool{false, true})
 			}
 			run(s)
 			run(fixture.Prepared(s))

@@ -33,12 +33,12 @@ func TestReferenceEarthAssignment(t *testing.T) {
 		run(fixture.Exec("UPDATE earth_copy SET v=v WHERE id=1", 1))
 		run(fixture.Prepared(fixture.Exec("UPDATE earth_copy SET v=$1::cube WHERE id=3", 1, "6378174")))
 		for _, prepared := range []bool{false, true} {
-			s := earthSelect(b, "SELECT id,v FROM earth_assign ORDER BY id", []string{"id", "v"}, want)
+			s := fixture.EarthSelect(b, "SELECT id,v FROM earth_assign ORDER BY id", []string{"id", "v"}, want)
 			s.Prepared = prepared
 			run(s)
 			copyWant := append([][]any(nil), want...)
 			copyWant[2] = []any{int64(3), "(6378174)"}
-			s = earthSelect(b, "SELECT id,v FROM earth_copy ORDER BY id", []string{"id", "v"}, copyWant)
+			s = fixture.EarthSelect(b, "SELECT id,v FROM earth_copy ORDER BY id", []string{"id", "v"}, copyWant)
 			s.Prepared = prepared
 			run(s)
 			for _, arg := range []any{nil, []byte(nil), "6378168", []byte("6378168")} {
@@ -48,7 +48,7 @@ func TestReferenceEarthAssignment(t *testing.T) {
 				} else if bytes, ok := arg.([]byte); ok && bytes == nil {
 					value = nil
 				}
-				s = earthSelect(b, "SELECT $1::earth AS v", []string{"v"}, [][]any{{value}}, arg)
+				s = fixture.EarthSelect(b, "SELECT $1::earth AS v", []string{"v"}, [][]any{{value}}, arg)
 				s.Prepared = prepared
 				run(s)
 			}
@@ -63,7 +63,7 @@ func TestReferenceEarthAssignment(t *testing.T) {
 				s = fixture.Select("SELECT '(6378168)'::earth::"+typ+" AS v", []string{"v"}, []string{name}, [][]any{{"(6378168)"}})
 				s.Prepared = prepared
 				run(s)
-				s = earthSelect(b, "SELECT '(6378168)'::"+typ+"::earth AS v", []string{"v"}, [][]any{{"(6378168)"}})
+				s = fixture.EarthSelect(b, "SELECT '(6378168)'::"+typ+"::earth AS v", []string{"v"}, [][]any{{"(6378168)"}})
 				s.Prepared = prepared
 				run(s)
 				prefix := "INSERT INTO earth_assign VALUES (8,"
@@ -75,7 +75,7 @@ func TestReferenceEarthAssignment(t *testing.T) {
 				d.Position, d.Hint = strconv.Itoa(len(prefix)+1), "You will need to rewrite or cast the expression."
 				cubeError(t, p, b, c, prefix+"'6378168'::"+typ+")", prepared, false, true, d)
 			}
-			s = earthSelect(b, "SELECT '(6378168,0)'::cube::earth::cube AS v", []string{"v"}, [][]any{{"(6378168, 0)"}})
+			s = fixture.EarthSelect(b, "SELECT '(6378168,0)'::cube::earth::cube AS v", []string{"v"}, [][]any{{"(6378168, 0)"}})
 			s.Prepared = prepared
 			run(s)
 		}
@@ -89,7 +89,7 @@ func TestReferenceEarthAssignment(t *testing.T) {
 			} else if _, ok := arg.([]byte); ok {
 				value = "(6378168, 0)"
 			}
-			fixture.RunStep(t, p.Ctx, selectHeld, b.Recorder, earthSelect(b, selectQ, []string{"v"}, [][]any{{value}}, arg))
+			fixture.RunStep(t, p.Ctx, selectHeld, b.Recorder, fixture.EarthSelect(b, selectQ, []string{"v"}, [][]any{{value}}, arg))
 		}
 		run(fixture.Exec("CREATE TABLE earth_character(txt text,vc varchar)", 0))
 		run(fixture.Exec("INSERT INTO earth_character SELECT v,v FROM earth_assign WHERE id=1", 1))

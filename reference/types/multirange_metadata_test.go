@@ -44,7 +44,7 @@ func TestReferenceMultirangeMetadata(t *testing.T) {
 		}
 		defer rows.Close()
 		check.CheckMetadata(t, rows)
-		rangeConsumeHeld(t, rows, check)
+		fixture.RangeConsumeHeld(t, rows, check)
 		stmt, err := backend.DB.PrepareContext(p.Ctx, check.Query)
 		if err != nil {
 			t.Fatal(err)
@@ -56,7 +56,7 @@ func TestReferenceMultirangeMetadata(t *testing.T) {
 		}
 		defer rows.Close()
 		check.CheckMetadata(t, rows)
-		rangeConsumeHeld(t, rows, check)
+		fixture.RangeConsumeHeld(t, rows, check)
 		for _, prepared := range []bool{false, true} {
 			check.Prepared = prepared
 			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, check)

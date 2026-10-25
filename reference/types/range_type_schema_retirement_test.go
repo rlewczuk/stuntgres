@@ -57,7 +57,7 @@ func TestReferenceRangeTypeSchemaRetirement(t *testing.T) {
 					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(script.Bytes())); err != nil {
 						t.Fatal(err)
 					}
-					rangeConsumeHeld(t, held, saved)
+					fixture.RangeConsumeHeld(t, held, saved)
 					run(saved)
 				}
 				type address struct {

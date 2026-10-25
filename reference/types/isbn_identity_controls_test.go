@@ -79,7 +79,7 @@ func TestReferenceIsbnIdentityControls(t *testing.T) {
 						t.Fatalf("%s ALTER changed identity: %v, want %v", typ, got, stamps[typ])
 					}
 				}
-				ean13ColumnMetadata(t, b.PG, metadata, []string{"id", "e", "v"}, []string{"INT4", "EAN13", "ISBN"}, []bool{false, true, true})
+				fixture.Ean13ColumnMetadata(t, b.PG, metadata, []string{"id", "e", "v"}, []string{"INT4", "EAN13", "ISBN"}, []bool{false, true, true})
 				read := isbnControlSelect(b, query, expected)
 				fixture.RunStep(t, p.Ctx, selectHeld, b.Recorder, read)
 				fixture.RunStep(t, p.Ctx, literalHeld, b.Recorder, fixture.Select(literalQuery, []string{"e", "v"}, []string{"TEXT", "TEXT"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X!"}}))
@@ -91,10 +91,10 @@ func TestReferenceIsbnIdentityControls(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, boundHeld, b.Recorder, fixture.Select(boundQuery, []string{"e", "v"}, []string{"TEXT", "TEXT"}, want, values...))
 				}
 				fixture.RunStep(t, p.Ctx, insertHeld, b.Recorder, fixture.Exec(insertHeld.SQL, 1, 3, []byte("9791234567896"), []byte("9780123456780!")))
-				run(ean13Select(b, "SELECT e,v FROM public.isbn_identity WHERE id=3", []string{"e", "v"}, []string{"EAN13", "ISBN"}, [][]any{{"979-123456789-6", "0-12-345678-9!"}}, []bool{true, true}))
+				run(fixture.Ean13Select(b, "SELECT e,v FROM public.isbn_identity WHERE id=3", []string{"e", "v"}, []string{"EAN13", "ISBN"}, [][]any{{"979-123456789-6", "0-12-345678-9!"}}, []bool{true, true}))
 				run(fixture.Exec("DELETE FROM public.isbn_identity WHERE id=3", 1))
 				run(fixture.Exec("INSERT INTO public.isbn_identity SELECT 4,e,v FROM public.isbn_identity WHERE id=1", 1))
-				run(ean13Select(b, "SELECT e,v FROM public.isbn_identity WHERE id=4", []string{"e", "v"}, []string{"EAN13", "ISBN"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X!"}}, []bool{true, true}))
+				run(fixture.Ean13Select(b, "SELECT e,v FROM public.isbn_identity WHERE id=4", []string{"e", "v"}, []string{"EAN13", "ISBN"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X!"}}, []bool{true, true}))
 				run(fixture.Exec("DELETE FROM public.isbn_identity WHERE id=4", 1))
 				isbnIdentityPrivileges(t, p, b, c, vName)
 				isbnIdentityVerify(t, p, b, c, eName, vName)

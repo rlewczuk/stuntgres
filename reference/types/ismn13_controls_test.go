@@ -95,7 +95,7 @@ func TestReferenceIsmn13FeatureSmoke(t *testing.T) {
 		}
 		expected := [][]any{{int64(1), "979-0-1234-5678-5"}, {int64(2), "979-0-1234-5678-5!"}, {int64(3), nil}}
 		verify := func(pair *fixture.Pair, backend fixture.Backend, conn *sql.Conn) {
-			s := ean13Select(backend, "SELECT id,v FROM ismn13_smoke ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN13"}, expected, []bool{false, true})
+			s := fixture.Ean13Select(backend, "SELECT id,v FROM ismn13_smoke ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN13"}, expected, []bool{false, true})
 			fixture.RunStep(t, pair.Ctx, conn, backend.Recorder, s)
 			fixture.RunStep(t, pair.Ctx, conn, backend.Recorder, fixture.Prepared(s))
 			held := ean13Held(t, pair, conn, s.Query)
@@ -118,7 +118,7 @@ func TestReferenceIsmn13FeatureSmoke(t *testing.T) {
 			}
 		}
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(held.SQL, 2, "M123456785", "M123456780!"))
-		run(ean13Select(b, "SELECT id,v FROM ismn13_smoke WHERE id>3 ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN13"}, [][]any{{int64(4), "979-0-1234-5678-5"}, {int64(5), "979-0-1234-5678-5!"}}, []bool{false, true}))
+		run(fixture.Ean13Select(b, "SELECT id,v FROM ismn13_smoke WHERE id>3 ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN13"}, [][]any{{int64(4), "979-0-1234-5678-5"}, {int64(5), "979-0-1234-5678-5!"}}, []bool{false, true}))
 		run(fixture.Exec("DELETE FROM ismn13_smoke WHERE id>3", 2))
 		run(fixture.Exec("DROP TABLE ismn13_smoke", 0))
 		run(fixture.Exec("DROP EXTENSION isn", 0))

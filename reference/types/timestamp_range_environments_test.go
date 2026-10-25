@@ -41,7 +41,7 @@ func TestReferenceTimestampRangeEnvironments(t *testing.T) {
     // witness. Native permits its captured cursor on this same session; pq
     // cannot issue another command while its cursor is outstanding.
     if !b.PG { run(fixture.Exec("SET DateStyle = 'ISO, MDY'",0)) }
-    rangeConsumeHeld(t,rows,check)
+    fixture.RangeConsumeHeld(t,rows,check)
    })
   }
  }

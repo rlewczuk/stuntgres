@@ -37,15 +37,15 @@ func TestReferenceTypeLifecycleInstalledIdentity(t *testing.T) {
 					var raw fixture.Step
 					switch tc.typ {
 					case "cube":
-						raw = cubeSelect(b, rawQ, []string{"id", "v"}, wantRows)
+						raw = fixture.CubeSelect(b, rawQ, []string{"id", "v"}, wantRows)
 					case "query_int":
-						raw = queryIntSelect(b, rawQ, []string{"id", "v"}, wantRows)
+						raw = fixture.QueryIntSelect(b, rawQ, []string{"id", "v"}, wantRows)
 					case "citext":
-						raw = citextSelect(b, rawQ, []string{"id", "v"}, wantRows)
+						raw = fixture.CitextSelect(b, rawQ, []string{"id", "v"}, wantRows)
 					case "earth":
-						raw = earthSelect(b, rawQ, []string{"id", "v"}, wantRows)
+						raw = fixture.EarthSelect(b, rawQ, []string{"id", "v"}, wantRows)
 					case "ean13":
-						raw = ean13Select(b, rawQ, []string{"id", "v"}, []string{"INT4", "EAN13"}, wantRows, []bool{true, true})
+						raw = fixture.Ean13Select(b, rawQ, []string{"id", "v"}, []string{"INT4", "EAN13"}, wantRows, []bool{true, true})
 					}
 					run(raw)
 					run(fixture.Prepared(raw))
@@ -177,7 +177,7 @@ func typeLifecycleEanSelect(b fixture.Backend, empty bool) fixture.Step {
 	if empty {
 		q, rows = "SELECT id,v,required FROM public.tl_ean WHERE id=99", [][]any{}
 	}
-	return ean13Select(b, q, []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, rows, []bool{false, true, false})
+	return fixture.Ean13Select(b, q, []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, rows, []bool{false, true, false})
 }
 
 func TestReferenceTypeLifecycleEan13IdentityConsumers(t *testing.T) {
@@ -223,7 +223,7 @@ func TestReferenceTypeLifecycleEan13IdentityConsumers(t *testing.T) {
 			run(literalCast)
 			run(fixture.Prepared(literalCast))
 			fixture.RunStep(t, p.Ctx, literalInsertHeld, r, fixture.Exec(literalInsertQ, 1))
-			run(ean13Select(b, "SELECT id,v,required FROM public.tl_ean WHERE id=4", []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, [][]any{{int64(4), "012-345678901-2", "123-456789012-8!"}}, []bool{false, true, false}))
+			run(fixture.Ean13Select(b, "SELECT id,v,required FROM public.tl_ean WHERE id=4", []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, [][]any{{int64(4), "012-345678901-2", "123-456789012-8!"}}, []bool{false, true, false}))
 			run(fixture.Exec("DELETE FROM public.tl_ean WHERE id=4", 1))
 			for _, empty := range []bool{false, true} {
 				s := typeLifecycleEanSelect(b, empty)
@@ -241,7 +241,7 @@ func TestReferenceTypeLifecycleEan13IdentityConsumers(t *testing.T) {
 				run(s)
 				run(fixture.Prepared(s))
 			}
-			ean13ColumnMetadata(t, b.PG, metadata, []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, []bool{false, true, false})
+			fixture.Ean13ColumnMetadata(t, b.PG, metadata, []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, []bool{false, true, false})
 			domainIdentitySameOID(t, p, c, "SELECT '"+name+"'::regtype::oid", oid)
 			domainIdentitySameOID(t, p, c, "SELECT typarray FROM pg_type WHERE oid='"+name+"'::regtype::oid", array)
 			domainIdentitySameOID(t, p, c, "SELECT typinput::oid FROM pg_type WHERE oid='"+name+"'::regtype::oid", input)
@@ -257,7 +257,7 @@ func TestReferenceTypeLifecycleEan13IdentityConsumers(t *testing.T) {
 		domainIdentityDDL(t, p, c, r, "ALTER TYPE tl_dst.moved OWNER TO tl_ean_owner")
 		checkConsumers("tl_dst.moved")
 		fixture.RunStep(t, p.Ctx, insertHeld, r, fixture.Exec(insertQ, 1, 3, []byte("9790123456785"), "1234567890120!"))
-		run(ean13Select(b, "SELECT id,v,required FROM public.tl_ean WHERE id=3", []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, [][]any{{int64(3), "979-0-1234-5678-5", "123-456789012-8!"}}, []bool{false, true, false}))
+		run(fixture.Ean13Select(b, "SELECT id,v,required FROM public.tl_ean WHERE id=3", []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, [][]any{{int64(3), "979-0-1234-5678-5", "123-456789012-8!"}}, []bool{false, true, false}))
 		run(fixture.Exec("DELETE FROM public.tl_ean WHERE id=3", 1))
 		owner := "postgres"
 		if b.PG {
@@ -347,7 +347,7 @@ func typeLifecycleEanControls(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 	if !reflect.DeepEqual(got, typeLifecycleEanRows) {
 		t.Fatalf("retained rows = %#v, want %#v", got, typeLifecycleEanRows)
 	}
-	ean13ColumnMetadata(t, false, metadata, []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, []bool{false, true, false})
+	fixture.Ean13ColumnMetadata(t, false, metadata, []string{"id", "v", "required"}, []string{"INT4", "EAN13", "EAN13"}, []bool{false, true, false})
 	var redump bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
 		t.Fatal(err)

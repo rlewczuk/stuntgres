@@ -215,7 +215,7 @@ func TestReferenceEnumRestoreAtomicity(t *testing.T) {
 			t.Fatal(err)
 		}
 		failure := errors.New("enum restore source failure")
-		if err := stuntgres.Restore(p.Ctx, p.Native, uuidReferenceFailingReader{failure}); !errors.Is(err, failure) {
+		if err := stuntgres.Restore(p.Ctx, p.Native, fixture.UUIDReferenceFailingReader{failure}); !errors.Is(err, failure) {
 			t.Fatal(err)
 		}
 		duringRead, cancelRead := context.WithCancel(p.Ctx)

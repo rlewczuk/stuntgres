@@ -44,7 +44,7 @@ func TestReferenceEarthMetadata(t *testing.T) {
 			{"SELECT id,v AS alias,n FROM earth_metadata WHERE id=2", [][]any{{int64(2), nil, "(6378168, 0, 0)"}}},
 			{"SELECT id,v AS alias,n FROM earth_metadata WHERE false", [][]any{}},
 		} {
-			s := earthSelect(b, tc.q, []string{"id", "alias", "n"}, tc.rows)
+			s := fixture.EarthSelect(b, tc.q, []string{"id", "alias", "n"}, tc.rows)
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, s.Columns, []bool{false, true, false}) }
 			run(s)
 			run(fixture.Prepared(s))

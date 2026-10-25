@@ -32,43 +32,6 @@ func cubeInstall(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) 
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE EXTENSION cube", 0))
 }
 
-// Expectations were independently specified and confirmed against the pinned
-// PostgreSQL 18.6 oracle; native failures must not redefine them.
-func cubeSelect(b fixture.Backend, q string, columns []string, values [][]any, args ...any) fixture.Step {
-	types := make([]string, len(columns))
-	for i, name := range columns {
-		if name == "id" {
-			types[i] = "INT4"
-		} else if !b.PG {
-			types[i] = "CUBE"
-		}
-	}
-	s := fixture.Select(q, columns, types, values, args...)
-	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
-		if columns[column] == "id" {
-			return false
-		}
-		if value == nil {
-			if values[row][column] != nil {
-				t.Fatalf("cube cell %d/%d unexpectedly NULL", row, column)
-			}
-			return true
-		}
-		if values[row][column] == nil {
-			t.Fatalf("cube cell %d/%d = %T, want NULL", row, column, value)
-		}
-		if b.PG {
-			if _, ok := value.([]byte); !ok {
-				t.Fatalf("cube PG raw cell %d/%d = %T, want []byte", row, column, value)
-			}
-		} else if _, ok := value.(string); !ok {
-			t.Fatalf("cube native raw cell %d/%d = %T, want string", row, column, value)
-		}
-		return true
-	}
-	return s
-}
-
 func cubeError(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, q string, prepared, selectRows, prepareFailure bool, want fixture.Diagnostic, args ...any) {
 	t.Helper()
 	s := fixture.ErrorDiagnostic(q, want, args...)

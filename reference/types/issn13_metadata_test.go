@@ -34,7 +34,7 @@ func TestReferenceIssn13InstallAndIdentity(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION isn SCHEMA issn13_identity_ns", 0))
 		run(fixture.Exec("CREATE TABLE issn13_qualified(v issn13_identity_ns.issn13,e issn13_identity_ns.ean13)", 0))
 		run(fixture.Exec("INSERT INTO issn13_qualified VALUES('12345670!','9780123456786')", 1))
-		run(ean13Select(b, "SELECT v,e FROM issn13_qualified", []string{"v", "e"}, []string{"ISSN13", "EAN13"}, [][]any{{"977-1234-567-00-3!", "978-0-12-345678-6"}}, []bool{true, true}))
+		run(fixture.Ean13Select(b, "SELECT v,e FROM issn13_qualified", []string{"v", "e"}, []string{"ISSN13", "EAN13"}, [][]any{{"977-1234-567-00-3!", "978-0-12-345678-6"}}, []bool{true, true}))
 		isbnIdentity(t, p, b, c, "issn13_identity_ns")
 
 	})
@@ -53,7 +53,7 @@ func TestReferenceIssn13Metadata(t *testing.T) {
 				run(fixture.Exec("INSERT INTO issn13_meta VALUES(1,'9780123456786','12345679','12345670!'),(2,NULL,NULL,'9771234567898!')", 2))
 				expected = [][]any{{"978-0-12-345678-6", "977-1234-567-00-3", "977-1234-567-00-3!"}, {nil, nil, "977-1234-567-89-8!"}}
 			}
-			s := ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISSN13", "ISSN13"}, expected, []bool{true, true, false})
+			s := fixture.Ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISSN13", "ISSN13"}, expected, []bool{true, true, false})
 			s.CheckScan = func(t *testing.T, rows *sql.Rows, i int) {
 				var e, v sql.NullString
 				var required string
@@ -69,17 +69,17 @@ func TestReferenceIssn13Metadata(t *testing.T) {
 			run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
-		empty := ean13Select(b, "SELECT e,v,required FROM issn13_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISSN13", "ISSN13"}, [][]any{}, []bool{true, true, false})
+		empty := fixture.Ean13Select(b, "SELECT e,v,required FROM issn13_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISSN13", "ISSN13"}, [][]any{}, []bool{true, true, false})
 		run(empty)
 		run(fixture.Prepared(empty))
 		emptyHeld := ean13Held(t, p, c, empty.Query)
 		fixture.RunStep(t, p.Ctx, emptyHeld, b.Recorder, empty)
-		nullOnly := ean13Select(b, "SELECT v FROM issn13_meta WHERE id=2", []string{"v"}, []string{"ISSN13"}, [][]any{{nil}}, []bool{true})
+		nullOnly := fixture.Ean13Select(b, "SELECT v FROM issn13_meta WHERE id=2", []string{"v"}, []string{"ISSN13"}, [][]any{{nil}}, []bool{true})
 		run(nullOnly)
 		run(fixture.Prepared(nullOnly))
 		nullHeld := ean13Held(t, p, c, nullOnly.Query)
 		fixture.RunStep(t, p.Ctx, nullHeld, b.Recorder, nullOnly)
-		sourceEmpty := ean13Select(b, "SELECT prosrc FROM pg_proc WHERE oid=0", []string{"prosrc"}, []string{"TEXT"}, [][]any{}, []bool{false})
+		sourceEmpty := fixture.Ean13Select(b, "SELECT prosrc FROM pg_proc WHERE oid=0", []string{"prosrc"}, []string{"TEXT"}, [][]any{}, []bool{false})
 		run(sourceEmpty)
 		run(fixture.Prepared(sourceEmpty))
 		sourceHeld := ean13Held(t, p, c, sourceEmpty.Query)

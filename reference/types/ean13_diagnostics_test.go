@@ -92,7 +92,7 @@ func TestReferenceEan13Atomicity(t *testing.T) {
 		run(fixture.Exec("INSERT INTO ean_atomic VALUES(1,'0123456789012')", 1))
 		q := "INSERT INTO ean_atomic VALUES(2,$1),(3,$2)"
 		held := ean13Held(t, p, c, q)
-		seed := ean13Select(b, "SELECT id,v FROM ean_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "EAN13"}, [][]any{{int64(1), "012-345678901-2"}}, []bool{false, false})
+		seed := fixture.Ean13Select(b, "SELECT id,v FROM ean_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "EAN13"}, [][]any{{int64(1), "012-345678901-2"}}, []bool{false, false})
 		for i, tc := range ean13BadInputs() {
 			t.Run(fmt.Sprintf("later_%02d", i), func(t *testing.T) {
 				t.Run("literal", func(t *testing.T) {
@@ -119,6 +119,6 @@ func TestReferenceEan13Atomicity(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.ErrorDiagnostic(q, want, "9780123456786", nil))
 		run(seed)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 2, "9780123456786", "1234567890120!"))
-		run(ean13Select(b, "SELECT id,v FROM ean_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "EAN13"}, [][]any{{int64(1), "012-345678901-2"}, {int64(2), "978-0-12-345678-6"}, {int64(3), "123-456789012-8!"}}, []bool{false, false}))
+		run(fixture.Ean13Select(b, "SELECT id,v FROM ean_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "EAN13"}, [][]any{{int64(1), "012-345678901-2"}, {int64(2), "978-0-12-345678-6"}, {int64(3), "123-456789012-8!"}}, []bool{false, false}))
 	})
 }

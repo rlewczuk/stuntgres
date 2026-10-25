@@ -135,13 +135,13 @@ func TestReferenceEarthCoordinateValues(t *testing.T) {
 				if where != "" {
 					values = [][]any{}
 				}
-				s := earthSelect(b, "SELECT ll_to_earth(NULL,0) AS p"+where, []string{"p"}, values)
+				s := fixture.EarthSelect(b, "SELECT ll_to_earth(NULL,0) AS p"+where, []string{"p"}, values)
 				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, []string{"p"}, nil) }
 				earthCoordinateBoth(t, p, b, c, s)
 			}
-			earthCoordinateBoth(t, p, b, c, earthSelect(b, "SELECT ll_to_earth(0,0) AS p", []string{"p"}, [][]any{{"(6378168, 0, 0)"}}))
+			earthCoordinateBoth(t, p, b, c, fixture.EarthSelect(b, "SELECT ll_to_earth(0,0) AS p", []string{"p"}, [][]any{{"(6378168, 0, 0)"}}))
 			earthCoordinateBoth(t, p, b, c, fixture.Select("SELECT sec_to_gc(NULL) AS a,gc_to_sec(NULL) AS b,latitude(NULL) AS c,longitude(NULL) AS d", []string{"a", "b", "c", "d"}, []string{"FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8"}, [][]any{{nil, nil, nil, nil}}))
-			earthCoordinateBoth(t, p, b, c, earthSelect(b, "SELECT ll_to_earth(0,NULL) AS p", []string{"p"}, [][]any{{nil}}))
+			earthCoordinateBoth(t, p, b, c, fixture.EarthSelect(b, "SELECT ll_to_earth(0,NULL) AS p", []string{"p"}, [][]any{{nil}}))
 			var a, z sql.NullFloat64
 			if err := h.Statement.QueryRowContext(p.Ctx, nil, nil).Scan(&a, &z); err != nil || a.Valid || z.Valid {
 				t.Fatalf("held NULL %v %v: %v", a, z, err)

@@ -32,10 +32,10 @@ func TestReferenceCitextFeatureSmoke(t *testing.T) {
 		buffer[0] = 'X'
 		wantRows := [][]any{{int64(1), "MiXeD"}, {int64(2), nil}, {int64(3), ""}, {int64(4), "  Straße İ Σς é🙂  "}, {int64(5), "O'Reilly\\path\nNext"}, {int64(6), nil}, {int64(7), "e\u0301"}}
 		check := func() {
-			s := citextSelect(b, "SELECT id,v FROM citext_smoke ORDER BY id", []string{"id", "v"}, wantRows)
+			s := fixture.CitextSelect(b, "SELECT id,v FROM citext_smoke ORDER BY id", []string{"id", "v"}, wantRows)
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { citextMetadata(t, b.PG, rows, s.Columns, []bool{false, true}) }
 			run(s)
-			empty := citextSelect(b, "SELECT v FROM citext_smoke_empty", []string{"v"}, [][]any{})
+			empty := fixture.CitextSelect(b, "SELECT v FROM citext_smoke_empty", []string{"v"}, [][]any{})
 			empty.CheckMetadata = func(t *testing.T, rows *sql.Rows) { citextMetadata(t, b.PG, rows, empty.Columns, []bool{false}) }
 			run(empty)
 		}
@@ -62,7 +62,7 @@ func TestReferenceCitextFeatureSmoke(t *testing.T) {
 		citextError(t, p, b, atomicHeld, q, false, false, false, want, "Valid first", []byte{255})
 		check()
 		fixture.RunStep(t, p.Ctx, atomicHeld, b.Recorder, fixture.Exec(q, 2, "Recovered", "Recovered later"))
-		run(citextSelect(b, "SELECT id,v FROM citext_smoke WHERE id>7 ORDER BY id", []string{"id", "v"}, [][]any{{int64(8), "Recovered"}, {int64(9), "Recovered later"}}))
+		run(fixture.CitextSelect(b, "SELECT id,v FROM citext_smoke WHERE id>7 ORDER BY id", []string{"id", "v"}, [][]any{{int64(8), "Recovered"}, {int64(9), "Recovered later"}}))
 		run(fixture.Exec("DELETE FROM citext_smoke WHERE id=9", 1))
 		wantRows = append(wantRows, []any{int64(8), "Recovered"})
 		check()

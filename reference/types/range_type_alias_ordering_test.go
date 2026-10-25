@@ -126,7 +126,7 @@ func TestReferenceRangeTypeAliasOrdering(t *testing.T) {
 					})
 				}
 				fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: c, Statement: prepared, SQL: q}, b.Recorder, step(want))
-				rangeConsumeHeld(t, held, step(want))
+				fixture.RangeConsumeHeld(t, held, step(want))
 				check(b, c, want)
 			})
 		})

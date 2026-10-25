@@ -54,7 +54,7 @@ func cubeComparisonControlChecks(t *testing.T, p *fixture.Pair, b fixture.Backen
 			{int64(6), true, false, false, false},
 			{int64(7), true, false, false, false},
 		}),
-		cubeSelect(b, "SELECT id,nullified FROM public.cube_compare_view ORDER BY id", []string{"id", "nullified"}, [][]any{
+		fixture.CubeSelect(b, "SELECT id,nullified FROM public.cube_compare_view ORDER BY id", []string{"id", "nullified"}, [][]any{
 			{int64(1), "(2)"}, {int64(2), nil}, {int64(3), nil},
 			{int64(4), "(-1)"}, {int64(5), nil},
 			{int64(6), "(-0)"}, {int64(7), "(0)"},
@@ -130,7 +130,7 @@ func cubeComparisonNativeControls(t *testing.T, p *fixture.Pair, b fixture.Backe
 		t.Fatalf("comparison destination connection: %#v", err)
 	}
 	defer destination.Close()
-	retainedIDs := cubeComparisonForceCollisions(t, target, destination, sourceIDs)
+	retainedIDs := fixture.CubeComparisonForceCollisions(t, target, destination, sourceIDs)
 	targetSettings := cubeComparisonSessionSettings(t, target, destination)
 	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatalf("comparison retained-TEMP collision Restore: %#v", err)

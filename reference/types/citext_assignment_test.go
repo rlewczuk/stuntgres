@@ -18,7 +18,7 @@ func TestReferenceCitextAssignment(t *testing.T) {
 			s := fixture.Exec(q, 12)
 			s.Prepared = prepared
 			run(s)
-			s = citextSelect(b, "SELECT id,v FROM citext_assignment ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "MiXeD  "}, {int64(2), "MiXeD  "}, {int64(3), "MiX"}, {int64(4), "true"}, {int64(5), "false"}, {int64(6), "192.0.2.1/32"}, {int64(7), "192.0.2.129/24"}, {int64(8), "2001:db8::1/128"}, {int64(9), "42"}, {int64(10), "Same  "}, {int64(11), nil}, {int64(12), nil}})
+			s = fixture.CitextSelect(b, "SELECT id,v FROM citext_assignment ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "MiXeD  "}, {int64(2), "MiXeD  "}, {int64(3), "MiX"}, {int64(4), "true"}, {int64(5), "false"}, {int64(6), "192.0.2.1/32"}, {int64(7), "192.0.2.129/24"}, {int64(8), "2001:db8::1/128"}, {int64(9), "42"}, {int64(10), "Same  "}, {int64(11), nil}, {int64(12), nil}})
 			s.Prepared = prepared
 			run(s)
 			for _, tc := range []struct{ expression, value string }{
@@ -31,7 +31,7 @@ func TestReferenceCitextAssignment(t *testing.T) {
 				{"'2001:db8::1/128'::inet::citext", "2001:db8::1/128"},
 				{"42::integer::citext", "42"},
 			} {
-				s := citextSelect(b, "SELECT "+tc.expression+" AS v", []string{"v"}, [][]any{{tc.value}})
+				s := fixture.CitextSelect(b, "SELECT "+tc.expression+" AS v", []string{"v"}, [][]any{{tc.value}})
 				s.Prepared = prepared
 				run(s)
 			}

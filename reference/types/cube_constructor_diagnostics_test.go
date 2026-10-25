@@ -63,7 +63,7 @@ func TestReferenceCubeConstructorDiagnostics(t *testing.T) {
 				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 				run(fixture.Exec("CREATE TABLE cube_constructor_diag(id integer NOT NULL,v cube)", 0))
 				run(fixture.Exec("INSERT INTO cube_constructor_diag VALUES (1,cube(7)),(2,cube(8))", 2))
-				baseline := cubeSelect(b, "SELECT id,v FROM cube_constructor_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(7)"}, {int64(2), "(8)"}})
+				baseline := fixture.CubeSelect(b, "SELECT id,v FROM cube_constructor_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(7)"}, {int64(2), "(8)"}})
 				// Runtime-only optionals/stages are discovery hypotheses. Parse and
 				// Describe need not plan/evaluate immutable function constants. All
 				// optional diagnostic fields are explicitly absent unless settled otherwise.

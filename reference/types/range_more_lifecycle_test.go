@@ -56,8 +56,8 @@ func moreHeldLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	if err != nil { t.Fatal(err) }
 	fixture.RunStep(t, p.Ctx, other, b.Recorder, fixture.Exec("INSERT INTO more_live VALUES (2,'[20,21)','{[20,21)}')", 1))
 	if err := other.Close(); err != nil { t.Fatal(err) }
-	rangeConsumeHeld(t, retained[0], constructor)
-	rangeConsumeHeld(t, retained[1], expansion)
+	fixture.RangeConsumeHeld(t, retained[0], constructor)
+	fixture.RangeConsumeHeld(t, retained[1], expansion)
 	constructor.Rows = append(constructor.Rows, []any{"{[20,21)}"})
 	expansion.Rows = append(expansion.Rows, []any{"[20,21)"})
 	moreBoth(t, p, b, constructor)
@@ -83,8 +83,8 @@ func moreHeldLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, bytes.NewBufferString(bad)), &want)
 	if err := stuntgres.Dump(p.Ctx, p.Native, &after); err != nil || !bytes.Equal(before.Bytes(), after.Bytes()) { t.Fatal("failed Restore changed committed state", err) }
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewBufferString("CREATE TABLE more_live(v text NOT NULL); INSERT INTO more_live VALUES ('replacement');")); err != nil { t.Fatal(err) }
-	rangeConsumeHeld(t, retained[0], constructor)
-	rangeConsumeHeld(t, retained[1], expansion)
+	fixture.RangeConsumeHeld(t, retained[0], constructor)
+	fixture.RangeConsumeHeld(t, retained[1], expansion)
 	failure := fixture.ErrorDiagnostic(constructor.Query, inspectDiagnostic(constructor.Query, "42703", `column "a" does not exist`, "", "a)", "", ""))
 	failure.SelectRows, failure.ErrorStage = true, "execute"
 	fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: b.DB, Statement: stale, SQL: constructor.Query}, b.Recorder, failure)

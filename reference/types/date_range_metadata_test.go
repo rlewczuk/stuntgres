@@ -32,7 +32,7 @@ func TestReferenceDateRangeMetadata(t *testing.T) {
 		defer rows.Close()
 		metadata, err := rows.ColumnTypes()
 		if err != nil { t.Fatal(err) }
-		rangeConsumeHeld(t, rows, check)
+		fixture.RangeConsumeHeld(t, rows, check)
 		for i, typ := range metadata {
 			wantScan := reflect.TypeFor[string]()
 			if b.PG { wantScan = reflect.TypeFor[any]() }

@@ -85,7 +85,7 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal("same-engine range domain Restore of actual Dump", err)
 		}
-		rangeConsumeHeld(t, held, check)
+		fixture.RangeConsumeHeld(t, held, check)
 		for _, step := range []fixture.Step{check, fixture.Prepared(check), vacant} {
 			fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, step)
 		}
@@ -134,7 +134,7 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 			script := "CREATE DOMAIN public.span4 AS int4range; CREATE DOMAIN public.span8 AS int8range; CREATE DOMAIN public.chain4 AS public.span4; CREATE DOMAIN public.chain8 AS public.span8; CREATE TABLE required(k integer NOT NULL,a public.chain4 NOT NULL,b public.chain8 NOT NULL); INSERT INTO required VALUES (1,'[7,8)','[7,8)'); INSERT INTO required VALUES (2," + a + "," + b + ");"
 			wantError := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "` + column + `" of relation "required" violates not-null constraint`, Detail: detail, Schema: "public", Table: "required", Column: column}
 			fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString(script)), &wantError)
-			rangeConsumeHeld(t, held, nested)
+			fixture.RangeConsumeHeld(t, held, nested)
 			for _, step := range []fixture.Step{check, nested, required, vacant} {
 				fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, step)
 			}
@@ -152,7 +152,7 @@ func TestReferenceIntegerRangeDomainControls(t *testing.T) {
 		if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString("CREATE TABLE nested(v text NOT NULL); INSERT INTO nested VALUES ('replacement');")); err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, held, nested)
+		fixture.RangeConsumeHeld(t, held, nested)
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM nested", []string{"v"}, []string{"TEXT"}, [][]any{{"replacement"}}))
 		if p.Postgres != nil {
 			if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {

@@ -40,7 +40,7 @@ func TestReferenceMultirangeBinds(t *testing.T) {
 						for i := range owned {
 							owned[i] = 'x'
 						}
-						rangeConsumeHeld(t, rows, check)
+						fixture.RangeConsumeHeld(t, rows, check)
 					}
 				}
 				fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Exec("INSERT INTO r VALUES ($1,$2,$3)", 1, 20, []byte("{[1,2),[3,4)}"), []byte(nil)))

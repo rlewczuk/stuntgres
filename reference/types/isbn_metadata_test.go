@@ -35,7 +35,7 @@ func TestReferenceIsbnInstallAndIdentity(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION isn SCHEMA isbn_identity_ns", 0))
 		run(fixture.Exec("CREATE TABLE isbn_qualified(v isbn_identity_ns.isbn,e isbn_identity_ns.ean13)", 0))
 		run(fixture.Exec("INSERT INTO isbn_qualified VALUES('1234567890!','9780123456786')", 1))
-		run(ean13Select(b, "SELECT v,e FROM isbn_qualified", []string{"v", "e"}, []string{"ISBN", "EAN13"}, [][]any{{"1-234-56789-X!", "978-0-12-345678-6"}}, []bool{true, true}))
+		run(fixture.Ean13Select(b, "SELECT v,e FROM isbn_qualified", []string{"v", "e"}, []string{"ISBN", "EAN13"}, [][]any{{"1-234-56789-X!", "978-0-12-345678-6"}}, []bool{true, true}))
 		isbnIdentity(t, p, b, c, "isbn_identity_ns")
 	})
 }
@@ -147,7 +147,7 @@ func TestReferenceIsbnMetadata(t *testing.T) {
 				run(fixture.Exec("INSERT INTO isbn_meta VALUES(1,'9780123456786','123456789x','9780123456780!'),(2,NULL,NULL,'9791234567896')", 2))
 				expected = [][]any{{"978-0-12-345678-6", "1-234-56789-X", "0-12-345678-9!"}, {nil, nil, "979-123456789-6"}}
 			}
-			s := ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISBN", "ISBN"}, expected, []bool{true, true, false})
+			s := fixture.Ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISBN", "ISBN"}, expected, []bool{true, true, false})
 			s.CheckScan = func(t *testing.T, rows *sql.Rows, i int) {
 				var e, v sql.NullString
 				var required string
@@ -162,7 +162,7 @@ func TestReferenceIsbnMetadata(t *testing.T) {
 			run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
-		run(ean13Select(b, "SELECT e,v,required FROM isbn_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISBN", "ISBN"}, [][]any{}, []bool{true, true, false}))
+		run(fixture.Ean13Select(b, "SELECT e,v,required FROM isbn_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISBN", "ISBN"}, [][]any{}, []bool{true, true, false}))
 		isbnIdentity(t, p, b, c, "public")
 	})
 }

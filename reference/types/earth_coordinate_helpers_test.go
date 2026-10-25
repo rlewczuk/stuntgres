@@ -171,7 +171,7 @@ func earthCoordinateStoredVerify(t *testing.T, p *fixture.Pair, b fixture.Backen
 	}, []float64{0, 0, 1e-10, 1e-10, 0, 0})
 	q = "SELECT id,r,latitude(p) AS plat,longitude(p) AS plon,lat,lon,chord,arc FROM earth_coordinate_defaults ORDER BY id"
 	earthCoordinateBoth(t, p, b, c, fixture.Select(q, []string{"id", "r", "plat", "plon", "lat", "lon", "chord", "arc"}, []string{"INT4", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8", "FLOAT8"}, [][]any{{int64(1), float64(6378168), float64(0), float64(0), float64(0), float64(0), float64(0), float64(0)}}))
-	s := earthSelect(b, "SELECT p FROM earth_coordinate_defaults ORDER BY id", []string{"p"}, [][]any{{"(6378168, 0, 0)"}})
+	s := fixture.EarthSelect(b, "SELECT p FROM earth_coordinate_defaults ORDER BY id", []string{"p"}, [][]any{{"(6378168, 0, 0)"}})
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, []string{"p"}, []bool{true}) }
 	earthCoordinateBoth(t, p, b, c, s)
 }

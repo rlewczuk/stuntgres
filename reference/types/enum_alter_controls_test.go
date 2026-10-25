@@ -132,7 +132,7 @@ func TestReferenceEnumAlterControls(t *testing.T) {
 				check()
 			}
 			failure := errors.New("evolved enum import reader failure")
-			if err := stuntgres.Restore(f.Pair.Ctx, f.Pair.Native, uuidReferenceFailingReader{failure}); !errors.Is(err, failure) {
+			if err := stuntgres.Restore(f.Pair.Ctx, f.Pair.Native, fixture.UUIDReferenceFailingReader{failure}); !errors.Is(err, failure) {
 				t.Fatal(err)
 			}
 			check()

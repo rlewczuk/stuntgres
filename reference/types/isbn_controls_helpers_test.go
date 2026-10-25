@@ -26,7 +26,7 @@ const isbnControlInsert = "INSERT INTO isbn_control VALUES(1,'9780123456786','97
 const isbnControlQuery = "SELECT id,e,v FROM isbn_control ORDER BY id"
 
 func isbnControlSelect(b fixture.Backend, q string, expected [][]any) fixture.Step {
-	return ean13Select(b, q, []string{"id", "e", "v"}, []string{"INT4", "EAN13", "ISBN"}, expected, []bool{false, true, true})
+	return fixture.Ean13Select(b, q, []string{"id", "e", "v"}, []string{"INT4", "EAN13", "ISBN"}, expected, []bool{false, true, true})
 }
 
 func isbnControlSetup(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
@@ -52,7 +52,7 @@ func isbnControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.
 		if empty {
 			q, expected = "SELECT e,v FROM isbn_required WHERE false", [][]any{}
 		}
-		s := ean13Select(b, q, []string{"e", "v"}, []string{"EAN13", "ISBN"}, expected, []bool{false, false})
+		s := fixture.Ean13Select(b, q, []string{"e", "v"}, []string{"EAN13", "ISBN"}, expected, []bool{false, false})
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 		held := ean13Held(t, p, c, q)
@@ -89,7 +89,7 @@ func isbnConsumeRetained(t *testing.T, rows *sql.Rows, metadata []*sql.ColumnTyp
 	if len(types) == 0 {
 		types = []string{"INT4", "EAN13", "ISBN"}
 	}
-	ean13ColumnMetadata(t, false, metadata, []string{"id", "e", "v"}, types, []bool{false, true, true})
+	fixture.Ean13ColumnMetadata(t, false, metadata, []string{"id", "e", "v"}, types, []bool{false, true, true})
 	got := [][]any{}
 	for rows.Next() {
 		var id, e, v any

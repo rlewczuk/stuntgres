@@ -38,12 +38,6 @@ func earthCheckDiagnostic(schema, constraint string, visible bool) fixture.Diagn
 	return want
 }
 
-// Domain wire results flatten to the installed cube base, confirmed by the
-// root's pinned PostgreSQL18.6 oracle run.
-func earthSelect(b fixture.Backend, q string, columns []string, rows [][]any, args ...any) fixture.Step {
-	return cubeSelect(b, q, columns, rows, args...)
-}
-
 func earthAbsent(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 	t.Helper()
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT extname FROM pg_extension WHERE extname='earthdistance'", []string{"extname"}, []string{"NAME"}, [][]any{}))

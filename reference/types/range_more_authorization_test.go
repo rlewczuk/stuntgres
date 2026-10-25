@@ -65,7 +65,7 @@ func TestReferenceRangeMoreAuthorization(t *testing.T) {
 				queryHeld := func() {
 					rows, err := stmt.QueryContext(p.Ctx)
 					if err != nil { t.Fatal(err) }
-					rangeConsumeHeld(t, rows, check)
+					fixture.RangeConsumeHeld(t, rows, check)
 				}
 				queryHeld()
 				var retained *sql.Rows
@@ -78,7 +78,7 @@ func TestReferenceRangeMoreAuthorization(t *testing.T) {
 				s := fixture.ErrorDiagnostic(expr.q, fixture.ControlsReferenceDiagnostic("42501", "permission denied for table more_acl"))
 				s.SelectRows, s.ErrorStage = true, "execute"
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
-				if retained != nil { rangeConsumeHeld(t, retained, check) }
+				if retained != nil { fixture.RangeConsumeHeld(t, retained, check) }
 				run(fixture.Exec("GRANT SELECT(a,m) ON more_acl TO more_reader", 0))
 				queryHeld()
 			}()

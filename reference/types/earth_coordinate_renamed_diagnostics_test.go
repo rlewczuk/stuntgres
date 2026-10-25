@@ -70,7 +70,7 @@ func earthRenamedDiagnosticError(t *testing.T, p *fixture.Pair, b fixture.Backen
 	if route == "held" && valid != nil {
 		var s fixture.Step
 		if point {
-			s = earthSelect(b, q, []string{"p"}, [][]any{{"(6378168, 0, 0)"}}, valid...)
+			s = fixture.EarthSelect(b, q, []string{"p"}, [][]any{{"(6378168, 0, 0)"}}, valid...)
 		} else {
 			s = fixture.Select(q, []string{"arc"}, []string{"FLOAT8"}, [][]any{{float64(0)}}, valid...)
 		}
@@ -104,7 +104,7 @@ func earthRenamedDiagnosticVerify(t *testing.T, p *fixture.Pair, b fixture.Backe
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT id FROM "+table+" ORDER BY id", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}}))
 	}
 	earthCoordinateBoth(t, p, b, c, fixture.Select("SELECT earth_rename_arc_now(0) AS arc", []string{"arc"}, []string{"FLOAT8"}, [][]any{{float64(0)}}))
-	earthCoordinateBoth(t, p, b, c, earthSelect(b, "SELECT earth_rename_point_now(0,0) AS p", []string{"p"}, [][]any{{"(6378168, 0, 0)"}}))
+	earthCoordinateBoth(t, p, b, c, fixture.EarthSelect(b, "SELECT earth_rename_point_now(0,0) AS p", []string{"p"}, [][]any{{"(6378168, 0, 0)"}}))
 }
 
 func earthRenamedDiagnosticControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {

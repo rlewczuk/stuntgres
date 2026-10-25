@@ -21,7 +21,7 @@ func numericRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 	if err != nil { t.Fatal(err) }
 	defer held.Close()
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil { t.Fatal(err) }
-	rangeConsumeHeld(t, held, checks[0])
+	fixture.RangeConsumeHeld(t, held, checks[0])
 	for _, s := range checks { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil { t.Fatal(err) }
 	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil { t.Fatal(err) }
@@ -43,7 +43,7 @@ func numericRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 		if err != nil { t.Fatal(err) }
 		defer held.Close()
 		fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(failure.script)), &failure.diagnostic)
-		rangeConsumeHeld(t, held, checks[0])
+		fixture.RangeConsumeHeld(t, held, checks[0])
 		assertUnchanged()
 	}
 	canceled, cancel := context.WithCancel(target.Ctx)
@@ -62,7 +62,7 @@ func numericRangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, 
 	if err != nil { t.Fatal(err) }
 	defer held.Close()
 	if err := stuntgres.Restore(target.Ctx, target.Native, strings.NewReader("CREATE TABLE r(v text NOT NULL); INSERT INTO r VALUES ('replacement');")); err != nil { t.Fatal(err) }
-	rangeConsumeHeld(t, held, checks[0])
+	fixture.RangeConsumeHeld(t, held, checks[0])
 	fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM r", []string{"v"}, []string{"TEXT"}, [][]any{{"replacement"}}))
 	if p.Postgres != nil {
 		if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil { t.Fatal(err) }

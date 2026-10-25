@@ -117,7 +117,7 @@ func TestReferenceIsbnControls(t *testing.T) {
 					cancel()
 					reader = bytes.NewReader(dump.Bytes())
 				case "reader":
-					reader = io.MultiReader(bytes.NewReader(dump.Bytes()), typeLifecycleErrorReader{io.ErrUnexpectedEOF})
+					reader = io.MultiReader(bytes.NewReader(dump.Bytes()), fixture.TypeLifecycleErrorReader{io.ErrUnexpectedEOF})
 				}
 				err := stuntgres.Restore(ctx, target.Native, reader)
 				switch kind {

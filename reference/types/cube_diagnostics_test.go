@@ -45,7 +45,7 @@ func TestReferenceCubeDiagnostics(t *testing.T) {
 				if tc.detail == "" {
 					base = fixture.ControlsReferenceDiagnostic("22003", `"`+tc.input+`" is out of range for type double precision`)
 				}
-				baseline := cubeSelect(b, "SELECT id,v FROM cube_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1)"}, {int64(2), "(2),(3)"}})
+				baseline := fixture.CubeSelect(b, "SELECT id,v FROM cube_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1)"}, {int64(2), "(2),(3)"}})
 				for _, prepared := range []bool{false, true} {
 					for _, route := range []struct {
 						prefix, suffix string
@@ -144,7 +144,7 @@ func TestReferenceCubeDiagnosticPrecedence(t *testing.T) {
 					if tc.detail == "" {
 						base = fixture.ControlsReferenceDiagnostic("22003", `"1e999" is out of range for type double precision`)
 					}
-					baseline := cubeSelect(b, "SELECT id,v FROM cube_precedence ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1)"}, {int64(2), "(2),(3)"}})
+					baseline := fixture.CubeSelect(b, "SELECT id,v FROM cube_precedence ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1)"}, {int64(2), "(2),(3)"}})
 					for _, prepared := range []bool{false, true} {
 						for _, route := range []struct {
 							prefix, suffix string

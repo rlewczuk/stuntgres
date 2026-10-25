@@ -34,7 +34,7 @@ func cubeConstructorPoint(n int, element string) string {
 	return "(" + strings.TrimSuffix(strings.Repeat(element+", ", n), ", ") + ")"
 }
 
-// Unlike cubeSelect this supports mixed cube/integer/bool projections without
+// Unlike fixture.CubeSelect this supports mixed cube/integer/bool projections without
 // hiding the driver contracts of the ordinary scalar columns.
 func cubeConstructorSelect(b fixture.Backend, q string, names, types []string, rows [][]any, args ...any) fixture.Step {
 	dbTypes := append([]string(nil), types...)

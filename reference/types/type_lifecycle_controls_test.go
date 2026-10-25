@@ -79,7 +79,7 @@ func TestReferenceTypeLifecycleControls(t *testing.T) {
 			late := dump.String() + "\nCREATE TABLE public.tl_invalid(v integer); INSERT INTO public.tl_invalid VALUES('bad');"
 			fixture.State(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(late)), "22P02")
 			readErr := errors.New("type lifecycle reader failure")
-			if err := stuntgres.Restore(target.Ctx, target.Native, io.MultiReader(strings.NewReader(dump.String()), typeLifecycleErrorReader{readErr})); !errors.Is(err, readErr) {
+			if err := stuntgres.Restore(target.Ctx, target.Native, io.MultiReader(strings.NewReader(dump.String()), fixture.TypeLifecycleErrorReader{readErr})); !errors.Is(err, readErr) {
 				t.Fatalf("reader error=%v", err)
 			}
 			ctx, cancel := context.WithCancel(target.Ctx)
@@ -200,10 +200,6 @@ func TestReferenceTypeLifecycleControls(t *testing.T) {
 func typeLifecycleReplayRows() fixture.Step {
 	return fixture.Select("SELECT id,m::text,d,p::text,a::text,c::text,q::text,ci::text,e::text FROM public.tl_replay ORDER BY id", []string{"id", "m", "d", "p", "a", "c", "q", "ci", "e"}, []string{"INT4", "TEXT", "INT4", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{int64(1), "z", int64(7), "(7,x)", "[0:1]={7,NULL}", "(1, 2)", "1", "MiXeD", "(6378168, 0, 0)"}, {int64(2), nil, nil, nil, nil, nil, nil, nil, nil}})
 }
-
-type typeLifecycleErrorReader struct{ err error }
-
-func (r typeLifecycleErrorReader) Read([]byte) (int, error) { return 0, r.err }
 
 type typeLifecycleBeforeReader struct {
 	reader io.Reader

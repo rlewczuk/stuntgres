@@ -38,16 +38,16 @@ func TestReferenceCubeAssignment(t *testing.T) {
 			run(fixture.Exec("UPDATE cube_copy SET v=v WHERE id=1", 1))
 			run(fixture.Prepared(fixture.Exec("UPDATE cube_copy SET v=$1 WHERE id=3", 1, "(8),(9)")))
 			for _, prepared := range []bool{false, true} {
-				s := cubeSelect(b, "SELECT id,v FROM cube_assign ORDER BY id", []string{"id", "v"}, want)
+				s := fixture.CubeSelect(b, "SELECT id,v FROM cube_assign ORDER BY id", []string{"id", "v"}, want)
 				s.Prepared = prepared
 				run(s)
 				copyWant := append([][]any(nil), want...)
 				copyWant[2] = []any{int64(3), "(8),(9)"}
-				s = cubeSelect(b, "SELECT id,v FROM cube_copy ORDER BY id", []string{"id", "v"}, copyWant)
+				s = fixture.CubeSelect(b, "SELECT id,v FROM cube_copy ORDER BY id", []string{"id", "v"}, copyWant)
 				s.Prepared = prepared
 				run(s)
 				for _, arg := range []any{nil, []byte(nil)} {
-					s = cubeSelect(b, "SELECT $1::cube AS v", []string{"v"}, [][]any{{nil}}, arg)
+					s = fixture.CubeSelect(b, "SELECT $1::cube AS v", []string{"v"}, [][]any{{nil}}, arg)
 					s.Prepared = prepared
 					run(s)
 				}
@@ -71,7 +71,7 @@ func TestReferenceCubeAssignment(t *testing.T) {
 					cubeError(t, p, b, c, "INSERT INTO cube_required VALUES (2,$1)", prepared, false, false, want, arg)
 				}
 				cubeError(t, p, b, c, "INSERT INTO cube_required VALUES (2,NULL)", prepared, false, false, want)
-				run(cubeSelect(b, "SELECT id,v FROM cube_required ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1)"}}))
+				run(fixture.CubeSelect(b, "SELECT id,v FROM cube_required ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1)"}}))
 			}
 		})
 	})
@@ -98,7 +98,7 @@ func TestReferenceCubeAssignment(t *testing.T) {
 					if q == "SELECT $1::text::cube AS v" {
 						args = []any{"(1,2)"}
 					}
-					apply(cubeSelect(b, q, []string{"v"}, [][]any{{"(1, 2)"}}, args...))
+					apply(fixture.CubeSelect(b, q, []string{"v"}, [][]any{{"(1, 2)"}}, args...))
 				}
 				for _, typ := range []string{"text", "varchar"} {
 					name := "TEXT"
@@ -116,7 +116,7 @@ func TestReferenceCubeAssignment(t *testing.T) {
 					want.Hint, want.Position = "You will need to rewrite or cast the expression.", strconv.Itoa(len(tc.prefix)+1)
 					cubeError(t, p, b, c, tc.prefix+tc.expression, prepared, false, true, want)
 				}
-				run(cubeSelect(b, "SELECT id,v FROM cube_source ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(3, 1),(1, 4)"}, {int64(2), nil}}))
+				run(fixture.CubeSelect(b, "SELECT id,v FROM cube_source ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(3, 1),(1, 4)"}, {int64(2), nil}}))
 			}
 		})
 	})

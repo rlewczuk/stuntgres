@@ -55,7 +55,7 @@ func TestReferenceLsegValues(t *testing.T) {
 		}
 		defer rows.Close()
 		copy(buf, "9,9,8,8")
-		boxMetadata(t, b.PG, rows, []string{"LSEG"}, nil)
+		fixture.BoxMetadata(t, b.PG, rows, []string{"LSEG"}, nil)
 		if !rows.Next() {
 			t.Fatalf("retained bind row: %v", rows.Err())
 		}

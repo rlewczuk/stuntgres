@@ -13,10 +13,10 @@ func TestReferenceQueryIntInstallation(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 			run(fixture.Exec("BEGIN", 0))
 			queryIntInstall(t, p, b, c)
-			literal := queryIntSelect(b, "SELECT '1&(2|3)'::query_int AS v", []string{"v"}, [][]any{{"1 & ( 2 | 3 )"}})
+			literal := fixture.QueryIntSelect(b, "SELECT '1&(2|3)'::query_int AS v", []string{"v"}, [][]any{{"1 & ( 2 | 3 )"}})
 			run(literal)
 			run(fixture.Prepared(literal))
-			bound := queryIntSelect(b, "SELECT $1::query_int AS v", []string{"v"}, [][]any{{"!( !1 )"}}, "!!1")
+			bound := fixture.QueryIntSelect(b, "SELECT $1::query_int AS v", []string{"v"}, [][]any{{"!( !1 )"}}, "!!1")
 			run(bound)
 			run(fixture.Prepared(bound))
 			run(fixture.Exec("ROLLBACK", 0))
@@ -49,7 +49,7 @@ func TestReferenceQueryIntInstallation(t *testing.T) {
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
 			run(fixture.Exec("CREATE TABLE qi_install(id integer,v query_int)", 0))
 			run(fixture.Exec("INSERT INTO qi_install VALUES (1,'1&(2|3)')", 1))
-			run(queryIntSelect(b, "SELECT id,v FROM qi_install ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}}))
+			run(fixture.QueryIntSelect(b, "SELECT id,v FROM qi_install ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1 & ( 2 | 3 )"}}))
 			run(fixture.Select("SELECT extname,extversion,extrelocatable FROM pg_extension WHERE extname='intarray'", []string{"extname", "extversion", "extrelocatable"}, []string{"NAME", "TEXT", "BOOL"}, [][]any{{"intarray", "1.5", true}}))
 			var oid, repeated int64
 			if err := c.QueryRowContext(p.Ctx, "SELECT ('query_int'::regtype)::oid").Scan(&oid); err != nil {
@@ -84,7 +84,7 @@ func TestReferenceQueryIntInstallation(t *testing.T) {
 			run(fixture.Exec("SET search_path=qi_install_namespace,public", 0))
 			run(fixture.Exec("CREATE TABLE public.qi_path(v query_int)", 0))
 			run(fixture.Exec("INSERT INTO public.qi_path VALUES ('!1|2'),(NULL)", 2))
-			s := queryIntSelect(b, "SELECT v FROM public.qi_path", []string{"v"}, [][]any{{"!1 | 2"}, {nil}})
+			s := fixture.QueryIntSelect(b, "SELECT v FROM public.qi_path", []string{"v"}, [][]any{{"!1 | 2"}, {nil}})
 			s.Bag = true
 			run(s)
 			run(fixture.Select("SELECT t.typname,n.nspname,t.typtype,t.typlen,p.proname AS input,o.proname AS output FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace JOIN pg_proc p ON p.oid=t.typinput JOIN pg_proc o ON o.oid=t.typoutput WHERE t.oid=('qi_install_namespace.query_int'::regtype)::oid", []string{"typname", "nspname", "typtype", "typlen", "input", "output"}, []string{"NAME", "NAME", "CHAR", "INT2", "NAME", "NAME"}, [][]any{{"query_int", "qi_install_namespace", "b", int64(-1), "bqarr_in", "bqarr_out"}}))

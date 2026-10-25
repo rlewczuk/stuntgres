@@ -177,7 +177,7 @@ func rangeTypeCompanionBaseline(t *testing.T) {
 			check(b, c)
 		}
 		rangeTypeRemedyReplay(t, p, b, c, nil, check, fixture.Step{}, nil)
-		rangeConsumeHeld(t, held, saved)
+		fixture.RangeConsumeHeld(t, held, saved)
 		if !b.PG {
 			run(fixture.Exec("REVOKE USAGE ON TYPE acl_baseline FROM PUBLIC", 0))
 			var rejected bytes.Buffer

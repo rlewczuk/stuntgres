@@ -90,7 +90,7 @@ func rangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks 
 			t.Fatal(err)
 		}
 	}
-	rangeConsumeHeld(t, held, check)
+	fixture.RangeConsumeHeld(t, held, check)
 	rangeRetainedMetadata(t, metadata, check, nullable[0])
 	for _, step := range checks {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, step)
@@ -157,7 +157,7 @@ func rangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks 
 			t.Fatal(err)
 		}
 		fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString(failure.script)), &failure.diagnostic)
-		rangeConsumeHeld(t, held, check)
+		fixture.RangeConsumeHeld(t, held, check)
 		rangeRetainedMetadata(t, metadata, check, nullable[0])
 		for _, step := range checks {
 			fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, step)
@@ -216,7 +216,7 @@ func rangeControlCycle(t *testing.T, p *fixture.Pair, b fixture.Backend, checks 
 	if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewBufferString("CREATE TABLE r(v text NOT NULL); INSERT INTO r VALUES ('replacement');")); err != nil {
 		t.Fatal(err)
 	}
-	rangeConsumeHeld(t, held, check)
+	fixture.RangeConsumeHeld(t, held, check)
 	rangeRetainedMetadata(t, metadata, check, nullable[0])
 	fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT v FROM r", []string{"v"}, []string{"TEXT"}, [][]any{{"replacement"}}))
 	if p.Postgres != nil {

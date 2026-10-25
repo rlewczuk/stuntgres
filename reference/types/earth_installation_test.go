@@ -61,7 +61,7 @@ func TestReferenceEarthInstallation(t *testing.T) {
 				run(fixture.Exec(q, 0))
 			}
 			run(fixture.Exec("INSERT INTO earth_qualified VALUES ('(6378168,0)')", 1))
-			run(earthSelect(b, "SELECT v FROM earth_qualified", []string{"v"}, [][]any{{"(6378168, 0)"}}))
+			run(fixture.EarthSelect(b, "SELECT v FROM earth_qualified", []string{"v"}, [][]any{{"(6378168, 0)"}}))
 			run(fixture.Select("SELECT typbasetype='earth_cube_s.cube'::regtype AS actual FROM pg_type WHERE oid='earth_domain_s.earth'::regtype", []string{"actual"}, []string{"BOOL"}, [][]any{{true}}))
 			cubeError(t, p, b, c, "SELECT '(0)'::earth_domain_s.earth", false, true, false, earthCheckDiagnostic("earth_domain_s", "on_surface", false))
 		})

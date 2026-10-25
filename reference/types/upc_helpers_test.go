@@ -30,7 +30,7 @@ func upcSelect(b fixture.Backend, q string, names, types []string, expected [][]
 		rows[i] = make([]any, len(row))
 		for j, cell := range row { rows[i][j] = upcCell(b, cell) }
 	}
-	return ean13Select(b, q, names, types, rows, nullable, args...)
+	return fixture.Ean13Select(b, q, names, types, rows, nullable, args...)
 }
 
 func upcBadInputs() []struct{ input, code, message string } {

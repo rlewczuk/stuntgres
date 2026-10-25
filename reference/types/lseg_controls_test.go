@@ -23,7 +23,7 @@ func lsegControlRows(low bool) [][]any {
 
 func lsegConsumeRetained(t *testing.T, rows *sql.Rows, want [][]any) {
 	t.Helper()
-	boxMetadata(t, false, rows, []string{"INT4", "LSEG"}, nil)
+	fixture.BoxMetadata(t, false, rows, []string{"INT4", "LSEG"}, nil)
 	got := make([][]any, 0)
 	for rows.Next() {
 		var id int64
@@ -52,7 +52,7 @@ func lsegConsumeRetained(t *testing.T, rows *sql.Rows, want [][]any) {
 func lsegControlChecks(b fixture.Backend) []fixture.Step {
 	s := boxSelect(b, "SELECT id,s FROM lseg_controls ORDER BY id", []string{"id", "s"}, []string{"INT4", "LSEG"}, lsegControlRows(false))
 	s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-		boxMetadata(t, b.PG, rows, []string{"INT4", "LSEG"}, []bool{false, true})
+		fixture.BoxMetadata(t, b.PG, rows, []string{"INT4", "LSEG"}, []bool{false, true})
 	}
 	return []fixture.Step{s, boxSelect(b, "SELECT endpoint FROM lseg_control_view WHERE id=2", []string{"endpoint"}, []string{"POINT"}, [][]any{{"(-5,-6)"}}), boxSelect(b, "SELECT s FROM lseg_control_empty", []string{"s"}, []string{"LSEG"}, nil)}
 }

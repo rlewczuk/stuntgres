@@ -34,7 +34,7 @@ func TestReferenceIsmnInstallAndIdentity(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION isn SCHEMA ismn_identity_ns", 0))
 		run(fixture.Exec("CREATE TABLE ismn_qualified(v ismn_identity_ns.ismn,e ismn_identity_ns.ean13)", 0))
 		run(fixture.Exec("INSERT INTO ismn_qualified VALUES('M123456780!','9780123456786')", 1))
-		run(ean13Select(b, "SELECT v,e FROM ismn_qualified", []string{"v", "e"}, []string{"ISMN", "EAN13"}, [][]any{{"M-1234-5678-5!", "978-0-12-345678-6"}}, []bool{true, true}))
+		run(fixture.Ean13Select(b, "SELECT v,e FROM ismn_qualified", []string{"v", "e"}, []string{"ISMN", "EAN13"}, [][]any{{"M-1234-5678-5!", "978-0-12-345678-6"}}, []bool{true, true}))
 		isbnIdentity(t, p, b, c, "ismn_identity_ns")
 		stamp := isbnIdentityStamp(t, p, c, "ismn_identity_ns.ismn")
 		bound := ean13Held(t, p, c, "SELECT ($1::ismn_identity_ns.ismn)::text AS v")
@@ -70,7 +70,7 @@ func TestReferenceIsmnMetadata(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION isn", 0))
 		run(fixture.Exec("CREATE TABLE ismn_siblings(e ean13,s isbn,l isbn13,m ismn,n ismn13)", 0))
 		run(fixture.Exec("INSERT INTO ismn_siblings VALUES('9780123456786','123456789X','123456789X','M123456785','M123456785')", 1))
-		run(ean13Select(b, "SELECT e,s,l,m,n FROM ismn_siblings", []string{"e", "s", "l", "m", "n"}, []string{"EAN13", "ISBN", "ISBN13", "ISMN", "ISMN13"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X", "978-1-234-56789-7", "M-1234-5678-5", "979-0-1234-5678-5"}}, []bool{true, true, true, true, true}))
+		run(fixture.Ean13Select(b, "SELECT e,s,l,m,n FROM ismn_siblings", []string{"e", "s", "l", "m", "n"}, []string{"EAN13", "ISBN", "ISBN13", "ISMN", "ISMN13"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X", "978-1-234-56789-7", "M-1234-5678-5", "979-0-1234-5678-5"}}, []bool{true, true, true, true, true}))
 		run(fixture.Exec("CREATE TABLE ismn_meta(id integer NOT NULL,e ean13,v ismn,required ismn NOT NULL)", 0))
 		q := "SELECT e,v,required FROM ismn_meta ORDER BY id"
 		held := ean13Held(t, p, c, q)
@@ -80,7 +80,7 @@ func TestReferenceIsmnMetadata(t *testing.T) {
 				run(fixture.Exec("INSERT INTO ismn_meta VALUES(1,'9780123456786','m123456785','9790123456780!'),(2,NULL,NULL,'M999999997')", 2))
 				expected = [][]any{{"978-0-12-345678-6", "M-1234-5678-5", "M-1234-5678-5!"}, {nil, nil, "M-9999999-9-7"}}
 			}
-			s := ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISMN", "ISMN"}, expected, []bool{true, true, false})
+			s := fixture.Ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISMN", "ISMN"}, expected, []bool{true, true, false})
 			s.CheckScan = func(t *testing.T, rows *sql.Rows, i int) {
 				var e, v sql.NullString
 				var required string
@@ -95,17 +95,17 @@ func TestReferenceIsmnMetadata(t *testing.T) {
 			run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
-		empty := ean13Select(b, "SELECT e,v,required FROM ismn_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISMN", "ISMN"}, [][]any{}, []bool{true, true, false})
+		empty := fixture.Ean13Select(b, "SELECT e,v,required FROM ismn_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISMN", "ISMN"}, [][]any{}, []bool{true, true, false})
 		run(empty)
 		run(fixture.Prepared(empty))
 		emptyHeld := ean13Held(t, p, c, empty.Query)
 		fixture.RunStep(t, p.Ctx, emptyHeld, b.Recorder, empty)
-		nullOnly := ean13Select(b, "SELECT v FROM ismn_meta WHERE id=2", []string{"v"}, []string{"ISMN"}, [][]any{{nil}}, []bool{true})
+		nullOnly := fixture.Ean13Select(b, "SELECT v FROM ismn_meta WHERE id=2", []string{"v"}, []string{"ISMN"}, [][]any{{nil}}, []bool{true})
 		run(nullOnly)
 		run(fixture.Prepared(nullOnly))
 		nullHeld := ean13Held(t, p, c, nullOnly.Query)
 		fixture.RunStep(t, p.Ctx, nullHeld, b.Recorder, nullOnly)
-		sourceEmpty := ean13Select(b, "SELECT prosrc FROM pg_proc WHERE oid=0", []string{"prosrc"}, []string{"TEXT"}, [][]any{}, []bool{false})
+		sourceEmpty := fixture.Ean13Select(b, "SELECT prosrc FROM pg_proc WHERE oid=0", []string{"prosrc"}, []string{"TEXT"}, [][]any{}, []bool{false})
 		run(sourceEmpty)
 		run(fixture.Prepared(sourceEmpty))
 		sourceHeld := ean13Held(t, p, c, sourceEmpty.Query)

@@ -34,7 +34,7 @@ func TestReferenceIsbn13InstallAndIdentity(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION isn SCHEMA isbn13_identity_ns", 0))
 		run(fixture.Exec("CREATE TABLE isbn13_qualified(v isbn13_identity_ns.isbn13,e isbn13_identity_ns.ean13)", 0))
 		run(fixture.Exec("INSERT INTO isbn13_qualified VALUES('1234567890!','9780123456786')", 1))
-		run(ean13Select(b, "SELECT v,e FROM isbn13_qualified", []string{"v", "e"}, []string{"ISBN13", "EAN13"}, [][]any{{"978-1-234-56789-7!", "978-0-12-345678-6"}}, []bool{true, true}))
+		run(fixture.Ean13Select(b, "SELECT v,e FROM isbn13_qualified", []string{"v", "e"}, []string{"ISBN13", "EAN13"}, [][]any{{"978-1-234-56789-7!", "978-0-12-345678-6"}}, []bool{true, true}))
 		isbnIdentity(t, p, b, c, "isbn13_identity_ns")
 		stamp := isbnIdentityStamp(t, p, c, "isbn13_identity_ns.isbn13")
 		bound := ean13Held(t, p, c, "SELECT ($1::isbn13_identity_ns.isbn13)::text AS v")
@@ -70,7 +70,7 @@ func TestReferenceIsbn13Metadata(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION isn", 0))
 		run(fixture.Exec("CREATE TABLE isbn13_siblings(e ean13,s isbn,l isbn13,m ismn,n ismn13)", 0))
 		run(fixture.Exec("INSERT INTO isbn13_siblings VALUES('9780123456786','123456789X','123456789X','M123456785','M123456785')", 1))
-		run(ean13Select(b, "SELECT e,s,l,m,n FROM isbn13_siblings", []string{"e", "s", "l", "m", "n"}, []string{"EAN13", "ISBN", "ISBN13", "ISMN", "ISMN13"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X", "978-1-234-56789-7", "M-1234-5678-5", "979-0-1234-5678-5"}}, []bool{true, true, true, true, true}))
+		run(fixture.Ean13Select(b, "SELECT e,s,l,m,n FROM isbn13_siblings", []string{"e", "s", "l", "m", "n"}, []string{"EAN13", "ISBN", "ISBN13", "ISMN", "ISMN13"}, [][]any{{"978-0-12-345678-6", "1-234-56789-X", "978-1-234-56789-7", "M-1234-5678-5", "979-0-1234-5678-5"}}, []bool{true, true, true, true, true}))
 		run(fixture.Exec("CREATE TABLE isbn13_meta(id integer NOT NULL,e ean13,v isbn13,required isbn13 NOT NULL)", 0))
 		q := "SELECT e,v,required FROM isbn13_meta ORDER BY id"
 		held := ean13Held(t, p, c, q)
@@ -80,7 +80,7 @@ func TestReferenceIsbn13Metadata(t *testing.T) {
 				run(fixture.Exec("INSERT INTO isbn13_meta VALUES(1,'9780123456786','123456789x','9780123456780!'),(2,NULL,NULL,'9791234567896')", 2))
 				expected = [][]any{{"978-0-12-345678-6", "978-1-234-56789-7", "978-0-12-345678-6!"}, {nil, nil, "979-123456789-6"}}
 			}
-			s := ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISBN13", "ISBN13"}, expected, []bool{true, true, false})
+			s := fixture.Ean13Select(b, q, []string{"e", "v", "required"}, []string{"EAN13", "ISBN13", "ISBN13"}, expected, []bool{true, true, false})
 			s.CheckScan = func(t *testing.T, rows *sql.Rows, i int) {
 				var e, v sql.NullString
 				var required string
@@ -95,8 +95,8 @@ func TestReferenceIsbn13Metadata(t *testing.T) {
 			run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
-		run(ean13Select(b, "SELECT e,v,required FROM isbn13_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISBN13", "ISBN13"}, [][]any{}, []bool{true, true, false}))
-		nullOnly := ean13Select(b, "SELECT v FROM isbn13_meta WHERE id=2", []string{"v"}, []string{"ISBN13"}, [][]any{{nil}}, []bool{true})
+		run(fixture.Ean13Select(b, "SELECT e,v,required FROM isbn13_meta WHERE id=99", []string{"e", "v", "required"}, []string{"EAN13", "ISBN13", "ISBN13"}, [][]any{}, []bool{true, true, false}))
+		nullOnly := fixture.Ean13Select(b, "SELECT v FROM isbn13_meta WHERE id=2", []string{"v"}, []string{"ISBN13"}, [][]any{{nil}}, []bool{true})
 		run(nullOnly)
 		run(fixture.Prepared(nullOnly))
 		nullHeld := ean13Held(t, p, c, nullOnly.Query)

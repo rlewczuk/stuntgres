@@ -23,8 +23,8 @@ func cubeControlRows(lowPrecision bool) [][]any {
 
 func cubeControlChecks(b fixture.Backend) []fixture.Step {
 	checks := []fixture.Step{
-		cubeSelect(b, "SELECT id,v FROM cube_controls ORDER BY id", []string{"id", "v"}, cubeControlRows(false)),
-		cubeSelect(b, "SELECT v FROM cube_control_vacant", []string{"v"}, [][]any{}),
+		fixture.CubeSelect(b, "SELECT id,v FROM cube_controls ORDER BY id", []string{"id", "v"}, cubeControlRows(false)),
+		fixture.CubeSelect(b, "SELECT v FROM cube_control_vacant", []string{"v"}, [][]any{}),
 	}
 	for i := range checks {
 		check := &checks[i]
@@ -229,7 +229,7 @@ func TestReferenceCubeFeatureSmoke(t *testing.T) {
 		held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, 2, "(3,1),(1,4)"))
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, 3, nil))
-		s := cubeSelect(b, "SELECT id,v FROM cube_smoke ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1, 2),(3, 4)"}, {int64(2), "(3, 1),(1, 4)"}, {int64(3), nil}})
+		s := fixture.CubeSelect(b, "SELECT id,v FROM cube_smoke ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "(1, 2),(3, 4)"}, {int64(2), "(3, 1),(1, 4)"}, {int64(3), nil}})
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { cubeMetadata(t, b.PG, rows, s.Columns, []bool{false, true}) }
 		run(s)
 		if !b.PG {

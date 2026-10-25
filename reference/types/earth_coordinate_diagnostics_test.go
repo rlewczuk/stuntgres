@@ -203,7 +203,7 @@ func TestReferenceEarthCoordinateDiagnostics(t *testing.T) {
 						args = []any{"Infinity"}
 					}
 					earthCoordinateError(t, p, b, c, q, route, args, infinity, false, nil)
-					fixture.RunStep(t, p.Ctx, c, b.Recorder, earthSelect(b, "SELECT id,p FROM earth_coordinate_atomic ORDER BY id", []string{"id", "p"}, [][]any{{int64(1), "(6378168, 0, 0)"}}))
+					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.EarthSelect(b, "SELECT id,p FROM earth_coordinate_atomic ORDER BY id", []string{"id", "p"}, [][]any{{int64(1), "(6378168, 0, 0)"}}))
 				}
 			}
 		})

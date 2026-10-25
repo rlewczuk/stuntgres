@@ -72,7 +72,7 @@ func TestReferenceTransactionalTypesNativeControls(t *testing.T) {
 						run(fixture.Select("SELECT v FROM tt_data ORDER BY v", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}, {int64(9)}}))
 					case "failed_reader":
 						want := errors.New("transactional types reader failure")
-						if err := stuntgres.Restore(p.Ctx, p.Native, io.MultiReader(bytes.NewReader(baseline.Bytes()), typeLifecycleErrorReader{want})); !errors.Is(err, want) {
+						if err := stuntgres.Restore(p.Ctx, p.Native, io.MultiReader(bytes.NewReader(baseline.Bytes()), fixture.TypeLifecycleErrorReader{want})); !errors.Is(err, want) {
 							t.Fatal(err)
 						}
 						run(fixture.Exec(q, 1))

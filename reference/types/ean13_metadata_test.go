@@ -25,7 +25,7 @@ func TestReferenceEan13InstallAndIdentity(t *testing.T) {
 		run(fixture.Exec("CREATE EXTENSION isn SCHEMA ean_identity_ns", 0))
 		run(fixture.Exec("CREATE TABLE ean_qualified(v ean_identity_ns.ean13)", 0))
 		run(fixture.Exec("INSERT INTO ean_qualified VALUES('0123456789012')", 1))
-		run(ean13Select(b, "SELECT v FROM ean_qualified", []string{"v"}, []string{"EAN13"}, [][]any{{"012-345678901-2"}}, []bool{true}))
+		run(fixture.Ean13Select(b, "SELECT v FROM ean_qualified", []string{"v"}, []string{"EAN13"}, [][]any{{"012-345678901-2"}}, []bool{true}))
 		ean13Identity(t, p, b, c, "ean_identity_ns")
 	})
 }
@@ -79,7 +79,7 @@ func TestReferenceEan13Metadata(t *testing.T) {
 				run(fixture.Exec("INSERT INTO ean_meta VALUES(1,'0123456789012','1234567890120!'),(2,NULL,'9780123456786')", 2))
 				expected = [][]any{{"012-345678901-2", "123-456789012-8!"}, {nil, "978-0-12-345678-6"}}
 			}
-			s := ean13Select(b, q, []string{"v", "required"}, []string{"EAN13", "EAN13"}, expected, []bool{true, false})
+			s := fixture.Ean13Select(b, q, []string{"v", "required"}, []string{"EAN13", "EAN13"}, expected, []bool{true, false})
 			s.CheckScan = func(t *testing.T, rows *sql.Rows, i int) {
 				var optional sql.NullString
 				var required string
@@ -94,8 +94,8 @@ func TestReferenceEan13Metadata(t *testing.T) {
 			run(fixture.Prepared(s))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
-		run(ean13Select(b, "SELECT v FROM ean_meta WHERE id=2", []string{"v"}, []string{"EAN13"}, [][]any{{nil}}, []bool{true}))
-		run(ean13Select(b, "SELECT v,required FROM ean_meta WHERE id=99", []string{"v", "required"}, []string{"EAN13", "EAN13"}, [][]any{}, []bool{true, false}))
+		run(fixture.Ean13Select(b, "SELECT v FROM ean_meta WHERE id=2", []string{"v"}, []string{"EAN13"}, [][]any{{nil}}, []bool{true}))
+		run(fixture.Ean13Select(b, "SELECT v,required FROM ean_meta WHERE id=99", []string{"v", "required"}, []string{"EAN13", "EAN13"}, [][]any{}, []bool{true, false}))
 		ean13Identity(t, p, b, c, "public")
 	})
 }

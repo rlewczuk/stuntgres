@@ -21,7 +21,7 @@ func TestReferenceLsegMetadata(t *testing.T) {
 		} {
 			s := boxSelect(b, tc.q, []string{"s", "n"}, []string{"LSEG", "LSEG"}, tc.rows)
 			s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
-				boxMetadata(t, b.PG, rows, []string{"LSEG", "LSEG"}, []bool{false, true})
+				fixture.BoxMetadata(t, b.PG, rows, []string{"LSEG", "LSEG"}, []bool{false, true})
 			}
 			run(s)
 			run(fixture.Prepared(s))

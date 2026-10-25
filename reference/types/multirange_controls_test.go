@@ -69,7 +69,7 @@ func multirangeControls(t *testing.T, domains bool) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, held, check)
+		fixture.RangeConsumeHeld(t, held, check)
 		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, check)
 		assertDump := func(db fixture.Backend) {
 			t.Helper()
@@ -112,7 +112,7 @@ func multirangeControls(t *testing.T, domains bool) {
 				position := utf8.RuneCountInString(script[:strings.LastIndex(script, "('")+1]) + 1
 				wantError := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: failure.code, Message: failure.message, Detail: failure.detail, Position: strconv.Itoa(position)}
 				fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(script)), &wantError)
-				rangeConsumeHeld(t, held, check)
+				fixture.RangeConsumeHeld(t, held, check)
 				assertDump(targetBackend)
 				redumpCheck(false)
 			}
@@ -127,7 +127,7 @@ func multirangeControls(t *testing.T, domains bool) {
 				script := "CREATE DOMAIN public.span AS " + typ + "; CREATE DOMAIN public.chain AS public.span; CREATE TABLE guard(k integer NOT NULL,a public.chain NOT NULL); INSERT INTO guard VALUES (1,'{[7,8)}'); INSERT INTO guard VALUES (2,NULL);"
 				wantError := fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "a" of relation "guard" violates not-null constraint`, Detail: "Failing row contains (2, null).", Schema: "public", Table: "guard", Column: "a"}
 				fixture.AssertDiagnostic(t, stuntgres.Restore(target.Ctx, target.Native, strings.NewReader(script)), &wantError)
-				rangeConsumeHeld(t, held, check)
+				fixture.RangeConsumeHeld(t, held, check)
 				assertDump(targetBackend)
 				redumpCheck(false)
 			}
@@ -155,7 +155,7 @@ func multirangeControls(t *testing.T, domains bool) {
 		if err := stuntgres.Restore(target.Ctx, target.Native, strings.NewReader("CREATE TABLE r(replacement text NOT NULL); INSERT INTO r VALUES ('new shape');")); err != nil {
 			t.Fatal(err)
 		}
-		rangeConsumeHeld(t, held, check)
+		fixture.RangeConsumeHeld(t, held, check)
 		fixture.RunStep(t, target.Ctx, target.Memory, target.MemoryRecord, fixture.Select("SELECT replacement FROM r", []string{"replacement"}, []string{"TEXT"}, [][]any{{"new shape"}}))
 		if p.Postgres != nil {
 			if _, err := p.Postgres.ExecContext(p.Ctx, "DROP SCHEMA public CASCADE; CREATE SCHEMA public"); err != nil {

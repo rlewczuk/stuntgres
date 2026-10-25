@@ -46,7 +46,7 @@ func TestReferenceUpcConversions(t *testing.T) {
 				run(fixture.Exec("INSERT INTO upc_ean SELECT id,v FROM upc_source", 3))
 			}
 			setup()
-			run(ean13Select(b, "SELECT id,v FROM upc_ean ORDER BY id", []string{"id","v"}, []string{"INT4","EAN13"}, [][]any{{int64(1),"012-345678901-2!"},{int64(2),nil},{int64(3),"022-035648348-1"}}, []bool{false,true}))
+			run(fixture.Ean13Select(b, "SELECT id,v FROM upc_ean ORDER BY id", []string{"id","v"}, []string{"INT4","EAN13"}, [][]any{{int64(1),"012-345678901-2!"},{int64(2),nil},{int64(3),"022-035648348-1"}}, []bool{false,true}))
 			q := "INSERT INTO upc_source SELECT 4,v FROM upc_ean WHERE id=1"
 			want := ean13Diagnostic("42804", `column "v" is of type upc but expression is of type ean13`)
 			want.Position = strconv.Itoa(strings.Index(q, ",v")+2)

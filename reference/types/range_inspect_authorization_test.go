@@ -76,7 +76,7 @@ func inspectAuthorization(t *testing.T, p *fixture.Pair, b fixture.Backend, role
 	if err != nil {
 		t.Fatal(err)
 	}
-	rangeConsumeHeld(t, actorRows, inspectRunActor)
+	fixture.RangeConsumeHeld(t, actorRows, inspectRunActor)
 }
 func TestReferenceRangeInspectAuthorization(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"inspect_reader"})

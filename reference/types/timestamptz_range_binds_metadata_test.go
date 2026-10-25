@@ -97,7 +97,7 @@ func TestReferenceTimestamptzRangeMetadata(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rangeConsumeHeld(t, rows, check)
+			fixture.RangeConsumeHeld(t, rows, check)
 		}
 	}
 }

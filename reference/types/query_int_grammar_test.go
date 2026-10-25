@@ -39,7 +39,7 @@ func TestReferenceQueryIntGrammar(t *testing.T) {
 				run(fixture.Exec("CREATE TABLE qi_grammar(id integer NOT NULL,v query_int)", 0))
 				run(fixture.Exec("INSERT INTO qi_grammar VALUES (1,"+queryIntLiteral(tc.input)+")", 1))
 				run(fixture.Prepared(fixture.Exec("INSERT INTO qi_grammar VALUES ($1,$2)", 1, 2, tc.input)))
-				s := queryIntSelect(b, "SELECT id,v FROM qi_grammar ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), tc.canonical}, {int64(2), tc.canonical}})
+				s := fixture.QueryIntSelect(b, "SELECT id,v FROM qi_grammar ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), tc.canonical}, {int64(2), tc.canonical}})
 				run(s)
 				run(fixture.Prepared(s))
 			})
@@ -54,7 +54,7 @@ func TestReferenceQueryIntGrammar(t *testing.T) {
 				for i := 1; i < n; i++ {
 					canonical = "( " + canonical + " ) | 1"
 				}
-				s := queryIntSelect(b, "SELECT $1::query_int AS v", []string{"v"}, [][]any{{canonical}}, input)
+				s := fixture.QueryIntSelect(b, "SELECT $1::query_int AS v", []string{"v"}, [][]any{{canonical}}, input)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 			}

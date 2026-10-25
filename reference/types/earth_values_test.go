@@ -30,7 +30,7 @@ func TestReferenceEarthValues(t *testing.T) {
 						if q == "SELECT $1::earth AS v" {
 							args = []any{tc.input}
 						}
-						s := earthSelect(b, q, []string{"v"}, [][]any{{tc.output}}, args...)
+						s := fixture.EarthSelect(b, q, []string{"v"}, [][]any{{tc.output}}, args...)
 						s.Prepared = prepared
 						fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 					}
@@ -65,7 +65,7 @@ func TestReferenceEarthValues(t *testing.T) {
 			earthScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 				earthInstall(t, p, b, c)
 				for _, prepared := range []bool{false, true} {
-					s := earthSelect(b, "SELECT $1::earth AS v", []string{"v"}, [][]any{{canonical}}, inside)
+					s := fixture.EarthSelect(b, "SELECT $1::earth AS v", []string{"v"}, [][]any{{canonical}}, inside)
 					s.Prepared = prepared
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
 					want := cubeParameterDiagnostic(earthCheckDiagnostic("public", "on_surface", true), outside, 1)

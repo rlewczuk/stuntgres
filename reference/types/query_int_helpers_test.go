@@ -34,37 +34,6 @@ func queryIntInstall(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Co
 	fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec("CREATE EXTENSION intarray", 0))
 }
 
-// Values are independently specified. lib/pq's unknown extension OID uses raw
-// bytes and an empty type name; native uses its actual QUERY_INT descriptor.
-func queryIntSelect(b fixture.Backend, q string, columns []string, values [][]any, args ...any) fixture.Step {
-	types := make([]string, len(columns))
-	for i, name := range columns {
-		if name == "id" {
-			types[i] = "INT4"
-		} else if !b.PG {
-			types[i] = "QUERY_INT"
-		}
-	}
-	s := fixture.Select(q, columns, types, values, args...)
-	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
-		if columns[column] == "id" {
-			return false
-		}
-		if value == nil {
-			return true
-		}
-		if b.PG {
-			if _, ok := value.([]byte); !ok {
-				t.Fatalf("query_int raw PG cell %d/%d = %T, want []byte", row, column, value)
-			}
-		} else if _, ok := value.(string); !ok {
-			t.Fatalf("query_int raw native cell %d/%d = %T, want string", row, column, value)
-		}
-		return true
-	}
-	return s
-}
-
 // Every omitted logical field is expected empty, not ignored. PostgreSQL 18.0
 // observations establish these full records before native implementation.
 func queryIntError(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, q string, prepared, selectRows, prepareFailure bool, want fixture.Diagnostic, args ...any) {

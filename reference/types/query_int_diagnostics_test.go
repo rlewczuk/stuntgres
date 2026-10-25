@@ -47,9 +47,9 @@ func TestReferenceQueryIntDiagnostics(t *testing.T) {
 					} {
 						want := queryIntParameterDiagnostic(code, message, input, tc.parameter)
 						queryIntError(t, p, b, c, tc.q, prepared, false, false, want, tc.args...)
-						run(queryIntSelect(b, "SELECT id,v FROM qi_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1"}, {int64(2), "!2"}}))
+						run(fixture.QueryIntSelect(b, "SELECT id,v FROM qi_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1"}, {int64(2), "!2"}}))
 					}
-					run(queryIntSelect(b, "SELECT id,v FROM qi_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1"}, {int64(2), "!2"}}))
+					run(fixture.QueryIntSelect(b, "SELECT id,v FROM qi_diag ORDER BY id", []string{"id", "v"}, [][]any{{int64(1), "1"}, {int64(2), "!2"}}))
 				}
 			})
 		})

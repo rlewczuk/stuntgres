@@ -24,7 +24,7 @@ func TestReferenceCubeConstructorFeatureSmoke(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, insert, b.Recorder, fixture.Exec(insertSQL, 1, 3, nil, 1))
 		insert.Statement.Close()
 		rows := [][]any{{int64(1), "(1, 2),(3, 4)"}, {int64(2), "(1)"}, {int64(3), nil}}
-		baseline := cubeSelect(b, "SELECT id,v FROM "+table+" ORDER BY id", []string{"id", "v"}, rows)
+		baseline := fixture.CubeSelect(b, "SELECT id,v FROM "+table+" ORDER BY id", []string{"id", "v"}, rows)
 		run(baseline)
 		q := "SELECT cube($1::double precision[],$2::double precision[]) AS v"
 		held := cubeConstructorHeld(t, p, c, q)

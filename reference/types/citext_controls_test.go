@@ -22,7 +22,7 @@ func citextControlChecks(t *testing.T, p *fixture.Pair, b fixture.Backend, execu
 		{"SELECT id,v FROM citext_values ORDER BY id", []string{"id", "v"}, []bool{false, true}, citextLiteralRows()},
 		{"SELECT v FROM citext_control_empty", []string{"v"}, []bool{false}, [][]any{}},
 	} {
-		s := citextSelect(b, tc.q, tc.names, tc.rows)
+		s := fixture.CitextSelect(b, tc.q, tc.names, tc.rows)
 		s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { citextMetadata(t, b.PG, rows, tc.names, tc.nulls) }
 		fixture.RunStep(t, p.Ctx, executor, b.Recorder, s)
 		fixture.RunStep(t, p.Ctx, executor, b.Recorder, fixture.Prepared(s))

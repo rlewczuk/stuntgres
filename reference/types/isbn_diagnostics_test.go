@@ -78,7 +78,7 @@ func TestReferenceIsbnDiagnostics(t *testing.T) {
 					s.SelectRows, s.ErrorStage = true, "execute"
 					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 				}
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, ean13Select(b, held.SQL, []string{"isbn"}, []string{"ISBN"}, [][]any{{"1-234-56789-X!"}}, nil, "1234567890!"))
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Ean13Select(b, held.SQL, []string{"isbn"}, []string{"ISBN"}, [][]any{{"1-234-56789-X!"}}, nil, "1234567890!"))
 			})
 		})
 	}
@@ -110,7 +110,7 @@ func TestReferenceIsbnAtomicity(t *testing.T) {
 		run(fixture.Exec("INSERT INTO isbn_atomic VALUES(1,'9780123456786')", 1))
 		q := "INSERT INTO isbn_atomic VALUES(2,$1),(3,$2)"
 		held := ean13Held(t, p, c, q)
-		seed := ean13Select(b, "SELECT id,v FROM isbn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN"}, [][]any{{int64(1), "0-12-345678-9"}}, []bool{false, false})
+		seed := fixture.Ean13Select(b, "SELECT id,v FROM isbn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN"}, [][]any{{int64(1), "0-12-345678-9"}}, []bool{false, false})
 		for i, tc := range isbnBadInputs() {
 			t.Run(fmt.Sprintf("later_%02d", i), func(t *testing.T) {
 				for _, prepared := range []bool{false, true} {
@@ -158,6 +158,6 @@ func TestReferenceIsbnAtomicity(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.ErrorDiagnostic(q, want, "9780123456786", nil))
 		run(seed)
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 2, "9780123456786", "1234567890!"))
-		run(ean13Select(b, "SELECT id,v FROM isbn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN"}, [][]any{{int64(1), "0-12-345678-9"}, {int64(2), "0-12-345678-9"}, {int64(3), "1-234-56789-X!"}}, []bool{false, false}))
+		run(fixture.Ean13Select(b, "SELECT id,v FROM isbn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN"}, [][]any{{int64(1), "0-12-345678-9"}, {int64(2), "0-12-345678-9"}, {int64(3), "1-234-56789-X!"}}, []bool{false, false}))
 	})
 }

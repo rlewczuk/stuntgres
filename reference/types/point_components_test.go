@@ -66,7 +66,7 @@ func TestReferencePointComponents(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(update, 1, 0, nil, 1))
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(update, 1, 0, 8, 2))
 		if retained != nil {
-			pointConsumeRetained(t, retained, [][]any{{int64(1), "(1,2)"}, {int64(2), nil}})
+			fixture.PointConsumeRetained(t, retained, [][]any{{int64(1), "(1,2)"}, {int64(2), nil}})
 		}
 		for _, prepared := range []bool{false, true} {
 			for _, assignment := range []string{"p[-1]=NULL::float8", "p[2]=NULL::float8", "p[0][0]=NULL::float8", "p[0:1]=NULL::point"} {

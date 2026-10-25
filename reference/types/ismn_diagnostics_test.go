@@ -47,7 +47,7 @@ func TestReferenceIsmnDiagnostics(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
 					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 				}
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, ean13Select(b, held.SQL, []string{"ismn"}, []string{"ISMN"}, [][]any{{"M-1234-5678-5!"}}, nil, "M123456780!"))
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Ean13Select(b, held.SQL, []string{"ismn"}, []string{"ISMN"}, [][]any{{"M-1234-5678-5!"}}, nil, "M123456780!"))
 			})
 		})
 	}
@@ -79,7 +79,7 @@ func TestReferenceIsmnAtomicity(t *testing.T) {
 		run(fixture.Exec("INSERT INTO ismn_atomic VALUES(1,'9790123456785')", 1))
 		q := "INSERT INTO ismn_atomic VALUES(2,$1),(3,$2)"
 		held := ean13Held(t, p, c, q)
-		seed := ean13Select(b, "SELECT id,v FROM ismn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN"}, [][]any{{int64(1), "M-1234-5678-5"}}, []bool{false, false})
+		seed := fixture.Ean13Select(b, "SELECT id,v FROM ismn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN"}, [][]any{{int64(1), "M-1234-5678-5"}}, []bool{false, false})
 		stamps := map[string][4]int64{}
 		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
 			stamps[typ] = isbnIdentityStamp(t, p, c, typ)
@@ -147,7 +147,7 @@ func TestReferenceIsmnAtomicity(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.ErrorDiagnostic(q, want, "9790123456785", nil))
 		checkSeed()
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 2, "9790123456785", "M123456780!"))
-		run(ean13Select(b, "SELECT id,v FROM ismn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN"}, [][]any{{int64(1), "M-1234-5678-5"}, {int64(2), "M-1234-5678-5"}, {int64(3), "M-1234-5678-5!"}}, []bool{false, false}))
+		run(fixture.Ean13Select(b, "SELECT id,v FROM ismn_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN"}, [][]any{{int64(1), "M-1234-5678-5"}, {int64(2), "M-1234-5678-5"}, {int64(3), "M-1234-5678-5!"}}, []bool{false, false}))
 	})
 }
 

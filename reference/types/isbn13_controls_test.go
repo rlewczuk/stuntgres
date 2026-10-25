@@ -117,7 +117,7 @@ func TestReferenceIsbn13Controls(t *testing.T) {
 					cancel()
 					reader = bytes.NewReader(dump.Bytes())
 				case "reader":
-					reader = io.MultiReader(bytes.NewReader(dump.Bytes()), typeLifecycleErrorReader{io.ErrUnexpectedEOF})
+					reader = io.MultiReader(bytes.NewReader(dump.Bytes()), fixture.TypeLifecycleErrorReader{io.ErrUnexpectedEOF})
 				}
 				err := stuntgres.Restore(ctx, target.Native, reader)
 				switch kind {
@@ -181,7 +181,7 @@ func TestReferenceIsbn13FeatureSmoke(t *testing.T) {
 		}
 		expected := [][]any{{int64(1), "978-1-234-56789-7"}, {int64(2), "978-0-12-345678-6!"}, {int64(3), nil}}
 		verify := func(pair *fixture.Pair, backend fixture.Backend, conn *sql.Conn) {
-			s := ean13Select(backend, "SELECT id,v FROM isbn13_smoke ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, expected, []bool{false, true})
+			s := fixture.Ean13Select(backend, "SELECT id,v FROM isbn13_smoke ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, expected, []bool{false, true})
 			fixture.RunStep(t, pair.Ctx, conn, backend.Recorder, s)
 			fixture.RunStep(t, pair.Ctx, conn, backend.Recorder, fixture.Prepared(s))
 			held := ean13Held(t, pair, conn, s.Query)
@@ -204,7 +204,7 @@ func TestReferenceIsbn13FeatureSmoke(t *testing.T) {
 			}
 		}
 		fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(held.SQL, 2, "123456789X", "9780123456780!"))
-		run(ean13Select(b, "SELECT id,v FROM isbn13_smoke WHERE id>3 ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, [][]any{{int64(4), "978-1-234-56789-7"}, {int64(5), "978-0-12-345678-6!"}}, []bool{false, true}))
+		run(fixture.Ean13Select(b, "SELECT id,v FROM isbn13_smoke WHERE id>3 ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISBN13"}, [][]any{{int64(4), "978-1-234-56789-7"}, {int64(5), "978-0-12-345678-6!"}}, []bool{false, true}))
 		run(fixture.Exec("DELETE FROM isbn13_smoke WHERE id>3", 2))
 		run(fixture.Exec("DROP TABLE isbn13_smoke", 0))
 		run(fixture.Exec("DROP EXTENSION isn", 0))

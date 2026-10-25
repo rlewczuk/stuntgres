@@ -13,10 +13,6 @@ import (
 	"testing"
 )
 
-type uuidReferenceFailingReader struct{ err error }
-
-func (r uuidReferenceFailingReader) Read([]byte) (int, error) { return 0, r.err }
-
 func TestReferenceUUIDControlsAndRetainedSnapshot(t *testing.T) {
 	p := fixture.NewScenario(t)
 	// Keep original direct setup and the existing Restore as distinct witnesses.
@@ -115,7 +111,7 @@ func TestReferenceUUIDControlsAndRetainedSnapshot(t *testing.T) {
 			t.Fatal(err)
 		}
 		failure := errors.New("uuid restore source failure")
-		if err := stuntgres.Restore(p.Ctx, p.Native, uuidReferenceFailingReader{failure}); !errors.Is(err, failure) {
+		if err := stuntgres.Restore(p.Ctx, p.Native, fixture.UUIDReferenceFailingReader{failure}); !errors.Is(err, failure) {
 			t.Fatal(err)
 		}
 		assertSaved()

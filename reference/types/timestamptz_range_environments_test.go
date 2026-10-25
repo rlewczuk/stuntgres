@@ -49,7 +49,7 @@ func TestReferenceTimestamptzRangeEnvironments(t *testing.T) {
 			run(fixture.Exec("SET TIME ZONE 'UTC'", 0))
 			run(fixture.Exec("SET DateStyle = 'German, DMY'", 0))
 		}
-		rangeConsumeHeld(t, rows, check)
+		fixture.RangeConsumeHeld(t, rows, check)
 		run(fixture.Exec("SET TIME ZONE 'UTC'", 0))
 		run(fixture.Exec("SET DateStyle = 'ISO, MDY'", 0))
 		for _, tc := range []struct{ input, output string }{
