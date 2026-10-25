@@ -60,7 +60,7 @@ func (s *StatementScope) AcquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every
 // return; the dependency lock belongs to the statement's transaction ticket.
-func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *session.Journal, d *catalog.Relation, raw parser.ObjectName) (ids.ObjectAddress, error) {
+func ownedSequenceLocked(e *Engine, scope *StatementScope, auth *AuthorizationView, changes *session.Journal, d *catalog.Relation, raw parser.ObjectName) (ids.ObjectAddress, error) {
 	table, column, none, err := sequence.ParseOwnedBy(raw)
 	if err != nil || none {
 		return ids.ObjectAddress{}, err
@@ -89,7 +89,7 @@ func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationV
 	}
 	return sequence.CheckOwnedBy(r, d, column)
 }
-func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeSequenceDDL(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -171,7 +171,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		scope.CatalogAuthority = auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)
 		for _, option := range s.Options {
 			if option.Name == "owned" {
-				d.Sequence.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
+				d.Sequence.Owned, err = ownedSequenceLocked(e, scope, &auth, changes, d, option.Owned)
 				if err != nil {
 					e.Mu.Unlock()
 					return Result{}, err
@@ -186,7 +186,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			if err := scope.AcquireCatalogNamespace(auth.Catalog, ns.Address, s.Name); err != nil {
 				return Result{}, err
 			}
-			if err := scope.acquireCatalogBinding(auth.Catalog, catalog.BindingClaim{Key: key, Address: d.Address(), Priority: 1}); err != nil {
+			if err := acquireCatalogBinding(scope, auth.Catalog, catalog.BindingClaim{Key: key, Address: d.Address(), Priority: 1}); err != nil {
 				if s.IfNotExists {
 					skipped, failure := scope.SkipConcurrentRelation(auth.Catalog, key, s.Name, err)
 					if skipped {
@@ -280,7 +280,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 					a.SubID = 0
 					return Result{}, sequence.IdentityOwnershipError(old, auth.Catalog.MustRelation(a))
 				}
-				options.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, &d, option.Owned)
+				options.Owned, err = ownedSequenceLocked(e, scope, &auth, changes, &d, option.Owned)
 				if err != nil {
 					return Result{}, err
 				}
@@ -372,11 +372,11 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		scope.Catalog = changes
 		return Result{}, nil
 	case *parser.DropSequence:
-		return e.dropSequences(scope, s)
+		return dropSequences(e, scope, s)
 	}
 	return Result{}, SQLError("0A000", "unsupported sequence statement")
 }
-func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (Result, error) {
+func dropSequences(e *Engine, scope *StatementScope, s *parser.DropSequence) (Result, error) {
 	refs := make([]ids.ObjectRef, 0, len(s.Names))
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(scope.Op)

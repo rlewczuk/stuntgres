@@ -27,7 +27,7 @@ func (e *Engine) UpdateDatabaseMaintenanceLocked() {
 	e.DatabaseFrozenXID = next
 	e.publishDatabaseFrozenXIDLocked()
 }
-func (e *Engine) vacuumDatabasePreflightLocked(s *StatementScope) error {
+func vacuumDatabasePreflightLocked(e *Engine, s *StatementScope) error {
 	s.Op.Session.Mu.Lock()
 	defer s.Op.Session.Mu.Unlock()
 	if err := PublicationOperationLocked(e, s.Op); err != nil {
@@ -38,7 +38,7 @@ func (e *Engine) vacuumDatabasePreflightLocked(s *StatementScope) error {
 	}
 	return s.Op.Context().Err()
 }
-func (e *Engine) vacuumPhaseLocked(s *StatementScope, phase string, total, processed int64) {
+func vacuumPhaseLocked(e *Engine, s *StatementScope, phase string, total, processed int64) {
 	p, ok := e.VacuumProgress[s.TxRef]
 	if !ok {
 		return
@@ -48,7 +48,7 @@ func (e *Engine) vacuumPhaseLocked(s *StatementScope, phase string, total, proce
 	p.Fact.IndexesProcessed = processed
 	e.VacuumProgress[s.TxRef] = p
 }
-func (e *Engine) endVacuumProgress(ref ids.TxRef) {
+func endVacuumProgress(e *Engine, ref ids.TxRef) {
 	e.Mu.Lock()
 	delete(e.VacuumProgress, ref)
 	e.Mu.Unlock()

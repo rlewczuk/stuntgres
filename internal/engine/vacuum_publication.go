@@ -13,9 +13,9 @@ import (
 	"time"
 )
 
-func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget) (table.VacuumCapture, bool, error) {
+func captureVacuumLocked(e *Engine, s *StatementScope, target vacuumHeapTarget) (table.VacuumCapture, bool, error) {
 	var c table.VacuumCapture
-	if err := e.vacuumDatabasePreflightLocked(s); err != nil {
+	if err := vacuumDatabasePreflightLocked(e, s); err != nil {
 		return c, false, err
 	}
 	auth, err := e.AuthorizationLocked(s.Op)
@@ -41,9 +41,9 @@ func (e *Engine) captureVacuumLocked(s *StatementScope, target vacuumHeapTarget)
 	return c, true, nil
 }
 
-func (e *Engine) vacuumRelation(s *StatementScope, selected table.VacuumTarget, o table.VacuumOptions) error {
+func vacuumRelation(e *Engine, s *StatementScope, selected table.VacuumTarget, o table.VacuumOptions) error {
 	e.Mu.Lock()
-	if err := e.vacuumDatabasePreflightLocked(s); err != nil {
+	if err := vacuumDatabasePreflightLocked(e, s); err != nil {
 		e.Mu.Unlock()
 		return err
 	}
@@ -97,10 +97,10 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected table.VacuumTarget, 
 	}
 	e.VacuumProgress[s.TxRef] = VacuumProgress{Fact: pgcatalog.VacuumProgressFact{PID: int64(s.Op.Session.SessionToken.ID()), Database: table.VacuumDatabaseOID(auth.Catalog), DatabaseName: s.Op.Session.DatabaseName, Relation: target.ref.Address.ObjectID, Phase: "initializing", IndexesTotal: int64(len(first.Indexes))}, Owner: auth.State.Authenticated}
 	e.Mu.Unlock()
-	defer e.endVacuumProgress(s.TxRef)
+	defer endVacuumProgress(e, s.TxRef)
 	phase := func(name string, total, processed int64) {
 		e.Mu.Lock()
-		e.vacuumPhaseLocked(s, name, total, processed)
+		vacuumPhaseLocked(e, s, name, total, processed)
 		e.Mu.Unlock()
 	}
 	capture := first
@@ -114,7 +114,7 @@ func (e *Engine) vacuumRelation(s *StatementScope, selected table.VacuumTarget, 
 			return err
 		}
 		e.Mu.Lock()
-		current, allowed, err := e.captureVacuumLocked(s, target)
+		current, allowed, err := captureVacuumLocked(e, s, target)
 		if err != nil || !allowed {
 			e.Mu.Unlock()
 			if err == nil {

@@ -214,7 +214,7 @@ func admitRestoreAlterSequence(r *restoreRun, op *session.Operation, s *parser.A
 	if s.Action == "" && len(s.Options) == 1 && s.Options[0].Name == "owned" {
 		return nil
 	}
-	return r.stage.validateRestoreIdentityConfiguration(op, s)
+	return validateRestoreIdentityConfiguration(r.stage, op, s)
 }
 
 // admitRestoreSessionAuthorization admits owner directives and DEFAULT;

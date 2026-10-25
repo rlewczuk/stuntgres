@@ -57,7 +57,7 @@ func (r stageDefinitionReader) HasProviderProcedureOverride(name string) bool {
 	return false
 }
 
-func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
+func definitionNamespace(a AuthorizationView, address ids.ObjectAddress) (*catalog.Namespace, bool) {
 	return catalog.DefinitionNamespaceAt(a.Catalog, a.Definition, address)
 }
 

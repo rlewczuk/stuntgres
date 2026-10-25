@@ -176,7 +176,7 @@ func (s *StatementScope) AcquireCatalogNamespace(base catalog.Read, address ids.
 	return err
 }
 
-func (s *StatementScope) acquireCatalogBinding(base catalog.Read, claim catalog.BindingClaim) error {
+func acquireCatalogBinding(s *StatementScope, base catalog.Read, claim catalog.BindingClaim) error {
 	key := claim.Key
 	resource := lock.Resource{ObjectRef: s.Engine().Catalog.Domain.Ref(base.Epoch(), key.Namespace), Name: key}
 	if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {

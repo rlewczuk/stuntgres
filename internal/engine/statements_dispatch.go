@@ -31,7 +31,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.Load:
 		return dispatched(e.executeLoad(op, stmt.(*parser.Load), count))
 	case *parser.Vacuum:
-		return dispatched(e.executeVacuum(scope, stmt.(*parser.Vacuum), count))
+		return dispatched(executeVacuum(e, scope, stmt.(*parser.Vacuum), count))
 	case *parser.CreateExtension:
 		return dispatched(e.executeExtension(scope, stmt.(*parser.CreateExtension), count))
 	case *parser.DropExtension:
@@ -64,7 +64,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.DropView:
 		return dispatched(e.executeDropView(scope, stmt.(*parser.DropView), count))
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
-		return dispatched(e.executeSequenceDDL(scope, stmt, count))
+		return dispatched(executeSequenceDDL(e, scope, stmt, count))
 	case *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum:
 		return dispatched(e.executeEnumDDL(scope, stmt, count))
 	case *parser.AlterDomain:
@@ -84,7 +84,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		return dispatched(e.executeAlterComposite(scope, op, stmt.(*parser.AlterComposite), count))
 	case *parser.Comment:
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
-			return dispatched(e.executeSequenceComment(scope, c, count))
+			return dispatched(executeSequenceComment(e, scope, c, count))
 		}
 		result, err := e.executeComment(scope, stmt.(*parser.Comment), count)
 		if err == nil {

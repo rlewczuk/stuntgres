@@ -24,7 +24,7 @@ type vacuumHeapTarget struct {
 func vacuumNotice(s *StatementScope, w table.VacuumWarning) {
 	s.Op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: w.Code, Message: w.Message})
 }
-func (s *StatementScope) vacuumAcquire(ref ids.ObjectRef, mode lock.Mode, skip bool) error {
+func vacuumAcquire(s *StatementScope, ref ids.ObjectRef, mode lock.Mode, skip bool) error {
 	e := s.Engine()
 	policy := lock.Policy{NoWait: skip, TimeoutSlot: &s.Op.LockWait, Timeout: s.Op.LockTimeout, StatementDeadline: s.Op.StatementDeadline, Source: s.Op.SourceContext}
 	request, err := e.Locks.StartAcquire(s.Op.Context(), s.LockTicket, lock.Resource{ObjectRef: ref}, mode, policy)
@@ -37,7 +37,7 @@ func (s *StatementScope) vacuumAcquire(ref ids.ObjectRef, mode lock.Mode, skip b
 // VACUUM needs only namespace/object authority for a peer TEMP relation, never
 // access to its data. Keep ordinary SELECT/DML's stricter foreign-TEMP lookup
 // boundary unchanged; this utility path still checks the actual namespace ACL.
-func (e *Engine) resolveVacuumReference(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
+func resolveVacuumReference(e *Engine, auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
 	if err := e.Catalog.ValidateCatalogViewLocked(auth.Catalog); err != nil {
 		return ids.ObjectRef{}, err
 	}
@@ -53,7 +53,7 @@ func (e *Engine) resolveVacuumReference(auth AuthorizationView, name parser.Obje
 	}
 	if len(name.Parts) == 2 && name.Parts[0].Text != "pg_temp" {
 		address := auth.DefinitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: name.Parts[0].Text})
-		ns, ok := auth.definitionNamespace(address)
+		ns, ok := definitionNamespace(auth, address)
 		if ok && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.Session.SessionToken {
 			if err := auth.CanUse(auth.Ref(address)); err != nil {
 				return ids.ObjectRef{}, err
@@ -64,7 +64,7 @@ func (e *Engine) resolveVacuumReference(auth AuthorizationView, name parser.Obje
 	return e.ResolveRelationReference(auth, name, true)
 }
 
-func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked bool) ([]table.VacuumTarget, error) {
+func vacuumTargets(e *Engine, s *StatementScope, raw *parser.Vacuum, skipLocked bool) ([]table.VacuumTarget, error) {
 	var selection table.VacuumSelection
 	// All expansions finish before work. Deliver only genuine selection notices,
 	// in encounter order and outside every checkpoint/metadata mutex region.
@@ -93,7 +93,7 @@ func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked
 		auth, err := e.AuthorizationLocked(s.Op)
 		var ref ids.ObjectRef
 		if err == nil {
-			ref, err = e.resolveVacuumReference(auth, target.Name)
+			ref, err = resolveVacuumReference(e, auth, target.Name)
 		}
 		e.Mu.Unlock()
 		if err != nil {
@@ -101,12 +101,12 @@ func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked
 		}
 		name := target.Name.Parts[len(target.Name.Parts)-1].Text
 		checkpoint := e.Locks.Checkpoint(s.LockTicket)
-		err = s.vacuumAcquire(ref, lock.AccessShare, skipLocked)
+		err = vacuumAcquire(s, ref, lock.AccessShare, skipLocked)
 		if err == nil {
 			e.Mu.Lock()
 			auth, err = e.AuthorizationLocked(s.Op)
 			if err == nil {
-				current, lookupErr := e.resolveVacuumReference(auth, target.Name)
+				current, lookupErr := resolveVacuumReference(e, auth, target.Name)
 				d, ok := auth.Catalog.Relation(ref.Address)
 				if lookupErr != nil || current != ref || !ok || ref.Epoch != auth.Catalog.Epoch() {
 					err = ids.ErrCatalogReplaced
@@ -127,7 +127,7 @@ func (e *Engine) vacuumTargets(s *StatementScope, raw *parser.Vacuum, skipLocked
 	}
 	return selection.Targets, nil
 }
-func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int) (Result, error) {
+func executeVacuum(e *Engine, s *StatementScope, raw *parser.Vacuum, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -141,14 +141,14 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 	if options.OnlyDatabase {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
-		if err := e.vacuumDatabasePreflightLocked(s); err != nil {
+		if err := vacuumDatabasePreflightLocked(e, s); err != nil {
 			return Result{}, err
 		}
 		e.UpdateDatabaseMaintenanceLocked()
 		s.Completed = true
 		return Result{}, nil
 	}
-	targets, err := e.vacuumTargets(s, raw, options.SkipLocked)
+	targets, err := vacuumTargets(e, s, raw, options.SkipLocked)
 	if err != nil {
 		return Result{}, err
 	}
@@ -156,7 +156,7 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 		checkpoint := e.Locks.Checkpoint(s.LockTicket)
 		err = func() error {
 			defer e.Locks.Restore(s.LockTicket, checkpoint)
-			if err := s.vacuumAcquire(target.Ref, lock.ShareUpdateExclusive, options.SkipLocked); err != nil {
+			if err := vacuumAcquire(s, target.Ref, lock.ShareUpdateExclusive, options.SkipLocked); err != nil {
 				if err == lock.ErrUnavailable && options.SkipLocked {
 					if target.Name != "" {
 						vacuumNotice(s, table.VacuumLockWarning(target.Name))
@@ -165,7 +165,7 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 				}
 				return err
 			}
-			return e.vacuumRelation(s, target, options)
+			return vacuumRelation(e, s, target, options)
 		}()
 		if err != nil {
 			return Result{}, err
@@ -173,7 +173,7 @@ func (e *Engine) executeVacuum(s *StatementScope, raw *parser.Vacuum, count int)
 	}
 	if !options.SkipDatabase {
 		e.Mu.Lock()
-		err = e.vacuumDatabasePreflightLocked(s)
+		err = vacuumDatabasePreflightLocked(e, s)
 		if err == nil {
 			e.UpdateDatabaseMaintenanceLocked()
 		}

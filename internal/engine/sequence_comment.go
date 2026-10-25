@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeSequenceComment(scope *StatementScope, s *parser.Comment, count int) (Result, error) {
+func executeSequenceComment(e *Engine, scope *StatementScope, s *parser.Comment, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: COMMENT takes no arguments")
 	}
