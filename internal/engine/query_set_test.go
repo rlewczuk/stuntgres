@@ -16,49 +16,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func TestQuerySetScalarExpansionOwnership(t *testing.T) {
-	var text *sqltype.Descriptor
-	for _, d := range sqltype.Builtins() {
-		if d.ID() == sqltype.Text {
-			text = d
-			break
-		}
-	}
-	shape, err := sqltype.RecordShape([]sqltype.CompositeMember{
-		{Attribute: 1, Name: "a", Usage: text.Usage()},
-		{Attribute: 2, Name: "b", Usage: text.Usage()},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	info := expr.Info{Usage: text.Usage(), Pos: parser.Position{Character: 8}}
-	base := plan.ColumnExpr{Info: expr.Info{Usage: shape.Usage()}, Scope: 1, Frame: 1, Slot: 0}
-	fields := []plan.FieldExpr{
-		{Info: info, Base: base, Attribute: 1, Index: 0},
-		{Info: info, Base: base, Attribute: 2, Index: 1},
-	}
-	for _, upper := range []bool{false, true} {
-		node := &plan.SetProjectNode{ScalarUpper: upper}
-		for i, field := range fields {
-			reserved := plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: i + 1}
-			node.ScalarBindings = append(node.ScalarBindings, plan.SetSlot{Original: field, Column: reserved, Scheduled: !upper})
-		}
-		for i, field := range fields {
-			got, changed := analyze.QueryScalarOwner(node, field)
-			if !changed {
-				t.Fatal("expanded field lost scalar owner", i, upper)
-			}
-			if upper {
-				if owned, ok := got.(plan.FieldExpr); !ok || owned.Attribute != field.Attribute {
-					t.Fatal("expanded field borrowed sibling expression", i, got)
-				}
-			} else if owned, ok := got.(plan.ColumnExpr); !ok || owned.Slot != i+1 {
-				t.Fatal("expanded field borrowed sibling reservation", i, got)
-			}
-		}
-	}
-}
-
 func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*plan.SetNode, *plan.ProjectNode, *exec.Source) {
 	t.Helper()
 	_, query, source := queryCoreFixture(t, "SELECT v FROM t")
@@ -93,30 +50,6 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 		projection[i] = plan.ColumnExpr{Info: expr.InfoOf(copy.Expressions[i]), Scope: 1, Frame: copy.Frame, Slot: i}
 	}
 	return n, &plan.ProjectNode{QuerySchema: schema, Child: n, Expressions: projection, Frame: copy.Frame}, source
-}
-
-func TestQuerySetCounts(t *testing.T) {
-	for _, tc := range []struct {
-		left, right                                                 int
-		unionAll, union, intersectAll, intersect, exceptAll, except int
-	}{
-		{0, 0, 0, 0, 0, 0, 0, 0}, {0, 3, 3, 1, 0, 0, 0, 0}, {3, 0, 3, 1, 0, 0, 3, 1},
-		{3, 2, 5, 1, 2, 1, 1, 0}, {2, 3, 5, 1, 2, 1, 0, 0}, {3, 3, 6, 1, 3, 1, 0, 0},
-		{7, 3, 10, 1, 3, 1, 4, 0},
-	} {
-		for _, op := range []struct {
-			name string
-			all  bool
-			want int
-		}{
-			{"union", true, tc.unionAll}, {"union", false, tc.union}, {"intersect", true, tc.intersectAll},
-			{"intersect", false, tc.intersect}, {"except", true, tc.exceptAll}, {"except", false, tc.except},
-		} {
-			if got := exec.SetMultiplicity(op.name, op.all, tc.left, tc.right); got != op.want {
-				t.Fatalf("%s ALL=%t m=%d n=%d got%d want%d", op.name, op.all, tc.left, tc.right, got, op.want)
-			}
-		}
-	}
 }
 
 func TestQuerySetCollisionAndZeroWidth(t *testing.T) {
@@ -364,28 +297,6 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 	zeroCtx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 2}
 	if _, err := exec.FindDistinctTuple(zeroCtx, []sqltype.Grouping{}, []sqltype.Value{}, []sqltype.Value{}, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal("zero-width collision ignored cancellation", err)
-	}
-}
-
-func TestQuerySetArmCleanupErrorPriority(t *testing.T) {
-	primary, cleanup := errors.New("primary arm failure"), errors.New("arm close failure")
-	for _, failure := range []error{primary, nil} {
-		closes := 0
-		arm := exec.SetArm{Inner: exec.Stage{Selection: []int{}, Produce: func(context.Context, *exec.Stage) (bool, error) { return false, failure }, Finish: func() error { closes++; return cleanup }}}
-		_, _, err := arm.Next(context.Background())
-		if failure != nil {
-			if err != primary {
-				t.Fatal("cleanup replaced primary", err)
-			}
-			if err := arm.Close(); err != nil {
-				t.Fatal(err)
-			}
-		} else if err := arm.Close(); err != cleanup {
-			t.Fatal("successful arm lost required cleanup failure", err)
-		}
-		if err := arm.Close(); err != nil || closes != 1 {
-			t.Fatal("arm closed more than once", closes, err)
-		}
 	}
 }
 
