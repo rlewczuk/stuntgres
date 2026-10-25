@@ -25,13 +25,33 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return err
 	}
-	var support parser.ObjectName
+	var support, finalName parser.ObjectName
 	var stateSyntax parser.TypeName
 	definition := &catalog.AggregateDefinition{Kind: "n", FinalModify: "r", MovingFinalModify: "r"}
 	for _, option := range s.Options {
 		switch option.Name {
 		case "sfunc":
 			support, err = operatorOptionName(option)
+		case "finalfunc":
+			finalName, err = operatorOptionName(option)
+		case "finalfunc_extra":
+			definition.FinalExtra, err = aggregateOptionBoolean(option)
+		case "finalfunc_modify":
+			var mode string
+			mode, err = aggregateInitialText(option)
+			if !option.HasValue {
+				return sqlError("42601", "finalfunc_modify requires a parameter")
+			}
+			switch mode {
+			case "read_only":
+				definition.FinalModify = "r"
+			case "shareable":
+				definition.FinalModify = "s"
+			case "read_write":
+				definition.FinalModify = "w"
+			default:
+				return sqlError("42601", `parameter "finalfunc_modify" must be READ_ONLY, SHAREABLE, or READ_WRITE`)
+			}
 		case "stype":
 			stateSyntax, err = operatorOptionType(option)
 		case "initcond":
@@ -146,7 +166,45 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 			return err
 		}
 	}
-	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.AggregateRoutine, Result: ids.OID(inputs[0].Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Immutable, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy"}, Aggregate: &catalog.OwnedAggregate{Definition: *definition}}
+	aggregateResult := inputs[0]
+	if len(finalName.Parts) != 0 {
+		finalInputs := inputs[:1]
+		if definition.FinalExtra {
+			finalInputs = inputs
+		}
+		final, finalFormals, finalResult, e := h.SelectAggregateSupport(auth, finalName, finalInputs)
+		if e != nil {
+			return e
+		}
+		finalTypes := make([]string, len(finalFormals))
+		for i, formal := range finalFormals {
+			finalTypes[i] = formal.Type.DiagnosticName()
+		}
+		finalDiagnostic := catalog.ObjectNameText(finalName) + "(" + strings.Join(finalTypes, ", ") + ")"
+		if final.Builtin != nil && final.Builtin.ReturnsSet {
+			return sqlError("42804", "function "+finalDiagnostic+" returns a set")
+		}
+		for i, actual := range finalInputs {
+			if !capture(actual, finalFormals[i]) {
+				return sqlError("42804", "function "+finalDiagnostic+" requires run-time type coercion")
+			}
+		}
+		if final.Strict && definition.FinalExtra {
+			return sqlError("42P13", "final function with extra arguments must not be declared STRICT")
+		}
+		if final.SQL == nil && (final.Builtin == nil || final.Builtin.Providers == 0) && final.Implementation == nil {
+			return sqlError("0A000", "aggregate final function has no native implementation")
+		}
+		if err = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, final.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+			return err
+		}
+		if err = checkOperatorArgumentUsage(h, auth, ids.OID(finalResult.Type.ID())); err != nil {
+			return err
+		}
+		definition.Functions[1] = final.Address().ObjectID
+		aggregateResult = finalResult
+	}
+	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.AggregateRoutine, Result: ids.OID(aggregateResult.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Immutable, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy"}, Aggregate: &catalog.OwnedAggregate{Definition: *definition}}
 	if h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
 		return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", d.Name()))
 	}
@@ -159,7 +217,7 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if err != nil {
 		return err
 	}
-	definition.Function, definition.Functions[0], definition.TransitionType = oid, function.Address().ObjectID, d.Result
+	definition.Function, definition.Functions[0], definition.TransitionType = oid, function.Address().ObjectID, ids.OID(inputs[0].Type.ID())
 	d.Aggregate.Definition = *definition
 	d.Aggregate.BinaryRecipe = recipe
 	d.ACL = h.CreationACL(d.Owner, d.Namespace(), authorization.DefaultRoutines)
@@ -224,4 +282,20 @@ func aggregateDefinitionName(parts []parser.Identifier) string {
 		text.WriteString(part.Text)
 	}
 	return text.String()
+}
+
+func aggregateOptionBoolean(option parser.OperatorOption) (bool, error) {
+	if !option.HasValue {
+		return true, nil
+	}
+	text, err := aggregateInitialText(option)
+	if err == nil {
+		switch strings.ToLower(text) {
+		case "true", "on", "1":
+			return true, nil
+		case "false", "off", "0":
+			return false, nil
+		}
+	}
+	return false, sqlError("42601", "finalfunc_extra requires a Boolean value")
 }

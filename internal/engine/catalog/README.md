@@ -178,9 +178,10 @@ private frames, not catalog authority.
 - **Routine definition dependencies** (`aggregate_dependencies.go`):
   `VisitProcedureDefinitionDependencies` owns the common namespace, result/formal,
   checked standard-body/default and ordinary aggregate edges consumed by
-  catalog projection, definition admission and retirement preflight. Quoted source
-  and PL replay-order metadata do not become hard edges. Generated and extension
-  provider edges remain with their owning providers.
+  catalog projection, definition admission and retirement preflight. Aggregates
+  depend on both selected supports and independently on state and result types.
+  Quoted source and PL replay-order metadata do not become hard edges.
+  Generated and extension provider edges remain with their owning providers.
 - **Builtin routine identities** (`builtin_routine_identities.go`,
   `regproc_lookup.go`): lookup-only `RoutineIdentity` facts and result OIDs of
   the released `pg_proc` rows. They are not descriptors or SQL rows and never

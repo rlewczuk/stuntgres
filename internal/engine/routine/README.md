@@ -119,11 +119,13 @@ package or the engine.
   DROP records every root before the engine's shared dependency closure and
   single publication. Language admission never loads a library or probes a
   symbol.
-- **Ordinary aggregates** (`aggregate_*.go`): stage the declaration, support
-  and state identities and hard dependencies atomically. `AggregateSupportTypes`
-  imports no analyzer, registers no callback and stores no executable payload
-  in the catalog; declared binary edges keep immutable recipes that stay valid
-  after their cast row changes.
+- **Ordinary aggregates** (`aggregate_*.go`): stage selected transition/final
+  routines, distinct transition/result types and hard dependencies atomically.
+  `AggregateSupportTypes` specializes exact declared vectors without execution,
+  default insertion or variadic expansion. Retained binary recipes govern both
+  supports after cast-row changes. Detached validation is shared by publication,
+  Dump and replacement; it is not live EXECUTE authority. Dump preserves STYPE,
+  selected qualified final identity, EXTRA and all three modification modes.
 - **Cast DDL** (`cast.go`): CREATE/DROP CAST with endpoint ownership/USAGE and
   signature checks; declaration neither evaluates the routine nor requires its
   EXECUTE privilege. Actual use checks current EXECUTE authority. Casts depend
@@ -206,7 +208,7 @@ drop) and [reference/aggregates](../../../reference/aggregates/README.md#testing
 ```sh
 make check RUN='^Test(BuiltinRoutineLookup|OperatorRoutineLookup|SeededOperatorNames|UserOperator(Option|CatalogEstimator)|OperatorFamilySupportDeclarations)'
 make check RACE=1 RUN='^Test(OperatorClassMethodIdentity|ExclusionOperatorFamilyMembership|RoutineDrop)'
-make check RUN='^Test(CreateAggregate(DetachedDeclaredCastSupport|Retained)|SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)'
+make check RUN='^Test(AggregateFinalDetachedDefinition|CreateAggregate(DetachedDeclaredCastSupport|Retained)|SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)'
 make check RUN='^Test(BuiltinCatalogValidatesForEveryEngineConfiguration|BuiltinProcedureNamesMatchSeed|OperatorDependsOnMatchesDependencyAddresses)'
 make check RUN='^TestReference(RoutineDrop|UserOperator|CastDefinition)'
 ```

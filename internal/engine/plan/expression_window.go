@@ -48,6 +48,7 @@ const (
 	WindowNtile
 	WindowLead
 	WindowLag
+	WindowAggregate
 	WindowRank
 	WindowDenseRank
 	WindowPercentRank
@@ -73,6 +74,7 @@ type WindowCall struct {
 	Routine      ids.ObjectRef      // Selected callable, independently of peer/partition equality.
 	Procedure    *catalog.Procedure // Original checked declaration, not a refreshed revision.
 	Argument     expr.Expr
+	Arguments    []expr.Expr // Complete ordinary owned aggregate vector.
 	Ordinal      expr.Expr
 	DefaultValue expr.Expr
 	Provider     functions.AggregateProvider

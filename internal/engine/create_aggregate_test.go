@@ -208,7 +208,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 				t.Fatal("missing actual transition aggregate")
 			}
 			provider, ok := node.Calls[0].Provider.(*exec.TransitionAggregate)
-			if !ok || provider.Usage.Collation.ID != tc.result || provider.InputCollation.ID != tc.input {
+			if !ok || provider.Result.Collation.ID != tc.result || provider.InputCollation.ID != tc.input {
 				t.Fatal("input/result collation authority", node.Calls[0].Provider)
 			}
 			projection := query.Root.(*plan.ProjectNode).Expressions[0]
@@ -217,7 +217,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 			}
 			check := func(p *exec.TransitionAggregate) {
 				t.Helper()
-				if sqltype.ID(p.Aggregate.Result) == domain.ID() && (p.Usage.Type != domain || p.Inputs[0].Type != domain || p.Formals[0].Type != domain) {
+				if sqltype.ID(p.Aggregate.Result) == domain.ID() && (p.StateUsage.Type != domain || p.Result.Type != domain || p.Inputs[0].Type != domain || p.Formals[0].Type != domain) {
 					t.Fatal("input derivation replaced the actual domain state type")
 				}
 				want := tc.result
@@ -237,7 +237,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 				if p.Call == nil {
 					return
 				}
-				if p.Call.ResultUsage() != p.Usage || p.Call.CollationIndeterminate() != tc.conflict {
+				if p.Call.ResultUsage() != p.StateUsage || p.Call.CollationIndeterminate() != tc.conflict {
 					t.Fatal("builtin support result discarded collation", expr.InfoOf(p.Call))
 				}
 				parameters := 0
@@ -262,7 +262,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 				}
 			}
 			check(provider)
-			if provider.Usage.Type == domain {
+			if provider.StateUsage.Type == domain {
 				// Effective default100 must override a declared domainC formal;
 				// no ordinary input instead leaves that declared fallback intact.
 				body := "SELECT $1 AS s"
@@ -297,7 +297,7 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 			}
 			rebuilt := mapped.(*plan.AggregateNode).Calls[0].Provider.(*exec.TransitionAggregate)
 			check(rebuilt)
-			if rebuilt == provider || rebuilt.InputCollation != provider.InputCollation || rebuilt.Usage != provider.Usage {
+			if rebuilt == provider || rebuilt.InputCollation != provider.InputCollation || rebuilt.StateUsage != provider.StateUsage || rebuilt.Result != provider.Result {
 				t.Fatal("remap lost effective input/result collation")
 			}
 			original, originalInput := provider.Formals[0], provider.Inputs[0]
@@ -305,13 +305,13 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 			if provider.Formals[0] != original || provider.Inputs[0] != originalInput {
 				t.Fatal("remap mutated source input/formal frame")
 			}
-			if tc.name == "C" || provider.Usage.Type == domain {
+			if tc.name == "C" || provider.StateUsage.Type == domain {
 				// A same-type/different-collation forgery must still fail the
 				// exact source formal check; do not weaken it to type equality.
 				forged := *provider
 				forged.Formals = append([]sqltype.Usage(nil), provider.Formals...)
 				index, foreignID := 1, uint32(951)
-				if provider.Usage.Type == domain {
+				if provider.StateUsage.Type == domain {
 					index = 0
 				}
 				if provider.Formals[index].Collation.ID == foreignID {
@@ -371,6 +371,76 @@ func TestCreateAggregateCollationBinding(t *testing.T) {
 				if parameter.ResultUsage() != want || parameter.ExplicitCollation().Character != 0 || parameter.CollationIndeterminate() || binding.Parameters.Types[i].Type != definition.Inputs[i].Type {
 					t.Fatal("closed SQL formal authority changed", i, expr.InfoOf(parameter), want)
 				}
+			}
+		})
+	}
+}
+
+func TestAggregateFinalCollationBinding(t *testing.T) {
+	e := New()
+	run(t, e, `CREATE TABLE final_unit_coll(v text COLLATE "C",w text COLLATE "POSIX",d text,id integer)`)
+	run(t, e, `CREATE DOMAIN final_unit_result AS text COLLATE "C"`)
+	run(t, e, `CREATE FUNCTION final_unit_step(integer,text) RETURNS integer LANGUAGE SQL AS $$SELECT $1+length($2)$$`)
+	run(t, e, `CREATE FUNCTION final_unit_text(integer) RETURNS text LANGUAGE SQL AS $$SELECT $1::text$$`)
+	run(t, e, `CREATE FUNCTION final_unit_domain(integer) RETURNS final_unit_result LANGUAGE SQL AS $$SELECT $1::text::final_unit_result$$`)
+	run(t, e, `CREATE FUNCTION final_unit_extra(integer,text) RETURNS final_unit_result LANGUAGE SQL AS $$SELECT $1::text::final_unit_result$$`)
+	run(t, e, `CREATE AGGREGATE final_unit_plain(integer) (SFUNC=pg_catalog.int4pl,STYPE=integer,INITCOND='0',FINALFUNC=final_unit_text)`)
+	run(t, e, `CREATE AGGREGATE final_unit_fallback(integer) (SFUNC=pg_catalog.int4pl,STYPE=integer,INITCOND='0',FINALFUNC=final_unit_domain)`)
+	run(t, e, `CREATE AGGREGATE final_unit_collated(text) (SFUNC=final_unit_step,STYPE=integer,INITCOND='0',FINALFUNC=final_unit_extra,FINALFUNC_EXTRA)`)
+	op, done := roleOperation(t, e, "postgres")
+	defer done()
+	read := e.CatalogRead()
+	integer, _ := read.LookupType(sqltype.Int4)
+	domainAddress := read.NameAddress(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "final_unit_result"})
+	domain, ok := read.LookupType(sqltype.ID(domainAddress.ObjectID))
+	if !ok || !domain.IsDomain() {
+		t.Fatal("missing final result domain")
+	}
+	for _, tc := range []struct {
+		name, expression string
+		result, input    uint32
+		domain, extra    bool
+	}{
+		{"plain", `final_unit_plain(id)`, 100, 0, false, false},
+		{"domain_fallback", `final_unit_fallback(id)`, 950, 0, true, false},
+		{"C", `final_unit_collated(v COLLATE "C")`, 950, 950, true, true},
+		{"POSIX", `final_unit_collated(w COLLATE "POSIX")`, 951, 951, true, true},
+		{"default", `final_unit_collated(d)`, 100, 100, true, true},
+		{"modifiers", `final_unit_collated(w ORDER BY v COLLATE "C") FILTER(WHERE (v COLLATE "C")<>'skip')`, 951, 951, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			query := domainUnitBindSelect(t, e, op, "SELECT "+tc.expression+" AS v FROM final_unit_coll")
+			node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
+			p := node.Calls[0].Provider.(*exec.TransitionAggregate)
+			if p.StateUsage != integer.Usage() || p.Inputs[0] != integer.Usage() || p.Formals[0] != integer.Usage() || p.Result.Collation.ID != tc.result || p.InputCollation.ID != tc.input || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) || p.ResultUsage() != p.Result {
+				t.Fatal("state/result or effective collation conflated", p)
+			}
+			if tc.domain && p.Result.Type != domain {
+				t.Fatal("final result domain identity/generation lost")
+			}
+			if p.Final == nil || p.Final.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[1] || p.FinalFormals[0] != integer.Usage() || p.FinalInputs[0] != integer.Usage() || len(p.FinalConversions) != len(p.FinalInputs) {
+				t.Fatal("final private frame is not selected descriptor-owned", p)
+			}
+			if tc.extra {
+				if len(p.FinalInputs) != 2 || len(p.FinalFormals) != 2 || p.FinalFormals[1] != p.Inputs[1] || p.FinalInputs[1] != p.Inputs[1] || p.FinalFormals[1].Collation.ID != tc.input {
+					t.Fatal("typed extra/formal input collation lost", p.FinalInputs, p.FinalFormals)
+				}
+			} else if len(p.FinalInputs) != 1 || len(p.FinalFormals) != 1 {
+				t.Fatal("ordinary final captured actual aggregated values")
+			}
+			// Remapping a captured aggregate uses each complete result/formal
+			// usage; it cannot reconstruct the result from the transition type.
+			mapped, err := stored.RemapViewQuery(read, node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor { return old })
+			if err != nil {
+				t.Fatal(err)
+			}
+			next := mapped.(*plan.AggregateNode).Calls[0].Provider.(*exec.TransitionAggregate)
+			if next.Result != p.Result || next.StateUsage != p.StateUsage || next.Final != p.Final || next.InputCollation != p.InputCollation {
+				t.Fatal("final binding authority changed during remap")
+			}
+			next.FinalFormals[0] = sqltype.Usage{}
+			if p.FinalFormals[0] != integer.Usage() {
+				t.Fatal("remapped final mutated source frame")
 			}
 		})
 	}

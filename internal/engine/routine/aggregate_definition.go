@@ -20,10 +20,10 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 		return invalid()
 	}
 	a := &d.Aggregate.Definition
-	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Extension != (ids.ObjectAddress{}) || d.Strict || a.Function != d.Address().ObjectID || a.Kind != "n" || a.DirectArgs != 0 || a.TransitionType != d.Result || a.FinalModify != "r" || a.MovingFinalModify != "r" || a.FinalExtra || a.MovingFinalExtra || a.SortOperator != 0 || a.MovingType != 0 || a.MovingSpace != 0 || a.HasMovingInitial || a.MovingInitial != "" {
+	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Extension != (ids.ObjectAddress{}) || d.Strict || a.Function != d.Address().ObjectID || a.Kind != "n" || a.DirectArgs != 0 || (a.FinalModify != "r" && a.FinalModify != "s" && a.FinalModify != "w") || a.MovingFinalModify != "r" || a.MovingFinalExtra || a.SortOperator != 0 || a.MovingType != 0 || a.MovingSpace != 0 || a.HasMovingInitial || a.MovingInitial != "" {
 		return invalid()
 	}
-	for _, id := range a.Functions[1:] {
+	for _, id := range a.Functions[2:] {
 		if id != 0 {
 			return invalid()
 		}
@@ -60,6 +60,32 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 			return invalid()
 		}
 	}
+	var finalArguments, finalFormals []sqltype.Usage
+	if a.Functions[1] == 0 {
+		if a.TransitionType != d.Result {
+			return invalid()
+		}
+	} else {
+		final, found := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: a.Functions[1]})
+		if !found || final.RoutineKind != catalog.FunctionRoutine || final.Builtin != nil && final.Builtin.ReturnsSet || final.SQL == nil && (final.Builtin == nil || final.Builtin.Providers == 0) && final.Implementation == nil || final.Strict && a.FinalExtra {
+			return invalid()
+		}
+		finalArguments = arguments[:1]
+		if a.FinalExtra {
+			finalArguments = arguments
+		}
+		var finalResult sqltype.Usage
+		finalFormals, finalResult, err = AggregateSupportTypes(v, nil, final, d.Aggregate, finalArguments)
+		declaredResult, found := v.LookupType(sqltype.ID(d.Result))
+		if err != nil || !found || !declaredResult.Concrete() || finalResult.Type != declaredResult {
+			return invalid()
+		}
+		for i, input := range finalArguments {
+			if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, input, finalFormals[i]); err != nil {
+				return invalid()
+			}
+		}
+	}
 	if recipe := d.Aggregate.BinaryRecipe; recipe != nil {
 		if len(recipe.Casts) == 0 {
 			return invalid()
@@ -76,6 +102,9 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 			used := support.Strict && !a.HasInitial && len(inputs) > 0 && edge.Source == inputs[0].BaseUsage().Type.ID() && edge.Target == state.ID()
 			for j, input := range arguments {
 				used = used || edge.Source == input.BaseUsage().Type.ID() && edge.Target == formals[j].Type.ID()
+			}
+			for j, input := range finalArguments {
+				used = used || edge.Source == input.BaseUsage().Type.ID() && edge.Target == finalFormals[j].Type.ID()
 			}
 			if !used {
 				return invalid()

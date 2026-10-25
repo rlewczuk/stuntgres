@@ -238,6 +238,9 @@ host, which owns all locking and returns owned values.
   immutable, receive the ordered argument vector in `Advance`, and keep group
   state execution-local. Ordered-set and hypothetical providers sit behind
   `OrderedAggregate` and read the executor's sorted `OrderedInput`.
+  `ExecutionAggregateProvider` borrows the current `expr.Context` for both
+  initialization and finalization; executors must use the contextual final entry
+  whenever that provider implements it.
 - Providers a view may store implement `RemappableProvider`
   (`aggregate_remap.go`); without it view creation fails with "unpersistable
   view aggregate".

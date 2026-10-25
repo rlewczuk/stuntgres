@@ -246,6 +246,14 @@ func RewriteQueryExpressions(node Node, rewrite func(expr.Expr) (expr.Expr, bool
 			if call.AnalysisOnly {
 				continue
 			}
+			arguments := args(call.Arguments)
+			if len(arguments) > 0 && &arguments[0] != &call.Arguments[0] {
+				if calls == nil {
+					calls = append([]WindowCall(nil), n.Calls...)
+				}
+				calls[i].Arguments = arguments
+				changed = true
+			}
 			for j, expression := range [3]expr.Expr{call.Argument, call.Ordinal, call.DefaultValue} {
 				if expression == nil || err != nil {
 					continue
@@ -552,6 +560,7 @@ func QueryExpressions(node Node, visit func(expr.Expr)) {
 			if call.AnalysisOnly {
 				continue
 			}
+			args(call.Arguments)
 			visit(call.Argument)
 			visit(call.Ordinal)
 			visit(call.DefaultValue)

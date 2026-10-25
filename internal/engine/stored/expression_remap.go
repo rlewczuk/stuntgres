@@ -842,6 +842,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			}
 			copy.Calls[i].Expression = expression(call.Expression).(*plan.WindowExpr)
 			copy.Calls[i].Argument = expression(call.Argument)
+			copy.Calls[i].Arguments = expressions(call.Arguments)
 			copy.Calls[i].Ordinal = expression(call.Ordinal)
 			copy.Calls[i].DefaultValue = expression(call.DefaultValue)
 			if provider, ok := call.Provider.(functions.RemappableProvider); ok && err == nil {
@@ -967,9 +968,24 @@ func (m *ViewQueryRemapper) provider(slot *functions.AggregateProvider, provider
 	if err != nil {
 		return err
 	}
-	if transition, ok := next.(*exec.TransitionAggregate); ok && !m.referencesOnly {
-		if err := validateTransitionFrame(m.Catalog, transition); err != nil {
-			return err
+	if transition, ok := next.(*exec.TransitionAggregate); ok {
+		if !m.referencesOnly {
+			if err := validateTransitionFrame(m.Catalog, transition); err != nil {
+				return err
+			}
+		} else if m.Catalog.State() != nil {
+			if err := routine.ValidateAggregateDefinition(m.Catalog, transition.Aggregate); err != nil {
+				return err
+			}
+			for _, selected := range []*catalog.Procedure{transition.Support, transition.Final} {
+				if selected == nil {
+					continue
+				}
+				current, found := m.Catalog.Procedure(selected.Address())
+				if !found || !exec.SameRoutineDeclaration(current, selected) {
+					return fmt.Errorf("stuntgres: mismatched aggregate support reference")
+				}
+			}
 		}
 	}
 	*slot = next
@@ -1012,10 +1028,16 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 	}
 	invalid := func() error { return fmt.Errorf("stuntgres: mismatched transition frame specialization") }
 	inputs, err := routine.AggregateSignature(read, p.Aggregate.Signature)
-	if err != nil || len(p.Inputs) != len(inputs)+1 || p.Inputs[0] != p.Usage || p.Usage.Type == nil || !p.Usage.Valid() || p.Usage.Type.ID() != sqltype.ID(p.Aggregate.Result) {
+	if err != nil || len(p.Inputs) != len(inputs)+1 || p.Inputs[0] != p.StateUsage || p.StateUsage.Type == nil || !p.StateUsage.Valid() || p.StateUsage.Type.ID() != sqltype.ID(p.Aggregate.Aggregate.Definition.TransitionType) || p.Result.Type == nil || !p.Result.Valid() || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
 		return invalid()
 	}
-	if p.Support.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[0] {
+	stateType, stateFound := read.LookupType(sqltype.ID(p.Aggregate.Aggregate.Definition.TransitionType))
+	resultType, resultFound := read.LookupType(sqltype.ID(p.Aggregate.Result))
+	if !stateFound || !resultFound || p.StateUsage.Type != stateType || p.Result.Type != resultType || p.Support == nil || p.Support.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[0] {
+		return invalid()
+	}
+	currentSupport, found := read.Procedure(p.Support.Address())
+	if !found || !exec.SameRoutineDeclaration(currentSupport, p.Support) {
 		return invalid()
 	}
 	for i, input := range inputs {
@@ -1024,12 +1046,34 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 		}
 	}
 	formals, result, err := routine.AggregateSupportTypes(read, nil, p.Support, p.Aggregate.Aggregate, p.Inputs)
-	if err != nil || result.Type != p.Usage.Type || len(formals) != len(p.Formals) {
+	if err != nil || result.Type != p.StateUsage.Type || len(formals) != len(p.Formals) {
 		return invalid()
 	}
 	for i, formal := range formals {
 		if formal != p.Formals[i] {
 			return invalid()
+		}
+	}
+	if p.Final != nil {
+		if p.Final.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[1] || len(p.FinalConversions) != len(p.FinalFormals) {
+			return invalid()
+		}
+		currentFinal, found := read.Procedure(p.Final.Address())
+		if !found || !exec.SameRoutineDeclaration(currentFinal, p.Final) {
+			return invalid()
+		}
+		finalFormals, finalResult, err := routine.AggregateSupportTypes(read, nil, p.Final, p.Aggregate.Aggregate, p.FinalInputs)
+		if err != nil || finalResult.Type != p.Result.Type || len(finalFormals) != len(p.FinalFormals) {
+			return invalid()
+		}
+		for i, formal := range finalFormals {
+			if formal != p.FinalFormals[i] {
+				return invalid()
+			}
+			expected, err := catalog.AggregateConversion(p.Aggregate.Aggregate.BinaryRecipe, p.FinalInputs[i], formal)
+			if err != nil || !p.FinalConversions[i].Equal(expected) {
+				return invalid()
+			}
 		}
 	}
 	return nil

@@ -25,10 +25,11 @@ type ContextualAggregateProvider interface {
 	InitWithEnvironment(context.Context, sqltype.OutputEnvironment) (any, error)
 }
 
-// ExecutionAggregateProvider initializes state using the current input
-// environment and statement capabilities, never a retained session pointer.
+// ExecutionAggregateProvider borrows the current statement capabilities for
+// initialization and finalization, never a retained session pointer.
 type ExecutionAggregateProvider interface {
 	InitWithContext(context.Context, expr.Context) (any, error)
+	FinalizeWithContext(context.Context, any, expr.Context) (sqltype.Value, error)
 }
 
 // AggregateOperation identifies the selected aggregate algorithm. The engine

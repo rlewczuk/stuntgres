@@ -391,11 +391,18 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 			}
 		}
 		if aggregate, ok := expression.(plan.AggregateExpr); ok && aggregate.Frame == b.FrameID() {
-			operation := b.Grouping.Aggregates[aggregate.Slot].Operation
+			call := &b.Grouping.Aggregates[aggregate.Slot]
+			operation := call.Operation
 			switch operation {
+			case functions.AggregateTransition:
+				result.Nullable, result.NullabilityKnown = true, true
+				if call.Procedure.Aggregate.Definition.Functions[1] != 0 {
+					// Final output is newly computed, not the transition state.
+					result.Nullable, result.NullabilityKnown = false, false
+				}
 			case functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict:
-				// JSON aggregate projections expose computed nullability, including
-				// empty/grouped/filter output, rather than a source-column claim.
+				// JSON aggregate projections expose computed nullability,
+				// including empty/grouped/filter output, not a source-column claim.
 				result.Nullable, result.NullabilityKnown = false, false
 			default:
 				result.NullabilityKnown = true
@@ -612,6 +619,7 @@ func (b *Binder) bindSelectScoped(s *parser.Select, contextual, disallowParent b
 		if !call.AnalysisOnly {
 			continue
 		}
+		analysis = append(analysis, call.Arguments...)
 		if call.Argument != nil {
 			analysis = append(analysis, call.Argument)
 		}

@@ -386,9 +386,10 @@ host methods.
   omitted defaults for dependency, refresh and remap traversal.
 - **Aggregates.** Owned aggregate recipes keep the original selected argument
   syntax and catalog reference/epoch; capture, count and render share
-  `AggregateRecipeProcedure`. Transition-expression remap validates the exact
-  source and mapped destination private formal vectors before and after
-  remapping; ordinary stored parameters keep their zero-bound rejection.
+  `AggregateRecipeProcedure`. Transition and final expression remaps validate
+  exact source and destination private formal vectors before and after mapping,
+  alongside selected declarations and independent state/result identities.
+  Ordinary stored parameters retain their zero-bound rejection.
 - **Policies.** Policy runtime consumes `Policy.Expression`/`Presentation`
   through `RewriteViewExpression`/`MapExpression` and never mutates the payload
   or reparses its SQL. A presentation keeps the binder's full execution
@@ -520,7 +521,7 @@ reject, while healthy fresh current manifests remain usable.
 - Rule display and replay separation: `RUN='^TestRuleDefinition(Presentation|ReplaySeparation|ReturningLabels)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - PL array-loop usage remap and immutable controls: `RUN='^TestPLpgSQLForeachRemap$'`
-- Aggregate recipes: `RUN='^TestCreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)$'`
+- Aggregate recipes: `RUN='^Test(CreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)|AggregateFinal.*FrameRemap)$'`
 - Engine renderer and `pg_depend` units: `RUN='^Test(Deparse|PGDepend|ViewCheck)'`
 - Geometric captured-source and literal serialization: `RUN='^TestGeometryRelationLiteral'`
 - Views, rules and deparsing: `RUN='^TestReference(Rule|Deparse|Materialized)'`

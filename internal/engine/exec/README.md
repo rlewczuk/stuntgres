@@ -283,12 +283,30 @@ sources never close them.
 
 ## Transition aggregates
 
-`TransitionAggregate` keeps an immutable selected plan and execution-local
-state. Strict transitions distinguish never-seeded state (which may copy the
-first valid input) from a transition-returned NULL (which never reseeds).
-Implicit-binary SFUNC and seed conversions use the captured physical datum
-operation, never the current cast row; strict providers without an initial
-value recheck live binary compatibility once at startup, before any input.
+`TransitionAggregate` keeps an immutable selected plan with separate state/result
+usages. Every group owns its transition state, transition `proc.Frame` and optional
+final frame; immutable values need no speculative copying for any modification mode.
+Strict transitions distinguish never-seeded state from transition-returned NULL.
+Both support vectors use retained binary datum conversions, never current casts;
+strict transitions without an initial value recheck compatibility at startup.
+Admission checks current aggregate-owner EXECUTE for both supports even when
+strict NULL finalization will skip invocation.
+Owned window calls retain the actual checked provider and full argument vector.
+Window startup rejects SHAREABLE/READ_WRITE before opening its input, so an
+empty input cannot bypass mode admission or run a support routine.
+The rejection formats the selected declaration through the current statement's
+regprocedure presenter, preserving visibility-aware qualification, identifier
+quoting and argument type spelling rather than reconstructing written syntax.
+
+`FinalizeWithContext` borrows the current statement runtime and invokes the real
+selected scalar final once per computed group without overwriting its state.
+Ordinary direct-argument count is zero: the final receives state, plus typed NULL
+extras when declared, never last-row values or enclosing query parameters.
+Strict skipping returns NULL of the result type. SQL finals share the statement's
+staged writes and cancellation boundary. Context-free `Finalize` is valid only
+without an actual final function. C memory contexts, expanded-datum pointers and
+`AggCheckCallContext`/`AggStateIsShared` belong to the external native ABI, not
+mutable SQL value carriers.
 
 ## What stays in the engine
 
@@ -327,7 +345,7 @@ unbounded query run until it exhausts memory.
 
 ```sh
 make check RUN='^Test(MissingPreparation|InstallPreparation|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice|PgrowlocksLogicalTID)'
-make check RUN='^TestCreateAggregate'
+make check RUN='^Test(CreateAggregate|AggregateFinal)'
 make check RUN='^Test(PLpgSQLQueryLoopLifetime|FTSQueryFunctionsBatch)'  # row owners
 make check RUN='^TestReferenceQuery'   # public query execution; add REFERENCE=1 for the oracle
 ```

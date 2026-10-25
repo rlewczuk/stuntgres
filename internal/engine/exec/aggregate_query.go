@@ -342,7 +342,11 @@ func openAggregateNode(ctx context.Context, state *State, n *plan.AggregateNode)
 					err = replayOrderedAggregate(ctx, state, call, group.states[p], group.ordered[p])
 				}
 				if err == nil {
-					value, err = call.Provider.Finalize(ctx, group.states[p])
+					if contextual, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
+						value, err = contextual.FinalizeWithContext(ctx, group.states[p], &evaluation)
+					} else {
+						value, err = call.Provider.Finalize(ctx, group.states[p])
+					}
 				}
 			}
 			if err != nil {

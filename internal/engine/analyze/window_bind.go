@@ -55,7 +55,11 @@ func (b *Binder) windowAllowed(pos parser.Position) error {
 	}
 	return nil
 }
-func (b *Binder) bindWindow(raw parser.AggregateExpr, name parser.ObjectName) (boundResult expr.Expr, bindError error) {
+func (b *Binder) bindWindow(raw parser.AggregateExpr, name parser.ObjectName) (expr.Expr, error) {
+	return b.bindWindowCall(raw, name, nil, expr.Info{})
+}
+
+func (b *Binder) bindWindowCall(raw parser.AggregateExpr, name parser.ObjectName, owned *plan.AggregateCall, ownedInfo expr.Info) (boundResult expr.Expr, bindError error) {
 	parentOwner := b.Grouping.ArgumentOwner
 	parentAggregates, parentWindows := b.Grouping.Aggregates, b.Grouping.WindowCalls
 	defer func() {
@@ -67,10 +71,13 @@ func (b *Binder) bindWindow(raw parser.AggregateExpr, name parser.ObjectName) (b
 	defer func() { b.Grouping.ArgumentOwner = parentOwner }()
 	var resultUsage sqltype.Usage
 	var argument, ordinal, defaultValue expr.Expr
-	// Window functions resolve their own signature; aggregates resolve as
-	// they would without OVER, minus provider and group state.
+	// Builtins resolve their window signatures here. Owned aggregates arrive
+	// with their ordinary checked provider, but never register group state.
 	function, windowFunction := functions.LookupWindowFunction(raw.Name)
-	if windowFunction {
+	if owned != nil {
+		resultUsage = ownedInfo.Usage
+		windowFunction = false
+	} else if windowFunction {
 		signature, err := function.Signature(b, raw, name)
 		if err != nil {
 			return nil, err
@@ -121,80 +128,88 @@ func (b *Binder) bindWindow(raw parser.AggregateExpr, name parser.ObjectName) (b
 	if raw.Filter != nil {
 		return nil, expr.ErrorAt("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
 	}
-	if !windowFunction && raw.Name != "sum" && (raw.Name != "count" || !raw.Star) {
+	if owned == nil && !windowFunction && raw.Name != "sum" && (raw.Name != "count" || !raw.Star) {
 		return nil, expr.ErrorAt("0A000", "window function provider is unsupported", raw.Pos)
 	}
 	call := plan.WindowCall{Raw: raw.Window, Argument: argument, Ordinal: ordinal, DefaultValue: defaultValue}
-	switch raw.Name {
-	case "row_number":
-		call.Operation = plan.WindowNumber
-	case "rank":
-		call.Operation = plan.WindowRank
-	case "dense_rank":
-		call.Operation = plan.WindowDenseRank
-	case "percent_rank":
-		call.Operation = plan.WindowPercentRank
-	case "cume_dist":
-		call.Operation = plan.WindowCumeDist
-	case "ntile":
-		call.Operation = plan.WindowNtile
-	case "lead":
-		call.Operation = plan.WindowLead
-	case "lag":
-		call.Operation = plan.WindowLag
-	case "first_value":
-		call.Operation = plan.WindowFirst
-	case "last_value":
-		call.Operation = plan.WindowLast
-	case "nth_value":
-		call.Operation = plan.WindowNth
-	case "sum":
-		call.Operation = plan.WindowSum
-		// Ordinary SUM has additional providers; windows remain numeric-only.
-		switch argument.ResultUsage().Type.ID() {
-		case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
-		default:
-			return nil, expr.ErrorAt("0A000", "window function provider is unsupported", raw.Pos)
+	if owned != nil {
+		call.Operation, call.Procedure, call.Routine, call.Provider = plan.WindowAggregate, owned.Procedure, owned.Routine, owned.Provider
+		call.Arguments = owned.Arguments
+	} else {
+		switch raw.Name {
+		case "row_number":
+			call.Operation = plan.WindowNumber
+		case "rank":
+			call.Operation = plan.WindowRank
+		case "dense_rank":
+			call.Operation = plan.WindowDenseRank
+		case "percent_rank":
+			call.Operation = plan.WindowPercentRank
+		case "cume_dist":
+			call.Operation = plan.WindowCumeDist
+		case "ntile":
+			call.Operation = plan.WindowNtile
+		case "lead":
+			call.Operation = plan.WindowLead
+		case "lag":
+			call.Operation = plan.WindowLag
+		case "first_value":
+			call.Operation = plan.WindowFirst
+		case "last_value":
+			call.Operation = plan.WindowLast
+		case "nth_value":
+			call.Operation = plan.WindowNth
+		case "sum":
+			call.Operation = plan.WindowSum
+			// Ordinary SUM has additional providers; windows remain numeric-only.
+			switch argument.ResultUsage().Type.ID() {
+			case sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8:
+			default:
+				return nil, expr.ErrorAt("0A000", "window function provider is unsupported", raw.Pos)
+			}
+			var err error
+			call.Provider, _, err = functions.SumProvider(b, argument.ResultUsage().Type)
+			if err != nil {
+				return nil, err
+			}
 		}
-		var err error
-		call.Provider, _, err = functions.SumProvider(b, argument.ResultUsage().Type)
+		var formal [3]sqltype.ID
+		formalCount := 0
+		if raw.Name == "sum" {
+			formal[0], formalCount = argument.ResultUsage().Type.ID(), 1
+		} else if raw.Name == "ntile" {
+			formal[0], formalCount = sqltype.Int4, 1
+		} else if functions.WindowOffsetName(raw.Name) {
+			formal[0], formalCount = 2283, 1 // Released ANYELEMENT for arity one/two.
+			if len(raw.Args) >= 2 {
+				formal[1], formalCount = sqltype.Int4, 2
+			}
+			if len(raw.Args) == 3 {
+				formal[0], formal[2], formalCount = 5077, 5077, 3 // ANYCOMPATIBLE value/default.
+			}
+		} else if functions.WindowValueName(raw.Name) {
+			formal[0], formalCount = 2283, 1 // Released ANYELEMENT, not the physical selected value type.
+			if raw.Name == "nth_value" {
+				formal[1], formalCount = sqltype.Int4, 2
+			}
+		}
+		declaration, err := routine.LookupBuiltinRoutineDeclaration(functions.WindowRoutineProvider, raw.Name, formal[:formalCount])
+		if err != nil {
+			return nil, err
+		}
+		call.Procedure, call.Routine, err = b.captureBuiltinRoutineDeclaration(declaration)
 		if err != nil {
 			return nil, err
 		}
 	}
-	var formal [3]sqltype.ID
-	formalCount := 0
-	if raw.Name == "sum" {
-		formal[0], formalCount = argument.ResultUsage().Type.ID(), 1
-	} else if raw.Name == "ntile" {
-		formal[0], formalCount = sqltype.Int4, 1
-	} else if functions.WindowOffsetName(raw.Name) {
-		formal[0], formalCount = 2283, 1 // Released ANYELEMENT for arity one/two.
-		if len(raw.Args) >= 2 {
-			formal[1], formalCount = sqltype.Int4, 2
-		}
-		if len(raw.Args) == 3 {
-			formal[0], formal[2], formalCount = 5077, 5077, 3 // ANYCOMPATIBLE value/default.
-		}
-	} else if functions.WindowValueName(raw.Name) {
-		formal[0], formalCount = 2283, 1 // Released ANYELEMENT, not the physical selected value type.
-		if raw.Name == "nth_value" {
-			formal[1], formalCount = sqltype.Int4, 2
-		}
-	}
-	declaration, err := routine.LookupBuiltinRoutineDeclaration(functions.WindowRoutineProvider, raw.Name, formal[:formalCount])
-	if err != nil {
-		return nil, err
-	}
-	call.Procedure, call.Routine, err = b.captureBuiltinRoutineDeclaration(declaration)
-	if err != nil {
-		return nil, err
-	}
 	info := b.Info(resultUsage, raw.Pos, expr.Properties{StageDependent: true})
-	if raw.Name == "ntile" {
+	if owned != nil {
+		info = ownedInfo
+	}
+	if owned == nil && raw.Name == "ntile" {
 		info.Property = expr.MergeProperties(info.Property, argument.Properties())
 	}
-	if functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name) {
+	if owned == nil && (functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)) {
 		info.Property = expr.MergeProperties(info.Property, argument.Properties())
 		if ordinal != nil {
 			info.Property = expr.MergeProperties(info.Property, ordinal.Properties())
@@ -212,7 +227,7 @@ func (b *Binder) bindWindow(raw parser.AggregateExpr, name parser.ObjectName) (b
 	}
 	expr := &plan.WindowExpr{Info: info, Slot: -1, Frame: b.FrameID(), Call: len(b.Grouping.WindowCalls)}
 	call.Expression = expr
-	expr.Nullable = call.Operation == plan.WindowSum || call.Operation == plan.WindowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
+	expr.Nullable = owned != nil || call.Operation == plan.WindowSum || call.Operation == plan.WindowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
 	b.Grouping.WindowCalls = append(b.Grouping.WindowCalls, call)
 	return expr, nil
 }
@@ -270,6 +285,14 @@ func (b *Binder) SameWindowCall(a, c plan.WindowCall) bool {
 	// semantic target equality, not permission to merge volatile executions.
 	if (a.Operation == plan.WindowSum || a.Operation.EvaluatesArgument()) && (!sqltype.SameRecordUsage(a.Expression.ResultUsage(), c.Expression.ResultUsage()) || !b.SameQueryTarget(a.Argument, c.Argument) || !b.SameQueryTarget(a.Ordinal, c.Ordinal) || !b.SameQueryTarget(a.DefaultValue, c.DefaultValue)) {
 		return false
+	}
+	if len(a.Arguments) != len(c.Arguments) {
+		return false
+	}
+	for i, argument := range a.Arguments {
+		if !b.SameQueryTarget(argument, c.Arguments[i]) {
+			return false
+		}
 	}
 	if a.Raw != nil || c.Raw != nil {
 		return sameRawWindow(reflect.ValueOf(a.Raw), reflect.ValueOf(c.Raw))
@@ -556,6 +579,14 @@ func (b *Binder) finishWindows(root plan.Node, keys []expr.Expr, grouped bool, p
 		spec.Partition = append([]expr.Expr(nil), spec.Partition...)
 		spec.Order = append([]plan.SortKey(nil), spec.Order...)
 		if grouped {
+			preparedCalls[i].Arguments = append([]expr.Expr(nil), call.Arguments...)
+			for j, argument := range call.Arguments {
+				next, err := b.RewriteGroup(argument, keys)
+				if err != nil {
+					return nil, err
+				}
+				preparedCalls[i].Arguments[j] = next
+			}
 			if call.Argument != nil {
 				next, err := b.RewriteGroup(call.Argument, keys)
 				if err != nil {

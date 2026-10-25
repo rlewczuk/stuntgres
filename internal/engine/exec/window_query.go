@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -425,7 +426,13 @@ func (s *WindowSums) Evaluate(ctx context.Context, state *State, child *Stage, c
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		value, err := call.Provider.Finalize(ctx, entry.Aggregate)
+		var value sqltype.Value
+		var err error
+		if contextual, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
+			value, err = contextual.FinalizeWithContext(ctx, entry.Aggregate, &evaluation)
+		} else {
+			value, err = call.Provider.Finalize(ctx, entry.Aggregate)
+		}
 		if err != nil {
 			return err
 		}
@@ -438,6 +445,24 @@ func (s *WindowSums) Evaluate(ctx context.Context, state *State, child *Stage, c
 }
 
 func openWindowNode(ctx context.Context, state *State, n *plan.WindowNode) (Stage, error) {
+	// Mode admission belongs to the executor, before even an empty child's
+	// expressions or any support routine can run.
+	for _, call := range n.Calls {
+		if call.AnalysisOnly {
+			continue
+		}
+		if provider, ok := call.Provider.(*TransitionAggregate); ok {
+			mode := provider.Aggregate.Aggregate.Definition.FinalModify
+			if mode == "s" || mode == "w" {
+				evaluation := state.Evaluation(ctx)
+				identity, err := evaluation.Presentation().FormatRegprocedure(uint32(provider.Aggregate.Address().ObjectID))
+				if err != nil {
+					return Stage{}, err
+				}
+				return Stage{}, sqlError("0A000", "aggregate function "+identity+" does not support use as a window function")
+			}
+		}
+	}
 	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return Stage{}, err

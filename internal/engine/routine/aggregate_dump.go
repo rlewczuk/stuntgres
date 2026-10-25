@@ -54,7 +54,7 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 		}
 		sql.WriteString(name)
 	}
-	state, ok := view.LookupType(sqltype.ID(d.Result))
+	state, ok := view.LookupType(sqltype.ID(d.Aggregate.Definition.TransitionType))
 	if !ok {
 		return dump.Statement{}, fmt.Errorf("stuntgres: missing aggregate state type")
 	}
@@ -63,6 +63,28 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 		return dump.Statement{}, err
 	}
 	sql.WriteString(") (SFUNC = " + catalog.QuoteIdentifier(supportNS.Name()) + "." + catalog.QuoteIdentifier(support.Name()) + ", STYPE = " + stateName)
+	if oid := d.Aggregate.Definition.Functions[1]; oid != 0 {
+		final, found := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
+		if !found {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing aggregate final routine")
+		}
+		finalNS, found := view.Namespace(final.Namespace())
+		if !found {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing aggregate final namespace")
+		}
+		sql.WriteString(", FINALFUNC = " + catalog.QuoteIdentifier(finalNS.Name()) + "." + catalog.QuoteIdentifier(final.Name()))
+	}
+	if d.Aggregate.Definition.FinalExtra {
+		sql.WriteString(", FINALFUNC_EXTRA = true")
+	}
+	mode := "READ_ONLY"
+	switch d.Aggregate.Definition.FinalModify {
+	case "s":
+		mode = "SHAREABLE"
+	case "w":
+		mode = "READ_WRITE"
+	}
+	sql.WriteString(", FINALFUNC_MODIFY = " + mode)
 	if d.Aggregate.Definition.HasInitial {
 		sql.WriteString(", INITCOND = " + dump.CommentLiteral(d.Aggregate.Definition.Initial))
 	}

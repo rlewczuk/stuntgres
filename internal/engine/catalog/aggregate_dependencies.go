@@ -21,6 +21,14 @@ func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Aggregate.Definition.TransitionType}) {
 			return
 		}
+		if final := d.Aggregate.Definition.Functions[1]; final != 0 {
+			if !yield(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: final}) {
+				return
+			}
+		}
+		if d.Result != d.Aggregate.Definition.TransitionType && !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
+			return
+		}
 		if d.Signature == "" {
 			return
 		}

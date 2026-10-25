@@ -71,6 +71,13 @@ library, and never the root engine or `session`. The engine, the root driver
   recursive CYCLE-mark grouping keys, and window partition/peer equality.
   Equality selection keeps the checked declaration after any existing coercion;
   it does not perform a later lookup by the routine's mutable name.
+  Owned ordinary aggregates derive input collation from ordinary arguments only,
+  excluding FILTER and ORDER BY. State and final result retain separate type
+  identities and descriptor fallbacks. Selected transition/final calls each own
+  a closed, typed formal namespace, never outer query parameter slots.
+  Owned aggregate projections with a final routine expose unknown computed
+  nullability; without one they retain known nullable state metadata. Stored view
+  columns retain known nullable relation metadata.
 - **`Binding`** (`binding*.go`, `payloads.go`): the statement header, the kind
   payloads (`InsertBinding`, `UpdateBinding`, `MergeBinding`, ...) and
   `ParameterInfo`.

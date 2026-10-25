@@ -229,3 +229,137 @@ func TestCreateAggregateRetainedPolymorphicBinaryDefinition(t *testing.T) {
 		}
 	}
 }
+
+func TestAggregateFinalDetachedDefinition(t *testing.T) {
+	state := catalog.NewState(1)
+	for _, typ := range sqltype.Builtins() {
+		d := &catalog.Type{SQLType: typ, Array: typ.AssociatedArray()}
+		state.SetDescriptor(d.Address(), d)
+	}
+	var transition, final *catalog.Procedure
+	procedures := BuiltinProcedures(authorization.PrincipalRef{})
+	for i := range procedures {
+		p := &procedures[i]
+		state.SetDescriptor(p.Address(), p)
+		if p.Name() == "byteacat" && p.Signature == "17,17" {
+			transition = p
+		}
+		if p.Name() == "length" && p.Signature == "25" {
+			final = p
+		}
+	}
+	if transition == nil || final == nil {
+		t.Fatal("missing real byteacat/length providers")
+	}
+	edge := catalog.Cast{OID: 93000, ObjectRevision: 1, Source: sqltype.Bytea, Target: sqltype.Text, Method: "b", Context: "i"}
+	aggregate := &catalog.Procedure{
+		ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 93001},
+		ObjectName:    "final_retained_binary", Signature: "17", RoutineKind: catalog.AggregateRoutine, Result: 23,
+		Aggregate: &catalog.OwnedAggregate{
+			Definition:   catalog.AggregateDefinition{Function: 93001, Kind: "n", Functions: [8]ids.OID{transition.Address().ObjectID, final.Address().ObjectID}, TransitionType: 17, HasInitial: true, Initial: "", FinalModify: "w", MovingFinalModify: "r"},
+			BinaryRecipe: &catalog.AggregateBinaryRecipe{Casts: []catalog.Cast{edge}},
+		},
+	}
+	for _, live := range []*catalog.Cast{nil, &edge, {OID: 93002, ObjectRevision: 1, Source: sqltype.Bytea, Target: sqltype.Text, Method: "i", Context: "a"}} {
+		next := catalog.CloneState(state)
+		if live != nil {
+			next.SetDescriptor(live.Address(), live)
+		}
+		read := catalog.NewRead(nil, next)
+		if err := ValidateAggregateDefinition(read, aggregate); err != nil {
+			t.Fatal("final-only retained edge borrowed live cast authority", live, err)
+		}
+		source, _ := read.LookupType(sqltype.Bytea)
+		target, _ := read.LookupType(sqltype.Text)
+		conversion, err := catalog.AggregateConversion(aggregate.Aggregate.BinaryRecipe, source.Usage(), target.Usage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, err := source.Input(context.Background(), `\x616263`, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := conversion.Apply(context.Background(), value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := result.Text(); err != nil || got != "abc" || result.Type() != target {
+			t.Fatal("final retained edge used runtime/IO coercion", got, err)
+		}
+		var newSource, newTarget *sqltype.Descriptor
+		for _, typ := range sqltype.Builtins() {
+			switch typ.ID() {
+			case sqltype.Bytea:
+				newSource = typ
+			case sqltype.Text:
+				newTarget = typ
+			}
+		}
+		rebound, err := conversion.Rebind(newSource.Usage(), newTarget.Usage(), sqltype.Implicit)
+		if err != nil {
+			t.Fatal("retained final-only cast could not remap", err)
+		}
+		if _, err := rebound.Apply(context.Background(), value, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err == nil {
+			t.Fatal("remapped final cast admitted a source-generation value")
+		}
+		newValue, err := newSource.Input(context.Background(), `\x616263`, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		remappedResult, err := rebound.Apply(context.Background(), newValue, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, err := remappedResult.Text(); err != nil || got != "abc" || remappedResult.Type() != newTarget {
+			t.Fatal("remapped final-only physical cast changed", got, err)
+		}
+	}
+	for _, kind := range []string{"wrong-result", "no-final", "missing-final", "wrong-final", "strict-extra", "mode", "unreferenced-edge", "runtime-edge", "missing-edge", "duplicate-edge", "wrong-signature"} {
+		t.Run(kind, func(t *testing.T) {
+			bad, owned := *aggregate, *aggregate.Aggregate
+			bad.Aggregate = &owned
+			recipe := &catalog.AggregateBinaryRecipe{Casts: []catalog.Cast{edge}}
+			owned.BinaryRecipe = recipe
+			switch kind {
+			case "wrong-result":
+				bad.Result = 25
+			case "no-final":
+				owned.Definition.Functions[1] = 0
+			case "missing-final":
+				owned.Definition.Functions[1] = 999999
+			case "wrong-final":
+				owned.Definition.Functions[1] = transition.Address().ObjectID
+			case "strict-extra":
+				owned.Definition.FinalExtra = true
+			case "mode":
+				owned.Definition.FinalModify = "x"
+			case "unreferenced-edge":
+				recipe.Casts = append(recipe.Casts, catalog.Cast{OID: 93003, ObjectRevision: 1, Source: sqltype.Oid, Target: sqltype.Float4, Method: "b", Context: "i"})
+			case "runtime-edge":
+				recipe.Casts[0].Method = "i"
+			case "missing-edge":
+				owned.BinaryRecipe = nil
+			case "duplicate-edge":
+				recipe.Casts = append(recipe.Casts, edge)
+			case "wrong-signature":
+				bad.Signature = "23"
+			}
+			if err := ValidateAggregateDefinition(catalog.NewRead(nil, state), &bad); err == nil {
+				t.Fatal("invalid detached final declaration admitted", kind)
+			}
+		})
+	}
+	// EXTRA and all modification declarations remain meaningful catalog flags
+	// even without a final; only result/state equality then becomes mandatory.
+	noFinal, owned := *aggregate, *aggregate.Aggregate
+	noFinal.Aggregate = &owned
+	owned.Definition.Functions[1], owned.BinaryRecipe = 0, nil
+	noFinal.Result = owned.Definition.TransitionType
+	owned.Definition.FinalExtra = true
+	for _, mode := range []string{"r", "s", "w"} {
+		owned.Definition.FinalModify = mode
+		if err := ValidateAggregateDefinition(catalog.NewRead(nil, state), &noFinal); err != nil {
+			t.Fatal("unused final flags refused", mode, err)
+		}
+	}
+}

@@ -14,6 +14,7 @@ func (b *Binder) LowerStringWindowSpecs(root plan.Node, specs []plan.WindowSpec,
 		}
 	}
 	for _, call := range calls {
+		requests = append(requests, call.Arguments...)
 		if call.Argument != nil {
 			requests = append(requests, call.Argument)
 		}
@@ -42,6 +43,10 @@ func (b *Binder) LowerStringWindowSpecs(root plan.Node, specs []plan.WindowSpec,
 		}
 	}
 	for i := range calls {
+		if len(calls[i].Arguments) > 0 {
+			calls[i].Arguments = append([]expr.Expr(nil), requests[offset:offset+len(calls[i].Arguments)]...)
+			offset += len(calls[i].Arguments)
+		}
 		if calls[i].Argument != nil {
 			calls[i].Argument = requests[offset]
 			offset++

@@ -256,6 +256,11 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if err := b.captureProviderReference(path, r, call.Procedure, call.Routine); err != nil {
 				return err
 			}
+			for i, argument := range call.Arguments {
+				if err := child(r.Args[i], argument); err != nil {
+					return err
+				}
+			}
 			if call := b.Grouping.WindowCalls[n.Call]; call.Argument != nil {
 				if err := child(r.Args[0], call.Argument); err != nil {
 					return err

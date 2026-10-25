@@ -175,7 +175,7 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 				}
 			}
 			n.Aggregate = &owned
-			n.Result = owned.Definition.TransitionType
+			n.Result = address(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}).ObjectID
 			if n.Signature != "" {
 				parts := strings.Split(string(n.Signature), ",")
 				for i, part := range parts {

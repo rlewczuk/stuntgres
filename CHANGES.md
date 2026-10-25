@@ -9,6 +9,18 @@ strict literal-NULL elimination, preserving arithmetic errors and current-actor
 EXECUTE checks. Discarded runtime-only siblings do not consume random or sequence
 state; held typed parameters still import before child admission.
 
+Ordinary aggregates execute selected FINALFUNC routines with distinct state and
+result types, typed NULL EXTRA arguments and declared modification modes.
+Direct/prepared results, metadata, stored consumers and native Dump/Restore keep
+the final result identity. Native aggregate FINALFUNC output exposes unknown
+computed nullability; aggregates without a final routine and stored view columns
+retain known nullable metadata. Private group frames
+and current-owner support authorization preserve cancellation, statement
+atomicity and result ownership. SHAREABLE/READ_WRITE window calls reject at
+execution startup, including empty input, rather than during Prepare. Their
+diagnostics use the selected declaration's visibility-aware routine identity,
+including quoted identifiers and multi-input signatures.
+
 The default text-search parser is executable through both text-name and OID
 overloads of ts_parse and ts_token_type, with typed set results, all 23 token
 descriptors, preserved document spelling and ordered URL/hyphen overlaps.
