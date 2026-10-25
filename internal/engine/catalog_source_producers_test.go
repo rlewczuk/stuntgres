@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 )
@@ -27,8 +28,6 @@ var (
 	capturePGEnum              = registeredCatalogProducer(3501)
 	capturePGGroup             = registeredCatalogProducer(12008)
 	capturePGIndexes           = registeredCatalogProducer(12002)
-	capturePGInherits          = registeredCatalogProducer(2611)
-	capturePGLanguage          = registeredCatalogProducer(2612)
 	capturePGNamespace         = registeredCatalogProducer(2615)
 	capturePGOpclass           = registeredCatalogProducer(2616)
 	capturePGOperator          = registeredCatalogProducer(2617)

@@ -2,14 +2,9 @@ package engine
 
 import (
 	"context"
-	"database/sql/driver"
 	"errors"
-	"testing"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/sqltype"
 )
 
 type fdwContractWrapper struct {
@@ -79,28 +74,4 @@ func (*fdwContractScan) ReScanForeignScan(context.Context, catalog.ForeignScanPa
 func (s *fdwContractScan) EndForeignScan(ctx context.Context) error {
 	s.owner.closed++
 	return s.owner.event(ctx, "End", s.index)
-}
-
-func fdwContractFixture(t *testing.T, q string) (*plan.Query, *exec.Source, *fdwContractWrapper) {
-	t.Helper()
-	_, query, captured := queryCoreFixture(t, q)
-	w := &fdwContractWrapper{count: 2}
-	for _, version := range captured.Committed {
-		id, _ := version.Values[0].Integer()
-		w.rows = append(w.rows, catalog.ForeignRow{id})
-	}
-	column := query.Root.Schema()[0]
-	f := &exec.ForeignQuerySource{Wrapper: w, Request: catalog.ForeignRequest{Columns: []catalog.ForeignColumn{{Attribute: 1, Name: "id"}}, RequiredAttributes: []int32{1}}, Columns: []catalog.Column{{Name: "id", Usage: column.Usage}}, ImportValue: func(_ context.Context, v driver.Value, u sqltype.Usage, _ sqltype.InputEnvironment) (sqltype.Value, error) {
-		return sqltype.Integer(u.Type, v.(int64))
-	}}
-	owner := &exec.ForeignScanOwner{}
-	owner.Add(f)
-	return query, &exec.Source{Ref: captured.Ref, Anonymous: [][]sqltype.Value{}, Foreign: f}, w
-}
-
-func fdwContractBalanced(t *testing.T, w *fdwContractWrapper) {
-	t.Helper()
-	if w.begins != w.ends || w.opened != w.closed {
-		t.Fatal("ownership mismatch", w.begins, w.ends, w.opened, w.closed)
-	}
 }
