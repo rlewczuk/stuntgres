@@ -109,7 +109,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *core.Engine, parent *catal
 		t.Fatal(err)
 	}
 	definition.Unique, definition.NullsNotDistinct = true, stmt.NullsNotDistinct
-	definition.Predicate, err = bindIndexPredicate(e, op, input, auth, parent, stmt.Predicate)
+	definition.Predicate, err = TableHost{core.DDLHost{E: e, Op: op}}.BindIndexPredicate(auth, parent, stmt.Predicate, input)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)
