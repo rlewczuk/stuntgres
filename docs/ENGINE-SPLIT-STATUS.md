@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `94d1a524b` (item 196 rebased on it).
+Last verified against `master` at `b54364789` (item 197 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 197.
+- 198.
 
 ## Linear plan
 
@@ -242,9 +242,23 @@ ENGINE-SPLIT.md §4.
      `^TestReferenceTableCore` passed in the merge chain; bench skipped (moved
      code unchanged; the escape diff shows only the renames), racecheck and
      finalcheck skipped at user request
-197. [ ] `tablecmds`: sequences, identity, VACUUM —
+197. [x] `tablecmds`: sequences, identity, VACUUM —
      [cmds](ENGINE-SPLIT-cmds.md#item-197--tablecmds-sequences-identity-vacuum)
-     · needs 196 · S
+     · needs 196 · S (`d3a613464`, `75f2d2cff`, `3fd44d15c`, docs commit) · the
+     sequence, identity and VACUUM executors (7 root production files, 954 file
+     lines: CREATE, ALTER and DROP SEQUENCE with OWNED BY and the catalog
+     binding wait, COMMENT ON SEQUENCE, the Restore identity configuration
+     check, and VACUUM with its selection, lock loop, progress phases and
+     publication) moved to `tablecmds` by `cmdmv` after 4 entries were exported
+     in place; 9 root test files moved as `tablecmds_test` external tests (every
+     helper reuses a copy already there), none deleted; root production 95 files
+     and 0.35 MB (−0.03 MB), root tests 451 files and 2.97 MB (−0.06 MB); the
+     family selectors, the `RACE=1` VACUUM race tests, quickcheck, the §3 `go
+     list` check and the library deps check passed; `REFERENCE=1`
+     `^TestReference(Sequence|Identity)` and
+     `^TestReference(Vacuum|CommentInquiryComposition|PGDescriptionLifecycle|TransactionalComment)`
+     passed in the merge chain; bench skipped (moved code unchanged), racecheck
+     and finalcheck skipped at user request
 198. [ ] `indexcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-198--indexcmds) ·
      needs 197 · S
 199. [ ] `partitioncmds` —
