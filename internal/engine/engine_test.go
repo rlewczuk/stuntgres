@@ -159,13 +159,6 @@ func testExport(v sqltype.Value) driver.Value {
 	}
 	panic("invalid test value")
 }
-func testUsage(e *core.Engine, id sqltype.ID) sqltype.Usage {
-	d, ok := e.CatalogRead().LookupType(id)
-	if !ok {
-		panic("missing type")
-	}
-	return d.Usage()
-}
 func testExecuteFrame(e *core.Engine, op *session.Operation, stmt parser.Statement, args []driver.NamedValue) (core.Result, error) {
 	raw := make([]driver.Value, len(args))
 	for i, a := range args {

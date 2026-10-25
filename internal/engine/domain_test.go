@@ -4,9 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
@@ -48,13 +46,4 @@ func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
 	if _, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func domainUnitType(t *testing.T, view catalog.Read, name string) *catalog.Type {
-	t.Helper()
-	addresses := view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: name})
-	if len(addresses) != 1 {
-		t.Fatal(name, addresses)
-	}
-	return view.MustType(addresses[0])
 }
