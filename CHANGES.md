@@ -1,3 +1,11 @@
+The `stuntgres` server's new `--reference DB=URL` option (repeatable,
+requires `-q`) runs database DB in dual-backend mode: every command is also
+sent to the real PostgreSQL server at URL, clients still receive stuntgres's
+responses, and each `query.log` record adds `response_ref`, `error_ref` and,
+when the responses differ, a readable `response_diff`. `--reference-timeout`
+bounds the wait for the reference; an unreachable reference never blocks
+clients.
+
 The `stuntgres` server's command line now uses cobra and viper. Every option
 can also be set with a `STUNTGRES_<OPTION>` environment variable or a
 `--config` YAML/TOML/JSON file (flag, then environment, then file, then default),

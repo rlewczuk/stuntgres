@@ -208,7 +208,10 @@ Every option can also come from a `STUNTGRES_<OPTION>` environment variable
 (for example `STUNTGRES_USERFILE`) or a `--config` YAML/TOML/JSON file keyed by
 long option names. `./stuntgres --help` lists all options; see [cmd/stuntgres](cmd/stuntgres/README.md#operation)
 for accounts, dumps and logs. Add `-q` (with `-L`) to record every query, its
-parameters and the exact responses in `query.log`.
+parameters and the exact responses in `query.log`. Add
+`--reference DB=postgres://user@host/db` as well to send database DB's
+commands to a real PostgreSQL server too and log its responses with their
+differences beside stuntgres's.
 
 ## Building from source and contributing
 

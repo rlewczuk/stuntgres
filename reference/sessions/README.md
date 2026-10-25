@@ -131,3 +131,4 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Wire comparison matrix: `RUN='^TestReferenceServerComparison'`
 - Wire notifications: `RUN='^TestReferenceServerNotifications'`
 - Wire logs (error, server and query logs): `RUN='^TestReferenceServer(Logs|PreparedLogs|QueryLog)$$'`
+- Dual-backend query log: `RUN='^TestReferenceServerDualQueryLog$$'`
