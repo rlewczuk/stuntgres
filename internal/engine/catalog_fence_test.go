@@ -7,17 +7,6 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-// catalogFencesOf returns the journal's fences of type F in recording order.
-func catalogFencesOf[F session.Fence](c *session.Journal) []F {
-	var out []F
-	for _, f := range c.Fences {
-		if typed, ok := f.(F); ok {
-			out = append(out, typed)
-		}
-	}
-	return out
-}
-
 type orderProbeFence struct {
 	kind session.FenceKind
 	name string

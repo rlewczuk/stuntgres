@@ -41,11 +41,6 @@ func BindIndexExpression(e *Engine, op *session.Operation, input sqltype.InputEn
 	return bindIndexExpression(e, op, input, auth, parent, raw, literals)
 }
 
-// BindIndexPredicate calls bindIndexPredicate.
-func BindIndexPredicate(e *Engine, op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr) (*catalog.IndexPredicate, error) {
-	return bindIndexPredicate(e, op, input, auth, parent, raw)
-}
-
 // EngineCapturePartialMaskLocked calls x.capturePartialMaskLocked.
 func EngineCapturePartialMaskLocked(x *Engine, scope *StatementScope, leaf exec.Leaf, view *visibility.View, mark plan.RowMark) *storage.IndexRoot {
 	return x.capturePartialMaskLocked(scope, leaf, view, mark)

@@ -186,7 +186,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	if err := EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil); err != nil {
 		t.Fatal("actual retained capture", err)
 	}
-	sources := catalogFencesOf[MaterializedSourceFence](changes)
+	sources := MaterializedSourceFences(changes)
 	if len(sources) != 1 {
 		t.Fatal("dedicated source fence not generated", sources)
 	}

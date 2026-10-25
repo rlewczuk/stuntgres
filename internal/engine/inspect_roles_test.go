@@ -50,9 +50,6 @@ func AuthorizationActingAs(x AuthorizationView, owner authorization.PrincipalRef
 	return x.actingAs(owner)
 }
 
-// AuthorizationMaterializedPopulation returns x.materializedPopulation.
-func AuthorizationMaterializedPopulation(x *AuthorizationView) bool { return x.materializedPopulation }
-
 // AuthorizationNamespaceUser returns x.namespaceUser.
 func AuthorizationNamespaceUser(x *AuthorizationView) authorization.PrincipalRef {
 	return x.namespaceUser
@@ -67,11 +64,6 @@ func AuthorizationSettings(x *AuthorizationView) *session.SettingsStore { return
 // SetAuthorizationPathPrefix sets x.pathPrefix.
 func SetAuthorizationPathPrefix(x *AuthorizationView, v ids.ObjectAddress) { x.pathPrefix = v }
 
-// StageValidateRoleCandidate calls x.validateRoleCandidate.
-func StageValidateRoleCandidate(x *CatalogStage, current *access.RoleRecord) error {
-	return x.validateRoleCandidate(current)
-}
-
 // SetDatabaseClusterNotificationHead sets x.notificationHead.
 func SetDatabaseClusterNotificationHead(x *DatabaseCluster, v *session.NotificationQueuePosition) {
 	x.notificationHead = v
@@ -85,21 +77,6 @@ func EngineJournalRolePublicationLocked(x *Engine, c *session.Journal, materiali
 // EnginePublicationRolesLocked calls x.publicationRolesLocked.
 func EnginePublicationRolesLocked(x *Engine, ctx context.Context, c *session.Journal) (*session.Journal, error) {
 	return x.publicationRolesLocked(ctx, c)
-}
-
-// EnginePublishDatabaseFrozenXIDLocked calls x.publishDatabaseFrozenXIDLocked.
-func EnginePublishDatabaseFrozenXIDLocked(x *Engine) {
-	x.publishDatabaseFrozenXIDLocked()
-}
-
-// EngineRefreshOperationRolesLocked calls x.refreshOperationRolesLocked.
-func EngineRefreshOperationRolesLocked(x *Engine, op *session.Operation) error {
-	return x.refreshOperationRolesLocked(op)
-}
-
-// EngineRoleRetirementPreflightLocked calls x.roleRetirementPreflightLocked.
-func EngineRoleRetirementPreflightLocked(x *Engine, c *session.Journal, state *catalog.State) error {
-	return x.roleRetirementPreflightLocked(c, state)
 }
 
 // EngineRoleSessionCountLocked calls x.roleSessionCountLocked.

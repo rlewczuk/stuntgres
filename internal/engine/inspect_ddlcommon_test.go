@@ -5,7 +5,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 )
 
@@ -17,11 +16,6 @@ func BuiltinSeed() *catalog.SeedShare { return builtinSeed }
 
 // BuiltinSeedRef returns &builtinSeed.
 func BuiltinSeedRef() **catalog.SeedShare { return &builtinSeed }
-
-// DomainRestrictError calls domainRestrictError.
-func DomainRestrictError(stage *CatalogStage, targets []ids.ObjectAddress, edges []table.DomainDependency, originalRootCount int, subject ids.ObjectAddress) error {
-	return domainRestrictError(stage, targets, edges, originalRootCount, subject)
-}
 
 // DropProviderLockInheritanceClosure calls x.lockInheritanceClosure.
 func DropProviderLockInheritanceClosure(x *DropProvider, roots []ids.ObjectAddress) error {

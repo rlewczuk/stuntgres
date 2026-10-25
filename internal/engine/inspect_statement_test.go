@@ -367,9 +367,6 @@ func CursorSchema(x *sqlCursor) []catalog.Column { return x.schema }
 // CursorScroll returns x.scroll.
 func CursorScroll(x *sqlCursor) bool { return x.scroll }
 
-// CursorStage returns x.stage.
-func CursorStage(x *sqlCursor) *exec.Stage { return x.stage }
-
 // CursorState returns x.state.
 func CursorState(x *sqlCursor) exec.State { return x.state }
 
@@ -426,26 +423,6 @@ func NewPreparedStatement(f PreparedStatementFields) *sqlPreparedStatement {
 
 // PreparedStatementBody returns x.body.
 func PreparedStatementBody(x *sqlPreparedStatement) parser.Statement { return x.body }
-
-// PartitionCheckReplayAllowed calls partitionCheckReplayAllowed.
-func PartitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
-	return partitionCheckReplayAllowed(op, auth, raw, d)
-}
-
-// PartitionUsingIndexReplayAllowed calls partitionUsingIndexReplayAllowed.
-func PartitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
-	return partitionUsingIndexReplayAllowed(op, auth, raw, table)
-}
-
-// BindingHostView calls x.view.
-func BindingHostView(x *BindingHost, a analyze.Authority) AuthorizationView {
-	return x.view(a)
-}
-
-// StageValidateIndexMaintenance calls x.validateIndexMaintenance.
-func StageValidateIndexMaintenance(x *CatalogStage, current *catalog.State) error {
-	return x.validateIndexMaintenance(current)
-}
 
 // EngineHoldPrecommit calls x.holdPrecommit.
 func EngineHoldPrecommit(x *Engine, op *session.Operation, owner *session.TransactionOwner, start time.Time, settlement *StatementScope) error {

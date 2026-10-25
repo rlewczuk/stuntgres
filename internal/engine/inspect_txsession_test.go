@@ -25,11 +25,6 @@ func AppendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token id
 	return appendBlockingPid(values, typ, token, prepared, domain)
 }
 
-// CaptureSavepoint calls captureSavepoint.
-func CaptureSavepoint(t *session.TransactionOwner, name string) session.SavepointMark {
-	return captureSavepoint(t, name)
-}
-
 // DrainCursorCleanup calls drainCursorCleanup.
 func DrainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope *StatementScope) error {
 	return drainCursorCleanup(t, ctx, scope)
@@ -59,11 +54,6 @@ func OwnerExtensionOf(t *session.TransactionOwner) *ownerExtension {
 // OwnerExtensionOrZero calls ownerExtensionOrZero.
 func OwnerExtensionOrZero(t *session.TransactionOwner) ownerExtension {
 	return ownerExtensionOrZero(t)
-}
-
-// RestoreSavepoint calls restoreSavepoint.
-func RestoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
-	restoreSavepoint(t, mark, settings)
 }
 
 // SessionHost names sessionHost.
@@ -303,11 +293,6 @@ func ScopeSnapshotExecutionAdmission(x *StatementScope, stmt parser.Statement) e
 // ScopeSnapshotFrontier returns x.snapshotFrontier.
 func ScopeSnapshotFrontier(x *StatementScope) ids.CommitSeq { return x.snapshotFrontier }
 
-// ScopeSnapshotPhase calls x.snapshotPhase.
-func ScopeSnapshotPhase(x *StatementScope, stmt parser.Statement) error {
-	return x.snapshotPhase(stmt)
-}
-
 // ScopeStatementStart returns x.statementStart.
 func ScopeStatementStart(x *StatementScope) time.Time { return x.statementStart }
 
@@ -344,9 +329,6 @@ func SetScopeNotificationEvents(x *StatementScope, v []session.Notification) {
 
 // SetScopeSelf sets x.self.
 func SetScopeSelf(x *StatementScope, v *StatementScope) { x.self = v }
-
-// SetScopeWorked sets x.worked.
-func SetScopeWorked(x *StatementScope, v bool) { x.worked = v }
 
 // SetWriteStageReplacing sets x.replacing.
 func SetWriteStageReplacing(x *WriteStage, v bool) { x.replacing = v }
@@ -459,11 +441,6 @@ type ScopeFields struct {
 // NewScope builds a StatementScope from f.
 func NewScope(f ScopeFields) *StatementScope {
 	return &StatementScope{Owner: f.Owner, Op: f.Op, notificationActions: f.NotificationActions, notificationEvents: f.NotificationEvents, Expected: f.Expected, statementStart: f.StatementStart, transactionStart: f.TransactionStart, activeSQLRoutineDepth: f.ActiveSQLRoutineDepth, Catalog: f.Catalog, largeObjectRead: f.LargeObjectRead, sqlRoutine: f.SQLRoutine}
-}
-
-// ScopeExecuteSavepoint calls x.executeSavepoint.
-func ScopeExecuteSavepoint(x *StatementScope, control *parser.SavepointControl, count int) (Result, error) {
-	return x.executeSavepoint(control, count)
 }
 
 // ScopeLargeObjectRead returns x.largeObjectRead.

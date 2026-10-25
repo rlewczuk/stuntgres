@@ -2,7 +2,6 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
@@ -58,11 +57,6 @@ func ScopeConversionProcedure(x *StatementScope, source int, destination int) (*
 // ScopeReadmitPreparedPrograms calls x.readmitPreparedPrograms.
 func ScopeReadmitPreparedPrograms(x *StatementScope, view AuthorizationView) error {
 	return x.readmitPreparedPrograms(view)
-}
-
-// TypeHostBindRestoredDomainDefault calls x.bindRestoredDomainDefault.
-func TypeHostBindRestoredDomainDefault(x TypeHost, a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
-	return x.bindRestoredDomainDefault(a, d, raw, input, output)
 }
 
 // ConversionDefaultConversion returns x.conversion.

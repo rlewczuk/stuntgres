@@ -77,11 +77,6 @@ func AdmitInquiryBody(c *exec.Context, node expr.Info) error {
 	return admitInquiryBody(c, node)
 }
 
-// ProcedureReturnsSet calls procedureReturnsSet.
-func ProcedureReturnsSet(d *catalog.Procedure) bool {
-	return procedureReturnsSet(d)
-}
-
 // ScopeInstallSQLRoutineScratch calls x.installSQLRoutineScratch.
 func ScopeInstallSQLRoutineScratch(x *StatementScope, c sqlRoutineScratch) {
 	x.installSQLRoutineScratch(c)

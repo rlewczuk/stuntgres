@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,11 +44,6 @@ func SetStatementMutationEffectAdmission(x *StatementMutation, v foreignEffectAd
 // StatementMutationEffectAdmissionRef returns &x.effectAdmission.
 func StatementMutationEffectAdmissionRef(x *StatementMutation) *foreignEffectAdmission {
 	return &x.effectAdmission
-}
-
-// ScopeAcquireRow calls x.acquireRow.
-func ScopeAcquireRow(x *StatementScope, candidate visibility.DeleteCandidate) error {
-	return x.acquireRow(candidate)
 }
 
 // ScopeCompleteCommandEffects calls x.completeCommandEffects.

@@ -16,9 +16,6 @@ func EngineDescribeOperation(x *Engine, scope *StatementScope, stmt parser.State
 // EngineNotifications returns x.notifications.
 func EngineNotifications(x *Engine) session.NotificationRegistry { return x.notifications }
 
-// EnginePreparedRef returns &x.prepared.
-func EnginePreparedRef(x *Engine) *session.PreparedRegistry { return &x.prepared }
-
 // EngineSessionMuRef returns &x.sessionMu.
 func EngineSessionMuRef(x *Engine) *sync.Mutex { return &x.sessionMu }
 

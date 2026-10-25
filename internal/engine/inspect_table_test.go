@@ -13,18 +13,11 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
 	"stuntgres/internal/engine/visibility"
-	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 // StagePrivateColumnShape calls stagePrivateColumnShape.
 func StagePrivateColumnShape(evaluation *exec.Context, stage *CatalogStage, changes *session.Journal, old *catalog.Relation, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists bool, stable bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
 	return stagePrivateColumnShape(evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stable)
-}
-
-// EnginePrepareQueryTableLocked calls x.prepareQueryTableLocked.
-func EnginePrepareQueryTableLocked(x *Engine, op *session.Operation, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
-	return x.prepareQueryTableLocked(op, auth, s, b)
 }
 
 // ScopeCheckExclusionCommandEvents calls x.checkExclusionCommandEvents.
@@ -72,24 +65,9 @@ func BindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declaration
 	return bindCreateDefaults(b, columns, declarations)
 }
 
-// BindCreateGenerations calls bindCreateGenerations.
-func BindCreateGenerations(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
-	return bindCreateGenerations(e, op, auth, d, declarations, input)
-}
-
 // TableStage calls tableStage.
 func TableStage(s *CatalogStage) *table.Stage {
 	return tableStage(s)
-}
-
-// StageTableOrZero calls x.tableOrZero.
-func StageTableOrZero(x *CatalogStage) table.Stage {
-	return x.tableOrZero()
-}
-
-// StageValidateLikeSources calls x.validateLikeSources.
-func StageValidateLikeSources(x *CatalogStage, current catalog.Read) error {
-	return x.validateLikeSources(current)
 }
 
 // EnginePublishQueryTable calls x.publishQueryTable.
