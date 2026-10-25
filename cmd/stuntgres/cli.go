@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -17,6 +18,8 @@ import (
 type serveOptions struct {
 	listen, dumpdir, logdir, userfile, pidfile string
 	restore, verbose, background, querylog     bool
+	references                                 map[string]referenceConfig // nil unless dual-backend mode is configured
+	referenceTimeout                           time.Duration
 }
 type cliCommand struct {
 	command   string
@@ -44,7 +47,11 @@ trusted protected network; non-loopback listening exposes passwords and data.`
 const serveDescription = `serve runs in the foreground; start (or serve -b) reexecutes in the background.
 Listen defaults to 127.0.0.1:5434; a bare port binds loopback. -L selects logs.
 -r restores the newest native SQL dump per database and requires -d.
--q writes every command cycle with its exact responses to query.log; requires -L.`
+-q writes every command cycle with its exact responses to query.log; requires -L.
+--reference DB=URL (repeatable; requires -q) also sends every command for DB to
+the PostgreSQL server at URL (postgres://user[:password]@host[:port][/dbname]
+[?sslmode=disable|require|verify-full]) and logs both responses with their
+differences. Without a URL password, PGPASSFILE or ~/.pgpass supplies it.`
 
 // parseCLI resolves args, environment and the optional config file into a
 // command without running it. Help output returns errHelp.
@@ -113,6 +120,8 @@ func newServeCommand(name string, command *cliCommand, pidfile string) *cobra.Co
 	flags.BoolP(keyVerbose, "v", false, "enable DEBUG logs")
 	flags.BoolP(keyBackground, "b", false, "run in background")
 	flags.BoolP(keyQuerylog, "q", false, "log queries with exact responses")
+	flags.StringArray(keyReference, nil, "compare database DB with PostgreSQL at URL (DB=URL, repeatable)")
+	flags.String(keyReferenceTimeout, defaultReferenceTimeout.String(), "longest wait for a reference response")
 	addConfigFlag(flags)
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		options, err := resolveServeOptions(cmd.Flags())
@@ -223,6 +232,26 @@ func resolveServeOptions(flags *pflag.FlagSet) (serveOptions, error) {
 	if options.querylog && options.logdir == "" {
 		return options, errors.New("querylog requires a log directory")
 	}
+	specs, err := config.list(keyReference)
+	if err != nil {
+		return options, err
+	}
+	if options.references, err = parseReferences(specs); err != nil {
+		return options, err
+	}
+	if options.references != nil && !options.querylog {
+		return options, errors.New("reference requires querylog")
+	}
+	timeout, err := config.text(keyReferenceTimeout)
+	if err != nil {
+		return options, err
+	}
+	if options.referenceTimeout, err = time.ParseDuration(timeout); err != nil {
+		return options, fmt.Errorf("invalid %s value %q", keyReferenceTimeout, timeout)
+	}
+	if err := validateReferenceTimeout(options.referenceTimeout); err != nil {
+		return options, err
+	}
 	options.listen, err = normalizeListen(options.listen)
 	return options, err
 }
@@ -269,7 +298,10 @@ func serveArguments(options serveOptions) []string {
 	if options.querylog {
 		args = append(args, "--querylog")
 	}
-	return args
+	for _, spec := range referenceSpecs(options.references) {
+		args = append(args, "--reference", spec)
+	}
+	return append(args, "--reference-timeout", options.referenceTimeout.String())
 }
 
 func runCLI(args []string) error {

@@ -208,7 +208,31 @@ Every option can also come from a `STUNTGRES_<OPTION>` environment variable
 (for example `STUNTGRES_USERFILE`) or a `--config` YAML/TOML/JSON file keyed by
 long option names. `./stuntgres --help` lists all options; see [cmd/stuntgres](cmd/stuntgres/README.md#operation)
 for accounts, dumps and logs. Add `-q` (with `-L`) to record every query, its
-parameters and the exact responses in `query.log`.
+parameters and the exact responses in `query.log`. Add
+`--reference DB=postgres://user@host/db` as well to send database DB's
+commands to a real PostgreSQL server too and log its responses with their
+differences beside stuntgres's.
+
+A sample `stuntgres.yaml` that compares database `app` with a local
+PostgreSQL (other databases in the userfile run on stuntgres alone):
+
+```yaml
+listen: 127.0.0.1:5434
+userfile: ./users
+logdir: ./logs
+querylog: true                  # dual-backend mode requires the query log
+reference:
+  - app=postgres://app_user:app_password@127.0.0.1:5432/app_reference?sslmode=disable
+reference-timeout: 30s
+```
+
+```sh
+./stuntgres serve --config ./stuntgres.yaml
+```
+
+The URL password may be omitted; it is then read from `PGPASSFILE` (or
+`~/.pgpass`), for example `127.0.0.1:5432:app_reference:app_user:app_password`.
+Prefer that for `start`, which passes the URL to the daemon on its command line.
 
 ## Building from source and contributing
 

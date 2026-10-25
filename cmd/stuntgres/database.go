@@ -18,8 +18,9 @@ import (
 // Each managed database owns an independent catalog and role set.
 // Network identities are allocated by the physical server, bootstrap uses 1.
 type database struct {
-	engine   *engine.Engine
-	settings map[string]struct{} // Immutable definition names, never effective values.
+	engine    *engine.Engine
+	settings  map[string]struct{} // Immutable definition names, never effective values.
+	reference *referenceConfig    // Immutable; non-nil runs every connection in dual-backend mode.
 }
 
 type startupDefaults map[string]string
@@ -144,6 +145,18 @@ func (d *database) startSession(ctx context.Context, id uint32, user string, def
 		return nil, err
 	}
 	return d.engine.StartSession(ctx, session.SessionStart{ID: ids.SessionID(id), Authenticated: principal, Defaults: defaults})
+}
+
+// attachReferences enables dual-backend mode for each configured database.
+func attachReferences(databases map[string]*database, references map[string]referenceConfig) error {
+	for name, c := range references {
+		d, ok := databases[name]
+		if !ok {
+			return fmt.Errorf("reference for unknown database %q", name)
+		}
+		d.reference = &c
+	}
+	return nil
 }
 func databaseNames(databases map[string]*database) []string {
 	names := make([]string, 0, len(databases))

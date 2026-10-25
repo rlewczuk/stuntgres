@@ -127,7 +127,7 @@ func (q *queryCapture) reset() {
 // ended by ReadyForQuery is written with complete=false.
 func (c *client) emitQuery() {
 	q := c.capture
-	if q == nil || (!q.open && len(q.response) == 0) {
+	if q == nil || (!q.open && len(q.response) == 0 && (c.reference == nil || !c.reference.hasIdle())) {
 		return
 	}
 	q.records++
@@ -152,13 +152,45 @@ func (c *client) emitQuery() {
 	if q.open {
 		duration = time.Since(q.started).Microseconds()
 	}
-	err := c.server.logs.query(context.Background(),
-		"connection_id", c.id, "database", c.database, "user", c.user,
+	fields := []any{"connection_id", c.id, "database", c.database, "user", c.user,
 		"cycle", q.records, "frontend", string(q.frontend), "query", query, "params", params,
-		"steps", steps, "response", response, "error", q.errCode,
-		"complete", q.ready || !q.open, "duration_us", duration)
+		"steps", steps, "response", response, "error", q.errCode}
+	if c.reference != nil {
+		fields = append(fields, c.referenceFields(response, q.open)...)
+	}
+	fields = append(fields, "complete", q.ready || !q.open, "duration_us", duration)
+	err := c.server.logs.query(context.Background(), fields...)
 	q.reset()
 	if err != nil {
 		c.server.fail(err)
 	}
+}
+
+// referenceFields is the dual-backend part of a record: the reference
+// response for the cycle (or its output received while idle), its first
+// SQLSTATE and, when they differ, how it differs from stuntgres's response.
+func (c *client) referenceFields(response []queryMessage, cycle bool) []any {
+	var reference []queryMessage
+	if cycle {
+		reference = c.reference.takeCycle()
+	} else {
+		reference = c.reference.takeIdle()
+	}
+	if reference == nil {
+		reference = []queryMessage{}
+	}
+	code := ""
+	for _, m := range reference {
+		if m.Type == "E" {
+			if fields, ok := m.Decoded.(map[string]string); ok {
+				code = fields["code"]
+			}
+			break
+		}
+	}
+	fields := []any{"response_ref", reference, "error_ref", code}
+	if diff := diffResponses(response, reference); len(diff) != 0 {
+		fields = append(fields, "response_diff", diff)
+	}
+	return fields
 }

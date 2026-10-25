@@ -47,6 +47,9 @@ func runServe(options serveOptions) (err error) {
 	if err != nil {
 		return err
 	}
+	if err := attachReferences(databases, options.references); err != nil {
+		return err
+	}
 	if options.restore {
 		if err := restoreDatabases(context.Background(), databases, latest, logs); err != nil {
 			return err
@@ -67,6 +70,7 @@ func runServe(options serveOptions) (err error) {
 	if err != nil {
 		return err
 	}
+	srv.referenceTimeout = options.referenceTimeout
 	defer srv.shutdown()
 	listener, err := net.Listen("tcp", options.listen)
 	if err != nil {

@@ -215,7 +215,10 @@ production dependency is involved.
   subprocess (temporary userfile, dumps, logs and PID file; reduced-KDF build tag)
   for `reference/sessions` wire tests. Embedded scenarios never start a server.
   `NewServerFixture(t, fixture.ServerQueryLog())` adds `-q` so the native server
-  writes `Logdir/query.log`.
+  writes `Logdir/query.log`. `fixture.ServerArgs(...)` appends serve options;
+  `fixture.ServerDualReference()` runs `ServerDatabase` in dual-backend mode
+  against the pinned PostgreSQL (real mode) or a second native server (quick
+  mode), exposed directly as `ReferenceDB`/`ReferenceURL`.
 
 ## Testing
 
