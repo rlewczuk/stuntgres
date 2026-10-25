@@ -161,15 +161,3 @@ func TestAlterGeneratedExpressionConstraintRoots(t *testing.T) {
 		})
 	}
 }
-
-func alterGenerationLiteral(n int64) parser.Expr {
-	return parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: n}}
-}
-
-func alterGenerationStatement(action parser.AlterTableAction) *parser.AlterTable {
-	return &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "g"}}}, Actions: []parser.AlterTableAction{action}}
-}
-
-func alterGenerationAction(expr parser.Expr) parser.AlterTableAction {
-	return parser.AlterTableAction{Action: parser.SetExpression, Column: parser.Identifier{Text: "b"}, Generation: &parser.GenerationDefinition{Expression: expr}}
-}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -21,7 +22,7 @@ import (
 // decisions: the typedef.StageHost methods beyond what TableHost provides
 // (ddl.TypeStaging, row types, type resolution) and the shared DDLHost.
 type TypeHost struct {
-	TableHost
+	tablecmds.TableHost
 }
 
 var _ typedef.StageHost = TypeHost{}

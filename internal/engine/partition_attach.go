@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 )
 
@@ -22,7 +23,7 @@ func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.LockedRef.Domain() == nil {
-		return SkipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
+		return tablecmds.SkipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
 	}
 	parent := scope.LockedDescriptor.(*catalog.Relation)
 	if err := partition.CheckAttachTarget(parent, core.OperationReplayOrZero(op).PartitionAttach); err != nil {
@@ -42,12 +43,12 @@ func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		e.DiscardCatalogStage(stage)
 		return fail(err)
 	}
-	pending := &PendingPartitionDefinition{Definition: partition.Definition{Parent: parent, Bound: bound, Raw: raw.Bound}, Stage: stage, Auth: auth}
+	pending := &tablecmds.PendingPartitionDefinition{Definition: partition.Definition{Parent: parent, Bound: bound, Raw: raw.Bound}, Stage: stage, Auth: auth}
 	e.Mu.Unlock()
 	defer func() { e.DiscardCatalogStage(pending.Stage) }()
 	if !bound.DefaultBound {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
-		if err = partition.EvaluateBounds(op.Context(), &pending.Definition, PartitionBoundBinder{Scope: scope, Pending: pending}, &evaluation); err != nil {
+		if err = partition.EvaluateBounds(op.Context(), &pending.Definition, tablecmds.PartitionBoundBinder{Scope: scope, Pending: pending}, &evaluation); err != nil {
 			return core.Result{}, err
 		}
 	}
@@ -184,7 +185,7 @@ func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return core.Result{}, err
 	}
 	e.Mu.Lock()
-	err = partition.StageIndexChildren(TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, child.Address(), true)
+	err = partition.StageIndexChildren(tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, child.Address(), true)
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err

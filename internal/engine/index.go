@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -61,7 +62,7 @@ func executeCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.Cr
 			e.DiscardCatalogStage(stage)
 			return core.Result{}, err
 		}
-		h := TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
+		h := tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 		created, err := index.PrepareCreate(h, auth, parent, s, scope.Input, reservedNames)
 		if err != nil {
 			return failStage(err)

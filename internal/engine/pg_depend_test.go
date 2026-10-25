@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -251,7 +252,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	assertEdges(before, true)
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	if err := (TypeHost{TableHost{core.DDLHost{CatalogStage: stage}}}).RemoveDomainCheck(domain, check.OID); err != nil {
+	if err := (TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: stage}}}).RemoveDomainCheck(domain, check.OID); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 )
 
@@ -38,12 +39,12 @@ func restoreRetiredConstraint(e *core.Engine, op *session.Operation, raw *parser
 		e.Mu.Unlock()
 		return err
 	}
-	next, commit, err := table.RetiredConstraintCandidate(TableHost{core.DDLHost{E: e, Op: op}}, auth, auth.Catalog, ref, repair, authority)
+	next, commit, err := table.RetiredConstraintCandidate(tablecmds.TableHost{core.DDLHost{E: e, Op: op}}, auth, auth.Catalog, ref, repair, authority)
 	if err != nil {
 		e.Mu.Unlock()
 		return err
 	}
-	if err := PublishRestoreRepairLocked(e, op, auth, next, ref.Epoch); err != nil {
+	if err := tablecmds.PublishRestoreRepairLocked(e, op, auth, next, ref.Epoch); err != nil {
 		return err
 	}
 	authority.CommitRetiredRepair(commit)

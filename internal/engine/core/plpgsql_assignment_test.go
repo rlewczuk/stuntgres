@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -36,7 +37,7 @@ func plUnitTypeStage(t *testing.T, e *core.Engine, op *session.Operation, q stri
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	host := engine.TypeHost{engine.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
+	host := engine.TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	switch s := syntax.(type) {
 	case *parser.CreateDomain:
 		err = typedef.StageCreateDomainLocked(host, auth, s, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})

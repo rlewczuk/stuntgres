@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -209,7 +210,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.AuthorizeLocked(auth, s)
-	if err := SchemaTableLocked(e, m.op, auth, stage, definition, ns.Address, auth.State.CurrentUser, m.scope.Input, nil); err != nil {
+	if err := tablecmds.SchemaTableLocked(e, m.op, auth, stage, definition, ns.Address, auth.State.CurrentUser, m.scope.Input, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := core.EngineCaptureCatalogStageLocked(e, stage, candidate, before, nil); err != nil {

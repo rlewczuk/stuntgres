@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func domainUnitTable(t *testing.T, e *core.Engine, op *session.Operation, q stri
 	auth, err := e.AuthorizationLocked(op)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	if err == nil {
-		err = SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = tablecmds.SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {

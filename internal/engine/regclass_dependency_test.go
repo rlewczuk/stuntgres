@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -39,7 +40,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	}
 	defer scope.Finish(nil)
 	changes := session.NewJournal()
-	next, err := DropColumnCandidate(scope, stage, old, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "v"}, Mode: parser.DropCascade}, changes)
+	next, err := tablecmds.DropColumnCandidate(scope, stage, old, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "v"}, Mode: parser.DropCascade}, changes)
 	if err != nil {
 		t.Fatal(err)
 	}

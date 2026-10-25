@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/sqltype"
 )
 
@@ -78,7 +79,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			e.Mu.Lock()
 			auth, err := e.AuthorizationLocked(op)
 			if err == nil {
-				err = table.StageLikeColumns(engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
+				err = table.StageLikeColumns(tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &foreign, []analyze.LikeInput{{Source: source, Options: analyze.LikeDefaults}})
 			}
 			e.Mu.Unlock()
 			sequenceOwnerDiagnostic(t, err, "0A000", "temporary sequence DEFAULT is unsupported", "")

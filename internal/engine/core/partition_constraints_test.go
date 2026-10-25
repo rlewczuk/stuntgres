@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/sqltype"
 )
 
@@ -44,7 +45,7 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	defer done()
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := index.StagePartitionIndexAttach(engine.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.parent, f.child); err != nil {
+	if err := index.StagePartitionIndexAttach(tablecmds.TableHost{core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.parent, f.child); err != nil {
 		t.Fatal(err)
 	}
 	next := f.e.StageRead(stage)

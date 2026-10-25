@@ -1,0 +1,281 @@
+package tablecmds_test
+
+import (
+	"bytes"
+	"context"
+	"database/sql/driver"
+	"errors"
+	"reflect"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
+)
+
+func TestAlterDropColumnQueuedSameIdentity(t *testing.T) {
+	for _, q := range []string{"SELECT * FROM t ORDER BY a", "INSERT INTO t(a,c) VALUES(2,20)", "ALTER TABLE t DROP c", "ALTER TABLE t DROP IF EXISTS b"} {
+		t.Run(q, func(t *testing.T) {
+			e := engine.New()
+			enginetest.Run(t, e, "CREATE TABLE t(a INT,b TEXT,c BIGINT)")
+			enginetest.Run(t, e, "INSERT INTO t VALUES(1,'gone',9)")
+			ref := roleTableRef(t, e, "t")
+			beforeDropRevision := e.Catalog.State.Get(ref.Address).Revision()
+			entered, release := make(chan struct{}), make(chan struct{})
+			var first, unblock sync.Once
+			t.Cleanup(func() { unblock.Do(func() { close(release) }) })
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{e.Catalog.Providers[ids.RelationClassID], func() { first.Do(func() { close(entered); <-release }) }}
+			dropping := lockAsync(e, sessionStart(t, e, nil), context.Background(), "ALTER TABLE t DROP b", false)
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("DROP never reached provider barrier")
+			}
+			op, cleanup, err := enginetest.Operation(e, context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cleanup()
+			type outcome struct {
+				result  core.Result
+				err     error
+				notices []sqlstate.Error
+			}
+			done := make(chan outcome, 1)
+			stmt := enginetest.Statement(t, q)
+			go func() { result, err := e.Execute(op, stmt, 0, nil); done <- outcome{result, err, op.DetachNotices()} }()
+			lockPending(t, e, 1)
+			unblock.Do(func() { close(release) })
+			lockAwait(t, dropping, nil)
+			var got outcome
+			select {
+			case got = <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("queued operation did not finish")
+			}
+			if got.err != nil {
+				t.Fatalf("same-identity definition evolution must rebind: %v", got.err)
+			}
+			if roleTableRef(t, e, "t") != ref {
+				t.Fatal("relation identity changed")
+			}
+			switch q {
+			case "SELECT * FROM t ORDER BY a":
+				if len(got.result.Rows.Schema()) != 2 || got.result.Rows.Schema()[1].Name != "c" || got.result.Rows.Schema()[1].OriginAttribute != 3 {
+					t.Fatal(got.result.Rows.Schema())
+				}
+				if rows := enginetest.Tuples(got.result); !reflect.DeepEqual(rows, [][]driver.Value{{int64(1), int64(9)}}) {
+					t.Fatal(rows)
+				}
+			case "INSERT INTO t(a,c) VALUES(2,20)":
+				if got.result.Count != 1 {
+					t.Fatal(got.result.Count)
+				}
+				if rows := enginetest.Tuples(enginetest.Run(t, e, "SELECT * FROM t ORDER BY a")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(1), int64(9)}, {int64(2), int64(20)}}) {
+					t.Fatal(rows)
+				}
+			case "ALTER TABLE t DROP c":
+				if rows := enginetest.Tuples(enginetest.Run(t, e, "SELECT * FROM t")); !reflect.DeepEqual(rows, [][]driver.Value{{int64(1)}}) {
+					t.Fatal(rows)
+				}
+			case "ALTER TABLE t DROP IF EXISTS b":
+				want := []sqlstate.Error{{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: `column "b" of relation "t" does not exist, skipping`}}
+				if !reflect.DeepEqual(got.notices, want) {
+					t.Fatal(got.notices, want)
+				}
+				descriptor := e.Catalog.State.Get(ref.Address)
+				storage := e.Storage.Relations[ref.Address]
+				if descriptor.Revision() != beforeDropRevision+1 || len(storage.Versions) != 1 || len(storage.Versions[0].Values) != 2 {
+					t.Fatal(descriptor, storage)
+				}
+				if _, err := e.Execute(op, stmt, 0, nil); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(op.DetachNotices(), want) || e.Catalog.State.Get(ref.Address) != descriptor || e.Storage.Relations[ref.Address] != storage {
+					t.Fatal("repeated skip changed descriptor/storage or notices")
+				}
+			}
+			lockEmpty(t, e)
+		})
+	}
+}
+
+func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE TABLE t(a INT,b TEXT)")
+	enginetest.Run(t, e, "INSERT INTO t VALUES(1,'old')")
+	entered, release := make(chan struct{}), make(chan struct{})
+	var unblock sync.Once
+	t.Cleanup(func() { unblock.Do(func() { close(release) }) })
+	var gated atomic.Bool
+	e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{e.Catalog.Providers[ids.RelationClassID], func() {
+		if !gated.CompareAndSwap(false, true) {
+			return
+		}
+		close(entered)
+		<-release
+	}}
+	dropping := lockAsync(e, sessionStart(t, e, nil), context.Background(), "ALTER TABLE t DROP b", false)
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("DROP barrier missing")
+	}
+	queued := lockAsync(e, sessionStart(t, e, nil), context.Background(), "SELECT * FROM t", false)
+	lockPending(t, e, 1)
+	if err := engine.Reset(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	lockAwait(t, queued, ids.ErrCatalogReplaced)
+	unblock.Do(func() { close(release) })
+	lockAwait(t, dropping, ids.ErrCatalogReplaced)
+	e.Catalog.Providers[ids.RelationClassID] = core.RelationProvider
+	enginetest.Run(t, e, "CREATE TABLE t(replacement INT)")
+	result := enginetest.Run(t, e, "SELECT * FROM t")
+	if result.Count != 0 || result.Rows.Schema()[0].Name != "replacement" {
+		t.Fatal(result)
+	}
+	result.Rows.Close()
+	lockEmpty(t, e)
+}
+
+func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		for _, query := range []string{"ALTER TABLE t DROP b", "ALTER TABLE t DROP IF EXISTS missing"} {
+			phase := "direct"
+			if prepared {
+				phase = "retained-prepared"
+			}
+			t.Run(phase+"/"+query, func(t *testing.T) {
+				e := engine.New()
+				setup := sessionStart(t, e, nil)
+				late := sessionStart(t, e, nil)
+				early := sessionStart(t, e, nil)
+				waiter := sessionStart(t, e, nil)
+				sessionSQL(t, setup, "CREATE SCHEMA early")
+				sessionSQL(t, setup, "CREATE SCHEMA late CREATE TABLE t(a INT,b TEXT,c BIGINT)")
+				sessionSQL(t, setup, "INSERT INTO late.t VALUES(1,'late',9)")
+				sessionSQL(t, waiter, "SET search_path TO early, late")
+				ast := enginetest.Statement(t, query)
+				var expected *core.StatementDescription
+				if prepared {
+					op := transactionOperation(t, waiter)
+					description, err := e.Describe(op, ast)
+					op.Done()
+					if err != nil {
+						t.Fatal(err)
+					}
+					expected = &description
+				}
+				lateRef := roleTableRef(t, e, "late.t")
+				lateTx := transactionBegin(t, late)
+				sessionSQL(t, late, "LOCK TABLE late.t IN ACCESS EXCLUSIVE MODE")
+				lateHeld := true
+				defer func() {
+					if lateHeld {
+						transactionEnd(t, late, lateTx, false)
+					}
+				}()
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				type outcome struct {
+					err     error
+					notices []sqlstate.Error
+					count   int64
+				}
+				done := make(chan outcome, 1)
+				go func() {
+					out := outcome{}
+					op, err := waiter.Acquire(ctx)
+					if err == nil {
+						scope, scopeErr := e.StartStatement(op)
+						err = scopeErr
+						if err == nil {
+							scope.Expected = expected
+							result, executeErr := scope.Execute(ast, 0, nil)
+							out.count = result.Count
+							err = scope.Finish(executeErr)
+						}
+						out.notices = op.DetachNotices()
+						op.Done()
+					}
+					out.err = err
+					done <- out
+				}()
+				joined := false
+				defer func() {
+					cancel()
+					if !joined {
+						select {
+						case <-done:
+						case <-time.After(5 * time.Second):
+							t.Error("shadow waiter cleanup stuck")
+						}
+					}
+				}()
+				lockPending(t, e, 1)
+				lockState := e.Locks.Inspect()
+				entry := lockState.Resources[lock.Resource{ObjectRef: lateRef}]
+				queuedOnLate := entry != nil && len(entry.Pending) == 1
+				if !queuedOnLate {
+					t.Fatal("ALTER did not queue on exact late resource")
+				}
+				sessionSQL(t, setup, "CREATE TABLE early.t(a INT,b TEXT,c BIGINT)")
+				sessionSQL(t, setup, "INSERT INTO early.t VALUES(2,'early',20)")
+				earlyRef := roleTableRef(t, e, "early.t")
+				earlyTx := transactionBegin(t, early)
+				sessionSQL(t, early, "LOCK TABLE early.t IN ACCESS EXCLUSIVE MODE")
+				earlyHeld := true
+				defer func() {
+					if earlyHeld {
+						transactionEnd(t, early, earlyTx, false)
+					}
+				}()
+				lateDescriptor, earlyDescriptor := e.Catalog.State.Get(lateRef.Address), e.Catalog.State.Get(earlyRef.Address)
+				lateStorage, earlyStorage := e.Storage.Relations[lateRef.Address], e.Storage.Relations[earlyRef.Address]
+				var before bytes.Buffer
+				if err := engine.Dump(context.Background(), e, &before); err != nil {
+					t.Fatal(err)
+				}
+				transactionEnd(t, late, lateTx, false)
+				lateHeld = false
+				select {
+				case out := <-done:
+					joined = true
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || len(out.notices) != 0 || out.count != 0 {
+						t.Errorf("unlocked shadow must not bind: err=%v notices=%v count=%d", out.err, out.notices, out.count)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatal("native ALTER did not reject shadow while early AX held")
+				}
+				if e.Catalog.State.Get(lateRef.Address) != lateDescriptor || e.Catalog.State.Get(earlyRef.Address) != earlyDescriptor || e.Storage.Relations[lateRef.Address] != lateStorage || e.Storage.Relations[earlyRef.Address] != earlyStorage {
+					t.Error("shadow ALTER changed descriptor or storage")
+				}
+				var after bytes.Buffer
+				if err := engine.Dump(context.Background(), e, &after); err != nil || after.String() != before.String() {
+					t.Error("shadow ALTER changed canonical state", err, after.String())
+				}
+				lockPending(t, e, 0)
+				transactionEnd(t, early, earlyTx, false)
+				earlyHeld = false
+				if values := enginetest.Tuples(enginetest.Run(t, e, "SELECT * FROM late.t")); !reflect.DeepEqual(values, [][]driver.Value{{int64(1), "late", int64(9)}}) {
+					t.Error(values)
+				}
+				if values := enginetest.Tuples(enginetest.Run(t, e, "SELECT * FROM early.t")); !reflect.DeepEqual(values, [][]driver.Value{{int64(2), "early", int64(20)}}) {
+					t.Error(values)
+				}
+				if waiter.TransactionState() != session.TxIdle {
+					t.Error("waiter implicit transaction not finished")
+				}
+				lockEmpty(t, e)
+			})
+		}
+	}
+}

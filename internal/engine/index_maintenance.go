@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -52,12 +53,12 @@ func executeIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 		return core.Result{}, nil
 	}
 	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "rename" {
-		return RenameRelationLocked(e, scope, scope.Op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
+		return tablecmds.RenameRelationLocked(e, scope, scope.Op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
 	stage.Indexes().Output = scope.Output
-	if err := index.StageMaintenance(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, g, stmt); err != nil {
+	if err := index.StageMaintenance(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, g, stmt); err != nil {
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return core.Result{}, index.DefaultClassDiagnostic(core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, err)

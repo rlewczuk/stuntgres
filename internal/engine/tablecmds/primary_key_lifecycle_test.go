@@ -7,13 +7,13 @@ import (
 	"slices"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,7 +22,7 @@ import (
 // rebuildPrimaryKeyTypeLocked rebuilds the unique backings and then the NOT
 // NULL constraints of an ALTER COLUMN TYPE, in the ALTER TABLE order.
 func rebuildPrimaryKeyTypeLocked(e *core.Engine, stage *core.CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
-	next, err := index.RebuildAlterUniques(engine.TableHost{DDLHost: core.DDLHost{E: e, CatalogStage: stage}}, parent, transformations)
+	next, err := index.RebuildAlterUniques(tablecmds.TableHost{DDLHost: core.DDLHost{E: e, CatalogStage: stage}}, parent, transformations)
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,96 @@
+package tablecmds_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/parser"
+)
+
+func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
+	e := engine.New()
+	parent := inheritanceUnitRelation(e, "p", 22000, "a")
+	child := inheritanceUnitRelation(e, "c", 22001, "a")
+	child.Inheritance = &catalog.TableInheritance{Parents: inheritanceUnitParents(parent.Address())}
+	e.Catalog.PublishLocked(inheritanceUnitView(e, parent).State())
+	holderOp, holderDone := roleOperation(t, e, "postgres")
+	defer holderDone()
+	holder, err := e.StartStatement(holderOp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer holder.Finish(errors.New("discard unit holder"))
+	if err := holder.Gate(&parser.CreateTable{}); err != nil {
+		t.Fatal(err)
+	}
+	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.Address())
+	if err := holder.AcquireSequence(ref, lock.AccessExclusive, true); err != nil {
+		t.Fatal(err)
+	}
+	session := sessionStart(t, e, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	op, err := session.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Finish(errors.New("discard unit creator"))
+	if err := scope.Gate(&parser.CreateTable{}); err != nil {
+		t.Fatal(err)
+	}
+	stage := e.BeginCatalogStage(e.CatalogRead())
+	stage.UpdateDescriptor(child)
+	tablecmds.TableStage(stage).CaptureLikeSource(parent)
+	completed := make(chan error, 1)
+	go func() { completed <- scope.AcquireDefinitionProviders(stage) }()
+	lockPending(t, e, 1)
+	lockState := e.Locks.Inspect()
+	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
+	exact := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ShareUpdateExclusive && entry.Pending[0].Ticket == scope.LockTicket
+	cancel()
+	lockAwait(t, completed, context.Canceled)
+	if !exact {
+		t.Fatal("parent admission did not queue exact SUE")
+	}
+	if e.Catalog.State.Get(child.Address()) != nil || core.StageTableOrZero(stage).LikeSources[0] != parent {
+		t.Fatal("canceled admission published or changed parent capture")
+	}
+}
+func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
+	e := engine.New()
+	parent := inheritanceUnitRelation(e, "p", 22000, "a")
+	base := inheritanceUnitView(e, parent)
+	stage := e.BeginCatalogStage(base)
+	tablecmds.TableStage(stage).CaptureLikeSource(parent)
+	if err := core.StageValidateLikeSources(stage, base); err != nil {
+		t.Fatal(err)
+	}
+	replacement := *parent
+	replacement.ObjectRevision++
+	for _, current := range []catalog.Read{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
+		if err := core.StageValidateLikeSources(stage, current); !errors.Is(err, ids.ErrCatalogReplaced) {
+			t.Fatal("stale parent capture accepted", err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	before := e.Catalog.State
+	if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if e.Catalog.State != before {
+		t.Fatal("canceled validation changed catalog")
+	}
+}

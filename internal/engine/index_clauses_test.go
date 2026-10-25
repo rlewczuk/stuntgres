@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -461,7 +462,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 					t.Fatal(err)
 				}
 				e.Mu.Lock()
-				definition, columns, attributes, labels, err := index.BindAttributes(TableHost{core.DDLHost{E: e, Op: scope.Op}}, auth, scope.Input, parent, raw[0].(*parser.CreateIndex))
+				definition, columns, attributes, labels, err := index.BindAttributes(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op}}, auth, scope.Input, parent, raw[0].(*parser.CreateIndex))
 				e.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
@@ -566,7 +567,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 				final.Columns[1].Usage = varchar
 			}
 			action := alterAddUnitAction(t, query)
-			queue, err := CaptureAlterTypeIndexes(scope, compactedView, &compacted, &compacted, []parser.AlterTableAction{action})
+			queue, err := tablecmds.CaptureAlterTypeIndexes(scope, compactedView, &compacted, &compacted, []parser.AlterTableAction{action})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -579,7 +580,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			}
 			auth.Catalog = compactedView
 			auth.Recapture(auth.Catalog)
-			if err := RebindAlterTypeIndexes(e, scope, auth, &final, stage, queue); err != nil {
+			if err := tablecmds.RebindAlterTypeIndexes(e, scope, auth, &final, stage, queue); err != nil {
 				t.Fatal(err)
 			}
 			if err := e.EvolveStageIndexesLocked(stage, parent.Address(), []index.ColumnTransformation{{Attribute: attribute}}); err != nil {

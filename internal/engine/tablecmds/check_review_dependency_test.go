@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func checkReviewDependencyStage(t *testing.T, e *core.Engine) *core.CatalogStage
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	err = engine.SchemaTableLocked(e, op, auth, stage, enginetest.Statement(t, "CREATE TABLE newly_dependent(a INT CONSTRAINT c CHECK(nextval('s')>0))").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = tablecmds.SchemaTableLocked(e, op, auth, stage, enginetest.Statement(t, "CREATE TABLE newly_dependent(a INT CONSTRAINT c CHECK(nextval('s')>0))").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -145,7 +146,7 @@ func executeSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 	case *parser.DropType, *parser.DropDomain:
 		droppingTypedSource = true
 	}
-	if err := AcquireTypedSources(scope, stage, droppingTypedSource); err != nil {
+	if err := tablecmds.AcquireTypedSources(scope, stage, droppingTypedSource); err != nil {
 		return core.Result{}, err
 	}
 	domainMode := parser.DropCascade
@@ -276,7 +277,7 @@ func prepareCollationCreateLocked(e *core.Engine, op *session.Operation, stmt *p
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	plan, err := typedef.PrepareCreateCollationLocked(TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, stmt)
+	plan, err := typedef.PrepareCreateCollationLocked(TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, stmt)
 	return stage, plan, err
 }
 
@@ -300,7 +301,7 @@ func completeCollationCreateLocked(e *core.Engine, op *session.Operation, prepar
 		e.DiscardCatalogStage(prepared)
 	}
 	stage.AuthorizeLocked(auth, op.Session)
-	host := TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
+	host := TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	err = typedef.StagePreparedCollationLocked(host, auth, plan)
 	return stage, err
 }
@@ -344,7 +345,7 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	host := core.DDLHost{E: e, Op: op, CatalogStage: stage}
-	typeHost, routineHost, schemaHost := TypeHost{TableHost{host}}, RoutineHost{host}, SchemaHost{host}
+	typeHost, routineHost, schemaHost := TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
 	case *parser.CreateAccessMethod:
 		if err = index.StageCreateAccessMethod(routineHost, auth, s); err != nil {

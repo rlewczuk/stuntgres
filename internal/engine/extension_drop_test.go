@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"testing"
 	"time"
@@ -265,7 +266,7 @@ func extensionDropUnitArrayBoundary(t *testing.T, e *core.Engine, op *session.Op
 	var stage *core.CatalogStage
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err = SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = tablecmds.SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.Mu.Unlock()
 	if stage != nil {
@@ -407,7 +408,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 						if control == "rewired" {
 							rewire := e.BeginCatalogStage(current)
 							defer e.DiscardCatalogStage(rewire)
-							if err := (TypeHost{TableHost{core.DDLHost{CatalogStage: rewire}}}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
+							if err := (TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: rewire}}}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
 								t.Fatal(err)
 							}
 							candidate.SetDescriptor(d.Address(), rewire.Get(d.Address()))

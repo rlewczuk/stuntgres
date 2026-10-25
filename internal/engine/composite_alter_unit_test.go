@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -27,12 +28,12 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
 	usage := testUsage(e, sqltype.Int4)
 	e.Mu.Lock()
-	prepared, err := PrepareAlterTypeLocked(e, nil, op, auth, source, ref, action, &usage)
+	prepared, err := tablecmds.PrepareAlterTypeLocked(e, nil, op, auth, source, ref, action, &usage)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, transform, err := AlterTypeCandidate(e, nil, op, auth, stage, source, source, ref, action, prepared)
+	next, transform, err := tablecmds.AlterTypeCandidate(e, nil, op, auth, stage, source, source, ref, action, prepared)
 	if err != nil || next.Columns[1].Usage.Type.ID() != sqltype.Int4 || transform.Expression != nil || source.Columns[1].Usage.Type.ID() != sqltype.Text {
 		t.Fatal("descriptor-only conversion executed assignment or changed capture", err)
 	}

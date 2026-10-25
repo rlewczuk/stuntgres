@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -203,7 +204,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 		t.Fatal("container generations/bounds/NULLs lost")
 	}
 	drop := e.BeginCatalogStage(current)
-	if err := (TypeHost{TableHost{core.DDLHost{CatalogStage: drop}}}).RemoveDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
+	if err := (TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: drop}}}).RemoveDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	drop.DomainAlterState().Ctx = context.Background()

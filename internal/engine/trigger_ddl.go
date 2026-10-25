@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
@@ -28,7 +29,7 @@ func executeTrigger(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 	if err != nil {
 		return fail(err)
 	}
-	change, err := view.PlanTrigger(ViewHost{TableHost{core.DDLHost{E: e, Op: scope.Op}}}, auth, stmt, scope.LockedRef, scope.Input)
+	change, err := view.PlanTrigger(ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op}}}, auth, stmt, scope.LockedRef, scope.Input)
 	if err != nil {
 		return fail(err)
 	}

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -26,7 +27,7 @@ func executePolicy(e *core.Engine, scope *core.StatementScope, stmt parser.State
 	if err = view.PolicyPreflight(op, auth.View, stmt, false); err != nil {
 		return fail(err)
 	}
-	change, err := view.PlanPolicy(ViewHost{TableHost{core.DDLHost{E: e, Op: op}}}, auth, stmt, scope.LockedRef, scope.Input)
+	change, err := view.PlanPolicy(ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op}}}, auth, stmt, scope.LockedRef, scope.Input)
 	if err != nil {
 		return fail(err)
 	}

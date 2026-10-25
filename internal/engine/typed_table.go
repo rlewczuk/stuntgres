@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 )
 
@@ -38,7 +39,7 @@ func alterTableOfLocked(e *core.Engine, scope *core.StatementScope, op *session.
 		// Execution can select a source created while target admission waited.
 		// Grant the actual staged attachment, not just the pre-wait source.
 		replacementRead := scope.ReplacementRead
-		if err := AcquireTypedSources(scope, stage, false); err != nil {
+		if err := tablecmds.AcquireTypedSources(scope, stage, false); err != nil {
 			return core.Result{}, err
 		}
 		// Release only this helper's incidental reservation before provider

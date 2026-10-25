@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -55,7 +56,7 @@ func truncateUnitFK(t *testing.T, e *core.Engine, parent, child ids.ObjectRef) {
 	next.ObjectRevision++
 	raw := parser.ForeignKeyConstraint{Columns: []parser.Identifier{{Text: "id"}}, Referenced: []parser.Identifier{{Text: "id"}}, Target: parser.ObjectName{Parts: []parser.Identifier{{Text: "p"}}}}
 	e.Mu.Lock()
-	err := table.StageForeignKey(engine.TableHost{core.DDLHost{E: e, CatalogStage: stage}}, catalogAuthorization(e, base), &next, raw, parent.Address, ids.ObjectAddress{})
+	err := table.StageForeignKey(tablecmds.TableHost{core.DDLHost{E: e, CatalogStage: stage}}, catalogAuthorization(e, base), &next, raw, parent.Address, ids.ObjectAddress{})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

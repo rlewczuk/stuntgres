@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 )
 
@@ -160,7 +161,7 @@ func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *par
 func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.CreateTable) error {
 	if declarations := table.ForeignKeyDeclarations(s); len(declarations) != 0 {
 		var err error
-		r.cur.pending, err = CaptureRestoredForeignKeys(r.stage, op, declarations)
+		r.cur.pending, err = tablecmds.CaptureRestoredForeignKeys(r.stage, op, declarations)
 		if err != nil {
 			return err
 		}
@@ -244,12 +245,12 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
 		err = restoreRetiredConstraint(r.stage, op, s, r.historicalAuthority)
 	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {
-		err = RestoreNoInheritNotNull(r.stage, op, s, r.pairedNotNull)
+		err = tablecmds.RestoreNoInheritNotNull(r.stage, op, s, r.pairedNotNull)
 		if err == nil {
 			delete(r.notNullOrigins, r.pairedNotNull.Constraint)
 		}
 	} else {
-		err = RestoreAttributeRank(r.stage, op, s)
+		err = tablecmds.RestoreAttributeRank(r.stage, op, s)
 	}
 	r.pairedNotNull = table.RestoredNotNull{}
 	return err
@@ -259,12 +260,12 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 // last one hands its relation to a foreign key provider and may defer a
 // primary key.
 func replayRestorePhysicalNotNull(r *restoreRun, op *session.Operation, s *parser.Delete) error {
-	if err := RestorePhysicalNotNull(r.stage, op, s, r.pairedPhysical); err != nil {
+	if err := tablecmds.RestorePhysicalNotNull(r.stage, op, s, r.pairedPhysical); err != nil {
 		return err
 	}
 	if r.pairedPhysical.Position == len(r.pairedPhysical.Repairs) {
 		var err error
-		r.physicalForeignProvider, err = CapturePhysicalForeignKeyProvider(r.stage, op, r.pairedPhysical.Repairs[0].Relation, r.historicalRefs)
+		r.physicalForeignProvider, err = tablecmds.CapturePhysicalForeignKeyProvider(r.stage, op, r.pairedPhysical.Repairs[0].Relation, r.historicalRefs)
 		if err != nil {
 			return err
 		}

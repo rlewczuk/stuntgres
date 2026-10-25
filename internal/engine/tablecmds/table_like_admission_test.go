@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -235,7 +236,7 @@ func tableLikeBuild(t *testing.T, e *core.Engine, op *session.Operation, query s
 	if syntax.Persistence == "temporary" {
 		namespace = op.Session.TemporaryNamespace
 	}
-	err = engine.SchemaTableLocked(e, op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = tablecmds.SchemaTableLocked(e, op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	var destination *catalog.Relation
 	if err == nil {
 		address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text})

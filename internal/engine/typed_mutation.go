@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -40,10 +41,10 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			var err error
 			switch a.Action {
 			case parser.DropColumn:
-				mutation.next, err = DropColumnCandidate(scope, stage, mutation.next, ref, a, nil)
+				mutation.next, err = tablecmds.DropColumnCandidate(scope, stage, mutation.next, ref, a, nil)
 			case parser.AddColumn:
 				var added table.AddedColumn
-				mutation.next, added, err = AddColumnCandidate(e, scope, op, auth, mutation.next, a, planned.Usage)
+				mutation.next, added, err = tablecmds.AddColumnCandidate(e, scope, op, auth, mutation.next, a, planned.Usage)
 				if err == nil && added.Column != nil {
 					if planned.Usage != nil {
 						mutation.next.Columns[mutation.next.IndexForAttribute(added.Attribute)].DeclaredDimensions = planned.DeclaredDimensions
@@ -60,7 +61,7 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			if err != nil {
 				return mutation, err
 			}
-			indexes, err := CaptureAlterTypeIndexes(scope, auth.Catalog, old, mutation.next, raw)
+			indexes, err := tablecmds.CaptureAlterTypeIndexes(scope, auth.Catalog, old, mutation.next, raw)
 			if err != nil {
 				return mutation, err
 			}
@@ -71,7 +72,7 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 					continue
 				}
 				e.Mu.Lock()
-				prepared, prepareErr := PrepareAlterTypeLocked(e, scope, op, auth, old, ref, planned.Action, planned.Usage)
+				prepared, prepareErr := tablecmds.PrepareAlterTypeLocked(e, scope, op, auth, old, ref, planned.Action, planned.Usage)
 				e.Mu.Unlock()
 				if prepareErr != nil {
 					return mutation, prepareErr
@@ -80,7 +81,7 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 					prepared.DeclaredDimensions = planned.DeclaredDimensions
 				}
 				var transform index.ColumnTransformation
-				mutation.next, transform, err = AlterTypeCandidate(e, scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
+				mutation.next, transform, err = tablecmds.AlterTypeCandidate(e, scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
 				if err != nil {
 					return mutation, err
 				}
@@ -88,9 +89,9 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 					mutation.transforms = append(mutation.transforms, transform)
 				}
 			}
-			mutation.next, mutation.checks, err = RebindAlterTypeChecks(e, scope, op, auth, ref, mutation.next, checks)
+			mutation.next, mutation.checks, err = tablecmds.RebindAlterTypeChecks(e, scope, op, auth, ref, mutation.next, checks)
 			if err == nil {
-				err = RebindAlterTypeIndexes(e, scope, auth, mutation.next, stage, indexes)
+				err = tablecmds.RebindAlterTypeIndexes(e, scope, auth, mutation.next, stage, indexes)
 			}
 			if err != nil {
 				return mutation, err
@@ -141,7 +142,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	if store == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
-	fills, perRowAdd, err := table.PlanAddedColumns(AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), mutation.additions)
+	fills, perRowAdd, err := table.PlanAddedColumns(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), mutation.additions)
 	if err != nil {
 		return err
 	}
@@ -174,14 +175,14 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 		checks := *next
 		checks.Constraints.Check = mutation.checks
 		validator.Checks = table.ValidCheckTraversal(&checks)
-		if err := CaptureCheckSnapshots(e, scope, &checks); err != nil {
+		if err := tablecmds.CaptureCheckSnapshots(e, scope, &checks); err != nil {
 			return err
 		}
 	}
 	sourceWrites, projectedDeletes := scope.ColumnProjectionRoots(old.Address())
 	projectedWrites := sourceWrites
 	if rewrite {
-		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, next, store, frontier, sourceWrites, projectedDeletes, mutation.transforms, mutation.additions, nil, validator)
+		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, next, store, frontier, sourceWrites, projectedDeletes, mutation.transforms, mutation.additions, nil, validator)
 	} else if !slices.Equal(old.Attributes, next.Attributes) {
 		projection, projectionErr := session.NewColumnProjection(old, next, fills)
 		if projectionErr != nil {
@@ -208,7 +209,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 		}
 	}
 	e.Mu.Lock()
-	h := TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
+	h := tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 	next, err = index.RebuildAlterUniques(h, next, mutation.transforms)
 	if err == nil {
 		next, err = table.RebuildAlterNotNulls(core.DDLHost{E: e, CatalogStage: stage}, next, mutation.transforms)

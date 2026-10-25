@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -38,7 +39,7 @@ func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *cata
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ViewHost{TableHost{core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }
 func TestRLSPolicyFrozenExpression(t *testing.T) {
 	for _, condition := range []string{

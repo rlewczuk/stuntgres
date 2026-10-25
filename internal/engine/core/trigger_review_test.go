@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -177,7 +178,7 @@ func TestTriggerCoreWhenProvider(t *testing.T) {
 	var query *parser.Select
 	var binding analyze.Binding
 	if err == nil {
-		var h view.Host = engine.ViewHost{engine.TableHost{core.DDLHost{E: e, Op: scope.Op}}}
+		var h view.Host = engine.ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op}}}
 		condition, query, binding, err = h.BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.Input)
 	}
 	e.Mu.Unlock()

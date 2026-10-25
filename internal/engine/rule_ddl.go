@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
@@ -26,7 +27,7 @@ func executeRule(e *core.Engine, scope *core.StatementScope, stmt parser.Stateme
 	if err != nil {
 		return fail(err)
 	}
-	host := ViewHost{TableHost{core.DDLHost{E: e, Op: scope.Op}}}
+	host := ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op}}}
 	definition, err := view.BeginRule(host, auth, stmt, scope.LockedRef)
 	if err != nil {
 		return fail(err)

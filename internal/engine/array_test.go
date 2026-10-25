@@ -18,6 +18,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -76,7 +77,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		err = typedef.StageCreateDomainLocked(TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: staged}}}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		err = typedef.StageCreateDomainLocked(TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: staged}}}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
 	e.Mu.Unlock()
 	if err != nil {

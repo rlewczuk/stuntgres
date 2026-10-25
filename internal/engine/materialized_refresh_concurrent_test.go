@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -103,13 +104,13 @@ func materializedConcurrentUnitIndex(t *testing.T, e *core.Engine, parent *catal
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, columns, attributes, lookup, err := index.BindAttributes(TableHost{core.DDLHost{E: e, Op: op}}, auth, input, parent, stmt)
+	definition, columns, attributes, lookup, err := index.BindAttributes(tablecmds.TableHost{core.DDLHost{E: e, Op: op}}, auth, input, parent, stmt)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
 	definition.Unique, definition.NullsNotDistinct = true, stmt.NullsNotDistinct
-	definition.Predicate, err = TableHost{core.DDLHost{E: e, Op: op}}.BindIndexPredicate(auth, parent, stmt.Predicate, input)
+	definition.Predicate, err = tablecmds.TableHost{core.DDLHost{E: e, Op: op}}.BindIndexPredicate(auth, parent, stmt.Predicate, input)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)

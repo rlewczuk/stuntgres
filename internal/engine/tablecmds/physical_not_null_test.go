@@ -307,24 +307,3 @@ func TestInheritanceRetiredLocalCheckReconstruction(t *testing.T) {
 		t.Fatal("CHECK reconstruction rescued a stale own identity")
 	}
 }
-
-func inheritanceUnitParents(parents ...ids.ObjectAddress) []catalog.InheritanceParent {
-	edges := make([]catalog.InheritanceParent, len(parents))
-	for i, parent := range parents {
-		edges[i] = catalog.InheritanceParent{Relation: parent, Seqno: int32(i + 1)}
-	}
-	return edges
-}
-
-// These are package fixtures: SQL constructs physical descriptors through the
-// real providers; assertions exercise the issuer and catalog validator directly.
-func retiredUnitTable(t *testing.T, e *core.Engine, name string) *catalog.Relation {
-	t.Helper()
-	for _, d := range e.CatalogRead().Descriptors() {
-		if r, ok := d.(*catalog.Relation); ok && r.Name() == name {
-			return r
-		}
-	}
-	t.Fatal("missing physical relation", name)
-	return nil
-}

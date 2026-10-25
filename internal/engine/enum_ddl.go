@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -53,7 +54,7 @@ func executeEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Stat
 	changes := scope.Owner.Catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	host := TypeHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
+	host := TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	var created ids.ObjectRef
 	if create, ok := stmt.(*parser.CreateEnum); ok {
 		if err := typedef.StageCreateEnumLocked(host, auth, create); err != nil {

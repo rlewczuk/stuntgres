@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,7 @@ func TestTableHostBindColumnDefaultsMatchesCreateTable(t *testing.T) {
 
 	created := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(created)
-	if err := engine.SchemaTableLocked(e, op, auth, created, s, public, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil); err != nil {
+	if err := tablecmds.SchemaTableLocked(e, op, auth, created, s, public, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	address, ok := created.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: public, Name: "host_defaults"})
@@ -36,7 +37,7 @@ func TestTableHostBindColumnDefaultsMatchesCreateTable(t *testing.T) {
 
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
+	var h table.Host = tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 	b, err := h.DescribeCreateTable(auth, s, sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +64,7 @@ func TestTableHostStageChangedReportsStagedDescriptor(t *testing.T) {
 	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
+	var h table.Host = tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 	if h.StageChanged() {
 		t.Fatal("a new stage reports a change")
 	}

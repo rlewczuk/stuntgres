@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ import (
 // it. StageRowType and DisplaceAssociatedArray come from TableHost;
 // ResolveRelation and SelectFunction from DDLHost.
 type ViewHost struct {
-	TableHost
+	tablecmds.TableHost
 }
 
 var (

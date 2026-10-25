@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -276,7 +277,7 @@ func TestTypeLifecycleDropResources(t *testing.T) {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			if err := AcquireTypedSources(scope, stage, true); err != nil {
+			if err := tablecmds.AcquireTypedSources(scope, stage, true); err != nil {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}

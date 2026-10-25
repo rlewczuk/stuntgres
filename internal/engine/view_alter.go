@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 )
@@ -31,7 +32,7 @@ func executeAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	}
 	ref, err := e.ResolveRelationReference(auth, s.Name, true)
 	if s.IfExists && table.RenameMissing(err) {
-		return SkipMissingRelationLocked(e, scope, scope.Op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
+		return tablecmds.SkipMissingRelationLocked(e, scope, scope.Op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)
@@ -49,9 +50,9 @@ func executeAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	}
 	switch s.Action {
 	case "rename", "column":
-		return RenameRelationLocked(e, scope, scope.Op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", s.Materialized && s.Action == "column", false, count)
+		return tablecmds.RenameRelationLocked(e, scope, scope.Op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", s.Materialized && s.Action == "column", false, count)
 	case "schema":
-		return AlterSchemaLocked(e, scope, scope.Op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
+		return tablecmds.AlterSchemaLocked(e, scope, scope.Op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
 	}
 	next, extension, err := view.AlterChange(core.DDLHost{E: e, Op: scope.Op}, auth.Catalog, old, s)
 	if err != nil {
@@ -96,7 +97,7 @@ func executeDropView(e *core.Engine, scope *core.StatementScope, s *parser.DropV
 		e.Mu.Unlock()
 		return core.Result{}, err
 	}
-	refs, notices, err := view.DropTargets(ViewHost{TableHost{core.DDLHost{E: e, Op: scope.Op}}}, auth, s)
+	refs, notices, err := view.DropTargets(ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op}}}, auth, s)
 	if err != nil {
 		e.Mu.Unlock()
 		return core.Result{}, err

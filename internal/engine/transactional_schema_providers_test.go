@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -88,7 +89,7 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 			}
 			defer e.DiscardCatalogStage(provider)
 			defer e.DiscardCatalogStage(consumer)
-			err = AcquireTypedSources(scope, consumer, false)
+			err = tablecmds.AcquireTypedSources(scope, consumer, false)
 			if stale == "none" && err != nil {
 				t.Fatal("private reciprocal provider rejected", err)
 			}

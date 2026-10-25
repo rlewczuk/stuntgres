@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -52,10 +53,10 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		err = SchemaTableLocked(e, op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = tablecmds.SchemaTableLocked(e, op, auth, stage, statement(t, "CREATE TABLE affected(v mood)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
-		err = SchemaTableLocked(e, op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = tablecmds.SchemaTableLocked(e, op, auth, stage, statement(t, "CREATE TABLE untouched(v integer)").(*parser.CreateTable), mood.ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {

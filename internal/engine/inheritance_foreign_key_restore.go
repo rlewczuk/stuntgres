@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 )
 
@@ -16,7 +17,7 @@ func captureInheritedForeignKey(e *core.Engine, op *session.Operation, raw *pars
 		return table.RestoredForeignKeys{}, false, err
 	}
 	foreign := raw.Actions[0].ForeignKey
-	pending, err := CaptureRestoredForeignKeys(e, op, []parser.ForeignKeyConstraint{*foreign})
+	pending, err := tablecmds.CaptureRestoredForeignKeys(e, op, []parser.ForeignKeyConstraint{*foreign})
 	if err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}

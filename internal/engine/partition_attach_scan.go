@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 )
 
 // lockPartitionAttachChild returns the partition.AttachFrontier callback of
@@ -58,6 +59,6 @@ func partitionAttachCapture(e *core.Engine, scope *core.StatementScope, stage *c
 	if len(refs) == 0 {
 		return nil
 	}
-	_, err := AcquirePartitionValidationViewsLocked(scope, e, refs)
+	_, err := tablecmds.AcquirePartitionValidationViewsLocked(scope, e, refs)
 	return err
 }

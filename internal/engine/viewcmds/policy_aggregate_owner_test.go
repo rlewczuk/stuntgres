@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -112,5 +113,5 @@ func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *cata
 	if err != nil {
 		t.Fatal(err)
 	}
-	return engine.ViewHost{TableHost: engine.TableHost{DDLHost: core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return engine.ViewHost{TableHost: tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }

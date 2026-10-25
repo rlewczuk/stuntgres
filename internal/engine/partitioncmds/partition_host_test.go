@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -64,7 +65,7 @@ func TestPartitionHostBindKeyExpressionLeavesVolatilityToCaller(t *testing.T) {
 	}
 }
 
-func indexHostFixture(t *testing.T) (engine.TableHost, core.AuthorizationView, partialIndexFixture) {
+func indexHostFixture(t *testing.T) (tablecmds.TableHost, core.AuthorizationView, partialIndexFixture) {
 	t.Helper()
 	f := newPartialIndexFixture(t)
 	op, done := enginetest.RoleOperation(t, f.e, "postgres")
@@ -77,7 +78,7 @@ func indexHostFixture(t *testing.T) (engine.TableHost, core.AuthorizationView, p
 	}
 	stage := f.e.BeginCatalogStage(auth.Catalog)
 	t.Cleanup(func() { f.e.DiscardCatalogStage(stage) })
-	return engine.TableHost{DDLHost: core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f
+	return tablecmds.TableHost{DDLHost: core.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f
 }
 
 type partialIndexFixture struct {

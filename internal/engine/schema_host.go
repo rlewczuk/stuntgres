@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +27,7 @@ func (h SchemaHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddres
 	v := core.DDLAuthorityOf(a)
 	v.State.CurrentUser = owner
 	v.PathPrefix = namespace
-	return SchemaTableLocked(h.E, h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
+	return tablecmds.SchemaTableLocked(h.E, h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
 }
 
 func (h SchemaHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {

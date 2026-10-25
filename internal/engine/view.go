@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -70,7 +71,7 @@ func executeCreateView(e *core.Engine, scope *core.StatementScope, createView *p
 	stage := e.BeginCatalogStage(base)
 	stage.AuthorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
-	err = view.StageCreate(ViewHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, createView, old, ns, b, options, scope.ViewCreationOrZero().Persistence == "temporary")
+	err = view.StageCreate(ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, createView, old, ns, b, options, scope.ViewCreationOrZero().Persistence == "temporary")
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err

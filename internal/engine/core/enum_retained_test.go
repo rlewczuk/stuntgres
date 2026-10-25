@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -155,7 +156,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	raw := enginetest.Statement(t, "CREATE TABLE captured_default(v mood DEFAULT 'q')").(*parser.CreateTable)
-	failure := engine.SchemaTableLocked(e, op, auth, stage, raw, domainUnitType(t, auth.Catalog, "mood").ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	failure := tablecmds.SchemaTableLocked(e, op, auth, stage, raw, domainUnitType(t, auth.Catalog, "mood").ObjectNamespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "55P04" {
 		t.Fatal("CREATE candidate binder lost admitted safety transport", failure)
 	}

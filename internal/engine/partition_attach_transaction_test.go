@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -136,7 +137,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.Mu.Lock()
-		latest, err := AcquirePartitionValidationViewsLocked(validation, e, []ids.ObjectRef{ref})
+		latest, err := tablecmds.AcquirePartitionValidationViewsLocked(validation, e, []ids.ObjectRef{ref})
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

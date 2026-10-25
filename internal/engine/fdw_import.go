@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +21,7 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
-	importer, request, err := fdw.PlanImport(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s)
+	importer, request, err := fdw.PlanImport(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s)
 	e.Mu.Unlock()
 	if err != nil {
 		return core.Result{}, err
@@ -52,7 +53,7 @@ func executeForeignImport(e *core.Engine, scope *core.StatementScope, s *parser.
 		}
 		var validations []fdw.Validation
 		if currentErr == nil {
-			validations, _, currentErr = fdw.StageTable(TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, table, scope.Input)
+			validations, _, currentErr = fdw.StageTable(tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, table, scope.Input)
 		}
 		e.Mu.Unlock()
 		if currentErr != nil {
