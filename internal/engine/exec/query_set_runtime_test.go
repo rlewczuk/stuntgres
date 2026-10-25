@@ -1,11 +1,9 @@
-package engine
+package exec
 
 import (
 	"context"
 	"errors"
 	"testing"
-
-	"stuntgres/internal/engine/exec"
 )
 
 func TestQuerySetCounts(t *testing.T) {
@@ -25,7 +23,7 @@ func TestQuerySetCounts(t *testing.T) {
 			{"union", true, tc.unionAll}, {"union", false, tc.union}, {"intersect", true, tc.intersectAll},
 			{"intersect", false, tc.intersect}, {"except", true, tc.exceptAll}, {"except", false, tc.except},
 		} {
-			if got := exec.SetMultiplicity(op.name, op.all, tc.left, tc.right); got != op.want {
+			if got := SetMultiplicity(op.name, op.all, tc.left, tc.right); got != op.want {
 				t.Fatalf("%s ALL=%t m=%d n=%d got%d want%d", op.name, op.all, tc.left, tc.right, got, op.want)
 			}
 		}
@@ -36,7 +34,7 @@ func TestQuerySetArmCleanupErrorPriority(t *testing.T) {
 	primary, cleanup := errors.New("primary arm failure"), errors.New("arm close failure")
 	for _, failure := range []error{primary, nil} {
 		closes := 0
-		arm := exec.SetArm{Inner: exec.Stage{Selection: []int{}, Produce: func(context.Context, *exec.Stage) (bool, error) { return false, failure }, Finish: func() error { closes++; return cleanup }}}
+		arm := SetArm{Inner: Stage{Selection: []int{}, Produce: func(context.Context, *Stage) (bool, error) { return false, failure }, Finish: func() error { closes++; return cleanup }}}
 		_, _, err := arm.Next(context.Background())
 		if failure != nil {
 			if err != primary {

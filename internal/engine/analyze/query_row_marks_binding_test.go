@@ -1,11 +1,11 @@
-package engine
+package analyze
 
 import (
 	"reflect"
-	"stuntgres/internal/engine/analyze"
+	"testing"
+
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 func TestQueryLockOccurrenceNormalization(t *testing.T) {
@@ -22,7 +22,7 @@ func TestQueryLockOccurrenceNormalization(t *testing.T) {
 		{"SELECT a.id FROM t a JOIN t b USING(id) FOR KEY SHARE FOR UPDATE OF b SKIP LOCKED", []lock.Mode{lock.ForKeyShare, lock.ForUpdate}, []parser.RowLockWait{parser.RowLockBlock, parser.RowLockSkip}},
 	} {
 		raw := statement(t, tc.q).(*parser.Select)
-		marks, err := analyze.RowLockTargets(raw.From, raw.Locking)
+		marks, err := RowLockTargets(raw.From, raw.Locking)
 		if err != nil || len(marks) != len(tc.modes) {
 			t.Fatal(tc.q, marks, err)
 		}
@@ -31,13 +31,25 @@ func TestQueryLockOccurrenceNormalization(t *testing.T) {
 				t.Fatal(tc.q, i, mark)
 			}
 		}
-		again, err := analyze.RowLockTargets(raw.From, raw.Locking)
+		again, err := RowLockTargets(raw.From, raw.Locking)
 		if err != nil || !reflect.DeepEqual(marks, again) {
 			t.Fatal("normalization mutated original clauses", marks, again, err)
 		}
 	}
 	raw := statement(t, "SELECT id FROM t").(*parser.Select)
-	if marks, err := analyze.RowLockTargets(raw.From, raw.Locking); marks != nil || err != nil {
+	if marks, err := RowLockTargets(raw.From, raw.Locking); marks != nil || err != nil {
 		t.Fatal("ordinary source gained manifest", marks, err)
 	}
+}
+
+func statement(t *testing.T, sql string) parser.Statement {
+	t.Helper()
+	s, err := parser.Parse(sql)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s) != 1 {
+		t.Fatalf("expected single statement, got %d", len(s))
+	}
+	return s[0]
 }

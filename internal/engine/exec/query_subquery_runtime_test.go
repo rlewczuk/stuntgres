@@ -1,13 +1,14 @@
-package engine
+package exec
 
 import (
 	"context"
 	"errors"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/sqltype"
 	"testing"
+
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
 )
 
 func TestQuerySubqueryCleanup(t *testing.T) {
@@ -16,15 +17,15 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			primary := errors.New("primary")
 			secondary := errors.New("close")
 			closes := 0
-			stage := exec.Stage{Source: &exec.Source{Singleton: true}, Finish: func() error { closes++; return secondary }}
+			stage := Stage{Source: &Source{Singleton: true}, Finish: func() error { closes++; return secondary }}
 			switch phase {
 			case "producer":
 				stage.Selection = []int{}
-				stage.Produce = func(context.Context, *exec.Stage) (bool, error) { return false, primary }
+				stage.Produce = func(context.Context, *Stage) (bool, error) { return false, primary }
 			case "projection":
 				stage.Columns = []catalog.Column{{}}
-				stage.Expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*exec.Context) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-				stage.Evaluation = exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
+				stage.Expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*Context) (sqltype.Value, error) { return sqltype.Value{}, primary })}
+				stage.Evaluation = Context{EvalStatement: EvalStatement{Context: context.Background()}}
 			case "close":
 				if err := stage.Close(); err != secondary {
 					t.Fatal(err)
@@ -55,4 +56,8 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			}
 		})
 	}
+}
+
+func queryProbe(usage sqltype.Usage, eval func(*Context) (sqltype.Value, error)) expr.Expr {
+	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
 }

@@ -1,9 +1,8 @@
-package engine
+package analyze
 
 import (
 	"testing"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -38,7 +37,7 @@ func TestQuerySetScalarExpansionOwnership(t *testing.T) {
 			node.ScalarBindings = append(node.ScalarBindings, plan.SetSlot{Original: field, Column: reserved, Scheduled: !upper})
 		}
 		for i, field := range fields {
-			got, changed := analyze.QueryScalarOwner(node, field)
+			got, changed := QueryScalarOwner(node, field)
 			if !changed {
 				t.Fatal("expanded field lost scalar owner", i, upper)
 			}

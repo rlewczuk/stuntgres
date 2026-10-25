@@ -1,11 +1,10 @@
-package engine
+package analyze
 
 import (
 	"errors"
 	"testing"
 	"unicode/utf8"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -28,7 +27,7 @@ func TestQueryAliasesNameDistance(t *testing.T) {
 				key = append(key, int(r))
 			}
 			width := len(key) + 1
-			got := analyze.BoundedNameDistance(tc.candidate, key, make([]int, width), make([]int, width), tc.limit)
+			got := BoundedNameDistance(tc.candidate, key, make([]int, width), make([]int, width), tc.limit)
 			if got != tc.want {
 				t.Fatal(got, tc.want)
 			}
@@ -45,7 +44,7 @@ func TestQueryAliasesSharedValuesDistance(t *testing.T) {
 		{"colümn1", `Perhaps you meant to reference the column "*VALUES*.column1".`},
 		{"no_such_column", ""},
 	} {
-		err := analyze.ValuesOrderColumnError([]catalog.Column{{Name: "column1"}}, tc.name, parser.Position{Offset: -1})
+		err := ValuesOrderColumnError([]catalog.Column{{Name: "column1"}}, tc.name, parser.Position{Offset: -1})
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: `column "` + tc.name + `" does not exist`, Hint: tc.hint}
 		if !errors.As(err, &got) || *got != want {
@@ -55,13 +54,13 @@ func TestQueryAliasesSharedValuesDistance(t *testing.T) {
 }
 
 func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
-	entry := analyze.QueryQualifier{Name: "v", Columns: []analyze.QueryColumn{{Descriptor: catalog.Column{Name: "n"}}}}
-	detail, hint, err := analyze.QueryColumnDiagnostic([]analyze.QueryQualifier{entry}, "v", "nn", parser.Position{Character: 8}, false)
+	entry := QueryQualifier{Name: "v", Columns: []QueryColumn{{Descriptor: catalog.Column{Name: "n"}}}}
+	detail, hint, err := QueryColumnDiagnostic([]QueryQualifier{entry}, "v", "nn", parser.Position{Character: 8}, false)
 	if err != nil || detail != "" || hint != `Perhaps you meant to reference the column "v.n".` {
 		t.Fatal(detail, hint, err)
 	}
 	for _, nonLateral := range []bool{false, true} {
-		detail, hint, err = analyze.QueryColumnDiagnostic([]analyze.QueryQualifier{entry}, "", "n", parser.Position{Character: 8}, nonLateral)
+		detail, hint, err = QueryColumnDiagnostic([]QueryQualifier{entry}, "", "n", parser.Position{Character: 8}, nonLateral)
 		wantHint := ""
 		if nonLateral {
 			wantHint = "To reference that column, you must mark this subquery with LATERAL."
@@ -72,7 +71,7 @@ func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
 	}
 	entry.ExcludeColumnDiagnostics = true
 	for _, name := range []string{"n", "nn"} {
-		detail, hint, err = analyze.QueryColumnDiagnostic([]analyze.QueryQualifier{entry}, "", name, parser.Position{Character: 8}, true)
+		detail, hint, err = QueryColumnDiagnostic([]QueryQualifier{entry}, "", name, parser.Position{Character: 8}, true)
 		if err != nil || detail != "" || hint != "" {
 			t.Fatal("excluded join diagnostic", detail, hint, err)
 		}
