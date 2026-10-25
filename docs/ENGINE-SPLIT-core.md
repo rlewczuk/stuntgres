@@ -264,7 +264,30 @@ Needs 203. Mode S.
   for later items: the sections below and §1 keep the pre-export spellings
   measured at `26f8fea15`; Go comments still say `Engine.mu`/`e.mu` (READMEs say
   `Engine.Mu`).
-- 188: not started.
+- 188: done (`368580d20`, `cbb5001f8`, `6110e58bf`, `212dce0b8`). `Statements`
+  (`statements.go`): `Execute(e, scope, stmt, count) (Result, handled bool,
+  error)` with nothing held and `ExecuteLocked(e, scope, auth, stmt, count)`,
+  entered with `Engine.mu` held and releasing it on every handled return
+  (unhandled keeps it held and runs nothing). `familyStatements{}`
+  (`statements_dispatch.go`, with `dispatched`) implements both; the locked
+  if-chain and switch became one type switch in the same order.
+  `executeStatement` keeps the core cases, the DECLARE CURSOR checks and the
+  bound path. `Engine.Statements` and `Engine.Factory` (`EngineFactory`,
+  implemented by `newSettingsEngine`) are set by `newEngine` and copied by
+  `newDatabaseRuntime`. `NewEngine` (future `core.NewEngine`) keeps the stock
+  extension registry, because it closes when the seed publishes. `Reset(ctx,
+  e)`, `Dump(ctx, e, dst)`, `Restore(ctx, e, src)`; call sites rewritten by the
+  type-checked `ctlrw` tool in
+  `.cswd/tmp/PG18-ENGINE-SPLIT-188-COMPOSITION-SEAMS/`. Notes for later items:
+  run `closure` with `-roots
+  'New,NewWithSettings,NewWithCatalogProviders,Reset,Dump,Restore,newEngine,newSettingsEngine,familyStatements,familyStatements.Execute,familyStatements.ExecuteLocked,dispatched'
+  -dispatch 'familyStatements.Execute,familyStatements.ExecuteLocked'` (outputs
+  in `closure-after/` there). With `executeStatement` no longer a cut dispatch
+  decl, its bound-path edges count as core: `executeRuleProgramLocked` (160,
+  view), `sequenceAnalysisValidLocked` and `regtypeAnalysisValidLocked`. Item
+  189 should keep rule programs in core as planned. `NewEngine` pulls
+  `registerExtension`, `initializeDatabase`, `installBuiltinDomainChecks` and
+  the catalog-source descriptors into core.
 - 189: not started.
 - 190: not started.
 - 191: not started.

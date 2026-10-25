@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `b1f5a1bc0` (item 185 rebased on it).
+Last verified against `master` at `0a45827d7` (item 188 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 184, 186, 187, 188.
+- 184, 186, 187, 189.
 
 ## Linear plan
 
@@ -80,9 +80,21 @@ ENGINE-SPLIT.md §4.
 187. [ ] Type, view, role and schema-object DDL tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-187--type-view-role-and-schema-object-ddl-tests)
      · needs 182 · P · 0.8 MB
-188. [ ] Composition seams —
+188. [x] Composition seams —
      [core](ENGINE-SPLIT-core.md#item-188--composition-seams) · needs 182 · P,
-     bench
+     bench (`368580d20`, `cbb5001f8`, `6110e58bf`, `212dce0b8`, docs commit) ·
+     `Statements` dispatch interface (`Execute`, and `ExecuteLocked` as a
+     lock-domain continuation) with the root `familyStatements` holding the
+     family cases in today's order, the `Engine.Factory` hook (`EngineFactory`,
+     used by the `template1` seed and `RestoreStage`), `Reset`/`Dump`/`Restore`
+     as root functions (driver, `cmd` and 478 test call sites rewritten) and
+     `NewEngine` split from the composition `newEngine`; root production 1.76 MB
+     (+4.1 KB), core by `closure` 29.0k lines (+0.27k: seeding and the bound
+     path's rule-program edges); quickcheck passed; bench
+     (`BenchmarkOpenDatabase`, `BenchmarkUpdateCoreSparse/512`) showed no new
+     allocation; `REFERENCE=1` `^TestReferenceControl` and
+     `^TestReferenceDatabaseCreateControls$` passed; racecheck and finalcheck
+     skipped at user request
 189. [ ] Core hooks — [core](ENGINE-SPLIT-core.md#item-189--core-hooks) ·
      needs 188 · P, bench
 190. [ ] Host and slot splits —

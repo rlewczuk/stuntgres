@@ -8,6 +8,28 @@ Dump/Restore and the wire protocol. Subsystem logic lives in layered
 subpackages ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SPLIT.md) §3) that never
 import the root and reach it through the hosts below.
 
+## Composition
+
+`NewEngine` (`engine.go`) seeds one engine's state: the stores, settings,
+visibility, locks, roles, the catalog providers (feature-owned ones first,
+then the builtin ones including `relationProvider`), the bundled extension
+registry and the builtin catalog seed. The composition (`newEngine`, behind
+`New`, `NewWithSettings` and `NewWithCatalogProviders`) then registers:
+- `Engine.Statements`, the family statement dispatch. `executeStatement` keeps
+  the core cases (LISTEN/NOTIFY, TRUNCATE, DISCARD, PREPARE/DEALLOCATE,
+  FETCH/CLOSE, DO, SET/SHOW/RESET, setting calls) and the DECLARE CURSOR
+  checks, and hands every other statement to `Statements.Execute` with
+  nothing held. After the authorization capture, `Statements.ExecuteLocked`
+  takes the locked family handlers (ALTER TABLE and its forms, REFRESH, DROP
+  TABLE, CREATE TABLE); it is a lock-domain continuation, entered with
+  `Engine.Mu` held, that releases it on every handled return. `familyStatements`
+  (`statements_dispatch.go`) implements both in the historical case order.
+- `Engine.Factory`, the composed constructor that builds the private
+  `template1` seed and the Restore stage.
+
+Every database target shares both. `Reset(ctx, e)`, `Dump(ctx, e, dst)` and
+`Restore(ctx, e, src)` (`control.go`) are composition functions over an engine.
+
 Trigger definitions and lifecycle utilities publish immutable relation payloads
 through the ordinary catalog stage and transaction journal. Definitions,
 dependencies and row effects commit together or restore at rollback/savepoints;
@@ -506,7 +528,7 @@ Producers, the OID registry and descriptor specs live in
   definition-retirement locks belong only to an execution scope's real ticket.
   Direct validated publication still enforces captured identity, epoch and
   incoming-dependency fences without manufacturing a transaction for preparation.
-- Every engine seeds the same built-in catalog in one bulk load (`newEngine`'s
+- Every engine seeds the same built-in catalog in one bulk load (`NewEngine`'s
   `BeginBulkLoad` … `FinishSeedLocked`) through the
   [`catalog`](catalog/README.md) seed steps. The root keeps their order, the
   capacity, the process's `catalog.SeedShare` (`builtin_catalog.go`), the

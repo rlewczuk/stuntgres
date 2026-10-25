@@ -245,8 +245,8 @@ candidate, these owning operations retain the engine's error contracts:
 publication (`replaceCatalog`) with their lock order and fences; `restoreRun`,
 `restoreHost`, `restoreHooks` and every hook that reads the run (the
 comparison hooks only forward, run marked statements and capture
-authorization); `Engine.Reset`
-and the `Engine.Dump`/`Engine.Restore` wrappers (`control.go`).
+authorization); the composition functions `Reset`, `Dump` and `Restore`
+(`control.go`).
 
 ## Testing
 

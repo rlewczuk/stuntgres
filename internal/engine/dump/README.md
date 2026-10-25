@@ -68,7 +68,7 @@ standard library, and holds no state, no mutex and no engine callback.
   `Presenter`: those of `routine`, `typedef`, `partition`, `table`
   (`PhysicalNotNullDumpDependencies`) and `regobj`
   (`DomainInvalidDumpEvents`). The table dump record is `table.DumpRelation`.
-- **Capture (root).** `Engine.Dump` takes `Engine.Mu`, calls
+- **Capture (root).** The root `Dump` takes `Engine.Mu`, calls
   `captureDumpLocked` (`dump_capture.go`) and unlocks once. Inside that window
   the root reads engine state and runs `control.Collect` (the Collect tables)
   over a `control.Source`; it returns a `control.Capture` and hands it to
