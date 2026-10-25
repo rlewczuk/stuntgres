@@ -18,10 +18,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// DropClosure returns the dependents of targets in r, depth first: every
-// edge with the target it was reached from, its root and its diagnostic
-// label. PostgreSQL dependency traversal visits a dependent domain's
-// descendants before resuming its parent's remaining dependents.
+// DropClosure returns each dependent once, retaining its actual reached target,
+// root and diagnostic label. Provider traversal order is preserved; procedure-only
+// root sets and domain roots use descending discovery and reverse postorder.
 func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDependency, error) {
 	ctx, base, path := r.Context(), r.BaseRead(), r.Path()
 	if err := ctx.Err(); err != nil {
@@ -78,8 +77,9 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	}
 	var result []table.DomainDependency
 	resultSlots := make(map[ids.ObjectAddress]int)
-	// Domain roots and composite-attribute roots with real domain-default
-	// edges use the catalog's descending visitation/reverse-postorder walk.
+	// Domain roots, procedure-only root sets and composite-attribute roots with
+	// real domain-default edges use descending visitation/reverse postorder.
+	// This retains the selected shared parent in dependency diagnostics.
 	// Other provider routes retain their established traversal contracts.
 	compositeAttributeRoot := false
 	if len(targets) == 1 && targets[0].ClassID == ids.RelationClassID && targets[0].SubID > 0 {
@@ -92,6 +92,15 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 	for _, target := range targets {
 		if typ, ok := r.RetirementDescriptor(target).(*catalog.Type); ok && typ.SQLType.IsDomain() {
 			domainRootOrder = true
+			break
+		}
+	}
+	// A containing owner's mixed retirement roots retain that provider's
+	// traversal; member procedures do not turn it into a procedure DROP.
+	procedureRootOrder := len(targets) != 0
+	for _, target := range targets {
+		if target.ClassID != ids.ProcedureClassID {
+			procedureRootOrder = false
 			break
 		}
 	}
@@ -224,39 +233,13 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				if owner := catalog.RangeConstructorOwner(d); owner == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
-				for dependency := range catalog.OwnedAggregateDependencies(d) {
-					if dependency == target {
+				catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+					if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
 						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
-						break
+						return false
 					}
-				}
-				if d.SQLBody != nil {
-					for _, dependency := range d.SQLBody.Dependencies() {
-						address := dependency.Ref.Address
-						if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
-							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
-							break
-						}
-					}
-				}
-				if d.SQLDefaults != nil {
-					for _, dependency := range d.SQLDefaults.Dependencies() {
-						address := dependency.Ref.Address
-						if address == target || target.SubID == 0 && address.ClassID == target.ClassID && address.ObjectID == target.ObjectID {
-							direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
-							break
-						}
-					}
-				}
-				if d.SQL != nil && target.ClassID == ids.TypeClassID {
-					uses := d.Result == target.ObjectID
-					for _, formal := range d.SQL.Formals {
-						uses = uses || ids.OID(formal.Usage.Type.ID()) == target.ObjectID
-					}
-					if uses {
-						direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
-					}
-				}
+					return true
+				})
 				if d.Extension == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
 				}
@@ -498,7 +481,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				}
 				return direct[i].Address.SubID < direct[j].Address.SubID
 			}
-			if domainRootOrder {
+			if domainRootOrder || procedureRootOrder {
 				if direct[i].OID != direct[j].OID {
 					return direct[i].OID > direct[j].OID
 				}
@@ -536,7 +519,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 					return err
 				}
 			}
-			if compositeDefaultOrder || domainRootOrder {
+			if compositeDefaultOrder || domainRootOrder || procedureRootOrder {
 				postorder = append(postorder, slot)
 			}
 		}
@@ -564,7 +547,7 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			}
 		}
 	}
-	if compositeDefaultOrder || domainRootOrder {
+	if compositeDefaultOrder || domainRootOrder || procedureRootOrder {
 		// Keep original slots throughout DFS so repeated/automatic edges use
 		// the same authority. Then apply reverse postorder in place, without
 		// a second dependency graph or duplicate descriptor/edge buffers.

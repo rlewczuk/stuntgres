@@ -147,6 +147,30 @@ host methods.
   uses its captured descriptor and exact original ref/revision; ref-only carriers
   retain their revision fence. Transition support retains recipe provenance while
   checking EXECUTE as the current aggregate owner, not the invoker.
+  `Dependencies()` is the complete tagged capture manifest, not a semantic edge
+  projection. `DefinitionDependency` captures written references;
+  `AggregateSupportDependency` captures selected implementation/admission
+  providers, including synthetic builtin recaptures. Ordinary and window provider
+  carriers retain forward, inverse and final descriptors and scalar calls in
+  that support lane; each requires its own original capture even when an
+  implementation is not invoked. Deduplication retains
+  `(Ref, Purpose, original Revision)`, so mixed same-address historical captures
+  never borrow each other's authority. Reached-action validation checks original
+  descriptors and exact purpose/ref/revision correspondence, not the multiplicity
+  of identical recording occurrences. Full publication/remapping additionally
+  checks complete action occurrence counts and the program-wide set. Missing support-only captures
+  cannot be repaired by a plausible direct graph or a fresh name lookup.
+  Remapping preserves both lanes, original stamps and source immutability.
+  Regproc/regprocedure definition references are validated from checked retained
+  literal occurrences and the presentation's original Ref/Revision, then matched
+  to the action's complete triple. A shared aggregate-support address neither
+  authorizes a forged direct lane nor converts a literal into an EXECUTE call.
+  Pre-remap checks retain original literal authority without a live source read;
+  full target occurrence/type validation follows remapping.
+  Type refresh uses the full manifest: SQL=nil aggregate descriptors cannot
+  bridge a support-only caller's refresh dependency. Only the shared catalog
+  definition visitor projects ordinary direct edges for publication, pg_depend,
+  DROP and dump ordering; body and defaults remain separate recording passes.
   `TestRoutineAlterFrozenExecutionAuthority` checks hard/default/soft values,
   current callee revoke/regrant and dormant explicit-argument defaults.
   Hidden arguments select their declaration-default manifest through the shared
@@ -548,6 +572,12 @@ reject, while healthy fresh current manifests remain usable.
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - PL array-loop usage remap and immutable controls: `RUN='^TestPLpgSQLForeachRemap$'`
 - Aggregate recipes: `RUN='^Test(CreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)|Aggregate(Final.*FrameRemap|MovingFrameRemap))$'`
+- Complete aggregate capture purpose, validation and remap invariants:
+  `RUN='^TestRoutineAggregate(DependencyPurpose|ManifestValidation|PurposeRemap)$'`
+  (also run with `RACE=1`). Includes original mixed revisions, synthetic builtin
+  scope/restoration, malformed manifests, action isolation and support-only type
+  refresh indexing; public SQL bags/authority/drop/replay are in
+  `reference/aggregates` under `^TestReferenceRoutineAggregateDirect`.
 - Engine renderer and `pg_depend` units: `RUN='^Test(Deparse|PGDepend|ViewCheck)'`
 - Geometric captured-source and literal serialization: `RUN='^TestGeometryRelationLiteral'`
 - Views, rules and deparsing: `RUN='^TestReference(Rule|Deparse|Materialized)'`

@@ -55,9 +55,12 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 	if collatableInput && !inputInfo.CollationConflict {
 		inputCollation = inputInfo.Usage.Collation
 	}
-	provider, err := b.ownedAggregateProvider(d, args, resultUsage, inputCollation, false, raw.Pos, inputInfo)
-	if err != nil {
-		return nil, err
+	var provider *exec.TransitionAggregate
+	if raw.Window == nil {
+		provider, err = b.ownedAggregateProvider(d, args, resultUsage, inputCollation, false, raw.Pos, inputInfo)
+		if err != nil {
+			return nil, err
+		}
 	}
 	ref := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), d.Address())
 	b.dependency(ref, d.Revision())
@@ -115,7 +118,7 @@ func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args []expr.Expr, 
 			return nil, nil, nil, nil, fmt.Errorf("stuntgres: missing aggregate support routine")
 		}
 		reference := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), support.Address())
-		b.dependency(reference, support.Revision())
+		b.aggregateSupportDependency(reference, support.Revision())
 		formals, result, err := routine.AggregateSupportTypes(b.BindingCatalog(), b.DefinitionReader(), support, d.Aggregate, actual)
 		if err != nil || result.Type != output.Type {
 			return nil, nil, nil, nil, fmt.Errorf("stuntgres: invalid aggregate support signature")
@@ -142,7 +145,7 @@ func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args []expr.Expr, 
 		}
 		var call expr.Expr
 		if support.SQL == nil {
-			call, err = b.BindSelectedOperatorRoutine(support, parameters, pos)
+			call, err = b.bindAggregateSupport(support, parameters, pos)
 			if err != nil {
 				return nil, nil, nil, nil, err
 			}
@@ -184,4 +187,20 @@ func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args []expr.Expr, 
 		}
 	}
 	return p, nil
+}
+
+func (b *Binder) aggregateSupportDependency(ref ids.ObjectRef, revision ids.DefinitionRevision) {
+	previous := b.dependencyPurpose
+	b.dependencyPurpose = catalog.AggregateSupportDependency
+	defer func() { b.dependencyPurpose = previous }()
+	b.dependency(ref, revision)
+}
+
+// Synthetic provider binding can itself capture the selected routine and types.
+// Scope only that binding, never the aggregate's written operands or FILTER.
+func (b *Binder) bindAggregateSupport(d *catalog.Procedure, args []expr.Expr, pos parser.Position) (expr.Expr, error) {
+	previous := b.dependencyPurpose
+	b.dependencyPurpose = catalog.AggregateSupportDependency
+	defer func() { b.dependencyPurpose = previous }()
+	return b.BindSelectedOperatorRoutine(d, args, pos)
 }

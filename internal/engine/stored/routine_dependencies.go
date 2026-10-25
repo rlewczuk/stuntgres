@@ -84,13 +84,16 @@ func (r ScalarRenderer) recordStoredRoutineDescriptor(view catalog.Read, capture
 		}
 	}
 	for _, old := range r.CapturedChecks {
-		if old.Ref.Address == ref.Address {
-			if !ReferenceEpochValid(view, r.retainedConsumer(), old.Ref) || captured.Revision() != old.Revision {
+		if old.Ref.Address == ref.Address && captured.Revision() == old.Revision && old.Purpose == catalog.DefinitionDependency {
+			if !ReferenceEpochValid(view, r.retainedConsumer(), old.Ref) {
 				return fmt.Errorf("stuntgres: stale stored routine dependency")
 			}
 			r.record(old.Ref)
 			return nil
 		}
+	}
+	if r.CapturedChecks != nil {
+		return fmt.Errorf("stuntgres: missing stored routine dependency")
 	}
 	r.record(ref)
 	return nil

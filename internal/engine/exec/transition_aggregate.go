@@ -334,11 +334,14 @@ func AdmitAggregateSupport(c *Context, provider functions.AggregateProvider) err
 	if err = owner.Roles.ValidatePrincipal(current.Owner); err != nil {
 		return err
 	}
-	for _, support := range []*catalog.Procedure{p.Support, p.InverseSupport, p.Final} {
+	// PostgreSQL initializes per-aggregate final support before the
+	// per-transition state machinery. Preserve that admission order even when
+	// no input rows or strict final invocation will follow.
+	for _, support := range [3]*catalog.Procedure{p.Final, p.Support, p.InverseSupport} {
 		if support == nil {
 			continue
 		}
-		if err = CheckRecipeRoutineDescriptor(c, owner, dependencies, support); err != nil {
+		if err = checkRecipeRoutineDescriptor(c, owner, dependencies, support, catalog.AggregateSupportDependency); err != nil {
 			return err
 		}
 		if c.RoutineProgram != nil {

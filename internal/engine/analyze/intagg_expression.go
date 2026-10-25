@@ -64,7 +64,7 @@ func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.Obj
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
 	ref := r.binder.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
-	r.binder.Dependencies = append(r.binder.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()})
+	r.binder.dependency(ref, p.Revision())
 	return p, ref, nil
 }
 

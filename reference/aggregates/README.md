@@ -76,6 +76,34 @@ Add `REFERENCE=1` for the oracle.
   View retirement helpers cover permanent, explicit TEMP and inferred TEMP
   persistence with real procedure-object lock admission in both directions;
   authority helpers reuse executed statements across owner and support grants.
+- Routine direct aggregate dependencies: `RUN='^TestReferenceRoutineAggregateDirect'`.
+  The eleven focused bags/defaults/text-body/value/authority/identity/drop/persistence/literals/types/moving
+  scenarios assert complete outgoing procedure-edge bags (including separate
+  body/default multiplicity), held execution authority and unchanged native dump
+  replay, rather than subtracting implementation supports from catalog output.
+  Persistence checks default PUBLIC EXECUTE through a real nonowner's effective
+  routine privileges, with no grant options, across all twelve declarations
+  after each replacement and in a fresh Driver. It does not require optional
+  `pg_proc.proacl` column projection.
+  Literals covers regproc/regprocedure references sharing an aggregate-support
+  address, exact direct bags and original identity through held rename.
+  Its authority subscenario executes as a support-denied reader; its independent
+  default-ACL persistence subscenario preserves literal identity/bags/values and
+  actual nonowner effective EXECUTE after replacement. It does not require
+  serialization of schema/table ACLs or treat alias values as invocations.
+  Types additionally asserts the complete outgoing normal procedure-to-type bag,
+  with class IDs, subobject IDs and physical multiplicity intact. A domain used
+  only as transition state has no direct aggregate type edge; support signatures
+  still own their domain edges. Genuine aggregate input/result domain edges
+  survive state-type overlap and deduplicate within the declaration, while pinned
+  integer/text types contribute no rows. Direct, fresh-prepared and held values
+  cover populated, NULL-only and empty input before and after native
+  Dump/Reset/Restore, proving replay retains the state/support prerequisites.
+  Moving retains upstream bounded-frame moving execution and unbounded-start
+  ordinary selection. Checked callers expose only their written aggregate edge;
+  explicit forward/inverse/final calls retain separate direct edges. Complete
+  support-role bags, exact direct/fresh/held values and two native restore rounds
+  cover both selected support lanes without provisional ordinary captures.
 - The transactional routine/operator/aggregate matrix lives in
   [query_core](../query_core/README.md#testing), reusing its held-handle routes.
   Aggregate results keep their explicit native nullable/known metadata contract

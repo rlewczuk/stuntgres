@@ -51,11 +51,12 @@ type ExpressionPolicy struct {
 // the statement's dependency manifest. Everything else lives in the value
 // groups of binder_groups.go.
 type Binder struct {
-	Host         Host
-	Ctx          context.Context
-	Expected     Expected
-	Input        sqltype.InputEnvironment
-	Dependencies []catalog.ExpressionDependency
+	Host              Host
+	Ctx               context.Context
+	Expected          Expected
+	Input             sqltype.InputEnvironment
+	Dependencies      []catalog.ExpressionDependency
+	dependencyPurpose catalog.DependencyPurpose
 	// Identity of the actual missing-call diagnostic, not a SQLSTATE heuristic.
 	PL                 *proc.PLFrame // Private reached-expression lexical inputs; never retained.
 	plAssignmentDatum  *PLAssignment
@@ -114,11 +115,11 @@ func (b *Binder) Type(id sqltype.ID) *sqltype.Descriptor {
 }
 func (b *Binder) dependency(ref ids.ObjectRef, revision ids.DefinitionRevision) {
 	for _, d := range b.Dependencies {
-		if d.Ref == ref {
+		if d.Ref == ref && d.Purpose == b.dependencyPurpose && d.Revision == revision {
 			return
 		}
 	}
-	b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{ref, revision})
+	b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: ref, Revision: revision, Purpose: b.dependencyPurpose})
 }
 func (b *Binder) BindingCatalog() catalog.Read {
 	if b.Query.Auth != nil {

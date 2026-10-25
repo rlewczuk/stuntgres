@@ -192,7 +192,7 @@ func (r installedExtensionRoutine) EarthDescriptor() *sqltype.Descriptor {
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
 	ref := b.Host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
-	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()}
+	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision(), Purpose: b.dependencyPurpose}
 	switch c := call.(type) {
 	case functions.Cube:
 		if extension.CubeProviderOf(p) != extension.StockCube {

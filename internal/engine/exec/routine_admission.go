@@ -17,14 +17,14 @@ import (
 // descriptor identifies the declaration; neither its ACL nor its address alone
 // supplies authority. Admission borrows the immutable manifest without copying.
 func AdmitRoutineDescriptor(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation) error {
-	return admitRoutineDescriptor(auth, dependencies, captured, consumer, false)
+	return admitRoutineDescriptor(auth, dependencies, captured, consumer, false, catalog.DefinitionDependency)
 }
 
 // A hard stored recipe proves its original manifest and immutable declaration.
 // Mutable name/schema/owner revisions do not reinterpret that captured call.
 // Original-source binding keeps its existing current-revision fence.
-func admitRoutineDescriptor(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation, followIdentity bool) error {
-	ref, err := routineDescriptorLifetime(auth, dependencies, captured, consumer, followIdentity)
+func admitRoutineDescriptor(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation, followIdentity bool, purpose catalog.DependencyPurpose) error {
+	ref, err := routineDescriptorLifetime(auth, dependencies, captured, consumer, followIdentity, purpose)
 	if err != nil {
 		return err
 	}
@@ -33,17 +33,14 @@ func admitRoutineDescriptor(auth RoutineAccess, dependencies []catalog.Expressio
 
 // Lifetime validation is independent of invocation demand. A strict NULL call
 // can avoid EXECUTE, but cannot rehabilitate a stale direct-analysis graph.
-func routineDescriptorLifetime(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation, followIdentity bool) (ids.ObjectRef, error) {
+func routineDescriptorLifetime(auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, consumer *catalog.Relation, followIdentity bool, purpose catalog.DependencyPurpose) (ids.ObjectRef, error) {
 	current, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
 	for _, dependency := range dependencies {
-		if dependency.Ref.Address != captured.Address() {
+		if dependency.Ref.Address != captured.Address() || dependency.Revision != captured.Revision() || dependency.Purpose != purpose {
 			continue
-		}
-		if dependency.Revision != captured.Revision() {
-			return ids.ObjectRef{}, fmt.Errorf("stuntgres: mismatched routine lifetime manifest")
 		}
 		ref := dependency.Ref
 		if consumer != nil {
@@ -132,7 +129,7 @@ func AdmitRoutineCall(c *Context, node expr.Expr, scalarPlanning, constantComput
 		})
 		if null {
 			if c.RoutineChecks == nil && c.RoutineReferences == nil && !c.RoutineRecipe {
-				_, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false)
+				_, err := routineDescriptorLifetime(auth, dependencies, captured, nil, false, catalog.DefinitionDependency)
 				return err
 			}
 			return nil
@@ -169,8 +166,12 @@ func AdmitRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies [
 }
 
 func CheckRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
+	return checkRecipeRoutineDescriptor(c, auth, dependencies, captured, catalog.DefinitionDependency)
+}
+
+func checkRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure, purpose catalog.DependencyPurpose) error {
 	if c.RoutineChecks != nil {
-		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer, true)
+		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer, true, purpose)
 	}
 	if c.RoutineReferences != nil {
 		if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
@@ -193,7 +194,7 @@ func CheckRecipeRoutineDescriptor(c *Context, auth RoutineAccess, dependencies [
 	if c.RoutineRecipe {
 		return fmt.Errorf("stuntgres: empty owning routine lifetime manifest")
 	}
-	return AdmitRoutineDescriptor(auth, dependencies, captured, nil)
+	return admitRoutineDescriptor(auth, dependencies, captured, nil, false, purpose)
 }
 
 func RoutineAdmissionAuthority(c *Context) (RoutineAccess, []catalog.ExpressionDependency, error) {
@@ -231,7 +232,7 @@ func AdmitRoutineReference(c *Context, ref ids.ObjectRef, captured *catalog.Proc
 		return fmt.Errorf("stuntgres: invalid callable routine reference")
 	}
 	for _, dependency := range dependencies {
-		if dependency.Ref != ref {
+		if dependency.Ref != ref || dependency.Purpose != catalog.DefinitionDependency || captured != nil && captured.Revision() != dependency.Revision {
 			continue
 		}
 		if c.RoutineConsumer != nil {

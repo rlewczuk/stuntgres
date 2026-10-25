@@ -114,7 +114,7 @@ func (v *View) ProviderRecipeProcedure(read catalog.Read, path analyze.ViewLiter
 		return nil, fmt.Errorf("stuntgres: mismatched frozen provider call shape")
 	}
 	for _, dependency := range v.dependencies {
-		if dependency.Ref == ref && dependency.Revision != 0 {
+		if dependency.Ref == ref && dependency.Revision != 0 && dependency.Purpose == catalog.DefinitionDependency {
 			return p, nil
 		}
 	}

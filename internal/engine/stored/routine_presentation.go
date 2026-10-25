@@ -30,7 +30,7 @@ func (v *View) SQLRoutineRecipeProcedure(read catalog.Read, path analyze.ViewLit
 		return nil, err
 	}
 	for _, dependency := range v.dependencies {
-		if dependency.Ref == ref && dependency.Revision != 0 {
+		if dependency.Ref == ref && dependency.Revision != 0 && dependency.Purpose == catalog.DefinitionDependency {
 			return d, nil
 		}
 	}
@@ -88,7 +88,7 @@ func (v *View) AggregateRecipeProcedure(read catalog.Read, path analyze.ViewLite
 		return nil, err
 	}
 	for _, dependency := range v.dependencies {
-		if dependency.Ref == ref && dependency.Revision != 0 {
+		if dependency.Ref == ref && dependency.Revision != 0 && dependency.Purpose == catalog.DefinitionDependency {
 			return d, nil
 		}
 	}

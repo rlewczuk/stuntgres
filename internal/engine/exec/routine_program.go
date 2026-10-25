@@ -33,6 +33,13 @@ func (p *RoutineProgram) Record(c *Context, dependencies []catalog.ExpressionDep
 	return p.RecordActor(c, dependencies, routine, auth.State.CurrentUser, nil)
 }
 
+func routineCapturePurpose(aggregate *catalog.Procedure) catalog.DependencyPurpose {
+	if aggregate != nil {
+		return catalog.AggregateSupportDependency
+	}
+	return catalog.DefinitionDependency
+}
+
 // RecordActor records support EXECUTE under its owner without changing the
 // invocation/body role of the evaluation context.
 func (p *RoutineProgram) RecordActor(c *Context, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure, actor authorization.PrincipalRef, aggregate *catalog.Procedure) error {
@@ -54,7 +61,7 @@ func (p *RoutineProgram) RecordActor(c *Context, dependencies []catalog.Expressi
 			dependencies = c.RoutineChecks
 		}
 		for _, candidate := range dependencies {
-			if candidate.Ref.Address == routine.Address() {
+			if candidate.Ref.Address == routine.Address() && candidate.Revision == routine.Revision() && candidate.Purpose == routineCapturePurpose(aggregate) {
 				ref = candidate.Ref
 				break
 			}
@@ -86,8 +93,9 @@ func (p *RoutineProgram) Readmit(auth RoutineAccess) error {
 		if err := current.Roles.ValidatePrincipal(current.State.CurrentUser); err != nil {
 			return err
 		}
-		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision()}}
-		if err := admitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer, call.followIdentity); err != nil {
+		purpose := routineCapturePurpose(call.SupportAggregate)
+		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision(), Purpose: purpose}}
+		if err := admitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer, call.followIdentity, purpose); err != nil {
 			return call.body.Annotate(err)
 		}
 	}
@@ -106,8 +114,9 @@ func (p *RoutineProgram) InitializePhase(original *RoutineProgram, auth RoutineA
 			}
 			current.State.CurrentUser = aggregate.Owner
 		}
-		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision()}}
-		if err := admitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer, call.followIdentity); err != nil {
+		purpose := routineCapturePurpose(call.SupportAggregate)
+		dependency := [1]catalog.ExpressionDependency{{Ref: call.Reference, Revision: call.Routine.Revision(), Purpose: purpose}}
+		if err := admitRoutineDescriptor(current, dependency[:], call.Routine, call.Consumer, call.followIdentity, purpose); err != nil {
 			return call.body.Annotate(err)
 		}
 		call.Actor = current.State.CurrentUser

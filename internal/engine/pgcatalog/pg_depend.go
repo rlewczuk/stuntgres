@@ -130,18 +130,10 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 				}
 				return true
 			})
-			if d.SQL != nil {
-				if d.SQLBody != nil {
-					for _, dependency := range d.SQLBody.Dependencies() {
-						add(d.Address(), dependency.Ref.Address, 'n')
-					}
-				}
-				if d.SQLDefaults != nil {
-					for _, dependency := range d.SQLDefaults.Dependencies() {
-						add(d.Address(), dependency.Ref.Address, 'n')
-					}
-				}
-			}
+			catalog.VisitProcedureCapturedDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+				add(d.Address(), address, 'n')
+				return true
+			})
 			if runtime.TypeProviderProcedure(d) {
 				ext, ok := view.Extension(d.Extension)
 				if !ok || d.Implementation == nil {

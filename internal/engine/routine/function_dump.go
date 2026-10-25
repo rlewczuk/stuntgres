@@ -17,34 +17,11 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 	for _, d := range routines {
 		key := dump.Event{OID: d.Address().ObjectID}
 		events[key] = nil
-		if d.Aggregate != nil {
-			for address := range catalog.OwnedAggregateDependencies(d) {
-				predecessor, err := r.Predecessor(view, address, d.Address())
-				if err != nil {
-					return err
-				}
-				if predecessor != 0 {
-					events[key] = append(events[key], dump.Event{OID: predecessor})
-				}
-			}
-			continue
-		}
-		for i := range len(d.SQL.Formals) + 1 {
-			usage := d.SQL.Result
-			if i < len(d.SQL.Formals) {
-				usage = d.SQL.Formals[i].Usage
-			}
-			predecessor, err := r.Predecessor(view, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}, d.Address())
-			if err != nil {
-				return err
-			}
-			if predecessor != 0 {
-				events[key] = append(events[key], dump.Event{OID: predecessor})
-			}
-		}
-		// Declaration prerequisites order replay, not pg_depend/DROP edges.
-		for _, address := range d.DeclarationDependencies {
+		appendPredecessor := func(address ids.ObjectAddress) error {
 			address.SubID = 0
+			if address.ObjectID == 0 || address == d.Address() {
+				return nil
+			}
 			predecessor, err := r.Predecessor(view, address, d.Address())
 			if err != nil {
 				return err
@@ -52,35 +29,46 @@ func RoutineDumpEvents(r dump.Resolver, view catalog.Read, routines []*catalog.P
 			if predecessor != 0 {
 				events[key] = append(events[key], dump.Event{OID: predecessor})
 			}
+			return nil
 		}
-		if d.SQLBody != nil {
-			for _, dependency := range d.SQLBody.Dependencies() {
-				address := dependency.Ref.Address
-				address.SubID = 0
-				if address == d.Address() {
-					continue
+		// Replay uses the typed declaration, including OUT formals and its
+		// result, independently of the ordinary semantic definition graph.
+		if d.SQL != nil {
+			for i := range len(d.SQL.Formals) + 1 {
+				usage := d.SQL.Result
+				if i < len(d.SQL.Formals) {
+					usage = d.SQL.Formals[i].Usage
 				}
-				predecessor, err := r.Predecessor(view, address, d.Address())
-				if err != nil {
+				if err := appendPredecessor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())}); err != nil {
 					return err
-				}
-				if predecessor != 0 {
-					events[key] = append(events[key], dump.Event{OID: predecessor})
 				}
 			}
 		}
-		if d.SQLDefaults != nil {
-			for _, dependency := range d.SQLDefaults.Dependencies() {
-				address := dependency.Ref.Address
-				address.SubID = 0
-				predecessor, err := r.Predecessor(view, address, d.Address())
-				if err != nil {
-					return err
+		// Declaration prerequisites order replay, not pg_depend/DROP edges.
+		for _, address := range d.DeclarationDependencies {
+			if err := appendPredecessor(address); err != nil {
+				return err
+			}
+		}
+		var failure error
+		catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
+			// Typed declaration prerequisites above already cover these types.
+			// Other body/default types still come from the shared visitor.
+			if address.ClassID == ids.TypeClassID && d.SQL != nil {
+				if address.ObjectID == ids.OID(d.SQL.Result.Type.ID()) {
+					return true
 				}
-				if predecessor != 0 {
-					events[key] = append(events[key], dump.Event{OID: predecessor})
+				for _, formal := range d.SQL.Formals {
+					if address.ObjectID == ids.OID(formal.Usage.Type.ID()) {
+						return true
+					}
 				}
 			}
+			failure = appendPredecessor(address)
+			return failure == nil
+		})
+		if failure != nil {
+			return failure
 		}
 	}
 	return nil

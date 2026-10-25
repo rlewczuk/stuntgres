@@ -192,26 +192,29 @@ func validateRoutineScalar(bound expr.Expr, inputs []sqltype.Usage, read catalog
 	return failure
 }
 
-// PostgreSQL records one normal edge per referenced subobject, and a relation
-// edge only when no column edge of that relation supplies the same dependency.
-// Keep richer per-action admission manifests separate from this published set.
+type routineDependencyCoverage struct {
+	ref     ids.ObjectRef
+	purpose catalog.DependencyPurpose
+}
+
+// The complete manifest retains original stamps and both capture purposes.
+// Column coverage suppresses whole-relation captures only within one purpose.
 func routineDependencySet(dependencies []catalog.ExpressionDependency) []catalog.ExpressionDependency {
-	attributes := make(map[ids.ObjectAddress]bool)
+	attributes := make(map[routineDependencyCoverage]bool)
 	for _, dependency := range dependencies {
-		a := dependency.Ref.Address
-		if a.ClassID == ids.RelationClassID && a.SubID != 0 {
-			a.SubID = 0
-			attributes[a] = true
+		ref := dependency.Ref
+		if ref.Address.ClassID == ids.RelationClassID && ref.Address.SubID != 0 {
+			ref.Address.SubID = 0
+			attributes[routineDependencyCoverage{ref, dependency.Purpose}] = true
 		}
 	}
-	seen := make(map[ids.ObjectRef]bool)
+	seen := make(map[catalog.ExpressionDependency]bool)
 	next := dependencies[:0]
 	for _, dependency := range dependencies {
-		a := dependency.Ref.Address
-		if a.SubID == 0 && attributes[a] || seen[dependency.Ref] {
+		if dependency.Ref.Address.SubID == 0 && attributes[routineDependencyCoverage{dependency.Ref, dependency.Purpose}] || seen[dependency] {
 			continue
 		}
-		seen[dependency.Ref] = true
+		seen[dependency] = true
 		next = append(next, dependency)
 	}
 	return next
@@ -221,34 +224,46 @@ func (p *RoutineProgram) validateDependencySet() error {
 	if len(p.actionDependencies) != len(p.actions) {
 		return fmt.Errorf("stuntgres: incomplete routine dependency capture")
 	}
-	attributes := make(map[ids.ObjectAddress]bool)
-	for _, dependencies := range p.actionDependencies {
+	attributes := make(map[routineDependencyCoverage]bool)
+	for i, dependencies := range p.actionDependencies {
+		expected := make(map[catalog.ExpressionDependency]int)
+		visitRoutineActionDependencies(p.actions[i], func(dependency catalog.ExpressionDependency) { expected[dependency]++ })
 		for _, dependency := range dependencies {
-			a := dependency.Ref.Address
-			if a.ClassID == ids.RelationClassID && a.SubID != 0 {
-				a.SubID = 0
-				attributes[a] = true
+			if expected[dependency] == 0 {
+				return fmt.Errorf("stuntgres: extra action dependency capture")
+			}
+			expected[dependency]--
+			ref := dependency.Ref
+			if ref.Address.ClassID == ids.RelationClassID && ref.Address.SubID != 0 {
+				ref.Address.SubID = 0
+				attributes[routineDependencyCoverage{ref, dependency.Purpose}] = true
+			}
+		}
+		for _, count := range expected {
+			if count != 0 {
+				return fmt.Errorf("stuntgres: missing action dependency capture")
 			}
 		}
 	}
-	expected := make(map[ids.ObjectRef]bool)
+	expected := make(map[catalog.ExpressionDependency]bool)
 	for _, dependencies := range p.actionDependencies {
 		for _, dependency := range dependencies {
-			a := dependency.Ref.Address
-			if a.SubID == 0 && attributes[a] {
-				continue
+			if dependency.Ref.Address.SubID != 0 || !attributes[routineDependencyCoverage{dependency.Ref, dependency.Purpose}] {
+				expected[dependency] = true
 			}
-			expected[dependency.Ref] = true
 		}
+	}
+	if len(expected) != len(p.dependencies) {
+		return fmt.Errorf("stuntgres: mismatched routine dependency capture")
 	}
 	for _, dependency := range p.dependencies {
-		if !expected[dependency.Ref] {
+		if !dependency.Purpose.Valid() || dependency.Revision == 0 {
+			return fmt.Errorf("stuntgres: invalid routine dependency capture")
+		}
+		if !expected[dependency] {
 			return fmt.Errorf("stuntgres: extra routine dependency capture")
 		}
-		delete(expected, dependency.Ref)
-	}
-	if len(expected) != 0 {
-		return fmt.Errorf("stuntgres: missing routine dependency capture")
+		delete(expected, dependency)
 	}
 	return nil
 }

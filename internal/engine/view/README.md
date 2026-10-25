@@ -120,7 +120,13 @@ imports `view`.
 - **DROP read side** (`drop_*.go`, `dependents.go`): `DropReader` is the drop
   stage that the root's `DropProvider` implements. `DropClosure` is the
   dependency closure (edges are `table.DomainDependency`); `DependentViews`,
-  `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents;
+  `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents.
+  Ordinary routine edges come from the shared catalog definition visitor, not
+  the complete runtime capture manifest. Procedure-only root sets use descending
+  discovery/reverse postorder so shared and mixed edges retain the actual
+  diagnostic parent while each dependent is retired/noticed only once.
+  Mixed containing-owner/member root sets retain their owner's traversal;
+  contained procedures never change an extension/schema retirement's ordering.
   `TypeChangeError` rejects ALTER COLUMN TYPE under a rule or view. For the
   root's expression-dependency pass, `DropRoots` adds the relations the drop
   already removed, `PlanDrop` classifies the closure into targets, surviving

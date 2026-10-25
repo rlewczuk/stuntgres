@@ -86,6 +86,18 @@ library, and never the root engine or `session`. The engine, the root driver
   Ordinary projections with a final expose unknown computed nullability;
   without one they retain known nullable state metadata. Owned window results
   and stored view columns retain known nullable metadata.
+  Owned window providers are built once after full-frame implementation selection;
+  the pending call retains its checked aggregate and written operands, not a
+  provisional ordinary provider or superseded support captures.
+  Capture purpose is assigned before the first binder deduplication. The
+  aggregate and written arguments/FILTER/ORDER BY keep their definition lane;
+  only selected support bindings enter the scoped aggregate-support lane.
+  Synthetic builtin recaptures inherit that scope, restored on success/error.
+  Original revisions remain distinct, including mixed same-address captures.
+  SQL routine grouping uses the existing property-rewrite hook: intrinsic
+  procedure volatility merges only with actual rewritten children. An aggregate
+  sibling cannot stage-taint a literal/parameter-only SQL call; strict stored
+  metadata validation remains unchanged.
 - **`Binding`** (`binding*.go`, `payloads.go`): the statement header, the kind
   payloads (`InsertBinding`, `UpdateBinding`, `MergeBinding`, ...) and
   `ParameterInfo`.
@@ -271,6 +283,10 @@ units that build bindings, grep `internal/engine/*_test.go` and
 
 - Package seams: `RUN='^Test(SQLCallableParameterMapping|RelationNamespaceShape|InsertConflictClone|ExpectedCheckLifetime|CheckQuerySources|CheckBindingDelete|DomainIdentityCaptureRetirement)'`
 - Source identity binding and lexical frame semantics: `RUN='^TestQueryTableOID'`
+- Aggregate capture purpose/synthetic builtin scope:
+  `RUN='^TestRoutineAggregateDependencyPurpose$'`.
+- Exact SQL routine grouped metadata and immutable rewrites:
+  `RUN='^TestSQLRoutineGroupProperties$'`.
 - Query binding units: `RUN='^TestQuery(Aliases|Values|CTE|Lock|Set)'`
 - Host, slots and authorities (engine): `RUN='^Test(AnalysisHost|ExpectedOfCopiesHeldInputs|CapturedInputsRetargetOnlyTheirSinks|BindingSlotsKeepNilAbsent)'`
 - Search path and type names (engine): `RUN='^Test(SearchPath|RegTSProviderResolution|DomainIdentity)'`

@@ -310,8 +310,15 @@ state and forward/inverse/final `proc.Frame`s; immutable values need no speculat
 copying. Strict transitions distinguish never-seeded state from returned NULL.
 All vectors use retained binary conversions, never current casts; strict
 transitions without a seed recheck compatibility once at startup. Admission
-checks current aggregate-owner EXECUTE on exactly the selected supports, even
-when empty input or strict NULL skipping prevents invocation.
+checks current aggregate-owner EXECUTE on exactly the selected supports, with
+final support before forward and inverse transition support, matching
+per-aggregate/per-transition startup order even when empty input or strict NULL
+skipping prevents invocation.
+Admission matches purpose as well as original reference/revision: written calls
+use Definition captures, selected supports use AggregateSupport captures.
+Consumed-call recording, readmission and phase initialization derive that lane
+from the existing support-aggregate association; neither lane borrows the other
+lane's historical stamp at a shared address.
 
 `WindowAggregates` retains full owned argument vectors and independent
 per-occurrence head/tail cursors. Overlapping moving frames remove contributors

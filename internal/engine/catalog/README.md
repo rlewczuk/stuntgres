@@ -186,10 +186,18 @@ private frames, not catalog authority.
 - **Routine definition dependencies** (`aggregate_dependencies.go`):
   `VisitProcedureDefinitionDependencies` owns the common namespace, result/formal,
   checked standard-body/default and owned aggregate edges consumed by catalog
-  projection, definition admission and retirement preflight.
+  projection, definition admission, retirement preflight, DROP closure and dump
+  ordering. It projects only `DefinitionDependency` entries from the complete
+  runtime manifests; aggregate support captures are not caller edges. An
+  explicitly written support call retains its own direct edge at the same
+  address. Each body/default pass deduplicates independently, preserving two
+  physical rows when both phases reference the same procedure.
   `VisitProcedureDeclarationDependencies` exposes the declaration phase separately:
   catalog projection deduplicates repeated result/formal/support declarations
   without collapsing independently captured body/default dependency rows.
+  `VisitProcedureCapturedDefinitionDependencies` exposes the same checked
+  body/default projection to catalog consumers after declaration deduplication;
+  consumers never project the full execution manifests as semantic edges.
   Aggregates depend on ordinary and moving supports and their declared input/result
   types. State types are retained indirectly through support signatures, not
   redundant state-only aggregate edges.

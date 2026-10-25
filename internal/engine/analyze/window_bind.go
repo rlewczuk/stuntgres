@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -72,8 +71,9 @@ func (b *Binder) bindWindowCall(raw parser.AggregateExpr, name parser.ObjectName
 	defer func() { b.Grouping.ArgumentOwner = parentOwner }()
 	var resultUsage sqltype.Usage
 	var argument, ordinal, defaultValue expr.Expr
-	// Builtins resolve their window signatures here. Owned aggregates arrive
-	// with their ordinary checked provider, but never register group state.
+	// Builtins resolve their window signatures here. Owned aggregates retain
+	// checked declaration/operands; resolveWindows builds only the selected
+	// implementation after the complete frame is known.
 	function, windowFunction := functions.LookupWindowFunction(raw.Name)
 	if owned != nil {
 		resultUsage = ownedInfo.Usage
@@ -267,7 +267,7 @@ func (b *Binder) resolveWindows() error {
 		}
 		b.Grouping.WindowCalls[i].Spec = spec
 		call := &b.Grouping.WindowCalls[i]
-		if provider, ok := call.Provider.(*exec.TransitionAggregate); ok && MovingAggregateSelected(provider.Aggregate.Aggregate.Definition, spec.Frame, call.Arguments) {
+		if call.Operation == plan.WindowAggregate && call.Procedure != nil && call.Procedure.Aggregate != nil {
 			inputInfo := call.Expression.Info
 			for _, argument := range call.Arguments {
 				if argument.ResultUsage().Collation.ID != 0 {
@@ -279,7 +279,17 @@ func (b *Binder) resolveWindows() error {
 			if err != nil {
 				return err
 			}
-			call.Provider, err = b.ownedAggregateProvider(provider.Aggregate, call.Arguments, provider.Result, provider.InputCollation, true, call.Expression.Pos, inputInfo)
+			collation := sqltype.CollationRef{}
+			if !inputInfo.CollationConflict {
+				for _, argument := range call.Arguments {
+					if argument.ResultUsage().Collation.ID != 0 {
+						collation = inputInfo.Usage.Collation
+						break
+					}
+				}
+			}
+			moving := MovingAggregateSelected(call.Procedure.Aggregate.Definition, spec.Frame, call.Arguments)
+			call.Provider, err = b.ownedAggregateProvider(call.Procedure, call.Arguments, call.Expression.ResultUsage(), collation, moving, call.Expression.Pos, inputInfo)
 			if err != nil {
 				return err
 			}

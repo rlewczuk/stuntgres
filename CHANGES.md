@@ -50,6 +50,20 @@ The `stuntgres` server's new `-q`/`--querylog` option (requires `-L`) writes
 frontend steps and every backend message as exact base64 bytes plus a readable
 decoded form, for comparison with real PostgreSQL responses.
 
+SQL-standard routine dependencies now distinguish written aggregate calls from
+their execution supports. Catalog edges, DROP diagnostics and dump ordering
+retain explicit support calls without flattening aggregate implementations into
+callers. Complete original support captures and live owner EXECUTE checks survive
+rename, schema moves and native replacement. Support startup checks final EXECUTE
+before transition EXECUTE, including empty inputs. Typed declaration replay
+prerequisites and containing-owner DROP ordering remain intact. Checked regproc
+and regprocedure literals retain their own original definition captures even
+when the referenced routine also supplies aggregate support; those references
+do not require invocation EXECUTE. Catalog projection preserves separate
+declaration and checked body/default recording passes without exposing runtime
+support captures. Stored ordinary/moving window providers preserve original
+forward, inverse and final support authority.
+
 Ordinary queries expose OID-valued tableoid through source aliases, lexical
 correlation and outer joins without changing wildcard columns. Inherited and
 partition scans report the actual containing relation. SQL-standard bodies

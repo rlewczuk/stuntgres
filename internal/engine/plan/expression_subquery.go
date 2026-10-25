@@ -96,10 +96,7 @@ func (n SQLRoutineExpr) ValidateStoredProvider() error {
 	if _, err := n.Rebuild(n.Info, n.Args); err != nil {
 		return err
 	}
-	want := expr.Properties{Volatility: n.Procedure.Volatility}
-	for _, arg := range n.Args {
-		want = expr.MergeProperties(want, arg.Properties())
-	}
+	want := n.GroupProperties(n.Args)
 	if n.Property != want {
 		return fmt.Errorf("invalid stored SQL routine properties")
 	}
@@ -107,6 +104,16 @@ func (n SQLRoutineExpr) ValidateStoredProvider() error {
 }
 
 func (n SQLRoutineExpr) IntrinsicVolatility() expr.Volatility { return n.Procedure.Volatility }
+
+// Group rewriting changes actual children, not a call's intrinsic volatility.
+// A sibling aggregate does not make an independent scalar call stage-dependent.
+func (n SQLRoutineExpr) GroupProperties(children []expr.Expr) expr.Properties {
+	properties := expr.Properties{Volatility: n.Procedure.Volatility}
+	for _, child := range children {
+		properties = expr.MergeProperties(properties, child.Properties())
+	}
+	return properties
+}
 
 func (SQLRoutineExpr) PlanningFold() expr.Fold { return expr.FoldNever }
 

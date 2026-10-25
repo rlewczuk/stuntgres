@@ -21,28 +21,40 @@ func NewRoutineProgram(actions []RuleAction) *RoutineProgram {
 	p := &RoutineProgram{actions: slices.Clone(actions), actionDependencies: make([][]catalog.ExpressionDependency, len(actions))}
 	for i, action := range actions {
 		var dependencies []catalog.ExpressionDependency
-		if action.binding.Relation != nil {
-			dependencies = append(dependencies, catalog.ExpressionDependency{Ref: action.binding.Ref, Revision: action.binding.Relation.Revision()})
-		}
-		for _, source := range action.binding.QuerySources {
-			if source.Relation != nil {
-				dependencies = append(dependencies, catalog.ExpressionDependency{Ref: source.Ref, Revision: source.Relation.Revision()})
-			}
-		}
-		dependencies = append(dependencies, action.binding.Dependencies...)
-		if action.presentation != nil {
-			dependencies = append(dependencies, action.presentation.Dependencies()...)
-		}
-		for _, presentation := range action.modifierPresentations {
-			if presentation != nil {
-				dependencies = append(dependencies, presentation.Dependencies()...)
-			}
-		}
+		visitRoutineActionDependencies(action, func(dependency catalog.ExpressionDependency) {
+			dependencies = append(dependencies, dependency)
+		})
 		p.actionDependencies[i] = dependencies
 		p.dependencies = append(p.dependencies, dependencies...)
 	}
 	p.dependencies = routineDependencySet(p.dependencies)
 	return p
+}
+
+func visitRoutineActionDependencies(action RuleAction, visit func(catalog.ExpressionDependency)) {
+	if action.binding.Relation != nil {
+		visit(catalog.ExpressionDependency{Ref: action.binding.Ref, Revision: action.binding.Relation.Revision()})
+	}
+	for _, source := range action.binding.QuerySources {
+		if source.Relation != nil {
+			visit(catalog.ExpressionDependency{Ref: source.Ref, Revision: source.Relation.Revision()})
+		}
+	}
+	for _, dependency := range action.binding.Dependencies {
+		visit(dependency)
+	}
+	if action.presentation != nil {
+		for _, dependency := range action.presentation.Dependencies() {
+			visit(dependency)
+		}
+	}
+	for _, presentation := range action.modifierPresentations {
+		if presentation != nil {
+			for _, dependency := range presentation.Dependencies() {
+				visit(dependency)
+			}
+		}
+	}
 }
 func RoutineProgramOf(d *catalog.Procedure) (*RoutineProgram, error) {
 	p, ok := d.SQLBody.(*RoutineProgram)
@@ -95,6 +107,9 @@ func (p *RoutineProgram) ValidateAction(view catalog.Read, i int) error {
 				return ids.ErrCatalogReplaced
 			}
 		}
+		if !dependency.Purpose.Valid() || dependency.Revision == 0 {
+			return fmt.Errorf("stuntgres: invalid routine dependency capture")
+		}
 	}
 	action := p.actions[i]
 	if action.syntax == nil || action.presentation == nil {
@@ -117,7 +132,7 @@ func (p *RoutineProgram) ValidateAction(view catalog.Read, i int) error {
 			return err
 		}
 	}
-	return nil
+	return validateRoutineCapture(action, p.actionDependencies[i], view)
 }
 func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress]ids.ObjectAddress, remap *catalog.RoutineRemap) (catalog.RoutineProgram, error) {
 	if err := p.validateDependencySet(); err != nil {
@@ -159,6 +174,9 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 		var err error
 		if a.presentation == nil {
 			return nil, fmt.Errorf("stuntgres: missing frozen routine formal namespace")
+		}
+		if err := validateRoutineCapture(*a, p.actionDependencies[i], catalog.Read{}); err != nil {
+			return nil, err
 		}
 		if err := validateRoutineScalars(a.presentation, catalog.Read{}); err != nil {
 			return nil, err

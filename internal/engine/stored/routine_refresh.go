@@ -56,6 +56,44 @@ func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.P
 
 // Type evolution keeps logical identities and references, but every affected
 // declaration and capture must own the destination descriptor generation.
+type routineTypeDependent struct {
+	source   *catalog.Procedure
+	defaults bool
+}
+
+// This is the refresh owner's reverse index, not the semantic DROP graph.
+// Support-only handles must refresh even though an aggregate has no SQL body.
+func routineTypeDependents(state *catalog.State) map[ids.ObjectAddress][]routineTypeDependent {
+	reverse := make(map[ids.ObjectAddress][]routineTypeDependent)
+	for _, descriptor := range state.Descriptors() {
+		d, ok := descriptor.(*catalog.Procedure)
+		if !ok || d.SQL == nil {
+			continue
+		}
+		add := func(dependencies []catalog.ExpressionDependency, defaults bool) {
+			for _, dependency := range dependencies {
+				if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
+					edge := routineTypeDependent{source: d, defaults: defaults}
+					duplicate := false
+					for _, old := range reverse[dependency.Ref.Address] {
+						duplicate = duplicate || old == edge
+					}
+					if !duplicate {
+						reverse[dependency.Ref.Address] = append(reverse[dependency.Ref.Address], edge)
+					}
+				}
+			}
+		}
+		if d.SQLDefaults != nil {
+			add(d.SQLDefaults.Dependencies(), true)
+		}
+		if d.SQLBody != nil {
+			add(d.SQLBody.Dependencies(), false)
+		}
+	}
+	return reverse
+}
+
 // Unchanged declarations and payloads retain their immutable pointer identity.
 func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sqltype.Descriptor) *sqltype.Descriptor, remap *catalog.RoutineRemap) error {
 	type refresh struct {
@@ -120,32 +158,9 @@ func reownSQLRoutineTypes(view catalog.Read, state *catalog.State, typ func(*sql
 	if len(changes) == 0 {
 		return nil
 	}
-	// Propagate changed callable carriers through the existing hard dependency
-	// graph, without repeated whole-catalog scans or textual name resolution.
-	type dependent struct {
-		source   *catalog.Procedure
-		defaults bool
-	}
-	reverse := make(map[ids.ObjectAddress][]dependent)
-	for _, descriptor := range state.Descriptors() {
-		d, ok := descriptor.(*catalog.Procedure)
-		if !ok || d.SQL == nil {
-			continue
-		}
-		add := func(dependencies []catalog.ExpressionDependency, defaults bool) {
-			for _, dependency := range dependencies {
-				if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
-					reverse[dependency.Ref.Address] = append(reverse[dependency.Ref.Address], dependent{source: d, defaults: defaults})
-				}
-			}
-		}
-		if d.SQLDefaults != nil {
-			add(d.SQLDefaults.Dependencies(), true)
-		}
-		if d.SQLBody != nil {
-			add(d.SQLBody.Dependencies(), false)
-		}
-	}
+	// Propagate through complete runtime capture manifests, including aggregate
+	// support. Aggregate descriptors have SQL=nil and cannot bridge this walk.
+	reverse := routineTypeDependents(state)
 	// The queue grows while visiting dependents, so its bound is not fixed.
 	for i := 0; i < len(queue); i++ {
 		for _, edge := range reverse[queue[i]] {
