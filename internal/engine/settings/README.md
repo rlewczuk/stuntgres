@@ -148,6 +148,33 @@ lookup. Providers still use pure parsing/normalization (including name clipping)
 with silent initialization; replacement physical sessions capture defaults anew.
 
 
+## Compatibility settings
+
+`allow_alter_system`, `array_nulls`, `backslash_quote`,
+`escape_string_warning`, `lo_compat_privileges`, `synchronize_seqscans` and
+`transform_null_equals` are setting-only simulations. Their released metadata
+and typed values do not enable ALTER SYSTEM, array-input changes, lexer warnings
+or rejection, large-object privilege bypass, synchronized scans or null-comparison
+rewriting. No configuration file, reload, restart or process operation is implied.
+`standard_conforming_strings` retains its real per-command parser consumer;
+`quote_all_identifiers` retains its real SQL-fragment presentation consumer.
+
+All nine are unrestricted reads. `lo_compat_privileges` writes require superuser
+or effective parameter SET privilege, not ALTER SYSTEM or read-all-settings
+membership. RESET ALL restores its captured default even after SET is revoked;
+individual RESET rechecks current authority.
+
+The builtin-only `Sighup` class projects SQL context `sighup`.
+`allow_alter_system` remains on: all individual live mutations fail 55P02
+“cannot be changed now” before value parsing, regardless of grants. RESET ALL
+skips it. A native default provider may supply a normalized same-value alias
+with source `client`, but cannot change its initial value; custom registration
+cannot select Sighup or StartupOnly. The other eight settings capture trusted
+typed provider defaults normally, without provider reentry on RESET.
+`backslash_quote` exposes only `safe_encoding,on,off`; exact case-insensitive
+hidden aliases true/yes/1 and false/no/0 canonicalize to on/off. Unlike Boolean
+settings, enum prefixes and padded values are rejected.
+
 ## What stays in the engine
 
 SET/RESET/SHOW execution, `current_setting`/`set_config` and RESET ALL stay
@@ -167,6 +194,7 @@ parsing, registry metadata, simulated startup defaults and raw integer/real form
 ```sh
 make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers|ApplicationNameNormalizer|ParseSearchPath|SettingsMetadata(Raw|Registry)|PhysicalSettingsDefinitions)$$'
 make check RUN='^Test(ClientSettings(BootAndStartup|KeywordLists|ProviderCapture)|ClientCatalogNameNormalization|ClientPrivilegedResetAll|Settings(XMLOption|ClientListFlattening)|SettingAccessAllowedCallback)$$'
+make check RUN='^TestCompatible(Settings(Definitions|ProviderCapture|ResetAll)|BackslashQuoteNormalization)$$'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in

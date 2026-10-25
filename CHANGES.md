@@ -1,3 +1,11 @@
+Compatibility settings now cover all nine names through the typed registry,
+including hidden backslash_quote aliases, sighup mutation precedence and
+lo_compat_privileges parameter SET authority. Seven newly exposed switches are
+explicit setting-only simulations, not array/lexer/security/rewrite/scan or
+configuration-file effects. Existing standard-string parsing and identifier
+quoting consumers remain active; settings retain transactional and physical
+session lifecycle semantics.
+
 Client connection defaults now cover the complete 46-setting family through
 the existing typed registry, with released metadata, boot/startup distinctions,
 catalog-aware AM/tablespace validation, parameter SET authority, independent

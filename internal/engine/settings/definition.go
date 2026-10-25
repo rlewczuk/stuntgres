@@ -32,6 +32,7 @@ const (
 	ReadOnly
 	Privileged
 	StartupOnly
+	Sighup
 )
 
 // Unit is the base unit of a numeric setting.

@@ -23,14 +23,24 @@ func builtinMetadata(d Definition) Definition {
 		d.Category = "Statistics / Monitoring"
 	case "server_encoding":
 		d.Category = "Preset Options"
-	case "standard_conforming_strings", "quote_all_identifiers":
+	case "array_nulls", "backslash_quote", "escape_string_warning", "lo_compat_privileges", "standard_conforming_strings", "quote_all_identifiers", "synchronize_seqscans":
 		d.Category = "Version and Platform Compatibility / Previous PostgreSQL Versions"
+	case "allow_alter_system", "transform_null_equals":
+		d.Category = "Version and Platform Compatibility / Other Platforms and Clients"
 	case "max_parallel_workers_per_gather":
 		d.Category = "Resource Usage / Worker Processes"
 	case "enable_async_append":
 		d.Category = "Query Tuning / Planner Method Configuration"
 	}
 	switch d.Name {
+	case "allow_alter_system":
+		d.ExtraDescription = "Can be set to off for environments where global configuration changes should be made using a different method."
+	case "array_nulls":
+		d.ExtraDescription = "When turned on, unquoted NULL in an array input value means a null value; otherwise it is taken literally."
+	case "lo_compat_privileges":
+		d.ExtraDescription = "Skips privilege checks when reading or modifying large objects, for compatibility with PostgreSQL releases prior to 9.0."
+	case "transform_null_equals":
+		d.ExtraDescription = "When turned on, expressions of the form expr = NULL (or NULL = expr) are treated as expr IS NULL, that is, they return true if expr evaluates to the null value, and false otherwise. The correct behavior of expr = NULL is to always return null (unknown)."
 	case "event_triggers":
 		d.ExtraDescription = "When enabled, event triggers will fire for all applicable statements."
 	case "gin_fuzzy_search_limit":

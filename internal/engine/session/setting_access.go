@@ -7,11 +7,13 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// SettingAccess checks whether d may be set at all: startup-only and
+// SettingAccess checks whether d may be set at all: startup-only, sighup and
 // read-only settings are refused, and privileged ones need a parameter grant.
 // allowed reports current operation authority for explicitly eligible builtins.
 func SettingAccess(d settings.Definition, allowed func(name string) (bool, error)) error {
 	switch d.Access {
+	case settings.Sighup:
+		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed now`, d.Name))
 	case settings.StartupOnly:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed without restarting the server`, d.Name))
 	case settings.ReadOnly:
@@ -35,7 +37,7 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 // builtins. Custom privileged definitions and logging remain deny-only.
 func parameterGrantSetting(name string) bool {
 	switch name {
-	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role":
+	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "lo_compat_privileges":
 		return true
 	}
 	return false

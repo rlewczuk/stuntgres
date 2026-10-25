@@ -351,6 +351,9 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		"lc_monetary": "C", "lc_numeric": "C", "lc_time": "C",
 		"icu_validation_level": "warning", "extra_float_digits": "1",
 	}
+	for _, def := range compatibleSettings {
+		expected[def.name] = def.initial
+	}
 	for _, def := range physicalSettings {
 		expected[def.name] = def.value
 	}

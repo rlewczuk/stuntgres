@@ -40,7 +40,7 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 		if d.ExtraDescription != "" {
 			text(5, d.ExtraDescription)
 		}
-		text(6, [...]string{"user", "internal", "superuser", "postmaster"}[d.Access])
+		text(6, [...]string{"user", "internal", "superuser", "postmaster", "sighup"}[d.Access])
 		text(7, [...]string{"bool", "string", "integer", "real", "enum"}[d.Type])
 		text(8, fact.Source)
 		if d.Type == settings.Integer {

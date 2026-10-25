@@ -132,7 +132,7 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 			"application_name": "", "client_min_messages": "notice",
 			"lock_timeout": "0", "log_statement_stats": "off",
 			"plpgsql.check_asserts": "on",
-			"search_path": `"$user", public`, "server_encoding": "UTF8",
+			"search_path":           `"$user", public`, "server_encoding": "UTF8",
 			"track_commit_timestamp":      "off",
 			"standard_conforming_strings": "on", "statement_timeout": "0",
 			"quote_all_identifiers": "off",
@@ -140,6 +140,9 @@ func TestReferenceSettingsShowAllCurrentOverrides(t *testing.T) {
 			"lc_numeric": "C", "lc_time": "C", "icu_validation_level": "warning", "extra_float_digits": "1",
 		} {
 			expected[name] = value
+		}
+		for _, def := range compatibleSettings {
+			expected[def.name] = def.initial
 		}
 		for _, def := range physicalSettings {
 			expected[def.name] = def.value

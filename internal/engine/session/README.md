@@ -93,6 +93,10 @@ implement its slots, so either import would form a cycle.
   Eligible selected privileged builtins use effective superuser/parameter SET
   authority; custom Privileged definitions and log_statement_stats stay
   deny-only. Restricted reads remain independent of parameter SET grants.
+  `lo_compat_privileges` uses the same SET authority and unrestricted reads.
+  Builtin-only Sighup refuses live mutation before parsing or ACL callbacks;
+  providers may capture only its normalized initial value. RESET ALL skips
+  Sighup along with startup-only settings.
   SET list flattening distinguishes raw keyword lists from quote-reconstructed
   tablespace/preload lists. Catalog-dependent client setting checks run in the
   root before the atomic install window, not under session locks. Simulated

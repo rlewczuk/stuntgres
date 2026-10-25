@@ -98,6 +98,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   NULL file fields; RESET restores the actual captured client/config source;
   unauthorized readers never see file fields. Ordinary-login scenarios use
   the fixture's role-core-fixture password convention.
+- Compatibility settings: `RUN='^TestReferenceCompatibleSettings'` covers all
+  nine released descriptors and unrestricted reads, Boolean/hidden-enum input,
+  sighup precedence, parameter SET authority, transaction/savepoint and physical
+  attachment lifecycle, native controls and the seven setting-only simulations.
+  Integer sentinel rows constrain logical-state preservation without claiming
+  absent array, lexer, large-object security, rewrite or physical scan effects.
 - Timeouts: `RUN='^TestReference(Timeout|SettingsPublicTimeout)'`
 - Physical-session adapter: `RUN='^TestReferenceSession(PhysicalControls|DecimalInteger|Reset|AdapterCancellation|ShowCommand)'`
 - Direct-message batches: `RUN='^TestReferenceDriverBatch'`

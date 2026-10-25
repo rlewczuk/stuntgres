@@ -24,6 +24,10 @@ func TestSettingAccessAllowedCallback(t *testing.T) {
 	}{
 		{name: "user", d: settings.Definition{Name: "application_name", Access: settings.Session}},
 		{name: "startup", d: settings.Definition{Name: "port", Access: settings.StartupOnly}, code: "55P02", message: `parameter "port" cannot be changed without restarting the server`},
+		{name: "sighup", d: settings.Definition{Name: "allow_alter_system", Access: settings.Sighup}, allowed: true, code: "55P02", message: `parameter "allow_alter_system" cannot be changed now`},
+		{name: "large object granted", d: settings.Definition{Name: "lo_compat_privileges", Access: settings.Privileged}, allowed: true, consults: true},
+		{name: "large object denied", d: settings.Definition{Name: "lo_compat_privileges", Access: settings.Privileged}, consults: true, code: "42501", message: `permission denied to set parameter "lo_compat_privileges"`},
+		{name: "large object failure", d: settings.Definition{Name: "lo_compat_privileges", Access: settings.Privileged}, failure: refuse, consults: true},
 		{name: "read-only", d: settings.Definition{Name: "server_version", Access: settings.ReadOnly}, code: "55P02", message: `parameter "server_version" cannot be changed`},
 		{name: "privileged other", d: settings.Definition{Name: "log_min_messages", Access: settings.Privileged}, code: "42501", message: `permission denied to set parameter "log_min_messages"`},
 		{name: "lc_messages granted", d: settings.Definition{Name: "lc_messages", Access: settings.Privileged}, allowed: true, consults: true},
@@ -67,7 +71,7 @@ func TestSettingAccessAllowedCallback(t *testing.T) {
 
 func TestClientPrivilegedResetAll(t *testing.T) {
 	store := &SettingsStore{Values: make(map[string]string), Typed: make(map[string]settings.Value)}
-	for _, name := range []string{"lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "custom.privileged", "log_statement_stats"} {
+	for _, name := range []string{"lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "lo_compat_privileges", "custom.privileged", "log_statement_stats"} {
 		store.Values[name] = "changed"
 	}
 	custom, err := settings.Validate(settings.Definition{Name: "custom.privileged", Type: settings.String, Access: settings.Privileged})
