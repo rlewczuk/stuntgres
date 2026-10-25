@@ -66,7 +66,7 @@ func definitionDefaultPublication(t *testing.T) {
 		t.Fatal("mark or publication mutated retained read")
 	}
 	var output bytes.Buffer
-	err = e.Dump(context.Background(), &output)
+	err = Dump(context.Background(), e, &output)
 	var state interface{ SQLState() string }
 	if err == nil || err.Error() != "stuntgres: multiple default operator classes cannot be dumped" || errors.As(err, &state) || output.Len() != 0 || e.CatalogRead().State() != committed.State() {
 		t.Fatal("nonrepresentable Dump changed state, diagnostics or writer", err, output.String())
@@ -105,11 +105,11 @@ func definitionDefaultPublication(t *testing.T) {
 	e.Catalog.State = temporary
 	e.Mu.Unlock()
 	var encoded bytes.Buffer
-	if err := e.Dump(context.Background(), &encoded); err != nil {
+	if err := Dump(context.Background(), e, &encoded); err != nil {
 		t.Fatal("one persistent plus one TEMP default must remain representable", err)
 	}
 	fresh := New()
-	if err := fresh.Restore(context.Background(), bytes.NewReader(encoded.Bytes())); err != nil {
+	if err := Restore(context.Background(), fresh, bytes.NewReader(encoded.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	restoredMethod, _ := fresh.CatalogRead().LookupAccessMethod("journal_default_am")

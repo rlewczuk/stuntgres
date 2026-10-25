@@ -333,13 +333,13 @@ func TestRowLockViewStored(t *testing.T) {
 		sessionSQL(t, b, "ALTER TABLE t RENAME COLUMN v TO val")
 		sessionSQL(t, b, "ALTER TABLE t DROP COLUMN id")
 		var dump bytes.Buffer
-		if err := e.Dump(context.Background(), &dump); err != nil {
+		if err := Dump(context.Background(), e, &dump); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(dump.String(), "FOR UPDATE") {
 			t.Fatal("lost stored mark", dump.String())
 		}
-		if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+		if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
 		ar := transactionBegin(t, a)

@@ -289,14 +289,14 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	defer closePeer()
 	beforeAdmin, beforePeer := admin.RoleState(), peer.RoleState()
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	roles := e.RoleStore.Published
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	if admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer || e.RoleStore.Published != roles {
@@ -318,7 +318,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	// All reset spellings share the existing normalized administrative-reset
 	// AST. They reset only Restore's isolated session, never the live callers.
 	for _, query := range []string{"RESET SESSION AUTHORIZATION", "SET SESSION AUTHORIZATION DEFAULT", "SET AUTHORIZATION DEFAULT"} {
-		if err := e.Restore(context.Background(), strings.NewReader(dump.String()+query+"; CREATE TABLE reset_owner_marker(id INT);")); err != nil {
+		if err := Restore(context.Background(), e, strings.NewReader(dump.String()+query+"; CREATE TABLE reset_owner_marker(id INT);")); err != nil {
 			t.Fatal("restore administrative reset", query, err)
 		}
 		if admin.RoleState() != beforeAdmin || peer.RoleState() != beforePeer || e.RoleStore.Published != roles {
@@ -338,7 +338,7 @@ func TestRoleDumpRestorePreservesLiveIdentities(t *testing.T) {
 	}
 	before := e.Catalog.State
 	for _, query := range []string{"SET AUTHORIZATION 'postgres'", "CREATE ROLE forbidden_restore_role", `ALTER ROLE "a'quote" NOLOGIN`, `DROP ROLE "b\slash"`} {
-		err := e.Restore(context.Background(), strings.NewReader(dump.String()+"SET SESSION AUTHORIZATION DEFAULT; CREATE TABLE unpublished(id INT); "+query+";"))
+		err := Restore(context.Background(), e, strings.NewReader(dump.String()+"SET SESSION AUTHORIZATION DEFAULT; CREATE TABLE unpublished(id INT); "+query+";"))
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
 			t.Fatal("restore accepted forbidden owner mutation", query, err)

@@ -453,10 +453,10 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleIdentity(t, e, op, "typed_owner")
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader("SET SESSION AUTHORIZATION 'typed_owner'; CREATE TABLE typed_owned(id INT NOT NULL); INSERT INTO typed_owned VALUES(9)")); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader("SET SESSION AUTHORIZATION 'typed_owner'; CREATE TABLE typed_owned(id INT NOT NULL); INSERT INTO typed_owned VALUES(9)")); err != nil {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().LookupType(19)

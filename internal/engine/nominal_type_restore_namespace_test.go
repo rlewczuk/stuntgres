@@ -27,14 +27,14 @@ func TestNominalTypeRestorePublicNamespaceAuthority(t *testing.T) {
 	roleError(t, e, op, "CREATE TYPE public.record_denied AS (i INT)", "42501", "permission denied for schema public", "")
 	roleExecute(t, e, op, "RESET ROLE")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	done()
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal("genuine named-owner domain stream", err)
 	}
 	read, finish := roleOperation(t, e, "postgres")
@@ -68,7 +68,7 @@ func TestNominalTypeRestorePublicNamespaceAuthority(t *testing.T) {
 	roleError(t, e, read, "CREATE TYPE public.record_still_denied AS (i INT)", "42501", "permission denied for schema public", "")
 	roleExecute(t, e, read, "RESET ROLE")
 	var again bytes.Buffer
-	if err := e.Dump(context.Background(), &again); err != nil || again.String() != dump.String() {
+	if err := Dump(context.Background(), e, &again); err != nil || again.String() != dump.String() {
 		t.Fatal("trusted replay changed complete stream", err, again.String(), dump.String())
 	}
 }

@@ -68,7 +68,7 @@ func TestOperatorFamilyInternalOwners(t *testing.T) {
 		e := New()
 		owner := sessionStart(t, e, nil)
 		var baseline bytes.Buffer
-		if err := e.Dump(context.Background(), &baseline); err != nil {
+		if err := Dump(context.Background(), e, &baseline); err != nil {
 			t.Fatal(err)
 		}
 		ref := transactionBegin(t, owner)
@@ -121,17 +121,17 @@ func TestOperatorFamilyInternalOwners(t *testing.T) {
 			}
 		}
 		var excluded bytes.Buffer
-		if err := e.Dump(context.Background(), &excluded); err != nil || !bytes.Equal(baseline.Bytes(), excluded.Bytes()) {
+		if err := Dump(context.Background(), e, &excluded); err != nil || !bytes.Equal(baseline.Bytes(), excluded.Bytes()) {
 			t.Fatal("Dump exposed private family ownership", err)
 		}
 		transactionEnd(t, owner, ref, true)
 		check(e.CatalogRead(), familyAddress, class.Address())
 		var encoded bytes.Buffer
-		if err := e.Dump(context.Background(), &encoded); err != nil {
+		if err := Dump(context.Background(), e, &encoded); err != nil {
 			t.Fatal(err)
 		}
 		restored := New()
-		if err := restored.Restore(context.Background(), bytes.NewReader(encoded.Bytes())); err != nil {
+		if err := Restore(context.Background(), restored, bytes.NewReader(encoded.Bytes())); err != nil {
 			t.Fatal("hard-family member must replay as ALTER FAMILY", err)
 		}
 		read := restored.CatalogRead()

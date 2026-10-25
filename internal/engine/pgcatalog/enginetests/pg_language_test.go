@@ -72,7 +72,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 			t.Fatal("foreign source type admitted", i, got, err)
 		}
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	fresh := e.CatalogRead()

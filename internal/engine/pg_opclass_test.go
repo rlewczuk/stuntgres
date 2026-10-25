@@ -123,7 +123,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 			t.Fatal("partial canceled capture", rows, err)
 		}
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgOpclassUnitSource(t, e)

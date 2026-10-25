@@ -251,7 +251,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 						running.cancel()
 						transactionEnd(t, holder, holderTx, false)
 					case "reset":
-						if err := e.Reset(context.Background()); err != nil {
+						if err := Reset(context.Background(), e); err != nil {
 							t.Fatal(err)
 						}
 						transactionEnd(t, holder, holderTx, false)

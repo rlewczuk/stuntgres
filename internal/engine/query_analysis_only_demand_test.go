@@ -263,7 +263,7 @@ func TestQueryAnalysisOnlyOriginalLifetime(t *testing.T) {
 					analysisOnlyLifetimeRejected(t, kind, exec.AdmitRoutineDescriptor(RoutineAccessOf(authority), probe, selected, nil))
 				}
 			}
-			if err := e.Reset(context.Background()); err != nil { t.Fatal(err) }
+			if err := Reset(context.Background(), e); err != nil { t.Fatal(err) }
 			e.Mu.Lock()
 			after := catalogAuthorization(e, e.Catalog.Current())
 			e.Mu.Unlock()
@@ -369,7 +369,7 @@ func analysisOnlyFrozenLifetime(t *testing.T, sql string) {
 		})
 	}
 	analysisOnlyUnchanged(t, original, definition.Query().Root, definition.Dependencies())
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	replaced := e.CatalogRead()

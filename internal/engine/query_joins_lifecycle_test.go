@@ -207,7 +207,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	if len(scope.QuerySources) != 0 {
 		t.Fatal("finished scope retained admission metadata")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	// The explicit statement still authorizes logical consumption of captured
@@ -257,11 +257,11 @@ func TestQueryJoinsSecondLeafGrantRebind(t *testing.T) {
 				case "shadow":
 					run(t, e, "CREATE TABLE shadow.t(a INT)")
 				case "reset":
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				case "restore":
-					if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE l(a INT);CREATE TABLE t(a INT);INSERT INTO l VALUES(91);INSERT INTO t VALUES(91)")); err != nil {
+					if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE l(a INT);CREATE TABLE t(a INT);INSERT INTO l VALUES(91);INSERT INTO t VALUES(91)")); err != nil {
 						t.Fatal(err)
 					}
 				case "recreate":

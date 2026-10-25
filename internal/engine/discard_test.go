@@ -212,7 +212,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now',nextval('discard_retired_seq'),'integer'::regtype")
 		before := d
 		sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
-		if err := e.Reset(context.Background()); err != nil {
+		if err := Reset(context.Background(), e); err != nil {
 			t.Fatal(err)
 		}
 		sessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")

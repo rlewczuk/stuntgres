@@ -58,13 +58,13 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				}
 			}
 			var dump bytes.Buffer
-			if err := e.Dump(context.Background(), &dump); err != nil {
+			if err := Dump(context.Background(), e, &dump); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.Reset(context.Background()); err != nil {
+			if err := Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+			if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(dump.String(), err)
 			}
 			after := e.CatalogRead()
@@ -110,7 +110,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				}
 			}
 			var again bytes.Buffer
-			if err := e.Dump(context.Background(), &again); err != nil || again.String() != dump.String() {
+			if err := Dump(context.Background(), e, &again); err != nil || again.String() != dump.String() {
 				t.Fatal("unstable roundtrip", err, dump.String(), again.String())
 			}
 		})
@@ -131,7 +131,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					run(t, source, q)
 				}
 				var dump bytes.Buffer
-				if err := source.Dump(context.Background(), &dump); err != nil {
+				if err := Dump(context.Background(), source, &dump); err != nil {
 					t.Fatal(err)
 				}
 				e := New()
@@ -141,7 +141,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 					run(t, e, "DROP SCHEMA spent")
 				}
 				counter := e.Catalog.NextOID()
-				if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+				if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
 				if e.Catalog.NextOID() != counter {
@@ -221,7 +221,7 @@ func TestSchemaPublicLifecycleControls(t *testing.T) {
 				}
 				run(t, e, "DROP SCHEMA additional,nested CASCADE")
 				var again bytes.Buffer
-				if err := e.Dump(context.Background(), &again); err != nil || again.String() != dump.String() {
+				if err := Dump(context.Background(), e, &again); err != nil || again.String() != dump.String() {
 					t.Fatal("restored snapshot changed", err, again.String(), dump.String())
 				}
 			})

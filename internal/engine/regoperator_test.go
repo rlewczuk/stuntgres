@@ -135,7 +135,7 @@ func TestRegOperatorMaskingQuotedOutputAndRetention(t *testing.T) {
 		}
 	}
 	// Replacement catalog and path cannot retarget finalized row presentation.
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if text, err := rows.FormatRegoper(91000); err != nil || text != `"Reg Op".#=#` {

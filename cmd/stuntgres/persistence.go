@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"stuntgres/internal/engine"
 )
 
 const dumpTimestampLayout = "20060102150405"
@@ -104,7 +106,7 @@ func restoreDatabase(ctx context.Context, db *database, path string) error {
 	}
 	// Restore owns SQL and owner validation. In particular, a corrupt newest
 	// dump is never retried with an older file or a different SQL principal.
-	err = db.engine.Restore(ctx, file)
+	err = engine.Restore(ctx, db.engine, file)
 	return errors.Join(err, file.Close())
 }
 
@@ -113,7 +115,7 @@ func dumpDatabases(ctx context.Context, databases map[string]*database, dir stri
 	for _, name := range databaseNames(databases) {
 		db := databases[name]
 		path, err := publishDump(dir, name, time.Now(), func(dst io.Writer) error {
-			return db.engine.Dump(ctx, dst)
+			return engine.Dump(ctx, db.engine, dst)
 		})
 		level, message := slog.LevelInfo, "database dumped"
 		args := []any{"database", name, "path", path}

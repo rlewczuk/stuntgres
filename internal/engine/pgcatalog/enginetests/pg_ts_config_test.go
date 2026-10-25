@@ -99,7 +99,7 @@ func TestPGTSConfigOwnership(t *testing.T) {
 	columns := append([]catalog.Column(nil), old.Columns...)
 	oldRow, _ := oldView.LookupType(10064)
 	oldArray, _ := oldView.LookupArray(oldRow)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	freshView := e.CatalogRead()

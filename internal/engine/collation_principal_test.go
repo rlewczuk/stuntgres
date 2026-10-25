@@ -117,11 +117,11 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	defer ordinaryDone()
 	roleIdentity(t, e, ordinary, "postgres")
 	roleError(t, e, ordinary, `ALTER COLLATION pg_catalog."C" REFRESH VERSION`, "42501", `must be owner of collation C`, "")
-	if err = e.Reset(context.Background()); err != nil {
+	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	assertOwner("C")
-	if err = e.Restore(context.Background(), strings.NewReader(`CREATE COLLATION coll_bootstrap_restored FROM pg_catalog."C";`)); err != nil {
+	if err = Restore(context.Background(), e, strings.NewReader(`CREATE COLLATION coll_bootstrap_restored FROM pg_catalog."C";`)); err != nil {
 		t.Fatal(err)
 	}
 	assertOwner("C")

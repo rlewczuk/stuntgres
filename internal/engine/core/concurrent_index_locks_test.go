@@ -225,7 +225,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 						t.Fatal("late callback retained or retracted successful completion")
 					}
 				case "epoch":
-					if err := e.Reset(context.Background()); err != nil {
+					if err := engine.Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 					if err := concurrentUnitRequestWait(t, request); !errors.Is(err, ids.ErrCatalogReplaced) {

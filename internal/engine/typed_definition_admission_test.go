@@ -48,7 +48,7 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 				}
 				called = true
 				e.Catalog.Providers[ids.RelationClassID] = original
-				go func() { reset <- e.Reset(context.Background()) }()
+				go func() { reset <- Reset(context.Background(), e) }()
 				deadline := time.Now().Add(3 * time.Second)
 				for {
 					e.ReplacementMu.mu.Lock()

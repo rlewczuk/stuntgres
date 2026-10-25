@@ -164,7 +164,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 			t.Fatal("partial canceled capture", got, err)
 		}
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgRangeUnitSource(t, e)

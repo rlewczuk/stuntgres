@@ -55,7 +55,7 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 					cancel()
 				}
 				if boundary == "replace_after" {
-					if err = e.Reset(context.Background()); err != nil {
+					if err = Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -154,7 +154,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 				t.Fatal("query retained unrelated committed/private relation roots")
 			}
 			transactionEnd(t, s, tx, false)
-			if err := e.Reset(context.Background()); err != nil {
+			if err := Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
 			value, err = own.Source.Row(n)[0].Integer()

@@ -468,7 +468,7 @@ func TestCubeProviderControls(t *testing.T) {
 		if text, err := imported.SQLType.Output(context.Background(), mapped); err != nil || text != "(3, 1),(1, 4)" {
 			t.Fatal("imported codec", text, err)
 		}
-		if err := source.Reset(context.Background()); err != nil {
+		if err := Reset(context.Background(), source); err != nil {
 			t.Fatal(err)
 		}
 		if text, err := base.SQLType.Output(context.Background(), value); err != nil || text != "(3, 1),(1, 4)" {

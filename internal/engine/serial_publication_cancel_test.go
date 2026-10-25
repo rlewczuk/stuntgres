@@ -27,7 +27,7 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 				e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider,func(){ once.Do(func(){
 					e.Catalog.Providers[ids.RelationClassID] = provider
 					if replacement {
-						go func(){ reset <- e.Reset(context.Background()) }()
+						go func(){ reset <- Reset(context.Background(), e) }()
 						deadline := time.Now().Add(5*time.Second)
 						for {
 							e.ReplacementMu.mu.Lock()

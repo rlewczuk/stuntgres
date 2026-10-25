@@ -253,7 +253,7 @@ func TestSchemaAuthorizationAndIndependentOwners(t *testing.T) {
 	}
 	schemaFail(t, e, admin, "ALTER SCHEMA owned OWNER TO absent", "42704")
 	var out bytes.Buffer
-	if err = e.Dump(context.Background(), &out); err == nil || out.Len() != 0 {
+	if err = Dump(context.Background(), e, &out); err == nil || out.Len() != 0 {
 		t.Fatal("ACL dump wrote output", err, out.String())
 	}
 	roleExecute(t, e, admin, "SET SESSION AUTHORIZATION reader")
@@ -267,7 +267,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	run(t, e, "CREATE USER later_owner")
 	script := `CREATE SCHEMA empty AUTHORIZATION schema_owner; CREATE SCHEMA mixed AUTHORIZATION schema_owner; SET SESSION AUTHORIZATION table_owner; CREATE TABLE mixed.t(id INT NOT NULL,note TEXT,flag BOOL,big BIGINT); INSERT INTO mixed.t VALUES(7,NULL,true,9223372036854775807);`
 	script += `CREATE TABLE mixed.u(id INT); INSERT INTO mixed.u VALUES(8); SET SESSION AUTHORIZATION schema_owner; CREATE TABLE mixed.owned(id INT); INSERT INTO mixed.owned VALUES(9); SET SESSION AUTHORIZATION table_owner; CREATE TABLE mixed.more(id INT); INSERT INTO mixed.more VALUES(11); SET SESSION AUTHORIZATION later_owner; CREATE TABLE mixed.v(id INT); INSERT INTO mixed.v VALUES(9);`
-	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(script)); err != nil {
 		t.Fatal(err)
 	}
 	ns := schemaRef(t, e, "mixed")
@@ -325,7 +325,7 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	assertMixed()
 	held := run(t, e, "SELECT * FROM mixed.t")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(dump.String(), `CREATE SCHEMA "empty" AUTHORIZATION "schema_owner";`) {
@@ -333,14 +333,14 @@ func TestSchemaRestoreIndependentOwnersAndAtomicFailure(t *testing.T) {
 	}
 	before := e.CatalogRead()
 	for _, bad := range []string{"CREATE SCHEMA x AUTHORIZATION absent;", "CREATE SCHEMA x AUTHORIZATION schema_owner; SET SESSION AUTHORIZATION table_owner; CREATE TABLE x.t(id INT); INSERT INTO x.t VALUES(17); INSERT INTO missing VALUES(1);", "CREATE SCHEMA x; CREATE TABLE x.t(id INT); CREATE TABLE x.t(id INT);"} {
-		if err := e.Restore(context.Background(), strings.NewReader(bad)); err == nil || e.CatalogRead().State() != before.State() {
+		if err := Restore(context.Background(), e, strings.NewReader(bad)); err == nil || e.CatalogRead().State() != before.State() {
 			t.Fatal("failed restore changed target", bad, err)
 		}
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	fresh := roleTableRef(t, e, "mixed.t")

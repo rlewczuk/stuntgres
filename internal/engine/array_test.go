@@ -514,9 +514,9 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	domainUnitPublish(t, unrelated, domainUnitStage(t, unrelated, actor, "CREATE DOMAIN public.array_temp_di AS INT"))
 	finish()
 	for _, replace := range []func() error{
-		func() error { return e.Reset(ctx) },
+		func() error { return Reset(ctx, e) },
 		func() error {
-			return e.Restore(ctx, strings.NewReader("CREATE DOMAIN public.array_temp_di AS INT; CREATE TABLE public.array_component(a public.array_temp_di[]);"))
+			return Restore(ctx, e, strings.NewReader("CREATE DOMAIN public.array_temp_di AS INT; CREATE TABLE public.array_component(a public.array_temp_di[]);"))
 		},
 		func() error { _, err := e.ReplaceCatalog(ctx, unrelated, unrelated.CatalogRead()); return err },
 	} {

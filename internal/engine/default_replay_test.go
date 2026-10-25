@@ -94,7 +94,7 @@ func TestPGDependDefaultReplayMandatoryCycles(t *testing.T) {
 			run(t, e, declaration+`)`)
 			run(t, e, `CREATE OR REPLACE VIEW provider AS SELECT a FROM consumer`)
 			var dump bytes.Buffer
-			err := e.Dump(context.Background(), &dump)
+			err := Dump(context.Background(), e, &dump)
 			if err == nil || !strings.Contains(err.Error(), "cyclic view dump dependencies") {
 				t.Fatalf("mandatory cycle returned %v", err)
 			}

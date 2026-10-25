@@ -56,7 +56,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 					t.Fatal("invalid source row fixture", ref)
 				}
 			}
-			if err := e.Reset(context.Background()); err != nil {
+			if err := Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
 			if e.CatalogRead().Epoch() == oldEpoch || e.CatalogRead().Get(source.Address()) != source {
@@ -204,7 +204,7 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	if !slices.Contains(oldGeneration.Dependencies, oldRef) || !slices.Contains(oldManifest, oldRef) {
 		t.Fatal("fixture lacks retained external literal provider")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	op, err := owner.Acquire(context.Background())

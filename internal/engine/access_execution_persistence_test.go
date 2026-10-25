@@ -15,11 +15,11 @@ import (
 func TestAccessExecutionACLRawPersistence(t *testing.T) {
 	e:=New();s:=sessionStart(t,e,nil)
 	for _,q:=range []string{"CREATE ROLE ae_owner","CREATE ROLE ae_grantor","CREATE ROLE ae_reader","ALTER SCHEMA public OWNER TO ae_owner","CREATE FUNCTION ae_raw() RETURNS integer RETURN 1","CREATE FUNCTION ae_absent() RETURNS integer RETURN 2","CREATE FUNCTION ae_empty() RETURNS integer RETURN 3","CREATE FUNCTION ae_equivalent() RETURNS integer RETURN 4","ALTER FUNCTION ae_raw() OWNER TO ae_owner","REVOKE EXECUTE ON FUNCTION ae_raw() FROM PUBLIC","GRANT EXECUTE ON FUNCTION ae_raw() TO ae_grantor WITH GRANT OPTION","SET ROLE ae_grantor","GRANT EXECUTE ON FUNCTION ae_raw() TO ae_reader","RESET ROLE","REVOKE EXECUTE ON FUNCTION ae_empty() FROM PUBLIC,postgres","GRANT EXECUTE ON FUNCTION ae_equivalent() TO PUBLIC"} {sessionSQL(t,s,q)}
-	var out bytes.Buffer;if err:=e.Dump(context.Background(),&out);err!=nil {t.Fatal(err)}
+	var out bytes.Buffer;if err:=Dump(context.Background(), e, &out);err!=nil {t.Fatal(err)}
 	if !strings.Contains(out.String(),"ae_reader=X/ae_grantor") {t.Fatal("named delegated grantor not rendered")}
 	next:=New();destination:=sessionStart(t,next,nil)
 	for _,q:=range []string{"CREATE ROLE ae_reader","CREATE ROLE ae_grantor","CREATE ROLE ae_owner"} {sessionSQL(t,destination,q)}
-	if err:=next.Restore(context.Background(),strings.NewReader(out.String()));err!=nil {t.Fatal(err)}
+	if err:=Restore(context.Background(), next, strings.NewReader(out.String()));err!=nil {t.Fatal(err)}
 	read:=next.CatalogRead();roles:=next.RoleStore.PublishedRead(&next.Catalog.Owner,read)
 	get:=func(name string)*catalog.Procedure {
 		a:=read.NameAddress(ids.NameKey{ClassID:ids.ProcedureClassID,Namespace:ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:ids.PublicNamespaceOID},Name:name})

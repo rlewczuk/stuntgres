@@ -215,7 +215,7 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 			pgParameterACLUnitEntries(t, f.e, row[4], map[uint32][3]uint32{})
 		}
 	}
-	if err := f.e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), f.e); err != nil {
 		t.Fatal(err)
 	}
 	if defaultACLUnitCapture(t, f, f.e.CatalogRead()).Count() != 0 || captured.Count() != 7 {

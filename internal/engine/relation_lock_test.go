@@ -363,9 +363,9 @@ func TestRelationLockReplacement(t *testing.T) {
 			lockPending(t, e, 1)
 			var err error
 			if restore {
-				err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT); INSERT INTO t VALUES(9);"))
+				err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT); INSERT INTO t VALUES(9);"))
 			} else {
-				err = e.Reset(context.Background())
+				err = Reset(context.Background(), e)
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -390,7 +390,7 @@ func TestRelationLockReplacement(t *testing.T) {
 		ra := transactionBegin(t, a)
 		sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 		epoch := e.CatalogRead().Epoch()
-		if err := e.Restore(context.Background(), strings.NewReader("INSERT INTO absent VALUES(1)")); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader("INSERT INTO absent VALUES(1)")); err == nil {
 			t.Fatal("expected failure")
 		}
 		if e.CatalogRead().Epoch() != epoch {

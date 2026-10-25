@@ -35,9 +35,9 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 						}
 						var err error
 						if replacement == "reset" {
-							err = e.Reset(context.Background())
+							err = Reset(context.Background(), e)
 						} else {
-							err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);"))
+							err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);"))
 						}
 						if err != nil {
 							t.Fatal(err)

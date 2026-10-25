@@ -82,7 +82,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 				cancel()
 			}
 			if mode == "reset" {
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			}

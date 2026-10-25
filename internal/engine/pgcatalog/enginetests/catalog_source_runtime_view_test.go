@@ -128,8 +128,8 @@ func TestCatalogSourceRuntimeViewReferencesRetainedTemporary(t *testing.T) {
 		name    string
 		replace func() error
 	}{
-		{"reset", func() error { return e.Reset(t.Context()) }},
-		{"restore", func() error { return e.Restore(t.Context(), strings.NewReader("CREATE TABLE runtime_marker(v INT);")) }},
+		{"reset", func() error { return engine.Reset(t.Context(), e) }},
+		{"restore", func() error { return engine.Restore(t.Context(), e, strings.NewReader("CREATE TABLE runtime_marker(v INT);")) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := tc.replace(); err != nil {

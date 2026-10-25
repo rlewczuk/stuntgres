@@ -216,7 +216,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		t.Fatal("invalid attribute number accepted")
 	}
 	stage := e.BeginCatalogStage(view)
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE public.bad (x INTEGER); nonsense")); err == nil {
+	if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE public.bad (x INTEGER); nonsense")); err == nil {
 		t.Fatal("malformed restore accepted")
 	}
 	if e.CatalogRead().Epoch() != view.Epoch() {
@@ -244,7 +244,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 		t.Fatalf("epoch exhaustion: %v", err)
 	}
 	setEpoch(view.Epoch())
-	if err = e.Reset(context.Background()); err != nil {
+	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: view.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -656,10 +656,10 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	stage := target.BeginCatalogStage(before)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := target.Restore(ctx, strings.NewReader("CREATE TABLE public.other (id INTEGER)")); !errors.Is(err, context.Canceled) {
+	if err := Restore(ctx, target, strings.NewReader("CREATE TABLE public.other (id INTEGER)")); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled restore: %v", err)
 	}
-	if err := target.Restore(context.Background(), strings.NewReader("nonsense")); err == nil {
+	if err := Restore(context.Background(), target, strings.NewReader("nonsense")); err == nil {
 		t.Fatal("bad restore accepted")
 	}
 	if target.Catalog.Domain != owner || target.CatalogRead().State() != before.State() {
@@ -675,10 +675,10 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if _, err := target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatalf("failed restore fenced eligible stage: %v", err)
 	}
-	if err := target.Reset(context.Background()); err != nil || target.Catalog.Domain != owner {
+	if err := Reset(context.Background(), target); err != nil || target.Catalog.Domain != owner {
 		t.Fatalf("reset ownership: %v", err)
 	}
-	if err := source.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), source); err != nil {
 		t.Fatal(err)
 	}
 	after := target.CatalogRead()

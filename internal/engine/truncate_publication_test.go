@@ -116,7 +116,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "epoch":
-				if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE p(id INT PRIMARY KEY); INSERT INTO p VALUES(9);")); err != nil {
+				if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE p(id INT PRIMARY KEY); INSERT INTO p VALUES(9);")); err != nil {
 					t.Fatal(err)
 				}
 			}

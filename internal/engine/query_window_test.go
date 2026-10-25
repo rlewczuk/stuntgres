@@ -273,7 +273,7 @@ func TestQueryWindowBorrowedOverlayAndPayloadOwnership(t *testing.T) {
 	}
 	defer rows.Close()
 	run(t, e, "INSERT INTO t VALUES(5,9,FALSE)")
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	tuple := make([]sqltype.Value, 1)
@@ -294,7 +294,7 @@ func TestQueryWindowBorrowedOverlayAndPayloadOwnership(t *testing.T) {
 	run(t, e, "CREATE VIEW payload_view AS SELECT id,b,row_number() OVER(ORDER BY id DESC) AS rn FROM payload")
 	borrowed := run(t, e, "SELECT b FROM payload_view ORDER BY rn").Rows
 	defer borrowed.Close()
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	var retained sqltype.Value
@@ -375,11 +375,11 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	oldEnum := domainUnitType(t, e.CatalogRead(), "window_enum").SQLType
 	oldDomain := domainUnitType(t, e.CatalogRead(), "window_domain").SQLType
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	fresh := New()
-	if err := fresh.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), fresh, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	newEnum := domainUnitType(t, fresh.CatalogRead(), "window_enum").SQLType

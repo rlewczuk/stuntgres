@@ -38,7 +38,7 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 			}
 			for range 2 {
 				var dump bytes.Buffer
-				if err := e.Dump(context.Background(), &dump); err != nil {
+				if err := Dump(context.Background(), e, &dump); err != nil {
 					t.Fatal(err)
 				}
 				foreignPosition := strings.Index(dump.String(), `ALTER TABLE ONLY "public"."p" ADD CONSTRAINT "forward_fk"`)
@@ -67,10 +67,10 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 				if !found {
 					t.Fatal("missing genuine validated FK declaration", dump.String())
 				}
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
-				if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+				if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err, dump.String())
 				}
 				if got := tuples(run(t, e, "SELECT a FROM ONLY p")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}}) {
@@ -216,22 +216,22 @@ func TestRestoreInheritedForeignKeyAtomicity(t *testing.T) {
 	storage := e.Storage.Relations[sentinel.Address]
 	const declarations = "CREATE TABLE public.support(k INT UNIQUE);CREATE TABLE public.p(a INT,CONSTRAINT ordinary_fk FOREIGN KEY(a) REFERENCES public.support(k));CREATE TABLE public.c(k INT UNIQUE) INHERITS(public.p);INSERT INTO public.support VALUES(2);INSERT INTO public.p VALUES(2);INSERT INTO public.c(a,k) VALUES(NULL,1);"
 	const foreign = "ALTER TABLE ONLY public.p ADD CONSTRAINT forward_fk FOREIGN KEY(a) REFERENCES public.c(k);"
-	err := e.Restore(context.Background(), strings.NewReader(declarations+foreign))
+	err := Restore(context.Background(), e, strings.NewReader(declarations+foreign))
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23503" || diagnostic.Message != `insert or update on table "p" violates foreign key constraint "forward_fk"` || diagnostic.Detail != `Key (a)=(2) is not present in table "c".` || diagnostic.Table != "p" || diagnostic.Constraint != "forward_fk" {
 		t.Fatal("late validated FK lost the native English violation", err, diagnostic)
 	}
-	state(t, e.Restore(context.Background(), strings.NewReader(declarations+foreign+foreign)), "42710")
-	state(t, e.Restore(context.Background(), strings.NewReader(declarations+strings.Replace(foreign, "public.c(k)", "public.c(a)", 1))), "42830")
+	state(t, Restore(context.Background(), e, strings.NewReader(declarations+foreign+foreign)), "42710")
+	state(t, Restore(context.Background(), e, strings.NewReader(declarations+strings.Replace(foreign, "public.c(k)", "public.c(a)", 1))), "42830")
 	for _, script := range []string{
 		declarations + "SET SESSION AUTHORIZATION fk_receipt_owner;" + foreign,
 		"CREATE SCHEMA owned AUTHORIZATION fk_receipt_owner;SET SESSION AUTHORIZATION fk_receipt_owner;CREATE TABLE owned.p(a INT);SET SESSION AUTHORIZATION postgres;CREATE TABLE public.c(k INT UNIQUE) INHERITS(owned.p);SET SESSION AUTHORIZATION fk_receipt_owner;ALTER TABLE ONLY owned.p ADD CONSTRAINT forward_fk FOREIGN KEY(a) REFERENCES public.c(k);",
 	} {
-		state(t, e.Restore(context.Background(), strings.NewReader(script)), "42501")
+		state(t, Restore(context.Background(), e, strings.NewReader(script)), "42501")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.Restore(ctx, strings.NewReader(declarations+foreign)); !errors.Is(err, context.Canceled) {
+	if err := Restore(ctx, e, strings.NewReader(declarations+foreign)); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.Catalog.State != before || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Storage.Relations[sentinel.Address] != storage || !reflect.DeepEqual(tuples(run(t, e, "SELECT a FROM sentinel")), [][]driver.Value{{int64(91)}}) {

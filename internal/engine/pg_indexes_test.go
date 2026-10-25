@@ -227,7 +227,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 	if !reflect.DeepEqual(pgIndexesUnitRows(t, retained), want) || !reflect.DeepEqual(pgIndexesUnitRows(t, pgIndexesUnitCapture(t, old, auth)), want) {
 		t.Fatal("capture read current names/ACL")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(pgIndexesUnitRows(t, pgIndexesUnitCapture(t, old, auth)), want) {

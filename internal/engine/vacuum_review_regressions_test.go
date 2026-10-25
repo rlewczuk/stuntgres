@@ -151,7 +151,7 @@ func TestVacuumF3ImportedStatistics(t *testing.T) {
 				}
 			}
 			if mode == "restore" {
-				if err := target.Restore(context.Background(), strings.NewReader("CREATE TABLE review_import(id INT); INSERT INTO review_import VALUES(1),(2);")); err != nil {
+				if err := Restore(context.Background(), target, strings.NewReader("CREATE TABLE review_import(id INT); INSERT INTO review_import VALUES(1),(2);")); err != nil {
 					t.Fatal(err)
 				}
 			} else if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {

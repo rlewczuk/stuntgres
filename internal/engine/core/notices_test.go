@@ -295,7 +295,7 @@ func TestNoticesCapturedDefaults(t *testing.T) {
 func TestNoticesPublicationReplacement(t *testing.T) {
 	e := engine.New()
 	e.Catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{Provider: e.Catalog.Providers[ids.RelationClassID], publishWinner: func(d catalog.Descriptor) {
-		if err := e.Reset(context.Background()); err != nil {
+		if err := engine.Reset(context.Background(), e); err != nil {
 			t.Fatal(err)
 		}
 		enginetest.Run(t, e, "CREATE TABLE epoch_rows(kept TEXT)")

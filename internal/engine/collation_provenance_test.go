@@ -33,7 +33,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	}
 	expiredRef := e.Catalog.Domain.Ref(before.Epoch(), expiredAddress)
 	sessionSQL(t, owner, `DROP COLLATION pg_temp.expired_provider`)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()

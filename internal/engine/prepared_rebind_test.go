@@ -107,7 +107,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		t.Fatal("replacement dependency reused old identity")
 	}
 	_, native := sequencePreparedDescription(t, e, s, "SELECT v FROM b.t")
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if preparedRebindValid(t, e, s, native.analysis) {
@@ -386,7 +386,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		ast, description := sequencePreparedDescription(t, engine, session, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('source_q'),'integer'::regtype FROM source")
 		old := description
 		sequence, regtype := *description.Sequences, *description.regtypes
-		if err := engine.Reset(context.Background()); err != nil {
+		if err := Reset(context.Background(), engine); err != nil {
 			t.Fatal(err)
 		}
 		for _, q := range []string{"CREATE TABLE source(v INT)", "CREATE SEQUENCE source_q"} {

@@ -316,7 +316,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope = nil
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if name, err := retained.FormatACLRole(&e.RoleStore.ACLAuthority, uint32(reader.ID())); err != nil || name != "grant_reader" {

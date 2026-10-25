@@ -131,7 +131,7 @@ func TestTransactionIsolationRootLifecycle(t *testing.T) {
 	}
 	enginetest.SessionSQL(t, a, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	enginetest.TransactionRows(t, a, "SELECT v FROM t", 2)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	done := enginetest.LockAsync(e, a, context.Background(), "SELECT num_nonnulls(1)", false)

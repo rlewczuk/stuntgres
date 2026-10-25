@@ -112,7 +112,7 @@ func TestTransactionalIndexReplacementFences(t *testing.T) {
 				old := roleTableRef(t, e, "t")
 				bt := transactionBegin(t, b)
 				var dump bytes.Buffer
-				if err := e.Dump(context.Background(), &dump); err != nil {
+				if err := Dump(context.Background(), e, &dump); err != nil {
 					t.Fatal(err)
 				}
 				var done <-chan error
@@ -125,7 +125,7 @@ func TestTransactionalIndexReplacementFences(t *testing.T) {
 					sessionSQL(t, b, "CREATE INDEX idx ON t(n)")
 					sessionSQL(t, b, "SAVEPOINT mark")
 					prior, epoch := b.Transactions.Catalog, e.Catalog.State.Epoch()
-					if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE bad(n INT); INSERT INTO bad VALUES('bad');")); err == nil {
+					if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE bad(n INT); INSERT INTO bad VALUES('bad');")); err == nil {
 						t.Fatal("invalid Restore succeeded")
 					}
 					if b.Transactions.Catalog != prior || e.Catalog.State.Epoch() != epoch {
@@ -133,11 +133,11 @@ func TestTransactionalIndexReplacementFences(t *testing.T) {
 					}
 				}
 				if restore {
-					if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+					if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 						t.Fatal(err)
 					}
 				} else {
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				}

@@ -37,7 +37,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if len(before) != 1 || before[0].TypeID != sqltype.Date {
 				t.Fatal(before)
 			}
-			if err := e.Reset(ctx); err != nil {
+			if err := engine.Reset(ctx, e); err != nil {
 				t.Fatal(err)
 			}
 			d, _ = e.CatalogRead().LookupType(sqltype.Date)

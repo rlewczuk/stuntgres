@@ -73,11 +73,11 @@ func TestPgClassBuiltinIndexMetadata(t *testing.T) {
 		project(ordinary, false)
 	}
 	check()
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	check()
-	if err := e.Restore(context.Background(), strings.NewReader("")); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader("")); err != nil {
 		t.Fatal(err)
 	}
 	check()

@@ -40,7 +40,7 @@ func TestDefaultTemporalConstructorAndRestoreCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	var dump bytes.Buffer
-	if err = e.Dump(context.Background(), &dump); err != nil {
+	if err = Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(dump.String(), "'now'") || !strings.Contains(dump.String(), "2020-02-03 04:05:06") {
@@ -71,7 +71,7 @@ func TestDefaultTemporalConstructorAndRestoreCapture(t *testing.T) {
 	// definition must retain A rather than input decoding relative aliases again.
 	check(e)
 	restored := New()
-	if err = restored.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err = Restore(context.Background(), restored, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	check(restored)

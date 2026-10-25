@@ -97,7 +97,7 @@ func TestMathConsumers(t *testing.T) {
 			enginetest.Run(t, source, "CREATE VIEW constant_null_math_view AS SELECT round(NULL,mod(1,0)) AS result FROM s")
 			engineMathViewWitnesses(t, source)
 			var dump bytes.Buffer
-			if err := source.Dump(context.Background(), &dump); err != nil {
+			if err := engine.Dump(context.Background(), source, &dump); err != nil {
 				t.Fatal(err)
 			}
 			target := engine.New()
@@ -106,7 +106,7 @@ func TestMathConsumers(t *testing.T) {
 				defer done()
 				enginetest.RoleExecute(t, target, op, "CREATE TEMPORARY SEQUENCE retained")
 			}
-			if err := target.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+			if err := engine.Restore(context.Background(), target, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(err)
 			}
 			if got := mathTuples(t, enginetest.Run(t, target, "SELECT r,t,m,s FROM v")); !reflect.DeepEqual(got, [][]any{{"8.4", "8.41", "0.4100", int64(4)}}) {

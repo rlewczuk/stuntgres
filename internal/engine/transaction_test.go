@@ -110,7 +110,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	private := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 1, 2, 7)
 	transactionEnd(t, a, ref, false)
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 7)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if private.Count != 4 || own.Count != 2 {
@@ -224,7 +224,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 	sessionSQL(t, b, "CREATE TABLE t(v INT)")
 	ref := transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT); INSERT INTO t VALUES(99)")); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT); INSERT INTO t VALUES(99)")); err != nil {
 		t.Fatal(err)
 	}
 	op := transactionOperation(t, a)
@@ -237,7 +237,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 99)
 	ref = transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
-	if err = e.Reset(context.Background()); err != nil {
+	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	op = transactionOperation(t, a)

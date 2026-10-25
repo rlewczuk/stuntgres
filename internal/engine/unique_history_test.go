@@ -85,10 +85,10 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	retained := e.Storage.Relations[ref.Address].Versions
 	retainedCopy := uniqueHistoryCopy(retained)
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	importedRef := roleTableRef(t, e, "t")

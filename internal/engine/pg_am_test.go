@@ -165,7 +165,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 			t.Fatal("cancellation gained SQLSTATE", err)
 		}
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgAMUnitSource(t, e)

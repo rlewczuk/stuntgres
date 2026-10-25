@@ -68,9 +68,9 @@ func vacuumReplacementWait(t *testing.T) {
 			lockPending(t, e, 1)
 			var err error
 			if restore {
-				err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE waiting(id INT); INSERT INTO waiting VALUES(9);"))
+				err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE waiting(id INT); INSERT INTO waiting VALUES(9);"))
 			} else {
-				err = e.Reset(context.Background())
+				err = Reset(context.Background(), e)
 			}
 			if err != nil {
 				t.Fatal(err)

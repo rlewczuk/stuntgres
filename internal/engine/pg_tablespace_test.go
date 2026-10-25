@@ -125,7 +125,7 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	// Reset imports a fresh postgres-owned catalog. A renamed target without
 	// that source owner must reject replacement, not bypass name provenance.
 	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
-	if err := e.Reset(context.Background()); err == nil {
+	if err := Reset(context.Background(), e); err == nil {
 		t.Fatal("Reset bypassed missing replacement-owner provenance")
 	}
 	if e.Catalog.State != state || e.RoleStore.Published != roles || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision {
@@ -154,7 +154,7 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	r.Name = "postgres"
 	putFixtureRole(roles, r)
 	e.RoleStore.PublishLocked(roles)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	d, fresh := pgTablespaceUnitCapture(t, e)
@@ -164,13 +164,13 @@ func TestPGTablespaceCanonicalReplacement(t *testing.T) {
 	pgTablespaceUnitRows(t, retained)
 	pgTablespaceUnitRows(t, fresh)
 	var dump strings.Builder
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(dump.String(), "CREATE TABLESPACE") {
 		t.Fatal("builtin source serialized as physical creation")
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	d, fresh = pgTablespaceUnitCapture(t, e)

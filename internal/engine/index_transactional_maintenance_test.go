@@ -198,7 +198,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 			case "cancel":
 				cancel()
 			case "epoch":
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			case "caller":
@@ -365,7 +365,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 				case "replace":
 					indexMaintenancePublishIndexClone(t, e, "ix", "ix", true)
 				case "epoch":
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				case "cancel":

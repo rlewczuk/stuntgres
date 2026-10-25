@@ -341,7 +341,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	text := dump.String()
@@ -382,13 +382,13 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	sessionSQL(t, owner, "INSERT INTO sentinel VALUES(91)")
 	sentinel := alterConstraintDescriptor(t, target, "sentinel")
 	before, store, epoch := target.Catalog.State, target.Storage.Relations[sentinel.Address()], target.Catalog.State.Epoch()
-	if err := target.Restore(context.Background(), strings.NewReader(text+"ALTER TABLE public.t ADD CONSTRAINT late FOREIGN KEY(pid) REFERENCES public.absent NOT VALID;")); err == nil {
+	if err := Restore(context.Background(), target, strings.NewReader(text+"ALTER TABLE public.t ADD CONSTRAINT late FOREIGN KEY(pid) REFERENCES public.absent NOT VALID;")); err == nil {
 		t.Fatal("late missing provider silently accepted")
 	}
 	if target.Catalog.State != before || target.Storage.Relations[sentinel.Address()] != store || target.Catalog.State.Epoch() != epoch {
 		t.Fatal("failed import changed sentinel/incarnation")
 	}
-	if err := target.Restore(context.Background(), strings.NewReader(text)); err != nil {
+	if err := Restore(context.Background(), target, strings.NewReader(text)); err != nil {
 		t.Fatal(err)
 	}
 	restored := alterConstraintDescriptor(t, target, "t")
@@ -396,7 +396,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 		t.Fatal("remap lost validity/relationships", restored)
 	}
 	var again bytes.Buffer
-	if err := target.Dump(context.Background(), &again); err != nil {
+	if err := Dump(context.Background(), target, &again); err != nil {
 		t.Fatal(err)
 	}
 	if again.String() != text {

@@ -58,7 +58,7 @@ func TestNameDescriptors(t *testing.T) {
 	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign NAME reference")
 	}
-	if err = e.Reset(context.Background()); err != nil {
+	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if err = e.ValidateObjectRef(view, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -86,7 +86,7 @@ func TestNameDescriptors(t *testing.T) {
 func TestNameCatalogRejectsForeignAndStale(t *testing.T) {
 	e := New()
 	stale := testUsage(e, sqltype.Name)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	for _, usage := range []sqltype.Usage{testUsage(New(), sqltype.Name), stale} {

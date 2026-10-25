@@ -24,7 +24,7 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 			sessionSQL(t, b, "INSERT INTO t VALUES(77)")
 			controlsRequire(t, a, "BEGIN")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-			if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
+			if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
 				t.Fatal(err)
 			}
 			op, err := a.Acquire(context.Background())
@@ -191,7 +191,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				// An actual catalog replacement after control execution also cannot
 				// turn idempotent Finish into a second end of the newer incarnation.
 				if boundary == "success" {
-					if err = e.Reset(context.Background()); err != nil {
+					if err = Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -320,7 +320,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				default:
 				}
 			} else {
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 				if e.CatalogRead().Epoch() == epoch || e.Visibility.CommitSeq() != frontier+2 {

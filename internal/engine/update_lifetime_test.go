@@ -80,7 +80,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}
-	if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9);")); err != nil {
+	if err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9);")); err != nil {
 		t.Fatal(err)
 	}
 	if err = request.Wait(); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -138,7 +138,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 			}
 			reader := &commentGateReader{input: strings.NewReader(input), entered: make(chan struct{}), release: make(chan struct{})}
 			restored := make(chan error, 1)
-			go func() { restored <- e.Restore(restoreCtx, reader) }()
+			go func() { restored <- Restore(restoreCtx, e, reader) }()
 			released, restoreJoined := false, false
 			defer func() {
 				restoreCancel()

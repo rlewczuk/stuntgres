@@ -12,7 +12,7 @@ import (
 func commentDump(t *testing.T, e *Engine) string {
 	t.Helper()
 	var b bytes.Buffer
-	if err := e.Dump(context.Background(), &b); err != nil {
+	if err := Dump(context.Background(), e, &b); err != nil {
 		t.Fatal(err)
 	}
 	return b.String()
@@ -68,7 +68,7 @@ func TestCommentControls(t *testing.T) {
 	}
 	w := &commentGateWriter{entered: make(chan struct{}), release: make(chan struct{})}
 	done := make(chan error, 1)
-	go func() { done <- e.Dump(context.Background(), w) }()
+	go func() { done <- Dump(context.Background(), e, w) }()
 	select {
 	case <-w.entered:
 	case err := <-done:
@@ -82,10 +82,10 @@ func TestCommentControls(t *testing.T) {
 	if w.String() != canonical {
 		t.Fatal("dump did not capture immutable comments before I/O")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(canonical)); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(canonical)); err != nil {
 		t.Fatal(err, canonical)
 	}
 	if commentDump(t, e) != canonical {
@@ -98,7 +98,7 @@ func TestCommentControls(t *testing.T) {
 	for _, suffix := range []string{"COMMENT ON COLUMN s.t.missing IS 'late';", "COMMENT ON ROLE owner IS 'late';", "SET SESSION AUTHORIZATION absent; CREATE TABLE public.late(v INT);"} {
 		before := e.CatalogRead()
 		rolesPublication := e.RoleStore.Published
-		if err := e.Restore(context.Background(), strings.NewReader(canonical+"COMMENT ON TABLE s.t IS 'earlier';"+suffix)); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader(canonical+"COMMENT ON TABLE s.t IS 'earlier';"+suffix)); err == nil {
 			t.Fatal("accepted invalid restore", suffix)
 		}
 		if before.State() != e.CatalogRead().State() || rolesPublication != e.RoleStore.Published || commentDump(t, e) != canonical {
@@ -107,7 +107,7 @@ func TestCommentControls(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &commentGateReader{input: strings.NewReader(canonical), entered: make(chan struct{}), release: make(chan struct{})}
-	go func() { done <- e.Restore(ctx, r) }()
+	go func() { done <- Restore(ctx, e, r) }()
 	<-r.entered
 	cancel()
 	close(r.release)

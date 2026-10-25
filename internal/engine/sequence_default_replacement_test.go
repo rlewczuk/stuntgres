@@ -25,7 +25,7 @@ func TestSequenceRetainedTempDefaultReplacement(t *testing.T) {
 			var source *Engine
 			var sourceDefinition *catalog.Relation
 			if mode == "Restore" {
-				if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
+				if err := Restore(context.Background(), e, strings.NewReader(script)); err != nil {
 					t.Fatal(err)
 				}
 			} else {

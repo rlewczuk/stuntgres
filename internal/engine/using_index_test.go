@@ -401,7 +401,7 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 				e, s, parent, index := usingIndexUnitFixture(t)
 				store, root := e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[index.Address()]
 				var dump bytes.Buffer
-				if err := e.Dump(context.Background(), &dump); err != nil {
+				if err := Dump(context.Background(), e, &dump); err != nil {
 					t.Fatal(err)
 				}
 				ctx, cancel := context.WithCancel(context.Background())
@@ -411,12 +411,12 @@ func TestUsingIndexPublicationFences(t *testing.T) {
 					case "cancel":
 						cancel()
 					case "reset":
-						if err := e.Reset(context.Background()); err != nil {
+						if err := Reset(context.Background(), e); err != nil {
 							t.Fatal(err)
 						}
 						usingIndexUnitSeed(t, e, sessionStart(t, e, nil))
 					case "restore":
-						if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+						if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 							t.Fatal(err)
 						}
 					case "collision":
@@ -656,7 +656,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 	e, s, _, _ := usingIndexUnitFixture(t)
 	usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(true))
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	// Deliberately diverge after Dump so success cannot be a no-op replay.
@@ -675,7 +675,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 	if len(entries) != 3 {
 		t.Fatal("missing changed pre-Restore data", len(entries))
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()
@@ -698,7 +698,7 @@ func TestUsingIndexRestoreGeneration(t *testing.T) {
 		t.Fatal("Restore mutated captured predecessor generation")
 	}
 	var redump bytes.Buffer
-	if err := e.Dump(context.Background(), &redump); err != nil || redump.String() != dump.String() {
+	if err := Dump(context.Background(), e, &redump); err != nil || redump.String() != dump.String() {
 		t.Fatal("Restore failed canonical roundtrip", err, redump.String())
 	}
 	// The real old session now targets new storage, and the discarded key is reusable.

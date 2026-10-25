@@ -80,7 +80,7 @@ func TestCommentMetadataLifecycle(t *testing.T) {
 		}
 	}
 	roleExecute(t, e, op, "COMMENT ON SCHEMA public IS 'bootstrap'")
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if d, _ := e.Roles().Lookup("owner"); d.Comment != "retained" {

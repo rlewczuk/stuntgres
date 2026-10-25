@@ -80,7 +80,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 		intaggUnitTemporaryView(t, e, op, namespace, "ia_unit_retained_enum", "int_array_enum('{2,2,NULL}')"),
 	}
 	before := e.CatalogRead()
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()

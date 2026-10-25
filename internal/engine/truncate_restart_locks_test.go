@@ -245,10 +245,10 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				}
 				lockPending(t, e, 1)
 				if control == "Reset" {
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
-				} else if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE p(id SERIAL PRIMARY KEY); INSERT INTO p DEFAULT VALUES;")); err != nil {
+				} else if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE p(id SERIAL PRIMARY KEY); INSERT INTO p DEFAULT VALUES;")); err != nil {
 					t.Fatal(err)
 				}
 				lockAwait(t, done, ids.ErrCatalogReplaced)
@@ -300,10 +300,10 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			}
 			stamp := memory.SourceStamp()
 			if control == "Reset" {
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
-			} else if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE replacement(id INT);")); err != nil {
+			} else if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE replacement(id INT);")); err != nil {
 				t.Fatal(err)
 			}
 			if PayloadOf(s).Sequences.Memory(ref.Address) != memory || memory.SourceStamp() != stamp || currvalValid(memory) {

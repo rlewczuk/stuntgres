@@ -279,13 +279,13 @@ func TestVacuumImportHorizons(t *testing.T) {
 	}
 	sessionSQL(t, ss, "ROLLBACK")
 	oldRows := slices.Clone(store.Versions)
-	if err := target.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), target); err != nil {
 		t.Fatal(err)
 	}
 	if len(target.Storage.Relations) != 0 {
 		t.Fatal("Reset retained obsolete relation maintenance")
 	}
-	if err := target.Restore(context.Background(), strings.NewReader("CREATE TABLE restored(id INT); INSERT INTO restored VALUES(1),(3);")); err != nil {
+	if err := Restore(context.Background(), target, strings.NewReader("CREATE TABLE restored(id INT); INSERT INTO restored VALUES(1),(3);")); err != nil {
 		t.Fatal(err)
 	}
 	_, restored := vacuumStore(t, target, "restored")

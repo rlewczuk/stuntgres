@@ -17,7 +17,7 @@ func TestCheckReviewReplayHistoryFailurePreservesDestination(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(9)")
 	sequenceScalar(t, s, "SELECT currval('s')", 2)
 	var dump bytes.Buffer
-	if err := source.Dump(ctx, &dump); err != nil {
+	if err := Dump(ctx, source, &dump); err != nil {
 		t.Fatal(err)
 	}
 	sequenceScalar(t, s, "SELECT currval('s')", 2)
@@ -33,7 +33,7 @@ func TestCheckReviewReplayHistoryFailurePreservesDestination(t *testing.T) {
 	storage := target.Storage.Relations[ref.Address]
 	stage := target.BeginCatalogStage(before)
 	defer target.DiscardCatalogStage(stage)
-	err := target.Restore(ctx, bytes.NewReader(dump.Bytes()))
+	err := Restore(ctx, target, bytes.NewReader(dump.Bytes()))
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: "Failing row contains (9).", Schema: "public", Table: "t", Constraint: "c"})
 	after := target.CatalogRead()
 	if after.State() != before.State() || after.Epoch() != before.Epoch() || target.Storage.Relations[ref.Address] != storage {

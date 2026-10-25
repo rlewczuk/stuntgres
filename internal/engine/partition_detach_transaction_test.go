@@ -190,7 +190,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				case "cancel":
 					op.Cancel(context.Canceled)
 				case "epoch":
-					if err := f.e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), f.e); err != nil {
 						t.Fatal(err)
 					}
 				case "revision":

@@ -114,7 +114,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		!reflect.DeepEqual(recipeContext.RoutineReferences, capturedOwner.ColumnMeta.Generations[2].Dependencies) {
 		t.Fatal("captured generation borrowed frozen or enclosing provenance")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	evaluate(previous, 3, nil)

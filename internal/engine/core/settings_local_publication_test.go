@@ -34,7 +34,7 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 				case "cancel":
 					cancel()
 				case "replace":
-					if err := e.Reset(context.Background()); err != nil {
+					if err := engine.Reset(context.Background(), e); err != nil {
 						return "", nil, err
 					}
 				case "inspect":

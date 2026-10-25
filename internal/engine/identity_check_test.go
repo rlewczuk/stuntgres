@@ -50,7 +50,7 @@ func TestIdentityOwnCheckAtomicConstruction(t *testing.T) {
 	g := e.Storage.Sequences[identity.Sequence]
 	beforeGenerator := *g
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if *g != beforeGenerator {
@@ -105,11 +105,11 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 				}
 			}
 			var initial bytes.Buffer
-			if err := source.Dump(context.Background(), &initial); err != nil {
+			if err := Dump(context.Background(), source, &initial); err != nil {
 				t.Fatal(err)
 			}
 			if mode == "Restore" {
-				if err := dest.Restore(context.Background(), bytes.NewReader(initial.Bytes())); err != nil {
+				if err := Restore(context.Background(), dest, bytes.NewReader(initial.Bytes())); err != nil {
 					t.Fatal(err)
 				}
 			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
@@ -132,17 +132,17 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 				t.Fatal("reciprocal owner remapping failed")
 			}
 			var dump bytes.Buffer
-			if err := dest.Dump(context.Background(), &dump); err != nil {
+			if err := Dump(context.Background(), dest, &dump); err != nil {
 				t.Fatal(err)
 			}
-			if err := dest.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+			if err := Restore(context.Background(), dest, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal("remapped dump cannot restore", err, dump.String())
 			}
 			var again bytes.Buffer
-			if err := dest.Dump(context.Background(), &again); err != nil {
+			if err := Dump(context.Background(), dest, &again); err != nil {
 				t.Fatal(err)
 			}
-			if err := dest.Restore(context.Background(), bytes.NewReader(again.Bytes())); err != nil {
+			if err := Restore(context.Background(), dest, bytes.NewReader(again.Bytes())); err != nil {
 				t.Fatal("second remapped dump cannot restore", err)
 			}
 			if dest.Catalog.State.Get(temp) != definition || dest.Storage.Sequences[temp] != generator || PayloadOf(b).Sequences.Memory(temp) != memory || *generator != generatorState || *memory != memoryState {
@@ -240,13 +240,13 @@ func TestIdentityDumpProviderMapping(t *testing.T) {
 	}
 	var dump bytes.Buffer
 	state := *e.Storage.Sequences[sequence]
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if *e.Storage.Sequences[sequence] != state {
 		t.Fatal("scalar view/CHECK Dump evaluated provider")
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	sequenceScalar(t, s, `SELECT n FROM v`, 1)

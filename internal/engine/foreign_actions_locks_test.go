@@ -132,7 +132,7 @@ func TestForeignActionsCancellation(t *testing.T) {
 			}()
 			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.Ticket, lock.ForUpdate)
 			if replace {
-				if err := e.Reset(ctx); err != nil {
+				if err := Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 				lockAwait(t, done, ids.ErrCatalogReplaced)

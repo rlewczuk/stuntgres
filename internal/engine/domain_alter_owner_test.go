@@ -42,7 +42,7 @@ func domainAlterReplayOwnership(t *testing.T) {
 				run(t, e, q)
 			}
 			before, stores, roots := e.Catalog.State, maps.Clone(e.Storage.Relations), maps.Clone(e.Storage.IndexRoots)
-			err := e.Restore(context.Background(), strings.NewReader(tc.sql))
+			err := Restore(context.Background(), e, strings.NewReader(tc.sql))
 			if !tc.valid {
 				if err == nil || e.Catalog.State != before || !maps.Equal(e.Storage.Relations, stores) || !maps.Equal(e.Storage.IndexRoots, roots) {
 					t.Fatal("ineligible owner replay changed destination", err)

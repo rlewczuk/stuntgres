@@ -55,7 +55,7 @@ func checkReviewDependencyValid(t *testing.T, e *Engine) {
 		}
 	}
 	var dump strings.Builder
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal("unusable catalog", err)
 	}
 }

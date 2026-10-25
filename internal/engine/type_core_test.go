@@ -67,7 +67,7 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign type ref")
 	}
-	if err = e.Reset(context.Background()); err != nil {
+	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if err = e.ValidateObjectRef(view, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -90,7 +90,7 @@ func TestTypeCoreCatalogDescriptionsAndOwnership(t *testing.T) {
 func TestTypeCoreCatalogRejectsNoncurrentColumnTypes(t *testing.T) {
 	e := New()
 	stale := testUsage(e, sqltype.Int4)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	for _, usage := range []sqltype.Usage{{}, testUsage(e, sqltype.Unknown), testUsage(New(), sqltype.Int4), stale} {
@@ -148,18 +148,18 @@ func TestFloatFailedRestorePreservesEpochAndCatalog(t *testing.T) {
 	run(t, e, "INSERT INTO f VALUES('7.038531e-26','-0')")
 	before := e.CatalogRead()
 	var original bytes.Buffer
-	if err := e.Dump(context.Background(), &original); err != nil {
+	if err := Dump(context.Background(), e, &original); err != nil {
 		t.Fatal(err)
 	}
 	for _, script := range []string{"CREATE TABLE replacement(r REAL); INSERT INTO replacement VALUES('1'),('oops')", "CREATE TABLE replacement(d DOUBLE PRECISION); INSERT INTO replacement VALUES('1'),('1e999')"} {
-		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore")
 		}
 		if current := e.CatalogRead(); current.State() != before.State() || current.Epoch() != before.Epoch() {
 			t.Fatal("failed float restore changed catalog generation")
 		}
 		var dump bytes.Buffer
-		if err := e.Dump(context.Background(), &dump); err != nil || dump.String() != original.String() {
+		if err := Dump(context.Background(), e, &dump); err != nil || dump.String() != original.String() {
 			t.Fatal(dump.String(), err)
 		}
 	}

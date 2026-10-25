@@ -41,7 +41,7 @@ func TestConcurrentIndexU7InvalidDumpAndSuccessOnlyRepair(t *testing.T) {
 		t.Fatal("first-build failure installed a root")
 	}
 	sink := new(concurrentUnitSink)
-	err := e.Dump(context.Background(), sink)
+	err := engine.Dump(context.Background(), e, sink)
 	if err == nil || err.Error() != `stuntgres: dump cannot serialize invalid index "public"."ui"` || sink.calls != 0 || sink.bytes != 0 {
 		t.Fatal(err, sink)
 	}
@@ -57,14 +57,14 @@ func TestConcurrentIndexU7InvalidDumpAndSuccessOnlyRepair(t *testing.T) {
 	enginetest.SessionSQL(t, s, "INSERT INTO t VALUES(2)")
 	concurrentUnitError(t, s, "INSERT INTO t VALUES(2)", "23505")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := engine.Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(dump.String(), "CREATE UNIQUE INDEX") || strings.Contains(dump.String(), "CONCURRENTLY") {
 		t.Fatal("valid standalone dump is not ordinary executable SQL", dump.String())
 	}
 	restored := engine.New()
-	if err := restored.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := engine.Restore(context.Background(), restored, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	consumer := enginetest.StartSession(t, restored, nil)
@@ -107,7 +107,7 @@ func TestConcurrentIndexU6ReadyCancellationReleasesSUE(t *testing.T) {
 		t.Fatal("canceled coordinator retained cohort admission", waiting, writers, inspectErr)
 	}
 	sink := new(concurrentUnitSink)
-	if err := e.Dump(context.Background(), sink); err == nil || sink.calls != 0 {
+	if err := engine.Dump(context.Background(), e, sink); err == nil || sink.calls != 0 {
 		t.Fatal(err, sink)
 	}
 	concurrentUnitError(t, consumer, "INSERT INTO t VALUES(1)", "23505")
@@ -271,7 +271,7 @@ func TestConcurrentIndexU7ReplacementRejectsInvalidSourceAndIsAtomic(t *testing.
 		"CREATE TABLE t(n INT); CREATE INDEX CONCURRENTLY ix ON t(n);",
 		"CREATE TABLE t(n INT); INSERT INTO t VALUES(1); SELECT FROM",
 	} {
-		if err := target.Restore(context.Background(), strings.NewReader(stream)); err == nil {
+		if err := engine.Restore(context.Background(), target, strings.NewReader(stream)); err == nil {
 			t.Fatal("invalid isolated stream succeeded", stream)
 		}
 		if target.CatalogRead().State() != targetState || target.Catalog.NextOID() != oldOID || target.Catalog.NextRevision() != oldRevision {
@@ -309,7 +309,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	if original == nil || original.SQLIndex.Ready || original.SQLIndex.Valid {
 		t.Fatal("real retained TEMP invalid descriptor missing")
 	}
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE imported(n INT); INSERT INTO imported VALUES(7);")); err != nil {
+	if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE imported(n INT); INSERT INTO imported VALUES(7);")); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
@@ -402,7 +402,7 @@ func TestConcurrentIndexU7OlderAdmissionEpochFence(t *testing.T) {
 	if err != nil || !waiting || writers {
 		t.Fatal("actual older admission absent or mixed with writer admission", waiting, writers, err)
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()

@@ -330,7 +330,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 	controlsRequire(t, a, "BEGIN")
 	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	retained := enginetest.TransactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 77)
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
+	if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT NOT NULL); INSERT INTO t VALUES(99);")); err != nil {
 		t.Fatal(err)
 	}
 	op := enginetest.TransactionOperation(t, a)
@@ -406,17 +406,17 @@ func TestTransactionControlsNativeRoundTrip(t *testing.T) {
 	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	epoch := e.CatalogRead().Epoch()
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := engine.Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	copyEngine := engine.New()
-	if err := copyEngine.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := engine.Restore(context.Background(), copyEngine, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	c := enginetest.StartSession(t, copyEngine, nil)
 	enginetest.TransactionRows(t, c, "SELECT v FROM t", 77)
 	for _, script := range []string{"BEGIN; CREATE TABLE x(v INT); COMMIT;", "COMMIT;", "ROLLBACK;", "CREATE TABLE x(v INT); INSERT INTO x VALUES('bad');"} {
-		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
+		if err := engine.Restore(context.Background(), e, strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore succeeded", script)
 		}
 		if e.CatalogRead().Epoch() != epoch {
@@ -424,12 +424,12 @@ func TestTransactionControlsNativeRoundTrip(t *testing.T) {
 		}
 	}
 	readErr := errors.New("transaction controls reader failure")
-	if err := e.Restore(context.Background(), relationFailReader{readErr}); !errors.Is(err, readErr) {
+	if err := engine.Restore(context.Background(), e, relationFailReader{readErr}); !errors.Is(err, readErr) {
 		t.Fatal(err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.Restore(canceled, strings.NewReader("CREATE TABLE x(v INT)")); !errors.Is(err, context.Canceled) {
+	if err := engine.Restore(canceled, e, strings.NewReader("CREATE TABLE x(v INT)")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().Epoch() != epoch {
@@ -437,7 +437,7 @@ func TestTransactionControlsNativeRoundTrip(t *testing.T) {
 	}
 	controlsRequire(t, a, "COMMIT")
 	enginetest.TransactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 77)
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(99);")); err != nil {
+	if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(99);")); err != nil {
 		t.Fatal(err)
 	}
 	enginetest.TransactionRows(t, b, "SELECT v FROM t", 99)

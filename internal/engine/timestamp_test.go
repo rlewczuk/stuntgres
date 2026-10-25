@@ -34,7 +34,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	wantDesc := StatementDescription{Temporals: b.Prepared.Temporals}
 	before := append([]analyze.TemporalConstant(nil), wantDesc.Temporals...)
 	old := v.Type()
-	if err = e.Reset(ctx); err != nil {
+	if err = Reset(ctx, e); err != nil {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().LookupType(sqltype.Timestamp)

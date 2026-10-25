@@ -57,9 +57,9 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 						close(entered)
 						var err error
 						if restore {
-							err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(a INT);INSERT INTO sentinel VALUES(91)"))
+							err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE sentinel(a INT);INSERT INTO sentinel VALUES(91)"))
 						} else {
-							err = e.Reset(context.Background())
+							err = Reset(context.Background(), e)
 						}
 						if err != nil {
 							panic(err)

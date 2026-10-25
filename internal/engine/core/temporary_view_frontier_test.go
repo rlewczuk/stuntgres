@@ -48,9 +48,9 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 		providers[source] = before.MustRelation(source)
 	}
 	controls := []func() error{
-		func() error { return e.Reset(context.Background()) },
+		func() error { return engine.Reset(context.Background(), e) },
 		func() error {
-			return e.Restore(context.Background(), strings.NewReader("CREATE TABLE restored_marker(v INT); INSERT INTO restored_marker VALUES(7);"))
+			return engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE restored_marker(v INT); INSERT INTO restored_marker VALUES(7);"))
 		},
 	}
 	for i, replace := range controls {

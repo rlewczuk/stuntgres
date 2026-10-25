@@ -115,9 +115,9 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				if calls == 1 {
 					var err error
 					if replacement == "reset" {
-						err = e.Reset(context.Background())
+						err = Reset(context.Background(), e)
 					} else {
-						err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(i INT); INSERT INTO t VALUES(77)"))
+						err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(i INT); INSERT INTO t VALUES(77)"))
 					}
 					if err != nil {
 						return sqltype.Value{}, err

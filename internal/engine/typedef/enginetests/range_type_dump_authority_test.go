@@ -22,7 +22,7 @@ func TestRangeTypeGeneratedConstructorDumpAuthority(t *testing.T) {
 				enginetest.RoleExecute(t, e, op, q)
 			}
 			var baseline bytes.Buffer
-			if err := e.Dump(context.Background(), &baseline); err != nil {
+			if err := engine.Dump(context.Background(), e, &baseline); err != nil {
 				t.Fatal("unaltered authority baseline", err)
 			}
 			enginetest.RoleExecute(t, e, op, alter)
@@ -41,7 +41,7 @@ func TestRangeTypeGeneratedConstructorDumpAuthority(t *testing.T) {
 				t.Fatal("missing genuine two-bound constructor")
 			}
 			var rejected bytes.Buffer
-			if err := e.Dump(context.Background(), &rejected); err == nil || err.Error() != "stuntgres: dump cannot serialize altered generated constructor authority" || rejected.Len() != 0 {
+			if err := engine.Dump(context.Background(), e, &rejected); err == nil || err.Error() != "stuntgres: dump cannot serialize altered generated constructor authority" || rejected.Len() != 0 {
 				t.Fatal("authority must reject before output", err, rejected.String())
 			}
 			if e.Catalog.State != before {

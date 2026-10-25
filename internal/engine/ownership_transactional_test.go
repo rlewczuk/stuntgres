@@ -223,7 +223,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				next.SetDescriptor(db.Address(), &db)
 				e.Catalog.PublishLocked(next)
 			case "reset":
-				if err := e.Reset(ctx); err != nil {
+				if err := Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 			case "invalid-member":

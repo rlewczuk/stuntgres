@@ -152,18 +152,18 @@ func TestSavepointsCancellationAndControls(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	controlsRequire(t, a, "SAVEPOINT s")
 	var dump strings.Builder
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(dump.String(), "VALUES") {
 		t.Fatal("Dump published private effects", dump.String())
 	}
-	if err := e.Restore(context.Background(), strings.NewReader("SAVEPOINT s;")); err == nil {
+	if err := Restore(context.Background(), e, strings.NewReader("SAVEPOINT s;")); err == nil {
 		t.Fatal("Restore accepted control")
 	}
 	controlsRequire(t, a, "ROLLBACK TO s")
 	transactionRows(t, a, "SELECT v FROM t", 1)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if err := controlsExecute(t, a, "ROLLBACK TO s"); !errors.Is(err, ids.ErrCatalogReplaced) {

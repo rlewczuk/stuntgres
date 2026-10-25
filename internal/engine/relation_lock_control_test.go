@@ -75,7 +75,7 @@ func TestRelationLockReplacementWaitingPhases(t *testing.T) {
 				sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 				done := lockAsync(e, b, context.Background(), q, prepare)
 				lockPending(t, e, 1)
-				if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9)")); err != nil {
+				if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9)")); err != nil {
 					t.Fatal(err)
 				}
 				lockAwait(t, done, ids.ErrCatalogReplaced)

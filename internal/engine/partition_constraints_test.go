@@ -829,7 +829,7 @@ func TestPartitionConstraintsPublicationFences(t *testing.T) {
 			case "session_identity":
 				roleExecute(t, e, op, "SET ROLE actor")
 			case "epoch":
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -1083,7 +1083,7 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	// Roles are live engine authority, not definitions imported by Restore.
 	run(t, e, "CREATE USER actor")
 	before := indexMaintenanceCapture(e)
-	err := e.Restore(context.Background(), strings.NewReader("CREATE USER forbidden_import_actor"))
+	err := Restore(context.Background(), e, strings.NewReader("CREATE USER forbidden_import_actor"))
 	var boundary *sqlstate.Error
 	if !errors.As(err, &boundary) || boundary.Code != "0A000" {
 		t.Fatal("role-import boundary widened", err)
@@ -1093,18 +1093,18 @@ func TestPartitionConstraintsOwnedProviderReplay(t *testing.T) {
 	}
 	indexMaintenanceUnchanged(t, e, before)
 	script := "CREATE SCHEMA owned AUTHORIZATION actor; SET SESSION AUTHORIZATION 'actor'; CREATE TYPE owned.userkey AS ENUM('a','b'); CREATE TABLE owned.root(k owned.userkey,payload INT,provider REGTYPE DEFAULT 'owned.userkey'::regtype,CONSTRAINT root_key UNIQUE(k,payload)) PARTITION BY RANGE(k); CREATE TABLE owned.mid PARTITION OF owned.root DEFAULT PARTITION BY RANGE(k); CREATE TABLE owned.leaf PARTITION OF owned.mid DEFAULT; INSERT INTO owned.root(k,payload) VALUES('a',1);"
-	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(script)); err != nil {
 		t.Fatal(err)
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	var redump bytes.Buffer
-	if err := e.Dump(context.Background(), &redump); err != nil {
+	if err := Dump(context.Background(), e, &redump); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(dump.Bytes(), redump.Bytes()) {

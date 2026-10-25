@@ -270,7 +270,7 @@ func TestTruncateAdmission(t *testing.T) {
 				}
 				truncateUnitPublish(t, e, stage)
 			case "control-epoch":
-				if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE p(id INT PRIMARY KEY); INSERT INTO p VALUES(9);")); err != nil {
+				if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE p(id INT PRIMARY KEY); INSERT INTO p VALUES(9);")); err != nil {
 					t.Fatal(err)
 				}
 			}

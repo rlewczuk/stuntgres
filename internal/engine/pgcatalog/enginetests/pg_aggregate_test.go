@@ -95,7 +95,7 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 			t.Fatal("foreign column generation admitted", i, err)
 		}
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	fresh := e.CatalogRead()

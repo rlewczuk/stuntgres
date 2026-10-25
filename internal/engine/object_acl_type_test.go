@@ -139,7 +139,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("explicit baseline collapsed to NULL", acl, err)
 	}
 	var output bytes.Buffer
-	if err := e.Dump(context.Background(), &output); err == nil || output.Len() != 0 {
+	if err := Dump(context.Background(), e, &output); err == nil || output.Len() != 0 {
 		t.Fatal("Dump discarded explicit-baseline provenance", output.String(), err)
 	}
 	invalid := explicit
@@ -226,13 +226,13 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					// io.StringWriter fast path. The gate is released so a broken
 					// guard reports callbacks rather than blocking the test.
 					sink := new(concurrentUnitSink)
-					if err := e.Dump(context.Background(), sink); err == nil || sink.calls != 0 || sink.bytes != 0 {
+					if err := Dump(context.Background(), e, sink); err == nil || sink.calls != 0 || sink.bytes != 0 {
 						t.Error("Dump did not reject before Write", err, sink)
 					}
 					release := make(chan struct{})
 					close(release)
 					writer := &commentGateWriter{entered: make(chan struct{}), release: release}
-					if err := e.Dump(context.Background(), writer); err == nil || writer.first || writer.Len() != 0 {
+					if err := Dump(context.Background(), e, writer); err == nil || writer.first || writer.Len() != 0 {
 						t.Error("Dump did not reject before writer callbacks", err, writer.first, writer.String())
 					}
 

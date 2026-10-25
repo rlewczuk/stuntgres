@@ -70,13 +70,13 @@ func TestSchemaTableIntegration(t *testing.T) {
 	// Replay behavior lives in the shared reference scenario; here inspect
 	// private restored ownership and zero-column descriptor invariants.
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	if d := e.Catalog.State.MustRelation(roleTableRef(t, e, "sti_nested.zl").Address); len(d.Columns) != 0 || d.Owner != owner.Ref {

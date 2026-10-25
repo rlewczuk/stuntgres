@@ -139,17 +139,17 @@ func TestSQLRoutineRestoreStaging(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE FUNCTION routine_unit_saved(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1+1$$")
 	var original bytes.Buffer
-	if err := e.Dump(context.Background(), &original); err != nil {
+	if err := Dump(context.Background(), e, &original); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(routine.RestoreDirective+" CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$;")); err == nil {
+	if err := Restore(context.Background(), e, strings.NewReader(routine.RestoreDirective+" CREATE FUNCTION invalid_sql() RETURNS integer LANGUAGE SQL AS $$SELECT x FROM missing_table$$;")); err == nil {
 		t.Fatal("invalid deferred body published")
 	}
 	var after bytes.Buffer
-	if err := e.Dump(context.Background(), &after); err != nil || !bytes.Equal(original.Bytes(), after.Bytes()) {
+	if err := Dump(context.Background(), e, &after); err != nil || !bytes.Equal(original.Bytes(), after.Bytes()) {
 		t.Fatal("failed stage changed target", err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(original.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(original.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	if !e.CatalogRead().State().HasDynamicProcedureName("routine_unit_saved") {

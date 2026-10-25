@@ -74,7 +74,7 @@ func typedCallbackReplacement(t *testing.T, kind string) {
 		}
 		called = true
 		e.Catalog.Providers[ids.RelationClassID] = original
-		if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(a integer);INSERT INTO sentinel VALUES(91)")); err != nil {
+		if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE sentinel(a integer);INSERT INTO sentinel VALUES(91)")); err != nil {
 			t.Fatal(err)
 		}
 	}}

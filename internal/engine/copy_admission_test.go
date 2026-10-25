@@ -236,7 +236,7 @@ func copyReplacement(t *testing.T, format copyfmt.Format) {
 				close(reader.release)
 				t.Fatal("COPY failed before replacement barrier", err)
 			}
-			if err := e.Reset(context.Background()); err != nil {
+			if err := Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
 			close(reader.release)
@@ -512,7 +512,7 @@ func TestCopyTextOutputReplacement(t *testing.T) {
 				close(writer.release)
 				t.Fatal("COPY did not enter writer", err)
 			}
-			if err = e.Reset(context.Background()); err != nil {
+			if err = Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
 			close(writer.release)

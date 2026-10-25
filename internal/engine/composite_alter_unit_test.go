@@ -61,7 +61,7 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 				e.Mu.Unlock()
 				if kind == "cancel" {
 					cancel()
-				} else if err := e.Reset(context.Background()); err != nil {
+				} else if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			}}

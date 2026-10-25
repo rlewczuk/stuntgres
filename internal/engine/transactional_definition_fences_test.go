@@ -104,7 +104,7 @@ func TestTransactionalDefinitionReplacementFences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	_, err = e.preparePrivateCatalog(context.Background(), owner.Transactions.Catalog, ref.Epoch())

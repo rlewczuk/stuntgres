@@ -19,7 +19,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	var canonical bytes.Buffer
-	if err := e.Dump(ctx, &canonical); err != nil {
+	if err := Dump(ctx, e, &canonical); err != nil {
 		t.Fatal(err)
 	}
 	view := e.CatalogRead()
@@ -48,23 +48,23 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		}
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(ctx, &dump); err != nil {
+	if err := Dump(ctx, e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(dump.String(), "$libdir") || strings.Contains(dump.String(), "pg_conversion.dat") {
 		t.Fatal("provider payload serialized")
 	}
-	if err := e.Reset(ctx); err != nil {
+	if err := Reset(ctx, e); err != nil {
 		t.Fatal(err)
 	}
 	var reset bytes.Buffer
-	if err := e.Dump(ctx, &reset); err != nil {
+	if err := Dump(ctx, e, &reset); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(canonical.Bytes(), reset.Bytes()) {
 		t.Fatal("canonical seed-only dump changed")
 	}
-	if err := e.Restore(ctx, bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(ctx, e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal("actual native duplicate-default replay", err, dump.String())
 	}
 	current := e.CatalogRead()
@@ -103,7 +103,7 @@ func TestConversionDumpLegalDuplicateDefaultsAndSeedCollisions(t *testing.T) {
 		t.Fatal("legal duplicate default state lost", count)
 	}
 	var redump bytes.Buffer
-	if err := e.Dump(ctx, &redump); err != nil {
+	if err := Dump(ctx, e, &redump); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(dump.Bytes(), redump.Bytes()) {
@@ -131,7 +131,7 @@ func TestConversionDumpBlockedRestoreCancellation(t *testing.T) {
 	}
 	collationUnitPublish(t, source, stage)
 	var dump bytes.Buffer
-	if err := source.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), source, &dump); err != nil {
 		t.Fatal(err)
 	}
 	target := New()
@@ -145,7 +145,7 @@ func TestConversionDumpBlockedRestoreCancellation(t *testing.T) {
 	reader := &conversionBlockedReader{input: bytes.NewReader(dump.Bytes()), entered: make(chan struct{}), release: make(chan struct{})}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- target.Restore(ctx, reader) }()
+	go func() { done <- Restore(ctx, target, reader) }()
 	joined, released := false, false
 	defer func() {
 		cancel()

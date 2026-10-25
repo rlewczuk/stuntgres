@@ -39,7 +39,7 @@ func TestAlterSchemaGrantTimeReplacement(t *testing.T) {
 	sessionSQL(t, a, "LOCK TABLE s1.t IN ACCESS EXCLUSIVE MODE")
 	done := lockAsync(e, b, context.Background(), "ALTER TABLE s1.t SET SCHEMA s2", false)
 	lockPending(t, e, 1)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	alterSchemaEngineFixture(t, e)

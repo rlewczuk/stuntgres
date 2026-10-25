@@ -384,7 +384,7 @@ func TestViewWriteReplacement(t *testing.T) {
 	scope, _ := f.scope(t, true)
 	// Real explicit transaction admission permits native replacement without
 	// releasing or forging an implicit statement's lifetime reservation.
-	if err := f.e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), f.e); err != nil {
 		t.Fatal(err)
 	}
 	f.e.Mu.Lock()

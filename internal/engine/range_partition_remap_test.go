@@ -214,7 +214,7 @@ func TestRangePartitionPublicationDeferredRestoreAndCancellation(t *testing.T) {
 	})
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION postgres")
 	var stream bytes.Buffer
-	if err := e.Dump(context.Background(), &stream); err != nil {
+	if err := Dump(context.Background(), e, &stream); err != nil {
 		t.Fatal(err)
 	}
 	target := New()
@@ -226,14 +226,14 @@ func TestRangePartitionPublicationDeferredRestoreAndCancellation(t *testing.T) {
 	before := target.CatalogRead()
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := target.Restore(canceled, bytes.NewReader(stream.Bytes())); !errors.Is(err, context.Canceled) {
+	if err := Restore(canceled, target, bytes.NewReader(stream.Bytes())); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if target.CatalogRead().State() != before.State() {
 		t.Fatal("canceled hierarchy replay swapped target")
 	}
 	invalid := append(slices.Clone(stream.Bytes()), []byte("\nALTER TABLE public.root ALTER COLUMN payload SET DEFAULT NULL;\n")...)
-	if err := target.Restore(context.Background(), bytes.NewReader(invalid)); err == nil {
+	if err := Restore(context.Background(), target, bytes.NewReader(invalid)); err == nil {
 		t.Fatal("nondeferrable hierarchy default accepted as importer replay")
 	}
 	if target.CatalogRead().State() != before.State() {
@@ -242,7 +242,7 @@ func TestRangePartitionPublicationDeferredRestoreAndCancellation(t *testing.T) {
 	if !reflect.DeepEqual(tuples(roleExecute(t, target, targetOp, "SELECT k FROM sentinel")), [][]driver.Value{{int64(9)}}) {
 		t.Fatal("failed replay changed sentinel")
 	}
-	if err := target.Restore(context.Background(), bytes.NewReader(stream.Bytes())); err != nil {
+	if err := Restore(context.Background(), target, bytes.NewReader(stream.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	result := roleExecute(t, target, targetOp, "SELECT k,payload='target'::REGCLASS FROM root")
@@ -250,7 +250,7 @@ func TestRangePartitionPublicationDeferredRestoreAndCancellation(t *testing.T) {
 		t.Fatal("deferred virtual default did not restore provider identity")
 	}
 	var again bytes.Buffer
-	if err := target.Dump(context.Background(), &again); err != nil {
+	if err := Dump(context.Background(), target, &again); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(stream.Bytes(), again.Bytes()) {
@@ -264,7 +264,7 @@ func TestRangePartitionPublicationDeferredRestoreAndCancellation(t *testing.T) {
 	if !reflect.DeepEqual(tuples(roleExecute(t, target, targetOp, "SELECT k,payload='target'::REGCLASS FROM root ORDER BY k")), [][]driver.Value{{int64(1), true}, {int64(2), true}}) {
 		t.Fatal("ordinary hierarchy ALTER bypass changed defaults")
 	}
-	if err := target.Restore(context.Background(), strings.NewReader("nonsense")); err == nil {
+	if err := Restore(context.Background(), target, strings.NewReader("nonsense")); err == nil {
 		t.Fatal("malformed replay accepted")
 	}
 }

@@ -156,7 +156,7 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			originalConstraint.Attributes = append([]int32(nil), originalConstraint.Attributes...)
 			sourceRoot := source.Storage.IndexRoots[originalConstraint.Index]
 			var dump bytes.Buffer
-			if err := source.Dump(ctx, &dump); err != nil {
+			if err := Dump(ctx, source, &dump); err != nil {
 				t.Fatal(err)
 			}
 			target := New()
@@ -193,10 +193,10 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			}
 			sequenceScalar(t, b, "SELECT nextval('kept')", 2)
 			var again bytes.Buffer
-			if err := target.Dump(ctx, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
+			if err := Dump(ctx, target, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
 				t.Fatal("noncanonical remapped replay", err, again.String())
 			}
-			if err := target.Restore(ctx, bytes.NewReader(dump.Bytes())); err != nil {
+			if err := Restore(ctx, target, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(err)
 			}
 			sequenceScalar(t, b, "SELECT nextval('kept')", 3)
@@ -345,7 +345,7 @@ func TestUniqueClaimEpochFenceReadmission(t *testing.T) {
 	lockPending(t, e, 1)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := e.Reset(ctx); err != nil {
+	if err := Reset(ctx, e); err != nil {
 		t.Fatal(err)
 	}
 	deleteAwait(t, done, 0, ids.ErrCatalogReplaced)

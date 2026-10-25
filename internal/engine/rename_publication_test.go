@@ -34,7 +34,7 @@ func TestAlterRenamePublication(t *testing.T) {
 					case "cancel":
 						cancel()
 					case "reset":
-						if err := e.Reset(context.Background()); err != nil {
+						if err := Reset(context.Background(), e); err != nil {
 							t.Fatal(err)
 						}
 					case "authority":

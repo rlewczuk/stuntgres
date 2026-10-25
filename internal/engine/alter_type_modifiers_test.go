@@ -85,10 +85,10 @@ func TestAlterTypeStableDefaultDeferredAndReplay(t *testing.T) {
 		t.Fatal(rows)
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	restored := e.Catalog.State.MustRelation(roleTableRef(t, e, "d").Address)

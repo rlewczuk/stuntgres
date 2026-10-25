@@ -146,7 +146,7 @@ func TestExtensionVersionPublication(t *testing.T) {
 			case "role":
 				roleAttributeCreate(t, e, admin, "version_role_fence", false, parser.RoleOptions{})
 			case "reset":
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			case "restore":

@@ -116,7 +116,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	roleExecute(t, e, op, "SELECT a FROM secret")
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
+	if err := Dump(context.Background(), e, &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("explicit ACL dump loss", err, dump.String())
 	}
 	namespace := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
@@ -217,7 +217,7 @@ func TestAuthorizationRestoreRejectsRecreatedOwnerDuringIO(t *testing.T) {
 	gate := &roleBlockingReader{entered: make(chan struct{}), release: make(chan struct{}),
 		text: "SET SESSION AUTHORIZATION 'owner'; CREATE TABLE imported(id INT);"}
 	result := make(chan error, 1)
-	go func() { result <- e.Restore(context.Background(), &roleGateReader{gate: gate}) }()
+	go func() { result <- Restore(context.Background(), e, &roleGateReader{gate: gate}) }()
 	released, finished := false, false
 	defer func() {
 		if !released {
@@ -459,11 +459,11 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		t.Fatal(err)
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal("semantic bootstrap ACL rejected", err)
 	}
 	restored := New()
-	if err := restored.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), restored, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal("restore semantic bootstrap ACL dump", err)
 	}
 	read, readDone := roleOperation(t, restored, "postgres")
@@ -485,7 +485,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	}
 	before := e.Catalog.State
 	dump.Reset()
-	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
+	if err := Dump(context.Background(), e, &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("changed namespace ACL silently lost", err, dump.String())
 	}
 	if e.Catalog.State != before {
@@ -506,7 +506,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	if _, err := e.ReplaceCatalog(context.Background(), e, e.Catalog.Read(replacement)); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Dump(context.Background(), &dump); err == nil || dump.Len() != 0 {
+	if err := Dump(context.Background(), e, &dump); err == nil || dump.Len() != 0 {
 		t.Fatal("inconsistent namespace owner/ACL silently lost", err, dump.String())
 	}
 }
@@ -622,7 +622,7 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	}
 	roleError(t, e, op, "SELECT c64 FROM wide", "42501", "permission denied for table wide", "")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil || dump.Len() == 0 {
+	if err := Dump(context.Background(), e, &dump); err != nil || dump.Len() == 0 {
 		t.Fatal("absent column ACL dump", err, dump.String())
 	}
 }

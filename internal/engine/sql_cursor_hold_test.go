@@ -45,7 +45,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 		t.Fatal("close mutates detached batches")
 	}
 	sessionSQL(t, s, "DECLARE fenced CURSOR WITH HOLD FOR SELECT 7")
-	if err := EngineOf(s).Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), EngineOf(s)); err != nil {
 		t.Fatal(err)
 	}
 	result, err := cursorUnitExecute(t, s, context.Background(), "FETCH ALL FROM fenced")

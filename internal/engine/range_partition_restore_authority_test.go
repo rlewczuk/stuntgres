@@ -159,12 +159,12 @@ CREATE TABLE middles.middle PARTITION OF parents.root DEFAULT PARTITION BY RANGE
 SET SESSION AUTHORIZATION leaf_owner;
 CREATE TABLE leaves.leaf PARTITION OF middles.middle DEFAULT;
 SET SESSION AUTHORIZATION postgres;`
-	if err := e.Restore(context.Background(), bytes.NewBufferString(definition)); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewBufferString(definition)); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "INSERT INTO parents.root(k) VALUES(1),(2)")
 	var stream bytes.Buffer
-	if err := e.Dump(context.Background(), &stream); err != nil {
+	if err := Dump(context.Background(), e, &stream); err != nil {
 		t.Fatal(err)
 	}
 	target := New()
@@ -173,7 +173,7 @@ SET SESSION AUTHORIZATION postgres;`
 	for _, query := range []string{"CREATE ROLE leaf_owner LOGIN", "CREATE ROLE middle_owner LOGIN", "CREATE ROLE parent_owner LOGIN"} {
 		roleExecute(t, target, targetOp, query)
 	}
-	if err := target.Restore(context.Background(), bytes.NewReader(stream.Bytes())); err != nil {
+	if err := Restore(context.Background(), target, bytes.NewReader(stream.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, target, targetOp, "INSERT INTO parents.root(k) VALUES(3)")

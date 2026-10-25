@@ -24,7 +24,7 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			provider := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "seed")
 			original := source.ColumnMeta.Defaults[1]
 			manifest := slices.Clone(original.Dependencies)
-			if err := e.Reset(context.Background()); err != nil {
+			if err := Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
 			run(t, e, "CREATE TABLE barrier(v INT)")

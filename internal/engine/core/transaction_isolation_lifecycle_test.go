@@ -35,7 +35,7 @@ func TestTransactionIsolationRetainedResults(t *testing.T) {
 			enginetest.SessionSQL(t, b, "UPDATE t SET v=2")
 			enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(3)")
 			var dump bytes.Buffer
-			if err := e.Dump(ctx, &dump); err != nil {
+			if err := engine.Dump(ctx, e, &dump); err != nil {
 				t.Fatal(err)
 			}
 			if strings.Contains(dump.String(), "VALUES (3)") {
@@ -54,12 +54,12 @@ func TestTransactionIsolationRetainedResults(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "reset":
-				if err := e.Reset(ctx); err != nil {
+				if err := engine.Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 				enginetest.SessionSQL(t, a, "ROLLBACK")
 			case "restore":
-				if err := e.Restore(ctx, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9);")); err != nil {
+				if err := engine.Restore(ctx, e, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(9);")); err != nil {
 					t.Fatal(err)
 				}
 				enginetest.SessionSQL(t, a, "ROLLBACK")

@@ -126,7 +126,7 @@ func TestAlterDropColumnQueuedReplacementFenced(t *testing.T) {
 	}
 	queued := lockAsync(e, sessionStart(t, e, nil), context.Background(), "SELECT * FROM t", false)
 	lockPending(t, e, 1)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	lockAwait(t, queued, ids.ErrCatalogReplaced)
@@ -237,7 +237,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				lateDescriptor, earlyDescriptor := e.Catalog.State.Get(lateRef.Address), e.Catalog.State.Get(earlyRef.Address)
 				lateStorage, earlyStorage := e.Storage.Relations[lateRef.Address], e.Storage.Relations[earlyRef.Address]
 				var before bytes.Buffer
-				if err := e.Dump(context.Background(), &before); err != nil {
+				if err := Dump(context.Background(), e, &before); err != nil {
 					t.Fatal(err)
 				}
 				transactionEnd(t, late, lateTx, false)
@@ -255,7 +255,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 					t.Error("shadow ALTER changed descriptor or storage")
 				}
 				var after bytes.Buffer
-				if err := e.Dump(context.Background(), &after); err != nil || after.String() != before.String() {
+				if err := Dump(context.Background(), e, &after); err != nil || after.String() != before.String() {
 					t.Error("shadow ALTER changed canonical state", err, after.String())
 				}
 				lockPending(t, e, 0)

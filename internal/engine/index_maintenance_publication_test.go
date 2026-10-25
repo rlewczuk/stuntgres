@@ -90,7 +90,7 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "reset":
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			}

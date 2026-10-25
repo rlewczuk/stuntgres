@@ -266,12 +266,12 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				// The holder has not ended. Real replacement can complete only if
 				// the implicit row waiter relinquished its admission reservation.
 				if replacement == "reset" {
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 					sessionSQL(t, peer, "CREATE TABLE t(v INT)")
 					sessionSQL(t, peer, "INSERT INTO t VALUES(1),(2),(2),(91)")
-				} else if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(1),(2),(2),(91)")); err != nil {
+				} else if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(1),(2),(2),(91)")); err != nil {
 					t.Fatal(err)
 				}
 				if holder.TransactionState() != session.TxActive || e.CatalogRead().Epoch() != ref.Epoch+1 {

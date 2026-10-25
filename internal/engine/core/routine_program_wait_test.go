@@ -77,7 +77,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				case "replacement":
 					ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
 					defer stop()
-					if err := e.Reset(ctx); err != nil {
+					if err := engine.Reset(ctx, e); err != nil {
 						t.Fatal(err)
 					}
 				}

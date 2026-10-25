@@ -160,7 +160,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 				e.ReplacementMu.Unlock()
 				held = false
 			} else {
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			}

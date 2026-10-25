@@ -77,7 +77,7 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		if e.Locks.HasAccessShare(waiter, resource) {
 			t.Fatal("canceled request left function grant")
 		}
-		if err := e.Reset(context.Background()); err != nil {
+		if err := Reset(context.Background(), e); err != nil {
 			t.Fatal(err)
 		}
 		request, err = e.Locks.StartAcquire(context.Background(), waiter, resource, lock.AccessShare, lock.Policy{})

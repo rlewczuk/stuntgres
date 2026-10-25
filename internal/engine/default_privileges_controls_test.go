@@ -151,7 +151,7 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 			f := newDefaultUnitFixture(t)
 			f.grant(t, class, "all", nil)
 			var output bytes.Buffer
-			err := f.e.Dump(context.Background(), &output)
+			err := Dump(context.Background(), f.e, &output)
 			if err == nil || !strings.Contains(err.Error(), "default privileges") || output.Len() != 0 {
 				t.Fatal("default-only Dump wrote/lost policy", err, output.String())
 			}
@@ -164,18 +164,18 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := f.e.Dump(context.Background(), &output); err == nil || output.Len() != 0 {
+	if err := Dump(context.Background(), f.e, &output); err == nil || output.Len() != 0 {
 		t.Fatal("stored-empty Dump", err)
 	}
 	before := f.e.CatalogRead()
 	rolesPublication := f.e.RoleStore.Published
 	roles := f.e.Roles()
 	edges := roles.Memberships()
-	err := f.e.Restore(context.Background(), strings.NewReader("CREATE TABLE before_reject(x INT); ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;"))
+	err := Restore(context.Background(), f.e, strings.NewReader("CREATE TABLE before_reject(x INT); ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO PUBLIC;"))
 	if err == nil || f.e.Catalog.State != before.State() || f.e.RoleStore.Published != rolesPublication {
 		t.Fatal("Restore admitted defaults or changed original", err)
 	}
-	if err = f.e.Reset(context.Background()); err != nil {
+	if err = Reset(context.Background(), f.e); err != nil {
 		t.Fatal(err)
 	}
 	if f.e.Catalog.State.DefaultACLCount() != 0 || f.e.RoleStore.Published != rolesPublication || !reflect.DeepEqual(f.e.Roles().Memberships(), edges) {
@@ -191,11 +191,11 @@ func TestDefaultPrivilegesControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	output.Reset()
-	if err = f.e.Dump(context.Background(), &output); err != nil {
+	if err = Dump(context.Background(), f.e, &output); err != nil {
 		t.Fatal("pristine dependent baseline Dump", err)
 	}
 	target := New()
-	if err = target.Restore(context.Background(), bytes.NewReader(output.Bytes())); err != nil {
+	if err = Restore(context.Background(), target, bytes.NewReader(output.Bytes())); err != nil {
 		t.Fatal("pristine dependent baseline Restore", err)
 	}
 	if len(output.Bytes()) == 0 || table.RowType == 0 {

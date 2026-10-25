@@ -31,10 +31,10 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			}
 			if restore {
 				var dump bytes.Buffer
-				if err := source.Dump(context.Background(), &dump); err != nil {
+				if err := Dump(context.Background(), source, &dump); err != nil {
 					t.Fatal(err)
 				}
-				if err := dest.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+				if err := Restore(context.Background(), dest, bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
 			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {

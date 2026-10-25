@@ -46,10 +46,10 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				identity := op.RoleState()
 				settings := op.Session.Settings
 				rolesPublication := e.RoleStore.Published
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
-				if err := e.Restore(context.Background(), strings.NewReader(canonical)); err != nil {
+				if err := Restore(context.Background(), e, strings.NewReader(canonical)); err != nil {
 					t.Fatal("commented mixed-owner dump cannot replay", err, canonical)
 				}
 				if got := commentDump(t, e); got != canonical {

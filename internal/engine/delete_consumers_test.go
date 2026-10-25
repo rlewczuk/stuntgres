@@ -24,20 +24,20 @@ func TestDeleteCoreControls(t *testing.T) {
 	ref := transactionBegin(t, a)
 	deleteCount(t, a, "DELETE FROM t WHERE id=1", 1)
 	var private bytes.Buffer
-	if err := e.Dump(context.Background(), &private); err != nil || !strings.Contains(private.String(), "'gone'") {
+	if err := Dump(context.Background(), e, &private); err != nil || !strings.Contains(private.String(), "'gone'") {
 		t.Fatal("Dump exposed private deletion", err, private.String())
 	}
 	transactionEnd(t, a, ref, false)
 	deleteCount(t, b, "DELETE FROM t WHERE id=1", 1)
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(dump.String(), "'gone'") || strings.Contains(dump.String(), "DELETE") || strings.Count(dump.String(), "'keep'") != 2 {
 		t.Fatal("noncanonical survivors", dump.String())
 	}
 	target := New()
-	if err := target.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), target, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	want := [][]driver.Value{{int64(2), "keep", false}, {int64(2), "keep", false}}
@@ -47,16 +47,16 @@ func TestDeleteCoreControls(t *testing.T) {
 	_, err := testExecute(target, context.Background(), statement(t, "INSERT INTO t VALUES(NULL,'bad',FALSE)"), nil)
 	state(t, err, "23502")
 	epoch := target.CatalogRead().Epoch()
-	if err := target.Restore(context.Background(), strings.NewReader("DELETE FROM t")); err == nil || target.CatalogRead().Epoch() != epoch {
+	if err := Restore(context.Background(), target, strings.NewReader("DELETE FROM t")); err == nil || target.CatalogRead().Epoch() != epoch {
 		t.Fatal("Restore DELETE whitelist widened", err)
 	}
 	if got := tuples(run(t, target, "SELECT * FROM t ORDER BY id")); !reflect.DeepEqual(got, want) {
 		t.Fatal("failed Restore changed rows", got)
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(tuples(retained), before) {
@@ -104,11 +104,11 @@ func TestDeleteCoreConsumers(t *testing.T) {
 			t.Fatal("zero width lost occurrence", zero.Count)
 		}
 		var populated bytes.Buffer
-		if err := e.Dump(context.Background(), &populated); err != nil || strings.Count(populated.String(), "DEFAULT VALUES") != 1 {
+		if err := Dump(context.Background(), e, &populated); err != nil || strings.Count(populated.String(), "DEFAULT VALUES") != 1 {
 			t.Fatal("zero-width live Dump", err, populated.String())
 		}
 		populatedTarget := New()
-		if err := populatedTarget.Restore(context.Background(), bytes.NewReader(populated.Bytes())); err != nil || run(t, populatedTarget, "SELECT * FROM t").Count != 1 {
+		if err := Restore(context.Background(), populatedTarget, bytes.NewReader(populated.Bytes())); err != nil || run(t, populatedTarget, "SELECT * FROM t").Count != 1 {
 			t.Fatal("zero-width live Restore", err)
 		}
 		deleteCount(t, s, "DELETE FROM t", 1)
@@ -117,14 +117,14 @@ func TestDeleteCoreConsumers(t *testing.T) {
 		}
 		deleteCount(t, s, "DELETE FROM t", 0)
 		var dump bytes.Buffer
-		if err := e.Dump(context.Background(), &dump); err != nil {
+		if err := Dump(context.Background(), e, &dump); err != nil {
 			t.Fatal(err)
 		}
 		if strings.Contains(dump.String(), "DEFAULT VALUES") {
 			t.Fatal("zero-width deleted occurrence resurrected", dump.String())
 		}
 		restored := New()
-		if err := restored.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+		if err := Restore(context.Background(), restored, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
 		if run(t, restored, "SELECT * FROM t").Count != 0 {
@@ -236,20 +236,20 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	epoch, frontier, ends := e.CatalogRead().Epoch(), e.Visibility.CommitSeq(), e.Storage.Relations[target.Address].Ends
 	own := a.Transactions.Deletes[target.Address]
 	sentinel := errors.New("late replacement reader")
-	if err := e.Restore(context.Background(), &deleteFailingReader{text: "CREATE TABLE fresh(v INT); INSERT INTO fresh VALUES(99);", err: sentinel}); !errors.Is(err, sentinel) {
+	if err := Restore(context.Background(), e, &deleteFailingReader{text: "CREATE TABLE fresh(v INT); INSERT INTO fresh VALUES(99);", err: sentinel}); !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
 	for _, script := range []string{
 		"CREATE TABLE fresh(v INT); INSERT INTO fresh VALUES(99); malformed",
 		"CREATE TABLE fresh(v INT); INSERT INTO fresh VALUES(99); DELETE FROM fresh",
 	} {
-		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader(script)); err == nil {
 			t.Fatal("late replacement accepted", script)
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.Restore(ctx, strings.NewReader("CREATE TABLE fresh(v INT)")); !errors.Is(err, context.Canceled) {
+	if err := Restore(ctx, e, strings.NewReader("CREATE TABLE fresh(v INT)")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().Epoch() != epoch || e.Visibility.CommitSeq() != frontier || e.Storage.Relations[target.Address].Ends != ends || a.TransactionState() != session.TxActive || a.Transactions.Deletes[target.Address] != own {

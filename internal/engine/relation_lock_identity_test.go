@@ -49,7 +49,7 @@ func TestRelationLockIdentity(t *testing.T) {
 	transactionEnd(t, foreign, rf, false)
 	lockEmpty(t, e)
 	lockEmpty(t, other)
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT)")); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT)")); err != nil {
 		t.Fatal(err)
 	}
 	ra = transactionBegin(t, a)
@@ -81,12 +81,12 @@ func TestRelationLockFailedControlPreservesOwner(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	epoch := e.CatalogRead().Epoch()
 	readErr := errors.New("reader failure")
-	if err := e.Restore(context.Background(), relationFailReader{readErr}); !errors.Is(err, readErr) {
+	if err := Restore(context.Background(), e, relationFailReader{readErr}); !errors.Is(err, readErr) {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.Restore(ctx, strings.NewReader("CREATE TABLE t(v INT)")); !errors.Is(err, context.Canceled) {
+	if err := Restore(ctx, e, strings.NewReader("CREATE TABLE t(v INT)")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().Epoch() != epoch {

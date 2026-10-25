@@ -46,7 +46,7 @@ func TestMergeUpdateRowLocks(t *testing.T) {
 				lockAwait(t, done, context.Canceled)
 				transactionEnd(t, holder, tx, false)
 			case "reset":
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 				lockAwait(t, done, ids.ErrCatalogReplaced)

@@ -230,7 +230,7 @@ func TestQueryWindowGroupsMetadata(t *testing.T) {
 		t.Fatal(rows, count, err)
 	}
 	defer rows.Close()
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	tuple := make([]sqltype.Value, 2)

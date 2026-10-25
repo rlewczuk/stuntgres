@@ -77,7 +77,7 @@ func TestTransactionalSchemaDropManifest(t *testing.T) {
 			case "deleted":
 				run(t, e, "DROP SCHEMA manifest_held")
 			case "epoch":
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			case "foreign_domain":

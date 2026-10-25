@@ -232,7 +232,7 @@ func TestIndexMaintenanceMetadataDomainsAndEnumeration(t *testing.T) {
 		t.Fatal("metadata enumeration filtered by ACL or mixed captures", records, names, err)
 	}
 	old := e.CatalogRead()
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	records, _, err = index.CatalogMetadata(context.Background(), old)

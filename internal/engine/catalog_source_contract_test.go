@@ -268,7 +268,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 	}
 	done()
 	retained := append([]sqltype.Value(nil), rows[0]...)
-	if err := e.Reset(t.Context()); err != nil {
+	if err := Reset(t.Context(), e); err != nil {
 		t.Fatal(err)
 	}
 	again, err := capturePGType(in)

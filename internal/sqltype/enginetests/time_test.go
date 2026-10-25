@@ -30,7 +30,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	}
 	desc := engine.StatementDescription{Temporals: b.Prepared.Temporals}
 	before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
-	if err := e.Reset(ctx); err != nil {
+	if err := engine.Reset(ctx, e); err != nil {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().LookupType(sqltype.Time)

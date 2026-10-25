@@ -182,15 +182,15 @@ func TestPredefinedRoleControls(t *testing.T) {
 		t.Fatal("stage implicit owner", closure, err)
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(dump.String(), "CREATE ROLE") || strings.Contains(dump.String(), "GRANT pg_") || strings.Contains(dump.String(), "OWNER TO postgres") {
 		t.Fatal("dump invented shared authority or wrong public baseline", dump.String())
 	}
 	for _, run := range []func() error{
-		func() error { return e.Reset(context.Background()) },
-		func() error { return e.Restore(context.Background(), bytes.NewReader(dump.Bytes())) },
+		func() error { return Reset(context.Background(), e) },
+		func() error { return Restore(context.Background(), e, bytes.NewReader(dump.Bytes())) },
 	} {
 		if err := run(); err != nil {
 			t.Fatal(err)

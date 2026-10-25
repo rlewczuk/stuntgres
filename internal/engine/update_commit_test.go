@@ -40,7 +40,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 			}
 			defer op.Done()
 			if fenced {
-				if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);CREATE TABLE u(v INT);INSERT INTO t VALUES(91);INSERT INTO u VALUES(92);")); err != nil {
+				if err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);CREATE TABLE u(v INT);INSERT INTO t VALUES(91);INSERT INTO u VALUES(92);")); err != nil {
 					t.Fatal(err)
 				}
 				_, err = e.Commit(op, tx)

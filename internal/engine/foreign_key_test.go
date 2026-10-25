@@ -167,7 +167,7 @@ func TestForeignKeyQueuedCancellationAndReplacement(t *testing.T) {
 			}()
 			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.Ticket, lock.ForKeyShare)
 			if replace {
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 				lockAwait(t, done, ids.ErrCatalogReplaced)

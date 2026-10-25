@@ -83,7 +83,7 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 		t.Fatal("owner ACL rewrite", transferred)
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err == nil {
+	if err := Dump(context.Background(), e, &dump); err == nil {
 		t.Fatal("explicit ACL dump silently discarded grants")
 	}
 }
@@ -207,7 +207,7 @@ func TestViewReplaceCycles(t *testing.T) {
 	transactionEnd(t, locker, tx, false)
 	lockEmpty(t, e)
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err == nil || err.Error() != "stuntgres: cyclic view dump dependencies" {
+	if err := Dump(context.Background(), e, &dump); err == nil || err.Error() != "stuntgres: cyclic view dump dependencies" {
 		t.Fatal(err)
 	}
 	if dump.Len() != 0 {
@@ -220,7 +220,7 @@ func TestViewReplaceCycles(t *testing.T) {
 	run(t, e, "CREATE VIEW w AS SELECT id FROM v")
 	run(t, e, "CREATE OR REPLACE VIEW v AS SELECT id FROM w")
 	dump.Reset()
-	if err := e.Dump(context.Background(), &dump); err == nil || err.Error() != "stuntgres: cyclic view dump dependencies" {
+	if err := Dump(context.Background(), e, &dump); err == nil || err.Error() != "stuntgres: cyclic view dump dependencies" {
 		t.Fatal(err)
 	}
 	if dump.Len() != 0 {

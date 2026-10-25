@@ -267,11 +267,11 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				case "cancel":
 					cancel()
 				case "reset":
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				case "restore":
-					if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(v INT);INSERT INTO sentinel VALUES(91)")); err != nil {
+					if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE sentinel(v INT);INSERT INTO sentinel VALUES(91)")); err != nil {
 						t.Fatal(err)
 					}
 				case "insert":

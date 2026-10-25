@@ -61,7 +61,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	source := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20000}, Attributes: []int32{1, 3}}
 	destination := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, Attributes: []int32{1, 2, 3, 4}}
 	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), source.Address())
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	current := ref

@@ -283,7 +283,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 					t.Fatal("head/end not one frontier", err)
 				}
 			case "restore_fenced":
-				if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);CREATE TABLE u(v INT);INSERT INTO t VALUES(91);INSERT INTO u VALUES(92);")); err != nil {
+				if err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(v INT);CREATE TABLE u(v INT);INSERT INTO t VALUES(91);INSERT INTO u VALUES(92);")); err != nil {
 					t.Fatal(err)
 				}
 				_, err = e.Commit(op, tx)
@@ -476,16 +476,16 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 			var err error
 			switch mode {
 			case "invalid":
-				err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE fresh(v INT);INSERT INTO fresh VALUES(99);malformed"))
+				err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE fresh(v INT);INSERT INTO fresh VALUES(99);malformed"))
 			case "reader":
-				err = e.Restore(context.Background(), &deleteFailingReader{text: "CREATE TABLE fresh(v INT);INSERT INTO fresh VALUES(99);", err: sentinel})
+				err = Restore(context.Background(), e, &deleteFailingReader{text: "CREATE TABLE fresh(v INT);INSERT INTO fresh VALUES(99);", err: sentinel})
 				if !errors.Is(err, sentinel) {
 					t.Fatal(err)
 				}
 			case "canceled":
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()
-				err = e.Restore(ctx, strings.NewReader("CREATE TABLE fresh(v INT)"))
+				err = Restore(ctx, e, strings.NewReader("CREATE TABLE fresh(v INT)"))
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}

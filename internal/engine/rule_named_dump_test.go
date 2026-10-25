@@ -169,10 +169,10 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 					// Exercise actual native import remapping, not a hand-built
 					// identity carrier or a mock mapper.
 					var dump bytes.Buffer
-					if err := e.Dump(context.Background(), &dump); err != nil {
+					if err := Dump(context.Background(), e, &dump); err != nil {
 						t.Fatal(err)
 					}
-					if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+					if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 						t.Fatal(err)
 					}
 					imported := e.CatalogRead()

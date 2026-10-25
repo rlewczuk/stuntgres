@@ -255,7 +255,7 @@ func TestIndexMaintenanceGrantIncarnationIndexSetAndEpoch(t *testing.T) {
 			case "new_index":
 				indexMaintenancePublishIndexClone(t, e, "ix", "new_index", false)
 			case "reset":
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			}

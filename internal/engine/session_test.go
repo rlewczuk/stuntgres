@@ -104,11 +104,11 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE sentinel(v INT)")
 	sessionSQL(t, a, "INSERT INTO sentinel VALUES(7)")
 	var dump strings.Builder
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	restored := New()
-	if err := restored.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), restored, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	fresh := sessionStart(t, restored, &defaultProvider{value: "fresh-default"})
@@ -116,16 +116,16 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 	if got := tuples(sessionSQL(t, fresh, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {
 		t.Fatal("dump lost sentinel data", got)
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	sessionValue(t, a, "retained")
 	sessionValue(t, b, "provider-b")
-	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	for _, q := range []string{"CREATE TABLE lost(v INT); SET application_name TO x", "CREATE TABLE lost(v INT); SHOW application_name"} {
-		if err := e.Restore(context.Background(), strings.NewReader(q)); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader(q)); err == nil {
 			t.Fatal("restore accepted setting")
 		}
 		if got := tuples(sessionSQL(t, b, "SELECT * FROM sentinel")); !reflect.DeepEqual(got, [][]driver.Value{{int64(7)}}) {

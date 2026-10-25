@@ -393,7 +393,7 @@ func TestSequenceOwnedTableLockReplacement(t *testing.T) {
 				done := ownedLockAsync(e, b, ctx, ast, d)
 				ref := catalogRef(t, e, e.CatalogRead(), "t")
 				ownedLockQueued(t, e, ref, lock.AccessShare, done)
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 				lockAwait(t, done, ids.ErrCatalogReplaced)

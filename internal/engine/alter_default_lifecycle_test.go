@@ -48,11 +48,11 @@ func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
 				case "shadow":
 					run(t, e, "CREATE TABLE shadow.t(a INT DEFAULT 99)")
 				case "reset":
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				case "restore":
-					if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(a INT DEFAULT 99)")); err != nil {
+					if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(a INT DEFAULT 99)")); err != nil {
 						t.Fatal(err)
 					}
 				case "recreate":

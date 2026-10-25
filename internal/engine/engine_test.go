@@ -406,10 +406,10 @@ func TestNullOrderingAndSnapshotLifetime(t *testing.T) {
 	if !reflect.DeepEqual(tuples(asc), want) {
 		t.Fatal("insert changed snapshot")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE replacement (x TEXT);")); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader("CREATE TABLE replacement (x TEXT);")); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(tuples(asc), want) {
@@ -431,15 +431,15 @@ func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
 	run(t, e, `INSERT INTO "a table" VALUES ($1, $2, $3, $4)`, "line\nO'Brien\\tail", int64(-9223372036854775808), false, 0)
 	run(t, e, `INSERT INTO "a table" VALUES ('',NULL,NULL,1)`)
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	copy := New()
-	if err := copy.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), copy, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	var again bytes.Buffer
-	if err := copy.Dump(context.Background(), &again); err != nil {
+	if err := Dump(context.Background(), copy, &again); err != nil {
 		t.Fatal(err)
 	}
 	if dump.String() != again.String() {
@@ -450,22 +450,22 @@ func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
 		t.Fatalf("round trip rows: %v", got)
 	}
 	for _, script := range []string{"CREATE TABLE other (i INTEGER NOT NULL); INSERT INTO other VALUES (1),(NULL);", "CREATE TABLE other (i INTEGER); CREATE TABLE other (i TEXT);", "SELECT * FROM empty;", "CREATE TABLE other (i INTEGER); INSERT INTO other VALUES ($1);", "CREATE TABLE other (i INTEGER); nonsense"} {
-		if err := copy.Restore(context.Background(), strings.NewReader(script)); err == nil {
+		if err := Restore(context.Background(), copy, strings.NewReader(script)); err == nil {
 			t.Fatalf("restore accepted %q", script)
 		}
 		if got := tuples(run(t, copy, `SELECT * FROM "a table" ORDER BY i`)); !reflect.DeepEqual(got, want) {
 			t.Fatalf("failed restore lost sentinel: %v", got)
 		}
 	}
-	if err := copy.Restore(context.Background(), failingReader{}); !errors.Is(err, io.ErrUnexpectedEOF) {
+	if err := Restore(context.Background(), copy, failingReader{}); !errors.Is(err, io.ErrUnexpectedEOF) {
 		t.Fatalf("reader error: %v", err)
 	}
-	if err := copy.Dump(context.Background(), failingWriter{}); !errors.Is(err, io.ErrClosedPipe) {
+	if err := Dump(context.Background(), copy, failingWriter{}); !errors.Is(err, io.ErrClosedPipe) {
 		t.Fatalf("writer error: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	for _, operation := range []func() error{func() error { return copy.Reset(ctx) }, func() error { return copy.Restore(ctx, strings.NewReader("")) }, func() error {
+	for _, operation := range []func() error{func() error { return Reset(ctx, copy) }, func() error { return Restore(ctx, copy, strings.NewReader("")) }, func() error {
 		_, err := testExecute(copy, ctx, statement(t, `INSERT INTO "a table" VALUES ('lost',0,TRUE,3)`), nil)
 		return err
 	}} {
@@ -476,7 +476,7 @@ func TestControlsRoundTripAndFailurePreservation(t *testing.T) {
 	if got := tuples(run(t, copy, `SELECT * FROM "a table" ORDER BY i`)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("failed controls changed sentinel: %v", got)
 	}
-	if err := copy.Restore(context.Background(), strings.NewReader(" -- empty\n /* script */ ")); err != nil {
+	if err := Restore(context.Background(), copy, strings.NewReader(" -- empty\n /* script */ ")); err != nil {
 		t.Fatal(err)
 	}
 	_, err := testDescribe(copy, statement(t, `SELECT * FROM "a table"`))

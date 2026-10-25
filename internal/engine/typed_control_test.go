@@ -53,7 +53,7 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Storage.Relations[table.Address()] != stored {
 		t.Fatal("final admission rejection mutated target")
 	}
-	if err := e.Reset(context.Background()); err == nil || err.Error() != typedef.TemporaryTypedReplacementError {
+	if err := Reset(context.Background(), e); err == nil || err.Error() != typedef.TemporaryTypedReplacementError {
 		t.Fatal(err)
 	}
 	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Storage.Relations[table.Address()] != stored {

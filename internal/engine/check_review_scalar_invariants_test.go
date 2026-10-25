@@ -86,7 +86,7 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				sessionSQL(t, s, "INSERT INTO t VALUES(0)")
 				before := source.CatalogRead()
 				var dump bytes.Buffer
-				if err := source.Dump(ctx, &dump); err != nil {
+				if err := Dump(ctx, source, &dump); err != nil {
 					t.Fatal(err)
 				}
 				target := New()
@@ -107,10 +107,10 @@ func TestCheckReviewScalarInquiryRowArgumentReplacement(t *testing.T) {
 				}
 				sessionSQL(t, peer, "UPDATE t SET a=0")
 				var again bytes.Buffer
-				if err := target.Dump(ctx, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
+				if err := Dump(ctx, target, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
 					t.Fatal("row-dependent inquiry changed on replacement", err)
 				}
-				if err := target.Restore(ctx, bytes.NewReader(dump.Bytes())); err != nil {
+				if err := Restore(ctx, target, bytes.NewReader(dump.Bytes())); err != nil {
 					t.Fatal(err)
 				}
 				sessionSQL(t, peer, "INSERT INTO t VALUES(0)")

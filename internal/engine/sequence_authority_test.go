@@ -23,13 +23,13 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	r.Rows.Close()
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	ref := roleTableRef(t, e, "s")
@@ -51,7 +51,7 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	var rejected bytes.Buffer
-	if err := e.Dump(context.Background(), &rejected); err == nil || rejected.Len() != 0 {
+	if err := Dump(context.Background(), e, &rejected); err == nil || rejected.Len() != 0 {
 		t.Fatal("ACL dump must fail before output", err, rejected.String())
 	}
 	roleError(t, e, op, "DROP ROLE seq_reader", "2BP01", `role "seq_reader" cannot be dropped because some objects depend on it`, "privileges for sequence s")
@@ -68,7 +68,7 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	roleExecute(t, e, op, "DROP SEQUENCE s")
 	roleExecute(t, e, op, "DROP ROLE seq_owner")
 	roleExecute(t, e, op, "CREATE USER seq_owner")
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal(err)
 	}
 	newOwner, _ := e.Roles().Lookup("seq_owner")

@@ -49,7 +49,7 @@ func TestInheritanceControlsTemporaryReplacementRejection(t *testing.T) {
 		t.Fatal("rejection changed target/allocator")
 	}
 	// Reset uses the same final replacement fence, not just a helper-only guard.
-	if err = e.Reset(context.Background()); err == nil || err.Error() != control.TemporaryInheritanceReplacementError {
+	if err = Reset(context.Background(), e); err == nil || err.Error() != control.TemporaryInheritanceReplacementError {
 		t.Fatal(err)
 	}
 	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision || e.Storage.Relations[temp.Address()] != stored {

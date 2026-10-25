@@ -102,7 +102,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 					t.Fatal("database-only publication changed role authority or epoch")
 				}
 			case "reset":
-				if err := e.Reset(ctx); err != nil {
+				if err := Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 			case "session":
@@ -207,7 +207,7 @@ func TestRoleOwnershipNamespaceACLPrewriterGuard(t *testing.T) {
 	e, _, _ := ownershipCleanupStage(t)
 	state, roles := e.Catalog.State, e.RoleStore.Published
 	writer := &ownershipCountingWriter{}
-	err := e.Dump(context.Background(), writer)
+	err := Dump(context.Background(), e, writer)
 	if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit namespace ACL" || writer.calls != 0 {
 		t.Fatal("namespace ACL silently lost or writer invoked", err, writer.calls)
 	}

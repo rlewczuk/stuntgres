@@ -193,7 +193,7 @@ func TestNotificationQueueAccountingControls(t *testing.T) {
 	if head == nil || root == nil || !root.Unread {
 		t.Fatal("missing committed roots")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if e.Cluster.notificationHead != head || PayloadOf(receiver).notifications.State != root || e.notificationQueueUsageLocked() != 1.0/1048576 {

@@ -135,7 +135,7 @@ func TestAlterDropColumnFailuresAndSkip(t *testing.T) {
 		t.Fatal("skip changed state")
 	}
 	var before bytes.Buffer
-	if err := e.Dump(context.Background(), &before); err != nil {
+	if err := Dump(context.Background(), e, &before); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -145,7 +145,7 @@ func TestAlterDropColumnFailuresAndSkip(t *testing.T) {
 		t.Fatal(err)
 	}
 	var after bytes.Buffer
-	if err := e.Dump(context.Background(), &after); err != nil || before.String() != after.String() {
+	if err := Dump(context.Background(), e, &after); err != nil || before.String() != after.String() {
 		t.Fatal(err, after.String())
 	}
 }
@@ -162,7 +162,7 @@ func TestAlterDropColumnStageCancellationAndReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		if replacement {
-			if err = e.Reset(context.Background()); err != nil {
+			if err = Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
 		} else {
@@ -256,7 +256,7 @@ func TestAlterDropColumnProviderCancellationAndReset(t *testing.T) {
 				return
 			}
 			if reset {
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			} else {

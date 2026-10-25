@@ -405,7 +405,7 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 	sessionSQL(t, a, "CREATE TEMP SEQUENCE temporary CACHE 10")
 	temporary, td := sequencePreparedDescription(t, e, a, "SELECT nextval('pg_temp.temporary')")
 	persistent, pd := sequencePreparedDescription(t, e, a, "SELECT nextval('persistent')")
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {

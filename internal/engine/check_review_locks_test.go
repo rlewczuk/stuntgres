@@ -118,10 +118,10 @@ func TestCheckReviewDependencyOrderRoundtrip(t *testing.T) {
 	sessionSQL(t, a, "CREATE SEQUENCE s")
 	sessionSQL(t, a, "CREATE TABLE t(a INT,CONSTRAINT c2 CHECK(nextval('s')>0),CONSTRAINT c1 CHECK(nextval('s')>0))")
 	var dump strings.Builder
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	d := e.CatalogRead().MustRelation(catalogRef(t, e, e.CatalogRead(), "t").Address)

@@ -28,17 +28,17 @@ func TestNotNullFailedRestorePreservesCatalogEligibility(t *testing.T) {
 	held := run(t, e, "SELECT * FROM sentinel")
 	for _, script := range []string{"CREATE TABLE replacement(a INT NOT NULL);INSERT INTO replacement VALUES(NULL)", "CREATE TABLE replacement(a INT,b INT,CONSTRAINT nn NOT NULL a,CONSTRAINT nn NOT NULL b)", "CREATE TABLE replacement(a INT,NOT NULL missing)", "CREATE TABLE replacement(a INT NOT NULL,b INT CONSTRAINT replacement_a_not_null NOT NULL)"} {
 		var before bytes.Buffer
-		if err := e.Dump(context.Background(), &before); err != nil {
+		if err := Dump(context.Background(), e, &before); err != nil {
 			t.Fatal(err)
 		}
-		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader(script)); err == nil {
 			t.Fatal("bad restore succeeded")
 		}
 		if e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
 			t.Fatal("failed restore changed target")
 		}
 		var after bytes.Buffer
-		if err := e.Dump(context.Background(), &after); err != nil || before.String() != after.String() {
+		if err := Dump(context.Background(), e, &after); err != nil || before.String() != after.String() {
 			t.Fatal(err)
 		}
 	}

@@ -234,7 +234,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	check(peer, 10, false)
 	retained := &exec.Stage{Source: old, Columns: d.Columns}
 	schema := append([]catalog.Column(nil), retained.Schema()...)
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	check(pgDatabaseUnitCapture(t, e, e.CatalogRead()), uint32(successor.Ref.ID()), true)

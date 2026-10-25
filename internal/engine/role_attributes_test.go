@@ -309,16 +309,16 @@ func TestRoleAttributesControlsRetention(t *testing.T) {
 	root := e.Roles()
 	d, _ := root.Lookup("controls")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(dump.String(), d.Password) || strings.Contains(dump.String(), "CREATE ROLE") || strings.Contains(dump.String(), "PASSWORD") {
 		t.Fatal("Dump serialized shared password metadata")
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 		t.Fatal(err)
 	}
 	got, _ := e.Roles().Lookup("controls")
@@ -326,7 +326,7 @@ func TestRoleAttributesControlsRetention(t *testing.T) {
 		t.Fatal("controls changed descriptor", got)
 	}
 	before := e.RoleStore.Published
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE ROLE forbidden")); err == nil {
+	if err := Restore(context.Background(), e, strings.NewReader("CREATE ROLE forbidden")); err == nil {
 		t.Fatal("Restore role whitelist widened")
 	}
 	if e.RoleStore.Published != before {

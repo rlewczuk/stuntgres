@@ -27,13 +27,13 @@ func TestViewNativeMixedOwnerReplay(t *testing.T) {
 		roleExecute(t, e, op, query)
 	}
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Reset(context.Background()); err != nil {
+	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+	if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 		t.Fatal("mixed-owner view replay", err, dump.String())
 	}
 	if got := tuples(run(t, e, "SELECT id FROM s.w")); len(got) != 1 || got[0][0] != int64(7) {
@@ -74,7 +74,7 @@ func TestViewNativeRetainedTemporaryTypes(t *testing.T) {
 	oldInt8 := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 20}).SQLType
 	oldBool := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 16}).SQLType
 	const script = "CREATE TABLE t(id BIGINT,flag BOOL); INSERT INTO t VALUES(7,true); CREATE VIEW v(k,flag) AS SELECT COALESCE(id,0),CASE WHEN flag THEN true ELSE false END FROM t WHERE flag ORDER BY id; CREATE VIEW w(k,n) AS SELECT k,COUNT(*) FROM v GROUP BY k HAVING COUNT(*)>0;"
-	if err := e.Restore(context.Background(), strings.NewReader(script)); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader(script)); err != nil {
 		t.Fatal(err)
 	}
 	if got := tuples(run(t, e, "SELECT k,n FROM w")); len(got) != 1 || got[0][0] != int64(7) || got[0][1] != int64(1) {
@@ -138,7 +138,7 @@ func TestViewRuleOIDUniquenessAfterRestore(t *testing.T) {
 	run(t, source, "CREATE TABLE t(id INT)")
 	run(t, source, "CREATE VIEW v AS SELECT id FROM t")
 	var dump bytes.Buffer
-	if err := source.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), source, &dump); err != nil {
 		t.Fatal(err)
 	}
 	for _, temporary := range []bool{false, true} {
@@ -153,7 +153,7 @@ func TestViewRuleOIDUniquenessAfterRestore(t *testing.T) {
 			if temporary {
 				roleExecute(t, target, operation, "CREATE TEMPORARY SEQUENCE retained")
 			}
-			if err := target.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+			if err := Restore(context.Background(), target, bytes.NewReader(dump.Bytes())); err != nil {
 				t.Fatal(err)
 			}
 			run(t, target, "CREATE TABLE fresh(id INT)")

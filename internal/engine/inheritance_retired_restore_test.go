@@ -348,7 +348,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO c(a,b) VALUES(2,20)")
 	roleExecute(t, e, op, "ALTER TABLE p DROP COLUMN a")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	before := e.Catalog.State
@@ -363,7 +363,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 		"late_enforcement":      dump.String() + "; INSERT INTO public.c(a,b) VALUES(0,20)",
 	} {
 		t.Run(name, func(t *testing.T) {
-			if err := e.Restore(context.Background(), strings.NewReader(stream)); err == nil {
+			if err := Restore(context.Background(), e, strings.NewReader(stream)); err == nil {
 				t.Fatal("late invalid import succeeded")
 			}
 			if e.Catalog.State != before || !reflect.DeepEqual(stores, e.Storage.Relations) || retiredResourceCounts(e) != resources {
@@ -378,14 +378,14 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.Restore(ctx, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) || e.Catalog.State != before || retiredResourceCounts(e) != resources {
+	if err := Restore(ctx, e, bytes.NewReader(dump.Bytes())); !errors.Is(err, context.Canceled) || e.Catalog.State != before || retiredResourceCounts(e) != resources {
 		t.Fatal("canceled actual history stream replaced catalog/resources", err)
 	}
 	// Every actual redump/import receives fresh archival namespace authority, while
 	// archived fields remain old and current references/own identities are remapped.
 	var prior uint64
 	for range 2 {
-		if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+		if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
 		c := retiredUnitTable(t, e, "c")
@@ -395,7 +395,7 @@ func TestRestoreConstraintHistoryAtomicity(t *testing.T) {
 		}
 		prior = h.Archive
 		dump.Reset()
-		if err := e.Dump(context.Background(), &dump); err != nil {
+		if err := Dump(context.Background(), e, &dump); err != nil {
 			t.Fatal(err)
 		}
 	}

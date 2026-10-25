@@ -97,7 +97,7 @@ func InspectIndex(ctx context.Context, db *sql.DB, schema, name string) (IndexSt
 // Live temporary typed tables attached to persistent standalone types likewise
 // prevent replacement rather than retargeting their source by name or numeric OID.
 func Reset(ctx context.Context, db *sql.DB) error {
-	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return e.Reset(ctx) })
+	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return engine.Reset(ctx, e) })
 }
 
 // Dump writes a consistent PostgreSQL-compatible persistent SQL snapshot,
@@ -156,7 +156,7 @@ func Dump(ctx context.Context, db *sql.DB, dst io.Writer) error {
 	if dst == nil {
 		return errors.New("stuntgres: nil dump writer")
 	}
-	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return e.Dump(ctx, dst) })
+	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return engine.Dump(ctx, e, dst) })
 }
 
 // Restore atomically replaces persistent objects after supported CREATE/ALTER/DROP
@@ -229,5 +229,5 @@ func Restore(ctx context.Context, db *sql.DB, src io.Reader) error {
 	if src == nil {
 		return errors.New("stuntgres: nil restore reader")
 	}
-	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return e.Restore(ctx, src) })
+	return withDatabaseTarget(ctx, db, func(e *engine.Engine) error { return engine.Restore(ctx, e, src) })
 }

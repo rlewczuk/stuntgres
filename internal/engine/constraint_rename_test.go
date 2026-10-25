@@ -124,7 +124,7 @@ func TestConstraintRenameCheckOrder(t *testing.T) {
 	}
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT a TO z")
 	var dump bytes.Buffer
-	if err := e.Dump(context.Background(), &dump); err != nil {
+	if err := Dump(context.Background(), e, &dump); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Index(dump.String(), `CONSTRAINT "z"`) > strings.Index(dump.String(), `CONSTRAINT "b"`) {
@@ -182,7 +182,7 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 				backing := e.Catalog.State.Get(index)
 				store, root := e.Storage.Relations[ref.Address], e.Storage.IndexRoots[index]
 				var dump bytes.Buffer
-				if err := e.Dump(context.Background(), &dump); err != nil {
+				if err := Dump(context.Background(), e, &dump); err != nil {
 					t.Fatal(err)
 				}
 				ctx, cancel := context.WithCancel(context.Background())
@@ -192,12 +192,12 @@ func TestConstraintRenamePublicationFences(t *testing.T) {
 					case "cancel":
 						cancel()
 					case "reset":
-						if err := e.Reset(context.Background()); err != nil {
+						if err := Reset(context.Background(), e); err != nil {
 							t.Fatal(err)
 						}
 						run(t, e, "CREATE TABLE t(k INT CONSTRAINT old UNIQUE)")
 					case "restore":
-						if err := e.Restore(context.Background(), bytes.NewReader(dump.Bytes())); err != nil {
+						if err := Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
 							t.Fatal(err)
 						}
 					case "collision":

@@ -167,7 +167,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	retained := &exec.Stage{Source: old, Columns: d.Columns}
 	original := append([]catalog.Column(nil), retained.Schema()...)
 	for _, replace := range []func() error{
-		func() error { return e.Reset(context.Background()) },
+		func() error { return Reset(context.Background(), e) },
 		func() error { _, err := replaceWithFreshCatalog(context.Background(), e); return err },
 	} {
 		if err := replace(); err != nil {

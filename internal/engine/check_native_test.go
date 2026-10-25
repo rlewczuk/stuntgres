@@ -21,7 +21,7 @@ func TestCheckRetainedTemporaryBuiltinReplacement(t *testing.T) {
 			temp := target.Catalog.State.Get(tempRef.Address)
 			const script = "CREATE TABLE imported(n BIGINT DEFAULT CAST(1 AS BIGINT),b BOOL DEFAULT TRUE,CONSTRAINT c CHECK(n=CAST(1 AS BIGINT) AND b))"
 			if mode == "Restore" {
-				if err := target.Restore(context.Background(), strings.NewReader(script)); err != nil {
+				if err := Restore(context.Background(), target, strings.NewReader(script)); err != nil {
 					t.Fatal(err)
 				}
 			} else {
@@ -62,7 +62,7 @@ func TestCheckFailedRestorePreservesEpochAndStage(t *testing.T) {
 	storage := e.Storage.Relations[ref.Address]
 	stage := e.BeginCatalogStage(before)
 	for _, script := range []string{"CREATE TABLE replacement(a INT CHECK(a))", "CREATE TABLE replacement(a INT CHECK(a=1));INSERT INTO replacement VALUES(2)"} {
-		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader(script)); err == nil {
 			t.Fatal("bad Restore succeeded")
 		}
 		after := e.CatalogRead()

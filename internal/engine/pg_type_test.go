@@ -232,7 +232,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 			t.Fatal("canceled partial capture", got, err)
 		}
 	}
-	if err := e.Reset(t.Context()); err != nil {
+	if err := Reset(t.Context(), e); err != nil {
 		t.Fatal(err)
 	}
 	fresh, freshRef := pgTypeUnitSource(t, e)
@@ -374,7 +374,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		}
 	}
 	oldBase := domainUnitType(t, catalogView, "query_int")
-	if err := e.Reset(t.Context()); err != nil {
+	if err := Reset(t.Context(), e); err != nil {
 		t.Fatal(err)
 	}
 	install()

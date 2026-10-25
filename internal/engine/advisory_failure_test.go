@@ -61,7 +61,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		oldManagerEpoch := lockState.Epochs[e.Catalog.Domain]
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if err := e.Reset(ctx); !errors.Is(err, context.Canceled) {
+		if err := Reset(ctx, e); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
 		if _, err := e.ReplaceCatalog(context.Background(), nil, catalog.Read{}); err == nil {

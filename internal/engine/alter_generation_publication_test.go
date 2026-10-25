@@ -150,11 +150,11 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 				case "cancel":
 					cancel()
 				case "reset":
-					if err := e.Reset(context.Background()); err != nil {
+					if err := Reset(context.Background(), e); err != nil {
 						t.Fatal(err)
 					}
 				case "restore":
-					if err := e.Restore(context.Background(), strings.NewReader("")); err != nil {
+					if err := Restore(context.Background(), e, strings.NewReader("")); err != nil {
 						t.Fatal(err)
 					}
 				case "acl":

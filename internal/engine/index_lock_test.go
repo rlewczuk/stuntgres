@@ -68,7 +68,7 @@ func TestBtreeIndexWaitingCancellationAndEpochFence(t *testing.T) {
 			done := lockAsync(e, builder, ctx, "CREATE INDEX idx ON t(n)", false)
 			lockPending(t, e, 1)
 			if reset {
-				if err := e.Reset(context.Background()); err != nil {
+				if err := Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 				lockAwait(t, done, ids.ErrCatalogReplaced)

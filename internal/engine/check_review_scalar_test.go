@@ -25,7 +25,7 @@ func TestCheckReviewScalarInquiryCatalogReplacement(t *testing.T) {
 				ref := catalogRef(t, source, before, "t")
 				descriptor := before.Get(ref.Address)
 				var dump bytes.Buffer
-				if err := source.Dump(ctx, &dump); err != nil {
+				if err := Dump(ctx, source, &dump); err != nil {
 					t.Fatal(err)
 				}
 				target := New()
@@ -54,7 +54,7 @@ func TestCheckReviewScalarInquiryCatalogReplacement(t *testing.T) {
 				op.Done()
 				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: "Failing row contains (2).", Schema: "public", Table: "t", Constraint: "c"})
 				var again bytes.Buffer
-				if err := target.Dump(ctx, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
+				if err := Dump(ctx, target, &again); err != nil || !bytes.Equal(dump.Bytes(), again.Bytes()) {
 					t.Fatal("replacement changed persisted inquiry", err)
 				}
 			})

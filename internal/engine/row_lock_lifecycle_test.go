@@ -62,11 +62,11 @@ func TestRowLockControls(t *testing.T) {
 			done := deleteAsync(t, b, ctx, "SELECT v FROM t ORDER BY v FOR SHARE")
 			rowLockQueued(t, e, a.Transactions.Ticket, lock.ForShare)
 			if restore {
-				if err := e.Restore(ctx, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99)")); err != nil {
+				if err := Restore(ctx, e, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99)")); err != nil {
 					t.Fatal(err)
 				}
 			} else {
-				if err := e.Reset(ctx); err != nil {
+				if err := Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 				sessionSQL(t, c, "CREATE TABLE t(id INT,v INT)")

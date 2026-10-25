@@ -30,18 +30,18 @@ func TestDefaultFailedRestorePreservesEligibilityAndSurvivors(t *testing.T) {
 	}
 	held := run(t, e, `SELECT * FROM sentinel`)
 	var before bytes.Buffer
-	if err := e.Dump(context.Background(), &before); err != nil {
+	if err := Dump(context.Background(), e, &before); err != nil {
 		t.Fatal(err)
 	}
 	for _, script := range []string{`CREATE TABLE bad(i INT DEFAULT 'oops')`, `CREATE TABLE bad(i INT DEFAULT $1)`, `CREATE TABLE bad(i INT DEFAULT i)`, `CREATE TABLE bad(i INT DEFAULT 1 DEFAULT 2)`, `CREATE TABLE bad(i INT DEFAULT NULL NOT NULL);INSERT INTO bad DEFAULT VALUES`} {
-		if err := e.Restore(context.Background(), strings.NewReader(script)); err == nil {
+		if err := Restore(context.Background(), e, strings.NewReader(script)); err == nil {
 			t.Fatal("invalid restore accepted", script)
 		}
 		if e.Catalog.Domain != owner || e.Catalog.State.Get(ref.Address) != old || e.Storage.Relations[ref.Address] != storage || e.CatalogRead().Epoch() != epoch {
 			t.Fatal("failed restore changed identity/storage")
 		}
 		var after bytes.Buffer
-		if err := e.Dump(context.Background(), &after); err != nil || after.String() != before.String() {
+		if err := Dump(context.Background(), e, &after); err != nil || after.String() != before.String() {
 			t.Fatal(err, after.String())
 		}
 	}

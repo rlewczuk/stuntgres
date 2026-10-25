@@ -92,15 +92,15 @@ func TestCheckReview2OrderNativeRoundtrip(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO a VALUES(22)")
 			checkReview2OrderNativeRestrict(t, e, a, detail)
 			var dump, again strings.Builder
-			if err := e.Dump(context.Background(), &dump); err != nil {
+			if err := Dump(context.Background(), e, &dump); err != nil {
 				t.Fatal(err)
 			}
-			if err := e.Restore(context.Background(), strings.NewReader(dump.String())); err != nil {
+			if err := Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
 				t.Fatal(err)
 			}
 			checkReview2OrderNativeRestrict(t, e, a, detail)
 			checkReviewDependencyValid(t, e)
-			if err := e.Dump(context.Background(), &again); err != nil || dump.String() != again.String() {
+			if err := Dump(context.Background(), e, &again); err != nil || dump.String() != again.String() {
 				t.Fatal("roundtrip changed definitions/data/provider state", err)
 			}
 		})
@@ -121,7 +121,7 @@ func TestCheckReview2OrderRemappedSourceTopology(t *testing.T) {
 		sessionSQL(t, a, sql)
 	}
 	var first, second strings.Builder
-	if err := source.Dump(ctx, &first); err != nil {
+	if err := Dump(ctx, source, &first); err != nil {
 		t.Fatal(err)
 	}
 	destination := New()
@@ -139,7 +139,7 @@ func TestCheckReview2OrderRemappedSourceTopology(t *testing.T) {
 			break
 		}
 	}
-	if err := destination.Restore(ctx, strings.NewReader(first.String())); err != nil {
+	if err := Restore(ctx, destination, strings.NewReader(first.String())); err != nil {
 		t.Fatal(err)
 	}
 	view := destination.CatalogRead()
@@ -150,7 +150,7 @@ func TestCheckReview2OrderRemappedSourceTopology(t *testing.T) {
 	if table.Address.ObjectID <= dependent.Address.ObjectID {
 		t.Fatal("fixture did not remap the table above its dependent view", table, dependent)
 	}
-	if err := destination.Dump(ctx, &second); err != nil {
+	if err := Dump(ctx, destination, &second); err != nil {
 		t.Fatal(err)
 	}
 	tableAt := strings.Index(second.String(), `CREATE TABLE "public"."t"`)
@@ -161,7 +161,7 @@ func TestCheckReview2OrderRemappedSourceTopology(t *testing.T) {
 	}
 	replayed := New()
 	c := sessionStart(t, replayed, nil)
-	if err := replayed.Restore(ctx, strings.NewReader(second.String())); err != nil {
+	if err := Restore(ctx, replayed, strings.NewReader(second.String())); err != nil {
 		t.Fatal("topology-ordered dump was not executable", err)
 	}
 	if rows := tuples(sessionSQL(t, c, "SELECT a FROM w")); len(rows) != 1 || rows[0][0] != int64(7) {

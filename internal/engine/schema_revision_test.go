@@ -34,7 +34,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 	})
 	t.Run("first_after_restore", func(t *testing.T) {
 		e := New()
-		if err := e.Restore(context.Background(), strings.NewReader("CREATE SCHEMA restored;")); err != nil {
+		if err := Restore(context.Background(), e, strings.NewReader("CREATE SCHEMA restored;")); err != nil {
 			t.Fatal(err)
 		}
 		checkRename(t, e, "restored")
@@ -112,7 +112,7 @@ func TestSchemaDefinitionRevisionFreshness(t *testing.T) {
 			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" || e.CatalogRead().State() != before.State() || !reflect.DeepEqual(e.Storage.Relations, storage) || e.Visibility.CommitSeq() != sequence {
 				t.Fatal("terminal mutation published or returned wrong failure", err)
 			}
-			if err := e.Reset(context.Background()); err != nil {
+			if err := Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
 			if e.Catalog.NextRevision() != maximum {

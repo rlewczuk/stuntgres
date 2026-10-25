@@ -90,11 +90,11 @@ func TestRowLockViewLifetime(t *testing.T) {
 			done := rowLockViewAsync(t, b, ctx, "SELECT val FROM w ORDER BY val FOR SHARE")
 			rowLockQueued(t, e, a.Transactions.Ticket, lock.ForShare)
 			if restore {
-				if err := e.Restore(ctx, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99);CREATE VIEW w AS SELECT id,v+1 AS val FROM t")); err != nil {
+				if err := Restore(ctx, e, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99);CREATE VIEW w AS SELECT id,v+1 AS val FROM t")); err != nil {
 					t.Fatal(err)
 				}
 			} else {
-				if err := e.Reset(ctx); err != nil {
+				if err := Reset(ctx, e); err != nil {
 					t.Fatal(err)
 				}
 			}

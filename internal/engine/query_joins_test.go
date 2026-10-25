@@ -310,9 +310,9 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 			case "append":
 				run(t, e, "INSERT INTO b VALUES('new',9,1)")
 			case "reset":
-				err = e.Reset(context.Background())
+				err = Reset(context.Background(), e)
 			case "restore":
-				err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE a(k INT); CREATE TABLE b(k INT); INSERT INTO a VALUES(8); INSERT INTO b VALUES(8)"))
+				err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE a(k INT); CREATE TABLE b(k INT); INSERT INTO a VALUES(8); INSERT INTO b VALUES(8)"))
 			}
 			if err != nil || !reflect.DeepEqual(rows.Schema(), schema) {
 				t.Fatal(err, rows.Schema(), schema)

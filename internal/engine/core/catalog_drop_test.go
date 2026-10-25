@@ -149,7 +149,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE bad(id no_such_type)")); err == nil {
+	if err = engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE bad(id no_such_type)")); err == nil {
 		t.Fatal("invalid restore accepted")
 	}
 	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: current.Epoch()}); err != nil {
@@ -166,7 +166,7 @@ func TestCatalogDropReferenceAndConflictFences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.Reset(context.Background()); err != nil {
+	if err = engine.Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -264,7 +264,7 @@ func TestCatalogDropCanceledGroupAndRestoreEpochFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE replacement(id INT); INSERT INTO replacement VALUES(99)")); err != nil {
+	if err = engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE replacement(id INT); INSERT INTO replacement VALUES(99)")); err != nil {
 		t.Fatal(err)
 	}
 	changes, err = enginetest.PublishCatalog(e, p, engine.PublicationToken{Epoch: base.Epoch()})

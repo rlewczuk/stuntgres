@@ -55,7 +55,7 @@ func TestCommentRestoreRetainsLiveSharedMetadata(t *testing.T) {
 	run(t, e, "COMMENT ON ROLE free IS 'old'")
 	r := &commentGateReader{input: strings.NewReader("CREATE TABLE t(v INT); COMMENT ON TABLE t IS 'local';"), entered: make(chan struct{}), release: make(chan struct{})}
 	done := make(chan error, 1)
-	go func() { done <- e.Restore(context.Background(), r) }()
+	go func() { done <- Restore(context.Background(), e, r) }()
 	<-r.entered
 	run(t, e, "COMMENT ON ROLE free IS 'peer'")
 	close(r.release)
@@ -69,7 +69,7 @@ func TestCommentRestoreRetainsLiveSharedMetadata(t *testing.T) {
 	run(t, e, "CREATE USER transient")
 	r = &commentGateReader{input: strings.NewReader("SET SESSION AUTHORIZATION transient; CREATE TABLE public.u(v INT); COMMENT ON TABLE public.u IS 'private';"), entered: make(chan struct{}), release: make(chan struct{})}
 	before := e.CatalogRead()
-	go func() { done <- e.Restore(context.Background(), r) }()
+	go func() { done <- Restore(context.Background(), e, r) }()
 	<-r.entered
 	run(t, e, "DROP ROLE transient")
 	run(t, e, "CREATE USER transient")

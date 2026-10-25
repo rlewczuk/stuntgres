@@ -146,18 +146,18 @@ func TestJSONBExistsViewRoundtrip(t *testing.T) {
 		t.Fatalf("original rows=%v want=%v", got, want)
 	}
 	var original bytes.Buffer
-	if err := e.Dump(ctx, &original); err != nil {
+	if err := engine.Dump(ctx, e, &original); err != nil {
 		t.Fatal(err)
 	}
 	for cycle := 1; cycle <= 3; cycle++ {
-		if err := e.Restore(ctx, bytes.NewReader(original.Bytes())); err != nil {
+		if err := engine.Restore(ctx, e, bytes.NewReader(original.Bytes())); err != nil {
 			t.Fatalf("restore cycle %d: %v", cycle, err)
 		}
 		if got := enginetest.Tuples(enginetest.Run(t, e, query)); !reflect.DeepEqual(got, want) {
 			t.Fatalf("cycle %d rows=%v want=%v", cycle, got, want)
 		}
 		var again bytes.Buffer
-		if err := e.Dump(ctx, &again); err != nil {
+		if err := engine.Dump(ctx, e, &again); err != nil {
 			t.Fatal(err)
 		}
 		if again.String() != original.String() {

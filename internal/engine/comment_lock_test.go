@@ -49,7 +49,7 @@ func TestCommentLocks(t *testing.T) {
 		sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 		waiting := lockAsync(e, b, context.Background(), "COMMENT ON TABLE t IS 'stale'", false)
 		lockPending(t, e, 1)
-		if err := e.Reset(context.Background()); err != nil {
+		if err := Reset(context.Background(), e); err != nil {
 			t.Fatal(err)
 		}
 		lockAwait(t, waiting, ids.ErrCatalogReplaced)

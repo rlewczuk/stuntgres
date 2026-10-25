@@ -21,7 +21,7 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 	tableOwner, _ := e.Roles().Lookup("table_owner")
 	// Restore's private destination authority provisions a differently owned table
 	// without granting its owner any schema privileges.
-	if err := e.Restore(context.Background(), strings.NewReader("CREATE SCHEMA owned AUTHORIZATION former; CREATE SCHEMA empty_acl AUTHORIZATION former; CREATE SCHEMA absent_acl AUTHORIZATION former; SET SESSION AUTHORIZATION table_owner; CREATE TABLE owned.t(id INT);")); err != nil {
+	if err := Restore(context.Background(), e, strings.NewReader("CREATE SCHEMA owned AUTHORIZATION former; CREATE SCHEMA empty_acl AUTHORIZATION former; CREATE SCHEMA absent_acl AUTHORIZATION former; SET SESSION AUTHORIZATION table_owner; CREATE TABLE owned.t(id INT);")); err != nil {
 		t.Fatal(err)
 	}
 	ns := schemaRef(t, e, "owned")
