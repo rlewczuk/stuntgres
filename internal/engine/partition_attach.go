@@ -22,7 +22,7 @@ func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.LockedRef.Domain() == nil {
-		return skipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
+		return SkipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
 	}
 	parent := scope.LockedDescriptor.(*catalog.Relation)
 	if err := partition.CheckAttachTarget(parent, core.OperationReplayOrZero(op).PartitionAttach); err != nil {
@@ -42,12 +42,12 @@ func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		e.DiscardCatalogStage(stage)
 		return fail(err)
 	}
-	pending := &pendingPartitionDefinition{Definition: partition.Definition{Parent: parent, Bound: bound, Raw: raw.Bound}, stage: stage, auth: auth}
+	pending := &PendingPartitionDefinition{Definition: partition.Definition{Parent: parent, Bound: bound, Raw: raw.Bound}, Stage: stage, Auth: auth}
 	e.Mu.Unlock()
-	defer func() { e.DiscardCatalogStage(pending.stage) }()
+	defer func() { e.DiscardCatalogStage(pending.Stage) }()
 	if !bound.DefaultBound {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}}
-		if err = partition.EvaluateBounds(op.Context(), &pending.Definition, partitionBoundBinder{scope: scope, pending: pending}, &evaluation); err != nil {
+		if err = partition.EvaluateBounds(op.Context(), &pending.Definition, PartitionBoundBinder{Scope: scope, Pending: pending}, &evaluation); err != nil {
 			return core.Result{}, err
 		}
 	}
@@ -132,11 +132,11 @@ func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return core.Result{}, ids.ErrCatalogReplaced
 	}
 	child = auth.Catalog.MustRelation(candidate.Address)
-	e.DiscardCatalogStage(pending.stage)
+	e.DiscardCatalogStage(pending.Stage)
 	stage = e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	stage.Indexes().Output = scope.Output
-	pending.stage, pending.auth, pending.Child = stage, auth, child
+	pending.Stage, pending.Auth, pending.Child = stage, auth, child
 	for address := range scope.PartitionRelations {
 		stage.DomainBases = append(stage.DomainBases, auth.Catalog.Get(address))
 	}
@@ -157,7 +157,7 @@ func attachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return core.Result{}, err
 	}
 	if !bound.DefaultBound {
-		if err = partition.CheckOverlap(scope.Op.Context(), scope.Input, pending.stage.Base, &pending.Definition); err != nil {
+		if err = partition.CheckOverlap(scope.Op.Context(), scope.Input, pending.Stage.Base, &pending.Definition); err != nil {
 			return core.Result{}, err
 		}
 	}

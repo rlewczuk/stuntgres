@@ -146,9 +146,9 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	op := scope.Op
 	switch s := stmt.(type) {
 	case *parser.AlterTable:
-		return dispatched(alterTableLocked(e, scope, op, auth, s, count))
+		return dispatched(AlterTableLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableDefault:
-		return dispatched(alterDefaultLocked(e, scope, op, auth, s, count))
+		return dispatched(AlterDefaultLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAllInTablespace:
 		return dispatched(alterAllTablespaceLocked(e, scope, auth, s, count))
 	case *parser.RefreshMaterializedView:
@@ -160,17 +160,17 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	case *parser.AlterTableDetachPartition:
 		return dispatched(detachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableRenameConstraint:
-		return dispatched(renameConstraintLocked(e, scope, op, auth, s, count))
+		return dispatched(RenameConstraintLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableSetSchema:
-		return dispatched(alterSchemaLocked(e, scope, op, auth, s, count))
+		return dispatched(AlterSchemaLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableRenameColumn:
-		return dispatched(renameRelationLocked(e, scope, op, auth, s.Name, s.Column.Text, s.NewName.Text, s.IfExists, true, false, s.Only, count))
+		return dispatched(RenameRelationLocked(e, scope, op, auth, s.Name, s.Column.Text, s.NewName.Text, s.IfExists, true, false, s.Only, count))
 	case *parser.AlterTableRenameTable:
-		return dispatched(renameRelationLocked(e, scope, op, auth, s.Name, "", s.NewName.Text, s.IfExists, false, false, false, count))
+		return dispatched(RenameRelationLocked(e, scope, op, auth, s.Name, "", s.NewName.Text, s.IfExists, false, false, false, count))
 	case *parser.DropTable:
-		return dispatched(dropTableLocked(e, scope, op, auth, s, count))
+		return dispatched(DropTableLocked(e, scope, op, auth, s, count))
 	case *parser.CreateTable:
-		return dispatched(createTableLocked(e, scope, op, auth, s, count))
+		return dispatched(CreateTableLocked(e, scope, op, auth, s, count))
 	}
 	return core.Result{}, false, nil
 }

@@ -12,5 +12,5 @@ import (
 // prepareAlterTableActions prepares root actions in their original order; the
 // caller holds Engine.mu.
 func prepareAlterTableActions(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, actions []parser.AlterTableAction) (table.AlterTablePreparation, error) {
-	return table.PrepareAlterTableActions(alterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, original, ref, actions)
+	return table.PrepareAlterTableActions(AlterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, original, ref, actions)
 }

@@ -16,7 +16,7 @@ import (
 
 // Engine.mu and the owner-authorized AX grant are held on entry. Every
 // return releases Engine.mu; relabeling never copies or scans row storage.
-func renameRelationLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (core.Result, error) {
+func RenameRelationLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, name parser.ObjectName, column, destination string, ifExists, columnRename, allowIndexColumn, only bool, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -26,7 +26,7 @@ func renameRelationLocked(e *core.Engine, scope *core.StatementScope, op *sessio
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if ifExists && table.RenameMissing(err) {
-		return skipMissingRelationLocked(e, scope, op, name.Parts[len(name.Parts)-1].Text, false)
+		return SkipMissingRelationLocked(e, scope, op, name.Parts[len(name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)

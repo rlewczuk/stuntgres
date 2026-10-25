@@ -138,7 +138,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 			candidate := origin
 			mutate(&candidate)
 			before := e.Catalog.State
-			if err := restoreNoInheritNotNull(e, op, raw, candidate); err == nil || e.Catalog.State != before {
+			if err := RestoreNoInheritNotNull(e, op, raw, candidate); err == nil || e.Catalog.State != before {
 				t.Fatal("foreign pairing published", err)
 			}
 		})
@@ -161,7 +161,7 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 		candidate := catalog.CloneState(before)
 		candidate.SetDescriptor(old.Address(), &altered)
 		e.Catalog.PublishLocked(candidate)
-		if err := restoreNoInheritNotNull(e, op, raw, origin); err == nil || e.Catalog.State != candidate {
+		if err := RestoreNoInheritNotNull(e, op, raw, origin); err == nil || e.Catalog.State != candidate {
 			t.Fatal("ineligible NN fact published", kind, err)
 		}
 		e.Catalog.PublishLocked(before)
@@ -169,14 +169,14 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	targets := e.ImportTargets
 	e.ImportTargets = nil
 	before := e.Catalog.State
-	if err := restoreNoInheritNotNull(e, op, raw, origin); err == nil || e.Catalog.State != before {
+	if err := RestoreNoInheritNotNull(e, op, raw, origin); err == nil || e.Catalog.State != before {
 		t.Fatal("ordinary engine gained importer authority", err)
 	}
 	e.ImportTargets = targets
 	foreign := New()
 	foreignOp, foreignDone := roleOperation(t, foreign, "postgres")
 	defer foreignDone()
-	if err := restoreNoInheritNotNull(e, foreignOp, raw, origin); err == nil || e.Catalog.State != before {
+	if err := RestoreNoInheritNotNull(e, foreignOp, raw, origin); err == nil || e.Catalog.State != before {
 		t.Fatal("foreign operation gained importer authority", err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
@@ -187,10 +187,10 @@ func TestRestoreNotNullNoInheritAuthority(t *testing.T) {
 	}
 	defer cancelDone()
 	cancel()
-	if err := restoreNoInheritNotNull(e, cancelOp, raw, origin); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
+	if err := RestoreNoInheritNotNull(e, cancelOp, raw, origin); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
 		t.Fatal("canceled repair published", err)
 	}
-	if err := restoreNoInheritNotNull(e, op, raw, origin); err != nil {
+	if err := RestoreNoInheritNotNull(e, op, raw, origin); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead().MustRelation(old.Address())

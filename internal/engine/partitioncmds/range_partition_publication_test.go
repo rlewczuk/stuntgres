@@ -110,7 +110,7 @@ func TestRangePartitionPublicationResetDuringBoundDemand(t *testing.T) {
 	session := enginetest.StartSession(t, e, nil)
 	enginetest.SessionSQL(t, session, "CREATE TABLE root(k INT) PARTITION BY RANGE(k)")
 	var resetErr error
-	ctx := &rangePartitionPhaseContext{Context: context.Background(), target: "(*pendingPartitionDefinition).finish", effect: func() { resetErr = engine.Reset(context.Background(), e) }}
+	ctx := &rangePartitionPhaseContext{Context: context.Background(), target: "(*PendingPartitionDefinition).finish", effect: func() { resetErr = engine.Reset(context.Background(), e) }}
 	op, err := session.Acquire(ctx.Context)
 	if err != nil {
 		t.Fatal(err)

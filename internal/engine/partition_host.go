@@ -41,20 +41,20 @@ func (h TableHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw p
 	return &catalog.DerivedIndexKey{Definition: node, Execution: planned, Attributes: d.Attributes}, binder.Query.Sources[0].Uses, nil
 }
 
-// partitionBoundBinder binds the bound datums of one pending definition for
+// PartitionBoundBinder binds the bound datums of one pending definition for
 // the statement that owns it.
-type partitionBoundBinder struct {
-	scope   *core.StatementScope
-	pending *pendingPartitionDefinition
+type PartitionBoundBinder struct {
+	Scope   *core.StatementScope
+	Pending *PendingPartitionDefinition
 }
 
-var _ partition.BoundBinder = partitionBoundBinder{}
+var _ partition.BoundBinder = PartitionBoundBinder{}
 
 // BindBound captures one datum's exact provider references under mu. Its
 // caller evaluates the returned tree only after this method releases mu;
 // transient sequence calls retain their ordinary RX/grant-time admission.
-func (b partitionBoundBinder) BindBound(datum parser.PartitionDatum, key catalog.PartitionKeyEntry) (expr.Expr, error) {
-	scope, p := b.scope, b.pending
+func (b PartitionBoundBinder) BindBound(datum parser.PartitionDatum, key catalog.PartitionKeyEntry) (expr.Expr, error) {
+	scope, p := b.Scope, b.Pending
 	e := scope.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
@@ -62,14 +62,14 @@ func (b partitionBoundBinder) BindBound(datum parser.PartitionDatum, key catalog
 	if err != nil {
 		return nil, err
 	}
-	if auth.Catalog.Epoch() != p.auth.Catalog.Epoch() {
+	if auth.Catalog.Epoch() != p.Auth.Catalog.Epoch() {
 		return nil, ids.ErrCatalogReplaced
 	}
-	if auth.Revision != p.stage.AuthRevision || auth.RoleRecord.Revision != p.stage.RoleRevision {
+	if auth.Revision != p.Stage.AuthRevision || auth.RoleRecord.Revision != p.Stage.RoleRevision {
 		return nil, fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	binder := core.NewExpressionBinder(scope.Op.Context(), e, scope.Input, scope.Op, nil)
-	binder.Query.Auth = &p.auth
+	binder.Query.Auth = &p.Auth
 	binder.Params.NoParameters = true
 	binder.Consumer.PartitionConsumer = "partition bound"
 	node, err := binder.Bind(datum.Expression, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: key.Usage.Type.Usage()})

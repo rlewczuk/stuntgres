@@ -58,6 +58,6 @@ func partitionAttachCapture(e *core.Engine, scope *core.StatementScope, stage *c
 	if len(refs) == 0 {
 		return nil
 	}
-	_, err := acquirePartitionValidationViewsLocked(scope, e, refs)
+	_, err := AcquirePartitionValidationViewsLocked(scope, e, refs)
 	return err
 }

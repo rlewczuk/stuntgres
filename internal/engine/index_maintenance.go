@@ -52,7 +52,7 @@ func executeIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt pa
 		return core.Result{}, nil
 	}
 	if s, ok := stmt.(*parser.AlterIndex); ok && s.Action == "rename" {
-		return renameRelationLocked(e, scope, scope.Op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
+		return RenameRelationLocked(e, scope, scope.Op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)

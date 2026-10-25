@@ -11,7 +11,7 @@ import (
 // A keyless physical cleanup may be followed immediately by the captured,
 // unrelated ordinary primary declaration. It cannot certify one of its own
 // flag-only attributes as a primary key (or as an INCLUDE payload key).
-func prepareDeferredPhysicalPrimary(e *core.Engine, op *session.Operation, raw *parser.AlterTable, pair *table.RestoredPhysicalNotNull, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
+func PrepareDeferredPhysicalPrimary(e *core.Engine, op *session.Operation, raw *parser.AlterTable, pair *table.RestoredPhysicalNotNull, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if handled, err := table.DeferredPhysicalPrimaryShape(op, raw, pair); !handled || err != nil {
 		return nil, err
 	}

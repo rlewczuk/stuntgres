@@ -34,7 +34,7 @@ func (h inheritancePrepareHost) PrepareUsingIndexMetadata(reader catalog.Definit
 }
 
 func (h inheritancePrepareHost) AddColumnCandidate(definition catalog.DefinitionReader, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, table.AddedColumn, error) {
-	return addColumnCandidate(h.e, h.scope, h.op, h.reading(definition), old, action, nil)
+	return AddColumnCandidate(h.e, h.scope, h.op, h.reading(definition), old, action, nil)
 }
 
 func (h inheritancePrepareHost) PrepareColumnDropAfter(definition catalog.DefinitionReader, old *catalog.Relation, action parser.AlterTableAction, prior table.PreparedDrop) (table.PreparedDrop, error) {

@@ -276,7 +276,7 @@ func TestTypeLifecycleDropResources(t *testing.T) {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			if err := acquireTypedSources(scope, stage, true); err != nil {
+			if err := AcquireTypedSources(scope, stage, true); err != nil {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}

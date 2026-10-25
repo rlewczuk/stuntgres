@@ -10,7 +10,7 @@ import (
 
 // Only the actual completed constructor/cleanup can issue this short-lived
 // readiness receipt. It never creates a key or grants foreign-key privileges.
-func capturePhysicalForeignKeyProvider(e *core.Engine, op *session.Operation, name parser.ObjectName, created map[ids.ObjectAddress]ids.ObjectRef) (*table.RestoredPhysicalForeignKeyProvider, error) {
+func CapturePhysicalForeignKeyProvider(e *core.Engine, op *session.Operation, name parser.ObjectName, created map[ids.ObjectAddress]ids.ObjectRef) (*table.RestoredPhysicalForeignKeyProvider, error) {
 	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return nil, err
@@ -30,7 +30,7 @@ func capturePhysicalForeignKeyProvider(e *core.Engine, op *session.Operation, na
 // Reuse the incumbent captured-FK binder, including its one data validation and
 // publication. The optional supporting slot pins only this genuine current PK;
 // ordinary declarations continue to use the unchanged zero-slot selection.
-func capturePhysicalSelfForeignKey(e *core.Engine, op *session.Operation, raw *parser.AlterTable, provider *table.RestoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
+func CapturePhysicalSelfForeignKey(e *core.Engine, op *session.Operation, raw *parser.AlterTable, provider *table.RestoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
 	if handled, err := table.PhysicalSelfForeignKeyShape(op, raw, provider); !handled || err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
@@ -47,12 +47,12 @@ func capturePhysicalSelfForeignKey(e *core.Engine, op *session.Operation, raw *p
 	if err := table.PhysicalSelfForeignKeyColumns(auth.Catalog, raw, provider); err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
-	pending, err := captureRestoredForeignKeys(e, op, []parser.ForeignKeyConstraint{*raw.Actions[0].ForeignKey})
+	pending, err := CaptureRestoredForeignKeys(e, op, []parser.ForeignKeyConstraint{*raw.Actions[0].ForeignKey})
 	if err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
 	pending.Child = provider.Ref
-	if err := resolveRestoredForeignKeyTargets(e, &pending); err != nil {
+	if err := ResolveRestoredForeignKeyTargets(e, &pending); err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}
 	if err := table.PinPhysicalSelfForeignKey(&pending, provider); err != nil {

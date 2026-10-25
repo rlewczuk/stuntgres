@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/engine/table"
 )
 
-func acquireTypedSources(scope *core.StatementScope, stage *core.CatalogStage, drop bool) error {
+func AcquireTypedSources(scope *core.StatementScope, stage *core.CatalogStage, drop bool) error {
 	if stage == nil || stage.Owner != scope.Engine() || stage.Base.Domain() != scope.Engine().Catalog.Domain || stage.Base.Epoch() != scope.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}

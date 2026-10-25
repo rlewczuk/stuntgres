@@ -37,7 +37,7 @@ func identityCandidate(e *core.Engine, scope *core.StatementScope, auth core.Aut
 			return old, err
 		}
 		e.Mu.Lock()
-		err := (alterHost{TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
+		err := (AlterHost{TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
 		e.Mu.Unlock()
 		if err != nil {
 			return old, err

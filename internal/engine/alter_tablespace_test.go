@@ -164,7 +164,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 	// second raw USING graph. This is the actual mutation seam, not a binder mock.
 	action := prepared.Actions[0]
 	action.Using = alterAddUnitAction(t, "ALTER TABLE t ALTER a TYPE BIGINT USING absent").Using
-	next, consumed, err := alterTypeCandidate(e, scope, scope.Op, auth, nil, old, old, ref, action, prepared.Types[0])
+	next, consumed, err := AlterTypeCandidate(e, scope, scope.Op, auth, nil, old, old, ref, action, prepared.Types[0])
 	if err != nil || next.Columns[0].Usage.Type.ID() != sqltype.Int8 || !reflect.DeepEqual(consumed, prepared.Types[0].Transformation) || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate did not consume capture", next, consumed, err)
 	}

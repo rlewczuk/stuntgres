@@ -31,7 +31,7 @@ func executeAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	}
 	ref, err := e.ResolveRelationReference(auth, s.Name, true)
 	if s.IfExists && table.RenameMissing(err) {
-		return skipMissingRelationLocked(e, scope, scope.Op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
+		return SkipMissingRelationLocked(e, scope, scope.Op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)
@@ -49,9 +49,9 @@ func executeAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	}
 	switch s.Action {
 	case "rename", "column":
-		return renameRelationLocked(e, scope, scope.Op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", s.Materialized && s.Action == "column", false, count)
+		return RenameRelationLocked(e, scope, scope.Op, auth, s.Name, s.Column.Text, s.Target.Text, s.IfExists, s.Action == "column", s.Materialized && s.Action == "column", false, count)
 	case "schema":
-		return alterSchemaLocked(e, scope, scope.Op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
+		return AlterSchemaLocked(e, scope, scope.Op, auth, &parser.AlterTableSetSchema{Name: s.Name, Schema: s.Target, IfExists: s.IfExists, Pos: s.Pos}, count)
 	}
 	next, extension, err := view.AlterChange(core.DDLHost{E: e, Op: scope.Op}, auth.Catalog, old, s)
 	if err != nil {

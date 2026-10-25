@@ -8,9 +8,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// generationCandidate binds the replacement under Engine.mu.
-func generationCandidate(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
+// GenerationCandidate binds the replacement under Engine.mu.
+func GenerationCandidate(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.GenerationCandidate(alterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, action)
+	return table.GenerationCandidate(AlterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, action)
 }

@@ -15,7 +15,7 @@ import (
 
 // Pending declarations live only inside the isolated Restore invocation. Capture
 // the declaring principal and namespace identities, not the later owner directive.
-func captureRestoredForeignKeys(e *core.Engine, op *session.Operation, raw []parser.ForeignKeyConstraint) (table.RestoredForeignKeys, error) {
+func CaptureRestoredForeignKeys(e *core.Engine, op *session.Operation, raw []parser.ForeignKeyConstraint) (table.RestoredForeignKeys, error) {
 	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredForeignKeys{}, err
@@ -29,7 +29,7 @@ func captureRestoredForeignKeys(e *core.Engine, op *session.Operation, raw []par
 
 // Only the exact successful creation outcome admits target/path discovery.
 // A skipped CREATE must not inspect any ignored declaration, even its schema.
-func resolveRestoredForeignKeyTargets(e *core.Engine, pending *table.RestoredForeignKeys) error {
+func ResolveRestoredForeignKeyTargets(e *core.Engine, pending *table.RestoredForeignKeys) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	for i := range pending.Definitions {
@@ -50,7 +50,7 @@ func resolveRestoredForeignKeyTargets(e *core.Engine, pending *table.RestoredFor
 	return nil
 }
 
-func bindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Operation, pending []table.RestoredForeignKeys) error {
+func BindRestoredForeignKeys(e *core.Engine, ctx context.Context, op *session.Operation, pending []table.RestoredForeignKeys) error {
 	if len(pending) == 0 {
 		return nil
 	}

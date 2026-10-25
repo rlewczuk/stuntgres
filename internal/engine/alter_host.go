@@ -15,56 +15,56 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// alterHost implements table.AlterHost: TableHost bound to one statement
+// AlterHost implements table.AlterHost: TableHost bound to one statement
 // scope, whose input, output and inquiry state the ALTER bindings and captures
 // read and write. Callers build one per call because the ALTER
 // loop begins its stage lazily, so stage may be nil. Every method runs under
 // Engine.mu and never waits.
-type alterHost struct {
+type AlterHost struct {
 	TableHost
-	scope *core.StatementScope
+	Scope *core.StatementScope
 }
 
-var _ table.AlterHost = alterHost{}
+var _ table.AlterHost = AlterHost{}
 
-func (h alterHost) Input() sqltype.InputEnvironment { return h.scope.Input }
+func (h AlterHost) Input() sqltype.InputEnvironment { return h.Scope.Input }
 
-func (h alterHost) CaptureTypeDiagnosticName(a ddl.Authority) error {
+func (h AlterHost) CaptureTypeDiagnosticName(a ddl.Authority) error {
 	name, err := core.CaptureTypeDiagnosticName(core.DDLAuthorityOf(a))
 	if err != nil {
 		return err
 	}
-	h.scope.Input.TypeDiagnosticName = name
+	h.Scope.Input.TypeDiagnosticName = name
 	return nil
 }
 
-func (h alterHost) CaptureCommentSnapshot() error { return h.E.CaptureCommentSnapshotLocked(h.scope) }
+func (h AlterHost) CaptureCommentSnapshot() error { return h.E.CaptureCommentSnapshotLocked(h.Scope) }
 
-func (h alterHost) CaptureCheckSnapshots(relation *catalog.Relation, visibility bool) error {
-	if err := h.E.CaptureCheckCommentSnapshotLocked(h.scope, relation); err != nil || !visibility {
+func (h AlterHost) CaptureCheckSnapshots(relation *catalog.Relation, visibility bool) error {
+	if err := h.E.CaptureCheckCommentSnapshotLocked(h.Scope, relation); err != nil || !visibility {
 		return err
 	}
-	return h.E.CaptureCheckVisibilitySnapshotLocked(h.scope, relation)
+	return h.E.CaptureCheckVisibilitySnapshotLocked(h.Scope, relation)
 }
 
-func (h alterHost) BindDefault(a ddl.Authority, relation *catalog.Relation, column catalog.Column, raw parser.Expr) (expr.Expr, error) {
+func (h AlterHost) BindDefault(a ddl.Authority, relation *catalog.Relation, column catalog.Column, raw parser.Expr) (expr.Expr, error) {
 	auth := core.DDLAuthorityOf(a)
-	binder := core.NewExpressionBinder(h.Op.Context(), h.E, h.scope.Input, h.Op, nil)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, h.Scope.Input, h.Op, nil)
 	binder.Query.Auth = &auth
 	binder.Consumer.DefaultTemporary = auth.Catalog.MustNamespace(relation.Namespace()).Temporary
 	return binder.BindDefault(raw, column)
 }
 
-func (h alterHost) BindGeneration(a ddl.Authority, relation *catalog.Relation, slot int, raw parser.Expr) (catalog.ColumnGeneration, error) {
+func (h AlterHost) BindGeneration(a ddl.Authority, relation *catalog.Relation, slot int, raw parser.Expr) (catalog.ColumnGeneration, error) {
 	auth := core.DDLAuthorityOf(a)
 	namespace := GenerationNamespace(h.E, auth, relation)
-	return BindGeneration(h.E, h.Op, auth, relation, slot, raw, h.scope.Input, &namespace)
+	return BindGeneration(h.E, h.Op, auth, relation, slot, raw, h.Scope.Input, &namespace)
 }
 
-func (h alterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error) {
+func (h AlterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error) {
 	auth := core.DDLAuthorityOf(a)
 	namespace := analyze.RelationNamespace(auth.Catalog, relation, ref, 0)
-	binder := core.NewExpressionBinder(h.Op.Context(), h.E, h.scope.Input, h.Op, nil)
+	binder := core.NewExpressionBinder(h.Op.Context(), h.E, h.Scope.Input, h.Op, nil)
 	binder.Consumer.CheckConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
 	binder.Stored.CheckLiterals = literals
 	binder.Query.Namespace = &namespace
@@ -72,23 +72,23 @@ func (h alterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref 
 	return binder.BindBoolean(raw, analyze.ProjectionContext, "CHECK")
 }
 
-func (h alterHost) BindAlterTypeUsing(a ddl.Authority, original *catalog.Relation, ref ids.ObjectRef, using parser.Expr, usage sqltype.Usage) (expr.Expr, []catalog.ExpressionDependency, error) {
+func (h AlterHost) BindAlterTypeUsing(a ddl.Authority, original *catalog.Relation, ref ids.ObjectRef, using parser.Expr, usage sqltype.Usage) (expr.Expr, []catalog.ExpressionDependency, error) {
 	auth := core.DDLAuthorityOf(a)
-	binder := core.NewExpressionBinder(h.scope.Op.Context(), h.E, h.scope.Input, h.scope.Op, nil)
+	binder := core.NewExpressionBinder(h.Scope.Op.Context(), h.E, h.Scope.Input, h.Scope.Op, nil)
 	binder.Target.Relation, binder.Target.Ref, binder.Params.NoParameters, binder.Query.Auth = original, ref, true, &auth
 	namespace := analyze.RelationNamespace(auth.Catalog, original, ref, analyze.QueryTargetLeaf)
 	binder.Query.Namespace = &namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: original}}
 	node, err := binder.Bind(using, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: usage.Type.Usage()})
 	if err == nil && (binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot) {
-		err = h.E.CaptureCommentSnapshotLocked(h.scope)
+		err = h.E.CaptureCommentSnapshotLocked(h.Scope)
 	}
 	return node, binder.Dependencies, err
 }
 
 // TypeChangeDependents reads the stage's dependent views when one is begun;
 // before that, the authority's catalog alone.
-func (h alterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddress, column string) error {
+func (h AlterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddress, column string) error {
 	auth := core.DDLAuthorityOf(a)
 	if err := view.PolicyTypeChangeError(auth.Catalog, target); err != nil {
 		return err
@@ -100,6 +100,6 @@ func (h alterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddres
 	return view.TypeChangeError(&core.DropProvider{Base: auth.Catalog, SearchPath: path, Stage: h.CatalogStage}, target, column)
 }
 
-func (h alterHost) StageIdentitySequenceOptions(relation *catalog.Relation, attribute int32, sequence ids.ObjectAddress, raw []parser.SequenceOption) error {
-	return stageIdentitySequenceOptionsLocked(h.E, h.scope, h.CatalogStage, relation, attribute, sequence, raw)
+func (h AlterHost) StageIdentitySequenceOptions(relation *catalog.Relation, attribute int32, sequence ids.ObjectAddress, raw []parser.SequenceOption) error {
+	return stageIdentitySequenceOptionsLocked(h.E, h.Scope, h.CatalogStage, relation, attribute, sequence, raw)
 }

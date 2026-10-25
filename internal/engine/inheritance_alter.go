@@ -121,7 +121,7 @@ func alterInheritanceLocked(e *core.Engine, scope *core.StatementScope, op *sess
 		childAuth.Catalog = e.StageRead(stage)
 		childAuth.Recapture(childAuth.Catalog)
 		e.Mu.Lock()
-		if _, err := alterTableLocked(e, scope, op, childAuth, &command, count); err != nil {
+		if _, err := AlterTableLocked(e, scope, op, childAuth, &command, count); err != nil {
 			return core.Result{}, err
 		}
 	}

@@ -14,14 +14,14 @@ import (
 // The owner-authorized AX grant pins the private parent incarnation. Rename is
 // metadata-only: the existing overlay and Finish own publication of the group.
 // Engine.mu is held on entry and released on every return.
-func renameConstraintLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (core.Result, error) {
+func RenameConstraintLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	ref, err := e.ResolveRelationReference(auth, raw.Name, true)
 	if raw.IfExists && table.RenameMissing(err) {
-		return renameRelationLocked(e, scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, false, count)
+		return RenameRelationLocked(e, scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, false, count)
 	}
 	if err != nil {
 		return fail(err)

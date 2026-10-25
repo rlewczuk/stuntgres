@@ -136,7 +136,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 		e.Mu.Lock()
-		latest, err := acquirePartitionValidationViewsLocked(validation, e, []ids.ObjectRef{ref})
+		latest, err := AcquirePartitionValidationViewsLocked(validation, e, []ids.ObjectRef{ref})
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

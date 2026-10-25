@@ -23,7 +23,7 @@ import (
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
 // The caller holds Engine.mu. Every return releases it before callbacks/scanning.
-func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int) (core.Result, error) {
+func AlterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTable, count int) (core.Result, error) {
 	scope.RoutineAuth = auth
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
@@ -31,7 +31,7 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	}
 	ref, err := e.ResolveRelationReference(auth, s.Name, true)
 	if s.IfExists && table.RenameMissing(err) {
-		return skipMissingRelationLocked(e, scope, op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
+		return SkipMissingRelationLocked(e, scope, op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err == nil && ref != scope.LockedRef {
 		err = ids.ErrCatalogReplaced
@@ -226,7 +226,7 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				next, err = identityCandidate(e, scope, auth, stage, next, action)
 			} else if action.Action == parser.SetExpression || action.Action == parser.DropExpression {
 				var attribute int32
-				next, attribute, err = generationCandidate(e, scope, op, auth, next, action)
+				next, attribute, err = GenerationCandidate(e, scope, op, auth, next, action)
 				if err == nil && attribute != 0 && !slices.Contains(replacements, attribute) {
 					replacements = append(replacements, attribute)
 				}
@@ -234,10 +234,10 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				if _, exists := next.Index[action.Column.Text]; exists {
 					stage = authorizedStage(e, stage, auth, op.Session)
 				}
-				next, err = dropColumnCandidate(scope, stage, next, ref, action, changes)
+				next, err = DropColumnCandidate(scope, stage, next, ref, action, changes)
 			} else if action.Action == parser.AddColumn {
 				var added table.AddedColumn
-				next, added, err = addColumnCandidate(e, scope, op, auth, next, action, nil)
+				next, added, err = AddColumnCandidate(e, scope, op, auth, next, action, nil)
 				if err == nil && added.Column != nil {
 					additions = append(additions, added)
 				}
@@ -245,7 +245,7 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				var transformation index.ColumnTransformation
 				captured := prepared[typeIndex]
 				typeIndex++
-				next, transformation, err = alterTypeCandidate(e, scope, op, auth, stage, old, next, ref, action, captured)
+				next, transformation, err = AlterTypeCandidate(e, scope, op, auth, stage, old, next, ref, action, captured)
 				if err == nil {
 					transformations = append(transformations, transformation)
 				}
@@ -308,13 +308,13 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 				pendingChecks, err = table.CaptureAlterTypeChecks(op, auth.Catalog, old, next, s.Actions)
 			}
 			if err == nil {
-				pendingIndexes, err = captureAlterTypeIndexes(scope, auth.Catalog, old, next, s.Actions)
+				pendingIndexes, err = CaptureAlterTypeIndexes(scope, auth.Catalog, old, next, s.Actions)
 			}
 		} else if pass == 1 {
-			next, typeChecks, err = rebindAlterTypeChecks(e, scope, op, auth, ref, next, pendingChecks)
+			next, typeChecks, err = RebindAlterTypeChecks(e, scope, op, auth, ref, next, pendingChecks)
 			if err == nil && len(pendingIndexes) > 0 {
 				stage = authorizedStage(e, stage, auth, op.Session)
-				err = rebindAlterTypeIndexes(e, scope, auth, next, stage, pendingIndexes)
+				err = RebindAlterTypeIndexes(e, scope, auth, next, stage, pendingIndexes)
 			}
 		}
 		if err == nil && pass == 1 && hasAttachments {
@@ -474,7 +474,7 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		}
 	}
 	if len(replacements) != 0 {
-		if err := captureCheckSnapshots(e, scope, next); err != nil {
+		if err := CaptureCheckSnapshots(e, scope, next); err != nil {
 			return core.Result{}, err
 		}
 	}
@@ -489,7 +489,7 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			break
 		}
 	}
-	fills, perRowAdd, err := table.PlanAddedColumns(alterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
+	fills, perRowAdd, err := table.PlanAddedColumns(AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), additions)
 	if err != nil {
 		return core.Result{}, err
 	}
@@ -530,7 +530,7 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 		traversal := *next
 		traversal.Constraints.Check = typeChecks
 		validator.Checks = &traversal
-		if err := captureCheckSnapshots(e, scope, &traversal); err != nil {
+		if err := CaptureCheckSnapshots(e, scope, &traversal); err != nil {
 			return core.Result{}, err
 		}
 	}
@@ -540,7 +540,7 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 			return core.Result{}, err
 		}
 		writes, deletes := scope.ColumnProjectionRoots(storageOwner.Address())
-		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(alterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), storageOwner, next, store, frontier, writes, deletes, transformations, additions, storedReplacements, validator)
+		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(AlterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), storageOwner, next, store, frontier, writes, deletes, transformations, additions, storedReplacements, validator)
 		if err != nil {
 			return core.Result{}, err
 		}
@@ -586,11 +586,11 @@ func alterTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Op
 	}
 	if scanValidator, scan := table.PlanAlterScan(old, next, schema, rewrite, physicalRows, typeChecks, addedChecks, replacements, validator.NotNull); scan {
 		if scanValidator.Checks != nil {
-			if err := captureCheckSnapshots(e, scope, scanValidator.Checks); err != nil {
+			if err := CaptureCheckSnapshots(e, scope, scanValidator.Checks); err != nil {
 				return core.Result{}, err
 			}
 		}
-		if err := table.ValidateAddedConstraintRows(alterRowEvaluation(scope, scope.Op, catalog.Read{}), scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
+		if err := table.ValidateAddedConstraintRows(AlterRowEvaluation(scope, scope.Op, catalog.Read{}), scanValidator, versions, ends, frontier, projectedWrites, projectedDeletes); err != nil {
 			return core.Result{}, err
 		}
 	}

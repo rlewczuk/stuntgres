@@ -15,7 +15,7 @@ import (
 // The owner-authorized AX grant protects identity; publication changes only the
 // immutable descriptor and never evaluates a default or rewrites row storage.
 // Every return releases Engine.mu.
-func alterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableDefault, count int) (core.Result, error) {
+func AlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableDefault, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -47,7 +47,7 @@ func alterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 	}
 	var definition catalog.ColumnDefault
 	if s.Action == parser.SetDefault {
-		definition, err = cookAlterDefaultLocked(e, scope, op, auth, old, slot, s.Expression)
+		definition, err = CookAlterDefaultLocked(e, scope, op, auth, old, slot, s.Expression)
 		if err != nil {
 			return fail(err)
 		}
@@ -104,7 +104,7 @@ func alterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.
 	return core.Result{}, nil
 }
 
-// cookAlterDefaultLocked cooks SET DEFAULT; the caller holds Engine.mu.
-func cookAlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
-	return table.CookAlterDefault(alterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, slot, expression)
+// CookAlterDefaultLocked cooks SET DEFAULT; the caller holds Engine.mu.
+func CookAlterDefaultLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
+	return table.CookAlterDefault(AlterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, auth, old, slot, expression)
 }

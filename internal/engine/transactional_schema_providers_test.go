@@ -88,7 +88,7 @@ func TestTransactionalSchemaPrivateProviders(t *testing.T) {
 			}
 			defer e.DiscardCatalogStage(provider)
 			defer e.DiscardCatalogStage(consumer)
-			err = acquireTypedSources(scope, consumer, false)
+			err = AcquireTypedSources(scope, consumer, false)
 			if stale == "none" && err != nil {
 				t.Fatal("private reciprocal provider rejected", err)
 			}

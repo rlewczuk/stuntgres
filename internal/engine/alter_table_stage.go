@@ -68,9 +68,9 @@ func mergeStageJournalLocked(e *core.Engine, stage *core.CatalogStage, changes *
 	return nil
 }
 
-// captureCheckSnapshots captures the comment and visibility snapshots that
+// CaptureCheckSnapshots captures the comment and visibility snapshots that
 // relation's CHECKs demand, under Engine.mu, which it takes.
-func captureCheckSnapshots(e *core.Engine, scope *core.StatementScope, relation *catalog.Relation) error {
+func CaptureCheckSnapshots(e *core.Engine, scope *core.StatementScope, relation *catalog.Relation) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if err := e.CaptureCheckCommentSnapshotLocked(scope, relation); err != nil {

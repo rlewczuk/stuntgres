@@ -7,12 +7,12 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-// publishRestoreRepairLocked is the shared tail of the Restore catalog
+// PublishRestoreRepairLocked is the shared tail of the Restore catalog
 // repairs that replace one relation: next, decided under Engine.mu against
 // auth's catalog, goes through a private stage and publishes with no
 // statement scope. The caller holds e.mu; this releases it before
 // validation and publication, and discards the stage on every exit.
-func publishRestoreRepairLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, next *catalog.Relation, epoch ids.CatalogEpoch) error {
+func PublishRestoreRepairLocked(e *core.Engine, op *session.Operation, auth core.AuthorizationView, next *catalog.Relation, epoch ids.CatalogEpoch) error {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	e.Mu.Unlock()

@@ -21,7 +21,7 @@ func detachPartitionLocked(e *core.Engine, scope *core.StatementScope, op *sessi
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.LockedRef.Domain() == nil {
-		return skipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
+		return SkipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
 	}
 	parent := scope.LockedDescriptor.(*catalog.Relation)
 	if parent.Partition == nil {

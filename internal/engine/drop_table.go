@@ -16,7 +16,7 @@ import (
 
 // Called with e.mu held; every return releases it. Preflight the whole group
 // and its stable-column AUTO sequence dependencies before publication.
-func dropTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.DropTable, count int) (core.Result, error) {
+func DropTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.DropTable, count int) (core.Result, error) {
 	if count != 0 {
 		e.Mu.Unlock()
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)

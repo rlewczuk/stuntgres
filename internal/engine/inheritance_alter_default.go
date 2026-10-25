@@ -40,7 +40,7 @@ func alterInheritanceDefaultLocked(e *core.Engine, scope *core.StatementScope, o
 		}
 		var definition catalog.ColumnDefault
 		if err == nil && raw.Action == parser.SetDefault {
-			definition, err = cookAlterDefaultLocked(e, scope, op, auth, old, childSlot, raw.Expression)
+			definition, err = CookAlterDefaultLocked(e, scope, op, auth, old, childSlot, raw.Expression)
 		}
 		if err != nil {
 			e.Mu.Unlock()

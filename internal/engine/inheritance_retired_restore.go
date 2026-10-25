@@ -43,7 +43,7 @@ func restoreRetiredConstraint(e *core.Engine, op *session.Operation, raw *parser
 		e.Mu.Unlock()
 		return err
 	}
-	if err := publishRestoreRepairLocked(e, op, auth, next, ref.Epoch); err != nil {
+	if err := PublishRestoreRepairLocked(e, op, auth, next, ref.Epoch); err != nil {
 		return err
 	}
 	authority.CommitRetiredRepair(commit)

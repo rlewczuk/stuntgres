@@ -16,7 +16,7 @@ import (
 func prepareAddedChecks(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (table.PreparedAddedChecks, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.PrepareAddedChecks(alterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, inheritancePlan(scope), auth, parent, raw)
+	return table.PrepareAddedChecks(AlterHost{TableHost{core.DDLHost{E: e, Op: op}}, scope}, inheritancePlan(scope), auth, parent, raw)
 }
 
 func stageAddedChecks(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {

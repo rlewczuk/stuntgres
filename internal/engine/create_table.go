@@ -16,7 +16,7 @@ import (
 )
 
 // Called under Engine.mu. Every return releases it, like the existing DDL path.
-func createTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.CreateTable, count int) (core.Result, error) {
+func CreateTableLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.CreateTable, count int) (core.Result, error) {
 	if count != 0 {
 		e.Mu.Unlock()
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -67,7 +67,7 @@ func createTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 	stage.CreationName = s.Name
 	defer e.DiscardCatalogStage(stage)
 	stage.AuthorizeLocked(auth, op.Session)
-	var partition *pendingPartitionDefinition
+	var partition *PendingPartitionDefinition
 	if s.PartitionBy != nil || s.PartitionOf != nil {
 		partition, err = schemaPartitionTableLocked(e, scope, auth, stage, s, ns.Address)
 	} else {
@@ -84,7 +84,7 @@ func createTableLocked(e *core.Engine, scope *core.StatementScope, op *session.O
 	// Preserve entry admission and acquire genuine definition-provider holds
 	// afterward, under their existing publication/cancellation policy.
 	replacementRead := scope.ReplacementRead
-	if err = acquireTypedSources(scope, stage, false); err != nil {
+	if err = AcquireTypedSources(scope, stage, false); err != nil {
 		return core.Result{}, err
 	}
 	if !replacementRead && scope.ReplacementRead {

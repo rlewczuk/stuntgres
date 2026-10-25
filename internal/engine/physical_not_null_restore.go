@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func preparePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.PhysicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
+func PreparePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.PhysicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if len(repairs) == 0 {
 		return nil, nil
 	}
@@ -33,7 +33,7 @@ func preparePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, ra
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func capturePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*table.RestoredPhysicalNotNull, error) {
+func CapturePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, constructor *table.PhysicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*table.RestoredPhysicalNotNull, error) {
 	auth, err := core.OperationAuthorization(op)
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func capturePhysicalNotNullConstructor(e *core.Engine, op *session.Operation, co
 
 // The selected NN and its outbound dependency projection disappear together in
 // the sole private stage. The surviving physical flag is not a synthetic NN row.
-func restorePhysicalNotNull(e *core.Engine, op *session.Operation, raw *parser.Delete, pair *table.RestoredPhysicalNotNull) error {
+func RestorePhysicalNotNull(e *core.Engine, op *session.Operation, raw *parser.Delete, pair *table.RestoredPhysicalNotNull) error {
 	repair, valid := table.RestorePhysicalNotNullSyntax(raw)
 	reject := func() error { return core.SQLError("0A000", table.RestorePhysicalNotNullBoundary) }
 	if !valid || !pair.Pairs(op, repair) {
@@ -83,7 +83,7 @@ func restorePhysicalNotNull(e *core.Engine, op *session.Operation, raw *parser.D
 		e.Mu.Unlock()
 		return err
 	}
-	if err := publishRestoreRepairLocked(e, op, auth, next, ref.Epoch); err != nil {
+	if err := PublishRestoreRepairLocked(e, op, auth, next, ref.Epoch); err != nil {
 		return err
 	}
 	pair.Advance(next)

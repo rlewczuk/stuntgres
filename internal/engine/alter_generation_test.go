@@ -59,7 +59,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	original := old.ColumnMeta.Generations[2]
 	retained := auth.Catalog
 	unaffected := old.ColumnMeta.Generations[3]
-	next, attribute, err := generationCandidate(e, scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
+	next, attribute, err := GenerationCandidate(e, scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
 	if err != nil || attribute != 2 || next == old || next.ColumnMeta.Generations[2].OID != 0 || next.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
 		t.Fatal(next, attribute, err)
 	}
@@ -76,18 +76,18 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal("unaffected definition reminted/mutated")
 	}
 	drop := parser.AlterTableAction{Action: parser.DropExpression, Column: parser.Identifier{Text: "b"}}
-	dropped, changed, err := generationCandidate(e, scope, admin, auth, next, drop)
+	dropped, changed, err := GenerationCandidate(e, scope, admin, auth, next, drop)
 	if err != nil || changed != 0 || len(dropped.ColumnMeta.Generations) != 1 || len(next.ColumnMeta.Generations) != 2 || dropped.Columns[1] != old.Columns[1] || dropped.ColumnMeta.Generations[3].OID != unaffected.OID {
 		t.Fatal(dropped, changed, err)
 	}
 	target := ref.Address
 	target.SubID = 1
-	originalDrop, _, err := generationCandidate(e, scope, admin, auth, old, drop)
+	originalDrop, _, err := GenerationCandidate(e, scope, admin, auth, old, drop)
 	if err != nil || !table.GenerationDepends(old, target) || table.GenerationDepends(next, target) || table.GenerationDepends(originalDrop, target) || originalDrop.ColumnMeta.Generations[3].OID != unaffected.OID {
 		t.Fatal("SET/DROP dependency edges or unaffected definition wrong", err)
 	}
 	drop.IfExists = true
-	same, _, err := generationCandidate(e, scope, admin, auth, dropped, drop)
+	same, _, err := GenerationCandidate(e, scope, admin, auth, dropped, drop)
 	if err != nil || same != dropped || same.Revision() != dropped.Revision() {
 		t.Fatal("no-op changed descriptor", err)
 	}
@@ -151,7 +151,7 @@ func TestAlterGeneratedExpressionCompletedRow(t *testing.T) {
 	}}
 	additions := []table.AddedColumn{{Attribute: 4, Column: &parser.Column{Name: "c"}, Value: integer(5)}}
 	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
-	replacement, writes, deletes, err := table.RewriteTypeRows(alterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), &old, &next, store, 2, ownWrites, ownDeletes, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	replacement, writes, deletes, err := table.RewriteTypeRows(AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), &old, &next, store, 2, ownWrites, ownDeletes, []index.ColumnTransformation{{Attribute: 1, Expression: transform, Rewrite: true}}, additions, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if err != nil || calls != 3 || len(replacement.Versions) != 1 || len(writes) != 2 || deletes != nil || replacement.Generation != 2 {
 		t.Fatal(replacement, writes, calls, err)
 	}
@@ -206,7 +206,7 @@ func TestAlterGeneratedExpressionCancellation(t *testing.T) {
 	}
 	defer cleanup()
 	ownWrites, ownDeletes := scope.ColumnProjectionRoots(old.Address())
-	replacement, writes, deletes, err := table.RewriteTypeRows(alterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), &old, &next, store, 1, ownWrites, ownDeletes, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
+	replacement, writes, deletes, err := table.RewriteTypeRows(AlterRowEvaluation(scope, op, scope.RoutineAuth.Catalog), &old, &next, store, 1, ownWrites, ownDeletes, nil, nil, []int32{2}, table.NewAlterRowValidator(&next, ""))
 	if !errors.Is(err, context.Canceled) || calls != 1 || replacement != nil || writes != nil || deletes != nil || store.Generation != 7 || len(store.Versions[0].Values) != 2 || store.Versions[0].Values[1] != value {
 		t.Fatal("real rewrite cancellation leaked candidate", replacement, writes, deletes, calls, err)
 	}

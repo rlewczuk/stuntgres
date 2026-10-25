@@ -39,7 +39,7 @@ func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
 	}
 	defer scope.Finish(nil)
 	changes := session.NewJournal()
-	next, err := dropColumnCandidate(scope, stage, old, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "v"}, Mode: parser.DropCascade}, changes)
+	next, err := DropColumnCandidate(scope, stage, old, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "v"}, Mode: parser.DropCascade}, changes)
 	if err != nil {
 		t.Fatal(err)
 	}

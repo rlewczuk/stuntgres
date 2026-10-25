@@ -43,16 +43,16 @@ func stageAlterIdentityTypes(e *core.Engine, scope *core.StatementScope, op *ses
 	return stage, nil
 }
 
-// alterTypeCandidate runs the TYPE candidate under Engine.mu; stage, when
+// AlterTypeCandidate runs the TYPE candidate under Engine.mu; stage, when
 // begun, supplies the staged dependent views.
-func alterTypeCandidate(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
+func AlterTypeCandidate(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.AlterTypeCandidate(alterHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, scope}, auth, original, next, ref, a, prepared)
+	return table.AlterTypeCandidate(AlterHost{TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, scope}, auth, original, next, ref, a, prepared)
 }
 
-// alterRowEvaluation is the statement's evaluation template for ALTER row
+// AlterRowEvaluation is the statement's evaluation template for ALTER row
 // fills, rewrites and scans; read is the catalog local lowering admits against.
-func alterRowEvaluation(scope *core.StatementScope, op *session.Operation, read catalog.Read) exec.Context {
+func AlterRowEvaluation(scope *core.StatementScope, op *session.Operation, read catalog.Read) exec.Context {
 	return exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: read}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 }

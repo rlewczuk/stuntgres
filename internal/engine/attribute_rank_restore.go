@@ -10,7 +10,7 @@ import (
 
 // Restore alone calls this interpreter, against its isolated catalog. It is not
 // an UPDATE execution path and never grants writable access to catalog sources.
-func restoreAttributeRank(e *core.Engine, op *session.Operation, raw *parser.Update) error {
+func RestoreAttributeRank(e *core.Engine, op *session.Operation, raw *parser.Update) error {
 	name, column, rank, err := table.RestoreAttributeRankSyntax(raw)
 	if err != nil {
 		return err
@@ -49,5 +49,5 @@ func restoreAttributeRank(e *core.Engine, op *session.Operation, raw *parser.Upd
 		e.Mu.Unlock()
 		return err
 	}
-	return publishRestoreRepairLocked(e, op, auth, next, ref.Epoch)
+	return PublishRestoreRepairLocked(e, op, auth, next, ref.Epoch)
 }
