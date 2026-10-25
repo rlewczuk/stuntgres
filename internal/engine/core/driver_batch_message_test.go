@@ -1,0 +1,240 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
+)
+
+type batchUnitMessage struct {
+	scope  *engine.StatementScope
+	op     *session.Operation
+	ended  bool
+	result error
+}
+
+func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batchUnitMessage {
+	t.Helper()
+	op, _, err := s.AcquireCommand(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	scope, err := engine.EngineOf(s).StartStatement(op)
+	if err != nil {
+		op.Done()
+		t.Fatal(err)
+	}
+	if err = scope.RetainMessage(); err != nil {
+		_ = scope.Finish(err)
+		op.Done()
+		t.Fatal(err)
+	}
+	return &batchUnitMessage{scope: scope, op: op}
+}
+func (m *batchUnitMessage) step(stmt parser.Statement) (engine.Result, error) {
+	if m.scope.Finished {
+		next, err := m.scope.NextStatement()
+		if err != nil {
+			return engine.Result{}, err
+		}
+		m.scope = next
+	}
+	result, err := m.scope.Execute(stmt, 0, nil)
+	finish := m.scope.Finish(err)
+	if err == nil {
+		err = finish
+	}
+	return result, err
+}
+func (m *batchUnitMessage) end(err error) error {
+	if !m.ended {
+		m.result = m.scope.FinishMessage(err)
+		m.ended = true
+		m.op.Done()
+	}
+	return m.result
+}
+func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
+	e := engine.New()
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, b, "CREATE TABLE t(v INT)")
+	m := batchUnitStart(t, a, context.Background())
+	defer m.end(context.Canceled)
+	if _, err := m.step(enginetest.Statement(t, "INSERT INTO t VALUES(1)")); err != nil {
+		t.Fatal(err)
+	}
+	ref, ticket, start := a.Transactions.Ref, a.Transactions.Ticket, a.Transactions.Start
+	if a.TransactionState() != session.TxImplicit || ref == (ids.TxRef{}) || ticket == nil || a.Transactions.Command != 1 {
+		t.Fatal("retained implicit owner")
+	}
+	if a.Transactions.Admission.TryLock() {
+		a.Transactions.Admission.Unlock()
+		t.Fatal("message released admission between statements")
+	}
+	enginetest.TransactionRows(t, b, "SELECT v FROM t")
+	first := m.scope
+	copy := *first
+	if _, err := copy.NextStatement(); err == nil {
+		t.Fatal("copied scope authority")
+	}
+	originalOperation := m.scope.Op
+	copiedOperation := *originalOperation
+	m.scope.Op = &copiedOperation
+	_, foreignErr := m.scope.NextStatement()
+	m.scope.Op = originalOperation
+	if foreignErr == nil {
+		t.Fatal("copied operation acquired message admission")
+	}
+	if _, err := m.step(enginetest.Statement(t, "BEGIN")); err != nil {
+		t.Fatal(err)
+	}
+	if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || a.Transactions.Start != start || a.TransactionState() != session.TxActive {
+		t.Fatal("promotion replaced authority")
+	}
+	if err := first.FinishMessage(nil); err == nil {
+		t.Fatal("stale scope ended current message")
+	}
+	if _, err := m.step(enginetest.Statement(t, "INSERT INTO t VALUES(2)")); err != nil {
+		t.Fatal(err)
+	}
+	final := m.scope
+	if err := m.end(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := final.FinishMessage(errors.New("ignored")); err != nil {
+		t.Fatal("idempotent message end", err)
+	}
+	if _, err := final.NextStatement(); err == nil {
+		t.Fatal("ended message admitted work")
+	}
+	if a.Transactions.RetainedMessage || a.TransactionState() != session.TxActive {
+		t.Fatal("message end incorrectly ended explicit block")
+	}
+	enginetest.TransactionRows(t, b, "SELECT v FROM t")
+	enginetest.TransactionEnd(t, a, ref, false)
+	enginetest.TransactionRows(t, b, "SELECT v FROM t")
+}
+func TestDriverBatchQueuedPrefixCancellation(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
+			e := engine.New()
+			a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, b, "CREATE TABLE prefix(v INT)")
+			enginetest.SessionSQL(t, b, "CREATE TABLE blocked(v INT)")
+			holder := enginetest.TransactionBegin(t, b)
+			enginetest.SessionSQL(t, b, "LOCK TABLE blocked IN ACCESS EXCLUSIVE MODE")
+			if explicit {
+				enginetest.TransactionBegin(t, a)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			m := batchUnitStart(t, a, ctx)
+			joined := make(chan struct{})
+			result := make(chan error, 1)
+			started := false
+			t.Cleanup(func() {
+				cancel()
+				if started {
+					select {
+					case <-joined:
+					case <-time.After(5 * time.Second):
+						t.Error("canceled message did not join")
+					}
+				} else {
+					m.end(context.Canceled)
+				}
+			})
+			if _, err := m.step(enginetest.Statement(t, "INSERT INTO prefix VALUES(1)")); err != nil {
+				t.Fatal(err)
+			}
+			address := enginetest.CatalogRef(t, e, e.CatalogRead(), "prefix").Address
+			e.Mu.Lock()
+			published := len(e.Storage.Relations[address].Versions)
+			e.Mu.Unlock()
+			if published != 0 || len(a.Transactions.Writes[address]) != 1 {
+				t.Fatal("prefix was not staged before wait")
+			}
+			ref, ticket := a.Transactions.Ref, a.Transactions.Ticket
+			stmt := enginetest.Statement(t, "INSERT INTO blocked VALUES(2)")
+			started = true
+			go func() { _, err := m.step(stmt); err = m.end(err); result <- err; close(joined) }()
+			enginetest.LockPending(t, e, 1)
+			a.Transactions.Mu.Lock()
+			same := a.Transactions.Ref == ref && a.Transactions.Ticket == ticket && a.Transactions.Command == 1
+			a.Transactions.Mu.Unlock()
+			if !same {
+				t.Fatal("queued command changed prefix owner")
+			}
+			cancel()
+			select {
+			case err := <-result:
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal("ordinary admitted cancellation", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("message failed to cancel while lock remained held")
+			}
+			<-joined
+			want := session.TxIdle
+			if explicit {
+				want = session.TxAborted
+			}
+			if a.TransactionState() != want || a.Transactions.Writes != nil || a.Transactions.Catalog != nil || a.Transactions.RetainedMessage {
+				t.Fatal("cancellation retained private effects")
+			}
+			enginetest.TransactionRows(t, b, "SELECT v FROM prefix")
+			if explicit {
+				controlsRequire(t, a, "ROLLBACK")
+			}
+			enginetest.TransactionEnd(t, b, holder, false)
+			enginetest.LockEmpty(t, e)
+			enginetest.TransactionRows(t, a, "SELECT v FROM prefix")
+			enginetest.SessionSQL(t, a, "INSERT INTO prefix VALUES(9)")
+			enginetest.TransactionRows(t, a, "SELECT v FROM prefix", 9)
+		})
+	}
+}
+func TestDriverBatchCanceledBetweenStatements(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		t.Run(map[bool]string{false: "implicit", true: "explicit"}[explicit], func(t *testing.T) {
+			e := engine.New()
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE TABLE t(v INT)")
+			if explicit {
+				enginetest.TransactionBegin(t, s)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			m := batchUnitStart(t, s, ctx)
+			defer m.end(context.Canceled)
+			if _, err := m.step(enginetest.Statement(t, "INSERT INTO t VALUES(1)")); err != nil {
+				t.Fatal(err)
+			}
+			cancel()
+			_, err := m.step(enginetest.Statement(t, "INSERT INTO t VALUES(2)"))
+			if !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			if err = m.end(err); !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+			want := session.TxIdle
+			if explicit {
+				want = session.TxAborted
+			}
+			if s.TransactionState() != want || s.Transactions.Writes != nil {
+				t.Fatal("between-statement error disposition")
+			}
+			if explicit {
+				controlsRequire(t, s, "ROLLBACK")
+			}
+			enginetest.TransactionRows(t, s, "SELECT v FROM t")
+		})
+	}
+}

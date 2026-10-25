@@ -1,0 +1,70 @@
+package enginetests_test
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
+)
+
+// Catalog GRANT/REVOKE SQL is not admitted natively. Exercise the actual owning
+// ACL publication/check seam, including fresh use of the same operation and
+// immutable retained authorization, rather than inventing successful SQL.
+func TestPgClassCatalogACLRecheck(t *testing.T) {
+	e := engine.New()
+	d := pgClassUnitSource(t, e)
+	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
+	admin, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	role := roleAttributeCreate(t, e, admin, "class_metadata_reader", true, parser.RoleOptions{})
+	reader, readerDone := enginetest.RoleOperation(t, e, role.Name)
+	defer readerDone()
+	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
+	retained, err := engine.OperationAuthorization(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := retained.Check(requirement); err != nil {
+		t.Fatal("initial PUBLIC catalog permission", err)
+	}
+	if err := enginetest.SetObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
+		t.Fatal(err)
+	}
+	denied, err := engine.OperationAuthorization(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for table pg_class")
+	if err := retained.Check(requirement); err != nil {
+		t.Fatal("ACL replacement mutated retained authorization", err)
+	}
+	current := e.CatalogRead().MustRelation(d.Address())
+	if current == d || len(current.Security.ACL.Entries) != 0 || !current.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public {
+		t.Fatal("ACL publication/source-root immutability", current.Security.ACL, d.Security.ACL)
+	}
+	if err := enginetest.SetObjectACL(e, context.Background(), ref, d.Security.ACL); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := engine.OperationAuthorization(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.Check(requirement); err != nil {
+		t.Fatal("restored PUBLIC catalog permission", err)
+	}
+	domainUnitDiagnostic(t, denied.Check(requirement), "42501", "permission denied for table pg_class")
+	if err := retained.Check(requirement); err != nil {
+		t.Fatal("restoration mutated retained PUBLIC authorization", err)
+	}
+}
+
+func pgClassUnitSource(t *testing.T, e *engine.Engine) *catalog.Relation {
+	t.Helper()
+	return e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
+}
