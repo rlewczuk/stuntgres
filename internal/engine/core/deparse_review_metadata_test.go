@@ -1,0 +1,445 @@
+package core_test
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
+	for _, declaration := range []string{"TIME", "TIMETZ", "TIMESTAMP", "TIMESTAMPTZ"} {
+		t.Run(declaration, func(t *testing.T) {
+			text := "12:34:56.1234"
+			if strings.Contains(declaration, "TIMESTAMP") {
+				text = "2026-10-08 " + text
+			}
+			if declaration == "TIMETZ" || declaration == "TIMESTAMPTZ" {
+				text += "+00"
+			}
+			raw := enginetest.Statement(t, "SELECT "+declaration+"(3) '"+text+"' FROM t").(*parser.Select).Targets[0].(parser.TypedLiteralExpr)
+			e := engine.New()
+			b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			coercion, ok := node.(plan.CoercionExpr)
+			if !ok || coercion.Mode != sqltype.Explicit || coercion.Usage.Typmod != 3 {
+				t.Fatal(node)
+			}
+			literal := coercion.Child.(plan.LiteralExpr)
+			if literal.Usage.Typmod != -1 {
+				t.Fatal(literal.Usage)
+			}
+			unrounded, err := literal.Value.Type().Output(context.Background(), literal.Value)
+			if err != nil || !strings.Contains(unrounded, ".1234") {
+				t.Fatal(unrounded, err)
+			}
+			value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rounded, err := value.Type().Output(context.Background(), value)
+			if err != nil || strings.Contains(rounded, ".1234") || !strings.Contains(rounded, ".123") {
+				t.Fatal(rounded, err)
+			}
+			if len(b.Prepared.Temporals) != 1 || b.Prepared.Temporals[0].Typmod != -1 || !b.Prepared.Temporals[0].Typed || b.Prepared.Temporals[0].TypedTypmod != 3 {
+				t.Fatal(b.Prepared.Temporals)
+			}
+			description := engine.StatementDescription{Temporals: b.Prepared.Temporals}
+			raw.Text = "must not be reparsed"
+			again := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &description)
+			rebound, err := again.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), rebound, stored.DeparseParent{})
+			want, err2 := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), node, stored.DeparseParent{})
+			if err != nil || err2 != nil || got != want || !strings.Contains(got, ".1234") {
+				t.Fatal(got, want, err, err2)
+			}
+		})
+	}
+}
+
+func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
+	e := engine.New()
+	for _, expression := range []string{"num_nulls(NULL)", "num_nulls(NULL::unknown)", "num_nonnulls(CAST(NULL AS pg_catalog.unknown))"} {
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		raw := enginetest.Statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal(expression, err)
+		}
+		leaf := node.(functions.NullCount).Args[0].(plan.LiteralExpr)
+		if !leaf.UnknownNull || !leaf.Value.IsNull() || leaf.Usage.Type.ID() != sqltype.Text {
+			t.Fatal(leaf)
+		}
+		if text, err := regobj.ConstantLiteral(context.Background(), leaf); err != nil || text != "NULL::unknown" {
+			t.Fatal(text, err)
+		}
+		typed := leaf
+		typed.UnknownNull = false
+		if b.SameGroupExpression(leaf, typed) {
+			t.Fatal("unknown and concrete NULL conflated")
+		}
+		target := engine.New()
+		retagged, changed, err := stored.RetagTypes(target.CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+			typ, _ := target.CatalogRead().LookupType(d.ID())
+			return typ
+		})
+		if err != nil || !changed {
+			t.Fatal(changed, err)
+		}
+		mapper := stored.ViewQueryRemapper{Catalog: target.CatalogRead(), Type: func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, Procedure: replacementProcedurePolicyFixture(e, target)}
+		query, err := mapper.Query(&plan.ValuesNode{Rows: [][]expr.Expr{{retagged}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		retagged = query.(*plan.ValuesNode).Rows[0][0]
+		remapped, err := stored.RemapExpression(retagged, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := (stored.Deparser{View: target.CatalogRead()}).SQL(context.Background(), remapped, stored.DeparseParent{})
+		if err != nil || !strings.Contains(got, "NULL::unknown") {
+			t.Fatal(got, err)
+		}
+		treeType, _ := target.CatalogRead().LookupType(sqltype.PgNodeTree)
+		tree, err := plan.CatalogTree(treeType, remapped)
+		if err != nil {
+			t.Fatal(err)
+		}
+		serialized, err := treeType.Output(context.Background(), tree)
+		if err != nil || !strings.Contains(serialized, "null unknown") {
+			t.Fatal(serialized, err)
+		}
+		bad := leaf
+		bad.Value = sqltype.String(leaf.Usage.Type, "not null")
+		if _, err := regobj.ConstantLiteral(context.Background(), bad); err == nil {
+			t.Fatal("invalid provenance accepted")
+		}
+	}
+}
+
+func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
+	e := engine.New()
+	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.String(typ, "a'b\\c")}
+	for _, tc := range []struct {
+		off  bool
+		want string
+	}{{false, "'a''b\\c'::text"}, {true, "'a''b\\\\c'::text"}} {
+		got, err := (stored.Deparser{View: e.CatalogRead(), NonstandardStrings: tc.off}).SQL(context.Background(), literal, stored.DeparseParent{})
+		if err != nil || got != tc.want {
+			t.Fatal(got, tc.want, err)
+		}
+	}
+}
+
+func TestDeparseConstraintsReviewUnknownNullConsumerBoundary(t *testing.T) {
+	e := engine.New()
+	for _, expression := range []string{"NULL::unknown=1", "CAST(NULL AS pg_catalog.unknown)=1", "NULL::unknown::integer IS NULL", "NULL::unknown::pg_node_tree IS NULL"} {
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		raw := enginetest.Statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal(expression, err)
+		}
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+		if err != nil {
+			t.Fatal(expression, err)
+		}
+		if node.ResultUsage().Type.ID() != sqltype.Bool {
+			t.Fatal(node.ResultUsage())
+		}
+		if strings.HasSuffix(expression, "=1") {
+			if !value.IsNull() {
+				t.Fatal(expression, value)
+			}
+		} else {
+			text, err := value.Type().Output(context.Background(), value)
+			if err != nil || value.IsNull() || text != "t" {
+				t.Fatal(expression, text, err)
+			}
+		}
+	}
+	for _, tc := range []struct{ expression, code, message string }{
+		{"'x'::unknown", "0A000", "unsupported column type"},
+		{"$1::unknown", "0A000", "unsupported column type"},
+		{"1::unknown", "0A000", "unsupported column type"},
+		{"CAST(NULL AS missing_schema.unknown)", "3F000", `schema "missing_schema" does not exist`},
+	} {
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		raw := enginetest.Statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
+		_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		diagnostic, ok := err.(*sqlstate.Error)
+		if !ok || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
+			t.Fatal(tc.expression, err)
+		}
+	}
+	_, err := parser.Parse("SELECT NULL::unknown(1) FROM t")
+	diagnostic, ok := err.(*sqlstate.Error)
+	if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "type modifiers are unsupported" || diagnostic.Position != "21" {
+		t.Fatal(err)
+	}
+}
+
+func TestDeparseConstraintsReviewSignedConstantNormalization(t *testing.T) {
+	e := engine.New()
+	for _, tc := range []struct {
+		expression string
+		id         sqltype.ID
+		output     string
+	}{
+		{"-2147483648", sqltype.Int4, "-2147483648"},
+		{"-2147483649", sqltype.Int8, "-2147483649"},
+		{"+2147483648", sqltype.Int8, "2147483648"},
+		{"-1.20", sqltype.Numeric, "-1.20"},
+	} {
+		b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		raw := enginetest.Statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+		if err != nil {
+			t.Fatal(tc.expression, err)
+		}
+		if _, ok := node.(plan.LiteralExpr); !ok || node.ResultUsage().Type.ID() != tc.id {
+			t.Fatal(tc.expression, node)
+		}
+		value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		text, err := value.Type().Output(context.Background(), value)
+		if err != nil || text != tc.output {
+			t.Fatal(tc.expression, text, err)
+		}
+	}
+}
+
+func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
+	e := engine.New()
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := enginetest.Statement(t, "SELECT num_nulls(NULL::integer) FROM t").(*parser.Select).Targets[0]
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	leaf := node.(functions.NullCount).Args[0].(plan.LiteralExpr)
+	if leaf.UnknownNull || leaf.Usage.Type.ID() != sqltype.Int4 || !leaf.Value.IsNull() {
+		t.Fatal(leaf)
+	}
+	text, err := (stored.Deparser{View: e.CatalogRead()}).SQL(context.Background(), node, stored.DeparseParent{})
+	if err != nil || text != "num_nulls(NULL::integer)" {
+		t.Fatal(text, err)
+	}
+	value, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, err := value.Integer()
+	if err != nil || count != 1 {
+		t.Fatal(count, err)
+	}
+}
+
+func TestDeparseConstraintsReviewTypedIntervalZoneProvider(t *testing.T) {
+	e := engine.New()
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := enginetest.Statement(t, "SELECT TIMESTAMP '2026-10-08 00:00:00' AT TIME ZONE INTERVAL '02:00' HOUR TO MINUTE FROM t").(*parser.Select).Targets[0]
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conversion := node.(functions.Timezone)
+	value, err := conversion.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected, err := conversion.Usage.Type.Input(context.Background(), "2026-10-07 22:00:00+00", -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualMicros, err := value.Timestamp()
+	expectedMicros, expectedErr := expected.Timestamp()
+	if err != nil || expectedErr != nil || actualMicros != expectedMicros {
+		t.Fatal(value, expected, err, expectedErr)
+	}
+}
+
+func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
+	e := engine.New()
+	enginetest.Run(t, e, "CREATE TABLE t(id INT)")
+	enginetest.Run(t, e, "INSERT INTO t VALUES(1)")
+	enginetest.Run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
+	view := stored.ViewOf(e.CatalogRead().MustRelation(enginetest.RoleTableRef(t, e, "v").Address))
+	literal, ok := view.Literals()[analyze.ViewLiteralPath{Query: view.Query().Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 0, Node: 0}]
+	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
+		t.Fatal(view.Literals())
+	}
+	raw, err := literal.Value.Time()
+	if err != nil || raw != 14706123500 {
+		t.Fatal(raw, err)
+	}
+	literal, ok = view.Literals()[analyze.ViewLiteralPath{Query: view.Query().Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 1, Node: 1}]
+	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
+		t.Fatal(view.Literals())
+	}
+	number, err := literal.Value.Integer()
+	if err != nil || number != 2147483648 {
+		t.Fatal(number, err)
+	}
+	rows := enginetest.Tuples(enginetest.Run(t, e, "SELECT clock=TIME '04:05:06.124' AS rounded,number FROM v"))
+	if len(rows) != 1 || len(rows[0]) != 2 || rows[0][0] != true || rows[0][1] != int64(2147483648) {
+		t.Fatal(rows)
+	}
+}
+
+func TestDeparseConstraintsReviewNumericComparisonUsage(t *testing.T) {
+	for _, declaration := range []string{"NUMERIC(4,2)", "NUMERIC(2,-1)"} {
+		for _, constant := range []struct{ input, compact, pretty string }{
+			{"CAST('1000' AS SMALLINT)", "('1000'::smallint)::numeric", "'1000'::smallint::numeric"},
+			{"1000", "(1000)::numeric", "1000::numeric"},
+			{"2147483648", "('2147483648'::bigint)::numeric", "'2147483648'::bigint::numeric"},
+		} {
+			for _, op := range []string{"<", "=", "IS DISTINCT FROM"} {
+				for _, reverse := range []bool{false, true} {
+					t.Run(declaration+"/"+constant.input+"/"+op+fmt.Sprint(reverse), func(t *testing.T) {
+						left, right := "n", constant.input
+						if reverse {
+							left, right = right, left
+						}
+						e := engine.New()
+						enginetest.Run(t, e, "CREATE TABLE t(n "+declaration+",CONSTRAINT c CHECK("+left+" "+op+" "+right+"))")
+						view := e.CatalogRead()
+						d := view.MustRelation(enginetest.RoleTableRef(t, e, "t").Address)
+						node := d.Constraints.Check[0].Expression
+						for _, pretty := range []bool{false, true} {
+							a, b := "n", constant.compact
+							if pretty {
+								b = constant.pretty
+							}
+							if reverse {
+								a, b = b, a
+							}
+							want := a + " " + op + " " + b
+							if !pretty {
+								want = "(" + want + ")"
+							}
+							got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, stored.DeparseParent{})
+							if err != nil || got != want {
+								t.Fatalf("got %q, %v; want %q", got, err, want)
+							}
+						}
+					})
+				}
+			}
+		}
+	}
+	// Genuine stored coercions remain sized; floating synthetic annotations
+	// remain base usages. Neither expectation depends on helper/source layout.
+	for _, tc := range []struct{ declaration, input, compact, pretty string }{
+		{"NUMERIC(4,2)", "n<CAST(1000 AS NUMERIC(4,2))", "(n < (1000)::numeric(4,2))", "n < 1000::numeric(4,2)"},
+		{"NUMERIC(2,-1)", "n<CAST(10000 AS NUMERIC(2,-1))", "(n < (10000)::numeric(2,-1))", "n < 10000::numeric(2,-1)"},
+		{"DOUBLE PRECISION", "n<1000", "(n < (1000)::double precision)", "n < 1000::double precision"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			e := engine.New()
+			enginetest.Run(t, e, "CREATE TABLE t(n "+tc.declaration+",CONSTRAINT c CHECK("+tc.input+"))")
+			view := e.CatalogRead()
+			d := view.MustRelation(enginetest.RoleTableRef(t, e, "t").Address)
+			for _, pretty := range []bool{false, true} {
+				want := tc.compact
+				if pretty {
+					want = tc.pretty
+				}
+				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, stored.DeparseParent{})
+				if err != nil || got != want {
+					t.Fatalf("got %q, %v; want %q", got, err, want)
+				}
+			}
+		})
+	}
+}
+
+// Release-observed presentation obligations. These also have real returned-SQL
+// consumers; printer-only regressions cannot be hidden by semantic equivalence.
+func TestDeparseConstraintsReviewConditionalPresentation(t *testing.T) {
+	for _, tc := range []struct{ input, compact, pretty string }{
+		{"(-a+(b-1)*2)/2>0", "((((- a) + ((b - 1) * 2)) / 2) > 0)", "(((- a) + (b - 1) * 2) / 2) > 0"},
+		{"CASE WHEN flag THEN 1 ELSE 1/a END>0", "(\nCASE\n    WHEN flag THEN 1\n    ELSE (1 / a)\nEND > 0)", "\nCASE\n    WHEN flag THEN 1\n    ELSE 1 / a\nEND > 0"},
+		{"CASE WHEN flag THEN a END>0", "(\nCASE\n    WHEN flag THEN a\n    ELSE NULL::integer\nEND > 0)", "\nCASE\n    WHEN flag THEN a\n    ELSE NULL::integer\nEND > 0"},
+		{"a IS NOT DISTINCT FROM b", "(NOT (a IS DISTINCT FROM b))", "NOT a IS DISTINCT FROM b"},
+		{"CASE WHEN flag THEN (a&b) ELSE 1 END>0", "(\nCASE\n    WHEN flag THEN (a & b)\n    ELSE 1\nEND > 0)", "\nCASE\n    WHEN flag THEN a & b\n    ELSE 1\nEND > 0"},
+		{"abs(a&b)>0", "(abs((a & b)) > 0)", "abs(a & b) > 0"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			e := engine.New()
+			enginetest.Run(t, e, "CREATE TABLE t(a INT,b INT,flag BOOL,CONSTRAINT c CHECK("+tc.input+"))")
+			view := e.CatalogRead()
+			d := view.MustRelation(enginetest.RoleTableRef(t, e, "t").Address)
+			for _, pretty := range []bool{false, true} {
+				want := tc.compact
+				if pretty {
+					want = tc.pretty
+				}
+				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), d.Constraints.Check[0].Expression, stored.DeparseParent{})
+				if err != nil || got != want {
+					t.Fatalf("got %q, %v; want %q", got, err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
+	for _, tc := range []struct{ name, input, compact, pretty string }{
+		{"high_under_low", "a+b*c", "(a + (b * c))", "a + b * c"},
+		{"low_under_high", "(a+b)*c", "((a + b) * c)", "(a + b) * c"},
+		{"same_left", "(a-b)-c", "((a - b) - c)", "a - b - c"},
+		{"same_right", "a-(b-c)", "(a - (b - c))", "a - (b - c)"},
+		{"addition_right", "a+(b+c)", "(a + (b + c))", "a + (b + c)"},
+		{"division_right", "a/(b/c)", "(a / (b / c))", "a / (b / c)"},
+		{"division_left", "(a/b)/c", "((a / b) / c)", "a / b / c"},
+		{"unary_top", "-a", "(- a)", "- a"},
+		{"unary_operand", "-a+b", "((- a) + b)", "(- a) + b"},
+		{"nested_unary", "-(-a)", "(- (- a))", "- (- a)"},
+		{"separated_function", "abs(a+b)", "abs((a + b))", "abs(a + b)"},
+		{"separated_bitwise", "abs(a&b)", "abs((a & b))", "abs(a & b)"},
+		{"bitwise_operand", "a+(b&c)", "(a + (b & c))", "a + (b & c)"},
+		{"bitwise_parent", "(a+b)&c", "((a + b) & c)", "(a + b) & c"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := engine.New()
+			enginetest.Run(t, e, "CREATE TABLE t(a INT,b INT,c INT,CONSTRAINT ck CHECK(("+tc.input+")>0))")
+			view := e.CatalogRead()
+			d := view.MustRelation(enginetest.RoleTableRef(t, e, "t").Address)
+			node := d.Constraints.Check[0].Expression.(plan.ComparisonExpr).Left
+			for _, pretty := range []bool{false, true} {
+				want := tc.compact
+				if pretty {
+					want = tc.pretty
+				}
+				got, err := (stored.Deparser{View: view, Relation: d, Pretty: pretty}).SQL(context.Background(), node, stored.DeparseParent{})
+				if err != nil || got != want {
+					t.Fatalf("got %q, %v; want %q", got, err, want)
+				}
+			}
+		})
+	}
+}

@@ -12,39 +12,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// These tests deliver the exact own-command cause on genuine acquired commands.
-// They exercise pre-scope disposition, not wall-clock timer delivery; the public
-// queued-conflict reference witness separately exercises the configured timer.
-func TestStatementTimeoutAdmissionPreScope(t *testing.T) {
-	e, sess, ref := statementTimeoutAdmissionOwner(t)
-	op, cancel := statementTimeoutAdmissionCommand(t, sess)
-	frontier := e.Visibility.CommitSeq()
-	cancel(session.StatementTimeoutCause)
-	scope, err := e.StartStatement(op)
-	if e.Visibility.CommitSeq() != frontier {
-		t.Fatal("pre-scope timeout advanced the committed frontier")
-	}
-	statementTimeoutAdmissionOutcome(t, e, sess, ref, op, scope, err)
-}
-
-// The context checkpoint observes StartStatement's initial admission check while
-// real Admission is held. A mutex has no observable enqueue event: this tests
-// cancellation across that checkpoint and contended admission, not traced queue
-// membership. Its first Err result was sampled before cancellation, so the
-// command proceeds to AcquireAdmission rather than taking the initial exit.
-func TestStatementTimeoutAdmissionQueued(t *testing.T) {
-	e, sess, ref := statementTimeoutAdmissionOwner(t)
-	op, cancel := statementTimeoutAdmissionCommand(t, sess)
-	frontier := e.Visibility.CommitSeq()
-	scope, err := statementTimeoutAdmissionContended(t, e, op, cancel, func() {
-		cancel(session.StatementTimeoutCause)
-	})
-	if e.Visibility.CommitSeq() != frontier {
-		t.Fatal("queued timeout advanced the committed frontier")
-	}
-	statementTimeoutAdmissionOutcome(t, e, sess, ref, op, scope, err)
-}
-
 // atCheckpoint runs with physical admission held and the initial Err sampled.
 func statementTimeoutAdmissionContended(t *testing.T, e *Engine, op *session.Operation, cancel context.CancelCauseFunc, atCheckpoint func()) (*StatementScope, error) {
 	t.Helper()

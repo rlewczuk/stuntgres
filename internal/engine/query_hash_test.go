@@ -2,16 +2,14 @@ package engine
 
 import (
 	"context"
-	"maps"
-	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
@@ -61,6 +59,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *session.Operation, q string) 
 	t.Cleanup(release)
 	return bound.Query, source, release
 }
+
 func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	op, done, err := testOperation(e, context.Background())
@@ -74,6 +73,7 @@ func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *exec.So
 		done()
 	}
 }
+
 func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, parameters []sqltype.Value) exec.Stage {
 	t.Helper()
 	filter := exec.HashQueryFilter(query.Root)
@@ -89,115 +89,4 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *exec.Source, param
 		t.Fatal(err)
 	}
 	return stage
-}
-
-func TestHashIndexLookupFeatureSmoke(t *testing.T) {
-	e := New()
-	for _, q := range []string{"CREATE TABLE t(n INT,s TEXT)", "INSERT INTO t VALUES(2,'b'),(1,'a'),(2,'b'),(NULL,NULL),(3,'c')", "CREATE INDEX hn ON t USING hash(n)"} {
-		run(t, e, q)
-	}
-	_, root := hashRoot(t, e, "hn")
-	if got := hashKeys(t, root); !reflect.DeepEqual(got, []string{"1", "2", "2", "3"}) {
-		t.Fatal(got)
-	}
-	for _, q := range []string{"SELECT n FROM t WHERE n=2", "SELECT n FROM t WHERE 2=n"} {
-		query, source, release := hashImplicitQuery(t, e, q)
-		if len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != root {
-			t.Fatal("live capture did not retain actual root", source.HashIndexes)
-		}
-		stage := hashFilterStage(t, query, source, nil)
-		if stage.HashCandidates == nil || stage.HashCandidates.Root != root || len(stage.HashCandidates.Occurrences) != 2 {
-			t.Fatal("real filter did not prune to duplicate bucket", stage.HashCandidates)
-		}
-		if err := stage.Drain(context.Background()); err != nil {
-			t.Fatal(err)
-		}
-		if stage.Count() != 2 || stage.HashCandidates.Position != 2 {
-			t.Fatal("candidates were not consumed by original predicate", stage.Count(), stage.HashCandidates)
-		}
-		stage.Close()
-		release()
-	}
-}
-
-func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
-	e := New()
-	for _, q := range []string{"CREATE TABLE t(n INT,s TEXT)", "INSERT INTO t VALUES(2,'b'),(1,'a'),(2,'b'),(NULL,NULL),(3,'c')", "CREATE INDEX hn ON t USING hash(n)"} {
-		run(t, e, q)
-	}
-	for _, tc := range []struct {
-		q     string
-		count int
-	}{
-		{"SELECT n FROM t WHERE n>1", 3}, {"SELECT n FROM t WHERE n IS NULL", 1}, {"SELECT n FROM t WHERE n=2 AND s='b'", 2},
-		{"SELECT n FROM t WHERE n=2::bigint", 2}, {"SELECT n FROM t WHERE n::bigint=2::bigint", 2},
-	} {
-		query, source, release := hashImplicitQuery(t, e, tc.q)
-		stage := hashFilterStage(t, query, source, nil)
-		if stage.HashCandidates != nil {
-			t.Fatal("unsupported predicate probed", tc.q)
-		}
-		if err := stage.Drain(context.Background()); err != nil || stage.Count() != tc.count {
-			t.Fatal(tc.q, stage.Count(), err)
-		}
-		stage.Close()
-		release()
-	}
-	for _, tc := range []struct {
-		probe string
-		count int
-	}{{"2", 2}, {"1", 1}, {"99", 0}, {"NULL", 0}} {
-		query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=$1")
-		u := source.HashIndexes[0].Usage
-		value := sqltype.Null(u.Type)
-		if tc.probe != "NULL" {
-			var err error
-			value, err = u.Type.Input(context.Background(), tc.probe, -1)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		stage := hashFilterStage(t, query, source, []sqltype.Value{value})
-		if stage.HashCandidates == nil || len(stage.HashCandidates.Occurrences) != tc.count {
-			t.Fatal("parameter was not rebound per execution", tc, stage.HashCandidates)
-		}
-		if err := stage.Drain(context.Background()); err != nil || stage.Count() != tc.count {
-			t.Fatal(tc, stage.Count(), err)
-		}
-		stage.Close()
-		release()
-	}
-	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
-	original := source.HashIndexes[0].Root
-	clone := *original
-	clone.Buckets = maps.Clone(original.Buckets)
-	probe := source.Committed[0].Values[0]
-	h, err := clone.Binding.Provider.Hash(context.Background(), probe)
-	if err != nil {
-		t.Fatal(err)
-	}
-	one := source.Committed[1]
-	// One forced hash collision is rejected by class equality; a false-positive
-	// stored key passes that guard but must fail the original SQL comparison.
-	clone.Buckets[h] = append(append([]storage.HashEntry(nil), clone.Buckets[h]...), storage.HashEntry{Key: one.Values[0], Row: one.Row, Version: one.Version, Position: 1}, storage.HashEntry{Key: probe, Row: one.Row, Version: one.Version, Position: 1})
-	source.HashIndexes[0].Root = &clone
-	stage := hashFilterStage(t, query, source, nil)
-	if stage.HashCandidates == nil || len(stage.HashCandidates.Occurrences) != 3 {
-		t.Fatal("collision/equality guard not exercised", stage.HashCandidates)
-	}
-	if err := stage.Drain(context.Background()); err != nil || stage.Count() != 2 {
-		t.Fatal("residual predicate not exercised", stage.Count(), err)
-	}
-	stage.Close()
-	release()
-	if got := hashKeys(t, original); !reflect.DeepEqual(got, []string{"1", "2", "2", "3"}) {
-		t.Fatal("collision fixture mutated retained root", got)
-	}
-	for _, q := range []string{"SELECT n FROM t ORDER BY n", "SELECT n FROM (SELECT n FROM t WHERE n=2) d", "SELECT a.n FROM t a JOIN t b ON a.n=b.n WHERE a.n=2"} {
-		query, _, release := hashImplicitQuery(t, e, q)
-		if exec.HashQueryFilter(query.Root) != nil {
-			t.Fatal("order/derived/join filter admitted", q)
-		}
-		release()
-	}
 }

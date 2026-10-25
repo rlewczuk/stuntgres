@@ -301,11 +301,6 @@ func uniqueClaimsEmpty(t *testing.T, e *engine.Engine) {
 	uniqueKeyBucketsEmpty(t, e)
 }
 
-type deleteOutcome struct {
-	result engine.Result
-	err    error
-}
-
 func uniqueKeyBucketsEmpty(t *testing.T, e *engine.Engine) {
 	t.Helper()
 	lockState := e.Locks.Inspect()
