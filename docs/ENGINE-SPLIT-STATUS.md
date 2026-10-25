@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `9679f0633` (item 200 rebased on it).
+Last verified against `master` at `d1cbb60a0` (item 201 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 201.
+- 202.
 
 ## Linear plan
 
@@ -313,8 +313,25 @@ ENGINE-SPLIT.md §4.
      `^TestReference(TypedTable|RangeType)` passed in the merge chain; bench
      skipped (moved code unchanged; the escape diff is empty), racecheck and
      finalcheck skipped at user request
-201. [ ] `viewcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-201--viewcmds) · needs
-     200 · S
+201. [x] `viewcmds` — [cmds](ENGINE-SPLIT-cmds.md#item-201--viewcmds) · needs
+     200 · S (`b6a1f136b`, `7a415d0bf`, `38ff8a53c`, docs commit) · the view
+     executors (10 root production files, 1,255 file lines: CREATE [OR REPLACE]
+     VIEW, ALTER and DROP [MATERIALIZED] VIEW, REFRESH MATERIALIZED VIEW with
+     its row production and replacement staging, RULE, POLICY and TRIGGER DDL
+     with their shared relation-change publication, the materialized snapshot
+     import of a native Restore, and `ViewHost`) moved to `viewcmds`, which
+     imports `tablecmds` and `typecmds`, by `cmdmv` after 9 names were exported
+     in place; 22 root test files moved as `viewcmds_test` external tests (three
+     `export_test.go` aliases), none deleted; root production 56 files and 0.20
+     MB (−0.05 MB), root tests 413 files and 2.59 MB (−0.18 MB); the family
+     selectors, each moved test alone, the `RACE=1` concurrent refresh tests,
+     the quick frame-matched refresh cancellation reference tests, quickcheck,
+     the §3 `go list` check and the library deps check passed; `REFERENCE=1`
+     `^TestReference(MaterializedRefresh|MaterializedAlter|MaterializedView|DriverBatchRefresh)`,
+     `^TestReference(ViewReplace|ViewLocks|DropView|RuleDependencies|RuleRestrictions)`
+     and `^TestReference(RLSPolicy|TriggerDDL)` passed in the merge chain; bench
+     skipped (moved code unchanged; the escape diff is empty), racecheck and
+     finalcheck skipped at user request
 202. [ ] `rolecmds` — [cmds](ENGINE-SPLIT-cmds.md#item-202--rolecmds) · needs
      201 · S
 203. [ ] `schemacmds` — [cmds](ENGINE-SPLIT-cmds.md#item-203--schemacmds) ·
