@@ -12,6 +12,15 @@ the authority behind evaluation capabilities in the root
 `version()` and implementation-information metadata; it retains no runtime or
 catalog authority.
 
+`random` and `random_normal` retain their selected declarations and children
+through binding. Conditional planning and statement preflight process required
+constant children before strict literal-NULL elimination. Required immutable
+parameter children use the imported typed frame and current actor; an incomplete
+frame defers elimination. Discarded volatile and row-dependent siblings are not
+evaluated. Non-NULL calls remain volatile and unfolded. Runtime row NULL still
+evaluates the written siblings before testing strictness or borrowing the
+session generator.
+
 ## Imports and layering
 
 - A leaf library: it imports only [`expr`](../expr/README.md), `fts`, `ids`, `sqltype`,

@@ -34,6 +34,9 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 	if err != nil {
 		return nil, false, true, err
 	}
+	if folded, did, handled, err := foldRandomNullInputs(c, next); handled {
+		return folded, changed || did, true, err
+	}
 	if (strict == expr.StrictAfter || strict == expr.StrictAfterBare) && anyRandomLiteralNull(next.(expr.Composite).Children()) {
 		return strictNullLiteral(node, strict), true, true, nil
 	}

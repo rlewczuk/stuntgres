@@ -38,6 +38,9 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 	if err != nil {
 		return nil, false, err
 	}
+	if folded, did, handled, err := foldRandomNullInputs(c, mapped); handled {
+		return folded, changed || did, err
+	}
 	next := mapped.(expr.Composite)
 	switch kind {
 	case expr.PreflightChildren:

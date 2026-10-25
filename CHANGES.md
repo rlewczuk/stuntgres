@@ -4,6 +4,11 @@ typed internal-char arrays with generic storage, bounds, NULLs and native
 Dump/Reset/Restore, collated text-array selectors with byte-exact matching,
 and ordinary prepared/stored expression replay.
 
+Bounded random and random_normal now plan required immutable children before
+strict literal-NULL elimination, preserving arithmetic errors and current-actor
+EXECUTE checks. Discarded runtime-only siblings do not consume random or sequence
+state; held typed parameters still import before child admission.
+
 The default text-search parser is executable through both text-name and OID
 overloads of ts_parse and ts_token_type, with typed set results, all 23 token
 descriptors, preserved document spelling and ordered URL/hyphen overlaps.

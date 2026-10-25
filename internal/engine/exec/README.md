@@ -122,7 +122,14 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   intentional for genuinely reference-only consumers; no current descriptor
   can supply proof beside an old manifest stamp.
   Strict NULL suppresses invocation/EXECUTE demand, not original-source lifetime
-  validation. `TestJSONBRecordRoutineOwnershipCOW` contrasts stale direct
+  validation. Post-child strict elimination first computes and checks admission
+  for required immutable children. Random's conditional, preflight and typed-NULL
+  entry paths share one readiness decision: required immutable parameter inputs
+  must be fully imported before erasure; missing frames defer without evaluation.
+  Runtime-only siblings are never sampled to prove NULL. A bare literal NULL
+  retains usage and position, not the erased call's carrier or invocation
+  properties. The analyzed source and full original manifest remain unchanged.
+  `TestJSONBRecordRoutineOwnershipCOW` contrasts stale direct
   admission with an original-manifest hard capture after owner COW, including
   current-owner success, revoked-reader denial and retained-root immutability.
   `TestRoutineDirectStrictNullLifetime` uses the actual statement-host source

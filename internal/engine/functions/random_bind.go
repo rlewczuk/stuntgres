@@ -71,11 +71,5 @@ func bindRandom(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, arg := range args {
-		if b.LiteralNull(arg) {
-			// A strict call with a NULL literal folds to a typed NULL literal.
-			return b.Literal(sqltype.Null(usage.Type), raw.Pos), nil
-		}
-	}
 	return Random{Info: info, Name: name, Args: args}, nil
 }

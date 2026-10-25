@@ -9,9 +9,14 @@ import (
 // Child preflight has already preserved ordinary constant errors and parameter
 // input validation. A NULL proof cannot cross a domain conversion in that
 // argument, but a separate known-NULL argument can discard runtime siblings,
-// including domain coercions. No domain truth or provider is sampled here.
-// The analyzed tree and its original dependency manifest remain untouched.
+// including domain coercions. Random first shares its required immutable-input
+// readiness/admission decision with both composite planning paths; the NULL
+// proof itself samples no domain truth or runtime-only provider. The analyzed
+// tree and its original dependency manifest remain untouched.
 func FoldStrictParameterNull(c *Context, node expr.Expr) (expr.Expr, bool, error) {
+	if folded, changed, handled, err := foldRandomNullInputs(c, node); handled {
+		return folded, changed, err
+	}
 	if node == nil || len(c.Parameters) == 0 || !node.Properties().ParameterDependent {
 		return node, false, nil
 	}

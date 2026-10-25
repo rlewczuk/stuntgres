@@ -237,6 +237,9 @@ func (e Random) IntrinsicVolatility() expr.Volatility { return e.Property.Volati
 
 func (e Random) PlanningFold() expr.Fold { return expr.FoldNever }
 
+// StrictNull preserves required constant-child planning before erasing the call.
+func (e Random) StrictNull() expr.Strict { return expr.StrictAfterBare }
+
 var _ expr.Renderable = Random{}
 
 // Render implements expr.Renderable.
@@ -296,7 +299,7 @@ func (e Random) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, defin
 }
 
 // PreflightFold implements expr.Preflighting.
-func (e Random) PreflightFold() expr.Preflight { return expr.PreflightChildren }
+func (e Random) PreflightFold() expr.Preflight { return expr.PreflightNullBare }
 
 // LooksLikeFunction implements expr.FunctionSyntax.
 func (e Random) LooksLikeFunction() bool { return true }
