@@ -120,8 +120,8 @@ func TestReferenceForeignActionsAtomicity(t *testing.T) {
 						q = "UPDATE p SET id=id+10"
 					}
 					d := foreignActionsRestrict("c", "g", "deep_fk", `Key (id)=(2) is referenced from table "g".`)
-					run(foreignKeyFail(q, d, prepared))
-					s := foreignKeyFail(q+" RETURNING id", d, prepared)
+					run(fixture.ForeignKeyFail(q, d, prepared))
+					s := fixture.ForeignKeyFail(q+" RETURNING id", d, prepared)
 					s.SelectRows = true
 					run(s)
 					for _, table := range []string{"p", "c", "early"} {
@@ -141,8 +141,8 @@ func TestReferenceForeignActionsAtomicityMultirow(t *testing.T) {
 			run(fixture.Exec("CREATE TABLE c(id INT,pid INT REFERENCES p ON DELETE SET NULL,CONSTRAINT ck CHECK(id=10 OR pid IS NOT NULL))", 0))
 			run(fixture.Exec("INSERT INTO p VALUES(1),(2)", 2))
 			run(fixture.Exec("INSERT INTO c VALUES(10,1),(20,2)", 2))
-			d := foreignActionsContext(foreignKeyError("23514", `new row for relation "c" violates check constraint "ck"`, "Failing row contains (20, null).", "c", "ck"), foreignActionsSQL("c", "pid", "SET NULL", "DELETE"))
-			run(foreignKeyFail("DELETE FROM p", d, prepared))
+			d := foreignActionsContext(fixture.ForeignKeyError("23514", `new row for relation "c" violates check constraint "ck"`, "Failing row contains (20, null).", "c", "ck"), foreignActionsSQL("c", "pid", "SET NULL", "DELETE"))
+			run(fixture.ForeignKeyFail("DELETE FROM p", d, prepared))
 			run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 1, 2))
 			run(fixture.Select("SELECT id,pid FROM c ORDER BY id", []string{"id", "pid"}, []string{"INT4", "INT4"}, [][]any{{int64(10), int64(1)}, {int64(20), int64(2)}}))
 		})

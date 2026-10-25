@@ -189,7 +189,7 @@ func TestReferenceRelationOptionsHierarchy(t *testing.T) {
 		run(fixture.Exec("CREATE TYPE ro_type AS(id INT,payload TEXT)", 0))
 		run(fixture.Exec("CREATE TABLE ro_typed OF ro_type", 0))
 		run(fixture.Exec("ALTER TABLE ro_typed SET(fillfactor=70)", 0))
-		run(typedTableAttachment("ro_typed", "ro_type", true))
+		run(fixture.TypedTableAttachment("ro_typed", "ro_type", true))
 		run(relationOptionsState("ro_typed", "fillfactor=70"))
 		run(fixture.Exec("CREATE TEMP TABLE ro_temp(id INT,payload TEXT)", 0))
 		run(fixture.Exec("ALTER TABLE ro_temp SET(fillfactor=70)", 0))

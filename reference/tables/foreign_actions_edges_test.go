@@ -16,7 +16,7 @@ func TestReferenceForeignActionsValuesInheritance(t *testing.T) {
 		run(fixture.Exec("INSERT INTO parent_leaf VALUES(2)", 1))
 		run(fixture.Exec("INSERT INTO c VALUES(1)", 1))
 		run(fixture.Exec("INSERT INTO child_leaf VALUES(1),(999)", 2))
-		run(foreignKeyFail("INSERT INTO c VALUES(2)", foreignKeyChild("c", "fk", `Key (pid)=(2) is not present in table "p".`), true))
+		run(fixture.ForeignKeyFail("INSERT INTO c VALUES(2)", fixture.ForeignKeyChild("c", "fk", `Key (pid)=(2) is not present in table "p".`), true))
 		for _, prepared := range []bool{false, true} {
 			for _, target := range []string{"ONLY p", "p"} {
 				step := fixture.Exec("UPDATE "+target+" SET id=3 WHERE id=1", 1)
@@ -100,7 +100,7 @@ func TestReferenceForeignActionsDefinitionPrecedence(t *testing.T) {
 		run(fixture.Exec("CREATE TABLE p(id INT)", 0))
 		q := "CREATE TABLE c(pid INT,CONSTRAINT fk FOREIGN KEY(pid) REFERENCES p(id) ON DELETE SET NULL(missing))"
 		for _, prepared := range []bool{false, true} {
-			run(foreignKeyFail(q, foreignKeyError("42703", `column "missing" referenced in foreign key constraint does not exist`, "", "", ""), prepared))
+			run(fixture.ForeignKeyFail(q, fixture.ForeignKeyError("42703", `column "missing" referenced in foreign key constraint does not exist`, "", "", ""), prepared))
 		}
 		run(fixture.Select("SELECT relname FROM pg_class WHERE relname='c'", []string{"relname"}, []string{"NAME"}, nil))
 	})
@@ -151,7 +151,7 @@ func TestReferenceForeignActionsFeatureSmokeSelections(t *testing.T) {
 		run(fixture.Select("SELECT tenant,author FROM cset", []string{"tenant", "author"}, []string{"INT4", "INT4"}, [][]any{{int64(7), nil}}))
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: b.DB, Statement: stmt, SQL: q}, b.Recorder, fixture.Exec(q, 1, 2))
 		run(foreignKeyIntRows("SELECT pid FROM cd", "pid", 0))
-		s := foreignKeyFail(q, foreignKeyParent("pd", "cd", "default_fk", `Key (id)=(0) is still referenced from table "cd".`), false)
+		s := fixture.ForeignKeyFail(q, fixture.ForeignKeyParent("pd", "cd", "default_fk", `Key (id)=(0) is still referenced from table "cd".`), false)
 		s.Args = []any{0}
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: b.DB, Statement: stmt, SQL: q}, b.Recorder, s)
 		run(foreignKeyIntRows("SELECT id FROM pd ORDER BY id", "id", 0, 1))

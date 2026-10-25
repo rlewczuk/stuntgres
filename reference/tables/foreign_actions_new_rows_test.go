@@ -55,9 +55,9 @@ func TestReferenceForeignActionsConcurrentNewRows(t *testing.T) {
 							}
 							// REL_18_0 ri_PerformCheck uses latest test + transaction crosscheck
 							// snapshots; execMain's crosscheck rejects the newly visible tuple.
-							d := foreignActionsContext(foreignKeyError("40001", "could not serialize access due to concurrent update", "", "", ""), foreignActionsSQL("c", "pid", "CASCADE", direction))
-							step(foreignKeyFail(q, d, prepared))
-							failed := foreignKeyFail("SELECT id FROM p", foreignKeyError("25P02", "current transaction is aborted, commands ignored until end of transaction block", "", "", ""), false)
+							d := foreignActionsContext(fixture.ForeignKeyError("40001", "could not serialize access due to concurrent update", "", "", ""), foreignActionsSQL("c", "pid", "CASCADE", direction))
+							step(fixture.ForeignKeyFail(q, d, prepared))
+							failed := fixture.ForeignKeyFail("SELECT id FROM p", fixture.ForeignKeyError("25P02", "current transaction is aborted, commands ignored until end of transaction block", "", "", ""), false)
 							failed.SelectRows = true
 							step(failed)
 							step(fixture.Exec("ROLLBACK TO before_action", 0))

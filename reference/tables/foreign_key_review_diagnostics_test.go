@@ -24,11 +24,11 @@ func TestReferenceForeignKeyClauseStructure(t *testing.T) {
 			{"CREATE TABLE clause_bad(pid INT,CONSTRAINT fk FOREIGN KEY(pid) REFERENCES clause_parent ON UPDATE NO ACTION ON DELETE NO ACTION ON UPDATE NO ACTION)", "ON"},
 			{"CREATE TABLE clause_bad(pid INT,CONSTRAINT fk FOREIGN KEY(pid) REFERENCES clause_parent NOT DEFERRABLE MATCH FULL)", "MATCH"},
 		} {
-			d := foreignKeyError("42601", `syntax error at or near "`+tc.token+`"`, "", "", "")
+			d := fixture.ForeignKeyError("42601", `syntax error at or near "`+tc.token+`"`, "", "", "")
 			start := strings.LastIndex(tc.query, " "+tc.token+" ") + 1
 			d.Position = fixture.Position(utf8.RuneCountInString(tc.query[:start]) + 1)
 			for _, prepared := range []bool{false, true} {
-				s := foreignKeyFail(tc.query, d, prepared)
+				s := fixture.ForeignKeyFail(tc.query, d, prepared)
 				if prepared {
 					s.ErrorStage = "prepare"
 				}
@@ -52,7 +52,7 @@ func TestReferenceForeignKeyClauseStructure(t *testing.T) {
 				s := fixture.Exec("INSERT INTO "+name+" VALUES(1)", 1)
 				s.Prepared = prepared
 				run(s)
-				run(foreignKeyFail("INSERT INTO "+name+" VALUES(9)", foreignKeyChild(name, constraint, `Key (pid)=(9) is not present in table "clause_parent".`), prepared))
+				run(fixture.ForeignKeyFail("INSERT INTO "+name+" VALUES(9)", fixture.ForeignKeyChild(name, constraint, `Key (pid)=(9) is not present in table "clause_parent".`), prepared))
 			}
 			run(foreignKeyIntRows("SELECT pid FROM "+name, "pid", 1, 1))
 			definition := "FOREIGN KEY (pid) REFERENCES clause_parent(id)"
@@ -75,7 +75,7 @@ func TestReferenceForeignKeyNotNullNameCollision(t *testing.T) {
 			t.Fatal(original, err)
 		}
 		for _, prepared := range []bool{false, true} {
-			run(foreignKeyFail("ALTER TABLE collision_child ADD CONSTRAINT collision_fk NOT NULL pid", foreignKeyError("42710", `constraint "collision_fk" for relation "collision_child" already exists`, "", "", ""), prepared))
+			run(fixture.ForeignKeyFail("ALTER TABLE collision_child ADD CONSTRAINT collision_fk NOT NULL pid", fixture.ForeignKeyError("42710", `constraint "collision_fk" for relation "collision_child" already exists`, "", "", ""), prepared))
 			var current int64
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT oid::bigint FROM pg_constraint WHERE conname='collision_fk'").Scan(&current); err != nil || current != original {
 				t.Fatal("name collision changed FK identity", original, current, err)
@@ -85,7 +85,7 @@ func TestReferenceForeignKeyNotNullNameCollision(t *testing.T) {
 		}
 		run(fixture.Prepared(fixture.Exec("INSERT INTO collision_child VALUES(NULL,'null')", 1)))
 		run(fixture.Prepared(fixture.Exec("INSERT INTO collision_child VALUES(1,'recovery')", 1)))
-		run(foreignKeyFail("INSERT INTO collision_child VALUES(9,'missing')", foreignKeyChild("collision_child", "collision_fk", `Key (pid)=(9) is not present in table "collision_parent".`), true))
+		run(fixture.ForeignKeyFail("INSERT INTO collision_child VALUES(9,'missing')", fixture.ForeignKeyChild("collision_child", "collision_fk", `Key (pid)=(9) is not present in table "collision_parent".`), true))
 		run(fixture.Select("SELECT pid,note FROM collision_child ORDER BY note", []string{"pid", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "first"}, {nil, "null"}, {int64(1), "recovery"}}))
 		run(foreignKeyIntRows("SELECT id FROM collision_parent", "id", 1))
 	})

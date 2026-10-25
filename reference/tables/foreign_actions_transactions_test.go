@@ -18,7 +18,7 @@ func TestReferenceForeignActionsTransactions(t *testing.T) {
 				run(fixture.Exec("INSERT INTO c VALUES(1),(2)", 2))
 				run(fixture.Exec("INSERT INTO g VALUES(2)", 1))
 				d := foreignActionsRestrict("c", "g", "deep_fk", `Key (id)=(2) is referenced from table "g".`)
-				run(foreignKeyFail("DELETE FROM p WHERE id=2", d, prepared))
+				run(fixture.ForeignKeyFail("DELETE FROM p WHERE id=2", d, prepared))
 				run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 1, 2))
 				tx, err := b.DB.BeginTx(p.Ctx, nil)
 				if err != nil {
@@ -28,8 +28,8 @@ func TestReferenceForeignActionsTransactions(t *testing.T) {
 				step := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, tx, b.Recorder, s) }
 				step(foreignActionsExec("UPDATE p SET id=11 WHERE id=1", 1, prepared))
 				step(fixture.Exec("SAVEPOINT keep", 0))
-				step(foreignKeyFail("DELETE FROM p WHERE id=2", d, prepared))
-				step(foreignKeyFail("SELECT id FROM p", fixture.TransactionAborted(), false))
+				step(fixture.ForeignKeyFail("DELETE FROM p WHERE id=2", d, prepared))
+				step(fixture.ForeignKeyFail("SELECT id FROM p", fixture.TransactionAborted(), false))
 				step(fixture.Exec("ROLLBACK TO keep", 0))
 				for _, table := range []string{"p", "c"} {
 					step(foreignKeyIntRows("SELECT id FROM "+table+" ORDER BY id", "id", 2, 11))
@@ -119,11 +119,11 @@ func TestReferenceForeignActionsProducersAtomicity(t *testing.T) {
 			if q[0] == 'D' {
 				direction = "DELETE"
 			}
-			d := foreignKeyError("23502", `null value in column "pid" of relation "c" violates not-null constraint`, "Failing row contains (null).", "c", "")
+			d := fixture.ForeignKeyError("23502", `null value in column "pid" of relation "c" violates not-null constraint`, "Failing row contains (null).", "c", "")
 			d.Column = "pid"
 			d = foreignActionsContext(d, foreignActionsSQL("c", "pid", "SET NULL", direction))
 			for _, prepared := range []bool{false, true} {
-				run(foreignKeyFail(q, d, prepared))
+				run(fixture.ForeignKeyFail(q, d, prepared))
 			}
 			run(foreignKeyIntRows("SELECT id FROM p", "id", 1))
 			run(foreignKeyIntRows("SELECT pid FROM c", "pid", 1))

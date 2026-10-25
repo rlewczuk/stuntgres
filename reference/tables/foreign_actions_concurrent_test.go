@@ -85,7 +85,7 @@ func TestReferenceForeignActionsConcurrent(t *testing.T) {
 						}
 						o := join()
 						if !childFirst && commit {
-							d := foreignKeyChild("c", "fk", `Key (pid)=(1) is not present in table "p".`)
+							d := fixture.ForeignKeyChild("c", "fk", `Key (pid)=(1) is not present in table "p".`)
 							fixture.AssertDiagnostic(t, o.Err, &d)
 							_, err = waiter.ExecContext(p.Ctx, "SELECT 1")
 							d = fixture.TransactionAborted()
@@ -162,7 +162,7 @@ func TestReferenceForeignActionsConcurrentRefresh(t *testing.T) {
 						if isolation != sql.LevelReadCommitted {
 							// execMain's stable-snapshot tuple update/delete conflict and
 							// the enclosing release RI SPI query specify this diagnostic.
-							d := foreignActionsContext(foreignKeyError("40001", "could not serialize access due to concurrent update", "", "", ""), foreignActionsSQL("c", "pid", "CASCADE", direction))
+							d := foreignActionsContext(fixture.ForeignKeyError("40001", "could not serialize access due to concurrent update", "", "", ""), foreignActionsSQL("c", "pid", "CASCADE", direction))
 							fixture.AssertDiagnostic(t, o.Err, &d)
 							if err = waiter.Rollback(); err != nil {
 								t.Fatal(err)
@@ -277,12 +277,12 @@ func TestReferenceForeignActionsCancellationTimeout(t *testing.T) {
 		step := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, waiter, b.Recorder, s) }
 		step(fixture.Exec("SAVEPOINT keep", 0))
 		step(fixture.Exec("SET LOCAL statement_timeout='100ms'", 0))
-		d := foreignActionsContext(foreignKeyError("57014", "canceling statement due to statement timeout", "", "", ""), foreignActionsSQL("c", "pid", "CASCADE", "DELETE"))
+		d := foreignActionsContext(fixture.ForeignKeyError("57014", "canceling statement due to statement timeout", "", "", ""), foreignActionsSQL("c", "pid", "CASCADE", "DELETE"))
 		if b.PG {
 			d.Context = `while deleting tuple ` + childTuple + ` in relation "c"` + "\n" + d.Context
 		}
-		step(foreignKeyFail("DELETE FROM p", d, false))
-		step(foreignKeyFail("SELECT 1", fixture.TransactionAborted(), false))
+		step(fixture.ForeignKeyFail("DELETE FROM p", d, false))
+		step(fixture.ForeignKeyFail("SELECT 1", fixture.TransactionAborted(), false))
 		step(fixture.Exec("ROLLBACK TO keep", 0))
 		if err = holder.Rollback(); err != nil {
 			t.Fatal(err)

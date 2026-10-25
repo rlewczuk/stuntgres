@@ -23,11 +23,11 @@ func TestReferenceForeignActionsValuesCompositeActions(t *testing.T) {
 						}
 						rows := [][]any{{int64(10), "old", int64(2), "first"}, {int64(11), "old", int64(2), "second"}, {int64(12), "safe", int64(1), "unaffected"}, {int64(13), nil, int64(2), "partial"}, {int64(14), "old", nil, "partial"}, {int64(15), "old", int64(8), "tenant"}}
 						if action == "NO ACTION" || action == "RESTRICT" {
-							d := foreignKeyParent("p", "c", "fk", `Key (b, a)=(old, 2) is still referenced from table "c".`)
+							d := fixture.ForeignKeyParent("p", "c", "fk", `Key (b, a)=(old, 2) is still referenced from table "c".`)
 							if action == "RESTRICT" {
 								d = foreignActionsRestrict("p", "c", "fk", `Key (b, a)=(old, 2) is referenced from table "c".`)
 							}
-							run(foreignKeyFail(q, d, prepared))
+							run(fixture.ForeignKeyFail(q, d, prepared))
 						} else {
 							run(foreignActionsExec(q, 1, prepared))
 							if action == "CASCADE" && direction == "DELETE" {
@@ -75,9 +75,9 @@ func TestReferenceForeignActionsConstraintsDeferredExclusion(t *testing.T) {
 		step(fixture.Exec("SAVEPOINT keep", 0))
 		step(fixture.Prepared(fixture.Exec("DELETE FROM p WHERE id=2", 1)))
 		step(foreignKeyIntRows("SELECT pid FROM c ORDER BY id", "pid", 1, 1))
-		d := foreignKeyError("23P01", `conflicting key value violates exclusion constraint "ex"`, "Key (pid)=(1) conflicts with existing key (pid)=(1).", "c", "ex")
-		step(foreignKeyFail("SET CONSTRAINTS ex IMMEDIATE", d, false))
-		step(foreignKeyFail("SELECT 1", fixture.TransactionAborted(), false))
+		d := fixture.ForeignKeyError("23P01", `conflicting key value violates exclusion constraint "ex"`, "Key (pid)=(1) conflicts with existing key (pid)=(1).", "c", "ex")
+		step(fixture.ForeignKeyFail("SET CONSTRAINTS ex IMMEDIATE", d, false))
+		step(fixture.ForeignKeyFail("SELECT 1", fixture.TransactionAborted(), false))
 		step(fixture.Exec("ROLLBACK TO keep", 0))
 		step(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 1, 2))
 		step(foreignKeyIntRows("SELECT pid FROM c ORDER BY id", "pid", 1, 2))

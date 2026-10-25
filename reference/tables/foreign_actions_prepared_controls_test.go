@@ -42,7 +42,7 @@ func TestReferenceForeignActionsPreparedReplacement(t *testing.T) {
 			if err = stuntgres.Reset(p.Ctx, p.Native); err != nil {
 				t.Fatal(err)
 			}
-			s := foreignKeyFail("SELECT id FROM p", foreignKeyError("42P01", `relation "p" does not exist`, "", "", ""), false)
+			s := fixture.ForeignKeyFail("SELECT id FROM p", fixture.ForeignKeyError("42P01", `relation "p" does not exist`, "", "", ""), false)
 			s.SelectRows = true
 			s.Diagnostic.Position = "16"
 			run(s)

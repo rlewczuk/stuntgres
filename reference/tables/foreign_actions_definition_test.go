@@ -21,7 +21,7 @@ func foreignActionsScenario(t *testing.T, body func(*testing.T, *fixture.Pair, f
 }
 
 func foreignActionsRestrict(parent, child, constraint, detail string) fixture.Diagnostic {
-	return foreignKeyError("23001", `update or delete on table "`+parent+`" violates RESTRICT setting of foreign key constraint "`+constraint+`" on table "`+child+`"`, detail, child, constraint)
+	return fixture.ForeignKeyError("23001", `update or delete on table "`+parent+`" violates RESTRICT setting of foreign key constraint "`+constraint+`" on table "`+child+`"`, detail, child, constraint)
 }
 
 // These queries are independently derived from REL_18_0 ri_triggers.c's
@@ -142,7 +142,7 @@ func TestReferenceForeignActionsDefinitionDiagnostics(t *testing.T) {
 			foreignActionsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, run func(fixture.Step)) {
 				run(fixture.Exec("CREATE TABLE p(id INT PRIMARY KEY)", 0))
 				q := "CREATE TABLE c(\"é\" INT,pid INT,note TEXT,CONSTRAINT fk FOREIGN KEY(pid) REFERENCES p " + tc.suffix + ")"
-				d := foreignKeyError(tc.code, tc.message, "", "", "")
+				d := fixture.ForeignKeyError(tc.code, tc.message, "", "", "")
 				if tc.token != "" {
 					i := strings.LastIndex(q, tc.token)
 					if tc.token == ")" {
@@ -151,7 +151,7 @@ func TestReferenceForeignActionsDefinitionDiagnostics(t *testing.T) {
 					d.Position = fixture.Position(utf8.RuneCountInString(q[:i]) + 1)
 				}
 				for _, prepared := range []bool{false, true} {
-					s := foreignKeyFail(q, d, prepared)
+					s := fixture.ForeignKeyFail(q, d, prepared)
 					if prepared && (tc.code == "42601" || tc.token != "") {
 						s.ErrorStage = "prepare"
 					}
@@ -177,9 +177,9 @@ func TestReferenceForeignActionsDefinitionGenerated(t *testing.T) {
 						q += " (a)"
 					}
 					q += ")"
-					d := foreignKeyError("42601", "invalid ON "+direction+" action for foreign key constraint containing generated column", "", "", "")
+					d := fixture.ForeignKeyError("42601", "invalid ON "+direction+" action for foreign key constraint containing generated column", "", "", "")
 					for _, prepared := range []bool{false, true} {
-						run(foreignKeyFail(q, d, prepared))
+						run(fixture.ForeignKeyFail(q, d, prepared))
 					}
 				})
 			})

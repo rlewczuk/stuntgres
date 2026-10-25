@@ -17,10 +17,10 @@ func TestReferenceForeignKeyLifecycle(t *testing.T) {
 		}
 		run(fixture.Exec("INSERT INTO p VALUES(1)", 1))
 		run(fixture.Exec("INSERT INTO c VALUES(1)", 1))
-		d := foreignKeyError("2BP01", "cannot drop index supporting because other objects depend on it", "constraint fk on table c depends on index supporting", "", "")
+		d := fixture.ForeignKeyError("2BP01", "cannot drop index supporting because other objects depend on it", "constraint fk on table c depends on index supporting", "", "")
 		d.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
 		for _, prepared := range []bool{false, true} {
-			run(foreignKeyFail("DROP INDEX supporting RESTRICT", d, prepared))
+			run(fixture.ForeignKeyFail("DROP INDEX supporting RESTRICT", d, prepared))
 		}
 		run(fixture.Exec("DROP INDEX supporting CASCADE", 0))
 		run(foreignKeyIntRows("SELECT pid FROM c", "pid", 1))
@@ -45,7 +45,7 @@ func TestReferenceForeignKeyRetainedStatements(t *testing.T) {
 		run(fixture.Exec("ALTER TABLE p RENAME id TO renamed", 0))
 		run(fixture.Exec("ALTER TABLE p RENAME TO renamed_parent", 0))
 		runHeld(fixture.Exec("INSERT INTO c VALUES($1)", 1, 1))
-		s := foreignKeyFail("INSERT INTO c VALUES($1)", foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "renamed_parent".`), false)
+		s := fixture.ForeignKeyFail("INSERT INTO c VALUES($1)", fixture.ForeignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "renamed_parent".`), false)
 		s.Args = []any{9}
 		runHeld(s)
 		run(fixture.Exec("ALTER TABLE renamed_parent ALTER renamed TYPE BIGINT", 0))
@@ -91,8 +91,8 @@ func TestReferenceForeignKeyNativeControls(t *testing.T) {
 		}
 		run(fixture.Select("SELECT id,bid FROM a", []string{"id", "bid"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(2)}}))
 		run(fixture.Select("SELECT id,aid FROM b", []string{"id", "aid"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(1)}}))
-		run(foreignKeyFail("INSERT INTO a VALUES(3,9)", foreignKeyChild("a", "a_fk", `Key (bid)=(9) is not present in table "b".`), false))
-		run(foreignKeyFail("DELETE FROM b", foreignKeyParent("b", "a", "a_fk", `Key (id)=(2) is still referenced from table "a".`), false))
+		run(fixture.ForeignKeyFail("INSERT INTO a VALUES(3,9)", fixture.ForeignKeyChild("a", "a_fk", `Key (bid)=(9) is not present in table "b".`), false))
+		run(fixture.ForeignKeyFail("DELETE FROM b", fixture.ForeignKeyParent("b", "a", "a_fk", `Key (id)=(2) is still referenced from table "a".`), false))
 		if b.PG {
 			return
 		} // Native APIs are never invoked against pq.
@@ -178,11 +178,11 @@ func TestReferenceForeignKeyFeatureSmoke(t *testing.T) {
 		run(fixture.Exec("DELETE FROM self", 2))
 		check := func() {
 			run(fixture.Select("SELECT pid,note FROM c", []string{"pid", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "child"}}))
-			run(foreignKeyFail("INSERT INTO c VALUES(9,'bad')", foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`), true))
-			run(foreignKeyFail("DELETE FROM p", foreignKeyParent("p", "c", "fk", `Key (id)=(1) is still referenced from table "c".`), false))
+			run(fixture.ForeignKeyFail("INSERT INTO c VALUES(9,'bad')", fixture.ForeignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`), true))
+			run(fixture.ForeignKeyFail("DELETE FROM p", fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(1) is still referenced from table "c".`), false))
 			run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 1, 2))
-			run(foreignKeyFail("UPDATE p SET id=id+10", foreignKeyParent("p", "c", "fk", `Key (id)=(1) is still referenced from table "c".`), true))
-			run(foreignKeyFail("INSERT INTO full_child VALUES(NULL,'x')", foreignKeyChild("full_child", "full_fk", "MATCH FULL does not allow mixing of null and nonnull key values."), false))
+			run(fixture.ForeignKeyFail("UPDATE p SET id=id+10", fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(1) is still referenced from table "c".`), true))
+			run(fixture.ForeignKeyFail("INSERT INTO full_child VALUES(NULL,'x')", fixture.ForeignKeyChild("full_child", "full_fk", "MATCH FULL does not allow mixing of null and nonnull key values."), false))
 			run(fixture.Select("SELECT a,b FROM full_child", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{int64(1), "x"}}))
 			run(fixture.Select("SELECT a,b FROM simple_child", []string{"a", "b"}, []string{"INT4", "TEXT"}, [][]any{{nil, "z"}}))
 			run(fixture.Select("SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c JOIN pg_class r ON c.conrelid=r.oid WHERE r.relname='full_child' AND c.conname='full_fk'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"FOREIGN KEY (a, b) REFERENCES composite_parent(a, b) MATCH FULL"}}))

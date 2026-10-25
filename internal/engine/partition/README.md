@@ -136,7 +136,7 @@ build an engine stay in `internal/engine`, naming the code as `partition.X`,
 and assert branch selection and unlocked provider callbacks without timing
 thresholds. Run attach/detach overlay, lock-fence and LIST cancellation units
 with `RACE=1`. Public SQL lives in
-[reference/tables](../../../reference/tables/README.md#testing); add
+[reference/partitions](../../../reference/partitions/README.md#testing); add
 `REFERENCE=1` for the oracle.
 
 ```sh

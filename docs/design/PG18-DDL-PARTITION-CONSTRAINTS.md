@@ -201,7 +201,7 @@ NULL arrays retain their owning type; different-target, uncaptured and numeric
 coercion casts and the PostgreSQL deparse/pretty branch remain unchanged.
 
 New shared public definitions belong in
-`reference/tables/partition_constraints_regclass_references_test.go`:
+`reference/partitions/partition_constraints_regclass_references_test.go`:
 `TestReferencePartitionConstraintsRegclassReferences` and
 `TestReferencePartitionConstraintsRegclassControls`. They independently cover
 UNIQUE and PRIMARY KEY root/intermediate virtual backings, scalar/opaque array
@@ -319,7 +319,7 @@ The root owns selected native/real/race proof and independent review. Root repor
 actual standalone native smoke and actual unmodified emitted PostgreSQL18.0 UTF8/C
 replay passing (tests27), then authorized this documentation cutover. Source is
 local://partition-constraints-smoke.go; launch and selected proof instructions are
-in [TESTING](../../reference/tables/README.md#partitioned-constraints--selected-proof). The smoke checks
+in [TESTING](../../reference/partitions/README.md#partitioned-constraints--selected-proof). The smoke checks
 row/metadata/backing/ancestry/kind/validity/dependency/duplicate and healthy-write
 observations on both sides, not merely acceptance of emitted SQL.
 

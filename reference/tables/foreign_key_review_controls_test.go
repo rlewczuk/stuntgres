@@ -87,7 +87,7 @@ func TestReferenceForeignKeyRestoreSkippedCreate(t *testing.T) {
 					}
 					defer held.Close()
 					script := "CREATE TABLE real_parent(id INT PRIMARY KEY);CREATE TABLE real_child(pid INT CONSTRAINT real_fk REFERENCES real_parent);INSERT INTO real_child VALUES(9);"
-					d := foreignKeyChild("real_child", "real_fk", `Key (pid)=(9) is not present in table "real_parent".`)
+					d := fixture.ForeignKeyChild("real_child", "real_fk", `Key (pid)=(9) is not present in table "real_parent".`)
 					fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(script)), &d)
 					heldValues := [][]any{{int64(9)}}
 					if populated {
@@ -166,16 +166,16 @@ func TestReferenceForeignKeyRestoreCapturedAuthority(t *testing.T) {
 			run(foreignKeyIntRows("SELECT id FROM "+alpha+".p", "id", 1))
 			run(foreignKeyIntRows("SELECT id FROM "+beta+".p", "id", 9))
 			run(fixture.Select("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='captured_fk'", []string{"pg_get_constraintdef"}, []string{"TEXT"}, [][]any{{"FOREIGN KEY (pid) REFERENCES " + alpha + ".p(id)"}}))
-			missing := foreignKeyChild("c", "captured_fk", `Key (pid)=(9) is not present in table "p".`)
+			missing := fixture.ForeignKeyChild("c", "captured_fk", `Key (pid)=(9) is not present in table "p".`)
 			missing.Schema = alpha
 			for _, prepared := range []bool{false, true} {
-				run(foreignKeyFail("INSERT INTO "+alpha+".c VALUES(9)", missing, prepared))
+				run(fixture.ForeignKeyFail("INSERT INTO "+alpha+".c VALUES(9)", missing, prepared))
 			}
 			run(fixture.Exec("CREATE TABLE protected_parent(id INT PRIMARY KEY)", 0))
 			run(fixture.Exec("INSERT INTO protected_parent VALUES(1)", 1))
 			run(fixture.Exec("CREATE TABLE authority_sentinel(v INT)", 0))
 			run(fixture.Exec("INSERT INTO authority_sentinel VALUES(91)", 1))
-			denied := foreignKeyError("42501", "permission denied for table protected_parent", "", "", "")
+			denied := fixture.ForeignKeyError("42501", "permission denied for table protected_parent", "", "", "")
 			if b.PG {
 				// The PostgreSQL fixture recreates public without PUBLIC USAGE.
 				// Admit namespace lookup without granting table REFERENCES.
@@ -188,7 +188,7 @@ func TestReferenceForeignKeyRestoreCapturedAuthority(t *testing.T) {
 				defer conn.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
 				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("SET SESSION AUTHORIZATION "+alpha, 0))
 				for _, prepared := range []bool{false, true} {
-					fixture.RunStep(t, p.Ctx, conn, b.Recorder, foreignKeyFail("CREATE TABLE denied_child(pid INT CONSTRAINT denied_fk REFERENCES public.protected_parent)", denied, prepared))
+					fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.ForeignKeyFail("CREATE TABLE denied_child(pid INT CONSTRAINT denied_fk REFERENCES public.protected_parent)", denied, prepared))
 				}
 				fixture.RunStep(t, p.Ctx, conn, b.Recorder, fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 			} else {
@@ -234,7 +234,7 @@ func TestReferenceForeignKeyRestoreCapturedAuthority(t *testing.T) {
 			run(fixture.Select("SELECT relname FROM pg_class WHERE relname='denied_child'", []string{"relname"}, []string{"NAME"}, nil))
 			run(fixture.Select("SELECT conname FROM pg_constraint WHERE conname='denied_fk'", []string{"conname"}, []string{"NAME"}, nil))
 			run(fixture.Prepared(fixture.Exec("INSERT INTO "+alpha+".c VALUES(1)", 1)))
-			run(foreignKeyFail("INSERT INTO "+alpha+".c VALUES(9)", missing, true))
+			run(fixture.ForeignKeyFail("INSERT INTO "+alpha+".c VALUES(9)", missing, true))
 			run(foreignKeyIntRows("SELECT pid FROM "+alpha+".c", "pid", 1, 1))
 		})
 	}

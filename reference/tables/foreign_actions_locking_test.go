@@ -52,7 +52,7 @@ func TestReferenceForeignActionsConcurrentDDL(t *testing.T) {
 		<-started
 		foreignActionsWait(t, p, b, waiterPID, holderPID)
 		// DROP cannot bypass the admitted child RX owners on either backend.
-		fixture.RunStep(t, p.Ctx, ddl, b.Recorder, foreignKeyFail("DROP TABLE c", foreignKeyError("55P03", "canceling statement due to lock timeout", "", "", ""), false))
+		fixture.RunStep(t, p.Ctx, ddl, b.Recorder, fixture.ForeignKeyFail("DROP TABLE c", fixture.ForeignKeyError("55P03", "canceling statement due to lock timeout", "", "", ""), false))
 		fixture.LockExec(t, p.Ctx, ddl, "SET lock_timeout=0", 0)
 		if err = holder.Commit(); err != nil {
 			t.Fatal(err)
@@ -66,7 +66,7 @@ func TestReferenceForeignActionsConcurrentDDL(t *testing.T) {
 		run(fixture.Exec("DROP TABLE c", 0))
 		run(fixture.Exec("CREATE TABLE c(pid INT CONSTRAINT replacement_fk REFERENCES p ON DELETE RESTRICT)", 0))
 		run(fixture.Exec("INSERT INTO c VALUES(2)", 1))
-		s := foreignKeyFail(q, foreignActionsRestrict("p", "c", "replacement_fk", `Key (id)=(2) is referenced from table "c".`), false)
+		s := fixture.ForeignKeyFail(q, foreignActionsRestrict("p", "c", "replacement_fk", `Key (id)=(2) is referenced from table "c".`), false)
 		s.Args = []any{2}
 		fixture.RunStep(t, p.Ctx, fixture.HeldStatement{Executor: z, Statement: stmt, SQL: q}, b.Recorder, s)
 		run(foreignKeyIntRows("SELECT id FROM p", "id", 2))
@@ -129,7 +129,7 @@ func TestReferenceForeignActionsCancellationDeadlock(t *testing.T) {
 			t.Fatal("action deadlock had no victim")
 		}
 		d := fixture.ExtractDiagnostic(t, out[victim].Err)
-		want := foreignKeyError("40P01", "deadlock detected", "", "", "")
+		want := fixture.ForeignKeyError("40P01", "deadlock detected", "", "", "")
 		want.Hint = "See server log for query details."
 		if b.PG {
 			other := 1 - victim

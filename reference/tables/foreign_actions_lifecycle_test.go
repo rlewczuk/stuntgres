@@ -35,11 +35,11 @@ func TestReferenceForeignActionsLifecycle(t *testing.T) {
 						q = "UPDATE p SET id=3 WHERE id=2"
 					}
 					if action == "NO ACTION" || action == "RESTRICT" {
-						d := foreignKeyParent("p", "c", "fk", `Key (id)=(2) is still referenced from table "c".`)
+						d := fixture.ForeignKeyParent("p", "c", "fk", `Key (id)=(2) is still referenced from table "c".`)
 						if action == "RESTRICT" {
 							d = foreignActionsRestrict("p", "c", "fk", `Key (id)=(2) is referenced from table "c".`)
 						}
-						run(foreignKeyFail(q, d, true))
+						run(fixture.ForeignKeyFail(q, d, true))
 						run(foreignKeyIntRows("SELECT pid FROM c", "pid", 2))
 					} else {
 						run(fixture.Prepared(fixture.Exec(q, 1)))
@@ -57,9 +57,9 @@ func TestReferenceForeignActionsLifecycle(t *testing.T) {
 						run(fixture.Select("SELECT pid FROM c", []string{"pid"}, []string{"INT4"}, rows))
 					}
 					// DDL CASCADE removes the FK definition, never referencing data.
-					d := foreignKeyError("2BP01", "cannot drop index supporting because other objects depend on it", "constraint fk on table c depends on index supporting\nconstraint empty_pid_fkey on table empty depends on index supporting", "", "")
+					d := fixture.ForeignKeyError("2BP01", "cannot drop index supporting because other objects depend on it", "constraint fk on table c depends on index supporting\nconstraint empty_pid_fkey on table empty depends on index supporting", "", "")
 					d.Hint = "Use DROP ... CASCADE to drop the dependent objects too."
-					run(foreignKeyFail("DROP INDEX supporting RESTRICT", d, false))
+					run(fixture.ForeignKeyFail("DROP INDEX supporting RESTRICT", d, false))
 					run(fixture.Exec("DROP INDEX supporting CASCADE", 0))
 					run(fixture.Exec("INSERT INTO c VALUES(99)", 1))
 					run(foreignKeyIntRows("SELECT pid FROM c WHERE pid=99", "pid", 99))
@@ -137,7 +137,7 @@ func TestReferenceForeignActionsLifecycleInvalidImport(t *testing.T) {
 		run(fixture.Exec("INSERT INTO sentinel VALUES(91)", 1))
 		if b.PG {
 			// PostgreSQL's SQL import check is genuine, not a Restore API substitute.
-			run(foreignKeyFail("INSERT INTO c VALUES(9)", foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`), false))
+			run(fixture.ForeignKeyFail("INSERT INTO c VALUES(9)", fixture.ForeignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`), false))
 			run(foreignKeyIntRows("SELECT v FROM sentinel", "v", 91))
 			return
 		}
@@ -154,8 +154,8 @@ func TestReferenceForeignActionsLifecycleInvalidImport(t *testing.T) {
 			script     string
 			diagnostic fixture.Diagnostic
 		}{
-			{"CREATE TABLE p(id INT PRIMARY KEY);CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p ON DELETE CASCADE);INSERT INTO c VALUES(9);", foreignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`)},
-			{"CREATE TABLE p(id INT PRIMARY KEY);CREATE TABLE c(pid INT,note INT,CONSTRAINT fk FOREIGN KEY(pid) REFERENCES p ON DELETE SET NULL(note));", foreignKeyError("42P10", `column "note" referenced in ON DELETE SET action must be part of foreign key`, "", "", "")},
+			{"CREATE TABLE p(id INT PRIMARY KEY);CREATE TABLE c(pid INT CONSTRAINT fk REFERENCES p ON DELETE CASCADE);INSERT INTO c VALUES(9);", fixture.ForeignKeyChild("c", "fk", `Key (pid)=(9) is not present in table "p".`)},
+			{"CREATE TABLE p(id INT PRIMARY KEY);CREATE TABLE c(pid INT,note INT,CONSTRAINT fk FOREIGN KEY(pid) REFERENCES p ON DELETE SET NULL(note));", fixture.ForeignKeyError("42P10", `column "note" referenced in ON DELETE SET action must be part of foreign key`, "", "", "")},
 		} {
 			held, err := b.DB.QueryContext(p.Ctx, "SELECT v FROM sentinel")
 			if err != nil {
@@ -285,7 +285,7 @@ func TestReferenceForeignActionsFeatureSmoke(t *testing.T) {
 			foreignKeyRoundtrip(t, p)
 		}
 		d := foreignActionsRestrict("c", "g", "restrict_fk", `Key (id)=(3) is referenced from table "g".`)
-		run(foreignKeyFail("DELETE FROM p WHERE id=3", d, true))
+		run(fixture.ForeignKeyFail("DELETE FROM p WHERE id=3", d, true))
 		run(foreignKeyIntRows("SELECT id FROM p ORDER BY id", "id", 2, 3))
 		run(foreignKeyIntRows("SELECT id FROM c", "id", 3))
 		run(foreignKeyIntRows("SELECT cid FROM g", "cid", 3))
