@@ -15,18 +15,16 @@ func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 		if d == nil || !d.DynamicCallable() || d.Aggregate == nil {
 			return
 		}
-		if !yield(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Aggregate.Definition.Functions[0]}) {
-			return
-		}
-		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Aggregate.Definition.TransitionType}) {
-			return
-		}
-		if final := d.Aggregate.Definition.Functions[1]; final != 0 {
-			if !yield(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: final}) {
-				return
+		for _, slot := range [...]int{0, 1, 5, 6, 7} {
+			if oid := d.Aggregate.Definition.Functions[slot]; oid != 0 {
+				if !yield(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}) {
+					return
+				}
 			}
 		}
-		if d.Result != d.Aggregate.Definition.TransitionType && !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
+		// State types are retained through support signatures. Result and input
+		// types are real procedure declaration dependencies in their own right.
+		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
 			return
 		}
 		if d.Signature == "" {
@@ -44,29 +42,39 @@ func OwnedAggregateDependencies(d *Procedure) iter.Seq[ids.ObjectAddress] {
 	}
 }
 
+// VisitProcedureDeclarationDependencies visits namespace, support and declared
+// result/formal dependencies. It returns false when yield stops visitation.
+// Checked body/default dependencies are separate capture passes.
+func VisitProcedureDeclarationDependencies(d *Procedure, yield func(ids.ObjectAddress) bool) bool {
+	if !yield(d.Namespace()) {
+		return false
+	}
+	for address := range OwnedAggregateDependencies(d) {
+		if !yield(address) {
+			return false
+		}
+	}
+	if d.SQL == nil {
+		return true
+	}
+	if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
+		return false
+	}
+	for _, formal := range d.SQL.Formals {
+		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(formal.Usage.Type.ID())}) {
+			return false
+		}
+	}
+	return true
+}
+
 // VisitProcedureDefinitionDependencies visits the ordinary hard definition
 // edges shared by pg_depend, publication admission and retirement preflight.
 // Quoted source and PL replay-order metadata are deliberately not hard edges.
 // Provider-specific generated/extension edges remain with their providers.
 func VisitProcedureDefinitionDependencies(d *Procedure, yield func(ids.ObjectAddress) bool) {
-	if !yield(d.Namespace()) {
+	if !VisitProcedureDeclarationDependencies(d, yield) || d.SQL == nil {
 		return
-	}
-	for address := range OwnedAggregateDependencies(d) {
-		if !yield(address) {
-			return
-		}
-	}
-	if d.SQL == nil {
-		return
-	}
-	if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}) {
-		return
-	}
-	for _, formal := range d.SQL.Formals {
-		if !yield(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(formal.Usage.Type.ID())}) {
-			return
-		}
 	}
 	if d.SQLBody != nil {
 		for _, dependency := range d.SQLBody.Dependencies() {

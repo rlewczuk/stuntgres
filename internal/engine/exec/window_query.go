@@ -346,50 +346,115 @@ func WindowMaskAdmits(mode parser.FrameExclusion, member, current, peerStart, pe
 	return true
 }
 
-// Transition and saved results belong to one execution and one partition, never
-// to the bound calls. Each SUM occurrence keeps its own provider state.
-type WindowSumState struct {
-	CallIndex int
-	Aggregate any
-	Result    sqltype.Value
+// Every occurrence owns its cursors, private transition frames and saved final.
+// A NULL inverse restarts only that occurrence, not siblings sharing membership.
+type WindowAggregateState struct {
+	CallIndex          int
+	Aggregate          any
+	Result             sqltype.Value
+	values             []sqltype.Value
+	head, next         int
+	initialized, dirty bool
 }
 
-type WindowSums struct {
-	States      []WindowSumState
-	Initialized bool
-	head, next  int
+type WindowAggregates struct {
+	States      []WindowAggregateState
+	Initialized bool // Reset by the partition owner; entry cursors remain private.
 }
 
-func (s *WindowSums) Evaluate(ctx context.Context, state *State, child *Stage, calls []plan.WindowCall, rows []int, frame plan.WindowFrame, head, tail, current, peerStart, peerEnd int) error {
+func windowAggregateOperation(operation plan.WindowOperation) bool {
+	return operation == plan.WindowSum || operation == plan.WindowAggregate
+}
+
+func (entry *WindowAggregateState) arguments(call *plan.WindowCall, evaluation *Context) error {
+	count := 1
+	if call.Operation == plan.WindowAggregate {
+		count = len(call.Arguments)
+	}
+	if entry.values == nil {
+		entry.values = make([]sqltype.Value, count)
+	}
+	for i := range count {
+		argument := call.Argument
+		if call.Operation == plan.WindowAggregate {
+			argument = call.Arguments[i]
+		}
+		value, err := argument.Eval(evaluation)
+		if err != nil {
+			return err
+		}
+		if err = ValidateProducedValue(value, argument.ResultUsage()); err != nil {
+			return err
+		}
+		entry.values[i] = value
+	}
+	return evaluation.Context.Err()
+}
+
+func (s *WindowAggregates) Evaluate(ctx context.Context, state *State, child *Stage, calls []plan.WindowCall, rows []int, frame plan.WindowFrame, head, tail, current, peerStart, peerEnd int) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if len(s.States) == 0 {
 		return nil
 	}
-	// Empty/reversed membership has no transitions, and cannot retain an old
-	// nonempty aggregate. Existing providers have no inverse transition.
 	tail = max(head, tail)
-	restart := !s.Initialized || frame.Exclusion != parser.ExcludeNoOthers || head != s.head || head >= s.next || tail < s.next
-	if !restart && tail == s.next && current >= head && current < s.next && (frame.End.Kind == parser.FrameUnboundedFollowing || frame.End.Kind == parser.FrameCurrentRow) {
-		return ctx.Err()
-	}
-	if restart {
-		for i := range s.States {
-			entry := &s.States[i]
-			aggregate, err := calls[entry.CallIndex].Provider.Init(ctx)
+	var evaluation Context
+	evaluationReady := false
+	begin := tail
+	for i := range s.States {
+		entry := &s.States[i]
+		call := &calls[entry.CallIndex]
+		entry.dirty = true
+		moving, inverse := call.Provider.(*TransitionAggregate)
+		inverse = inverse && moving.Moving
+		restart := !s.Initialized || !entry.initialized || frame.Exclusion != parser.ExcludeNoOthers || head >= entry.next || tail < entry.next || head < entry.head || head != entry.head && !inverse
+		if !restart && head == entry.head && tail == entry.next && current >= head && current < tail && (frame.End.Kind == parser.FrameUnboundedFollowing || frame.End.Kind == parser.FrameCurrentRow) {
+			entry.dirty = false
+			continue
+		}
+		if !evaluationReady {
+			evaluation = state.Evaluation(ctx)
+			evaluationReady = true
+		}
+		if !restart && head != entry.head {
+			for member := entry.head; member < head; member++ {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				evaluation.BindQueryRow(child.Source, child.Index(rows[member]))
+				if err := entry.arguments(call, &evaluation); err != nil {
+					return err
+				}
+				punt, err := moving.Inverse(ctx, entry.Aggregate, entry.values, &evaluation)
+				if err != nil {
+					return err
+				}
+				if punt {
+					restart = true
+					break
+				}
+			}
+		}
+		if restart {
+			var aggregate any
+			var err error
+			if contextual, ok := call.Provider.(functions.ExecutionAggregateProvider); ok {
+				aggregate, err = contextual.InitWithContext(ctx, &evaluation)
+			} else {
+				aggregate, err = call.Provider.Init(ctx)
+			}
 			if err != nil {
 				return err
 			}
-			entry.Aggregate = aggregate
+			entry.Aggregate, entry.next, entry.initialized = aggregate, head, true
 		}
-		s.head, s.next, s.Initialized = head, head, true
+		entry.head = head
+		begin = min(begin, entry.next)
 	}
-	evaluation := state.Evaluation(ctx)
-	var values [1]sqltype.Value
-	// Bind each admitted member once, then advance every independent occurrence.
-	// Call-major replay changes volatile values even when the total is unchanged.
-	for member := s.next; member < tail; member++ {
+	// Bind source rows once and advance only occurrences requiring that member.
+	// This preserves row-major volatile replay while a sibling can keep its state.
+	for member := begin; member < tail; member++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -399,29 +464,23 @@ func (s *WindowSums) Evaluate(ctx context.Context, state *State, child *Stage, c
 		evaluation.BindQueryRow(child.Source, child.Index(rows[member]))
 		for i := range s.States {
 			entry := &s.States[i]
+			if !entry.dirty || member < entry.next {
+				continue
+			}
 			call := &calls[entry.CallIndex]
-			if err := ctx.Err(); err != nil {
+			if err := entry.arguments(call, &evaluation); err != nil {
 				return err
 			}
-			value, err := call.Argument.Eval(&evaluation)
-			if err != nil {
-				return err
-			}
-			if err := ValidateProducedValue(value, call.Argument.ResultUsage()); err != nil {
-				return err
-			}
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			values[0] = value
-			if err := call.Provider.Advance(ctx, entry.Aggregate, values[:], &evaluation); err != nil {
+			if err := call.Provider.Advance(ctx, entry.Aggregate, entry.values, &evaluation); err != nil {
 				return err
 			}
 		}
 	}
-	s.next = tail
 	for i := range s.States {
 		entry := &s.States[i]
+		if !entry.dirty {
+			continue
+		}
 		call := &calls[entry.CallIndex]
 		if err := ctx.Err(); err != nil {
 			return err
@@ -439,8 +498,9 @@ func (s *WindowSums) Evaluate(ctx context.Context, state *State, child *Stage, c
 		if err := ValidateProducedValue(value, call.Expression.ResultUsage()); err != nil {
 			return err
 		}
-		entry.Result = value
+		entry.Result, entry.next = value, tail
 	}
+	s.Initialized = true
 	return ctx.Err()
 }
 
@@ -452,7 +512,7 @@ func openWindowNode(ctx context.Context, state *State, n *plan.WindowNode) (Stag
 			continue
 		}
 		if provider, ok := call.Provider.(*TransitionAggregate); ok {
-			mode := provider.Aggregate.Aggregate.Definition.FinalModify
+			mode := provider.FinalModify
 			if mode == "s" || mode == "w" {
 				evaluation := state.Evaluation(ctx)
 				identity, err := evaluation.Presentation().FormatRegprocedure(uint32(provider.Aggregate.Address().ObjectID))
@@ -460,6 +520,10 @@ func openWindowNode(ctx context.Context, state *State, n *plan.WindowNode) (Stag
 					return Stage{}, err
 				}
 				return Stage{}, sqlError("0A000", "aggregate function "+identity+" does not support use as a window function")
+			}
+			evaluation := state.Evaluation(ctx)
+			if err := provider.Start(&evaluation); err != nil {
+				return Stage{}, err
 			}
 		}
 	}
@@ -575,14 +639,14 @@ func openWindowNode(ctx context.Context, state *State, n *plan.WindowNode) (Stag
 		ordered := &orders[sortIndex]
 		sumCount := 0
 		for callIndex, call := range n.Calls {
-			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && call.Operation == plan.WindowSum {
+			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && windowAggregateOperation(call.Operation) {
 				sumCount++
 			}
 		}
-		sums := WindowSums{States: make([]WindowSumState, 0, sumCount)}
+		sums := WindowAggregates{States: make([]WindowAggregateState, 0, sumCount)}
 		for callIndex, call := range n.Calls {
-			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && call.Operation == plan.WindowSum {
-				sums.States = append(sums.States, WindowSumState{CallIndex: callIndex})
+			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && windowAggregateOperation(call.Operation) {
+				sums.States = append(sums.States, WindowAggregateState{CallIndex: callIndex})
 			}
 		}
 		for partitionIndex := range ordered.partitions {
@@ -656,7 +720,7 @@ func openWindowNode(ctx context.Context, state *State, n *plan.WindowNode) (Stag
 					if call.AnalysisOnly || n.SpecIndices[callIndex] != specIndex {
 						continue
 					}
-					if call.Operation == plan.WindowSum {
+					if windowAggregateOperation(call.Operation) {
 						continue
 					}
 					if err := ctx.Err(); err != nil {

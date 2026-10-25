@@ -16,6 +16,14 @@ import (
 // execution; no engine/session pointer or mutable transition frame is retained.
 type TransitionAggregate struct {
 	Aggregate, Support        *catalog.Procedure
+	Moving                    bool
+	Initial                   string
+	HasInitial                bool
+	FinalModify               string
+	InverseSupport            *catalog.Procedure
+	InverseFormals            []sqltype.Usage
+	InverseConversions        []sqltype.CoercionPlan
+	InverseCall               expr.Expr
 	StateUsage, Result        sqltype.Usage
 	InputCollation            sqltype.CollationRef // Effective common ordinary input.
 	Inputs, Formals           []sqltype.Usage      // state followed by fixed ordinary inputs
@@ -29,11 +37,13 @@ type TransitionAggregate struct {
 }
 
 type transitionAggregateState struct {
-	owner      *TransitionAggregate
-	value      sqltype.Value
-	unseeded   bool
-	frame      *proc.Frame
-	finalFrame *proc.Frame
+	owner        *TransitionAggregate
+	value        sqltype.Value
+	unseeded     bool
+	frame        *proc.Frame
+	finalFrame   *proc.Frame
+	inverseFrame *proc.Frame
+	contributed  uint64
 }
 
 func (p *TransitionAggregate) ResultUsage() sqltype.Usage { return p.Result }
@@ -50,7 +60,7 @@ func (p *TransitionAggregate) InitWithContext(ctx context.Context, evaluation ex
 // Start checks live strict-seed feasibility once at executor startup, not at
 // Prepare, per group, or when the first non-NULL row arrives.
 func (p *TransitionAggregate) Start(c *Context) error {
-	if !p.Support.Strict || p.Aggregate.Aggregate.Definition.HasInitial {
+	if !p.Support.Strict || p.HasInitial {
 		return nil
 	}
 	auth, _, err := RoutineAdmissionAuthority(c)
@@ -66,18 +76,33 @@ func (p *TransitionAggregate) initialize(ctx context.Context, input sqltype.Inpu
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	state := &transitionAggregateState{owner: p, value: sqltype.Null(p.StateUsage.Type), unseeded: !p.Aggregate.Aggregate.Definition.HasInitial, frame: proc.NewFrame(p.Formals)}
+	state := &transitionAggregateState{owner: p, frame: proc.NewFrame(p.Formals)}
 	if p.Final != nil {
 		state.finalFrame = proc.NewFrame(p.FinalFormals)
 	}
-	if p.Aggregate.Aggregate.Definition.HasInitial {
-		value, err := p.StateUsage.Type.InputWithEnvironment(ctx, p.Aggregate.Aggregate.Definition.Initial, p.StateUsage.Typmod, input)
-		if err != nil {
-			return nil, err
-		}
-		state.value = value
+	if p.InverseSupport != nil {
+		state.inverseFrame = proc.NewFrame(p.InverseFormals)
+	}
+	if err := p.reset(ctx, state, input); err != nil {
+		return nil, err
 	}
 	return state, ctx.Err()
+}
+
+func (p *TransitionAggregate) reset(ctx context.Context, state *transitionAggregateState, input sqltype.InputEnvironment) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	value := sqltype.Null(p.StateUsage.Type)
+	if p.HasInitial {
+		var err error
+		value, err = p.StateUsage.Type.InputWithEnvironment(ctx, p.Initial, p.StateUsage.Typmod, input)
+		if err != nil {
+			return err
+		}
+	}
+	state.value, state.unseeded, state.contributed = value, !p.HasInitial, 0
+	return ctx.Err()
 }
 
 func (p *TransitionAggregate) Advance(ctx context.Context, opaque any, values []sqltype.Value, evaluation expr.Context) error {
@@ -105,6 +130,9 @@ func (p *TransitionAggregate) Advance(ctx context.Context, opaque any, values []
 				return err
 			}
 			state.value, state.unseeded = value, false
+			if p.Moving {
+				state.contributed++
+			}
 			return ctx.Err()
 		}
 		if state.value.IsNull() {
@@ -138,8 +166,70 @@ func (p *TransitionAggregate) Advance(ctx context.Context, opaque any, values []
 	if result.Type() != p.StateUsage.Type {
 		return fmt.Errorf("stuntgres: invalid transition aggregate result")
 	}
+	if p.Moving {
+		if result.IsNull() {
+			return sqlError("22004", "moving-aggregate transition function must not return null")
+		}
+		state.contributed++
+	}
 	state.value, state.unseeded = result, false
 	return nil
+}
+
+// Inverse returns true only when the selected inverse requested real frame
+// replay. A NULL result never becomes the retained transition state.
+func (p *TransitionAggregate) Inverse(ctx context.Context, opaque any, values []sqltype.Value, evaluation expr.Context) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	state, ok := opaque.(*transitionAggregateState)
+	if !p.Moving || p.InverseSupport == nil || !ok || state == nil || state.owner != p || len(values)+1 != len(p.Inputs) {
+		return false, fmt.Errorf("stuntgres: invalid moving inverse state or arguments")
+	}
+	for i, value := range values {
+		if value.Type() != p.Inputs[i+1].Type {
+			return false, fmt.Errorf("stuntgres: foreign moving inverse input")
+		}
+		if p.InverseSupport.Strict && value.IsNull() {
+			return false, ctx.Err()
+		}
+	}
+	if state.contributed == 0 {
+		return false, fmt.Errorf("stuntgres: moving inverse has no contributed row")
+	}
+	if state.contributed == 1 {
+		return false, p.reset(ctx, state, evaluation.FunctionInput())
+	}
+	runtime, ok := evaluation.(*Context)
+	if !ok {
+		return false, fmt.Errorf("stuntgres: moving inverse has no statement runtime")
+	}
+	for i := range p.Inputs {
+		value := state.value
+		if i > 0 {
+			value = values[i-1]
+		}
+		converted, err := p.InverseConversions[i].Apply(ctx, value, runtime.Input, runtime.Output)
+		if err != nil {
+			return false, err
+		}
+		if err = state.inverseFrame.Bind(i, converted, p.InverseFormals[i]); err != nil {
+			return false, err
+		}
+	}
+	result, err := p.invoke(ctx, runtime, p.InverseSupport, state.inverseFrame, p.StateUsage, p.InverseCall)
+	if err != nil {
+		return false, err
+	}
+	if result.Type() != p.StateUsage.Type {
+		return false, fmt.Errorf("stuntgres: invalid moving inverse result")
+	}
+	if result.IsNull() {
+		return true, ctx.Err()
+	}
+	state.value = result
+	state.contributed--
+	return false, ctx.Err()
 }
 func (p *TransitionAggregate) Finalize(ctx context.Context, opaque any) (sqltype.Value, error) {
 	if p.Final != nil {
@@ -244,7 +334,7 @@ func AdmitAggregateSupport(c *Context, provider functions.AggregateProvider) err
 	if err = owner.Roles.ValidatePrincipal(current.Owner); err != nil {
 		return err
 	}
-	for _, support := range []*catalog.Procedure{p.Support, p.Final} {
+	for _, support := range []*catalog.Procedure{p.Support, p.InverseSupport, p.Final} {
 		if support == nil {
 			continue
 		}
@@ -273,7 +363,7 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 	if err := validateTransitionCall(p.Call, p.Support, p.StateUsage); err != nil {
 		return nil, err
 	}
-	if err := p.validateFinalFrame(); err != nil {
+	if err := p.ValidateSelection(); err != nil {
 		return nil, err
 	}
 	next := *p
@@ -334,7 +424,7 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 			return nil, fmt.Errorf("stuntgres: transition input collation has no typed owner")
 		}
 	}
-	if next.Support.Strict && !next.Aggregate.Aggregate.Definition.HasInitial {
+	if next.Support.Strict && !next.HasInitial {
 		next.SeedConversion, err = p.SeedConversion.Rebind(next.Inputs[1], next.StateUsage, sqltype.Implicit)
 		if err != nil {
 			return nil, err
@@ -381,7 +471,31 @@ func (p *TransitionAggregate) Remap(r functions.ProviderRemap) (functions.Aggreg
 			}
 		}
 	}
-	if err := next.validateFinalFrame(); err != nil {
+	if p.InverseSupport != nil {
+		next.InverseSupport, err = mapRoutine(p.InverseSupport)
+		if err != nil {
+			return nil, err
+		}
+		next.InverseFormals = make([]sqltype.Usage, len(p.InverseFormals))
+		next.InverseConversions = make([]sqltype.CoercionPlan, len(p.InverseConversions))
+		for i, formal := range p.InverseFormals {
+			next.InverseFormals[i], err = r.Usage(formal)
+			if err != nil {
+				return nil, err
+			}
+			next.InverseConversions[i], err = p.InverseConversions[i].Rebind(next.Inputs[i], next.InverseFormals[i], sqltype.Implicit)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if p.InverseCall != nil {
+			next.InverseCall, err = r.Expression(p.InverseCall, p.InverseFormals, next.InverseFormals)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := next.ValidateSelection(); err != nil {
 		return nil, err
 	}
 	return &next, nil
@@ -407,17 +521,21 @@ func validateTransitionCall(call expr.Expr, support *catalog.Procedure, result s
 func (p *TransitionAggregate) validateFinalFrame() error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid aggregate final frame declaration") }
 	definition := &p.Aggregate.Aggregate.Definition
+	finalSlot, extra := 1, definition.FinalExtra
+	if p.Moving {
+		finalSlot, extra = 7, definition.MovingFinalExtra
+	}
 	if p.Final == nil {
-		if definition.Functions[1] != 0 || p.FinalCall != nil || len(p.FinalInputs) != 0 || len(p.FinalFormals) != 0 || len(p.FinalConversions) != 0 || p.Result != p.StateUsage {
+		if definition.Functions[finalSlot] != 0 || p.FinalCall != nil || len(p.FinalInputs) != 0 || len(p.FinalFormals) != 0 || len(p.FinalConversions) != 0 || p.Result != p.StateUsage {
 			return invalid()
 		}
 		return nil
 	}
 	count := 1
-	if definition.FinalExtra {
+	if extra {
 		count = len(p.Inputs)
 	}
-	if p.Final.Address().ObjectID != definition.Functions[1] || len(p.FinalInputs) != count || len(p.FinalFormals) != count || len(p.FinalConversions) != count {
+	if p.Final.Address().ObjectID != definition.Functions[finalSlot] || len(p.FinalInputs) != count || len(p.FinalFormals) != count || len(p.FinalConversions) != count {
 		return invalid()
 	}
 	for i, input := range p.FinalInputs {
@@ -445,4 +563,45 @@ func validateAggregateConversions(inputs, formals []sqltype.Usage, conversions [
 		}
 	}
 	return nil
+}
+
+// ValidateSelection checks detached provider identity and the exact selected
+// implementation, before and after remapping. Catalog specialization is checked
+// separately by stored frame validation.
+func (p *TransitionAggregate) ValidateSelection() error {
+	invalid := func() error { return fmt.Errorf("stuntgres: invalid selected aggregate implementation") }
+	if p.Aggregate == nil || p.Aggregate.Aggregate == nil || p.Support == nil || p.StateUsage.Type == nil || !p.StateUsage.Valid() || p.Result.Type == nil || !p.Result.Valid() || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
+		return invalid()
+	}
+	d := &p.Aggregate.Aggregate.Definition
+	slot, state, initial, hasInitial, mode := 0, d.TransitionType, d.Initial, d.HasInitial, d.FinalModify
+	if p.Moving {
+		slot, state, initial, hasInitial, mode = 5, d.MovingType, d.MovingInitial, d.HasMovingInitial, d.MovingFinalModify
+	}
+	if p.Support.Address().ObjectID != d.Functions[slot] || state == 0 || p.StateUsage.Type.ID() != sqltype.ID(state) || p.Initial != initial || p.HasInitial != hasInitial || p.FinalModify != mode {
+		return invalid()
+	}
+	if p.Support.Strict && !p.HasInitial {
+		if len(p.Inputs) < 2 {
+			return invalid()
+		}
+		expected, err := catalog.AggregateConversion(p.Aggregate.Aggregate.BinaryRecipe, p.Inputs[1], p.StateUsage)
+		if err != nil || !p.SeedConversion.Equal(expected) {
+			return invalid()
+		}
+	}
+	if p.Moving {
+		if p.InverseSupport == nil || p.InverseSupport.Address().ObjectID != d.Functions[6] || p.InverseSupport.Strict != p.Support.Strict {
+			return invalid()
+		}
+		if err := validateAggregateConversions(p.Inputs, p.InverseFormals, p.InverseConversions, p.Aggregate.Aggregate.BinaryRecipe); err != nil {
+			return err
+		}
+		if err := validateTransitionCall(p.InverseCall, p.InverseSupport, p.StateUsage); err != nil {
+			return err
+		}
+	} else if p.InverseSupport != nil || p.InverseCall != nil || len(p.InverseFormals) != 0 || len(p.InverseConversions) != 0 {
+		return invalid()
+	}
+	return p.validateFinalFrame()
 }

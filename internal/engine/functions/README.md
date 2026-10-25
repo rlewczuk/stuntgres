@@ -267,8 +267,9 @@ host, which owns all locking and returns owned values.
   state execution-local. Ordered-set and hypothetical providers sit behind
   `OrderedAggregate` and read the executor's sorted `OrderedInput`.
   `ExecutionAggregateProvider` borrows the current `expr.Context` for both
-  initialization and finalization; executors must use the contextual final entry
-  whenever that provider implements it.
+  initialization and finalization; executors use both contextual entries whenever
+  implemented. Owned moving inverse/restart capability belongs to the concrete
+  executor provider, not the generic builtin aggregate ABI.
 - Providers a view may store implement `RemappableProvider`
   (`aggregate_remap.go`); without it view creation fails with "unpersistable
   view aggregate".

@@ -68,7 +68,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 
 Add `REFERENCE=1` for the oracle.
 
-- <a id="create-aggregate-contract"></a>CREATE AGGREGATE: `RUN='^TestReference(CreateAggregate|AggregateFinal)'`
+- <a id="create-aggregate-contract"></a>CREATE AGGREGATE: `RUN='^TestReference(CreateAggregate|AggregateFinal|AggregateMoving)'`
 - Aggregate ALTER/DROP lifecycle: `RUN='^TestReferenceAggregateLifecycle'`.
   Lifecycle helpers reuse CREATE's direct/prepared value and metadata assertions;
   identity checks compare OIDs only within a backend, and native-control phases

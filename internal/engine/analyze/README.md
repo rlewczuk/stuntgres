@@ -55,8 +55,9 @@ library, and never the root engine or `session`. The engine, the root driver
   aggregate keys include the first written input position, retaining distinct
   generated unary UNNEST occurrences at one token. Selected ordinary names that
   lower to aggregate/window syntax retain that checked occurrence with written
-  operands for capture and replay. Owned aggregates keep their stronger
-  source-call normalization when operands replace binder-local slots.
+  operands for capture and replay. Owned grouped and window aggregates keep their
+  stronger source-call normalization and actual aggregate reference when operands
+  replace binder-local slots; builtin provider-symbol capture is a separate lane.
   `FunctionCast` and its selected `FunctionExpr` share the key, so a type-named
   SQL routine remains checked rather than reverting to builtin cast selection;
   standard/postfix cast occurrences remain separate. Guarded normalization
@@ -74,13 +75,17 @@ library, and never the root engine or `session`. The engine, the root driver
   recursive CYCLE-mark grouping keys, and window partition/peer equality.
   Equality selection keeps the checked declaration after any existing coercion;
   it does not perform a later lookup by the routine's mutable name.
-  Owned ordinary aggregates derive input collation from ordinary arguments only,
-  excluding FILTER and ORDER BY. State and final result retain separate type
-  identities and descriptor fallbacks. Selected transition/final calls each own
-  a closed, typed formal namespace, never outer query parameter slots.
-  Owned aggregate projections with a final routine expose unknown computed
-  nullability; without one they retain known nullable state metadata. Stored view
-  columns retain known nullable relation metadata.
+  Owned aggregates derive input collation from ordinary arguments only,
+  excluding FILTER and ORDER BY. Ordinary state, moving state and final result
+  retain separate type identities and descriptor fallbacks. Each selected
+  forward/inverse/final call owns a closed typed formal namespace. Window
+  implementation selection occurs after the complete frame resolves: a safe
+  moving final overrides ordinary unsafe modes; otherwise unbounded starts,
+  volatile inputs and subqueries select ordinary execution. Support volatility
+  does not change that selection. Grouped calls always use ordinary supports.
+  Ordinary projections with a final expose unknown computed nullability;
+  without one they retain known nullable state metadata. Owned window results
+  and stored view columns retain known nullable metadata.
 - **`Binding`** (`binding*.go`, `payloads.go`): the statement header, the kind
   payloads (`InsertBinding`, `UpdateBinding`, `MergeBinding`, ...) and
   `ParameterInfo`.
@@ -252,6 +257,9 @@ conditions, defaults, checks, index and partition expressions); `expectedOf`,
 `signatureOf`; rule program execution and admission.
 
 ## Testing
+
+Pure selected aggregate-mode invariants use `RUN='^TestAggregateMovingSelection$'`;
+the public SQL log witnesses live in `reference/aggregates`.
 
 Binder tests need an engine host, so most live in `internal/engine` or, for
 query and DML statements, in `internal/engine/core`, and name `analyze.Binder`

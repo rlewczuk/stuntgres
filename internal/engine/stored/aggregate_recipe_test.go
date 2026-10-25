@@ -229,6 +229,7 @@ func TestCreateAggregatePolymorphicTransitionRemap(t *testing.T) {
 		},
 	}
 	provider := &exec.TransitionAggregate{Aggregate: aggregate, Support: support, StateUsage: array.Usage(), Result: array.Usage(), Inputs: inputs, Formals: formals, Call: call, Conversions: make([]sqltype.CoercionPlan, 2)}
+	provider.Initial, provider.HasInitial, provider.FinalModify = "{}", true, "r"
 	for i := range inputs {
 		var err error
 		provider.Conversions[i], err = catalog.AggregateConversion(aggregate.Aggregate.BinaryRecipe, inputs[i], formals[i])
@@ -343,6 +344,7 @@ func TestAggregateFinalFrameRemap(t *testing.T) {
 	}
 	p := &exec.TransitionAggregate{
 		Aggregate: aggregate, Support: step, StateUsage: integer.Usage(), Result: text.Usage(),
+		Initial: "0", HasInitial: true, FinalModify: "w",
 		Inputs: []sqltype.Usage{integer.Usage(), integer.Usage()}, Formals: []sqltype.Usage{integer.Usage(), integer.Usage()},
 		Conversions: []sqltype.CoercionPlan{conversion, conversion}, Call: stepCall,
 		Final: final, FinalInputs: []sqltype.Usage{integer.Usage()}, FinalFormals: []sqltype.Usage{integer.Usage()}, FinalConversions: []sqltype.CoercionPlan{conversion}, FinalCall: finalCall,
@@ -502,6 +504,7 @@ func TestAggregateFinalExtraFrameRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := &exec.TransitionAggregate{Aggregate: aggregate, Support: step, Final: final, StateUsage: integer.Usage(), Result: oldDomain.Usage(), InputCollation: oldBase.Collation,
+		Initial: "0", HasInitial: true, FinalModify: "s",
 		Inputs: inputs, Formals: formals, FinalInputs: append([]sqltype.Usage(nil), inputs...), FinalFormals: append([]sqltype.Usage(nil), formals...), Conversions: make([]sqltype.CoercionPlan, 3), FinalConversions: make([]sqltype.CoercionPlan, 3)}
 	for i := range inputs {
 		p.Conversions[i], err = catalog.AggregateConversion(nil, inputs[i], formals[i])

@@ -13,6 +13,14 @@ when the responses differ, a readable `response_diff`. `--reference-timeout`
 bounds the wait for the reference; an unreachable reference never blocks
 clients.
 
+Owned aggregates support moving transition, inverse and final routines for window
+frames, including real frame replay when an inverse returns NULL. Moving options,
+selected-support privileges, result metadata and owned definitions survive native
+Dump/Restore with independent ordinary, moving-state and result identities.
+Stored windows retain their actual owned aggregate identity, and repeated domain
+support signatures expose one declaration dependency edge per referenced object,
+without collapsing independently captured body/default dependency rows.
+
 The `stuntgres` server's command line now uses cobra and viper. Every option
 can also be set with a `STUNTGRES_<OPTION>` environment variable or a
 `--config` YAML/TOML/JSON file (flag, then environment, then file, then default),

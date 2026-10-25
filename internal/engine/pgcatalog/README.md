@@ -253,6 +253,11 @@ authority, never the recorded `Version`.
 - `pg_am`: live global method descriptors with owned typed cells per capture;
   family→method and method→handler dependencies use shared selectors, and
   references to pinned stock handlers are suppressed, not fabricated.
+- `pg_depend`: repeated routine result/formal/support declarations share one
+  normal declaration edge per referenced address. Checked standard-body and
+  default-expression dependencies retain their separate capture-pass rows,
+  including column/subobject identities. Materialization suppresses pinned
+  prerequisites without globally deduplicating these independent passes.
 - `pg_largeobject` (2613): actual immutable stored chunks, each borrowed chunk
   copied once into an owned BYTEA; holes are never materialized and per-object
   ACLs are not consulted (ordinary relation SELECT protects it).

@@ -33,9 +33,8 @@ func transitionUnitType(t *testing.T) *sqltype.Descriptor {
 	return nil
 }
 
-// No public SQL surface can declare a strict SQL function in this part. This
-// private scalar provider supplies the genuine transition-returned-NULL path,
-// not an alternate state machine or a public CREATE FUNCTION attribute.
+// A private scalar provider isolates strict transition-returned-NULL behavior
+// from binding and public SQL execution.
 func TestCreateAggregateStrictReturnedNullDoesNotReseed(t *testing.T) {
 	d := transitionUnitType(t)
 	u := d.Usage()
@@ -197,6 +196,7 @@ func finalUnitProvider(t *testing.T) (*TransitionAggregate, *sqltype.Descriptor)
 	p := &TransitionAggregate{
 		Aggregate: &catalog.Procedure{Aggregate: &catalog.OwnedAggregate{Definition: catalog.AggregateDefinition{Functions: [8]ids.OID{0, 90002}, HasInitial: true, Initial: "0", FinalExtra: true, FinalModify: "w"}}},
 		Support:   &catalog.Procedure{}, StateUsage: integer.Usage(), Result: text.Usage(),
+		Initial: "0", HasInitial: true, FinalModify: "w",
 		Inputs: inputs, Formals: append([]sqltype.Usage(nil), inputs...), Conversions: conversions,
 		Final: final, FinalInputs: append([]sqltype.Usage(nil), inputs...), FinalFormals: append([]sqltype.Usage(nil), inputs...), FinalConversions: append([]sqltype.CoercionPlan(nil), conversions...),
 	}
@@ -240,6 +240,7 @@ func TestAggregateFinalFrame(t *testing.T) {
 			evaluation := &Context{EvalStatement: EvalStatement{Context: ctx}}
 			if kind == "null-state" || kind == "strict-null" {
 				p.Aggregate.Aggregate.Definition.HasInitial = false
+				p.HasInitial = false
 			}
 			if kind == "strict-null" {
 				p.Final.Strict = true

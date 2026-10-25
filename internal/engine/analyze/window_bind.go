@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -265,6 +266,24 @@ func (b *Binder) resolveWindows() error {
 			return err
 		}
 		b.Grouping.WindowCalls[i].Spec = spec
+		call := &b.Grouping.WindowCalls[i]
+		if provider, ok := call.Provider.(*exec.TransitionAggregate); ok && MovingAggregateSelected(provider.Aggregate.Aggregate.Definition, spec.Frame, call.Arguments) {
+			inputInfo := call.Expression.Info
+			for _, argument := range call.Arguments {
+				if argument.ResultUsage().Collation.ID != 0 {
+					inputInfo.Usage = argument.ResultUsage()
+					break
+				}
+			}
+			inputInfo, err = b.CollatedInfo(inputInfo, call.Arguments...)
+			if err != nil {
+				return err
+			}
+			call.Provider, err = b.ownedAggregateProvider(provider.Aggregate, call.Arguments, provider.Result, provider.InputCollation, true, call.Expression.Pos, inputInfo)
+			if err != nil {
+				return err
+			}
+		}
 		b.Grouping.WindowCalls[i].Raw = nil
 	}
 	return nil
@@ -715,4 +734,33 @@ func WindowOccurrence(bound expr.Expr) *plan.WindowExpr {
 		}
 	})
 	return found
+}
+
+// MovingAggregateSelected is shared by binding and detached window validation.
+// A safe moving final overrides exclusions, irrespective of support volatility.
+func MovingAggregateSelected(definition catalog.AggregateDefinition, frame plan.WindowFrame, arguments []expr.Expr) bool {
+	if definition.Functions[6] == 0 {
+		return false
+	}
+	if definition.MovingFinalModify == "r" && definition.FinalModify != "r" {
+		return true
+	}
+	if frame.Start.Kind == parser.FrameUnboundedPreceding {
+		return false
+	}
+	for _, argument := range arguments {
+		if argument.Properties().Volatility == expr.Volatile {
+			return false
+		}
+		subquery := false
+		plan.WalkExpression(argument, func(child expr.Expr) {
+			if _, ok := child.(plan.SubqueryExpr); ok {
+				subquery = true
+			}
+		})
+		if subquery {
+			return false
+		}
+	}
+	return true
 }

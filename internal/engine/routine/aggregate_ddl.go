@@ -25,8 +25,8 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	if err = h.CheckCreateIn(auth, ns); err != nil {
 		return err
 	}
-	var support, finalName parser.ObjectName
-	var stateSyntax parser.TypeName
+	var support, finalName, movingName, inverseName, movingFinalName parser.ObjectName
+	var stateSyntax, movingSyntax parser.TypeName
 	definition := &catalog.AggregateDefinition{Kind: "n", FinalModify: "r", MovingFinalModify: "r"}
 	for _, option := range s.Options {
 		switch option.Name {
@@ -37,33 +37,35 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 		case "finalfunc_extra":
 			definition.FinalExtra, err = aggregateOptionBoolean(option)
 		case "finalfunc_modify":
-			var mode string
-			mode, err = aggregateInitialText(option)
-			if !option.HasValue {
-				return sqlError("42601", "finalfunc_modify requires a parameter")
-			}
-			switch mode {
-			case "read_only":
-				definition.FinalModify = "r"
-			case "shareable":
-				definition.FinalModify = "s"
-			case "read_write":
-				definition.FinalModify = "w"
-			default:
-				return sqlError("42601", `parameter "finalfunc_modify" must be READ_ONLY, SHAREABLE, or READ_WRITE`)
-			}
+			definition.FinalModify, err = aggregateModify(option)
+		case "msfunc":
+			movingName, err = operatorOptionName(option)
+		case "minvfunc":
+			inverseName, err = operatorOptionName(option)
+		case "mstype":
+			movingSyntax, err = operatorOptionType(option)
+		case "mfinalfunc":
+			movingFinalName, err = operatorOptionName(option)
+		case "mfinalfunc_extra":
+			definition.MovingFinalExtra, err = aggregateOptionBoolean(option)
+		case "mfinalfunc_modify":
+			definition.MovingFinalModify, err = aggregateModify(option)
+		case "minitcond":
+			definition.MovingInitial, err = aggregateInitialText(option)
+			definition.HasMovingInitial = true
 		case "stype":
 			stateSyntax, err = operatorOptionType(option)
 		case "initcond":
 			definition.Initial, err = aggregateInitialText(option)
 			definition.HasInitial = true
-		case "sspace":
-			if option.Kind != parser.OperatorOptionIntegerArgument {
-				return sqlError("42601", "sspace requires an integer value")
+		case "sspace", "msspace":
+			n, e := aggregateSpace(option)
+			err = e
+			if option.Name == "sspace" {
+				definition.TransitionSpace = n
+			} else {
+				definition.MovingSpace = n
 			}
-			var n int64
-			n, err = strconv.ParseInt(option.Value, 10, 32)
-			definition.TransitionSpace = int32(n)
 		default:
 			return expr.ErrorAt("0A000", "aggregate option "+option.Name+" is unsupported", option.Pos)
 		}
@@ -76,6 +78,27 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 	}
 	if len(support.Parts) == 0 {
 		return sqlError("42P13", "aggregate sfunc must be specified")
+	}
+	if movingSyntax.Name != "" {
+		if len(movingName.Parts) == 0 {
+			return sqlError("42P13", "aggregate msfunc must be specified when mstype is specified")
+		}
+		if len(inverseName.Parts) == 0 {
+			return sqlError("42P13", "aggregate minvfunc must be specified when mstype is specified")
+		}
+	} else {
+		for _, option := range []struct {
+			name    string
+			present bool
+		}{
+			{"msfunc", len(movingName.Parts) != 0}, {"minvfunc", len(inverseName.Parts) != 0},
+			{"mfinalfunc", len(movingFinalName.Parts) != 0}, {"msspace", definition.MovingSpace != 0},
+			{"minitcond", definition.HasMovingInitial},
+		} {
+			if option.present {
+				return sqlError("42P13", "aggregate "+option.name+" must not be specified without mstype")
+			}
+		}
 	}
 	resolve := func(raw parser.TypeName) (sqltype.Usage, error) {
 		id, err := h.ResolveRegtype(auth, raw)
@@ -204,6 +227,81 @@ func StageCreateAggregate(h DDLHost, auth ddl.Authority, s *parser.CreateAggrega
 		definition.Functions[1] = final.Address().ObjectID
 		aggregateResult = finalResult
 	}
+	if movingSyntax.Name != "" {
+		movingInputs := append([]sqltype.Usage(nil), inputs...)
+		movingInputs[0], err = resolve(movingSyntax)
+		if err != nil {
+			return err
+		}
+		selectSupport := func(name parser.ObjectName, actual []sqltype.Usage) (*catalog.Procedure, sqltype.Usage, error) {
+			selected, declared, result, e := h.SelectAggregateSupport(auth, name, actual)
+			if e != nil {
+				return nil, sqltype.Usage{}, e
+			}
+			names := make([]string, len(declared))
+			for i, formal := range declared {
+				names[i] = formal.Type.DiagnosticName()
+			}
+			diagnostic := catalog.ObjectNameText(name) + "(" + strings.Join(names, ", ") + ")"
+			if selected.Builtin != nil && selected.Builtin.ReturnsSet {
+				return nil, result, sqlError("42804", "function "+diagnostic+" returns a set")
+			}
+			for i, source := range actual {
+				if !capture(source, declared[i]) {
+					return nil, result, sqlError("42804", "function "+diagnostic+" requires run-time type coercion")
+				}
+			}
+			if selected.SQL == nil && (selected.Builtin == nil || selected.Builtin.Providers == 0) && selected.Implementation == nil {
+				return nil, result, sqlError("0A000", "aggregate support function has no native implementation")
+			}
+			e = ddl.Check(h, auth, access.Requirement{Object: ddl.ObjectRef(h, auth, selected.Address()), Privileges: authorization.ExecutePrivilege})
+			return selected, result, e
+		}
+		moving, movingResult, e := selectSupport(movingName, movingInputs)
+		if e != nil {
+			return e
+		}
+		if movingResult.Type != movingInputs[0].Type {
+			return sqlError("42804", "return type of transition function "+catalog.ObjectNameText(movingName)+" is not "+movingInputs[0].Type.DiagnosticName())
+		}
+		if moving.Strict && !definition.HasMovingInitial && (len(movingInputs) == 1 || !capture(movingInputs[1], movingInputs[0])) {
+			return sqlError("42P13", "must not omit initial value when transition function is strict and transition type is not compatible with input type")
+		}
+		inverse, inverseResult, e := selectSupport(inverseName, movingInputs)
+		if e != nil {
+			return e
+		}
+		if inverseResult.Type != movingInputs[0].Type {
+			return sqlError("42804", "return type of inverse transition function "+catalog.ObjectNameText(inverseName)+" is not "+movingInputs[0].Type.DiagnosticName())
+		}
+		if inverse.Strict != moving.Strict {
+			return sqlError("42P13", "strictness of aggregate's forward and inverse transition functions must match")
+		}
+		definition.Functions[5], definition.Functions[6] = moving.Address().ObjectID, inverse.Address().ObjectID
+		definition.MovingType = ids.OID(movingInputs[0].Type.ID())
+		if len(movingFinalName.Parts) != 0 {
+			finalInputs := movingInputs[:1]
+			if definition.MovingFinalExtra {
+				finalInputs = movingInputs
+			}
+			final, result, e := selectSupport(movingFinalName, finalInputs)
+			if e != nil {
+				return e
+			}
+			if final.Strict && definition.MovingFinalExtra {
+				return sqlError("42P13", "final function with extra arguments must not be declared STRICT")
+			}
+			definition.Functions[7], movingResult = final.Address().ObjectID, result
+		}
+		if movingResult.Type != aggregateResult.Type {
+			return sqlError("42P13", "moving-aggregate implementation returns type "+movingResult.Type.DiagnosticName()+", but plain implementation returns type "+aggregateResult.Type.DiagnosticName())
+		}
+		if definition.HasMovingInitial {
+			if _, err = movingInputs[0].Type.InputWithEnvironment(h.Context(), definition.MovingInitial, movingInputs[0].Typmod, input); err != nil {
+				return err
+			}
+		}
+	}
 	d := &catalog.Procedure{ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID}, ObjectNamespace: ns.Address, ObjectName: s.Name.Parts[len(s.Name.Parts)-1].Text, Signature: catalog.ProcedureSignature(strings.Join(signature, ",")), RoutineKind: catalog.AggregateRoutine, Result: ids.OID(aggregateResult.Type.ID()), Owner: h.AccessView(auth).State.CurrentUser, Volatility: expr.Immutable, Display: catalog.RoutineDisplay{Language: catalog.InternalRoutineLanguage, Source: "aggregate_dummy"}, Aggregate: &catalog.OwnedAggregate{Definition: *definition}}
 	if h.DefinitionLookup(auth, catalog.DescriptorNameKey(d)) != (ids.ObjectAddress{}) {
 		return sqlError("42723", fmt.Sprintf("function %q already exists with same argument types", d.Name()))
@@ -258,7 +356,7 @@ func aggregateInitialText(option parser.OperatorOption) (string, error) {
 	case parser.OperatorOptionNoneArgument:
 		return "none", nil
 	default:
-		return "", sqlError("42601", "initcond requires a parameter")
+		return "", sqlError("42601", option.Name+" requires a parameter")
 	}
 }
 
@@ -297,5 +395,37 @@ func aggregateOptionBoolean(option parser.OperatorOption) (bool, error) {
 			return false, nil
 		}
 	}
-	return false, sqlError("42601", "finalfunc_extra requires a Boolean value")
+	return false, sqlError("42601", option.Name+" requires a Boolean value")
+}
+
+func aggregateModify(option parser.OperatorOption) (string, error) {
+	text, err := aggregateInitialText(option)
+	if err != nil {
+		return "", err
+	}
+	switch text {
+	case "read_only":
+		return "r", nil
+	case "shareable":
+		return "s", nil
+	case "read_write":
+		return "w", nil
+	}
+	return "", sqlError("42601", `parameter "`+option.Name+`" must be READ_ONLY, SHAREABLE, or READ_WRITE`)
+}
+
+func aggregateSpace(option parser.OperatorOption) (int32, error) {
+	if option.Kind != parser.OperatorOptionIntegerArgument {
+		return 0, sqlError("42601", option.Name+" requires an integer value")
+	}
+	n, err := strconv.ParseInt(strings.TrimLeft(option.Value, "+-"), 10, 32)
+	// Generic definition syntax classifies the unsigned magnitude before
+	// applying its sign; out-of-range magnitudes are Float, not Integer.
+	if err != nil {
+		return 0, sqlError("42601", option.Name+" requires an integer value")
+	}
+	if strings.HasPrefix(option.Value, "-") {
+		n = -n
+	}
+	return int32(n), nil
 }

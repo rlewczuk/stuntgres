@@ -68,7 +68,7 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 			calls[0].Argument = windowSumArgumentProbe{calls[0].Argument, &sequence, &visits, 0}
 			frame := node.Specs[0].Frame
 			frame.Exclusion = tc.mode
-			sums := exec.WindowSums{States: []exec.WindowSumState{{CallIndex: 0}}}
+			sums := exec.WindowAggregates{States: []exec.WindowAggregateState{{CallIndex: 0}}}
 			for output, bounds := range tc.endpoints {
 				previous := sums.States[0].Aggregate
 				peerStart, peerEnd := output, output+1
@@ -135,7 +135,7 @@ func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 		calls[i].Argument = windowSumArgumentProbe{calls[i].Argument, &sequence, &visits, i}
 	}
 	for execution := range 2 {
-		sums := exec.WindowSums{States: []exec.WindowSumState{{CallIndex: 0}, {CallIndex: 1}}}
+		sums := exec.WindowAggregates{States: []exec.WindowAggregateState{{CallIndex: 0}, {CallIndex: 1}}}
 		for output := range 3 {
 			if err := sums.Evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, node.Specs[0].Frame, 0, 3, output, output, output+1); err != nil {
 				t.Fatal(err)

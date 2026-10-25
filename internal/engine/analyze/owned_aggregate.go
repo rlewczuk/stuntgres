@@ -26,7 +26,6 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 	if err != nil {
 		return nil, err
 	}
-	state := b.Type(sqltype.ID(d.Aggregate.Definition.TransitionType)).Usage()
 	resultUsage := b.Type(sqltype.ID(d.Result)).Usage()
 	info := b.Info(resultUsage, raw.Pos, expr.Properties{StageDependent: true})
 	inputInfo := info
@@ -45,9 +44,6 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		return nil, err
 	}
 	if collatableInput {
-		if state.Collation.ID != 0 {
-			state.Collation = inputInfo.Usage.Collation
-		}
 		if resultUsage.Collation.ID != 0 {
 			info = inputInfo
 			info.Usage = resultUsage
@@ -55,115 +51,16 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 			resultUsage = info.Usage
 		}
 	}
-	supportDescriptor, ok := b.definitionDescriptor(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: d.Aggregate.Definition.Functions[0]})
-	if !ok {
-		return nil, fmt.Errorf("stuntgres: missing aggregate support routine")
+	inputCollation := sqltype.CollationRef{}
+	if collatableInput && !inputInfo.CollationConflict {
+		inputCollation = inputInfo.Usage.Collation
 	}
-	support, ok := supportDescriptor.(*catalog.Procedure)
-	if !ok {
-		return nil, fmt.Errorf("stuntgres: invalid aggregate support routine")
+	provider, err := b.ownedAggregateProvider(d, args, resultUsage, inputCollation, false, raw.Pos, inputInfo)
+	if err != nil {
+		return nil, err
 	}
 	ref := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), d.Address())
-	supportRef := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), support.Address())
 	b.dependency(ref, d.Revision())
-	b.dependency(supportRef, support.Revision())
-	inputs := make([]sqltype.Usage, len(args)+1)
-	inputs[0] = state
-	for i, arg := range args {
-		inputs[i+1] = arg.ResultUsage()
-		if inputs[i+1].Collation.ID != 0 {
-			inputs[i+1].Collation = inputInfo.Usage.Collation
-		}
-	}
-	formals, result, err := routine.AggregateSupportTypes(b.BindingCatalog(), b.DefinitionReader(), support, d.Aggregate, inputs)
-	if err != nil || result.Type != state.Type {
-		return nil, fmt.Errorf("stuntgres: invalid aggregate support signature")
-	}
-	provider := &exec.TransitionAggregate{Aggregate: d, Support: support, StateUsage: state, Result: resultUsage, Inputs: inputs, Formals: formals, Conversions: make([]sqltype.CoercionPlan, len(inputs))}
-	if collatableInput && !inputInfo.CollationConflict {
-		provider.InputCollation = inputInfo.Usage.Collation
-	}
-	var parameters []expr.Expr
-	if support.SQL == nil {
-		parameters = make([]expr.Expr, len(inputs))
-	}
-	for i, u := range inputs {
-		provider.Conversions[i], err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, u, formals[i])
-		if err != nil {
-			return nil, err
-		}
-		if parameters != nil {
-			parameterInfo := expr.Info{Usage: formals[i], Property: expr.Properties{ParameterDependent: true}}
-			if formals[i].Collation.ID != 0 {
-				parameterInfo = inputInfo
-				parameterInfo.Usage = formals[i]
-				parameterInfo.Property = expr.Properties{ParameterDependent: true}
-			}
-			parameters[i] = plan.ParameterExpr{Info: parameterInfo, Number: i + 1}
-		}
-	}
-	if support.Strict && !d.Aggregate.Definition.HasInitial {
-		provider.SeedConversion, err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, inputs[1], state)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if support.SQL == nil {
-		provider.Call, err = b.BindSelectedOperatorRoutine(support, parameters, raw.Pos)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if provider.Call != nil && provider.Call.ResultUsage().Type != state.Type {
-		return nil, fmt.Errorf("stuntgres: invalid aggregate support result")
-	}
-	if oid := d.Aggregate.Definition.Functions[1]; oid != 0 {
-		descriptor, found := b.definitionDescriptor(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
-		final, valid := descriptor.(*catalog.Procedure)
-		if !found || !valid {
-			return nil, fmt.Errorf("stuntgres: missing aggregate final routine")
-		}
-		provider.Final = final
-		finalRef := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), final.Address())
-		b.dependency(finalRef, final.Revision())
-		provider.FinalInputs = inputs[:1]
-		if d.Aggregate.Definition.FinalExtra {
-			provider.FinalInputs = inputs
-		}
-		provider.FinalFormals, result, err = routine.AggregateSupportTypes(b.BindingCatalog(), b.DefinitionReader(), final, d.Aggregate, provider.FinalInputs)
-		if err != nil || result.Type != resultUsage.Type {
-			return nil, fmt.Errorf("stuntgres: invalid aggregate final signature")
-		}
-		provider.FinalConversions = make([]sqltype.CoercionPlan, len(provider.FinalInputs))
-		var parameters []expr.Expr
-		if final.SQL == nil {
-			parameters = make([]expr.Expr, len(provider.FinalInputs))
-		}
-		for i, u := range provider.FinalInputs {
-			provider.FinalConversions[i], err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, u, provider.FinalFormals[i])
-			if err != nil {
-				return nil, err
-			}
-			if parameters != nil {
-				parameterInfo := expr.Info{Usage: provider.FinalFormals[i], Property: expr.Properties{ParameterDependent: true}}
-				if parameterInfo.Usage.Collation.ID != 0 && collatableInput {
-					parameterInfo = inputInfo
-					parameterInfo.Usage = provider.FinalFormals[i]
-					parameterInfo.Property = expr.Properties{ParameterDependent: true}
-				}
-				parameters[i] = plan.ParameterExpr{Info: parameterInfo, Number: i + 1}
-			}
-		}
-		if final.SQL == nil {
-			provider.FinalCall, err = b.BindSelectedOperatorRoutine(final, parameters, raw.Pos)
-			if err != nil {
-				return nil, err
-			}
-			if provider.FinalCall.ResultUsage().Type != resultUsage.Type {
-				return nil, fmt.Errorf("stuntgres: invalid aggregate final result")
-			}
-		}
-	}
 	call := plan.AggregateCall{Provider: provider, Routine: ref, Arguments: args, Operation: functions.AggregateTransition, IncludeNulls: true, Procedure: d, Ref: ref}
 	if b.Params.NoParameters || b.Consumer.frozenDefinition {
 		ns, ok := b.authorityNamespace(b.Query.Auth, d.Namespace())
@@ -187,4 +84,104 @@ func (b *Binder) bindOwnedAggregate(raw parser.AggregateExpr, d *catalog.Procedu
 		return b.bindWindowCall(raw, name, &call, info)
 	}
 	return b.finishAggregate(raw, call, filter, info)
+}
+
+// Build a detached selected implementation from already checked ordinary
+// operands. Window selection never mutates an ordinary/held provider.
+func (b *Binder) ownedAggregateProvider(d *catalog.Procedure, args []expr.Expr, resultUsage sqltype.Usage, collation sqltype.CollationRef, moving bool, pos parser.Position, inputInfo expr.Info) (*exec.TransitionAggregate, error) {
+	definition := &d.Aggregate.Definition
+	stateID, forwardID, finalID := definition.TransitionType, definition.Functions[0], definition.Functions[1]
+	seed, hasSeed, extra, mode := definition.Initial, definition.HasInitial, definition.FinalExtra, definition.FinalModify
+	if moving {
+		stateID, forwardID, finalID = definition.MovingType, definition.Functions[5], definition.Functions[7]
+		seed, hasSeed, extra, mode = definition.MovingInitial, definition.HasMovingInitial, definition.MovingFinalExtra, definition.MovingFinalModify
+	}
+	state := b.Type(sqltype.ID(stateID)).Usage()
+	if collation.ID != 0 && state.Collation.ID != 0 {
+		state.Collation = collation
+	}
+	inputs := make([]sqltype.Usage, len(args)+1)
+	inputs[0] = state
+	for i, arg := range args {
+		inputs[i+1] = arg.ResultUsage()
+		if collation.ID != 0 && inputs[i+1].Collation.ID != 0 {
+			inputs[i+1].Collation = collation
+		}
+	}
+	build := func(oid ids.OID, actual []sqltype.Usage, output sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, []sqltype.CoercionPlan, expr.Expr, error) {
+		descriptor, found := b.definitionDescriptor(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
+		support, valid := descriptor.(*catalog.Procedure)
+		if !found || !valid {
+			return nil, nil, nil, nil, fmt.Errorf("stuntgres: missing aggregate support routine")
+		}
+		reference := b.Host.CatalogOwner().Domain.Ref(b.BindingCatalog().Epoch(), support.Address())
+		b.dependency(reference, support.Revision())
+		formals, result, err := routine.AggregateSupportTypes(b.BindingCatalog(), b.DefinitionReader(), support, d.Aggregate, actual)
+		if err != nil || result.Type != output.Type {
+			return nil, nil, nil, nil, fmt.Errorf("stuntgres: invalid aggregate support signature")
+		}
+		conversions := make([]sqltype.CoercionPlan, len(actual))
+		var parameters []expr.Expr
+		if support.SQL == nil {
+			parameters = make([]expr.Expr, len(actual))
+		}
+		for i, input := range actual {
+			conversions[i], err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, input, formals[i])
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+			if parameters != nil {
+				parameterInfo := expr.Info{Usage: formals[i], Pos: pos, Property: expr.Properties{ParameterDependent: true}}
+				if formals[i].Collation.ID != 0 {
+					parameterInfo = inputInfo
+					parameterInfo.Usage = formals[i]
+					parameterInfo.Property = expr.Properties{ParameterDependent: true}
+				}
+				parameters[i] = plan.ParameterExpr{Info: parameterInfo, Number: i + 1}
+			}
+		}
+		var call expr.Expr
+		if support.SQL == nil {
+			call, err = b.BindSelectedOperatorRoutine(support, parameters, pos)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+			if call.ResultUsage().Type != output.Type {
+				return nil, nil, nil, nil, fmt.Errorf("stuntgres: invalid aggregate scalar result")
+			}
+		}
+		return support, formals, conversions, call, nil
+	}
+	p := &exec.TransitionAggregate{Aggregate: d, Moving: moving, Initial: seed, HasInitial: hasSeed, FinalModify: mode, StateUsage: state, Result: resultUsage, Inputs: inputs, InputCollation: collation}
+	var err error
+	p.Support, p.Formals, p.Conversions, p.Call, err = build(forwardID, inputs, state)
+	if err != nil {
+		return nil, err
+	}
+	if p.Support.Strict && !hasSeed {
+		if len(inputs) == 1 {
+			return nil, fmt.Errorf("stuntgres: strict aggregate has no seed input")
+		}
+		p.SeedConversion, err = catalog.AggregateConversion(d.Aggregate.BinaryRecipe, inputs[1], state)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if moving {
+		p.InverseSupport, p.InverseFormals, p.InverseConversions, p.InverseCall, err = build(definition.Functions[6], inputs, state)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if finalID != 0 {
+		p.FinalInputs = inputs[:1]
+		if extra {
+			p.FinalInputs = inputs
+		}
+		p.Final, p.FinalFormals, p.FinalConversions, p.FinalCall, err = build(finalID, p.FinalInputs, resultUsage)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
 }

@@ -867,6 +867,20 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 			if provider, ok := call.Provider.(functions.RemappableProvider); ok && err == nil {
 				err = m.provider(&copy.Calls[i].Provider, provider, nil)
 			}
+			if selected, ok := copy.Calls[i].Provider.(*exec.TransitionAggregate); ok && err == nil {
+				if i >= len(copy.SpecIndices) || copy.SpecIndices[i] < 0 || copy.SpecIndices[i] >= len(copy.Specs) {
+					err = fmt.Errorf("stuntgres: invalid owned window specification")
+				} else if selected.Moving != analyze.MovingAggregateSelected(selected.Aggregate.Aggregate.Definition, copy.Specs[copy.SpecIndices[i]].Frame, copy.Calls[i].Arguments) || len(selected.Inputs) != len(copy.Calls[i].Arguments)+1 || !exec.SameRoutineDeclaration(selected.Aggregate, copy.Calls[i].Procedure) || selected.Result != copy.Calls[i].Expression.ResultUsage() {
+					err = fmt.Errorf("stuntgres: mismatched owned window implementation")
+				} else {
+					for j, argument := range copy.Calls[i].Arguments {
+						if argument.ResultUsage().Type != selected.Inputs[j+1].Type {
+							err = fmt.Errorf("stuntgres: mismatched owned window argument")
+							break
+						}
+					}
+				}
+			}
 		}
 		next = &copy
 	case *plan.AggregateNode:
@@ -996,7 +1010,7 @@ func (m *ViewQueryRemapper) provider(slot *functions.AggregateProvider, provider
 			if err := routine.ValidateAggregateDefinition(m.Catalog, transition.Aggregate); err != nil {
 				return err
 			}
-			for _, selected := range []*catalog.Procedure{transition.Support, transition.Final} {
+			for _, selected := range []*catalog.Procedure{transition.Support, transition.InverseSupport, transition.Final} {
 				if selected == nil {
 					continue
 				}
@@ -1045,14 +1059,21 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 	if err := routine.ValidateAggregateDefinition(read, p.Aggregate); err != nil {
 		return err
 	}
+	if err := p.ValidateSelection(); err != nil {
+		return err
+	}
+	stateID, supportSlot, finalSlot := p.Aggregate.Aggregate.Definition.TransitionType, 0, 1
+	if p.Moving {
+		stateID, supportSlot, finalSlot = p.Aggregate.Aggregate.Definition.MovingType, 5, 7
+	}
 	invalid := func() error { return fmt.Errorf("stuntgres: mismatched transition frame specialization") }
 	inputs, err := routine.AggregateSignature(read, p.Aggregate.Signature)
-	if err != nil || len(p.Inputs) != len(inputs)+1 || p.Inputs[0] != p.StateUsage || p.StateUsage.Type == nil || !p.StateUsage.Valid() || p.StateUsage.Type.ID() != sqltype.ID(p.Aggregate.Aggregate.Definition.TransitionType) || p.Result.Type == nil || !p.Result.Valid() || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
+	if err != nil || len(p.Inputs) != len(inputs)+1 || p.Inputs[0] != p.StateUsage || p.StateUsage.Type == nil || !p.StateUsage.Valid() || p.StateUsage.Type.ID() != sqltype.ID(stateID) || p.Result.Type == nil || !p.Result.Valid() || p.Result.Type.ID() != sqltype.ID(p.Aggregate.Result) {
 		return invalid()
 	}
-	stateType, stateFound := read.LookupType(sqltype.ID(p.Aggregate.Aggregate.Definition.TransitionType))
+	stateType, stateFound := read.LookupType(sqltype.ID(stateID))
 	resultType, resultFound := read.LookupType(sqltype.ID(p.Aggregate.Result))
-	if !stateFound || !resultFound || p.StateUsage.Type != stateType || p.Result.Type != resultType || p.Support == nil || p.Support.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[0] {
+	if !stateFound || !resultFound || p.StateUsage.Type != stateType || p.Result.Type != resultType || p.Support == nil || p.Support.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[supportSlot] {
 		return invalid()
 	}
 	currentSupport, found := read.Procedure(p.Support.Address())
@@ -1073,8 +1094,23 @@ func validateTransitionFrame(read catalog.Read, p *exec.TransitionAggregate) err
 			return invalid()
 		}
 	}
+	if p.InverseSupport != nil {
+		current, found := read.Procedure(p.InverseSupport.Address())
+		if !found || !exec.SameRoutineDeclaration(current, p.InverseSupport) {
+			return invalid()
+		}
+		formals, result, err := routine.AggregateSupportTypes(read, nil, p.InverseSupport, p.Aggregate.Aggregate, p.Inputs)
+		if err != nil || result.Type != p.StateUsage.Type || len(formals) != len(p.InverseFormals) {
+			return invalid()
+		}
+		for i, formal := range formals {
+			if formal != p.InverseFormals[i] {
+				return invalid()
+			}
+		}
+	}
 	if p.Final != nil {
-		if p.Final.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[1] || len(p.FinalConversions) != len(p.FinalFormals) {
+		if p.Final.Address().ObjectID != p.Aggregate.Aggregate.Definition.Functions[finalSlot] || len(p.FinalConversions) != len(p.FinalFormals) {
 			return invalid()
 		}
 		currentFinal, found := read.Procedure(p.Final.Address())

@@ -20,93 +20,118 @@ func ValidateAggregateDefinition(v catalog.Read, d *catalog.Procedure) error {
 		return invalid()
 	}
 	a := &d.Aggregate.Definition
-	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Extension != (ids.ObjectAddress{}) || d.Strict || a.Function != d.Address().ObjectID || a.Kind != "n" || a.DirectArgs != 0 || (a.FinalModify != "r" && a.FinalModify != "s" && a.FinalModify != "w") || a.MovingFinalModify != "r" || a.MovingFinalExtra || a.SortOperator != 0 || a.MovingType != 0 || a.MovingSpace != 0 || a.HasMovingInitial || a.MovingInitial != "" {
+	modeValid := func(mode string) bool { return mode == "r" || mode == "s" || mode == "w" }
+	if d.RoutineKind != catalog.AggregateRoutine || d.SQL != nil || d.Builtin != nil || d.Implementation != nil || d.Foreign != nil || d.Extension != (ids.ObjectAddress{}) || d.Strict || a.Function != d.Address().ObjectID || a.Kind != "n" || a.DirectArgs != 0 || !modeValid(a.FinalModify) || !modeValid(a.MovingFinalModify) || a.SortOperator != 0 || !a.HasInitial && a.Initial != "" || !a.HasMovingInitial && a.MovingInitial != "" {
 		return invalid()
 	}
-	for _, id := range a.Functions[2:] {
+	for _, id := range a.Functions[2:5] {
 		if id != 0 {
 			return invalid()
 		}
-	}
-	state, ok := v.LookupType(sqltype.ID(a.TransitionType))
-	if !ok || !state.Concrete() {
-		return invalid()
-	}
-	support, ok := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: a.Functions[0]})
-	if !ok || support.RoutineKind != catalog.FunctionRoutine || support.Builtin != nil && support.Builtin.ReturnsSet || support.SQL == nil && support.Builtin == nil && support.Implementation == nil {
-		return invalid()
 	}
 	inputs, err := AggregateSignature(v, d.Signature)
 	if err != nil {
 		return err
 	}
-	arguments := make([]sqltype.Usage, len(inputs)+1)
-	arguments[0] = state.Usage()
-	copy(arguments[1:], inputs)
-	formals, result, err := AggregateSupportTypes(v, nil, support, d.Aggregate, arguments)
-	if err != nil || result.Type != state {
+	result, ok := v.LookupType(sqltype.ID(d.Result))
+	if !ok || !result.Concrete() {
 		return invalid()
 	}
-	for i, input := range arguments {
-		if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, input, formals[i]); err != nil {
-			return invalid()
-		}
-	}
-	if support.Strict && !a.HasInitial {
-		if len(inputs) == 0 {
-			return invalid()
-		}
-		if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, inputs[0], state.Usage()); err != nil {
-			return invalid()
-		}
-	}
-	var finalArguments, finalFormals []sqltype.Usage
-	if a.Functions[1] == 0 {
-		if a.TransitionType != d.Result {
-			return invalid()
-		}
-	} else {
-		final, found := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: a.Functions[1]})
-		if !found || final.RoutineKind != catalog.FunctionRoutine || final.Builtin != nil && final.Builtin.ReturnsSet || final.SQL == nil && (final.Builtin == nil || final.Builtin.Providers == 0) && final.Implementation == nil || final.Strict && a.FinalExtra {
-			return invalid()
-		}
-		finalArguments = arguments[:1]
-		if a.FinalExtra {
-			finalArguments = arguments
-		}
-		var finalResult sqltype.Usage
-		finalFormals, finalResult, err = AggregateSupportTypes(v, nil, final, d.Aggregate, finalArguments)
-		declaredResult, found := v.LookupType(sqltype.ID(d.Result))
-		if err != nil || !found || !declaredResult.Concrete() || finalResult.Type != declaredResult {
-			return invalid()
-		}
-		for i, input := range finalArguments {
-			if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, input, finalFormals[i]); err != nil {
-				return invalid()
-			}
-		}
-	}
+	var edges []catalog.Cast
 	if recipe := d.Aggregate.BinaryRecipe; recipe != nil {
-		if len(recipe.Casts) == 0 {
+		edges = recipe.Casts
+		if len(edges) == 0 {
 			return invalid()
 		}
-		for i, edge := range recipe.Casts {
-			if edge.OID == 0 || edge.ObjectRevision == 0 || edge.Source == edge.Target || edge.Method != "b" || edge.Context != "i" || edge.Function != (ids.ObjectAddress{}) || edge.InputCast != (ids.ObjectAddress{}) || edge.ResultCast != (ids.ObjectAddress{}) {
-				return invalid()
+	}
+	used := make([]bool, len(edges))
+	conversion := func(source, target sqltype.Usage) bool {
+		if _, err := catalog.AggregateConversion(d.Aggregate.BinaryRecipe, source, target); err != nil {
+			return false
+		}
+		for i, edge := range edges {
+			if edge.Source == source.BaseUsage().Type.ID() && edge.Target == target.Type.ID() {
+				used[i] = true
 			}
-			for _, old := range recipe.Casts[:i] {
-				if old.Pair() == edge.Pair() {
+		}
+		return true
+	}
+	check := func(oid ids.OID, arguments []sqltype.Usage, expected *sqltype.Descriptor) (*catalog.Procedure, error) {
+		support, found := v.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
+		if !found || support.RoutineKind != catalog.FunctionRoutine || support.Builtin != nil && support.Builtin.ReturnsSet || support.SQL == nil && (support.Builtin == nil || support.Builtin.Providers == 0) && support.Implementation == nil {
+			return nil, invalid()
+		}
+		formals, output, e := AggregateSupportTypes(v, nil, support, d.Aggregate, arguments)
+		if e != nil || output.Type != expected {
+			return nil, invalid()
+		}
+		for i, actual := range arguments {
+			if !conversion(actual, formals[i]) {
+				return nil, invalid()
+			}
+		}
+		return support, nil
+	}
+	for _, moving := range []bool{false, true} {
+		stateID, forwardID, inverseID, finalID := a.TransitionType, a.Functions[0], ids.OID(0), a.Functions[1]
+		hasSeed, extra := a.HasInitial, a.FinalExtra
+		if moving {
+			stateID, forwardID, inverseID, finalID = a.MovingType, a.Functions[5], a.Functions[6], a.Functions[7]
+			hasSeed, extra = a.HasMovingInitial, a.MovingFinalExtra
+			if stateID == 0 {
+				if forwardID != 0 || inverseID != 0 || finalID != 0 || a.MovingSpace != 0 || hasSeed {
 					return invalid()
 				}
+				continue
 			}
-			used := support.Strict && !a.HasInitial && len(inputs) > 0 && edge.Source == inputs[0].BaseUsage().Type.ID() && edge.Target == state.ID()
-			for j, input := range arguments {
-				used = used || edge.Source == input.BaseUsage().Type.ID() && edge.Target == formals[j].Type.ID()
+		}
+		state, found := v.LookupType(sqltype.ID(stateID))
+		if !found || !state.Concrete() {
+			return invalid()
+		}
+		arguments := make([]sqltype.Usage, len(inputs)+1)
+		arguments[0] = state.Usage()
+		copy(arguments[1:], inputs)
+		forward, e := check(forwardID, arguments, state)
+		if e != nil {
+			return e
+		}
+		if forward.Strict && !hasSeed && (len(inputs) == 0 || !conversion(inputs[0], state.Usage())) {
+			return invalid()
+		}
+		if moving {
+			inverse, e := check(inverseID, arguments, state)
+			if e != nil {
+				return e
 			}
-			for j, input := range finalArguments {
-				used = used || edge.Source == input.BaseUsage().Type.ID() && edge.Target == finalFormals[j].Type.ID()
+			if inverse.Strict != forward.Strict {
+				return invalid()
 			}
-			if !used {
+		}
+		if finalID == 0 {
+			if state != result {
+				return invalid()
+			}
+		} else {
+			finalInputs := arguments[:1]
+			if extra {
+				finalInputs = arguments
+			}
+			final, e := check(finalID, finalInputs, result)
+			if e != nil {
+				return e
+			}
+			if final.Strict && extra {
+				return invalid()
+			}
+		}
+	}
+	for i, edge := range edges {
+		if edge.OID == 0 || edge.ObjectRevision == 0 || edge.Source == edge.Target || edge.Method != "b" || edge.Context != "i" || edge.Function != (ids.ObjectAddress{}) || edge.InputCast != (ids.ObjectAddress{}) || edge.ResultCast != (ids.ObjectAddress{}) || !used[i] {
+			return invalid()
+		}
+		for _, old := range edges[:i] {
+			if old.Pair() == edge.Pair() {
 				return invalid()
 			}
 		}

@@ -247,11 +247,7 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 					return err
 				}
 			}
-			kind := "function"
-			if call.Operation == plan.WindowAggregate {
-				kind = "aggregate"
-			}
-			if err := exec.AdmitRoutineReference(&local, call.Routine, call.Procedure, kind); err != nil {
+			if err := exec.AdmitRoutineReference(&local, call.Routine, call.Procedure, "function"); err != nil {
 				return err
 			}
 			if call.Operation == plan.WindowAggregate {

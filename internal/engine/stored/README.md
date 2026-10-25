@@ -403,12 +403,16 @@ host methods.
 - **Calls.** SQL routine call presentation keeps written labels and explicit
   VARIADIC. `Capture` exposes only written operands; `Children` also includes
   omitted defaults for dependency, refresh and remap traversal.
-- **Aggregates.** Owned aggregate recipes keep the original selected argument
-  syntax and catalog reference/epoch; capture, count and render share
-  `AggregateRecipeProcedure`. Transition and final expression remaps validate
-  exact source and destination private formal vectors before and after mapping,
-  alongside selected declarations and independent state/result identities.
-  Ordinary stored parameters retain their zero-bound rejection.
+- **Aggregates.** Owned grouped and window recipes keep original selected
+  argument syntax and actual aggregate catalog reference/epoch; capture, count
+  and render share `AggregateRecipeProcedure`, not provider-symbol lookup.
+  Window membership stays with the captured complete specification. Forward,
+  inverse and final remaps validate exact
+  source/destination closed formal vectors, retained conversions and selected
+  declaration identities. Selected mode, independent ordinary/moving state
+  types and result type survive replacement without live-name lookup. Mapping
+  never mutates the source provider. Ordinary stored parameters retain their
+  zero-bound rejection.
 - **Policies.** Policy runtime consumes `Policy.Expression`/`Presentation`
   through `RewriteViewExpression`/`MapExpression` and never mutates the payload
   or reparses its SQL. A presentation keeps the binder's full execution
@@ -543,7 +547,7 @@ reject, while healthy fresh current manifests remain usable.
 - Rule display and replay separation: `RUN='^TestRuleDefinition(Presentation|ReplaySeparation|ReturningLabels)$'`
 - Routine recipes, remap and type-generation refresh: `RUN='^Test(Routine|SQLRoutine)'`
 - PL array-loop usage remap and immutable controls: `RUN='^TestPLpgSQLForeachRemap$'`
-- Aggregate recipes: `RUN='^Test(CreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)|AggregateFinal.*FrameRemap)$'`
+- Aggregate recipes: `RUN='^Test(CreateAggregate(FrozenRecipeAuthority|TransitionFrameRemap|PolymorphicTransitionRemap)|Aggregate(Final.*FrameRemap|MovingFrameRemap))$'`
 - Engine renderer and `pg_depend` units: `RUN='^Test(Deparse|PGDepend|ViewCheck)'`
 - Geometric captured-source and literal serialization: `RUN='^TestGeometryRelationLiteral'`
 - Views, rules and deparsing: `RUN='^TestReference(Rule|Deparse|Materialized)'`

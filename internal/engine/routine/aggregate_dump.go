@@ -85,6 +85,52 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 	if d.Aggregate.Definition.HasInitial {
 		sql.WriteString(", INITCOND = " + dump.CommentLiteral(d.Aggregate.Definition.Initial))
 	}
-	sql.WriteString(", SSPACE = " + strconv.FormatInt(int64(d.Aggregate.Definition.TransitionSpace), 10) + ");\n")
+	sql.WriteString(", SSPACE = " + strconv.FormatInt(int64(d.Aggregate.Definition.TransitionSpace), 10))
+	definition := &d.Aggregate.Definition
+	if definition.MovingType != 0 {
+		state, found := view.LookupType(sqltype.ID(definition.MovingType))
+		if !found {
+			return dump.Statement{}, fmt.Errorf("stuntgres: missing moving aggregate state")
+		}
+		name, err := p.ColumnDeclaration(view, catalog.Column{Usage: state.Usage()})
+		if err != nil {
+			return dump.Statement{}, err
+		}
+		sql.WriteString(", MSTYPE = " + name)
+		for _, support := range []struct {
+			option string
+			oid    ids.OID
+		}{
+			{"MSFUNC", definition.Functions[5]}, {"MINVFUNC", definition.Functions[6]}, {"MFINALFUNC", definition.Functions[7]},
+		} {
+			if support.oid == 0 {
+				continue
+			}
+			procedure, found := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: support.oid})
+			if !found {
+				return dump.Statement{}, fmt.Errorf("stuntgres: missing moving aggregate support")
+			}
+			namespace, found := view.Namespace(procedure.Namespace())
+			if !found {
+				return dump.Statement{}, fmt.Errorf("stuntgres: missing moving support namespace")
+			}
+			sql.WriteString(", " + support.option + " = " + catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(procedure.Name()))
+		}
+		if definition.HasMovingInitial {
+			sql.WriteString(", MINITCOND = " + dump.CommentLiteral(definition.MovingInitial))
+		}
+		sql.WriteString(", MSSPACE = " + strconv.FormatInt(int64(definition.MovingSpace), 10))
+	}
+	if definition.MovingFinalExtra {
+		sql.WriteString(", MFINALFUNC_EXTRA = true")
+	}
+	mode = "READ_ONLY"
+	switch definition.MovingFinalModify {
+	case "s":
+		mode = "SHAREABLE"
+	case "w":
+		mode = "READ_WRITE"
+	}
+	sql.WriteString(", MFINALFUNC_MODIFY = " + mode + ");\n")
 	return dump.Statement{Owner: owner.Name, SQL: sql.String()}, nil
 }

@@ -304,17 +304,24 @@ sources never close them.
 
 ## Transition aggregates
 
-`TransitionAggregate` keeps an immutable selected plan with separate state/result
-usages. Every group owns its transition state, transition `proc.Frame` and optional
-final frame; immutable values need no speculative copying for any modification mode.
-Strict transitions distinguish never-seeded state from transition-returned NULL.
-Both support vectors use retained binary datum conversions, never current casts;
-strict transitions without an initial value recheck compatibility at startup.
-Admission checks current aggregate-owner EXECUTE for both supports even when
-strict NULL finalization will skip invocation.
-Owned window calls retain the actual checked provider and full argument vector.
-Window startup rejects SHAREABLE/READ_WRITE before opening its input, so an
-empty input cannot bypass mode admission or run a support routine.
+`TransitionAggregate` keeps an immutable selected ordinary or moving plan with
+independent state/result usages, seed and final mode. Each occurrence owns its
+state and forward/inverse/final `proc.Frame`s; immutable values need no speculative
+copying. Strict transitions distinguish never-seeded state from returned NULL.
+All vectors use retained binary conversions, never current casts; strict
+transitions without a seed recheck compatibility once at startup. Admission
+checks current aggregate-owner EXECUTE on exactly the selected supports, even
+when empty input or strict NULL skipping prevents invocation.
+
+`WindowAggregates` retains full owned argument vectors and independent
+per-occurrence head/tail cursors. Overlapping moving frames remove contributors
+through the actual inverse before adding new members. NULL inverse requests
+fresh initialization and real forward replay for that occurrence alone. Last
+contributor removal resets the execution-environment seed without inverse.
+Moving forward NULL is an error. Exclusion/disjoint frames replay; unchanged
+frames may reuse the final. Builtin SUM keeps its real forward replay path.
+Replay remains row-major and buffers are reused, not allocated per member.
+Window startup rejects selected SHAREABLE/READ_WRITE modes before opening input.
 The rejection formats the selected declaration through the current statement's
 regprocedure presenter, preserving visibility-aware qualification, identifier
 quoting and argument type spelling rather than reconstructing written syntax.
@@ -372,7 +379,7 @@ unbounded query run until it exhausts memory.
 
 ```sh
 make check RUN='^Test(MissingPreparation|InstallPreparation|ViewProducer|SetArmSource|CorrelatedJoinSource|QueryBranchPruning|SortOrderedAggregate|PgcryptoNotice|PgrowlocksLogicalTID)'
-make check RUN='^Test(CreateAggregate|AggregateFinal)'
+make check RUN='^Test(CreateAggregate|AggregateFinal|AggregateMoving)'
 make check RUN='^Test(PLpgSQLQueryLoopLifetime|FTSQueryFunctionsBatch)'  # row owners
 make check RUN='^TestReferenceQuery'   # public query execution; add REFERENCE=1 for the oracle
 ```

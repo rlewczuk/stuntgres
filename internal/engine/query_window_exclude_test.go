@@ -200,7 +200,7 @@ func (c *excludeCancelContext) Err() error {
 				caller = frame.Function
 			}
 			window = window || strings.HasSuffix(frame.Function, ".openWindowNode")
-			sum = sum || strings.HasSuffix(frame.Function, ".(*WindowSums).Evaluate")
+			sum = sum || strings.HasSuffix(frame.Function, ".(*WindowAggregates).Evaluate")
 			hit = hit || strings.Contains(frame.Function, c.phase)
 			finalize = finalize || strings.HasSuffix(frame.Function, ".IntegralSum.Finalize")
 			publication = publication || strings.HasSuffix(frame.Function, "exec.Finalize")

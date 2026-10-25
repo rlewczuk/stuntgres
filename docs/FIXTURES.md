@@ -170,6 +170,10 @@ Routine and aggregate rename/schema/owner changes preserve hard captured
 identities. Owned SQL declarations and aggregate definitions render current
 qualified names and owners, actual body/support forms and checked dependencies,
 never evaluated results, frames or granted authority.
+Moving aggregate definitions retain separate moving state types, forward,
+inverse and final identities, external seeds and option flags. Native replacement
+remaps user-defined moving states along with stored window views and frozen
+routine calls; executor frames and progress are never serialized.
 Quoted source remains soft/original; standard bodies retain checked identities.
 Changed released/installed providers emit genuine ALTER FUNCTION after required
 schema/extension creation and before dependent definitions. Free destination

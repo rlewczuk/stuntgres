@@ -75,7 +75,7 @@ func (v *View) AggregateRecipeProcedure(read catalog.Read, path analyze.ViewLite
 	if !ok || !d.DynamicCallable() || d.Aggregate == nil || raw.Schema == nil {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate procedure")
 	}
-	if raw.Within || raw.Variadic || raw.Window != nil || raw.JSON != nil || raw.Star != (len(raw.Args) == 0) {
+	if raw.Within || raw.Variadic || raw.JSON != nil || raw.Star != (len(raw.Args) == 0) || raw.Window != nil && (raw.Distinct || len(raw.Order) != 0 || raw.Filter != nil) {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen aggregate call shape")
 	}
 	if _, valid := analyze.SQLCallableShape(read, nil, d, parser.FunctionExpr{Args: raw.Args}); !valid {

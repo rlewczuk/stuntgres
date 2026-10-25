@@ -124,13 +124,15 @@ package or the engine.
   DROP records every root before the engine's shared dependency closure and
   single publication. Language admission never loads a library or probes a
   symbol.
-- **Ordinary aggregates** (`aggregate_*.go`): stage selected transition/final
-  routines, distinct transition/result types and hard dependencies atomically.
-  `AggregateSupportTypes` specializes exact declared vectors without execution,
-  default insertion or variadic expansion. Retained binary recipes govern both
-  supports after cast-row changes. Detached validation is shared by publication,
-  Dump and replacement; it is not live EXECUTE authority. Dump preserves STYPE,
-  selected qualified final identity, EXTRA and all three modification modes.
+- **Ordinary and moving aggregates** (`aggregate_*.go`): stage selected forward,
+  inverse and final declarations with independent ordinary state, moving state
+  and result types, atomically. `AggregateSupportTypes` specializes exact declared
+  vectors without execution, default insertion or variadic expansion. Retained
+  binary recipes govern every support vector after cast-row changes. Detached
+  validation is shared by publication, Dump and replacement; it is not live
+  EXECUTE authority. Dump preserves qualified support identities, both state
+  types and external seeds, signed space estimates, EXTRA and modification flags,
+  including flags without a final. Space estimates never size executor buffers.
 - **Cast DDL** (`cast.go`): CREATE/DROP CAST with endpoint ownership/USAGE and
   signature checks; declaration neither evaluates the routine nor requires its
   EXECUTE privilege. Actual use checks current EXECUTE authority. Casts depend
@@ -223,7 +225,7 @@ drop) and [reference/aggregates](../../../reference/aggregates/README.md#testing
 ```sh
 make check RUN='^Test(BuiltinRoutineLookup|OperatorRoutineLookup|SeededOperatorNames|UserOperator(Option|CatalogEstimator)|OperatorFamilySupportDeclarations)'
 make check RACE=1 RUN='^Test(OperatorClassMethodIdentity|ExclusionOperatorFamilyMembership|RoutineDrop)'
-make check RUN='^Test(AggregateFinalDetachedDefinition|CreateAggregate(DetachedDeclaredCastSupport|Retained)|SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)'
+make check RUN='^Test(Aggregate(Final|Moving)DetachedDefinition|CreateAggregate(DetachedDeclaredCastSupport|Retained)|SQLRoutineDumpEventsUseResolver|OperatorDumpLinksUsePresenter|UserOperatorDumpFinalGraph)'
 make check RUN='^Test(BuiltinCatalogValidatesForEveryEngineConfiguration|BuiltinProcedureNamesMatchSeed|OperatorDependsOnMatchesDependencyAddresses)'
 make check RUN='^TestReference(RoutineDrop|UserOperator|CastDefinition)'
 ```

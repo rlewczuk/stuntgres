@@ -511,15 +511,12 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 				return b.rejectOrdinaryWithin(r)
 			}
 			if ownedAggregate != nil && r.Window != nil {
-				if mode := ownedAggregate.Aggregate.Definition.FinalModify; mode == "s" || mode == "w" {
-					var err error
-					node, err = b.bindOwnedAggregate(r, ownedAggregate, diagnosticName)
-					if err != nil {
-						return nil, err
-					}
-					break
+				var err error
+				node, err = b.bindOwnedAggregate(r, ownedAggregate, diagnosticName)
+				if err != nil {
+					return nil, err
 				}
-				return nil, expr.ErrorAt("0A000", "user-defined aggregate window execution is unsupported", r.Pos)
+				break
 			}
 			if r.Window != nil && !functions.OrderedSetName(r.Name) {
 				var err error

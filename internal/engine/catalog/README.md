@@ -185,9 +185,14 @@ private frames, not catalog authority.
   fact. Provider metadata and ownership never grant a callable implementation.
 - **Routine definition dependencies** (`aggregate_dependencies.go`):
   `VisitProcedureDefinitionDependencies` owns the common namespace, result/formal,
-  checked standard-body/default and ordinary aggregate edges consumed by
-  catalog projection, definition admission and retirement preflight. Aggregates
-  depend on both selected supports and independently on state and result types.
+  checked standard-body/default and owned aggregate edges consumed by catalog
+  projection, definition admission and retirement preflight.
+  `VisitProcedureDeclarationDependencies` exposes the declaration phase separately:
+  catalog projection deduplicates repeated result/formal/support declarations
+  without collapsing independently captured body/default dependency rows.
+  Aggregates depend on ordinary and moving supports and their declared input/result
+  types. State types are retained indirectly through support signatures, not
+  redundant state-only aggregate edges.
   Quoted source and PL replay-order metadata do not become hard edges.
   Generated and extension provider edges remain with their owning providers.
 - **Builtin routine identities** (`builtin_routine_identities.go`,

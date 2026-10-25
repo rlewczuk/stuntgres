@@ -46,6 +46,10 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 		}
 		return nil
 	}
+	// Repeated result/formal types share a declaration edge. Checked body and
+	// default expressions retain their independently captured dependency rows.
+	// Reuse this declaration set across descriptors.
+	procedureReferences := make(map[ids.ObjectAddress]struct{})
 	for _, descriptor := range view.Descriptors() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -118,19 +122,41 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(array.ID())}, 'n')
 				}
 			}
-			catalog.VisitProcedureDefinitionDependencies(d, func(address ids.ObjectAddress) bool {
-				add(d.Address(), address, 'n')
+			clear(procedureReferences)
+			catalog.VisitProcedureDeclarationDependencies(d, func(address ids.ObjectAddress) bool {
+				if _, exists := procedureReferences[address]; !exists {
+					procedureReferences[address] = struct{}{}
+					add(d.Address(), address, 'n')
+				}
 				return true
 			})
+			if d.SQL != nil {
+				if d.SQLBody != nil {
+					for _, dependency := range d.SQLBody.Dependencies() {
+						add(d.Address(), dependency.Ref.Address, 'n')
+					}
+				}
+				if d.SQLDefaults != nil {
+					for _, dependency := range d.SQLDefaults.Dependencies() {
+						add(d.Address(), dependency.Ref.Address, 'n')
+					}
+				}
+			}
 			if runtime.TypeProviderProcedure(d) {
 				ext, ok := view.Extension(d.Extension)
-				if !ok || d.Implementation == nil { return nil, fmt.Errorf("stuntgres: missing installed codec authority") }
-				if err := d.Implementation.ValidateExtension(view, ext); err != nil { return nil, err }
+				if !ok || d.Implementation == nil {
+					return nil, fmt.Errorf("stuntgres: missing installed codec authority")
+				}
+				if err := d.Implementation.ValidateExtension(view, ext); err != nil {
+					return nil, err
+				}
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: d.Result}, 'n')
 				for arguments := string(d.Signature); arguments != ""; {
 					argument, rest, _ := strings.Cut(arguments, ",")
 					id, err := strconv.ParseUint(argument, 10, 32)
-					if err != nil { return nil, fmt.Errorf("stuntgres: invalid installed codec signature") }
+					if err != nil {
+						return nil, fmt.Errorf("stuntgres: invalid installed codec signature")
+					}
 					add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)}, 'n')
 					arguments = rest
 				}

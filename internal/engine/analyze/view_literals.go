@@ -260,7 +260,11 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if call.Procedure == nil {
 				return fmt.Errorf("stuntgres: missing captured window declaration")
 			}
-			if err := b.captureProviderReference(path, r, call.Procedure, call.Routine); err != nil {
+			if call.Procedure.DynamicCallable() && call.Procedure.Aggregate != nil {
+				if err := b.captureOwnedAggregateReference(path, r, call.Procedure, call.Routine); err != nil {
+					return err
+				}
+			} else if err := b.captureProviderReference(path, r, call.Procedure, call.Routine); err != nil {
 				return err
 			}
 			for i, argument := range call.Arguments {
@@ -308,17 +312,7 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			if call, ok := b.aggregateCallAt(n); ok {
 				if call.Procedure != nil && call.Procedure.Builtin == nil {
 					if call.Procedure.DynamicCallable() && call.Procedure.Aggregate != nil {
-						if !r.StoredAggregate {
-							return fmt.Errorf("stuntgres: missing normalized aggregate syntax")
-						}
-						read := b.BindingCatalog()
-						if call.Ref != b.Host.CatalogOwner().Domain.Ref(read.Epoch(), call.Procedure.Address()) {
-							return fmt.Errorf("stuntgres: invalid frozen aggregate reference")
-						}
-						if _, err := exec.ValidateStoredRoutineDescriptor(read, call.Procedure); err != nil {
-							return err
-						}
-						if err := b.Capture.CaptureRoutineReference(path, call.Ref); err != nil {
+						if err := b.captureOwnedAggregateReference(path, r, call.Procedure, call.Ref); err != nil {
 							return err
 						}
 					} else if extension.IntaggProviderOf(call.Procedure) != nil {
@@ -866,4 +860,18 @@ func (b *Binder) captureProviderReference(path ViewLiteralPath, raw parser.Expr,
 	}
 	b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = normalized
 	return nil
+}
+
+func (b *Binder) captureOwnedAggregateReference(path ViewLiteralPath, raw parser.AggregateExpr, procedure *catalog.Procedure, ref ids.ObjectRef) error {
+	if !raw.StoredAggregate {
+		return fmt.Errorf("stuntgres: missing normalized aggregate syntax")
+	}
+	read := b.BindingCatalog()
+	if ref != b.Host.CatalogOwner().Domain.Ref(read.Epoch(), procedure.Address()) {
+		return fmt.Errorf("stuntgres: invalid frozen aggregate reference")
+	}
+	if _, err := exec.ValidateStoredRoutineDescriptor(read, procedure); err != nil {
+		return err
+	}
+	return b.Capture.CaptureRoutineReference(path, ref)
 }
