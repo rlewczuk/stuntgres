@@ -12,7 +12,7 @@ func TestReferencePGInheritsDiagnostics(t *testing.T) {
 	pgInheritsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, populated := range []bool{false, true} {
 			if populated {
-				pgClassExec(t, p, b, b.DB, "CREATE TABLE pi_diag_p(a INT)", "CREATE TABLE pi_diag_c() INHERITS(pi_diag_p)")
+				fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pi_diag_p(a INT)", "CREATE TABLE pi_diag_c() INHERITS(pi_diag_p)")
 			}
 			for _, tc := range []struct{ query, code, message, position string }{
 				{"SELECT missing FROM pg_catalog.pg_inherits", "42703", `column "missing" does not exist`, "8"},
@@ -36,15 +36,15 @@ func TestReferencePGInheritsDiagnostics(t *testing.T) {
 		held := pgInheritsHeld(t, p, owner)
 		for _, value := range []string{"x", ""} {
 			for _, prepared := range []bool{false, true} {
-				s := pgCastParameterError(held.SQL, "oid", value, value)
+				s := fixture.PGCastParameterError(held.SQL, "oid", value, value)
 				s.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, owner, b.Recorder, s)
 			}
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgCastParameterError(held.SQL, "oid", value, value))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGCastParameterError(held.SQL, "oid", value, value))
 		}
 		pgInheritsHeldRows(t, p, b, held, 4294967295, nil)
 		if b.PG {
-			pgClassExec(t, p, b, owner, "CREATE ROLE pi_diag_reader", "SET ROLE pi_diag_reader")
+			fixture.PGClassExec(t, p, b, owner, "CREATE ROLE pi_diag_reader", "SET ROLE pi_diag_reader")
 			defer owner.ExecContext(p.Ctx, "RESET ROLE")
 			for _, q := range []string{"INSERT INTO pg_catalog.pg_inherits(inhrelid,inhparent,inhseqno,inhdetachpending) VALUES(0,0,1,false)", "UPDATE pg_catalog.pg_inherits SET inhseqno=1 WHERE FALSE", "DELETE FROM pg_catalog.pg_inherits WHERE FALSE"} {
 				for _, prepared := range []bool{false, true} {
@@ -53,7 +53,7 @@ func TestReferencePGInheritsDiagnostics(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, owner, b.Recorder, s)
 				}
 			}
-			pgClassExec(t, p, b, owner, "RESET ROLE", "DROP ROLE pi_diag_reader")
+			fixture.PGClassExec(t, p, b, owner, "RESET ROLE", "DROP ROLE pi_diag_reader")
 		} else {
 			for _, tc := range []struct{ query, stage string }{
 				{"INSERT INTO pg_catalog.pg_inherits(inhrelid,inhparent,inhseqno,inhdetachpending) VALUES(0,0,1,false)", "execute"},

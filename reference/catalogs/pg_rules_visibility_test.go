@@ -38,7 +38,7 @@ func TestReferencePGRulesVisibility(t *testing.T) {
 			denied.SelectRows = true
 			fixture.RunStep(t, p.Ctx, reader, b.Recorder, denied)
 			check(reader)
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want))
 			// Independently establish the SELECT implementation rule that pg_rules omits.
 			fixture.RunStep(t, p.Ctx, reader, b.Recorder, fixture.Select("SELECT r.rulename,r.ev_type FROM pg_rewrite r JOIN pg_class c ON c.oid=r.ev_class JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='pgr_private' AND c.relname='v' ORDER BY r.rulename", []string{"rulename", "ev_type"}, []string{"NAME", "CHAR"}, [][]any{{"_RETURN", "1"}, {"dml", "4"}}))
 			run(owner, "GRANT USAGE ON SCHEMA pgr_private TO pgr_reader")
@@ -58,7 +58,7 @@ func TestReferencePGRulesVisibility(t *testing.T) {
 			check(reader)
 			run(owner, "REVOKE SELECT ON pgr_private.src FROM pgr_reader")
 			run(owner, "REVOKE USAGE ON SCHEMA pgr_private FROM pgr_reader")
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want))
 			check(reader)
 		})
 	}

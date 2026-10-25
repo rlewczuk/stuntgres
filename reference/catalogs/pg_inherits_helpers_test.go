@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-var pgInheritsColumns = []string{"inhrelid", "inhparent", "inhseqno", "inhdetachpending"}
 var pgInheritsTypes = []string{"OID", "OID", "INT4", "BOOL"}
 
 const pgInheritsSelect = "SELECT inhrelid,inhparent,inhseqno,inhdetachpending FROM pg_catalog.pg_inherits"
@@ -48,7 +47,7 @@ func pgInheritsBag(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.
 	}
 	q := pgInheritsSelect + " WHERE inhrelid IN (SELECT oid FROM pg_catalog.pg_class WHERE relname IN (" + strings.Join(quoted, ",") + "))"
 	for _, prepared := range []bool{false, true} {
-		s := fixture.Select(q, pgInheritsColumns, pgInheritsTypes, want)
+		s := fixture.Select(q, fixture.PGInheritsColumns, pgInheritsTypes, want)
 		s.Bag, s.Prepared = true, prepared
 		fixture.OidReferenceRows(t, p.Ctx, b, db, s)
 	}
@@ -67,13 +66,13 @@ func pgInheritsHeld(t *testing.T, p *fixture.Pair, db *sql.Conn) fixture.HeldSta
 
 func pgInheritsHeldRows(t *testing.T, p *fixture.Pair, b fixture.Backend, held fixture.HeldStatement, id int64, want [][]any) {
 	t.Helper()
-	fixture.OidReferenceRows(t, p.Ctx, b, held, fixture.Select(held.SQL, pgInheritsColumns, pgInheritsTypes, want, id))
+	fixture.OidReferenceRows(t, p.Ctx, b, held, fixture.Select(held.SQL, fixture.PGInheritsColumns, pgInheritsTypes, want, id))
 }
 
 func pgInheritsMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgInheritsColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGInheritsColumns) {
 		t.Fatal("four labels", names, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -81,7 +80,7 @@ func pgInheritsMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		t.Fatal("four descriptors", types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgInheritsColumns[i] || typ.DatabaseTypeName() != pgInheritsTypes[i] {
+		if typ.Name() != fixture.PGInheritsColumns[i] || typ.DatabaseTypeName() != pgInheritsTypes[i] {
 			t.Fatal("descriptor", i, typ)
 		}
 		if nullable, known := typ.Nullable(); (!pg && (!known || nullable)) || (pg && known) {

@@ -36,11 +36,11 @@ func TestReferencePgClassDiagnostics(t *testing.T) {
 		held := fixture.HeldStatement{Executor: owner, Statement: stmt, SQL: q}
 		for _, value := range []string{"bad", ""} {
 			for _, prepared := range []bool{false, true} {
-				s := pgCastParameterError(q, "oid", value, value)
+				s := fixture.PGCastParameterError(q, "oid", value, value)
 				s.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			}
-			s := pgCastParameterError(q, "oid", value, value)
+			s := fixture.PGCastParameterError(q, "oid", value, value)
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 		}
 		pgClassCheck(t, p, b, held, fixture.Select(q, []string{"relname"}, []string{"NAME"}, [][]any{{"pg_class"}}, int64(1259)))

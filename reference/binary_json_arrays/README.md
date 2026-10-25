@@ -8,7 +8,7 @@ BIT/VARBIT types, operators and functions; BYTEA types, functions, hashing, bit 
 byte access and binary conversion; and the `intagg` extension. JSON aggregates
 live in `reference/aggregates`; Boolean aggregates in `reference/types`; ranges
 and multiranges in `reference/ranges_text_search`; other string functions in `reference/strings`; the intagg
-`pg_aggregate` identity in `reference/catalogs`.
+`pg_aggregate` identity in `reference/catalog_objects`.
 
 ## Testing
 

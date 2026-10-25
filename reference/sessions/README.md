@@ -44,7 +44,7 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
   Assert quiet analysis, exact COMMENT completion and Ready states, private
   owner/committed peer text, savepoint recovery, held reuse and simple-message
   rollback. Shared metadata/lifecycle coverage lives in
-  [catalogs](../catalogs/README.md#testing).
+  [catalog_objects](../catalog_objects/README.md#testing).
 - Transactional view definitions use actual simple-query messages and named
   Parse/Describe/Bind/Execute traffic, plus server-backed Go BeginTx. Ordinary
   utility preparation stays quiet; materialized creation retains source

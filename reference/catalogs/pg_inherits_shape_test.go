@@ -8,7 +8,7 @@ import (
 
 func TestReferencePGInheritsShape(t *testing.T) {
 	pgInheritsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pi_shape_p(a INT)", "CREATE TABLE pi_shape_c() INHERITS(pi_shape_p)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pi_shape_p(a INT)", "CREATE TABLE pi_shape_c() INHERITS(pi_shape_p)")
 		parent := pgInheritsID(t, p, b.DB, "pi_shape_p")
 		child := pgInheritsID(t, p, b.DB, "pi_shape_c")
 		for _, populated := range []bool{false, true} {

@@ -43,7 +43,7 @@ func TestReferencePGSequenceDiagnostics(t *testing.T) {
 				}
 			}
 			pgSequenceExec(t, p, b, b.DB, "CREATE SEQUENCE pgs_failed AS INTEGER INCREMENT 7 MINVALUE -20 MAXVALUE 200 START 15 CACHE 9 CYCLE")
-			oid := pgDescriptionRelationID(t, p, b, "pgs_failed")
+			oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_failed")
 			for _, prepared := range []bool{false, true} {
 				s := fixture.ErrorDiagnostic("ALTER SEQUENCE pgs_failed CACHE 0", fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: "CACHE (0) must be greater than zero"})
 				s.Prepared, s.ErrorStage = prepared, "execute"

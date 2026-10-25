@@ -15,7 +15,7 @@ Related families: CHECK, NOT NULL and standalone table DDL in `reference/tables`
 identity, defaults and `SET/DROP EXPRESSION` in `reference/sequences`;
 query-derived table creation in `reference/query_core`; wire-protocol routes in
 `reference/sessions`; standalone catalog and transaction families in
-`reference/catalogs` and `reference/locking_transactions`.
+`reference/catalogs` (and its sibling catalog packages) and `reference/locking_transactions`.
 
 ## Testing
 

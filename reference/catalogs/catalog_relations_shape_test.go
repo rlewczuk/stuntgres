@@ -16,12 +16,12 @@ func catalogRelationsShape(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, suffix := range []string{" WHERE false", " LIMIT 0"} {
 			s := fixture.Select("SELECT * FROM pg_catalog.pg_get_catalog_foreign_keys()"+suffix, catalogRelationsColumns, catalogRelationsTypes, nil)
 			s.Prepared = prepared
-			s.CheckMetadata = catalogRelationsMetadata(b.PG)
+			s.CheckMetadata = fixture.CatalogRelationsMetadata(b.PG)
 			run(s)
 		}
 		s := fixture.Select("SELECT pg_get_catalog_foreign_keys() AS link LIMIT 0", []string{"link"}, []string{"RECORD"}, nil)
 		s.Prepared = prepared
-		s.CheckMetadata = catalogRelationsMetadata(b.PG)
+		s.CheckMetadata = fixture.CatalogRelationsMetadata(b.PG)
 		run(s)
 		s = catalogRelationsInventoryStep("(SELECT (pg_get_catalog_foreign_keys()).*) AS expanded")
 		s.Prepared = prepared
@@ -40,7 +40,7 @@ func catalogRelationsShape(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		// These two relations already have genuine catalog descriptors on native.
 		s = fixture.Select("SELECT fktable,fkcols,pktable,pkcols,is_array,is_opt FROM pg_get_catalog_foreign_keys() WHERE fktable::oid=1255 AND fkcols=ARRAY['pronamespace']", catalogRelationsColumns, catalogRelationsTypes, [][]any{{"pg_proc", "{pronamespace}", "pg_namespace", "{oid}", false, false}})
 		s.Prepared = prepared
-		s.CheckMetadata = catalogRelationsMetadata(b.PG)
+		s.CheckMetadata = fixture.CatalogRelationsMetadata(b.PG)
 		run(s)
 	}
 	ordinalRows := make([][]any, 219)

@@ -89,7 +89,8 @@ Rules:
   (`geometryConversionCPGCircle`); `geometryConversionCCoordinates` also checks
   each coordinate within relative 1e-14 with exact sign and nonfinite category.
 - A new or changed builtin type, operator, opclass or extension also changes the
-  inventories in reference/catalogs: rerun `^TestReferencePGType`,
+  inventories in reference/catalogs, reference/catalog_objects and
+  reference/extensions: rerun `^TestReferencePGType`,
   `^TestReferencePGOperator`, `^TestReferencePGOpclass` and, for extension types,
   `^TestReferenceAvailableExtensionsFiltering$`.
 

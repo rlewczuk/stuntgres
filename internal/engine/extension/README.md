@@ -264,7 +264,7 @@ allocated; duplicate, nil, versionless or badly named registrations rejected
 with the registry unchanged). Every other witness needs an engine that installs
 the extension, so provider identity, conflicts, forged manifests and owner import
 are engine units. Public SQL lives in
-[reference/catalogs](../../../reference/catalogs/README.md#testing) (extension
+[reference/extensions](../../../reference/extensions/README.md#testing) (extension
 DDL and catalogs),
 [reference/extension_types](../../../reference/extension_types/README.md#testing)
 (earth, cube, lo and ISN values),

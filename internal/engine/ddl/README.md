@@ -165,4 +165,4 @@ make check RUN='^TestReference((Alter)?Schema|.*Tablespace|Load|DatabaseCreate)'
 ```
 
 Public LOAD scenarios are in
-[reference/catalogs](../../../reference/catalogs/README.md#testing).
+[reference/extensions](../../../reference/extensions/README.md#testing).

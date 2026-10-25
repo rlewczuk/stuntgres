@@ -7,7 +7,7 @@ import (
 
 func TestReferencePGInheritsInheritance(t *testing.T) {
 	pgInheritsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE TABLE pi_p(a INT)", "CREATE TABLE pi_q(a INT)",
 			"CREATE TABLE pi_c() INHERITS(pi_q,pi_p)", "CREATE TABLE pi_leaf() INHERITS(pi_c)",
 			"CREATE TABLE pi_like(LIKE pi_c)", "CREATE VIEW pi_view AS SELECT a FROM pi_c",
@@ -21,7 +21,7 @@ func TestReferencePGInheritsInheritance(t *testing.T) {
 			s.Prepared = prepared
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			for _, id := range []int64{0, 4294967295} {
-				s = fixture.Select(pgInheritsSelect+" WHERE inhrelid=$1::oid", pgInheritsColumns, pgInheritsTypes, nil, id)
+				s = fixture.Select(pgInheritsSelect+" WHERE inhrelid=$1::oid", fixture.PGInheritsColumns, pgInheritsTypes, nil, id)
 				s.Prepared = prepared
 				fixture.OidReferenceRows(t, p.Ctx, b, b.DB, s)
 			}
@@ -31,7 +31,7 @@ func TestReferencePGInheritsInheritance(t *testing.T) {
 
 func TestReferencePGInheritsPartitionsAndIndexes(t *testing.T) {
 	pgInheritsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE TABLE pi_root(k INT,payload TEXT,CONSTRAINT pi_root_key UNIQUE(k,payload)) PARTITION BY RANGE(k)",
 			"CREATE TABLE pi_mid PARTITION OF pi_root FOR VALUES FROM(0) TO(10) PARTITION BY RANGE(k)",
 			"CREATE TABLE pi_low PARTITION OF pi_mid FOR VALUES FROM(0) TO(5)")
@@ -40,7 +40,7 @@ func TestReferencePGInheritsPartitionsAndIndexes(t *testing.T) {
 		names := []string{"pi_root", "pi_mid", "pi_low", "pi_root_key", "pi_mid_k_payload_key", "pi_low_k_payload_key"}
 		want := [][]any{pgInheritsEdge(mid, root, 1), pgInheritsEdge(low, mid, 1), pgInheritsEdge(mi, ri, 1), pgInheritsEdge(li, mi, 1)}
 		pgInheritsBag(t, p, b, b.DB, names, want)
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pi_future PARTITION OF pi_mid FOR VALUES FROM(5) TO(10)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pi_future PARTITION OF pi_mid FOR VALUES FROM(5) TO(10)")
 		future, fi := pgInheritsID(t, p, b.DB, "pi_future"), pgInheritsID(t, p, b.DB, "pi_future_k_payload_key")
 		names = append(names, "pi_future", "pi_future_k_payload_key")
 		want = append(want, pgInheritsEdge(future, mid, 1), pgInheritsEdge(fi, mi, 1))
@@ -48,9 +48,9 @@ func TestReferencePGInheritsPartitionsAndIndexes(t *testing.T) {
 		// Detach severs immediate links only, preserving the nested subtree.
 		nested := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
 		defer nested.ExecContext(p.Ctx, "ROLLBACK")
-		pgClassExec(t, p, b, nested, "BEGIN", "SAVEPOINT pi_nested", "ALTER TABLE pi_root DETACH PARTITION pi_mid")
+		fixture.PGClassExec(t, p, b, nested, "BEGIN", "SAVEPOINT pi_nested", "ALTER TABLE pi_root DETACH PARTITION pi_mid")
 		pgInheritsBag(t, p, b, nested, names, [][]any{pgInheritsEdge(low, mid, 1), pgInheritsEdge(li, mi, 1), pgInheritsEdge(future, mid, 1), pgInheritsEdge(fi, mi, 1)})
-		pgClassExec(t, p, b, nested, "ROLLBACK TO pi_nested", "COMMIT")
+		fixture.PGClassExec(t, p, b, nested, "ROLLBACK TO pi_nested", "COMMIT")
 		pgInheritsBag(t, p, b, b.DB, names, want)
 
 		pgInheritsManualTree(t, p, b)
@@ -59,25 +59,25 @@ func TestReferencePGInheritsPartitionsAndIndexes(t *testing.T) {
 		mn := []string{"pi_manual", "pi_a", "pi_b", "pi_manual_idx", "pi_a_idx", "pi_b_idx"}
 		mw := [][]any{pgInheritsEdge(ma, mr, 1), pgInheritsEdge(mb, mr, 1)}
 		pgInheritsBag(t, p, b, b.DB, mn, mw)
-		pgClassExec(t, p, b, b.DB, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx")
 		mw = append(mw, pgInheritsEdge(mai, mri, 1))
 		pgInheritsBag(t, p, b, b.DB, mn, mw)
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT indisvalid FROM pg_index WHERE indexrelid='pi_manual_idx'::regclass::oid", []string{"indisvalid"}, []string{"BOOL"}, [][]any{{false}}))
-		pgClassExec(t, p, b, b.DB, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_a_idx")
 		pgInheritsBag(t, p, b, b.DB, mn, mw)
-		pgClassExec(t, p, b, b.DB, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_b_idx")
+		fixture.PGClassExec(t, p, b, b.DB, "ALTER INDEX pi_manual_idx ATTACH PARTITION pi_b_idx")
 		mw = append(mw, pgInheritsEdge(mbi, mri, 1))
 		pgInheritsBag(t, p, b, b.DB, mn, mw)
-		pgClassExec(t, p, b, b.DB, "DROP INDEX pi_manual_idx")
+		fixture.PGClassExec(t, p, b, b.DB, "DROP INDEX pi_manual_idx")
 		pgInheritsBag(t, p, b, b.DB, mn, mw[:2])
-		pgClassExec(t, p, b, b.DB, "DROP TABLE pi_manual")
+		fixture.PGClassExec(t, p, b, b.DB, "DROP TABLE pi_manual")
 		pgInheritsBag(t, p, b, b.DB, mn, nil)
 	})
 }
 
 func pgInheritsManualTree(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
-	pgClassExec(t, p, b, b.DB,
+	fixture.PGClassExec(t, p, b, b.DB,
 		"CREATE TABLE pi_manual(k INT,payload TEXT) PARTITION BY RANGE(k)",
 		"CREATE TABLE pi_a PARTITION OF pi_manual FOR VALUES FROM(0) TO(5)",
 		"CREATE TABLE pi_b PARTITION OF pi_manual FOR VALUES FROM(5) TO(10)",

@@ -15,7 +15,7 @@ func TestReferenceCatalogRelationsFeatureSmoke(t *testing.T) {
 		// second implementation or a baseline connectivity/helper-only smoke.
 		catalogRelationsInventory(t, p, b)
 		s := fixture.Select("SELECT * FROM pg_get_catalog_foreign_keys() WHERE false", catalogRelationsColumns, catalogRelationsTypes, nil)
-		s.CheckMetadata = catalogRelationsMetadata(b.PG)
+		s.CheckMetadata = fixture.CatalogRelationsMetadata(b.PG)
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Select("SELECT pg_get_userbyid(0) AS missing,pg_get_userbyid(NULL::oid) AS absent", []string{"missing", "absent"}, []string{"NAME", "NAME"}, [][]any{{"unknown (OID=0)", nil}}))
 		catalogRelationsHeld(t, p, b)

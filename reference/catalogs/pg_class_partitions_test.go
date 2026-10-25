@@ -10,7 +10,7 @@ import (
 
 func TestReferencePgClassPartitions(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE TABLE pc18_bound_root(id integer PRIMARY KEY) PARTITION BY RANGE(id)",
 			"CREATE TABLE pc18_bound_leaf PARTITION OF pc18_bound_root FOR VALUES FROM(0) TO(10)",
 			"CREATE TABLE pc18_bound_default PARTITION OF pc18_bound_root DEFAULT",
@@ -73,9 +73,9 @@ func TestReferencePgClassPartitions(t *testing.T) {
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT c.relkind,c.relispartition,c.relpartbound IS NULL AS no_bound,c.relhassubclass FROM pg_class c JOIN pg_index i ON i.indexrelid=c.oid WHERE i.indrelid='pc18_bound_root'::regclass::oid", []string{"relkind", "relispartition", "no_bound", "relhassubclass"}, []string{"CHAR", "BOOL", "BOOL", "BOOL"}, [][]any{{"I", false, true, true}}))
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT c.relkind,c.relispartition,c.relpartbound IS NULL AS no_bound FROM pg_class c JOIN pg_index i ON i.indexrelid=c.oid WHERE i.indrelid='pc18_bound_leaf'::regclass::oid", []string{"relkind", "relispartition", "no_bound"}, []string{"CHAR", "BOOL", "BOOL"}, [][]any{{"i", true, true}}))
 		// ATTACH uses the owner's private catalog overlay, including savepoints.
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_bound_attach(id integer)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_bound_attach(id integer)")
 		a, peer := fixture.LockConnections(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pc18_bound_save", "ALTER TABLE pc18_bound_nested ATTACH PARTITION pc18_bound_attach FOR VALUES FROM(30) TO(40)")
+		fixture.PGClassExec(t, p, b, a, "BEGIN", "SAVEPOINT pc18_bound_save", "ALTER TABLE pc18_bound_nested ATTACH PARTITION pc18_bound_attach FOR VALUES FROM(30) TO(40)")
 		defer a.ExecContext(p.Ctx, "ROLLBACK")
 		q := "SELECT relispartition,relpartbound IS NULL AS no_bound FROM pg_class WHERE relname='pc18_bound_attach'"
 		check := func(db fixture.Executor, member bool) {
@@ -83,9 +83,9 @@ func TestReferencePgClassPartitions(t *testing.T) {
 		}
 		check(a, true)
 		check(peer, false)
-		pgClassExec(t, p, b, a, "ROLLBACK TO pc18_bound_save")
+		fixture.PGClassExec(t, p, b, a, "ROLLBACK TO pc18_bound_save")
 		check(a, false)
-		pgClassExec(t, p, b, a, "COMMIT")
+		fixture.PGClassExec(t, p, b, a, "COMMIT")
 		check(peer, false)
 		rename := "ALTER TABLE pc18_bound_leaf RENAME TO pc18_bound_renamed"
 		if b.PG {
@@ -93,9 +93,9 @@ func TestReferencePgClassPartitions(t *testing.T) {
 			if err := b.DB.QueryRowContext(p.Ctx, "SELECT relpartbound FROM pg_class WHERE relname='pc18_bound_leaf'").Scan(&before); err != nil {
 				t.Fatal(err)
 			}
-			pgClassExec(t, p, b, b.DB, rename)
+			fixture.PGClassExec(t, p, b, b.DB, rename)
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relname,relpartbound FROM pg_class WHERE relname='pc18_bound_renamed'", []string{"relname", "relpartbound"}, []string{"NAME", "PG_NODE_TREE"}, [][]any{{"pc18_bound_renamed", before}}))
-			pgClassExec(t, p, b, b.DB, "DROP TABLE pc18_bound_renamed")
+			fixture.PGClassExec(t, p, b, b.DB, "DROP TABLE pc18_bound_renamed")
 		}
 		if !b.PG {
 			old, err := b.DB.QueryContext(p.Ctx, "SELECT relpartbound FROM pg_class WHERE relname='pc18_bound_leaf'")
@@ -113,7 +113,7 @@ func TestReferencePgClassPartitions(t *testing.T) {
 			probe := "SELECT relpartbound FROM pg_class WHERE relname='pc18_bound_leaf'"
 			pgClassCheck(t, p, b, b.DB, fixture.Select(probe, []string{"relpartbound"}, []string{"PG_NODE_TREE"}, [][]any{{cases[1].tree}}))
 			dump := fixture.ViewDump(t, p)
-			pgClassExec(t, p, b, b.DB, "DROP TABLE pc18_bound_leaf")
+			fixture.PGClassExec(t, p, b, b.DB, "DROP TABLE pc18_bound_leaf")
 			pgClassCheck(t, p, b, b.DB, fixture.Select(probe, []string{"relpartbound"}, []string{"PG_NODE_TREE"}, nil))
 			fixture.ViewRestore(t, p, dump)
 			pgClassCheck(t, p, b, b.DB, fixture.Select(probe, []string{"relpartbound"}, []string{"PG_NODE_TREE"}, [][]any{{cases[1].tree}}))
@@ -154,7 +154,7 @@ func pgClassRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, name
 
 func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 	pgClassScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_phys_heap(id integer,note text)", "CREATE INDEX pc18_phys_idx ON pc18_phys_heap(id)", "CREATE SEQUENCE pc18_phys_seq", "CREATE VIEW pc18_phys_view AS SELECT id FROM pc18_phys_heap", "CREATE MATERIALIZED VIEW pc18_phys_mv AS SELECT id FROM pc18_phys_heap WITH NO DATA", "CREATE TYPE pc18_phys_pair AS(id integer)", "CREATE TABLE pc18_phys_root(id integer PRIMARY KEY) PARTITION BY RANGE(id)")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_phys_heap(id integer,note text)", "CREATE INDEX pc18_phys_idx ON pc18_phys_heap(id)", "CREATE SEQUENCE pc18_phys_seq", "CREATE VIEW pc18_phys_view AS SELECT id FROM pc18_phys_heap", "CREATE MATERIALIZED VIEW pc18_phys_mv AS SELECT id FROM pc18_phys_heap WITH NO DATA", "CREATE TYPE pc18_phys_pair AS(id integer)", "CREATE TABLE pc18_phys_root(id integer PRIMARY KEY) PARTITION BY RANGE(id)")
 		q := "SELECT relfilenode,relpages,reltuples,relallvisible,relallfrozen,reltoastrelid,relrewrite,CASE WHEN relkind IN ('r','m') THEN relfrozenxid::text::bigint>=3 ELSE relfrozenxid='0'::xid END AS valid_freeze,relminmxid FROM pg_class WHERE relname=$1"
 		held := fixture.ViewHold(t, p, b, q)
 		check := func() {
@@ -193,17 +193,17 @@ func TestReferencePgClassPhysicalBoundaries(t *testing.T) {
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("UPDATE pc18_phys_heap SET note=$1 WHERE id=1", 1, strings.Repeat("wide datum ", 1000)))
 		fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("DELETE FROM pc18_phys_heap WHERE id=2", 1))
 		check()
-		pgClassExec(t, p, b, b.DB, "DROP INDEX pc18_phys_idx", "REFRESH MATERIALIZED VIEW pc18_phys_mv WITH DATA")
+		fixture.PGClassExec(t, p, b, b.DB, "DROP INDEX pc18_phys_idx", "REFRESH MATERIALIZED VIEW pc18_phys_mv WITH DATA")
 		if !b.PG {
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT reltoastrelid,relpages,reltuples FROM pg_class WHERE relname='pc18_phys_heap'", []string{"reltoastrelid", "relpages", "reltuples"}, []string{"OID", "INT4", "FLOAT4"}, [][]any{{int64(0), int64(0), float64(-1)}}))
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relname FROM pg_class WHERE relkind='t' OR relkind='f'", []string{"relname"}, []string{"NAME"}, nil))
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relfilenode,relpages,reltuples,relispopulated FROM pg_class WHERE relname='pc18_phys_mv'", []string{"relfilenode", "relpages", "reltuples", "relispopulated"}, []string{"OID", "INT4", "FLOAT4", "BOOL"}, [][]any{{int64(0), int64(0), float64(-1), true}}))
 		}
 		if b.PG {
-			pgClassExec(t, p, b, b.DB, "ANALYZE pc18_phys_heap")
+			fixture.PGClassExec(t, p, b, b.DB, "ANALYZE pc18_phys_heap")
 			pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT reltuples FROM pg_class WHERE relname='pc18_phys_heap'", []string{"reltuples"}, []string{"FLOAT4"}, [][]any{{float64(1)}}))
 		}
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc18_phys_parent(id integer PRIMARY KEY)", "CREATE TABLE pc18_phys_child(id integer REFERENCES pc18_phys_parent(id))")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc18_phys_parent(id integer PRIMARY KEY)", "CREATE TABLE pc18_phys_child(id integer REFERENCES pc18_phys_parent(id))")
 		pgClassCheck(t, p, b, b.DB, fixture.Select("SELECT relname,relhastriggers FROM pg_class WHERE relname='pc18_phys_child' OR relname='pc18_phys_parent' ORDER BY relname", []string{"relname", "relhastriggers"}, []string{"NAME", "BOOL"}, [][]any{{"pc18_phys_child", b.PG}, {"pc18_phys_parent", b.PG}}))
 	})
 }

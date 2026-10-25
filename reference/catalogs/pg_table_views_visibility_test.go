@@ -35,10 +35,10 @@ func TestReferencePGTableViewsVisibility(t *testing.T) {
 			}
 			defer viewStmt.Close()
 			viewHeld := fixture.HeldStatement{Executor: reader, Statement: viewStmt, SQL: viewQuery}
-			expected := [][]any{pgTableRow("pgtv_offpath", "pgtv_disclosed", "pgtv_private_owner", false), pgTableRow("pgtv_private", "pgtv_disclosed", "pgtv_private_owner", false), pgTableRow("public", "pgtv_disclosed", pgTableViewsOwner(b), false)}
+			expected := [][]any{fixture.PGTableRow("pgtv_offpath", "pgtv_disclosed", "pgtv_private_owner", false), fixture.PGTableRow("pgtv_private", "pgtv_disclosed", "pgtv_private_owner", false), fixture.PGTableRow("public", "pgtv_disclosed", fixture.PGTableViewsOwner(b), false)}
 			check := func(tableDB, viewDB fixture.Executor) {
-				fixture.RunStep(t, p.Ctx, tableDB, b.Recorder, pgTableViewSelect(b, query, pgTableColumns, pgTableTypes, expected))
-				fixture.RunStep(t, p.Ctx, viewDB, b.Recorder, fixture.Select(viewQuery, pgViewColumns[:3], pgViewTypes[:3], [][]any{{"pgtv_offpath", "pgtv_disclosed_view", "pgtv_private_owner"}, {"pgtv_private", "pgtv_disclosed_view", "pgtv_private_owner"}, {"public", "pgtv_disclosed_view", pgTableViewsOwner(b)}}))
+				fixture.RunStep(t, p.Ctx, tableDB, b.Recorder, fixture.PGTableViewSelect(b, query, fixture.PGTableColumns, fixture.PGTableTypes, expected))
+				fixture.RunStep(t, p.Ctx, viewDB, b.Recorder, fixture.Select(viewQuery, fixture.PGViewColumns[:3], fixture.PGViewTypes[:3], [][]any{{"pgtv_offpath", "pgtv_disclosed_view", "pgtv_private_owner"}, {"pgtv_private", "pgtv_disclosed_view", "pgtv_private_owner"}, {"public", "pgtv_disclosed_view", fixture.PGTableViewsOwner(b)}}))
 			}
 			check(owner, owner)
 			run(reader, "SET SESSION AUTHORIZATION pgtv_reader")

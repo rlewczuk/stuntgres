@@ -25,7 +25,7 @@ func TestReferencePGRulesTemporary(t *testing.T) {
 			held := fixture.HeldStatement{Executor: peer, Statement: stmt, SQL: query}
 			checkPeer := func(want [][]any) {
 				pgRulesCheck(t, p, b, peer, query, want, "pgr_temp")
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want, "pgr_temp"))
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, query, pgRulesColumns, pgRulesTypes, want, "pgr_temp"))
 				pgRulesCheck(t, p, b, peer, query, [][]any{{"public", "pgr_persistent", "r", "CREATE RULE r AS\n    ON INSERT TO public.pgr_persistent DO NOTHING;"}}, "pgr_persistent")
 			}
 			checkPeer(nil)
@@ -51,7 +51,7 @@ func TestReferencePGRulesTemporary(t *testing.T) {
 				t.Fatal("physical retirement", err)
 			}
 			if b.PG {
-				extensionTempExitBarrier(t, p, peer, b.Recorder, 31842001)
+				fixture.ExtensionTempExitBarrier(t, p, peer, b.Recorder, 31842001)
 			}
 			checkPeer(nil)
 		})

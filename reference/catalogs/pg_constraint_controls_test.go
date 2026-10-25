@@ -12,7 +12,7 @@ func TestReferencePGConstraintControls(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"pc_constraint_reader"})
 	pgConstraintScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		setup := []string{"CREATE TABLE pc_control_parent(id INT PRIMARY KEY)", "CREATE TABLE pc_control_child(id BIGINT,b INT CONSTRAINT pc_control_nn NOT NULL,CONSTRAINT pc_control_ck CHECK(b>id),CONSTRAINT pc_control_u UNIQUE(b),CONSTRAINT pc_control_fk FOREIGN KEY(id) REFERENCES pc_control_parent,CONSTRAINT pc_control_x EXCLUDE USING btree(id WITH =))", "ALTER TABLE pc_control_child ADD CONSTRAINT pc_control_invalid CHECK(b<>0) NOT VALID"}
-		pgClassExec(t, p, b, b.DB, setup...)
+		fixture.PGClassExec(t, p, b, b.DB, setup...)
 		check := func() {
 			pgConstraintCheck(t, p, b, b.DB, fixture.Select("SELECT conname,contype,conkey::text,convalidated,conenforced,conbin IS NOT NULL AS tree FROM pg_constraint WHERE conrelid='pc_control_child'::regclass::oid ORDER BY conname", []string{"conname", "contype", "conkey", "convalidated", "conenforced", "tree"}, []string{"NAME", "CHAR", "TEXT", "BOOL", "BOOL", "BOOL"}, [][]any{{"pc_control_ck", "c", "{2,1}", true, true, true}, {"pc_control_fk", "f", "{1}", true, true, false}, {"pc_control_invalid", "c", "{2}", false, true, true}, {"pc_control_nn", "n", "{2}", true, true, false}, {"pc_control_u", "u", "{2}", true, true, false}, {"pc_control_x", "x", "{1}", true, true, false}}))
 			pgConstraintFK(t, p, b, "pc_control_child", "pc_control_parent", "pc_control_fk", "{1}", "{1}", "{15}", "{96}", "{410}", "a", "a", "s", nil, true)
@@ -62,12 +62,12 @@ func TestReferencePGConstraintControls(t *testing.T) {
 				t.Fatal("retained multiplicity", retained.Err())
 			}
 		} else {
-			pgClassExec(t, p, b, b.DB, "DROP TABLE pc_control_child", "DROP TABLE pc_control_parent")
-			pgClassExec(t, p, b, b.DB, setup...)
+			fixture.PGClassExec(t, p, b, b.DB, "DROP TABLE pc_control_child", "DROP TABLE pc_control_parent")
+			fixture.PGClassExec(t, p, b, b.DB, setup...)
 			check()
 		}
 		owner := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, owner, "CREATE TEMP TABLE pc_control_temp(a INT CONSTRAINT pc_control_temp_nn NOT NULL)")
+		fixture.PGClassExec(t, p, b, owner, "CREATE TEMP TABLE pc_control_temp(a INT CONSTRAINT pc_control_temp_nn NOT NULL)")
 		pgConstraintCheck(t, p, b, owner, fixture.Select("SELECT conkey::text FROM pg_constraint WHERE conrelid='pc_control_temp'::regclass::oid", []string{"conkey"}, []string{"TEXT"}, [][]any{{"{1}"}}))
 		peer := fixture.SequenceCoreConn(t, p.Ctx, b.DB)
 		tempID := pgConstraintID(t, p, owner, "pc_control_temp", "pc_control_temp_nn")
@@ -75,11 +75,11 @@ func TestReferencePGConstraintControls(t *testing.T) {
 		missing := fixture.ImplicitError("SELECT 'pc_control_temp'::regclass::oid", fixture.Diagnostic{Code: "42P01", Message: `relation "pc_control_temp" does not exist`, Position: "8"})
 		missing.SelectRows, missing.ErrorStage = true, "execute"
 		fixture.RunStep(t, p.Ctx, peer, b.Recorder, missing)
-		pgClassExec(t, p, b, owner, "DROP TABLE pc_control_temp")
+		fixture.PGClassExec(t, p, b, owner, "DROP TABLE pc_control_temp")
 		pgConstraintCheck(t, p, b, owner, fixture.Select("SELECT conname FROM pg_constraint WHERE conname='pc_control_temp_nn'", []string{"conname"}, []string{"NAME"}, nil))
-		pgClassExec(t, p, b, owner, "CREATE ROLE pc_constraint_reader", "SET ROLE pc_constraint_reader")
+		fixture.PGClassExec(t, p, b, owner, "CREATE ROLE pc_constraint_reader", "SET ROLE pc_constraint_reader")
 		pgConstraintCheck(t, p, b, owner, fixture.Select("SELECT conname FROM pg_catalog.pg_constraint WHERE conname='pc_control_fk'", []string{"conname"}, []string{"NAME"}, [][]any{{"pc_control_fk"}}))
-		pgClassExec(t, p, b, owner, "RESET ROLE", "DROP ROLE pc_constraint_reader", "CREATE TABLE public.pg_constraint(marker INT)", "SET search_path TO public,pg_catalog")
+		fixture.PGClassExec(t, p, b, owner, "RESET ROLE", "DROP ROLE pc_constraint_reader", "CREATE TABLE public.pg_constraint(marker INT)", "SET search_path TO public,pg_catalog")
 		pgConstraintCheck(t, p, b, owner, fixture.Select("SELECT marker FROM pg_constraint", []string{"marker"}, []string{"INT4"}, nil))
 		pgConstraintCheck(t, p, b, owner, fixture.Select("SELECT conname FROM pg_catalog.pg_constraint WHERE conname='pc_control_fk'", []string{"conname"}, []string{"NAME"}, [][]any{{"pc_control_fk"}}))
 	})

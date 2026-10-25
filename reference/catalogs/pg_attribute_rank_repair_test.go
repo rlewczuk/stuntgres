@@ -30,14 +30,14 @@ func TestReferencePGAttributeRankRepairSQL(t *testing.T) {
 				restored := false
 				target := "pa18_repair_child"
 				if local {
-					pgClassExec(t, p, b, b.DB,
+					fixture.PGClassExec(t, p, b, b.DB,
 						"CREATE TYPE pa18_repair_type AS(id integer)",
 						"CREATE TABLE pa18_repair_root OF pa18_repair_type",
 						"CREATE TABLE pa18_repair_child(a integer[][][] DEFAULT '{{1,2}}',note text DEFAULT 'early') INHERITS(pa18_repair_root)",
 						"CREATE TABLE pa18_repair_grand() INHERITS(pa18_repair_child)",
 						"ALTER TYPE pa18_repair_type ADD ATTRIBUTE a integer[][] CASCADE")
 					if nested {
-						pgClassExec(t, p, b, b.DB,
+						fixture.PGClassExec(t, p, b, b.DB,
 							"ALTER TYPE pa18_repair_type ALTER ATTRIBUTE a TYPE integer[][][] CASCADE",
 							"ALTER TYPE pa18_repair_type DROP ATTRIBUTE a CASCADE",
 							"ALTER TYPE pa18_repair_type ADD ATTRIBUTE a integer[][] CASCADE")
@@ -46,7 +46,7 @@ func TestReferencePGAttributeRankRepairSQL(t *testing.T) {
 					fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("INSERT INTO pa18_repair_grand(id) VALUES(10)", 1))
 				} else {
 					target = "pa18_repair_root"
-					pgClassExec(t, p, b, b.DB,
+					fixture.PGClassExec(t, p, b, b.DB,
 						"CREATE TYPE pa18_repair_type AS(a integer[][])",
 						"CREATE TABLE pa18_repair_root OF pa18_repair_type",
 						"ALTER TYPE pa18_repair_type ALTER ATTRIBUTE a TYPE integer[][][] CASCADE",
@@ -105,10 +105,10 @@ func TestReferencePGAttributeRankRepairSQL(t *testing.T) {
 						pgAttributeRead(t, p, backend, backend.DB, id, " AND attnum>0 AND NOT attisdropped", want)
 					}
 					if local {
-						pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a FROM pa18_repair_root ORDER BY id", []string{"id", "a"}, []string{"INT4", "_INT4"}, [][]any{{int64(9), "{{1,2}}"}, {int64(10), "{{1,2}}"}}))
-						pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM pa18_repair_child ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(9), "early"}, {int64(10), "early"}}))
+						fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a FROM pa18_repair_root ORDER BY id", []string{"id", "a"}, []string{"INT4", "_INT4"}, [][]any{{int64(9), "{{1,2}}"}, {int64(10), "{{1,2}}"}}))
+						fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,note FROM pa18_repair_child ORDER BY id", []string{"id", "note"}, []string{"INT4", "TEXT"}, [][]any{{int64(9), "early"}, {int64(10), "early"}}))
 					} else {
-						pgAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT a FROM pa18_repair_root", []string{"a"}, []string{"_INT4"}, [][]any{{"{{1,2}}"}}))
+						fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT a FROM pa18_repair_root", []string{"a"}, []string{"_INT4"}, [][]any{{"{{1,2}}"}}))
 					}
 				}
 				check(b, 3)

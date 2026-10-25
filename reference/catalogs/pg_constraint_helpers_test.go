@@ -8,7 +8,6 @@ import (
 	"testing"
 )
 
-var pgConstraintColumns = []string{"oid", "conname", "connamespace", "contype", "condeferrable", "condeferred", "conenforced", "convalidated", "conrelid", "contypid", "conindid", "conparentid", "confrelid", "confupdtype", "confdeltype", "confmatchtype", "conislocal", "coninhcount", "connoinherit", "conperiod", "conkey", "confkey", "conpfeqop", "conppeqop", "conffeqop", "confdelsetcols", "conexclop", "conbin"}
 var pgConstraintTypes = []string{"OID", "NAME", "OID", "CHAR", "BOOL", "BOOL", "BOOL", "BOOL", "OID", "OID", "OID", "OID", "OID", "CHAR", "CHAR", "CHAR", "BOOL", "INT2", "BOOL", "BOOL", "_INT2", "_INT2", "_OID", "_OID", "_OID", "_INT2", "_OID", "PG_NODE_TREE"}
 
 func pgConstraintScenario(t *testing.T, f func(*testing.T, *fixture.Pair, fixture.Backend)) {
@@ -27,7 +26,7 @@ func pgConstraintCheck(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixt
 func pgConstraintMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	t.Helper()
 	names, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(names, pgConstraintColumns) {
+	if err != nil || !reflect.DeepEqual(names, fixture.PGConstraintColumns) {
 		t.Fatal("28 labels", names, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -35,7 +34,7 @@ func pgConstraintMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 		t.Fatal("28 descriptors", types, err)
 	}
 	for i, typ := range types {
-		if typ.Name() != pgConstraintColumns[i] || typ.DatabaseTypeName() != pgConstraintTypes[i] {
+		if typ.Name() != fixture.PGConstraintColumns[i] || typ.DatabaseTypeName() != pgConstraintTypes[i] {
 			t.Fatalf("descriptor %d: %s/%s", i+1, typ.Name(), typ.DatabaseTypeName())
 		}
 		if nullable, known := typ.Nullable(); (!pg && (!known || nullable != (i >= 20))) || (pg && known) {
@@ -70,7 +69,7 @@ func pgConstraintMetadata(t *testing.T, rows *sql.Rows, pg bool) {
 	if !pg {
 		names[0] = "corrupt"
 		again, err := rows.Columns()
-		if err != nil || !reflect.DeepEqual(again, pgConstraintColumns) {
+		if err != nil || !reflect.DeepEqual(again, fixture.PGConstraintColumns) {
 			t.Fatal("detached labels", again, err)
 		}
 	}

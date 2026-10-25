@@ -16,7 +16,7 @@ func TestReferencePGSequenceFeatureSmoke(t *testing.T) {
 				for _, q := range []string{"CREATE ROLE pgs_smoke_reader", "CREATE SCHEMA pgs_smoke_private", "CREATE SEQUENCE pgs_smoke_private.pgs_smoke AS INTEGER INCREMENT 7 MINVALUE -20 MAXVALUE 200 START 15 CACHE 9 CYCLE"} {
 					pgSequenceExec(t, p, b, c, q)
 				}
-				oid := pgDescriptionRelationID(t, p, b, "pgs_smoke")
+				oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_smoke")
 				row := pgSequenceCustom(oid)
 				pgSequenceCheck(t, p, b, c, oid, row)
 				for _, tc := range []struct {

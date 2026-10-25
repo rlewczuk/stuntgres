@@ -405,7 +405,7 @@ func TestReferencePGTypeBuiltins(t *testing.T) {
 		for _, row := range pgTypeBuiltinFacts {
 			t.Run(fmt.Sprint(row[0], "_", row[1]), func(t *testing.T) {
 				q := "SELECT " + pgTypeNumericProjection + " FROM pg_catalog.pg_type WHERE oid=$1::oid"
-				step := fixture.Select(q, pgTypeColumns, pgTypeNumericTypes(), [][]any{row}, row[0])
+				step := fixture.Select(q, fixture.PGTypeColumns, pgTypeNumericTypes(), [][]any{row}, row[0])
 				fixture.PgDescriptionRows(t, p, b, step)
 				stmt, err := b.DB.PrepareContext(p.Ctx, q)
 				if err != nil {
@@ -430,7 +430,7 @@ func TestReferencePGTypeBuiltins(t *testing.T) {
 		for i, r := range pgTypeBuiltinFacts {
 			ids[i] = fmt.Sprint(r[0])
 		}
-		s := fixture.Select("SELECT "+pgTypeNumericProjection+" FROM pg_type WHERE oid IN ("+strings.Join(ids, ",")+") ORDER BY oid", pgTypeColumns, pgTypeNumericTypes(), pgTypeBuiltinFacts)
+		s := fixture.Select("SELECT "+pgTypeNumericProjection+" FROM pg_type WHERE oid IN ("+strings.Join(ids, ",")+") ORDER BY oid", fixture.PGTypeColumns, pgTypeNumericTypes(), pgTypeBuiltinFacts)
 		fixture.PgDescriptionRows(t, p, b, s)
 	})
 }
@@ -472,8 +472,8 @@ func pgTypeSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
 			wantLength, wantLengthKnown = int64(1<<63-1), true
 		}
 		// Nonfatal, full raw metadata is essential during oracle-first discovery.
-		if c.Name() != pgTypeColumns[i] || c.DatabaseTypeName() != pgTypeTypes[i] || c.ScanType() != scan || (pg && (nullable || known)) || (!pg && (!known || nullable != (i >= 29))) || length != wantLength || lengthKnown != wantLengthKnown || precision != 0 || scale != 0 || decimalKnown {
-			t.Errorf("column[%d] name=%q dbtype=%q scan=%v nullable=%v/%v length=%d/%v decimal=%d/%d/%v; want name=%q dbtype=%q scan=%v nativeNullable=%v length=%d/%v", i, c.Name(), c.DatabaseTypeName(), c.ScanType(), nullable, known, length, lengthKnown, precision, scale, decimalKnown, pgTypeColumns[i], pgTypeTypes[i], scan, i >= 29, wantLength, wantLengthKnown)
+		if c.Name() != fixture.PGTypeColumns[i] || c.DatabaseTypeName() != pgTypeTypes[i] || c.ScanType() != scan || (pg && (nullable || known)) || (!pg && (!known || nullable != (i >= 29))) || length != wantLength || lengthKnown != wantLengthKnown || precision != 0 || scale != 0 || decimalKnown {
+			t.Errorf("column[%d] name=%q dbtype=%q scan=%v nullable=%v/%v length=%d/%v decimal=%d/%d/%v; want name=%q dbtype=%q scan=%v nativeNullable=%v length=%d/%v", i, c.Name(), c.DatabaseTypeName(), c.ScanType(), nullable, known, length, lengthKnown, precision, scale, decimalKnown, fixture.PGTypeColumns[i], pgTypeTypes[i], scan, i >= 29, wantLength, wantLengthKnown)
 		}
 	}
 }

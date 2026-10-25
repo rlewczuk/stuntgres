@@ -44,8 +44,8 @@ func TestReferencePGSequencePrivilegesAndTemporary(t *testing.T) {
 			}
 			// New private schemas and sequences have no PUBLIC privileges.
 			// Prove absent access with each backend's supported public surface.
-			oid := pgDescriptionRelationID(t, p, b, "pgs_private_definition")
-			temp := pgDescriptionRelationID(t, p, b, "pgs_peer_temporary")
+			oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_private_definition")
+			temp := fixture.PGDescriptionRelationID(t, p, b, "pgs_peer_temporary")
 			temprow := pgSequenceDefault(temp)
 			temprow[2], temprow[6] = int64(17), int64(4)
 			pgSequenceCheck(t, p, b, owner, temp, temprow)

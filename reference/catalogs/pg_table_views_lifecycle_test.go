@@ -25,7 +25,7 @@ func pgViewSummary(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.
 	if err != nil {
 		t.Fatal(err)
 	}
-	pgTableViewMetadata(t, types, pgViewColumns, pgViewTypes, b.PG)
+	fixture.PGTableViewMetadata(t, types, fixture.PGViewColumns, fixture.PGViewTypes, b.PG)
 	if !rows.Next() {
 		t.Fatal("missing view summary", rows.Err())
 	}
@@ -35,7 +35,7 @@ func pgViewSummary(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.
 	}
 	normalized := make([]any, 4)
 	for i, v := range raw {
-		fixture.AssertRawValue(t, b.PG, pgViewTypes[i], v)
+		fixture.AssertRawValue(t, b.PG, fixture.PGViewTypes[i], v)
 		normalized[i] = fixture.Normalize(v)
 	}
 	if !reflect.DeepEqual(normalized[:3], []any{schema, name, owner}) {
@@ -56,13 +56,13 @@ func pgViewSummary(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	fixture.ViewRecorded(t, b.Recorder, pgViewProbe, pgViewColumns, pgViewTypes, [][]any{normalized}, false)
+	fixture.ViewRecorded(t, b.Recorder, pgViewProbe, fixture.PGViewColumns, fixture.PGViewTypes, [][]any{normalized}, false)
 	return definition
 }
 func pgTableRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, want []any) {
 	t.Helper()
 	defer rows.Close()
-	pgTableViewMetadata(t, types, pgTableColumns, pgTableTypes, false)
+	fixture.PGTableViewMetadata(t, types, fixture.PGTableColumns, fixture.PGTableTypes, false)
 	if !rows.Next() {
 		t.Fatal("retained table row missing", rows.Err())
 	}
@@ -75,7 +75,7 @@ func pgTableRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, want
 		t.Fatal(err)
 	}
 	for i, v := range got {
-		fixture.AssertRawValue(t, false, pgTableTypes[i], v)
+		fixture.AssertRawValue(t, false, fixture.PGTableTypes[i], v)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got, want)
@@ -83,7 +83,7 @@ func pgTableRetained(t *testing.T, rows *sql.Rows, types []*sql.ColumnType, want
 	if rows.Next() || rows.Err() != nil {
 		t.Fatal("retained cardinality", rows.Err())
 	}
-	pgTableViewMetadata(t, types, pgTableColumns, pgTableTypes, false)
+	fixture.PGTableViewMetadata(t, types, fixture.PGTableColumns, fixture.PGTableTypes, false)
 }
 
 func TestReferencePGTableViewsLifecycle(t *testing.T) {
@@ -96,8 +96,8 @@ func TestReferencePGTableViewsLifecycle(t *testing.T) {
 			for _, q := range []string{"CREATE ROLE pgtv_owner", "CREATE SCHEMA pgtv_moved", "CREATE TABLE pgtv_life(n INT)", "CREATE VIEW pgtv_life_view AS SELECT n FROM pgtv_life"} {
 				run(q)
 			}
-			pgTableCheck(t, p, b, b.DB, "pgtv_life", pgTableRow("public", "pgtv_life", pgTableViewsOwner(b), false))
-			pgViewSummary(t, p, b, b.DB, "public", "pgtv_life_view", pgTableViewsOwner(b), "pgtv_life", "n")
+			pgTableCheck(t, p, b, b.DB, "pgtv_life", fixture.PGTableRow("public", "pgtv_life", fixture.PGTableViewsOwner(b), false))
+			pgViewSummary(t, p, b, b.DB, "public", "pgtv_life_view", fixture.PGTableViewsOwner(b), "pgtv_life", "n")
 			for _, q := range []string{"CREATE INDEX pgtv_life_index ON pgtv_life(n)", "DROP INDEX pgtv_life_index", "ALTER TABLE pgtv_life RENAME TO pgtv_renamed", "ALTER TABLE pgtv_renamed RENAME COLUMN n TO renamed_n", "ALTER TABLE pgtv_renamed SET SCHEMA pgtv_moved"} {
 				run(q)
 			}
@@ -107,17 +107,17 @@ func TestReferencePGTableViewsLifecycle(t *testing.T) {
 				run(q)
 			}
 			pgTableCheck(t, p, b, b.DB, "pgtv_life", nil)
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, pgTableViewSelect(b, "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pgtv_moved' AND tablename='pgtv_renamed'", pgTableColumns, pgTableTypes, [][]any{pgTableRow("pgtv_moved", "pgtv_renamed", tableOwner, true)}))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.PGTableViewSelect(b, "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pgtv_moved' AND tablename='pgtv_renamed'", fixture.PGTableColumns, fixture.PGTableTypes, [][]any{fixture.PGTableRow("pgtv_moved", "pgtv_renamed", tableOwner, true)}))
 			pgViewSummary(t, p, b, b.DB, "pgtv_moved", "pgtv_renamed_view", "pgtv_owner", "pgtv_moved", "pgtv_renamed")
 			run("CREATE OR REPLACE VIEW pgtv_moved.pgtv_renamed_view AS SELECT renamed_n+1 AS n FROM pgtv_moved.pgtv_renamed")
 			pgViewSummary(t, p, b, b.DB, "pgtv_moved", "pgtv_renamed_view", "pgtv_owner", "renamed_n", "+ 1")
 			run("DROP TABLE pgtv_moved.pgtv_renamed CASCADE")
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, pgTableViewSelect(b, "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pgtv_moved'", pgTableColumns, pgTableTypes, nil))
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, pgTableViewSelect(b, "SELECT * FROM pg_catalog.pg_views WHERE schemaname='pgtv_moved'", pgViewColumns, pgViewTypes, nil))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.PGTableViewSelect(b, "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pgtv_moved'", fixture.PGTableColumns, fixture.PGTableTypes, nil))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.PGTableViewSelect(b, "SELECT * FROM pg_catalog.pg_views WHERE schemaname='pgtv_moved'", fixture.PGViewColumns, fixture.PGViewTypes, nil))
 			for _, q := range []string{`CREATE ROLE "pgtv Quoted Owner"`, `CREATE SCHEMA "pgtv Quoted Schema" AUTHORIZATION "pgtv Quoted Owner"`, `SET SESSION AUTHORIZATION "pgtv Quoted Owner"`, `CREATE TABLE "pgtv Quoted Schema"."Odd Table"(n INT)`, `CREATE VIEW "pgtv Quoted Schema"."Odd View" AS SELECT n FROM "pgtv Quoted Schema"."Odd Table"`, "RESET SESSION AUTHORIZATION"} {
 				run(q)
 			}
-			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, pgTableViewSelect(b, "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pgtv Quoted Schema'", pgTableColumns, pgTableTypes, [][]any{pgTableRow("pgtv Quoted Schema", "Odd Table", "pgtv Quoted Owner", false)}))
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.PGTableViewSelect(b, "SELECT * FROM pg_catalog.pg_tables WHERE schemaname='pgtv Quoted Schema'", fixture.PGTableColumns, fixture.PGTableTypes, [][]any{fixture.PGTableRow("pgtv Quoted Schema", "Odd Table", "pgtv Quoted Owner", false)}))
 			pgViewSummary(t, p, b, b.DB, "pgtv Quoted Schema", "Odd View", "pgtv Quoted Owner", `"pgtv Quoted Schema"`, `"Odd Table"`)
 		})
 	}
@@ -133,9 +133,9 @@ func TestReferencePGTableViewsPreparedRetention(t *testing.T) {
 			pgTableCheck(t, p, b, held, "pgtv_retained", nil)
 			run("CREATE TABLE pgtv_retained(n INT)")
 			run("CREATE VIEW pgtv_retained_view AS SELECT n FROM pgtv_retained")
-			original := pgTableRow("public", "pgtv_retained", pgTableViewsOwner(b), false)
+			original := fixture.PGTableRow("public", "pgtv_retained", fixture.PGTableViewsOwner(b), false)
 			pgTableCheck(t, p, b, held, "pgtv_retained", original)
-			originalDefinition := pgViewSummary(t, p, b, viewHeld, "public", "pgtv_retained_view", pgTableViewsOwner(b), "pgtv_retained")
+			originalDefinition := pgViewSummary(t, p, b, viewHeld, "public", "pgtv_retained_view", fixture.PGTableViewsOwner(b), "pgtv_retained")
 			var old *sql.Rows
 			var descriptions []*sql.ColumnType
 			if !b.PG {
@@ -165,20 +165,20 @@ func TestReferencePGTableViewsPreparedRetention(t *testing.T) {
 				}
 			}
 			run("CREATE INDEX pgtv_retained_index ON pgtv_retained(n)")
-			pgTableCheck(t, p, b, held, "pgtv_retained", pgTableRow("public", "pgtv_retained", pgTableViewsOwner(b), true))
+			pgTableCheck(t, p, b, held, "pgtv_retained", fixture.PGTableRow("public", "pgtv_retained", fixture.PGTableViewsOwner(b), true))
 			run("ALTER TABLE pgtv_retained RENAME TO pgtv_retained_new")
 			pgTableCheck(t, p, b, held, "pgtv_retained", nil)
-			pgTableCheck(t, p, b, held, "pgtv_retained_new", pgTableRow("public", "pgtv_retained_new", pgTableViewsOwner(b), true))
+			pgTableCheck(t, p, b, held, "pgtv_retained_new", fixture.PGTableRow("public", "pgtv_retained_new", fixture.PGTableViewsOwner(b), true))
 			run("CREATE OR REPLACE VIEW pgtv_retained_view AS SELECT n+2 AS n FROM pgtv_retained_new")
-			pgViewSummary(t, p, b, viewHeld, "public", "pgtv_retained_view", pgTableViewsOwner(b), "pgtv_retained_new", "+ 2")
+			pgViewSummary(t, p, b, viewHeld, "public", "pgtv_retained_view", fixture.PGTableViewsOwner(b), "pgtv_retained_new", "+ 2")
 			run("DROP TABLE pgtv_retained_new CASCADE")
 			pgTableCheck(t, p, b, held, "pgtv_retained_new", nil)
-			fixture.RunStep(t, p.Ctx, viewHeld, b.Recorder, pgTableViewSelect(b, pgViewProbe, pgViewColumns, pgViewTypes, nil, "public", "pgtv_retained_view"))
+			fixture.RunStep(t, p.Ctx, viewHeld, b.Recorder, fixture.PGTableViewSelect(b, pgViewProbe, fixture.PGViewColumns, fixture.PGViewTypes, nil, "public", "pgtv_retained_view"))
 			if old != nil {
 				pgTableRetained(t, old, descriptions, original)
 			}
 			if oldView != nil {
-				pgTableViewMetadata(t, viewDescriptions, pgViewColumns, pgViewTypes, false)
+				fixture.PGTableViewMetadata(t, viewDescriptions, fixture.PGViewColumns, fixture.PGViewTypes, false)
 				if !oldView.Next() {
 					t.Fatal("retained view missing", oldView.Err())
 				}
@@ -187,15 +187,15 @@ func TestReferencePGTableViewsPreparedRetention(t *testing.T) {
 					t.Fatal(err)
 				}
 				for i, v := range got {
-					fixture.AssertRawValue(t, false, pgViewTypes[i], v)
+					fixture.AssertRawValue(t, false, fixture.PGViewTypes[i], v)
 				}
-				if !reflect.DeepEqual(got, [4]any{"public", "pgtv_retained_view", pgTableViewsOwner(b), originalDefinition}) {
+				if !reflect.DeepEqual(got, [4]any{"public", "pgtv_retained_view", fixture.PGTableViewsOwner(b), originalDefinition}) {
 					t.Fatal("retained definition changed", got)
 				}
 				if oldView.Next() || oldView.Err() != nil {
 					t.Fatal("retained view cardinality", oldView.Err())
 				}
-				pgTableViewMetadata(t, viewDescriptions, pgViewColumns, pgViewTypes, false)
+				fixture.PGTableViewMetadata(t, viewDescriptions, fixture.PGViewColumns, fixture.PGViewTypes, false)
 			}
 		})
 	}

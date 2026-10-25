@@ -7,7 +7,7 @@ import (
 
 func TestReferencePGConstraintKinds(t *testing.T) {
 	pgConstraintScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-		pgClassExec(t, p, b, b.DB,
+		fixture.PGClassExec(t, p, b, b.DB,
 			"CREATE TABLE pc_kinds(a INT CONSTRAINT pc_nn NOT NULL,b INT,dead TEXT,d INT,CONSTRAINT pc_ck CHECK(b>a AND b<>0),CONSTRAINT pc_const CHECK(TRUE),CONSTRAINT pc_private CHECK(a>0) NO INHERIT,CONSTRAINT pc_x EXCLUDE USING btree ((a+1) WITH =))",
 			"ALTER TABLE pc_kinds DROP COLUMN dead",
 			"CREATE UNIQUE INDEX pc_u ON pc_kinds(d,a) INCLUDE(b)",
@@ -33,7 +33,7 @@ func TestReferencePGConstraintKinds(t *testing.T) {
 		pgConstraintCheck(t, p, b, b.DB, fixture.Select("SELECT relchecks FROM pg_class WHERE oid='pc_kinds'::regclass::oid", []string{"relchecks"}, []string{"INT2"}, [][]any{{int64(3)}}))
 		pgConstraintCheck(t, p, b, b.DB, fixture.Select("SELECT contype,conkey::text FROM pg_constraint WHERE conrelid='pc_pk'::regclass::oid ORDER BY contype,conkey::text", []string{"contype", "conkey"}, []string{"CHAR", "TEXT"}, [][]any{{"n", "{1}"}, {"n", "{2}"}, {"p", "{2,1}"}}))
 		pgConstraintCheck(t, p, b, b.DB, fixture.Select("SELECT conname FROM pg_constraint WHERE conname='pc_ck' AND conrelid IN ('pc_kinds'::regclass::oid,'pc_kinds_other'::regclass::oid) ORDER BY conname", []string{"conname"}, []string{"NAME"}, [][]any{{"pc_ck"}, {"pc_ck"}}))
-		pgClassExec(t, p, b, b.DB, "CREATE TABLE pc_invalid_nn(a INT)", "ALTER TABLE pc_invalid_nn ADD CONSTRAINT pc_invalid_nn_key NOT NULL a NOT VALID")
+		fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc_invalid_nn(a INT)", "ALTER TABLE pc_invalid_nn ADD CONSTRAINT pc_invalid_nn_key NOT NULL a NOT VALID")
 		pgConstraintCheck(t, p, b, b.DB, fixture.Select("SELECT contype,convalidated,conenforced,conkey::text FROM pg_constraint WHERE conrelid='pc_invalid_nn'::regclass::oid", []string{"contype", "convalidated", "conenforced", "conkey"}, []string{"CHAR", "BOOL", "BOOL", "TEXT"}, [][]any{{"n", false, true, "{1}"}}))
 	})
 }

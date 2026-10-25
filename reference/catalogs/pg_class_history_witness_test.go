@@ -52,7 +52,7 @@ func TestReferencePgClassBuiltinIndexHistory(t *testing.T) {
 func TestReferencePgClassFirstChildRollback(t *testing.T) {
 	pgClassHistoryWitnessScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		owner, peer := fixture.LockConnections(t, p.Ctx, b.DB)
-		pgClassExec(t, p, b, owner, "CREATE TABLE pc18_first_root(n integer) PARTITION BY RANGE(n)", "CREATE TABLE pc18_first_child(n integer)")
+		fixture.PGClassExec(t, p, b, owner, "CREATE TABLE pc18_first_root(n integer) PARTITION BY RANGE(n)", "CREATE TABLE pc18_first_child(n integer)")
 		query := "SELECT relhassubclass FROM pg_class WHERE relname='pc18_first_root'"
 		ownerStmt, err := owner.PrepareContext(p.Ctx, query)
 		if err != nil {
@@ -80,20 +80,20 @@ func TestReferencePgClassFirstChildRollback(t *testing.T) {
 		attach := "ALTER TABLE pc18_first_root ATTACH PARTITION pc18_first_child FOR VALUES FROM(0) TO(10)"
 		check(false, false)
 		membership(owner, false)
-		pgClassExec(t, p, b, owner, "BEGIN", "SAVEPOINT pc18_first_save", attach)
+		fixture.PGClassExec(t, p, b, owner, "BEGIN", "SAVEPOINT pc18_first_save", attach)
 		defer owner.ExecContext(p.Ctx, "ROLLBACK")
 		check(true, false)
 		membership(owner, true)
 		membership(peer, false)
-		pgClassExec(t, p, b, owner, "ROLLBACK TO pc18_first_save")
+		fixture.PGClassExec(t, p, b, owner, "ROLLBACK TO pc18_first_save")
 		check(false, false)
 		membership(owner, false)
 		membership(peer, false)
 		// A successful second private publication is also discarded by full
 		// transaction rollback, not merely by the savepoint restoration.
-		pgClassExec(t, p, b, owner, attach)
+		fixture.PGClassExec(t, p, b, owner, attach)
 		check(true, false)
-		pgClassExec(t, p, b, owner, "ROLLBACK")
+		fixture.PGClassExec(t, p, b, owner, "ROLLBACK")
 		check(false, false)
 		membership(owner, false)
 		membership(peer, false)

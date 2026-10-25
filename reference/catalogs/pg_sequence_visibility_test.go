@@ -44,7 +44,7 @@ func TestReferencePGSequenceVisibility(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			a, peer := fixture.LockConnections(t, p.Ctx, b.DB)
 			pgSequenceExec(t, p, b, a, "CREATE SEQUENCE pgs_visibility AS INTEGER INCREMENT 7 MINVALUE -20 MAXVALUE 200 START 15 CACHE 9 CYCLE")
-			oid := pgDescriptionRelationID(t, p, b, "pgs_visibility")
+			oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_visibility")
 			original := pgSequenceCustom(oid)
 			pgSequenceExec(t, p, b, a, "BEGIN")
 			defer a.ExecContext(p.Ctx, "ROLLBACK")
@@ -108,9 +108,9 @@ func TestReferencePGSequenceRepeatableRead(t *testing.T) {
 			for _, q := range []string{"CREATE SEQUENCE pgs_rr_kept AS INTEGER INCREMENT 7 MINVALUE -20 MAXVALUE 200 START 15 CACHE 9 CYCLE", "CREATE SEQUENCE pgs_rr_dropped", "CREATE SEQUENCE pgs_rr_own"} {
 				pgSequenceExec(t, p, b, peer, q)
 			}
-			kept := pgDescriptionRelationID(t, p, b, "pgs_rr_kept")
-			dropped := pgDescriptionRelationID(t, p, b, "pgs_rr_dropped")
-			own := pgDescriptionRelationID(t, p, b, "pgs_rr_own")
+			kept := fixture.PGDescriptionRelationID(t, p, b, "pgs_rr_kept")
+			dropped := fixture.PGDescriptionRelationID(t, p, b, "pgs_rr_dropped")
+			own := fixture.PGDescriptionRelationID(t, p, b, "pgs_rr_own")
 			query := "SELECT * FROM pg_catalog.pg_sequence WHERE seqrelid=$1::oid OR seqrelid=$2::oid OR seqrelid=$3::oid"
 			pgSequenceExec(t, p, b, r, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			defer r.ExecContext(p.Ctx, "ROLLBACK")
@@ -126,7 +126,7 @@ func TestReferencePGSequenceRepeatableRead(t *testing.T) {
 			for _, q := range []string{"BEGIN", "ALTER SEQUENCE pgs_rr_kept START 21 CACHE 4", "CREATE SEQUENCE pgs_rr_added", "DROP SEQUENCE pgs_rr_dropped", "COMMIT"} {
 				pgSequenceExec(t, p, b, peer, q)
 			}
-			added := pgDescriptionRelationID(t, p, b, "pgs_rr_added")
+			added := fixture.PGDescriptionRelationID(t, p, b, "pgs_rr_added")
 			fixture.PgDescriptionExecutorRows(t, p, b, r, pgSequenceSelect(b, query, initial, kept, dropped, added))
 			fixture.PgDescriptionExecutorRows(t, p, b, held, pgSequenceSelect(b, query, initial, kept, dropped, added))
 			pgSequenceExec(t, p, b, r, "SAVEPOINT pgs_rr_save")
@@ -163,7 +163,7 @@ func TestReferencePGSequenceRepeatableReadFirstPrepare(t *testing.T) {
 				t.Run(b.Name, func(t *testing.T) {
 					r, peer := fixture.LockConnections(t, p.Ctx, b.DB)
 					pgSequenceExec(t, p, b, peer, "CREATE SEQUENCE pgs_prepare START 15 CACHE 9")
-					oid := pgDescriptionRelationID(t, p, b, "pgs_prepare")
+					oid := fixture.PGDescriptionRelationID(t, p, b, "pgs_prepare")
 					var stmt *sql.Stmt
 					var err error
 					if before {

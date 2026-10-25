@@ -11,7 +11,7 @@ func TestReferencePGConstraintDiagnostics(t *testing.T) {
 	pgConstraintScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		for _, populated := range []bool{false, true} {
 			if populated {
-				pgClassExec(t, p, b, b.DB, "CREATE TABLE pc_diag(a INT UNIQUE)")
+				fixture.PGClassExec(t, p, b, b.DB, "CREATE TABLE pc_diag(a INT UNIQUE)")
 			}
 			for _, tc := range []struct{ query, code, message, position string }{
 				{"SELECT missing FROM pg_catalog.pg_constraint", "42703", `column "missing" does not exist`, "8"},
@@ -40,11 +40,11 @@ func TestReferencePGConstraintDiagnostics(t *testing.T) {
 		held := fixture.HeldStatement{Executor: owner, Statement: stmt, SQL: q}
 		for _, value := range []string{"x", ""} {
 			for _, prepared := range []bool{false, true} {
-				s := pgCastParameterError(q, "oid", value, value)
+				s := fixture.PGCastParameterError(q, "oid", value, value)
 				s.Prepared = prepared
 				fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s)
 			}
-			fixture.RunStep(t, p.Ctx, held, b.Recorder, pgCastParameterError(q, "oid", value, value))
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGCastParameterError(q, "oid", value, value))
 		}
 		pgConstraintCheck(t, p, b, held, fixture.Select(q, []string{"conname"}, []string{"NAME"}, nil, int64(4294967295)))
 		if !b.PG {

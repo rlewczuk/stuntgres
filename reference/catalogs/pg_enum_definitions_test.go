@@ -74,7 +74,7 @@ func TestReferencePGEnumDefinitionsAndQueries(t *testing.T) {
 		for i, member := range first {
 			viewExpected[i] = []any{member.ID, a, float64(i + 1), []string{"venus", "earth", "mars"}[i]}
 		}
-		view := fixture.Select("SELECT * FROM pge_def_view ORDER BY enumsortorder", pgEnumColumns, pgEnumTypes, viewExpected)
+		view := fixture.Select("SELECT * FROM pge_def_view ORDER BY enumsortorder", fixture.PGEnumColumns, pgEnumTypes, viewExpected)
 		view.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
 			pgEnumMetadata(t, rows, b.PG, true)
 		}

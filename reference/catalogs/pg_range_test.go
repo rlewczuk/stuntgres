@@ -169,7 +169,7 @@ func TestReferencePGRangeShape(t *testing.T) {
 		checks := []fixture.Step{
 			fixture.Select("SELECT oid,reltype,relnatts,relkind,relhasindex FROM pg_class WHERE oid=3541", []string{"oid", "reltype", "relnatts", "relkind", "relhasindex"}, []string{"OID", "OID", "INT2", "CHAR", "BOOL"}, [][]any{{int64(3541), int64(10101), int64(7), "r", true}}),
 			fixture.Select("SELECT 'pg_catalog.pg_range'::regtype::oid AS rowtype,'pg_catalog.pg_range[]'::regtype::oid AS arraytype FROM pg_range WHERE rngtypid=3904", []string{"rowtype", "arraytype"}, []string{"OID", "OID"}, [][]any{{int64(10101), int64(10100)}}),
-			fixture.Select("SELECT * FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_range'", pgTableColumns, pgTableTypes, [][]any{pgTableRow("pg_catalog", "pg_range", pgTableViewsOwner(b), true)}),
+			fixture.Select("SELECT * FROM pg_tables WHERE schemaname='pg_catalog' AND tablename='pg_range'", fixture.PGTableColumns, fixture.PGTableTypes, [][]any{fixture.PGTableRow("pg_catalog", "pg_range", fixture.PGTableViewsOwner(b), true)}),
 		}
 		var attrs [][]any
 		for i, name := range pgRangeColumns {

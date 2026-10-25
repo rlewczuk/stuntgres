@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-var pgEnumColumns = []string{"oid", "enumtypid", "enumsortorder", "enumlabel"}
 var pgEnumTypes = []string{"OID", "OID", "FLOAT4", "NAME"}
 
 const pgEnumProbe = "SELECT * FROM pg_catalog.pg_enum WHERE enumtypid=$1::oid ORDER BY enumsortorder"
@@ -56,7 +55,7 @@ func pgEnumOwner(t *testing.T, p *fixture.Pair, x fixture.Executor, name string)
 func pgEnumMetadata(t *testing.T, rows *sql.Rows, pg, view bool) {
 	t.Helper()
 	cols, err := rows.Columns()
-	if err != nil || !reflect.DeepEqual(cols, pgEnumColumns) {
+	if err != nil || !reflect.DeepEqual(cols, fixture.PGEnumColumns) {
 		t.Fatal("enum columns", cols, err)
 	}
 	types, err := rows.ColumnTypes()
@@ -77,7 +76,7 @@ func pgEnumMetadata(t *testing.T, rows *sql.Rows, pg, view bool) {
 				scan = reflect.TypeFor[float32]()
 			}
 		}
-		if typ.Name() != pgEnumColumns[i] || typ.DatabaseTypeName() != pgEnumTypes[i] || typ.ScanType() != scan {
+		if typ.Name() != fixture.PGEnumColumns[i] || typ.DatabaseTypeName() != pgEnumTypes[i] || typ.ScanType() != scan {
 			t.Fatalf("descriptor %d: %s %s %v", i, typ.Name(), typ.DatabaseTypeName(), typ.ScanType())
 		}
 		// Native stored views describe their ordinary nullable projection;

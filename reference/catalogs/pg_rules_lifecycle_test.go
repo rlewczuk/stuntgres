@@ -22,7 +22,7 @@ func TestReferencePGRulesLifecycle(t *testing.T) {
 						want = [][]any{{"public", "pgr_src", name, def}}
 					}
 					pgRulesCheck(t, p, b, b.DB, pgRulesProbe, want, "public", "pgr_src", name)
-					fixture.RunStep(t, p.Ctx, held, b.Recorder, pgTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, want, "public", "pgr_src", name))
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.PGTableViewSelect(b, pgRulesProbe, pgRulesColumns, pgRulesTypes, want, "public", "pgr_src", name))
 				}
 				check("r", "")
 				run(fixture.Exec("CREATE RULE r AS ON INSERT TO pgr_src DO INSTEAD NOTHING", 0))

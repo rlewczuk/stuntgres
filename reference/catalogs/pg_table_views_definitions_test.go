@@ -23,9 +23,9 @@ func TestReferencePGTableViewsDefinitions(t *testing.T) {
 			// Frozen source-column alias lists may retain creation-time labels.
 			// Current relation/schema identity and actual replay below, not a
 			// demanded source-column spelling, establish rename correctness.
-			pgViewSummary(t, p, b, b.DB, "public", "pgtv_star", pgTableViewsOwner(b), "pgtv_definition", "pgtv_base_renamed")
+			pgViewSummary(t, p, b, b.DB, "public", "pgtv_star", fixture.PGTableViewsOwner(b), "pgtv_definition", "pgtv_base_renamed")
 			pgTableCheck(t, p, b, b.DB, "pgtv_sequence", nil)
-			pgViewSummary(t, p, b, b.DB, "public", "pgtv_join", pgTableViewsOwner(b), "pgtv_star", "pgtv_other", "renamed_txt")
+			pgViewSummary(t, p, b, b.DB, "public", "pgtv_join", fixture.PGTableViewsOwner(b), "pgtv_star", "pgtv_other", "renamed_txt")
 			for _, c := range []struct {
 				name, copy, query string
 				columns, types    []string
@@ -43,16 +43,16 @@ func TestReferencePGTableViewsDefinitions(t *testing.T) {
 			}
 			run(fixture.Exec("INSERT INTO pgtv_definition.pgtv_base_renamed(renamed_n,label) VALUES(2,'new')", 1))
 			run(fixture.Select("SELECT * FROM pgtv_nested_copy ORDER BY txt", []string{"k", "txt"}, []string{"INT4", "TEXT"}, [][]any{{int64(2), "b"}, {int64(2), "b"}, {int64(2), "new"}}))
-			pgViewSummary(t, p, b, b.DB, "public", "pgtv_volatile", pgTableViewsOwner(b), "nextval", "pgtv_sequence")
+			pgViewSummary(t, p, b, b.DB, "public", "pgtv_volatile", fixture.PGTableViewsOwner(b), "nextval", "pgtv_sequence")
 			run(fixture.Select("SELECT last_value,is_called FROM pgtv_sequence", []string{"last_value", "is_called"}, []string{"INT8", "BOOL"}, [][]any{{int64(1), false}}))
 			run(fixture.Exec("CREATE OR REPLACE VIEW pgtv_star AS SELECT renamed_n+10 AS n,label FROM pgtv_definition.pgtv_base_renamed", 0))
-			pgViewSummary(t, p, b, b.DB, "public", "pgtv_star", pgTableViewsOwner(b), "renamed_n", "+ 10")
+			pgViewSummary(t, p, b, b.DB, "public", "pgtv_star", fixture.PGTableViewsOwner(b), "renamed_n", "+ 10")
 			fixture.ViewCopy(t, p, b, "pgtv_star", "pgtv_replaced_copy")
 			run(fixture.Select("SELECT n FROM pgtv_replaced_copy ORDER BY n", []string{"n"}, []string{"INT4"}, [][]any{{int64(11)}, {int64(12)}, {int64(12)}, {int64(12)}}))
 			run(fixture.Exec("CREATE VIEW pgtv_cycle_a AS SELECT n FROM pgtv_other", 0))
 			run(fixture.Exec("CREATE VIEW pgtv_cycle_b AS SELECT n FROM pgtv_cycle_a", 0))
 			run(fixture.Exec("CREATE OR REPLACE VIEW pgtv_cycle_a AS SELECT n FROM pgtv_cycle_b", 0))
-			pgViewSummary(t, p, b, b.DB, "public", "pgtv_cycle_a", pgTableViewsOwner(b), "pgtv_cycle_b")
+			pgViewSummary(t, p, b, b.DB, "public", "pgtv_cycle_a", fixture.PGTableViewsOwner(b), "pgtv_cycle_b")
 		})
 	}
 }

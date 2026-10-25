@@ -11,7 +11,8 @@ provider-authority witness per builtin or extension provider (current-invoker
 EXECUTE through direct, held and stored consumers). Related: table/column
 grants, default privileges, membership and ownership in `reference/roles`;
 FDW wrapper/server grants (`TestReferenceFDWObjectGrants`) in `reference/tables`;
-the `pg_largeobject` page catalog and ACL inquiry functions in `reference/catalogs`.
+the `pg_largeobject` page catalog in `reference/catalog_objects` and ACL inquiry functions in
+`reference/catalog_privileges`.
 
 ## Testing
 

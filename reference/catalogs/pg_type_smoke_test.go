@@ -14,7 +14,7 @@ func TestReferencePGTypeFeatureSmoke(t *testing.T) {
 			numeric = append(numeric, r)
 			raw = append(raw, pgTypeRawFacts(r))
 		}
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT "+pgTypeNumericProjection+" FROM pg_type WHERE oid IN (16,20,23,25) ORDER BY oid", pgTypeColumns, pgTypeNumericTypes(), numeric))
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT "+pgTypeNumericProjection+" FROM pg_type WHERE oid IN (16,20,23,25) ORDER BY oid", fixture.PGTypeColumns, pgTypeNumericTypes(), numeric))
 		fixture.PgDescriptionRows(t, p, b, pgTypeStep(b, "SELECT * FROM pg_type WHERE oid IN (16,20,23,25) ORDER BY oid", raw))
 		q := "SELECT * FROM pg_catalog.pg_type WHERE oid=$1::oid"
 		held := fixture.ViewHold(t, p, b, q)
