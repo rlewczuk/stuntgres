@@ -39,7 +39,7 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 	// definitions and values must render against the original captured names.
 	catalogView, constraintReplay := partition.ConstraintDumpCatalog(control.Resolver{}, catalogView)
 	domainRoles := e.RoleStore.PublishedRead(&e.Catalog.Owner, catalogView)
-	if err := validateTemporaryCollationDump(e, ctx, catalogView); err != nil {
+	if err := ValidateTemporaryCollationDump(e, ctx, catalogView); err != nil {
 		return nil, err
 	}
 	for address, name := range e.Foreign.NamespaceEntries() {

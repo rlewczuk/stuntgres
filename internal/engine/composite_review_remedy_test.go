@@ -73,8 +73,8 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		view := e.Catalog.Read(&state)
 		domainUnitDiagnostic(t, typedef.RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
-		typedStage(stage).Source = tbl.OfType
-		typedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
+		TypedStage(stage).Source = tbl.OfType
+		TypedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
 		if table.TypedObservationValid(stage.Typed, view) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
@@ -145,8 +145,8 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	typedStage(stage).Source = tbl.OfType
-	typedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
+	TypedStage(stage).Source = tbl.OfType
+	TypedStage(stage).Observed = table.TypedClosure(before, tbl.OfType)
 	if err := table.CompositeFieldDependencies(core.StageDropProvider(nil, stage, nil, nil, nil), source, source.Attributes[0], parser.DropCascade); err != nil {
 		t.Fatal(err)
 	}
@@ -172,11 +172,11 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mutation, err := typedMutation(e, &core.StatementScope{Op: op}, op, auth, stage, current, actions)
+	mutation, err := TypedMutation(e, &core.StatementScope{Op: op}, op, auth, stage, current, actions)
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := *mutation.next
+	next := *mutation.Next
 	typedef.FinishTypedInheritance(view, &next, graph)
 	if len(next.Constraints.Check) != 1 || next.Constraints.Check[0].Name != "keep_check" {
 		t.Fatal("propagation resurrected removed check")

@@ -12,10 +12,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// bindRestoredDomainDefault is reached only from the paired CREATE's existing
-// stage host, with Engine.mu held. The capture is operation-local and expires
-// when that statement returns; a SQL comment alone grants no engine authority.
-func (h TypeHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
+// BindRestoredDomainDefault binds a CREATE DOMAIN default from the trusted
+// Restore snapshot its operation carries, and reports false without one. It
+// is reached only from the paired CREATE's existing stage host, with
+// Engine.mu held. The capture is operation-local and expires when that
+// statement returns; a SQL comment alone grants no engine authority.
+func (h TypeHost) BindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
 	if h.Op == nil {
 		return false, nil
 	}

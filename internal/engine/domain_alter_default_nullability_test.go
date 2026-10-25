@@ -328,7 +328,7 @@ func TestDomainAlterDefaultReplayInternal(t *testing.T) {
 	core.OperationReplay(op).DomainDefault = &core.DomainDefaultReplayCapture{Statement: raw, Record: record}
 	defer func() { core.OperationReplay(op).DomainDefault = nil }()
 	copy := *d
-	handled, err := h.bindRestoredDomainDefault(auth, &copy, raw.Constraints[0].Default, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	handled, err := h.BindRestoredDomainDefault(auth, &copy, raw.Constraints[0].Default, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if !handled || err == nil || copy.DomainDefault != d.DomainDefault || e.Catalog.State != auth.Catalog.State() {
 		t.Fatal("ordinary engine gained snapshot import authority", handled, err)
 	}

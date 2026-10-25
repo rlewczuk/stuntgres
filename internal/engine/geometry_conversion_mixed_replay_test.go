@@ -54,11 +54,11 @@ func TestGeometryConversionMixedReplayProvenance(t *testing.T) {
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	u := relation.Columns[0].Usage
-	value, provenance, err := typedef.RestoreDomainReplayNode(domainReplayEnv(e, &c, op, auth), u, &mixed)
+	value, provenance, err := typedef.RestoreDomainReplayNode(DomainReplayEnv(e, &c, op, auth), u, &mixed)
 	if err != nil || provenance != typedef.DomainReplayDomainNull {
 		t.Fatal("mixed reconstruction provenance", provenance, err)
 	}
-	capture, err := captureDomainReplay(e, scope, source, record, auth, relation)
+	capture, err := CaptureDomainReplay(e, scope, source, record, auth, relation)
 	if err != nil {
 		t.Fatal("mixed cell admission", err)
 	}

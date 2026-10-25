@@ -110,7 +110,7 @@ func afterRestoreTypeOwner(r *restoreRun, op *session.Operation, stmt parser.Sta
 		return nil
 	}
 	var err error
-	r.pairedTypeOwner, err = captureRestoredTypeOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate, kind)
+	r.pairedTypeOwner, err = CaptureRestoredTypeOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate, kind)
 	return err
 }
 

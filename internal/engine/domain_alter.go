@@ -14,7 +14,9 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func executeAlterDomain(e *core.Engine, scope *core.StatementScope, raw *parser.AlterDomain, count int) (core.Result, error) {
+// ExecuteAlterDomain runs ALTER DOMAIN other than RENAME and SET SCHEMA, which
+// dispatch through the schema statements.
+func ExecuteAlterDomain(e *core.Engine, scope *core.StatementScope, raw *parser.AlterDomain, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

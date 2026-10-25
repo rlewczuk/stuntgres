@@ -132,7 +132,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	ref.Address.SubID = 1
 	node := plan.ColumnExpr{Info: expr.Info{Usage: table.Columns[0].Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
-	mutation := typedRelationMutation{old: table, next: &next, transforms: []index.ColumnTransformation{{Attribute: 1, Expression: node}}}
+	mutation := TypedRelationMutation{Old: table, Next: &next, Transforms: []index.ColumnTransformation{{Attribute: 1, Expression: node}}}
 	if err := stageTypedRows(e, scope, auth, stage, mutation); err != nil {
 		t.Fatal(err)
 	}

@@ -9,10 +9,13 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// CaptureRestoredTypeOwner pairs a type a private Restore created with the
+// owner role its directive captured.
+//
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it
 // on every subsequent statement; it is not general ALTER OWNER eligibility.
-func captureRestoredTypeOwner(e *core.Engine, op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef, kind string) (typedef.RestoredTypeOwner, error) {
+func CaptureRestoredTypeOwner(e *core.Engine, op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef, kind string) (typedef.RestoredTypeOwner, error) {
 	reject := func() (typedef.RestoredTypeOwner, error) {
 		return typedef.RestoredTypeOwner{}, core.SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind))
 	}
@@ -66,7 +69,9 @@ func captureRestoredTypeOwner(e *core.Engine, op *session.Operation, created ids
 	return typedef.RestoredTypeOwner{Ref: created, Type: typ, Kind: kind, Namespace: namespace, Owner: owner, Creator: actor.Ref}, nil
 }
 
-func restoreTypeOwner(e *core.Engine, op *session.Operation, raw *parser.AlterOwner, pair typedef.RestoredTypeOwner) error {
+// RestoreTypeOwner admits the ALTER ... OWNER TO that follows a type's
+// creation in a private Restore, only for its captured pair.
+func RestoreTypeOwner(e *core.Engine, op *session.Operation, raw *parser.AlterOwner, pair typedef.RestoredTypeOwner) error {
 	kind := pair.Kind
 	if raw != nil {
 		kind = raw.Kind
@@ -75,7 +80,7 @@ func restoreTypeOwner(e *core.Engine, op *session.Operation, raw *parser.AlterOw
 	if raw == nil || raw.Kind != pair.Kind || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.Ref == (ids.ObjectRef{}) {
 		return reject()
 	}
-	current, err := captureRestoredTypeOwner(e, op, pair.Ref, pair.Owner, pair.Kind)
+	current, err := CaptureRestoredTypeOwner(e, op, pair.Ref, pair.Owner, pair.Kind)
 	if err != nil {
 		return err
 	}

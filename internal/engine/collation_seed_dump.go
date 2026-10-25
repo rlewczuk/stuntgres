@@ -8,7 +8,9 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func validateTemporaryCollationDump(e *core.Engine, ctx context.Context, view catalog.Read) error {
+// ValidateTemporaryCollationDump fails a Dump of view when an object outside a
+// temporary namespace depends on a temporary collation.
+func ValidateTemporaryCollationDump(e *core.Engine, ctx context.Context, view catalog.Read) error {
 	var roots []ids.ObjectAddress
 	for a, d := range view.Descriptors() {
 		if _, ok := d.(*catalog.Collation); !ok {

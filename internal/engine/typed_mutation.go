@@ -18,15 +18,23 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type typedRelationMutation struct {
-	old, next  *catalog.Relation
-	transforms []index.ColumnTransformation
-	additions  []table.AddedColumn
-	checks     []catalog.CheckConstraint
+// TypedRelationMutation is the change ALTER TYPE on a composite makes to one
+// relation (the composite, a typed table or an inheriting child): its old and
+// next descriptors, and the column transformations, added columns and checks
+// its rows are staged with.
+type TypedRelationMutation struct {
+	Old, Next  *catalog.Relation
+	Transforms []index.ColumnTransformation
+	Additions  []table.AddedColumn
+	Checks     []catalog.CheckConstraint
 }
 
-func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
-	mutation := typedRelationMutation{old: old, next: old}
+// TypedMutation applies ALTER TYPE's column actions to old, a typed table,
+// composite or inheriting child: drops first, then column type changes with
+// their checks and indexes rebound, then additions; a changed descriptor gets
+// the next revision.
+func TypedMutation(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, stage *core.CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (TypedRelationMutation, error) {
+	mutation := TypedRelationMutation{Old: old, Next: old}
 	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
 	for i, action := range actions {
@@ -41,15 +49,15 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			var err error
 			switch a.Action {
 			case parser.DropColumn:
-				mutation.next, err = tablecmds.DropColumnCandidate(scope, stage, mutation.next, ref, a, nil)
+				mutation.Next, err = tablecmds.DropColumnCandidate(scope, stage, mutation.Next, ref, a, nil)
 			case parser.AddColumn:
 				var added table.AddedColumn
-				mutation.next, added, err = tablecmds.AddColumnCandidate(e, scope, op, auth, mutation.next, a, planned.Usage)
+				mutation.Next, added, err = tablecmds.AddColumnCandidate(e, scope, op, auth, mutation.Next, a, planned.Usage)
 				if err == nil && added.Column != nil {
 					if planned.Usage != nil {
-						mutation.next.Columns[mutation.next.IndexForAttribute(added.Attribute)].DeclaredDimensions = planned.DeclaredDimensions
+						mutation.Next.Columns[mutation.Next.IndexForAttribute(added.Attribute)].DeclaredDimensions = planned.DeclaredDimensions
 					}
-					mutation.additions = append(mutation.additions, added)
+					mutation.Additions = append(mutation.Additions, added)
 				}
 			}
 			if err != nil {
@@ -57,11 +65,11 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 			}
 		}
 		if pass == 0 {
-			checks, err := table.CaptureAlterTypeChecks(op, auth.Catalog, old, mutation.next, raw)
+			checks, err := table.CaptureAlterTypeChecks(op, auth.Catalog, old, mutation.Next, raw)
 			if err != nil {
 				return mutation, err
 			}
-			indexes, err := tablecmds.CaptureAlterTypeIndexes(scope, auth.Catalog, old, mutation.next, raw)
+			indexes, err := tablecmds.CaptureAlterTypeIndexes(scope, auth.Catalog, old, mutation.Next, raw)
 			if err != nil {
 				return mutation, err
 			}
@@ -81,30 +89,30 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 					prepared.DeclaredDimensions = planned.DeclaredDimensions
 				}
 				var transform index.ColumnTransformation
-				mutation.next, transform, err = tablecmds.AlterTypeCandidate(e, scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
+				mutation.Next, transform, err = tablecmds.AlterTypeCandidate(e, scope, op, auth, stage, old, mutation.Next, ref, planned.Action, prepared)
 				if err != nil {
 					return mutation, err
 				}
 				if old.RelationKind != catalog.CompositeRelation {
-					mutation.transforms = append(mutation.transforms, transform)
+					mutation.Transforms = append(mutation.Transforms, transform)
 				}
 			}
-			mutation.next, mutation.checks, err = tablecmds.RebindAlterTypeChecks(e, scope, op, auth, ref, mutation.next, checks)
+			mutation.Next, mutation.Checks, err = tablecmds.RebindAlterTypeChecks(e, scope, op, auth, ref, mutation.Next, checks)
 			if err == nil {
-				err = tablecmds.RebindAlterTypeIndexes(e, scope, auth, mutation.next, stage, indexes)
+				err = tablecmds.RebindAlterTypeIndexes(e, scope, auth, mutation.Next, stage, indexes)
 			}
 			if err != nil {
 				return mutation, err
 			}
 		}
 	}
-	if mutation.next == old {
+	if mutation.Next == old {
 		return mutation, nil
 	}
 	if old.Revision() == ids.DefinitionRevision(^uint64(0)) {
 		return mutation, fmt.Errorf("stuntgres: definition revision exhausted")
 	}
-	next := *mutation.next
+	next := *mutation.Next
 	next.ObjectRevision = old.Revision() + 1
 	next.ColumnMeta.Defaults = maps.Clone(next.ColumnMeta.Defaults)
 	next.Constraints.Check = slices.Clone(next.Constraints.Check)
@@ -112,19 +120,19 @@ func typedMutation(e *core.Engine, scope *core.StatementScope, op *session.Opera
 	e.Mu.Lock()
 	err := table.AssignDefinitionOIDs(core.DDLHost{E: e}, &next)
 	e.Mu.Unlock()
-	mutation.next = &next
+	mutation.Next = &next
 	return mutation, err
 }
 
-func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, mutation typedRelationMutation) error {
-	old, next := mutation.old, mutation.next
+func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.AuthorizationView, stage *core.CatalogStage, mutation TypedRelationMutation) error {
+	old, next := mutation.Old, mutation.Next
 	if old.RelationKind != catalog.TableRelation {
 		return nil
 	}
 	// An explicit TYPE action protects stored own-row consumers even when the
 	// candidate preserves every Usage and descriptor pointer. Keep semantic
 	// admission ahead of the no-physical-change fast path.
-	if len(mutation.transforms) != 0 {
+	if len(mutation.Transforms) != 0 {
 		if err := typedef.RowRewriteError(auth.Catalog, old); err != nil {
 			return err
 		}
@@ -132,7 +140,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	if old == next {
 		return nil
 	}
-	if len(mutation.transforms) == 0 && slices.Equal(old.Attributes, next.Attributes) {
+	if len(mutation.Transforms) == 0 && slices.Equal(old.Attributes, next.Attributes) {
 		return nil
 	}
 	e.Mu.Lock()
@@ -142,13 +150,13 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	if store == nil {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
-	fills, perRowAdd, err := table.PlanAddedColumns(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), mutation.additions)
+	fills, perRowAdd, err := table.PlanAddedColumns(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), mutation.Additions)
 	if err != nil {
 		return err
 	}
 	replacement := store
 	rewrite := perRowAdd
-	for _, transform := range mutation.transforms {
+	for _, transform := range mutation.Transforms {
 		rewrite = rewrite || transform.Rewrite
 	}
 	if perRowAdd {
@@ -171,9 +179,9 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	}
 	schema := auth.Catalog.Get(old.Namespace()).Name()
 	validator := table.NewAlterRowValidator(next, schema)
-	if len(mutation.checks) != 0 {
+	if len(mutation.Checks) != 0 {
 		checks := *next
-		checks.Constraints.Check = mutation.checks
+		checks.Constraints.Check = mutation.Checks
 		validator.Checks = table.ValidCheckTraversal(&checks)
 		if err := tablecmds.CaptureCheckSnapshots(e, scope, &checks); err != nil {
 			return err
@@ -182,7 +190,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	sourceWrites, projectedDeletes := scope.ColumnProjectionRoots(old.Address())
 	projectedWrites := sourceWrites
 	if rewrite {
-		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, next, store, frontier, sourceWrites, projectedDeletes, mutation.transforms, mutation.additions, nil, validator)
+		replacement, projectedWrites, projectedDeletes, err = table.RewriteTypeRows(tablecmds.AlterRowEvaluation(scope, scope.Op, scope.RoutineAuth.Catalog), old, next, store, frontier, sourceWrites, projectedDeletes, mutation.Transforms, mutation.Additions, nil, validator)
 	} else if !slices.Equal(old.Attributes, next.Attributes) {
 		projection, projectionErr := session.NewColumnProjection(old, next, fills)
 		if projectionErr != nil {
@@ -202,7 +210,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	if err != nil {
 		return err
 	}
-	if !rewrite && len(mutation.checks) != 0 {
+	if !rewrite && len(mutation.Checks) != 0 {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		if err := table.ValidateAddedConstraintRows(evaluation, validator, replacement.Versions, replacement.Ends, frontier, projectedWrites, projectedDeletes); err != nil {
 			return err
@@ -210,15 +218,15 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	}
 	e.Mu.Lock()
 	h := tablecmds.TableHost{core.DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
-	next, err = index.RebuildAlterUniques(h, next, mutation.transforms)
+	next, err = index.RebuildAlterUniques(h, next, mutation.Transforms)
 	if err == nil {
-		next, err = table.RebuildAlterNotNulls(core.DDLHost{E: e, CatalogStage: stage}, next, mutation.transforms)
+		next, err = table.RebuildAlterNotNulls(core.DDLHost{E: e, CatalogStage: stage}, next, mutation.Transforms)
 	}
 	if err == nil {
-		next, err = index.RebuildAlterExclusions(h, next, mutation.transforms)
+		next, err = index.RebuildAlterExclusions(h, next, mutation.Transforms)
 	}
 	if err == nil {
-		err = e.EvolveStageIndexesLocked(stage, old.Address(), mutation.transforms)
+		err = e.EvolveStageIndexesLocked(stage, old.Address(), mutation.Transforms)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -227,9 +235,9 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 	if err := stage.Replace(next); err != nil {
 		return err
 	}
-	if rewrite || len(mutation.transforms) != 0 {
+	if rewrite || len(mutation.Transforms) != 0 {
 		indexEvaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: core.HostOf(scope), Input: scope.Input, Output: scope.Output, Catalog: e.StageRead(stage)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, core.DisclosureEnv(&auth), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, mutation.transforms, nil, nil, rewrite)
+		builds, err := index.ValidateAlterIndexBuilds(&indexEvaluation, auth.View, core.DisclosureEnv(&auth), e.StageRead(stage), next, replacement, projectedWrites, projectedDeletes, schema, scope.Output, mutation.Transforms, nil, nil, rewrite)
 		if err != nil {
 			return index.DefaultClassDiagnostic(h, auth, err)
 		}
@@ -281,7 +289,7 @@ func stageTypedRows(e *core.Engine, scope *core.StatementScope, auth core.Author
 			stage.Indexes().Candidates[address] = candidate
 		}
 	}
-	if replacement != store || len(mutation.transforms) != 0 {
+	if replacement != store || len(mutation.Transforms) != 0 {
 		scope.StageProjectedColumnRoots(old.Address(), projectedWrites, projectedDeletes)
 	}
 	return nil

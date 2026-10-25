@@ -52,7 +52,7 @@ func (h TypeHost) ResolveDomainBase(raw parser.TypeName) (sqltype.Usage, error) 
 }
 
 func (h TypeHost) BindDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
-	if restored, err := h.bindRestoredDomainDefault(a, d, raw, input, output); restored || err != nil {
+	if restored, err := h.BindRestoredDomainDefault(a, d, raw, input, output); restored || err != nil {
 		return err
 	}
 	return h.E.BindDomainDefault(h.Op.Context(), h.Op, core.DDLAuthorityOf(a), h.CatalogStage, d, raw, input, output)

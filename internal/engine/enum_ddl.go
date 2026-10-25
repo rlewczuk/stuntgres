@@ -14,7 +14,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+// ExecuteEnumDDL runs CREATE TYPE ... AS ENUM, CREATE TYPE ... AS RANGE and
+// ALTER TYPE on an enum.
+func ExecuteEnumDDL(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

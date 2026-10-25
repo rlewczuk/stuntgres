@@ -138,7 +138,7 @@ func importMaterializedSnapshotRow(e *core.Engine, ctx context.Context, op *sess
 	scope.Input = input
 	scope.RoutineAuth = auth
 	if replay != nil {
-		capture, captureErr := captureDomainReplay(e, scope, s, *replay, auth, d)
+		capture, captureErr := CaptureDomainReplay(e, scope, s, *replay, auth, d)
 		if captureErr != nil {
 			return nil, captureErr
 		}

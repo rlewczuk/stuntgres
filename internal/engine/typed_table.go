@@ -12,7 +12,8 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func alterTableOfLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableOf, count int) (core.Result, error) {
+// AlterTableOfLocked runs ALTER TABLE ... OF and NOT OF.
+func AlterTableOfLocked(e *core.Engine, scope *core.StatementScope, op *session.Operation, auth core.AuthorizationView, s *parser.AlterTableOf, count int) (core.Result, error) {
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))

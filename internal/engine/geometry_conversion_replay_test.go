@@ -52,11 +52,11 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	usage := relation.Columns[0].Usage
-	value, provenance, err := typedef.RestoreDomainReplayNode(domainReplayEnv(e, &c, op, auth), usage, &array)
+	value, provenance, err := typedef.RestoreDomainReplayNode(DomainReplayEnv(e, &c, op, auth), usage, &array)
 	if err != nil || provenance != 0 {
 		t.Fatal("constructor reconstruction", provenance, err)
 	}
-	if _, err := captureDomainReplay(e, scope, source, record("a", &array), auth, relation); err == nil {
+	if _, err := CaptureDomainReplay(e, scope, source, record("a", &array), auth, relation); err == nil {
 		t.Fatal("constructor-only array acquired private domain NULL provenance")
 	}
 	if bounds := regobj.ConstructorArrayTargetBounds(value); bounds != "[-2:-1][3:4]" {
@@ -68,19 +68,19 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	if value.ArrayElement(0).CompositeField(0).RequiresCircleConstructorReplay() != true || value.ArrayElement(1).CompositeField(0).RequiresCircleConstructorReplay() || !value.ArrayElement(2).IsNull() || value.ArrayElement(3).IsNull() || !value.ArrayElement(3).CompositeField(0).IsNull() {
 		t.Fatal("leaf or NULL identity lost")
 	}
-	if _, err := captureDomainReplay(e, scope, source, record("c", &negative), auth, relation); err == nil {
+	if _, err := CaptureDomainReplay(e, scope, source, record("c", &negative), auth, relation); err == nil {
 		t.Fatal("standalone negative acquired array provenance")
 	}
 	ordinaryElements := []typedef.DomainReplayNode{member(positive), member(positive), {Kind: "null"}, member(typedef.DomainReplayNode{Kind: "null"})}
 	ordinary := array
 	ordinary.Elements = &ordinaryElements
-	if _, err := captureDomainReplay(e, scope, source, record("a", &ordinary), auth, relation); err == nil {
+	if _, err := CaptureDomainReplay(e, scope, source, record("a", &ordinary), auth, relation); err == nil {
 		t.Fatal("ordinary array acquired private provenance")
 	}
 	badDims := []typedef.DomainReplayDimension{{Lower: -2, Length: 5}}
 	malformed := array
 	malformed.Dimensions = &badDims
-	if _, err := captureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
+	if _, err := CaptureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
 		t.Fatal("inconsistent shape accepted")
 	}
 	wrongMembers := []typedef.DomainReplayMember{{Name: "other", Value: &negative}}
@@ -88,7 +88,7 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 	wrongElements[0] = typedef.DomainReplayNode{Kind: "composite", Members: &wrongMembers}
 	malformed = array
 	malformed.Elements = &wrongElements
-	if _, err := captureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
+	if _, err := CaptureDomainReplay(e, scope, source, record("a", &malformed), auth, relation); err == nil {
 		t.Fatal("wrong member name accepted")
 	}
 	for _, text := range []string{"CAST('<(0,0),-1>' AS circle)", "circle('(0,0)'::pg_catalog.point,'-1'::pg_catalog.float8)", "pg_catalog.circle($1::pg_catalog.point,'-1'::pg_catalog.float8)", "pg_catalog.circle('(0,0)'::pg_catalog.point,(random())::pg_catalog.float8)"} {
@@ -96,12 +96,12 @@ func TestGeometryConversionReplayShapes(t *testing.T) {
 		badElements[0] = member(scalar(text))
 		bad := array
 		bad.Elements = &badElements
-		if _, err := captureDomainReplay(e, scope, source, record("a", &bad), auth, relation); err == nil {
+		if _, err := CaptureDomainReplay(e, scope, source, record("a", &bad), auth, relation); err == nil {
 			t.Fatal("invalid constructor leaf accepted", text)
 		}
 	}
 	wrongPlaceholder := statement(t, "INSERT INTO public.conversion_replay_array VALUES(ARRAY[]::public.conversion_replay_member[],NULL)").(*parser.Insert)
-	if _, err := captureDomainReplay(e, scope, wrongPlaceholder, record("a", &array), auth, relation); err == nil {
+	if _, err := CaptureDomainReplay(e, scope, wrongPlaceholder, record("a", &array), auth, relation); err == nil {
 		t.Fatal("nonNULL placeholder accepted")
 	}
 }
