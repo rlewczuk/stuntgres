@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `3e950d893` (item 195 rebased on it).
+Last verified against `master` at `94d1a524b` (item 196 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 196.
+- 197.
 
 ## Linear plan
 
@@ -224,9 +224,24 @@ ENGINE-SPLIT.md §4.
      quickcheck, the §3 `go list` import check and the library `make deps` check
      passed; `REFERENCE=1` `sessions`, `dml` and `tables` selections passed in
      the merge chain; racecheck and finalcheck skipped at user request
-196. [ ] `tablecmds`: tables —
+196. [x] `tablecmds`: tables —
      [cmds](ENGINE-SPLIT-cmds.md#item-196--tablecmds-tables) · needs 195 · S ·
-     0.35 MB
+     0.35 MB (`e558079d5`, `1510781fa`, `eda4d8a54`, `86f373ca2`, docs commit) ·
+     the table statement executors (65 root production files, 4.99k file lines:
+     ALTER TABLE with INHERIT and its admission, ALTER COLUMN DEFAULT, CREATE
+     and DROP TABLE, renames, SET SCHEMA, constraint, default, generated-column
+     and FK DDL, the table Restore repairs, the R3 shared sets with
+     `PrepareAlterTypeLocked`, the `TableHost`/`AlterHost` hosts and the
+     frame-keeping `Engine` type) moved to `tablecmds` by the type-checked
+     `cmdmv` tool after 44 names were exported in place; 42 root test files
+     moved as `tablecmds_test` external tests (27 `export_test.go` aliases and
+     one constructor), none deleted; root production 102 files and 0.38 MB
+     (−0.19 MB), root tests 459 files and 3.03 MB (−0.44 MB); quickcheck, the §3
+     `go list` check and the library deps check passed; `REFERENCE=1`
+     `^TestReferenceAlter(AddConstraint|Nullability|Default)` and
+     `^TestReferenceTableCore` passed in the merge chain; bench skipped (moved
+     code unchanged; the escape diff shows only the renames), racecheck and
+     finalcheck skipped at user request
 197. [ ] `tablecmds`: sequences, identity, VACUUM —
      [cmds](ENGINE-SPLIT-cmds.md#item-197--tablecmds-sequences-identity-vacuum)
      · needs 196 · S
