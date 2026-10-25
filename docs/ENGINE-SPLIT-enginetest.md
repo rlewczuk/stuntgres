@@ -23,15 +23,18 @@ each file:
    deletion in the commit body.
 3. **Move (T3).**
    - A test that builds an engine becomes an external test
-     (`package <owner>_test`) in the owner's directory. It imports
-     `stuntgres/internal/engine` (names qualified `engine.X`) and `enginetest`.
+     (`package <owner>_test`) in the owner's directory, or in the owner's
+     `enginetests/` subdirectory when the owner is a lower package (the T3
+     fallback). It imports `stuntgres/internal/engine` (names qualified
+     `engine.X`) and `enginetest`.
    - A pure unit becomes an internal test of the package whose code it tests.
    - A directory for a package that does not exist yet (`core/`, `*cmds/`)
      starts with a `doc.go` that holds only the package clause and its
      one-sentence doc.
 4. **Helpers (T4).** A helper used by two or more destinations goes to
    `enginetest`. A helper used by one destination moves with its users. The
-   root copy stays while root tests still use it.
+   root copy stays while root tests still use it. Internal tests cannot import
+   `enginetest`; they take a copy.
 
 Keep test names and bodies; rename only when two moved names collide. Stop at
 about 200 files or 1.3 MB; leftovers become a new item at the end of the plan.

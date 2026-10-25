@@ -19,6 +19,16 @@ package's `README.md` under `## Testing`.
   untagged dual-mode tests when working in their area.
 - Internal unit tests of package functions stay beside their package. They
   supplement, never replace, reference coverage.
+- Internal tests that need a composed engine are external tests
+  (`package <owner>_test`) beside the package that owns the code under test,
+  built with the [`enginetest`](../internal/engine/enginetest/README.md)
+  helpers; statement runtime belongs to `internal/engine/core/`. New ones are
+  never added to the root `internal/engine` package. A lower package with
+  internal tests (the engine subpackages below core, `internal/sqltype`) keeps
+  them in a test-only `enginetests/` subdirectory with a one-sentence `doc.go`:
+  in the owner's own directory, `go test` would rebuild the root and every
+  package in between against the owner's test variant. Internal tests cannot
+  import `enginetest` (import cycle).
 - Every new PostgreSQL feature needs new or changed reference coverage, and every
   compatibility bug needs a failing reference regression before its fix.
 - One test body serves both modes. Mode changes which backends exist, never the

@@ -123,12 +123,20 @@ Cuts:
     rewritten to the exported API, or deleted under T2. As a last resort it
     uses a listed exported inspection accessor in `core/inspect.go`, which item
     204 removes once unused.
-  - Item 181 measures the rebuild cost of an external engine test in a low
-    package (`functions`) and fixes the fallback: a test-only subdirectory of
-    the owner, or `core/`.
+  - **Fallback (item 181).** A lower package with internal tests takes its
+    engine tests in a test-only `<owner>/enginetests/` subdirectory
+    (`package enginetests_test` beside a `doc.go`); `core/` and the `*cmds/`
+    families take them in their own directory. Measured on `functions` after
+    a change to its export data: an external test in its own directory
+    rebuilt 24 packages, the root among them, as test variants (+7.4 s wall,
+    +48 s CPU), while a subdirectory or `core/` adds one link (+0.2 s, +6 s
+    CPU). Subdirectories keep ownership and spread tests over parallel test
+    packages.
 - **T4, helpers.** Helpers used by two or more destinations go into
   `internal/engine/enginetest` (stage 1 in item 181, stage 2 in item 182); other
-  helpers move with their users. Only `_test.go` files import `enginetest`.
+  helpers move with their users. Only `_test.go` files import `enginetest`, and
+  internal tests cannot (import cycle): pure units that share a helper go to the
+  lowest package that hosts them all, or each takes a copy.
 - **T5, removed internals.** A test that pins a removed internal is rewritten to
   the new seam or deleted ("pins removed X" in the commit body). Frame-name
   strings change in the renaming commit. Allocation and benchmark tests are
@@ -150,6 +158,11 @@ Tools live in `.cswd/tmp/` (outside git) and run from a worktree root.
     `26f8fea15`.
 - `PG18-ENGINE-SPLIT-EXEC-REFINE/reach` prints the first path from a declaration
   to a god struct.
+- `PG18-ENGINE-SPLIT-181-TEST-FIXTURE-PILOT/mvtest` moves root test files,
+  type-checked: `mvtest -spec SPEC [-map MAP] [-w]` from `internal/engine`, with
+  spec lines `FILE DESTDIR internal|external`. It qualifies root names, maps
+  fixture helpers to `enginetest`, copies other helpers and reduces root files
+  to the helpers staying tests use. `inv` lists what each file uses.
 - Rewrite tools (build each with `go build` in its directory):
   - `PG18-ENGINE-SPLIT-PLAN-ALIASES/`: `meth2fn`, `fieldrn`, `unalias`,
     `shadowrn`, `keylit`;
@@ -201,7 +214,7 @@ Re-run `closure` before planning a move set; the sizes in §4 are approximate.
 | L15 | `engine/core` (item 195) | `Engine` state and `Engine.mu`, `StatementScope`, `CatalogStage`, admission and lock waits, publication and replacement, the transaction lifecycle, sessions, TEMP, the hosts and binder construction, protocol, prepared SQL, cursors, the bound DML and query path, the procedural runtime, the dispatch and validator hooks |
 | L16 | `engine/tablecmds`, `indexcmds`, `partitioncmds`, `typecmds`, `viewcmds`, `rolecmds`, `schemacmds` (items 196–203) | statement executors per family, named after PostgreSQL's `commands/` |
 | L17 | `engine` (root) | the composition: `New*`, both dispatch type switches behind `core.Statements`, the engine factory, `Reset`, `Dump` and `Restore` with the Restore hooks |
-| test | `engine/enginetest` (item 181) | test helpers over the exported API; only `_test.go` files import it |
+| test | `engine/enginetest` (item 181), `*/enginetests` | test helpers over the exported API, imported only by `_test.go` files; test-only packages holding the engine tests of lower packages |
 
 Until item 195 the root plays the core role, and until each family item it keeps
 that family's executors. Each package README states its imports, ownership,
