@@ -172,8 +172,10 @@ historical scans and storage/index publication remain engine-owned.
 The stage handlers run under `Engine.Mu` without a statement scope and reach the
 engine only through `StageHost` (`stage_host.go`), which embeds
 [`ddl.Host`](../ddl/README.md) and `ddl.TypeStaging` and adds the type methods.
-The engine implements it on its one staging adapter, `DDLHost`
-(`typedef_host.go`), which also backs `routine.DDLHost`.
+The engine implements it on `TypeHost` (`typedef_host.go`), which embeds
+`TableHost` for the type staging and row-type methods it shares with tables.
+`BindDomainNotNull` takes only `ddl.Host`, so the engine's domain-check
+binding passes the core `DDLHost`.
 
 - **`ddl.Authority`** is the statement authority as an opaque value; handlers
   keep it by value. `CreationNamespace` may stage an implicit TEMP namespace and
@@ -218,7 +220,7 @@ The engine implements it on its one staging adapter, `DDLHost`
 
 ## What stays in the engine
 
-The `DDLHost` type methods (`typedef_host.go`) and schema dispatch; the
+The `TypeHost` methods (`typedef_host.go`) and schema dispatch; the
 self-orchestrating executors (`executeEnumDDL`, `executeAlterDomain`,
 `executeAlterComposite`, `alterTableOfLocked`), which hold the lock windows,
 lock-manager waits, row validation and publication; enum journal updates; the
@@ -236,7 +238,7 @@ Elsewhere: type dump graph edges (`control.ColumnPredecessors`,
 Package units pin the seeds, replay pairing, the scalar leaf callback contract
 (`TestRestoreDomainReplayScalarLeaf`), enum sort insertion, journal slot
 copy-on-write, default snapshots and storage admission. Engine witnesses in
-`internal/engine` cover the `DDLHost` side, ALTER DOMAIN publication, the replay
+`internal/engine` cover the `TypeHost` side, ALTER DOMAIN publication, the replay
 walk with the real leaf and the dump statements; collation and conversion DDL
 units live in `internal/engine/schemacmds`, ALTER TYPE on typed tables in
 `internal/engine/typecmds`, CREATE TABLE OF in `internal/engine/tablecmds`, and

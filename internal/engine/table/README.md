@@ -150,14 +150,14 @@ PARTITION OF children, ADD IDENTITY and FOREIGN KEY staging: `index.Host` (and
 through it `ddl.Host`), `ddl.TypeStaging`, type and collation resolution, the
 table and sequence stage slots, relation resolution, the binders
 `BindColumnDefaults`, `BindGenerations`, `BindCheckExpression`,
-`OperationDefinition` and `LiveEpoch`. The root `DDLHost` (`table_host.go`)
-implements it. `Resolver` and `RestoreResolver` are its stage-less parts.
+`OperationDefinition` and `LiveEpoch`. The root `TableHost` (`table_host.go`)
+implements it; `TypedResolver` is the part core calls, on `DDLHost`. `Resolver` and `RestoreResolver` are its stage-less parts.
 
 `AlterHost` adds one ALTER statement's bindings: the live `Input` (captures
 mutate it, so read it again before each binding), snapshot captures, the
 binders `BindDefault`, `BindGeneration`, `RebindCheck`, `BindAlterTypeUsing`,
 `TypeChangeDependents` and `StageIdentitySequenceOptions`. The root
-`alterHost{ddlHost; scope}` (`alter_host.go`) implements it, one per call,
+`alterHost{TableHost; scope}` (`alter_host.go`) implements it, one per call,
 because the ALTER loop begins its stage lazily.
 
 **Every `Host` and `AlterHost` method runs with `Engine.Mu` held, never takes or

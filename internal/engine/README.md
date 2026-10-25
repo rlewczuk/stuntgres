@@ -210,14 +210,31 @@ subpackage types directly (no aliases).
 | Root type | Implements |
 | --- | --- |
 | `statementHost` (a `StatementScope` conversion; `statement_host*.go`, `*_runtime.go`) | `exec.Host`, `dml.Host`, `dml.FinishHost`, `index.WriteHost`, `partition.RecipeHost`, `fdw.WriteRuntime`, `regobj.NoticeHost`, and the bodies of the `functions` evaluation capabilities (`ACLRuntime`, `AdvisoryRuntime`, `BlockingRuntime`, `CatalogInquiryRuntime`, `SessionInquiryRuntime`, `SequenceRuntime`, `TransactionInquiryRuntime`, `LargeObjectRuntime`, `PgrowlocksRuntime`, `FTSQueryRuntime`) that `*exec.Context` forwards |
-| `DDLHost` | `ddl.Host`, `ddl.SchemaHost`, `routine.DDLHost`, `typedef.StageHost`, `table.Host`, `index.Host`, `index.KeyHost`, `fdw.Host`, `role.Host`, `role.StageHost`, `partition.Host`, `view.Host`, `view.StageHost` |
-| `alterHost` | `table.AlterHost` |
+| `DDLHost` (`ddl_host.go`): the core base, embedded by every family host below | `ddl.Host`, `ddl.Allocator`, `index.KeyHost`, `table.TypedResolver` |
+| `TableHost` (`table_host.go`, `index_host.go`, `partition_host.go`, `fdw_host.go`) | `table.Host`, `index.Host`, `partition.Host`, `fdw.Host` |
+| `TypeHost` (over `TableHost`; `typedef_host.go`) | `typedef.StageHost` |
+| `ViewHost` (over `TableHost`; `view_host.go`, `policy_expression.go`) | `view.Host`, `view.StageHost` |
+| `RoutineHost` (`routine_host.go`, `operator_family_host.go`) | `routine.DDLHost`, `index.FamilyDDLHost` |
+| `RoleHost` (`role_host.go`) | `role.Host`, `role.StageHost` |
+| `SchemaHost` (`schema_host.go`) | `ddl.SchemaHost` |
+| `alterHost` (over `TableHost`) | `table.AlterHost` |
 | `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
 | `BindingHost` (`analysis_host.go`) | `analyze.Host` |
 | `EngineCatalogRuntime` (`catalog_source_runtime.go`) | `pgcatalog.Runtime` |
 | `enginePreparation` (`exec_preparation.go`) | `exec.Preparation`, installed with `exec.InstallPreparation` |
 | `restoreHost` (`restore_run.go`) | `control.Host` |
 | `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
+
+`DDLHost` keeps only the `ddl.Host` methods, what core paths call
+(`LookupCollation`, `NamedType`, `OtherDatabaseDependencies`) and the methods
+that unrelated family hosts share (`AddDomainBase`, `RemoveObject`,
+`RelationDiagnostic`, `ResolveRelation`, `SelectFunction`). A family host
+embeds it, keeps its `{E, Op, CatalogStage}` layout and is built by family
+code. A statement or stage slot that one family owns is opaque:
+`StatementScope.DropsSlot` is a `StatementSlot` (core only clones it for
+PL/pgSQL exception checkpoints; `dropScopeOf` recovers the `DropScope`), and
+`CatalogStage.ExtensionSlot` holds the `extensionHost` that began the stage
+(`extensionNamespaceOf`).
 
 `statementHost.VerifyHeapam` supplies the distinct heap-verification runtime.
 It resolves exact regclass authority, borrows and releases only its added

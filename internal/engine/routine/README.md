@@ -186,8 +186,9 @@ The handlers run under `Engine.Mu` without a statement scope and reach the
 engine only through `DDLHost` (`host.go`): the shared
 [`ddl.Host`](../ddl/README.md) plus `DefinitionType`, `DefinitionLookup`,
 `SelectFunction`, `SelectAggregateSupport`, `ResolveRegtype`, `BindSQLRoutine`
-and `BindSQLDefaults`. The engine implements it on `DDLHost`, built once per
-DDL statement (`routine_host.go`).
+and `BindSQLDefaults`. The engine implements it on `RoutineHost`, which embeds
+the core `DDLHost` and is built once per DDL statement (`routine_host.go`);
+`RoutineHost` also implements `index.FamilyDDLHost`.
 
 - **`ddl.Authority`** is an opaque value kept by value. Host methods that change
   it (`CreationNamespace`, `Recapture`) return a new one, so an implicit
@@ -201,8 +202,8 @@ DDL statement (`routine_host.go`).
 
 ## What stays in the engine
 
-`DDLHost` and schema statement dispatch (`ddl_host.go`, `routine_host.go`,
-`schema.go`); SQL routine binding, Restore validation and invocation
+`RoutineHost` and schema statement dispatch (`routine_host.go`,
+`operator_family_host.go`, `schema.go`); SQL routine binding, Restore validation and invocation
 (`sql_routine*.go`); seed installation (`builtin_catalog.go`); call resolution
 (`function*.go`, `operator*_binding.go`) and routine call inquiry admission;
 `procedureReturnsSet`; the Collect entries `collectOperatorDump` and
@@ -214,7 +215,7 @@ DDL statement (`routine_host.go`).
 Package units cover inventory and operator lookups, seeded metadata, option
 extraction, index support and exclusion binding, routine drop selection,
 aggregate binary feasibility and the dump seams; engine units exercise the seed
-and the handlers behind `DDLHost` (operator, operator class and routine DDL
+and the handlers behind `RoutineHost` (operator, operator class and routine DDL
 units live in `internal/engine/schemacmds`). Reduced internal fixtures must install
 operator-class authority as well as family and routine authority. Dump changes
 must also keep the [`dump`](../dump/README.md#testing) selections passing.

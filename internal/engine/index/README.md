@@ -77,12 +77,12 @@ builds a binder.
 staging for one statement: `ddl.Host` plus object removal, diagnostics, the
 stage and its index slot, `ACLOutput`, `DefinitionReader`, `ValidityTarget` and
 the binders `BindIndexExpression`/`BindIndexPredicate` (the engine builds
-binders; this package never does). The engine's `DDLHost` (`index_host.go`)
+binders; this package never does). The engine's `TableHost` (`index_host.go`)
 implements it. **Every method runs with `Engine.Mu` held, never takes or
 releases it, and never waits.** Narrower contracts:
 
 - `KeyHost`: key binding and operator class lookup, no stage (the analysis host
-  and partition key binding pass a stage-less `DDLHost`).
+  and partition key binding pass a stage-less core `DDLHost`).
 - `DropStage` (`*CatalogStage`): DROP INDEX staging, which runs without
   `Engine.Mu`; the removal takes it.
 - `ValidityTarget`: the partitioned-index validity pass. `UsingIndexStage`:
@@ -230,7 +230,7 @@ Orchestration: the `Engine.Mu` and capture windows, CONCURRENTLY phases, lock
 admission (`acquireIndexMaintenance` over the grant plan), unique key pins, the
 registry instances, savepoint capture/restore, Finish order, publication and
 Restore storage (`prepareIndexCatalog`), and `executeCreateIndex`/
-`executeIndexMaintenance`. Thin wrappers build a `DDLHost` for production
+`executeIndexMaintenance`. Thin wrappers build a `TableHost` for production
 callers; tests call `index` functions directly with one. The write-time loops
 (unique probe/claim, exclusion probe/admission, ON CONFLICT arbiters) are
 `dml`'s and reach this host through `dml.Host`.

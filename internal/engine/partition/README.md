@@ -48,7 +48,7 @@ The package holds no engine state and no mutex; the root owns `Engine.Mu`, lock
 waits and publication.
 
 - `Host` is `table.Host` plus `BindKeyExpression`, implemented by the root
-  `DDLHost`. Every method runs with `Engine.Mu` held, never takes or releases
+  `TableHost`. Every method runs with `Engine.Mu` held, never takes or releases
   it and never waits.
 - `BoundBinder` is self-locking: callers hold nothing, it takes `Engine.Mu` for
   one window, and bound evaluation follows unlocked.
@@ -88,7 +88,7 @@ Orchestration and everything that holds `Engine`, `StatementScope` or
 (checks in diagnostic order), `attachPartitionLocked`, `detachPartitionLocked`,
 lock admission (`partition_locks.go`), authorization and Restore trust checks
 (`partition*ReplayAllowed`), the Restore executors, storage-read fences and
-shared DML routing capture. `partition_host.go` holds `DDLHost.BindKeyExpression`
+shared DML routing capture. `partition_host.go` holds `TableHost.BindKeyExpression`
 and the `partitionBoundBinder` adapter; `partition_info_runtime.go` holds the
 `statementHost` inquiry methods, which check the retained catalog's owner.
 

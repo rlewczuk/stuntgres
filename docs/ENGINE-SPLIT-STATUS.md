@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `f1d75738c` (item 189 rebased on it).
+Last verified against `master` at `e303a25ef` (item 190 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 190.
+- 191.
 
 ## Linear plan
 
@@ -129,9 +129,22 @@ ENGINE-SPLIT.md §4.
      bytes unchanged, core by `closure` 29.0k lines (28.9k in the model without
      family export seeds); quickcheck passed; bench and `REFERENCE=1` skipped
      (no engine code change); racecheck and finalcheck skipped at user request
-190. [ ] Host and slot splits —
-     [core](ENGINE-SPLIT-core.md#item-190--host-and-slot-splits) · needs 189 ·
-     P
+190. [x] Host and slot splits —
+     [core](ENGINE-SPLIT-core.md#item-190--host-and-slot-splits) · needs 189 · P
+     (`65b0d3679`, `f5300085c`, `248f347c6`, docs commit) · `DDLHost` split into
+     a core base (`ddl.Host`, the core-called `LookupCollation`, `NamedType` and
+     `OtherDatabaseDependencies`, and five small methods unrelated family hosts
+     share) and six family hosts that embed it with the same `{E, Op,
+     CatalogStage}` layout (`TableHost`, `TypeHost` and `ViewHost` over
+     `TableHost`, `RoutineHost`, `RoleHost`, `SchemaHost`);
+     `typedef.BindDomainNotNull` narrowed to `ddl.Host`;
+     `StatementScope.DropsSlot` and `CatalogStage.ExtensionSlot` (was
+     `ExtensionNamespace`) made opaque family slots; the other listed slots stay
+     core (core-only or shared users); root production 1.77 MB (+4.3 KB), core
+     by `closure` 28.0k lines (-0.92k; 28,932 → 28,009 in the item 189 model);
+     quickcheck passed; bench skipped (no per-statement slot; escape diff showed
+     no new heap move); `REFERENCE=1` not in the Verify list; racecheck and
+     finalcheck skipped at user request
 191. [ ] Family methods to functions I —
      [core](ENGINE-SPLIT-core.md#item-191--family-methods-to-functions-i) ·
      needs 183, 184, 185, 186, 187, 190 · P

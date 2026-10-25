@@ -73,8 +73,8 @@ driver import it.
 - **DDL decisions** (`host.go`, `stage.go`, `stage_drop.go`, `handler.go`,
   `grant.go`, `import.go`, `table_stage.go`, `table_alter.go`). `Host` is
   `table.Host` (and through it `ddl.Host` and `AddDomainBase`) plus
-  `RemoveObject` and the utility `ResolveRelation`; the engine's one staging
-  adapter `DDLHost` implements it.
+  `RemoveObject` and the utility `ResolveRelation`; the engine's `TableHost`
+  implements it.
   - `StageDDL` stages CREATE, ALTER and DROP of wrappers, servers and user
     mappings in this order: actor, owner operand, wrapper superuser gate, the
     foreign-table route, then the drop or definition path with its IF [NOT]
@@ -156,7 +156,7 @@ The DDL orchestration, because it holds `Engine.Mu`, begins and discards
 stages, releases `replacementMu` before callbacks and publishes:
 
 - `executeForeignDDL` (DROP dependents, validations, publication) and
-  `stageForeignLocked` (a wrapper over `StageDDL` on `DDLHost`);
+  `stageForeignLocked` (a wrapper over `StageDDL` on `TableHost`);
 - `executeForeignImport` (the importer callback, the per-table relock,
   re-authorization and epoch check, provider acquisition);
 - `executeForeignGrant` (the journal clone, emitting the warnings and

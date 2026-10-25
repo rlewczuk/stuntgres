@@ -23,8 +23,8 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   parameter lookups, other databases' role dependencies and the DROP ROLE
   dependency text); `StageHost` is `ddl.Host` plus `AddDomainBase`,
   `RemoveObject` and `OwnerStage` for REASSIGN and DROP OWNED staging. The
-  engine's `DDLHost` implements both (`role_host.go`); for `Host` it has no
-  stage.
+  engine's `RoleHost` implements both (`role_host.go`); for `Host` it has no
+  stage. Core calls `OtherDatabaseDependencies` on the core `DDLHost`.
 - **GRANT/REVOKE on objects** (`grant_plan.go`, `grant_targets.go`,
   `grant_objects.go`): `ObjectGrantRequest(h, auth, s)` validates grantor,
   kind, targets, grantees, privileges and GRANT OPTION for PUBLIC in
@@ -76,7 +76,7 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   `CanonicalGrantParameter` accepts registered and custom dotted names
   (42704 otherwise); `GrantParameterDescriptorLocked` returns the existing
   identity or a baseline one owned by the bootstrap superuser, with an OID
-  and revision from the engine's allocators. `DDLHost`'s `CanonicalParameter`
+  and revision from the engine's allocators. `RoleHost`'s `CanonicalParameter`
   and `GrantParameter` call them.
 - **COMMENT** (`comment.go`): `PlanRoleComment` checks COMMENT ON ROLE
   (42704, the superuser rule) and returns the next role record;
@@ -188,7 +188,7 @@ and `object_acl_fixture_test.go`, `parameter_tablespace_grant_test.go` and
 `default_privileges_catalog_test.go` (the retirement preflight) in
 `internal/engine`.
 `TestRoleHostStageless` (`role_host_test.go`) pins the host seam: a
-stage-less `DDLHost` as `Host`. Add `RACE=1` for the connection-limit and role
+stage-less `RoleHost` as `Host`. Add `RACE=1` for the connection-limit and role
 switch tests.
 
 ```sh

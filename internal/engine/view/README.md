@@ -28,7 +28,7 @@ imports `view`.
   `Host` (stage-less: allocation, the access view, relation resolution, the
   temporary owner, function selection and the root-built rule, policy and
   trigger WHEN binders) and `StageHost` (`Host` plus `ddl.Host` with row-type staging),
-  both implemented by the root's `DDLHost`. CREATE OR REPLACE VIEW is
+  both implemented by the root's `ViewHost`. CREATE OR REPLACE VIEW is
   `CreateTarget`, `CheckCreate` and `StageCreate`; ALTER VIEW is `AlterChange`;
   DROP VIEW is `DropTargets`, then `RecheckDropTargets` after the waits. RULE DDL
   uses `BeginRule` and `RulePlan.BindCondition`, `BindAction`, `Finish`; POLICY

@@ -318,7 +318,38 @@ Needs 203. Mode S.
   list. Notes for later items: run `closure` with `-famseed=false
   -fammeth=false` for core sizes until item 192; item 192's gate is now
   "dispatch only".
-- 190: not started.
+- 190: done (`65b0d3679`, `f5300085c`, `248f347c6`). Measured with a `closure`
+  copy in `.cswd/tmp/PG18-ENGINE-SPLIT-190-HOST-SLOT-SPLITS/` (`bin/closure`,
+  wrapper `closure.sh OUT EXTRA_DISPATCH [flags]` with item 188's
+  `-roots`/`-dispatch` and item 189's `-famseed=false -fammeth=false`). The copy
+  adds `fielduse.tsv` (every `StatementScope`/`CatalogStage` field with each
+  user and its assignment), and its `areas.json` maps `schema_host.go` to
+  `ddlcommon`: the file now holds only `SchemaHost`, and as a `statement` file
+  the exported type was seeded as core. Core went from 28,932 to 28,009 lines
+  (the `-nodyn DDLHost` preview said 27,877; it also dropped the `ddl.Host`
+  methods, which core calls through `BindDomainNotNull`, `index.KeyHost` and
+  `ddl.Allocator`). Core base `DDLHost`: `ddl.Host`, `LookupCollation`,
+  `NamedType`, `OtherDatabaseDependencies`, and `AddDomainBase`, `RemoveObject`,
+  `RelationDiagnostic`, `ResolveRelation` and `SelectFunction` (shared by
+  `RoleHost`, `SchemaHost`, `RoutineHost` and the table chain; `closure` assigns
+  these five to families). Family hosts: `TableHost` (`index.Host`,
+  `table.Host`, `partition.Host`, `fdw.Host`, plus the type staging it shares
+  with types and views), `TypeHost{TableHost}` (`typedef.StageHost`),
+  `ViewHost{TableHost}` (`view.*Host`), `RoutineHost` (`routine.DDLHost`,
+  `index.FamilyDDLHost`), `RoleHost` (`role.*Host`), `SchemaHost`
+  (`ddl.SchemaHost`); `alterHost` embeds `TableHost`. Call sites were wrapped by
+  the compiler-driven `wrapfix.py`/`wrapfix2.py` there; external tests use keyed
+  literals (`engine.TypeHost{TableHost: engine.TableHost{DDLHost: ...}}`). Slots
+  by `fielduse.tsv`: only `DropsSlot` (table) and `ExtensionNamespace`
+  (extension) have one family's users; `sqlRoutine`, `protocolSlot`,
+  `presentationSlot`, `ruleAction` and `foreignTablesSlot` are core-only,
+  `Inheritance` is read by `Finish` and query admission, `SchemaCascadeNames` is
+  shared by table, view, schema and type DDL, and `DropCascadeNames`,
+  `DomainBases`, `domainAlter` and the database fields have core users. Notes
+  for later items: items 196–203 move the family hosts; `TypeHost` (used by
+  `typecmds` and `schemacmds`) and `TableHost` belong to `tablecmds` by R3.
+  `tablecmds` `TestPrimaryKey*` fail when run alone ("duplicate advisory
+  session"), also on the base; they pass in the package run.
 - 191: not started.
 - 192: not started.
 - 195: not started.

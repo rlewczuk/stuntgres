@@ -107,19 +107,22 @@ and none waits on the lock manager. The package adds no mutex.
   embeds `Allocator` and `TypeStaging`. The extension handlers take an
   `Authority` and check it through the `access.View` passed beside it.
 - In the engine, `AuthorizationView` is the only `Authority`
-  (`DDLAuthorityOf` recovers it and panics on another kind). There is one
-  staging adapter, `DDLHost` (engine, operation, catalog stage): its `Host`
-  methods are in `ddl_host.go`, the `routine.DDLHost` methods in
-  `routine_host.go`, the `typedef.StageHost` and `TypeStaging` methods in
-  `typedef_host.go`, the `fdw.Host` method in `fdw_host.go`, the `role.Host`
-  and `role.StageHost` methods in `role_host.go`, and `SchemaHost` in
-  `schema_host.go`. `extensionHost` (`extension_host.go`) stays separate: it
-  captures one view and implements `extension.Host` and `extension.Stage`.
-  Neither adapter is a defined type over `CatalogStage`, so its unchecked
-  `Create`/`Replace` are never promoted.
+  (`DDLAuthorityOf` recovers it and panics on another kind). The core staging
+  adapter is `DDLHost` (engine, operation, catalog stage; `ddl_host.go`): the
+  `Host` methods, the methods core paths call and those unrelated family
+  hosts share. The family hosts embed it and keep its layout: `TableHost`
+  (`table.Host`, `index.Host`, `partition.Host`, `fdw.Host`), `TypeHost` and
+  `ViewHost` over `TableHost`, `RoutineHost`, `RoleHost` and `SchemaHost`
+  (`SchemaHost` in `schema_host.go`). `extensionHost` (`extension_host.go`)
+  stays separate: it captures one view and implements `extension.Host` and
+  `extension.Stage`. No adapter is a defined type over `CatalogStage`, so its
+  unchecked `Create`/`Replace` are never promoted.
 - **Adding a feature host:** embed `Host` and declare no `Authority` or
-  `Stage` of your own. The root adapter either embeds `DDLHost` (Go promotes
-  the shared methods) or is `DDLHost` itself. Never copy a shared method body.
+  `Stage` of your own. In the root, put the methods on the family host its
+  callers build, embedding `DDLHost` or another family host so that Go
+  promotes the shared methods. A method belongs on `DDLHost` only when core
+  calls it or unrelated family hosts share it. Never copy a shared method
+  body.
 
 ## What stays in the engine
 
