@@ -10,15 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `b320a46e4` (item 180 rebased on it; no root
-file changed since the `26f8fea15` measurement).
+Last verified against `master` at `28b10dda4` (item 181 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 181.
+- 182.
 
 ## Linear plan
 
@@ -33,9 +32,17 @@ ENGINE-SPLIT.md §4.
      `closure`; link and linear-plan checks and quickcheck passed;
      `REFERENCE=1`, bench, racecheck and finalcheck skipped (docs only, and
      racecheck/finalcheck at user request)
-181. [ ] Test fixture and pilot —
-     [enginetest](ENGINE-SPLIT-enginetest.md#item-181--test-fixture-and-pilot)
-     · needs 180 · P · 0.3 MB
+181. [x] Test fixture and pilot —
+     [enginetest](ENGINE-SPLIT-enginetest.md#item-181--test-fixture-and-pilot) ·
+     needs 180 · P · 0.3 MB (`89d097235`, `32fd10461`, `e54dc0604`, `8fa49b723`,
+     `8067af598`, docs commit) · `enginetest` stage 1 (13 helpers over the
+     exported API) added; of the 64 transitively free root test files, 16 pure
+     units moved to `analyze`, `exec`, `view`, `plan` and `functions`, 39
+     engine-fixture tests to 13 `<owner>/enginetests/` packages and `core/`, 2
+     deleted as `reference/` duplicates and 7 helper files kept; T3 fallback
+     fixed by measurement; root tests 1,343 files and 10.74 MB (−0.24 MB);
+     quickcheck and deps passed; `REFERENCE=1` and bench skipped (no production
+     change), racecheck and finalcheck skipped at user request
 182. [ ] Export pass in place —
      [core](ENGINE-SPLIT-core.md#item-182--export-pass-in-place) · needs 181 ·
      S

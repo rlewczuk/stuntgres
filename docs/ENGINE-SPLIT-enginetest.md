@@ -219,7 +219,42 @@ inspection accessors were added.
 
 ## Status
 
-- 181: not started.
+- 181: done (`89d097235`, `32fd10461`, `e54dc0604`, `8fa49b723`, `8067af598`).
+  `enginetest` stage 1 has `Operation`, `Execute`, `ExecuteFrame`, `Describe`,
+  `Statement`, `Run`, `Tuples`, `IndependentFinalRows`, `Export`, `Usage` and
+  `State`, plus `RoleOperation` and `RoleExecute` (deviation: pulled forward
+  from stage 2, because four pilot destinations use them). Build cost, one
+  engine test for `functions`, after a change to its export data with the normal
+  build cached (wall/CPU s): in `functions/` 12.3/71 (24 packages, the root
+  among them, rebuilt as `functions.test` variants), in `functions/enginetests/`
+  4.9/23, in `core/` 4.9/23, none 4.7/17; binaries 56/52/52/25 MB; quickcheck
+  wall 324 s before and 279 s after (load varied; the root package 135 s both
+  times, each new test package under 0.5 s). Fallback: lower packages with
+  internal tests take engine tests in `<owner>/enginetests/` (`doc.go` plus
+  `package enginetests_test`); `core/` and `*cmds/` in their own directory. Pure
+  units become internal tests of the package of the code under test; internal
+  tests cannot import `enginetest`, so files that share a helper move together
+  (the similar/posix files to `analyze`) or take a copy. Kept in the root for
+  their users in later waves: `catalog_source_producers`, `eval_context`,
+  `format`, `identity_helpers`, `operator_family_fixture` and
+  `pg_description_seed_data` (helpers only) and `object_acl_fixture` (tests the
+  root fixture `withObjectACL`); `math_consumers_test.go`, `range_type_test.go`
+  and `range_type_remedy_test.go` remain as helper-only remainders. Root helpers
+  copied into moved files (the root copies stay): `state`, `cancelAtErrCheck`,
+  `mathObservedArgument`, `primaryKeyUnitName`, `nullCountUnitDiagnostic`,
+  `nullCountRaw`, `indexClausesTypes`, `jsonObjectUnitTypes`, `queryProbe`,
+  `queryProbeExpression`, `evalContext`, `cteUnitNext`, `cteUnitType`,
+  `cteUnitValue`, `recursiveUnitFixture`, `generatedUnitDescriptor`,
+  `generatedOccurrenceProbe`, `accessMethodHeapOperationsUnit`, `btreeKeys`,
+  `operatorFamilyTestRead`, `operatorFamilyTestExclusion`,
+  `operatorFamilyUnitSeed`, `aclUnitType`, `cancelAfterPreflightContext`,
+  `subscriptsUnit` and `domainUnitType`. `info_sql_sizing_boundaries_test.go`
+  became free after the 26f8fea15 measurement, and `upc_coercion_test.go` was
+  added to the root after the start tip (feature inflow, for the waves). Tools:
+  `mvtest` and `inv` (§2.3). For item 195: once core has internal test files,
+  `core_test` files that import `enginetest` rebuild the root and the families
+  against core's test variant (the cost measured above); weigh
+  `core/enginetests/` for engine tests that need no accessor.
 - 183: not started.
 - 184: not started.
 - 185: not started.
