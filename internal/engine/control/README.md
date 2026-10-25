@@ -25,9 +25,10 @@ The root's capture window (`captureDumpLocked`, under `Engine.mu`) calls
 place, builds the script and writes it; the root never reads the capture again.
 
 PL bootstrap languages/handlers are validated and omitted, not recreated.
-Altered language authority rejects Dump before writer I/O. Restore compiles PL
-declarations on CREATE, preserves lazy expression binding, and remaps declaration
-source addresses once without converting replay prerequisites into hard edges.
+Changed retained language owners and raw ACLs replay through bounded catalog
+repairs. Restore compiles PL declarations on CREATE, preserves lazy expression
+binding, and remaps declaration source addresses once without converting replay
+prerequisites into hard edges.
 Row-trigger definitions are post-data SQL groups, after their functions/tables
 and saved rows, so Restore never transforms stored data twice. Partition clones
 are derived through catalog publication rather than serialized independently;
@@ -49,7 +50,20 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   Owner changes follow relabeling, then stable-slot owner metadata. Authentic
   installed routine ACLs use that metadata's named grantor/grantee codec during
   native Restore, preserving absent/explicit-empty ACLs and grant options.
-  Explicit ACLs on unrelated builtin, foreign and loose routines remain errors.
+  Other supported routine, language, wrapper and server raw ACLs use
+  destination-resolved administrative catalog repairs (`object_acl.go`), after
+  definitions, identity moves and owner reconciliation. The role-aware ACLITEM
+  codec preserves grantors/options and NULL versus explicit-empty/default ACLs.
+  Explicit-empty repairs use the existing lossless
+  `pg_catalog.acldefault('c',0)` constructor, with qualified argument types, to
+  preserve PostgreSQL's one-dimensional empty ACL representation. Isolated
+  admission recognizes only that fixed constant shape, never evaluates arbitrary
+  functions, and does not accept zero-dimensional `'{}'` repairs.
+  ACL capture shares declaration collection's temporary-namespace exclusion:
+  omitted temporary routines never leave dangling raw-ACL repairs in the stream.
+  Installed extension slots retain their existing metadata path, without
+  duplicate raw replay. `object_acl_repair.go` admits only fixed generated shapes;
+  ordinary public UPDATE gains no catalog write capability.
   Restore/Reset starts from canonical destination providers and destination
   foreign registrations, not source callbacks. Missing/incompatible capabilities
   fail before publication. Replacement preserves provider-name tombstones so
@@ -91,9 +105,10 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
 
 ### Ordering and replay rules
 
-- Anything Dump cannot serialize exactly (explicit SQL/MED, SQL-routine or
-  aggregate ACLs, default privileges, invalid indexes, non-canonical retained
-  bootstrap ACLs) is rejected before any output, never silently reset.
+- Anything Dump cannot serialize exactly (relation/column/type/namespace ACLs,
+  default privileges, invalid indexes or unsupported loose providers) is
+  rejected before any output, never silently reset. Selected routine, language,
+  wrapper and server ACL rendering is fully preflighted before writer I/O.
 - **Default deferral** breaks table → routine → table cycles as CREATE TABLE,
   CREATE FUNCTION, then ALTER TABLE SET DEFAULT. Replaying a default definition
   does not evaluate it; staged DML uses ordinary default evaluation.

@@ -115,10 +115,15 @@ var dumpCollectors = [...]dumpCollector{
 	{"namespace", isDumpNamespace, collectNamespaceDump},
 }
 
+func temporaryDumpObject(state *catalog.State, d catalog.Descriptor) bool {
+	ns, ok := state.Namespace(d.Namespace())
+	return ok && ns.Temporary != (ids.SessionToken{})
+}
+
 // collect hands one descriptor to the first matching Collect entry.
 // Objects in temporary namespaces are never dumped.
 func (c *dumpCollection) collect(ctx context.Context, a ids.ObjectAddress, d catalog.Descriptor) error {
-	if ns, ok := c.source.State.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
+	if temporaryDumpObject(c.source.State,d) {
 		return nil
 	}
 	for _, collector := range dumpCollectors {
@@ -230,9 +235,6 @@ func collectLanguageDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddre
 	if err := (catalog.LanguageProvider{}).Validate(c.CatalogView, d); err != nil {
 		return err
 	}
-	if d.Owner != c.source.Bootstrap || d.ACL.Explicit {
-		return fmt.Errorf("stuntgres: dump cannot serialize altered language authority")
-	}
 	return nil
 }
 
@@ -295,9 +297,6 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 			return err
 		}
 		return c.collectProvider(t)
-	}
-	if t.ACL.Explicit && t.Extension == (ids.ObjectAddress{}) {
-		return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 	}
 	if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")

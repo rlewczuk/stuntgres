@@ -148,6 +148,10 @@ package or the engine.
   (`OperatorDumpStatements`, `RoutineDumpStatement`). They render through
   `dump.Presenter` and find predecessors through `dump.Resolver`, so they read
   only their arguments.
+  Supported routine raw ACLs are captured separately by `control` and replayed
+  after final identity/owner reconciliation, preserving NULL/empty arrays,
+  delegated named grantors and grant options. Declarations do not render GRANT
+  approximations or copy source principal/object identities.
 
 ## IF EXISTS suppression
 

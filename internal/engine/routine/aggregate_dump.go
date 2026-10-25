@@ -16,9 +16,6 @@ func aggregateDumpStatement(p dump.Presenter, view catalog.Read, roles authoriza
 	if err := ValidateAggregateDefinition(view, d); err != nil {
 		return dump.Statement{}, err
 	}
-	if d.ACL.Explicit {
-		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
-	}
 	owner, err := roles.Descriptor(d.Owner)
 	if err != nil {
 		return dump.Statement{}, err

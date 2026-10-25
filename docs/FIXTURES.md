@@ -72,6 +72,18 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   metadata during native Restore, including owner-only defaults, named/PUBLIC
   grants, grant options and explicit-empty ACLs. These native metadata comments
   do not apply ACL changes when the SQL stream is replayed on PostgreSQL.
+- Supported SQL routines/procedures/aggregates, retained languages and foreign
+  wrappers/servers preserve raw ACLs, named grantors/grantees, grant options and
+  absent versus explicit-empty/default-equivalent arrays. Definitions and owner
+  moves precede bounded administrative catalog UPDATE repairs; routine locators
+  use destination-resolved qualified regprocedure identities, never allocated
+  source OIDs. Retained language owner changes use named regrole repairs.
+  Provision every named role before Restore. These generated repairs also work
+  under administrative PostgreSQL replay; ordinary native UPDATE remains
+  unsupported for these catalogs.
+  Empty ACL repairs use a fixed lossless empty-ACL constructor rather than an
+  ordinary `'{}'::aclitem[]` literal, whose zero-dimensional shape is not valid
+  for PostgreSQL privilege checks. Empty remains distinct from absent NULL.
 - Custom range declarations include their selected subtype class, collation,
   optional diff and generated multirange name. Restore rebuilds destination-owned
   family descriptors and endpoint values rather than retaining source captures.
@@ -172,9 +184,10 @@ remain unchanged. Roles are destination prerequisites; Reset preserves them.
 Replaying emitted SQL on PostgreSQL also requires destination schema USAGE for
 the owner to resolve declared support routines; fixture schema recreation does
 not imply the bootstrap public-schema grants.
-Explicit SQL-routine/aggregate ACL serialization still fails before output,
-rather than dropping grants. Read errors, cancellation or late invalid
-identity/owner replay publish nothing.
+SQL-routine and aggregate ACLs roundtrip exactly rather than dropping grants.
+Unrelated relation/column/type/namespace/default-privilege restrictions remain.
+Read errors, cancellation or late invalid identity/owner/ACL replay publish
+nothing; writer failures remain ordinary I/O failures.
 
 The [shared routine ALTER proof](../reference/query_core/README.md#routine-alter-proof)
 checks repeated native replay, a fresh independent Driver, retained results and

@@ -47,6 +47,7 @@ var dumpSections = [...]dumpSection{
 	{"triggers", emitDumpTriggers},
 	{"foreign defaults", emitDumpForeignDefaults},
 	{"attribute ranks", emitDumpAttributeRanks},
+	{"object ACLs", emitDumpObjectACLs},
 }
 
 func emitDumpRoutineDirective(_ context.Context, s *dumpScript, w *dumpWriter) error {

@@ -94,7 +94,7 @@ func TestAccessInquiryEvaluatesRoles(t *testing.T) {
 	if _, err := three.Eval(runtime); err != nil || runtime.actor == nil || *runtime.actor != (AccessRole{ByOID: true, OID: 10}) || runtime.target != (AccessRole{Name: "x"}) {
 		t.Fatal("pg_has_role(oid, name, text)", runtime.actor, runtime.target, err)
 	}
-	rls := AccessInquiry{Info: expr.Info{Usage: boolean}, Count: 1, RowSecurity: true}
+	rls := AccessInquiry{Info: expr.Info{Usage: boolean}, Count: 1, Kind: AccessRowSecurity}
 	rls.Args[0] = aclTestOID(t, 16384)
 	if _, err := rls.Eval(runtime); err != nil || runtime.relation != (AccessRelation{ByOID: true, OID: 16384}) {
 		t.Fatal("row_security_active(oid)", runtime.relation, err)
@@ -209,7 +209,7 @@ func TestACLNodesRender(t *testing.T) {
 		t.Fatal("positional argument after reordered slots rendered")
 	}
 
-	inquiry := AccessInquiry{Info: expr.Info{Usage: aclTestTypes[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Count: 1, RowSecurity: true}
+	inquiry := AccessInquiry{Info: expr.Info{Usage: aclTestTypes[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Count: 1, Kind: AccessRowSecurity}
 	inquiry.Args[0] = aclTestText(sqltype.Text, "t")
 	spec = renderOf(t, inquiry)
 	if spec.Tree != "AccessInquiry row_security_active" || spec.Name != "row_security_active" || spec.Quote != expr.QuoteOnRequest || len(spec.Args) != 1 {

@@ -49,6 +49,23 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 					}
 				}
 			}
+			routineRoundTrip:=func(target string){
+				var owner string
+				if err:=c.QueryRowContext(p.Ctx,"SELECT proowner::regrole::text FROM pg_proc WHERE oid=$1::regprocedure",target).Scan(&owner);err!=nil {t.Fatal(err)}
+				check:=func(){
+					run(fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure",[]string{"acl"},[]string{"TEXT"},[][]any{{"{"+owner+"=X/"+owner+"}"}},target))
+					run(objectGrantAccessValue("SELECT has_function_privilege('public',$1::text,'EXECUTE') AS v",false,target))
+				}
+				check()
+				if b.PG {return}
+				var output bytes.Buffer
+				if err:=stuntgres.Dump(p.Ctx,p.Native,&output);err!=nil || output.Len()==0 {t.Fatal("routine ACL Dump must publish exact replayable authority",target,err)}
+				if err:=stuntgres.Reset(p.Ctx,p.Native);err!=nil {t.Fatal(err)}
+				if err:=stuntgres.Restore(p.Ctx,p.Native,bytes.NewReader(output.Bytes()));err!=nil {t.Fatal("routine ACL Restore",target,err)}
+				check()
+				var again bytes.Buffer
+				if err:=stuntgres.Dump(p.Ctx,p.Native,&again);err!=nil || !bytes.Equal(again.Bytes(),output.Bytes()) {t.Fatal("routine raw ACL replay is not canonical",target,err)}
+			}
 			for _, tc := range []struct {
 				target, query, typ string
 				rows               [][]any
@@ -70,7 +87,9 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 				fixture.RoleGrantActor(run, "og_object_reader", func() { fixture.RoleGrantPermissionDenied(run, tc.query, kind, name) })
 				// convert_to is an ordinary builtin; conversion member routines are
 				// covered independently below, not conflated with SQL conversion.
-				reject()
+				routineRoundTrip(tc.target)
+				run(fixture.Select(tc.query,[]string{"v"},[]string{tc.typ},tc.rows))
+				fixture.RoleGrantActor(run,"og_object_reader",func(){fixture.RoleGrantPermissionDenied(run,tc.query,kind,name)})
 				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+tc.target+" TO PUBLIC", 0))
 				baseline()
 			}
@@ -128,7 +147,7 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 			codec := "pg_catalog.utf8_to_iso8859_1(integer,integer,cstring,internal,integer,boolean)"
 			defer objectGrantRoutineCleanup(t, p, c, []string{codec})
 			run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+codec+" FROM PUBLIC", 0))
-			reject()
+			routineRoundTrip(codec)
 			run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+codec+" TO PUBLIC", 0))
 			baseline()
 			// A default-equivalent grant/revoke removes the sparse parameter entry;

@@ -25,6 +25,13 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 - **Catalog probes.** CREATE AGGREGATE lifecycle checks select the owning
   procedure in a filtered derived source before catalog joins, so they never
   join complete procedure inventories within the 30-second scenario.
+- **Logical authority.** Routine and aggregate native-control phases retain
+  explicit raw EXECUTE ACLs as well as definitions, support edges, owners and
+  data. Grantor/options and absent-versus-empty state are not reconstructed from
+  effective rights; actual emitted SQL remains the PostgreSQL replay input.
+  Both the aggregate/support-function and final-function explicit-ACL streams
+  are replayed on PostgreSQL, with the same authority and complete graph/data
+  expectations as native replay, not only the earlier default-ACL streams.
 - **Floating results.** Results that depend on accumulation order use named SQL
   interval witnesses such as `abs(actual-expected) <= 1e-12*max(1,abs(expected))`;
   every other cell, count, metadata and diagnostic stays exact. Do not add a

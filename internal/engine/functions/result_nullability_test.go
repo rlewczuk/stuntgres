@@ -16,7 +16,7 @@ func TestResultNullabilityFunctions(t *testing.T) {
 	}{
 		{"has_role_implicit", AccessInquiry{Count: 2}},
 		{"has_role_explicit", AccessInquiry{Count: 3}},
-		{"row_security", AccessInquiry{RowSecurity: true, Count: 1}},
+		{"row_security", AccessInquiry{Kind: AccessRowSecurity, Count: 1}},
 		{"object_acl", ObjectACL{}},
 		{"acl_default", ACLValue{Kind: ACLDefault}},
 		{"acl_make", ACLValue{Kind: ACLMake}},

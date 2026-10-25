@@ -21,6 +21,17 @@ evaluated. Non-NULL calls remain volatile and unfolded. Runtime row NULL still
 evaluates the written siblings before testing strictness or borrowing the
 session generator.
 
+`AccessInquiry` uses a closed kind for role membership, row security and routine,
+language, wrapper and server privilege inquiries. Role NAME/OID and object
+TEXT/OID axes bind independently to exact selected declarations. Arguments
+evaluate once in written order before strict NULL handling; the BOOL recipe
+retains neither a role snapshot nor a decision. `ACLRuntime.ObjectPrivilege`
+borrows the executing statement's current private catalog and expression
+principal, including on every reuse of a held prepared statement. Text routine
+identities use the existing regprocedure resolver. Inquiry-specific PUBLIC
+defaults and unknown role OIDs do not change creation or execution admission.
+
+
 ## Imports and layering
 
 - A leaf library: it imports only [`expr`](../expr/README.md), `fts`, `ids`, `sqltype`,

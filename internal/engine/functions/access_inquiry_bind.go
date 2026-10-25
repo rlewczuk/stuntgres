@@ -6,10 +6,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// bindAccessInquiry binds pg_has_role and row_security_active. Their chain
-// branch sat before the shared gates and claimed the names
-// case-insensitively (parser.AccessInquiryFunctionName); exact spelling is
-// part of resolution here.
+// bindAccessInquiry shares exact spelling, scalar gates and independent
+// name/OID axes across the typed access inquiry families.
 func bindAccessInquiry(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	var operands [3]Argument
 	var small [3]string
@@ -46,22 +44,34 @@ func bindAccessInquiry(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	n := AccessInquiry{RowSecurity: name == "row_security_active", Count: len(raw.Args)}
-	if !visible || name != n.Name() || len(raw.ArgNames) != 0 || n.RowSecurity && n.Count != 1 || !n.RowSecurity && n.Count != 2 && n.Count != 3 {
+	n := AccessInquiry{Count: len(raw.Args)}
+	switch name {
+	case "row_security_active":
+		n.Kind = AccessRowSecurity
+	case "has_function_privilege":
+		n.Kind = AccessFunction
+	case "has_language_privilege":
+		n.Kind = AccessLanguage
+	case "has_foreign_data_wrapper_privilege":
+		n.Kind = AccessForeignWrapper
+	case "has_server_privilege":
+		n.Kind = AccessServer
+	}
+	if !visible || name != n.Name() || len(raw.ArgNames) != 0 || n.Kind == AccessRowSecurity && n.Count != 1 || n.Kind != AccessRowSecurity && n.Count != 2 && n.Count != 3 {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	properties := expr.Properties{Volatility: expr.Stable}
 	var formal [3]sqltype.ID
 	for i := range n.Count {
 		id := sqltype.Text
-		if n.RowSecurity || i < n.Count-1 {
+		if n.Kind == AccessRowSecurity || i < n.Count-1 {
 			id = sqltype.Name
-			if n.RowSecurity {
+			if n.Kind == AccessRowSecurity || n.Kind >= AccessFunction && i == n.Count-2 {
 				id = sqltype.Text
 			}
 			if operands[i].Usage.Type != nil {
-				// The two overload axes are independent. Unknown strings/parameters
-				// prefer NAME (TEXT for relations); typed numeric/alias inputs prefer OID.
+				// Unknown role inputs prefer NAME; object identities prefer TEXT.
+				// Each typed numeric/alias axis independently prefers OID.
 				if _, failure := sqltype.PlanCoercion(operands[i].Usage, b.Type(id).Usage(), sqltype.Implicit); failure != nil {
 					id = sqltype.Oid
 				}

@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -95,6 +97,75 @@ func (h *statementHost) RowSecurityActive(c *exec.Context, relation functions.Ac
 		return false, nil
 	}
 	return access.RowSecurityApplies(auth.Roles, d, principal)
+}
+
+func (h *statementHost) ObjectPrivilege(c *exec.Context, kind functions.AccessKind, actor *functions.AccessRole, object functions.AccessRole, privilege string) (bool, bool, error) {
+	scope := h.scope()
+	e := scope.engine()
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	auth, err := aclInquiryAuthorizationLocked(c, scope, e)
+	if err != nil {
+		return false, false, err
+	}
+	actorID := expressionPrincipal(c).ID()
+	if actor != nil {
+		if !actor.ByOID && actor.Name == "public" {
+			actorID = 0
+		} else if actorID, err = regobj.AccessRoleID(auth.Roles, *actor); err != nil {
+			return false, false, err
+		}
+	}
+	var class ids.OID
+	var noun, token string
+	switch kind {
+	case functions.AccessFunction:
+		class, noun, token = ids.ProcedureClassID, "function", "EXECUTE"
+	case functions.AccessLanguage:
+		class, noun, token = ids.LanguageClassID, "language", "USAGE"
+	case functions.AccessForeignWrapper:
+		class, noun, token = ids.ForeignWrapperClassID, "foreign-data wrapper", "USAGE"
+	case functions.AccessServer:
+		class, noun, token = ids.ForeignServerClassID, "server", "USAGE"
+	default:
+		return false, false, fmt.Errorf("stuntgres: invalid object privilege inquiry")
+	}
+	address := ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(object.OID)}
+	if !object.ByOID {
+		if kind == functions.AccessFunction {
+			auth.State.CurrentUser = expressionPrincipal(c)
+			types, failure := captureRegtypeInput(auth, scope.op)
+			if failure != nil {
+				return false, false, failure
+			}
+			input, failure := captureRoutineInput(auth, types)
+			if failure != nil {
+				return false, false, failure
+			}
+			oid, failure := input.ResolveRegprocedure(c.Context, object.Name)
+			if failure != nil {
+				return false, false, failure
+			}
+			if oid == 0 {
+				return false, false, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, object.Name))
+			}
+			address.ObjectID = ids.OID(oid)
+		} else {
+			address = auth.Catalog.NameAddress(ids.NameKey{ClassID: class, Name: object.Name})
+			if address == (ids.ObjectAddress{}) {
+				return false, false, sqlError("42704", fmt.Sprintf(`%s "%s" does not exist`, noun, object.Name))
+			}
+		}
+	}
+	ordinary, options, err := authorization.ParseObjectPrivileges(privilege, token)
+	if err != nil {
+		return false, false, err
+	}
+	value, exists, err := auth.View.ObjectPrivilege(c.Context, actorID, address, ordinary, options)
+	if err == nil && !exists && !object.ByOID && kind == functions.AccessFunction {
+		err = sqlError("XX000", fmt.Sprintf("cache lookup failed for function %d", address.ObjectID))
+	}
+	return value, exists, err
 }
 
 // aclInquiryAuthorizationLocked is the statement's write authorization over

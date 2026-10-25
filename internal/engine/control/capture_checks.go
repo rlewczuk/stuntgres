@@ -14,11 +14,6 @@ func CheckPortable(state *catalog.State) error {
 	if catalog.NewRead(nil, state).HasMultiplePersistentDefaults() {
 		return fmt.Errorf("stuntgres: multiple default operator classes cannot be dumped")
 	}
-	for _, descriptor := range state.Descriptors() {
-		if foreign, ok := descriptor.(*catalog.ForeignObject); ok && foreign.ACL.Explicit {
-			return fmt.Errorf("stuntgres: dump cannot serialize explicit foreign object ACL")
-		}
-	}
 	if state.DefaultACLCount() != 0 {
 		return fmt.Errorf("stuntgres: dump cannot serialize default privileges")
 	}

@@ -99,9 +99,6 @@ func RoutineDumpStatement(p dump.Presenter, view catalog.Read, roles authorizati
 	if !ok {
 		return dump.Statement{}, fmt.Errorf("missing SQL routine namespace")
 	}
-	if d.ACL.Explicit {
-		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
-	}
 	var sql strings.Builder
 	kind := "FUNCTION"
 	if d.RoutineKind == catalog.ProcedureRoutine {

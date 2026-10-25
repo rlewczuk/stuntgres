@@ -28,10 +28,11 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   is the standard deny → grant → revoke cycle over `objectGrantProviderCase`
   consumers; `objectGrantBodyConsumer` (`object_grant_routine_body_consumers_test.go`)
   is the SQL-body variant.
-- `ObjectGrantControls` retains zero-output rejection for unsupported builtin,
-  conversion, parameter and tablespace authority. Authentic installed members
-  instead prove owner identity and deny/grant/revoke behavior through nonempty,
-  canonical native Dump/Reset/Restore rounds inside the shared SQL scenario.
+- `ObjectGrantControls` retains zero-output rejection for unsupported parameter
+  and tablespace authority. Ordinary builtin and conversion routines, as well
+  as authentic installed members, prove exact raw ACLs, owner identity and
+  deny/grant/revoke behavior through nonempty, canonical native
+  Dump/Reset/Restore rounds inside the shared SQL scenario.
 - Builtin routine ACLs, large objects and database, parameter and tablespace
   ACLs survive the `public` reset. Defer `objectGrantRoutineCleanup`
   (`object_grant_routines_scalar_test.go`) for every builtin routine whose
@@ -56,10 +57,10 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
 - Large-object isolation witnesses use two physical connections; SQL-body
   snapshot witnesses guard against SQL-function inlining with a one-row source.
 - Transactional privilege families cover autocommit, SQL BEGIN and Go BeginTx
-  with direct/held utilities and real consumers. Language/tablespace ACL
-  metadata uses represented `aclexplode` rows rather than adding unsupported
-  inquiry functions; language declaration and post-admission consumers remain
-  independent behavioral witnesses.
+  with direct/held utilities and real consumers. Language/tablespace raw ACL
+  metadata retains represented `aclexplode` witnesses; selected language,
+  routine, wrapper and server inquiries additionally use the typed access path.
+  Language declaration and post-admission consumers remain independent witnesses.
   Named aggregate/window and ALL FUNCTIONS/ROUTINES/PROCEDURES cases keep the
   same held consumers across private ACL changes and transaction recovery/end.
   Schema-CREATE delegation cases inspect CREATE-filtered origin/option rows,
@@ -84,6 +85,28 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - JSON and JSONB providers: `RUN='^TestReferenceObjectGrantJSON'`
 - pgcrypto providers: `RUN='^TestReferenceObjectGrantPGCrypto'`
 - Access-privilege inquiry functions: `RUN='^TestReferenceObjectGrantAccessInquiry'`
+- Routine/language/foreign execution inquiries: `RUN='^TestReferenceAccessExecution'`.
+  This family uses the shared scenario, diagnostic, metadata and held-statement
+  helpers. Its persistence phase replays the actual emitted native stream on
+  PostgreSQL and provisions role names independently of allocated OIDs.
+  Persistent procedure authority is checked through its actual kind, owner,
+  raw ACL and name/OID inquiries without adding unsupported CALL execution.
+  Language/wrapper/server checks preserve delegated grantors/options, changed
+  server ownership and NULL versus empty ACLs. Temporary-routine cases verify
+  their declarations and ACL repairs are omitted together while persistent
+  authority survives fresh native and actual-stream PostgreSQL replay.
+  Persistent routine OIDs come from public regprocedure identities; temporary
+  OIDs come directly from the public catalog because existing text routine
+  selection excludes temporary namespaces, even with qualification. The
+  temporary witness applies schema-wide grants before creating its absent-ACL
+  sibling, without expanding that resolver boundary. Raw routine ACLs use
+  `pg_get_acl`, without requiring optional `pg_proc` columns. Fresh-driver
+  SQL witnesses use `RecordedNativePool` with its own recorder; controls retain
+  the unwrapped pool for the same connector. Reset each borrowed connection
+  before returning it; global cleanup
+  drops owned foreign objects and revokes named language grants before restoring
+  the original raw language ACL. A catalog UPDATE alone cannot remove
+  PostgreSQL's shared role dependencies created by GRANT.
 - Partition-key recipes: `RUN='^TestReferenceObjectGrantPartitionKey'`
 - Domain CHECK recipes: `RUN='^TestReferenceObjectGrantDomainCheck'`
 - Ordinary table CHECK admission and readmission: `RUN='^TestReferenceObjectGrantCheck'`

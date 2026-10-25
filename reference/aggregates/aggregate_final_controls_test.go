@@ -16,6 +16,7 @@ func TestReferenceAggregateFinalPersistence(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"fa_persist_owner"})
 	fixture.SchemaReferenceCleanup(t, "fa_owned_scope")
 	var emitted string
+	var explicit string
 	aggregateFinalScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		createAggregateRun(t, p, b, c, fixture.Exec("CREATE ROLE fa_persist_owner", 0))
 		if b.PG {
@@ -48,10 +49,10 @@ func TestReferenceAggregateFinalPersistence(t *testing.T) {
 					fixture.Exec("CREATE AGGREGATE fa_nofinal_"+mode+"(integer) (SFUNC=pg_catalog.int4pl,STYPE=int4,INITCOND='0',FINALFUNC_EXTRA,FINALFUNC_MODIFY="+mode+")", 0))
 			}
 		}
-		check := func(db fixture.Executor) {
+		check := func(db fixture.Executor, recorder *fixture.Recorder) {
 			run := func(s fixture.Step) {
-				fixture.RunStep(t, p.Ctx, db, b.Recorder, s)
-				fixture.RunStep(t, p.Ctx, db, b.Recorder, fixture.Prepared(s))
+				fixture.RunStep(t, p.Ctx, db, recorder, s)
+				fixture.RunStep(t, p.Ctx, db, recorder, fixture.Prepared(s))
 			}
 			for _, q := range []string{"SELECT fa_sum(x) AS v FROM fa_input", "SELECT v::text AS v FROM fa_persist_view", "SELECT fa_persist_total()::text AS v"} {
 				run(aggregateFinalText(q, "total=6"))
@@ -77,8 +78,22 @@ func TestReferenceAggregateFinalPersistence(t *testing.T) {
 				run(fixture.Select("SELECT d.deptype::text AS kind FROM (SELECT oid FROM pg_proc WHERE proname='fa_domain') p JOIN pg_depend d ON d.objid=p.oid WHERE d.classid='pg_proc'::regclass AND d.refclassid='"+edge.class+"'::regclass AND d.refobjid="+edge.ref, []string{"kind"}, []string{"TEXT"}, [][]any{{"n"}}))
 			}
 		}
-		check(c)
+		checkExplicit:=func(db fixture.Executor,recorder *fixture.Recorder){
+			for _,step:=range []fixture.Step{
+				fixture.Select("SELECT has_function_privilege('public','fa_domain_final(integer)','EXECUTE') AS v",[]string{"v"},[]string{"BOOL"},[][]any{{false}}),
+				fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid='fa_domain_final(integer)'::regprocedure",[]string{"acl"},[]string{"TEXT"},[][]any{{"{postgres=X/postgres}"}}),
+			} {fixture.RunStep(t,p.Ctx,db,recorder,step);fixture.RunStep(t,p.Ctx,db,recorder,fixture.Prepared(step))}
+		}
+		check(c,b.Recorder)
 		if b.PG {
+			if explicit=="" {t.Fatal("missing actual explicit final-function ACL stream")}
+			for _,query:=range []string{"DROP SCHEMA fa_owned_scope CASCADE","DROP SCHEMA public CASCADE","CREATE SCHEMA public","GRANT USAGE ON SCHEMA public TO PUBLIC"} {
+				if _,err:=c.ExecContext(p.Ctx,query);err!=nil {t.Fatal("prepare final-function ACL replay",query,err)}
+			}
+			if _,err:=c.ExecContext(p.Ctx,explicit);err!=nil {t.Fatal("replay actual final-function ACL stream",err)}
+			createAggregateRun(t,p,b,c,fixture.Exec("RESET SESSION AUTHORIZATION",0))
+			checkExplicit(c,b.Recorder)
+			check(c,b.Recorder)
 			return
 		}
 		old, err := c.QueryContext(p.Ctx, "SELECT v::text AS v FROM fa_persist_view")
@@ -98,18 +113,18 @@ func TestReferenceAggregateFinalPersistence(t *testing.T) {
 			if err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(emitted)); err != nil {
 				t.Fatal(err)
 			}
-			check(c)
+			check(c,b.Recorder)
 		}
 		if err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(emitted+"\nCREATE AGGREGATE fa_broken(integer) (SFUNC=pg_catalog.int4pl,STYPE=int4,FINALFUNC=fa_absent);")); err == nil {
 			t.Fatal("invalid restore published")
 		}
-		check(c)
+		check(c,b.Recorder)
 		ctx, cancel := context.WithCancel(p.Ctx)
 		cancel()
 		if err = stuntgres.Restore(ctx, p.Native, strings.NewReader(emitted)); !errors.Is(err, context.Canceled) {
 			t.Fatalf("canceled restore=%v", err)
 		}
-		check(c)
+		check(c,b.Recorder)
 		driver := stuntgres.NewDriver()
 		connector, err := driver.OpenConnector("aggregate-final-fresh/" + t.Name())
 		if err != nil {
@@ -117,18 +132,26 @@ func TestReferenceAggregateFinalPersistence(t *testing.T) {
 		}
 		fresh := sql.OpenDB(connector)
 		defer fresh.Close()
+		freshRecorded,freshRecorder:=fixture.RecordedNativePool(t,connector)
 		fixture.RunStep(t, p.Ctx, fresh, b.Recorder, fixture.Exec("CREATE ROLE fa_persist_owner", 0))
 		if err = stuntgres.Restore(p.Ctx, fresh, strings.NewReader(emitted)); err != nil {
 			t.Fatal(err)
 		}
-		check(fresh)
+		check(freshRecorded,freshRecorder)
 		fixture.ScalarRows(t, false, old, []string{"v"}, []string{"TEXT"}, [][]any{{"total=6"}}, false)
 		createAggregateRun(t, p, b, c, fixture.Exec("REVOKE EXECUTE ON FUNCTION fa_domain_final(integer) FROM PUBLIC", 0))
-		var rejected bytes.Buffer
-		err = stuntgres.Dump(p.Ctx, p.Native, &rejected)
-		if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit routine ACL" || rejected.Len() != 0 {
-			t.Fatalf("explicit final ACL dump=%q/%v", rejected.String(), err)
+		var saved bytes.Buffer
+		if err = stuntgres.Dump(p.Ctx, p.Native, &saved); err != nil {
+			t.Fatal(err)
 		}
-		check(c)
+		explicit=saved.String()
+		if err = stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(saved.Bytes())); err != nil {
+			t.Fatal(err)
+		}
+		checkExplicit(c,b.Recorder)
+		check(c,b.Recorder)
+		if err:=stuntgres.Restore(p.Ctx,fresh,bytes.NewReader(saved.Bytes()));err!=nil {t.Fatal("fresh explicit final-function ACL replay",err)}
+		checkExplicit(freshRecorded,freshRecorder)
+		check(freshRecorded,freshRecorder)
 	})
 }

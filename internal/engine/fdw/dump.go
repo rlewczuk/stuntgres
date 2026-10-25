@@ -58,9 +58,6 @@ func DumpObject(view catalog.Read, roles authorization.Read, d *catalog.ForeignO
 	if err := (catalog.ForeignCatalogProvider{Class: d.Address().ClassID}).Validate(view, d); err != nil {
 		return dump.Statement{}, err
 	}
-	if d.ACL.Explicit {
-		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize explicit foreign object ACL")
-	}
 	name := catalog.QuoteIdentifier(d.Name())
 	var sql, ownerKind string
 	switch d.Address().ClassID {

@@ -48,6 +48,7 @@ type dumpScript struct {
 	lateForeignCasts                          map[ids.OID]bool
 	providerStatements                        []string
 	extensionMetadata                         map[ids.OID]string
+	objectACLStatements                       []string
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -94,6 +95,9 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if err := s.prepareProviderReplay(); err != nil {
+		return nil, err
+	}
+	if s.objectACLStatements, err = prepareObjectACLs(ctx, s.Capture); err != nil {
 		return nil, err
 	}
 	return s, nil

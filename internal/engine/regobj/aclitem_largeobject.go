@@ -14,6 +14,11 @@ import (
 // same canonical spelling under output, and its items may grant only SELECT
 // and UPDATE. Grantees and grantors map to the principals of output's owner.
 func LargeObjectACL(ctx context.Context, view catalog.Read, text string, input ACLItemInput, output ACLItemOutput) ([]authorization.ACLEntry, error) {
+	return ObjectACL(ctx, view, text, input, output, authorization.SelectPrivilege|authorization.UpdatePrivilege)
+}
+
+// ObjectACL decodes canonical raw ACLs into the destination role authority.
+func ObjectACL(ctx context.Context, view catalog.Read, text string, input ACLItemInput, output ACLItemOutput, mask authorization.Privileges) ([]authorization.ACLEntry, error) {
 	array, ok := view.LookupType(sqltype.ACLItemArray)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing ACL array type")
@@ -27,17 +32,22 @@ func LargeObjectACL(ctx context.Context, view catalog.Read, text string, input A
 		return nil, err
 	}
 	if canonical != text {
-		return nil, sqlError("0A000", "restore accepts only canonical large object ACL arrays")
+		return nil, sqlError("0A000", "restore accepts only canonical object ACL arrays")
 	}
-	selectBits, _ := authorization.ACLItemBits(authorization.SelectPrivilege)
-	updateBits, _ := authorization.ACLItemBits(authorization.UpdatePrivilege)
+	allowed, err := authorization.ACLItemBits(mask)
+	if err != nil {
+		return nil, err
+	}
 	privileges := func(bits uint32) authorization.Privileges {
 		var out authorization.Privileges
-		if bits&selectBits != 0 {
-			out |= authorization.SelectPrivilege
-		}
-		if bits&updateBits != 0 {
-			out |= authorization.UpdatePrivilege
+		for p := authorization.Privileges(1); p <= authorization.AlterSystemPrivilege; p <<= 1 {
+			if mask&p == 0 {
+				continue
+			}
+			b, _ := authorization.ACLItemBits(p)
+			if bits&b != 0 {
+				out |= p
+			}
 		}
 		return out
 	}
@@ -47,8 +57,8 @@ func LargeObjectACL(ctx context.Context, view catalog.Read, text string, input A
 		if err != nil {
 			return nil, err
 		}
-		if authority != output.Owner.ACLAuthority || rights & ^(selectBits|updateBits) != 0 {
-			return nil, fmt.Errorf("stuntgres: invalid large object ACL privileges")
+		if authority != output.Owner.ACLAuthority || (rights|options) & ^allowed != 0 || options & ^rights != 0 {
+			return nil, fmt.Errorf("stuntgres: invalid object ACL privileges")
 		}
 		entry := authorization.ACLEntry{Grantor: output.Owner.Principals.Principal(uint64(grantor)), Privileges: privileges(rights), GrantOptions: privileges(options)}
 		entry.Grantee.Public = grantee == 0

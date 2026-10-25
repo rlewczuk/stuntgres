@@ -51,6 +51,9 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
   each `public` reset: Dump serializes neither roles nor schema ACLs. Register
   same-session `RESET ROLE`, `RESET SESSION AUTHORIZATION` and `RESET search_path`
   cleanup before replaying.
+  Wrapper/server USAGE ACLs roundtrip as exact named raw ACL repairs; foreign
+  relation/column ACLs retain their no-output preflight refusal. Routine handler
+  inquiries read the actual EXECUTE ACL even when the handler is metadata-only.
 - BPCHAR cells scan as strings on both clients, but `ScanType` is `string`
   natively and `interface{}` on pq.
 - Compare catalog OIDs relationally (joins, captured values); allocator numbers

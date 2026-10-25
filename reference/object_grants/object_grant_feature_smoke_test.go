@@ -155,9 +155,7 @@ func TestReferenceObjectGrantFeatureSmoke(t *testing.T) {
 				t.Fatal("explicit ACL Dump must reject before writer callbacks", err, writer.calls)
 			}
 			switch err.Error() {
-			case "stuntgres: dump cannot serialize altered builtin routine authority",
-				"stuntgres: dump cannot serialize explicit routine ACL",
-				"stuntgres: dump cannot serialize explicit namespace ACL",
+			case "stuntgres: dump cannot serialize explicit namespace ACL",
 				"stuntgres: dump cannot serialize explicit relation or column ACL",
 				"stuntgres: dump cannot serialize parameter ACL",
 				"stuntgres: dump cannot serialize altered tablespace authority":

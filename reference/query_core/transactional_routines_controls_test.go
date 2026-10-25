@@ -77,10 +77,15 @@ func TestReferenceTransactionalRoutinesNativeControls(t *testing.T) {
 						t.Fatal(err)
 					}
 					fixture.RunStep(t, p.Ctx, recorded, replayRecorder, fixture.Exec("REVOKE EXECUTE ON FUNCTION "+target+" FROM PUBLIC", 0))
-					var refused bytes.Buffer
-					if err := stuntgres.Dump(p.Ctx, db, &refused); err == nil || err.Error() != "stuntgres: dump cannot serialize explicit routine ACL" || refused.Len() != 0 {
-						t.Fatal("explicit ACL dump refusal before output", refused.String(), err)
+					var saved bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, db, &saved); err != nil {
+						t.Fatal(err)
 					}
+					if err := stuntgres.Restore(p.Ctx, db, bytes.NewReader(saved.Bytes())); err != nil {
+						t.Fatal(err)
+					}
+					fixture.RunStep(t, p.Ctx, recorded, replayRecorder, fixture.Select("SELECT has_function_privilege('public',$1::text,'EXECUTE') AS v", []string{"v"}, []string{"BOOL"}, [][]any{{false}}, target))
+					fixture.RunStep(t,p.Ctx,recorded,replayRecorder,fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure",[]string{"acl"},[]string{"TEXT"},[][]any{{"{postgres=X/postgres}"}},target))
 				}
 				if replacement == "reset" {
 					err = stuntgres.Reset(p.Ctx, p.Native)

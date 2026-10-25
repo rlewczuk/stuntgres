@@ -27,6 +27,8 @@ type ACLRuntime interface {
 	RoleMembership(actor *AccessRole, target AccessRole, privilege string) (bool, error)
 	// RowSecurityActive is row_security_active for one relation.
 	RowSecurityActive(relation AccessRelation) (bool, error)
+	// ObjectPrivilege returns exists=false for an absent object OID.
+	ObjectPrivilege(kind AccessKind, actor *AccessRole, object AccessRole, privilege string) (value, exists bool, err error)
 }
 
 // AccessRole is a role argument of pg_has_role: an OID, or a name the

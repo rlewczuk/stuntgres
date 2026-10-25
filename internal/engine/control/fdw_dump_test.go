@@ -32,6 +32,13 @@ func fdwUnitSource() (Source, *catalog.ForeignObject, *catalog.ForeignObject, *c
 	// Use the real seed declarations and conversion capabilities, not omitted
 	// seeds that would manufacture bootstrap DROP/repair output.
 	roleView := roles.Read(owner)
+	var aclTypes []*sqltype.Descriptor
+	for _, typ := range sqltype.Builtins() {
+		if typ.ID() == sqltype.ACLItem || typ.ID() == sqltype.ACLItemArray {
+			aclTypes = append(aclTypes,typ)
+		}
+	}
+	catalog.InstallBuiltinTypes(state,aclTypes,owner)
 	for _, seed := range []struct {
 		oid  ids.OID
 		name string
@@ -370,15 +377,13 @@ func TestFDWDumpACLPreflight(t *testing.T) {
 			var out bytes.Buffer
 			out.WriteString("sentinel")
 			err := fdwUnitDump(source, &out)
+			if err != nil {
+				t.Fatal("representable owner/PUBLIC/ACL graph rejected", err)
+			}
 			if kind == "wrapper" || kind == "server" {
-				if err == nil || !strings.Contains(err.Error(), "ACL") {
-					t.Fatalf("unsupported ACL accepted/wrong rejection: %v", err)
+				if !strings.Contains(out.String(), `=pg_catalog.acldefault('c'::pg_catalog."char",0::pg_catalog.oid)::pg_catalog.aclitem[]`) {
+					t.Fatal("explicit-empty foreign ACL repair missing")
 				}
-				if out.String() != "sentinel" {
-					t.Fatal("preflight emitted bytes")
-				}
-			} else if err != nil {
-				t.Fatal("representable owner/PUBLIC graph rejected", err)
 			}
 		})
 	}

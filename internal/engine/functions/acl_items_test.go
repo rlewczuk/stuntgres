@@ -43,6 +43,11 @@ func (r *aclTestRuntime) RowSecurityActive(relation AccessRelation) (bool, error
 	r.relation = relation
 	return true, nil
 }
+func (r *aclTestRuntime) ObjectPrivilege(kind AccessKind, actor *AccessRole, target AccessRole, privilege string) (bool, bool, error) {
+	r.calls++
+	r.actor, r.target, r.privilege = actor, target, privilege
+	return true, true, nil
+}
 
 // aclTestTypes is one builtin generation, so items, arrays and records agree.
 var aclTestTypes = temporalTestTypes()

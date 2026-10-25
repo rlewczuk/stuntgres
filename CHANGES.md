@@ -3,6 +3,14 @@ attribute dependencies for quoted and SQL-standard bodies. Captured defaults
 preserve their original authority through rename, schema moves and native
 Dump/Reset/Restore, including independent Driver ownership.
 
+Routine, language, foreign-data-wrapper and server privilege inquiries support
+all name/OID overloads, strict NULLs, grant options and current execution-role
+ACLs in direct and prepared SQL. Native logical Dump/Restore preserves their
+raw ACLs, including named grantors, owner identities and absent versus empty
+ACLs, with destination-local object and role identities. Temporary routines
+and their ACL repairs are excluded together from logical dumps. Empty ACL
+repairs retain the representation required by PostgreSQL privilege checks.
+
 Installed amcheck 1.5 provides verify_heapam with ordinary named/default
 arguments, record-set metadata, live EXECUTE authority and native logical
 row/version consistency findings. Logical findings preserve exact row/version

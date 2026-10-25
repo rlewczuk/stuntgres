@@ -2,7 +2,6 @@ package reference_test
 
 import (
 	"database/sql"
-	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -103,30 +102,16 @@ func TestReferenceFDWRoutineGrants(t *testing.T) {
 				raw(v, true)
 				raw(scanOnly+"()", true)
 				query := "SELECT has_function_privilege('fdw_reader','public." + h + "','EXECUTE') AS handler,has_function_privilege('fdw_reader','public." + v + "','EXECUTE') AS validator,has_function_privilege('fdw_other','public." + h + "','EXECUTE') AS delegated,has_function_privilege('fdw_reader','public." + h + "','EXECUTE WITH GRANT OPTION') AS grantable"
-				var held fixture.HeldStatement
-				if b.PG {
-					stmt, err := c.PrepareContext(p.Ctx, query)
-					if err != nil {
-						t.Fatal(err)
-					}
-					defer stmt.Close()
-					held = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: query}
-				} else {
-					// Lookup-only identities do not implement privilege inquiry SQL.
-					// Raw ACLs above remain shared, independently asserted held rows.
-					s := fixture.ImplicitError(query, fixture.Diagnostic{Code: "0A000", Message: "functions are unsupported", Position: fixture.Position(strings.Index(query, "has_function_privilege") + 1)})
-					s.SelectRows, s.ErrorStage = true, "execute"
-					if prepared {
-						s.ErrorStage = "prepare"
-					}
-					run(s)
+				stmt, err := c.PrepareContext(p.Ctx, query)
+				if err != nil {
+					t.Fatal(err)
 				}
+				defer stmt.Close()
+				held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: query}
 				privileges := func(handlerX, validatorX, otherX, goX bool) {
-					if b.PG {
-						s := fixture.Select(query, []string{"handler", "validator", "delegated", "grantable"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{handlerX, validatorX, otherX, goX}})
-						run(s)
-						fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
-					}
+					s := fixture.Select(query, []string{"handler", "validator", "delegated", "grantable"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{handlerX, validatorX, otherX, goX}})
+					run(s)
+					fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
 				}
 				privileges(true, true, true, false)
 				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+targets+" TO PUBLIC", 0))
@@ -229,33 +214,27 @@ func TestReferenceFDWRoutineGrants(t *testing.T) {
 
 				// Schema expansion selects actual members, not a guessed complete
 				// public bag: PG extensions have extra members absent natively.
-				// As in the owning routine-expansion fixture, SQL procedures are
-				// a PG-only provider; native ALL PROCEDURES is genuinely empty.
-				if b.PG {
-					run(fixture.Exec("CREATE PROCEDURE public.fdw_routine_proc() LANGUAGE SQL AS 'SELECT 1'", 0))
-				}
+				run(fixture.Exec("CREATE PROCEDURE public.fdw_routine_proc() LANGUAGE SQL AS 'SELECT 1'", 0))
 				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION pg_catalog.abs(integer) FROM PUBLIC", 0))
 				run(fixture.Exec("REVOKE EXECUTE ON ALL ROUTINES IN SCHEMA public FROM PUBLIC,fdw_reader,fdw_other CASCADE", 0))
 				schemaRights := func(want bool) {
 					for _, m := range members {
-						if b.PG {
-							run(fixture.Select("SELECT has_function_privilege('fdw_reader','public."+m.name+"("+m.signature+")','EXECUTE') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{want}}))
-						} else if want {
-							raw(m.name+"("+m.signature+")", false, owner+"=X/"+owner, "fdw_reader=X/"+owner)
-						} else {
-							raw(m.name+"("+m.signature+")", false, owner+"=X/"+owner)
+						run(fixture.Select("SELECT has_function_privilege('fdw_reader','public."+m.name+"("+m.signature+")','EXECUTE') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{want}}))
+						if !b.PG {
+							if want {
+								raw(m.name+"("+m.signature+")",false,owner+"=X/"+owner,"fdw_reader=X/"+owner)
+							} else {
+								raw(m.name+"("+m.signature+")",false,owner+"=X/"+owner)
+							}
 						}
 					}
-					if b.PG {
-						run(fixture.Select("SELECT has_function_privilege('fdw_reader','pg_catalog.abs(integer)','EXECUTE') AS outside", []string{"outside"}, []string{"BOOL"}, [][]any{{false}}))
-					} else {
-						run(fixture.Select("SELECT unnest(pg_get_acl(1255,'pg_catalog.abs(integer)'::regprocedure,0)) AS acl", []string{"acl"}, []string{"ACLITEM"}, [][]any{{owner + "=X/" + owner}}))
+					run(fixture.Select("SELECT has_function_privilege('fdw_reader','pg_catalog.abs(integer)','EXECUTE') AS outside", []string{"outside"}, []string{"BOOL"}, [][]any{{false}}))
+					if !b.PG {
+						run(fixture.Select("SELECT unnest(pg_get_acl(1255,'pg_catalog.abs(integer)'::regprocedure,0)) AS acl",[]string{"acl"},[]string{"ACLITEM"},[][]any{{owner+"=X/"+owner}}))
 					}
 				}
 				procedureRight := func(want bool) {
-					if b.PG {
-						run(fixture.Select("SELECT has_function_privilege('fdw_reader','public.fdw_routine_proc()','EXECUTE') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{want}}))
-					}
+					run(fixture.Select("SELECT has_function_privilege('fdw_reader','public.fdw_routine_proc()','EXECUTE') AS allowed", []string{"allowed"}, []string{"BOOL"}, [][]any{{want}}))
 				}
 				schemaRights(false)
 				procedureRight(false)

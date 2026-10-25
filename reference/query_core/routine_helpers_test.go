@@ -66,6 +66,8 @@ func routineScalarMetadata(b fixture.Backend, name, typ string, nativeNullable, 
 				wantScan = reflect.TypeFor[int64]()
 			case "FLOAT8":
 				wantScan = reflect.TypeFor[float64]()
+			case "BOOL":
+				wantScan = reflect.TypeFor[bool]()
 			default:
 				t.Fatalf("missing routine metadata expectation for %s", typ)
 			}
@@ -81,6 +83,8 @@ func routineScalarMetadata(b fixture.Backend, name, typ string, nativeNullable, 
 			wantScan := reflect.TypeFor[int64]()
 			if typ == "FLOAT8" {
 				wantScan = reflect.TypeFor[float64]()
+			} else if typ == "BOOL" {
+				wantScan = reflect.TypeFor[bool]()
 			}
 			_, lengthOK := col.Length()
 			_, _, decimalOK := col.DecimalSize()

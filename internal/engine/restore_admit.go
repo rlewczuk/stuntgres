@@ -237,6 +237,9 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 	if _, _, _, ok := largeobject.ACLRepair(s); ok {
 		return r.stage.restoreLargeObjectACL(op, s)
 	}
+	if _, ok := control.ParseObjectACLRepair(s); ok {
+		return r.stage.restoreObjectACL(op, s)
+	}
 	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
 		err = r.stage.restoreRetiredConstraint(op, s, r.historicalAuthority)
 	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {

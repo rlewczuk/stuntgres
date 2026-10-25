@@ -52,6 +52,14 @@ func (c *Context) RowSecurityActive(relation functions.AccessRelation) (bool, er
 	return host.RowSecurityActive(c, relation)
 }
 
+func (c *Context) ObjectPrivilege(kind functions.AccessKind, actor *functions.AccessRole, object functions.AccessRole, privilege string) (bool, bool, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return false, false, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
+	}
+	return host.ObjectPrivilege(c, kind, actor, object, privilege)
+}
+
 var _ functions.AdvisoryRuntime = (*Context)(nil)
 
 // Advisory resolves the current statement owner, never a prepared owner.

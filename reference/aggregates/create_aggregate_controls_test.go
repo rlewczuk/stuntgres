@@ -16,6 +16,7 @@ func TestReferenceCreateAggregatePersistence(t *testing.T) {
 	fixture.RoleReferenceCleanup(t, []string{"ca_persist_owner"})
 	fixture.SchemaReferenceCleanup(t, "ca_owner_scope")
 	var emitted string
+	var explicit []string
 	createAggregateScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		// Cluster roles are consumer environment, not part of database Dump SQL.
 		createAggregateRun(t, p, b, c, fixture.Exec("CREATE ROLE ca_persist_owner", 0))
@@ -52,24 +53,42 @@ func TestReferenceCreateAggregatePersistence(t *testing.T) {
 		// every lifecycle boundary; full pg_proc joins otherwise repeat nested
 		// catalog products. Keep all matching owners and actual OID edges so
 		// duplicate names, wrong support/state and wrong ownership still fail.
-		check := func() {
-			createAggregateBoth(t, p, b, c, createAggregateValue("SELECT v FROM ca_persist_view", int64(6)))
-			createAggregateBoth(t, p, b, c, createAggregateValue("SELECT ca_sum(x) AS v FROM ca_input WHERE FALSE", int64(0)))
-			createAggregateRun(t, p, b, c, fixture.Select("SELECT a.agginitval,a.aggtransspace,f.proname FROM (SELECT oid FROM pg_proc WHERE proname='ca_sum') p JOIN pg_aggregate a ON p.oid=a.aggfnoid JOIN pg_proc f ON f.oid=a.aggtransfn", []string{"agginitval", "aggtransspace", "proname"}, []string{"TEXT", "INT4", "NAME"}, [][]any{{"000", int64(32), "ca_add"}}))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT v FROM ca_persist_array_view", []string{"v"}, []string{"TEXT"}, [][]any{{"{1,2,3}"}}))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT ca_persist_collect(x)::text AS v FROM ca_input WHERE FALSE", []string{"v"}, []string{"TEXT"}, [][]any{{"{}"}}))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT v FROM ca_persist_mood_view", []string{"v"}, []string{"TEXT"}, [][]any{{"next"}}))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT ca_mood_last(mood)::text AS v FROM ca_mood_input WHERE FALSE", []string{"v"}, []string{"TEXT"}, [][]any{{"first"}}))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT v FROM ca_persist_mood_array_view", []string{"v"}, []string{"TEXT"}, [][]any{{"{first,next}"}}))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT ca_mood_collect(mood)::text AS v FROM ca_mood_input WHERE FALSE", []string{"v"}, []string{"TEXT"}, [][]any{{"{}"}}))
-			createAggregateBoth(t, p, b, c, createAggregateValue("SELECT ca_owner_scope.owned_sum(x) AS v FROM ca_input", int64(6)))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT p.proowner=r.oid AS owner FROM (SELECT proname,proowner FROM pg_proc WHERE proname IN('owned_sum','owned_step')) p JOIN pg_roles r ON r.rolname='ca_persist_owner' ORDER BY p.proname", []string{"owner"}, []string{"BOOL"}, [][]any{{true}, {true}}))
-			createAggregateBoth(t, p, b, c, fixture.Select("SELECT a.aggtransfn=378::oid AS support,a.aggtranstype=1007::oid AS state_type,p.prorettype=1007::oid AS result_type FROM (SELECT oid,prorettype FROM pg_proc WHERE proname='ca_persist_collect') p JOIN pg_aggregate a ON a.aggfnoid=p.oid", []string{"support", "state_type", "result_type"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
+		check := func(db fixture.Executor, recorder *fixture.Recorder) {
+			run:=func(step fixture.Step){fixture.RunStep(t,p.Ctx,db,recorder,step)}
+			both:=func(step fixture.Step){run(step);run(fixture.Prepared(step))}
+			both(createAggregateValue("SELECT v FROM ca_persist_view", int64(6)))
+			both(createAggregateValue("SELECT ca_sum(x) AS v FROM ca_input WHERE FALSE", int64(0)))
+			run(fixture.Select("SELECT a.agginitval,a.aggtransspace,f.proname FROM (SELECT oid FROM pg_proc WHERE proname='ca_sum') p JOIN pg_aggregate a ON p.oid=a.aggfnoid JOIN pg_proc f ON f.oid=a.aggtransfn", []string{"agginitval", "aggtransspace", "proname"}, []string{"TEXT", "INT4", "NAME"}, [][]any{{"000", int64(32), "ca_add"}}))
+			both(fixture.Select("SELECT v FROM ca_persist_array_view", []string{"v"}, []string{"TEXT"}, [][]any{{"{1,2,3}"}}))
+			both(fixture.Select("SELECT ca_persist_collect(x)::text AS v FROM ca_input WHERE FALSE", []string{"v"}, []string{"TEXT"}, [][]any{{"{}"}}))
+			both(fixture.Select("SELECT v FROM ca_persist_mood_view", []string{"v"}, []string{"TEXT"}, [][]any{{"next"}}))
+			both(fixture.Select("SELECT ca_mood_last(mood)::text AS v FROM ca_mood_input WHERE FALSE", []string{"v"}, []string{"TEXT"}, [][]any{{"first"}}))
+			both(fixture.Select("SELECT v FROM ca_persist_mood_array_view", []string{"v"}, []string{"TEXT"}, [][]any{{"{first,next}"}}))
+			both(fixture.Select("SELECT ca_mood_collect(mood)::text AS v FROM ca_mood_input WHERE FALSE", []string{"v"}, []string{"TEXT"}, [][]any{{"{}"}}))
+			both(createAggregateValue("SELECT ca_owner_scope.owned_sum(x) AS v FROM ca_input", int64(6)))
+			both(fixture.Select("SELECT p.proowner=r.oid AS owner FROM (SELECT proname,proowner FROM pg_proc WHERE proname IN('owned_sum','owned_step')) p JOIN pg_roles r ON r.rolname='ca_persist_owner' ORDER BY p.proname", []string{"owner"}, []string{"BOOL"}, [][]any{{true}, {true}}))
+			both(fixture.Select("SELECT a.aggtransfn=378::oid AS support,a.aggtranstype=1007::oid AS state_type,p.prorettype=1007::oid AS result_type FROM (SELECT oid,prorettype FROM pg_proc WHERE proname='ca_persist_collect') p JOIN pg_aggregate a ON a.aggfnoid=p.oid", []string{"support", "state_type", "result_type"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, true, true}}))
 		}
-		check()
+		checkExplicit:=func(db fixture.Executor,recorder *fixture.Recorder,target string){
+			for _,step:=range []fixture.Step{
+				fixture.Select("SELECT has_function_privilege('public','ca_sum(integer)','EXECUTE') AS v",[]string{"v"},[]string{"BOOL"},[][]any{{target!="ca_sum(integer)"}}),
+				fixture.Select("SELECT pg_get_acl(1255,oid,0)::text AS acl FROM pg_proc WHERE oid=$1::regprocedure",[]string{"acl"},[]string{"TEXT"},[][]any{{"{postgres=X/postgres}"}},target),
+			} {fixture.RunStep(t,p.Ctx,db,recorder,step);fixture.RunStep(t,p.Ctx,db,recorder,fixture.Prepared(step))}
+		}
+		check(c,b.Recorder)
 		if b.PG {
+			if len(explicit)!=2 {t.Fatal("missing actual explicit aggregate/support ACL streams")}
+			for i,stream:=range explicit {
+				for _,query:=range []string{"DROP SCHEMA ca_owner_scope CASCADE","DROP SCHEMA public CASCADE","CREATE SCHEMA public","GRANT USAGE ON SCHEMA public TO PUBLIC"} {
+					if _,err:=c.ExecContext(p.Ctx,query);err!=nil {t.Fatal("prepare explicit ACL replay",query,err)}
+				}
+				if _,err:=c.ExecContext(p.Ctx,stream);err!=nil {t.Fatal("replay actual explicit ACL stream",err)}
+				createAggregateRun(t,p,b,c,fixture.Exec("RESET SESSION AUTHORIZATION",0))
+				checkExplicit(c,b.Recorder,[]string{"ca_sum(integer)","ca_add(integer,integer)"}[i])
+				check(c,b.Recorder)
+			}
 			return
-		} // Only the native-control phase lacks a PostgreSQL API.
+		} // Native replacement mechanics below have no PostgreSQL control API.
 		held, err := c.QueryContext(p.Ctx, "SELECT v FROM ca_persist_view")
 		if err != nil {
 			t.Fatal(err)
@@ -87,18 +106,18 @@ func TestReferenceCreateAggregatePersistence(t *testing.T) {
 			if err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(emitted)); err != nil {
 				t.Fatal(err)
 			}
-			check()
+			check(c,b.Recorder)
 		}
 		if err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(emitted+"\nCREATE AGGREGATE ca_bad(integer) (SFUNC=missing_ca_support,STYPE=int4);")); err == nil {
 			t.Fatal("invalid restore published")
 		}
-		check()
+		check(c,b.Recorder)
 		ctx, cancel := context.WithCancel(p.Ctx)
 		cancel()
 		if err = stuntgres.Restore(ctx, p.Native, strings.NewReader(emitted)); !errors.Is(err, context.Canceled) {
 			t.Fatalf("canceled restore=%v", err)
 		}
-		check()
+		check(c,b.Recorder)
 		freshDriver := stuntgres.NewDriver()
 		connector, err := freshDriver.OpenConnector("aggregate-create-fresh/" + t.Name())
 		if err != nil {
@@ -106,6 +125,7 @@ func TestReferenceCreateAggregatePersistence(t *testing.T) {
 		}
 		fresh := sql.OpenDB(connector)
 		defer fresh.Close()
+		freshRecorded,freshRecorder:=fixture.RecordedNativePool(t,connector)
 		fixture.RunStep(t, p.Ctx, fresh, b.Recorder, fixture.Exec("CREATE ROLE ca_persist_owner", 0))
 		if err = stuntgres.Restore(p.Ctx, fresh, strings.NewReader(emitted)); err != nil {
 			t.Fatal(err)
@@ -132,12 +152,20 @@ func TestReferenceCreateAggregatePersistence(t *testing.T) {
 			"REVOKE EXECUTE ON FUNCTION ca_add(integer,integer) FROM PUBLIC",
 		} {
 			createAggregateRun(t, p, b, c, fixture.Exec(revoke, 0))
-			var rejected bytes.Buffer
-			err = stuntgres.Dump(p.Ctx, p.Native, &rejected)
-			if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit routine ACL" || rejected.Len() != 0 {
-				t.Fatalf("explicit-ACL dump=%q/%v", rejected.String(), err)
+			var saved bytes.Buffer
+			if err = stuntgres.Dump(p.Ctx, p.Native, &saved); err != nil {
+				t.Fatal(err)
 			}
-			check()
+			explicit=append(explicit,saved.String())
+			if err = stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(saved.Bytes())); err != nil {
+				t.Fatal(err)
+			}
+			target:=strings.TrimSuffix(strings.TrimPrefix(revoke,"REVOKE EXECUTE ON FUNCTION ")," FROM PUBLIC")
+			checkExplicit(c,b.Recorder,target)
+			check(c,b.Recorder)
+			if err:=stuntgres.Restore(p.Ctx,fresh,bytes.NewReader(saved.Bytes()));err!=nil {t.Fatal("fresh explicit aggregate/support ACL replay",err)}
+			checkExplicit(freshRecorded,freshRecorder,target)
+			check(freshRecorded,freshRecorder)
 			// Restore resets both explicit ACLs through the unchanged default-ACL dump.
 			if err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(emitted)); err != nil {
 				t.Fatal(err)

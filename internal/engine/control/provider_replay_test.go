@@ -182,15 +182,32 @@ func TestProviderReplayInstalledTypeOrdering(t *testing.T) {
 }
 
 func TestProviderReplayRejectsExplicitACL(t *testing.T) {
-	p := &catalog.Procedure{}
-	p.ACL.Explicit = true
-	c := &dumpCollection{Capture: &Capture{}}
-	err := c.collectProvider(p)
-	if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit routine ACL" {
-		t.Fatalf("explicit ACL capture=%v", err)
+	source, _, _, _ := fdwUnitSource()
+	var p *catalog.Procedure
+	for _, seed := range routine.BuiltinProcedures(source.Bootstrap) {
+		if seed.Name() == "abs" && seed.Signature == "23" {
+			copy := seed
+			p = &copy
+			break
+		}
 	}
-	if len(c.Providers) != 0 {
-		t.Fatal("rejected provider entered replay")
+	if p == nil {
+		t.Fatal("released abs(integer) missing")
+	}
+	p.ACL.Explicit = true
+	source.State.SetDescriptor(p.Address(), p)
+	source.State.BindName(catalog.DescriptorNameKey(p), p.Address())
+	c := &dumpCollection{Capture: &Capture{CatalogView: source.CatalogView, DomainRoles: source.DomainRoles}, source: source}
+	if err := c.collectProvider(p); err != nil || len(c.Providers) != 1 {
+		t.Fatalf("valid explicit ACL provider capture=%v", err)
+	}
+	if c.Providers[0].current.name != "abs" {
+		t.Fatal("ACL capture changed provider identity")
+	}
+	broken := *p
+	broken.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}
+	if err := c.collectProvider(&broken); err == nil || err.Error() != "stuntgres: missing provider namespace" {
+		t.Fatalf("provider validation lost: %v", err)
 	}
 }
 

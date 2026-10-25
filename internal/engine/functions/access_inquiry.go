@@ -7,15 +7,24 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// AccessInquiry is pg_has_role (Count 2 or 3) or row_security_active
-// (RowSecurity, Count 1). It retains only its typed recipe: all authority is
-// borrowed from the executing statement through ACLRuntime, never cached on
-// the expression or statement. Args beyond Count are nil.
+// AccessKind selects one typed access inquiry recipe.
+type AccessKind uint8
+
+const (
+	AccessMembership AccessKind = iota
+	AccessRowSecurity
+	AccessFunction
+	AccessLanguage
+	AccessForeignWrapper
+	AccessServer
+)
+
+// AccessInquiry retains only typed operands, never authority or decisions.
 type AccessInquiry struct {
 	expr.Info
-	RowSecurity bool
-	Args        [3]expr.Expr
-	Count       int
+	Kind  AccessKind
+	Args  [3]expr.Expr
+	Count int
 }
 
 func (AccessInquiry) ResultNullability(expr.ResultSite) (nullable, known bool) {
@@ -23,10 +32,21 @@ func (AccessInquiry) ResultNullability(expr.ResultSite) (nullable, known bool) {
 }
 
 func (n AccessInquiry) Name() string {
-	if n.RowSecurity {
+	switch n.Kind {
+	case AccessMembership:
+		return "pg_has_role"
+	case AccessRowSecurity:
 		return "row_security_active"
+	case AccessFunction:
+		return "has_function_privilege"
+	case AccessLanguage:
+		return "has_language_privilege"
+	case AccessForeignWrapper:
+		return "has_foreign_data_wrapper_privilege"
+	case AccessServer:
+		return "has_server_privilege"
 	}
-	return "pg_has_role"
+	return ""
 }
 
 func (n AccessInquiry) Eval(c expr.Context) (sqltype.Value, error) {
@@ -51,7 +71,7 @@ func (n AccessInquiry) Eval(c expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	var result bool
-	if n.RowSecurity {
+	if n.Kind == AccessRowSecurity {
 		relation := AccessRelation{ByOID: n.Args[0].ResultUsage().Type.ID() == sqltype.Oid}
 		if relation.ByOID {
 			relation.OID, err = values[0].OID()
@@ -80,7 +100,15 @@ func (n AccessInquiry) Eval(c expr.Context) (sqltype.Value, error) {
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
-		result, err = runtime.RoleMembership(actor, target, privilege)
+		if n.Kind == AccessMembership {
+			result, err = runtime.RoleMembership(actor, target, privilege)
+		} else {
+			var exists bool
+			result, exists, err = runtime.ObjectPrivilege(n.Kind, actor, target, privilege)
+			if err == nil && !exists {
+				return sqltype.Null(n.Usage.Type), nil
+			}
+		}
 	}
 	if err != nil {
 		return sqltype.Value{}, err
@@ -102,7 +130,7 @@ func accessRoleValue(arg expr.Expr, value sqltype.Value) (AccessRole, error) {
 
 // Validate checks the stored recipe: arity, formals and result.
 func (n AccessInquiry) Validate() error {
-	if n.RowSecurity && n.Count != 1 || !n.RowSecurity && n.Count != 2 && n.Count != 3 {
+	if n.Kind > AccessServer || n.Kind == AccessRowSecurity && n.Count != 1 || n.Kind != AccessRowSecurity && n.Count != 2 && n.Count != 3 {
 		return fmt.Errorf("stuntgres: invalid stored access inquiry arity")
 	}
 	properties := expr.Properties{Volatility: expr.Stable}
@@ -118,10 +146,10 @@ func (n AccessInquiry) Validate() error {
 		}
 		id := arg.ResultUsage().Type.ID()
 		valid := id == sqltype.Text
-		if !n.RowSecurity && i < n.Count-1 {
-			valid = id == sqltype.Name || id == sqltype.Oid
-		} else if n.RowSecurity {
+		if n.Kind == AccessRowSecurity || n.Kind >= AccessFunction && i == n.Count-2 {
 			valid = id == sqltype.Text || id == sqltype.Oid
+		} else if i < n.Count-1 {
+			valid = id == sqltype.Name || id == sqltype.Oid
 		}
 		if !valid {
 			return fmt.Errorf("stuntgres: invalid stored access inquiry signature")
@@ -151,7 +179,7 @@ func (n AccessInquiry) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr,
 // IntrinsicVolatility: the inquiries read the statement's roles and catalog.
 func (n AccessInquiry) IntrinsicVolatility() expr.Volatility { return expr.Stable }
 
-// PlanningFold: planning never evaluates role or row-security inquiries.
+// PlanningFold: planning never evaluates access inquiries.
 func (n AccessInquiry) PlanningFold() expr.Fold { return expr.FoldNever }
 
 func (n AccessInquiry) LooksLikeFunction() bool { return true }
@@ -162,7 +190,7 @@ func (n AccessInquiry) PreflightFold() expr.Preflight { return expr.PreflightChi
 // SameGroup implements expr.GroupIdentity.
 func (n AccessInquiry) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, definition bool) bool {
 	o, ok := other.(AccessInquiry)
-	return ok && n.RowSecurity == o.RowSecurity && n.Count == o.Count && sameChildren(n.Children(), o.Children(), same)
+	return ok && n.Kind == o.Kind && n.Count == o.Count && sameChildren(n.Children(), o.Children(), same)
 }
 
 // Render displays the call with its implicit argument casts.
