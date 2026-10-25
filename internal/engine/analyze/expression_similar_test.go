@@ -1,7 +1,8 @@
-package engine
+package analyze
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -73,5 +74,13 @@ func TestSimilarDependencyChildren(t *testing.T) {
 		if !reflect.DeepEqual(slots, []int{0, 1, 2}) {
 			t.Fatal("lost source/pattern/escape dependency", slots)
 		}
+	}
+}
+
+func state(t *testing.T, err error, want string) {
+	t.Helper()
+	var s interface{ SQLState() string }
+	if !errors.As(err, &s) || s.SQLState() != want {
+		t.Fatalf("error %v, want SQLSTATE %s", err, want)
 	}
 }

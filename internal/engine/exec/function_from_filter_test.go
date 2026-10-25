@@ -1,13 +1,13 @@
-package engine
+package exec
 
 import (
 	"context"
-	"stuntgres/internal/engine/exec"
+	"testing"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
@@ -16,7 +16,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
 	predicate := plan.ColumnExpr{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
-	moved := exec.FunctionFromWhere(join, predicate)
+	moved := FunctionFromWhere(join, predicate)
 	if moved == nil || moved == join || moved.Right != right || moved.Frame != join.Frame || moved.LeftWidth != 1 || moved.RightWidth != 2 {
 		t.Fatal("incorrect copied join", moved)
 	}
@@ -26,7 +26,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	}
 	unchanged := func(label string, root plan.Node, predicate expr.Expr) {
 		t.Helper()
-		if exec.FunctionFromWhere(root, predicate) != nil {
+		if FunctionFromWhere(root, predicate) != nil {
 			t.Fatal("unsafe predicate moved", label)
 		}
 	}
@@ -55,7 +55,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	rhs := predicate
 	rhs.Slot = 1
 	unchanged("right reference", join, rhs)
-	unsupported := &queryProbeExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, eval: func(*exec.Context) (sqltype.Value, error) {
+	unsupported := &queryProbeExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, eval: func(*Context) (sqltype.Value, error) {
 		t.Fatal("placement evaluated predicate")
 		return sqltype.Value{}, nil
 	}}
@@ -71,7 +71,7 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	join := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
 	column := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
 	calls := 0
-	volatile := &queryProbeExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*exec.Context) (sqltype.Value, error) {
+	volatile := &queryProbeExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(usage.Type, true), nil
 	}}
@@ -92,7 +92,7 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	// the TRUE row reaches three members, evaluating the volatile residual
 	// three times rather than once per source or once per unfiltered member.
 	for _, value := range []sqltype.Value{sqltype.Boolean(usage.Type, true), sqltype.Boolean(usage.Type, false), sqltype.Null(usage.Type)} {
-		evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{value}}}
+		evaluation := &Context{EvalStatement: EvalStatement{Context: context.Background()}, EvalFrame: EvalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{value}}}
 		selected, err := predecessor.Predicate.Eval(evaluation)
 		if err != nil {
 			t.Fatal(err)
@@ -141,7 +141,7 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	not := plan.LogicalExpr{Info: column.Info, Op: parser.LogicalNot, Left: column}
 	query := and(column, column)
 	query.QueryRight = true
-	unsupported := &queryProbeExpression{Info: expr.Info{Usage: usage}, eval: func(*exec.Context) (sqltype.Value, error) {
+	unsupported := &queryProbeExpression{Info: expr.Info{Usage: usage}, eval: func(*Context) (sqltype.Value, error) {
 		t.Fatal("partition evaluated expression")
 		return sqltype.Value{}, nil
 	}}
@@ -177,4 +177,28 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	if moved, ok := plan.FunctionFromConjuncts(join, and(column, column)).(*plan.JoinNode); !ok || moved == join || moved.Right != right || join.Left != left {
 		t.Fatal("safe conjunction not moved immutably")
 	}
+}
+
+func jsonObjectUnitTypes() map[sqltype.ID]*sqltype.Descriptor {
+	types := make(map[sqltype.ID]*sqltype.Descriptor)
+	for _, d := range sqltype.Builtins() {
+		types[d.ID()] = d
+	}
+	return types
+}
+
+type queryProbeExpression struct {
+	expr.Info
+	eval func(*Context) (sqltype.Value, error)
+}
+
+func (e queryProbeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+	return e.eval(evalContext(ctx))
+}
+
+// evalContext recovers the engine evaluation context in test probes. A nil or
+// foreign context yields nil.
+func evalContext(ctx expr.Context) *Context {
+	c, _ := ctx.(*Context)
+	return c
 }

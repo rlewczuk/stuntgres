@@ -1,4 +1,4 @@
-package engine
+package analyze
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -35,8 +34,21 @@ func TestLikeEvaluationAndProperties(t *testing.T) {
 	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
-	p := analyze.LikeProperties(plan.ColumnExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}, plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}}})
+	p := LikeProperties(plan.ColumnExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}, plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}}})
 	if p != (expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}) {
 		t.Fatal(p)
 	}
+}
+
+type mathObservedArgument struct {
+	expr.Info
+	value sqltype.Value
+	order *[]int
+	index int
+	err   error
+}
+
+func (e mathObservedArgument) Eval(expr.Context) (sqltype.Value, error) {
+	*e.order = append(*e.order, e.index)
+	return e.value, e.err
 }
