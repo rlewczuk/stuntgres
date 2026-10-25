@@ -1,0 +1,256 @@
+package core_test
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/regobj"
+	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/sqltype"
+)
+
+func TestACLItemPrincipalRemap(t *testing.T) {
+	source, target := engine.New(), engine.New()
+	aclUnitRoles(source, "acl_remap_a", "acl_remap_b")
+	aclUnitRoles(target, "acl_remap_spacer", "acl_remap_spacer2", "acl_remap_a", "acl_remap_b")
+	value := aclUnitValue(t, source, "acl_remap_a=a*r*w*d*D*x*t*X*U*C*T*c*s*A*m*/acl_remap_b")
+	public := aclUnitValue(t, source, "=r*/acl_remap_b")
+	d, td := aclUnitType(t, source, sqltype.ACLItem), aclUnitType(t, target, sqltype.ACLItem)
+	array, ta := aclUnitType(t, source, sqltype.ACLItemArray), aclUnitType(t, target, sqltype.ACLItemArray)
+	fromDomain, _ := sqltype.Domain(45000, "acl_domain", "acl_domain", array.Usage())
+	toDomain, _ := sqltype.Domain(45000, "acl_domain", "acl_domain", ta.Usage())
+	av, err := sqltype.OwnedArrayValue(array, []sqltype.ArrayDimension{{Lower: -1, Length: 2}, {Lower: 3, Length: 2}}, []sqltype.Value{value, sqltype.Null(d), public, value})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dv, err := fromDomain.Wrap(av)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromComposite, _ := sqltype.Composite(45001, "acl_composite", "acl_composite", 0, []sqltype.CompositeMember{{Attribute: 1, Name: "scalar", Usage: d.Usage()}, {Attribute: 2, Name: "nested", Usage: fromDomain.Usage()}})
+	toComposite, _ := sqltype.Composite(45001, "acl_composite", "acl_composite", 0, []sqltype.CompositeMember{{Attribute: 1, Name: "scalar", Usage: td.Usage()}, {Attribute: 2, Name: "nested", Usage: toDomain.Usage()}})
+	cv, err := sqltype.OwnedCompositeValue(fromComposite, []sqltype.Value{value, dv})
+	if err != nil {
+		t.Fatal(err)
+	}
+	importer := target.RoleStore.ACLItemImporter(source.RoleStore, &target.Catalog, source.Roles(), target.Roles(), nil)
+	mapped, err := typedef.ReownDomainDatum(cv, toComposite, nil, nil, importer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, g, grantor, p, o, err := mapped.CompositeField(0).ACLItem()
+	granteeRole, _ := target.Roles().Lookup("acl_remap_a")
+	grantorRole, _ := target.Roles().Lookup("acl_remap_b")
+	if err != nil || g != uint32(granteeRole.Ref.ID()) || grantor != uint32(grantorRole.Ref.ID()) || p != 32767 || o != 32767 || mapped.Type() != toComposite {
+		t.Fatal("both identities/options", g, grantor, p, o, err)
+	}
+	nested, err := mapped.CompositeField(1).BaseValue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nested.Type() != ta || !nested.ArrayElement(1).IsNull() {
+		t.Fatal("recursive array/domain descriptors/NULL")
+	}
+	_, g, grantor, p, o, err = nested.ArrayElement(2).ACLItem()
+	if err != nil || g != 0 || grantor != uint32(grantorRole.Ref.ID()) || p != 2 || o != 2 {
+		t.Fatal("PUBLIC/options remap", g, grantor, p, o, err)
+	}
+	if !sqltype.SameDatum(cv.CompositeField(0), value) || cv.CompositeField(1).Type() != fromDomain || av.ArrayElement(0) != value {
+		t.Fatal("source payload changed")
+	}
+	// A stable descriptor does not imply stable principal authority.
+	sameDescriptor, err := typedef.ReownDomainDatum(value, d, nil, nil, importer)
+	if err != nil || sameDescriptor == value || sameDescriptor.Type() != d {
+		t.Fatal("same-descriptor principal import skipped", err)
+	}
+	unchanged, err := typedef.ReownDomainDatum(mapped, toComposite, nil, nil, importer)
+	if err != nil || unchanged != mapped {
+		t.Fatal("destination-owned data copied/reimported", err)
+	}
+	foreign := engine.New()
+	aclUnitRoles(foreign, "acl_remap_a", "acl_remap_b")
+	coincident := aclUnitValue(t, foreign, "acl_remap_a=r/acl_remap_b")
+	if _, err := typedef.ReownDomainDatum(coincident, td, nil, nil, importer); err == nil {
+		t.Fatal("foreign coincident IDs imported")
+	}
+	// The literal retagger must apply ACL import even without type changes.
+	next := catalog.CloneState(source.Catalog.State)
+	next.SetACLItemImport(importer)
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
+	rebound, changed, err := stored.RetagTypes(target.Catalog.Read(next), literal, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	if err != nil || !changed || rebound.(plan.LiteralExpr).Value == value {
+		t.Fatal("constant principal import skipped", changed, err)
+	}
+	// Carrier-only changes must also reach enclosing CHECK/index expressions;
+	// otherwise their parent copy-on-change gate republishes source literals.
+	boolean := aclUnitType(t, source, sqltype.Bool)
+	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, d, d, boolean, sqltype.CollationRef{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	comparison := plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: literal, Right: literal, Predicate: predicate, Operator: "="}
+	rebound, changed, err = stored.RetagTypes(target.Catalog.Read(next), comparison, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	if err != nil || !changed {
+		t.Fatal("enclosing principal import skipped", changed, err)
+	}
+	imported := rebound.(plan.ComparisonExpr)
+	if imported.Left.(plan.LiteralExpr).Value != sameDescriptor || imported.Right.(plan.LiteralExpr).Value != sameDescriptor || comparison.Left.(plan.LiteralExpr).Value != value {
+		t.Fatal("enclosing import lost mapped carriers or mutated source")
+	}
+	if _, err := (stored.ScalarRenderer{Validation: true}).SQL(context.Background(), target.Catalog.Read(next), imported); err != nil {
+		t.Fatal("target validation ran with source CHECK carriers", err)
+	}
+	retained, changed, err := stored.RetagTypes(target.Catalog.Read(next), imported, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t })
+	if err != nil || changed || retained.(plan.ComparisonExpr).Left.(plan.LiteralExpr).Value != sameDescriptor {
+		t.Fatal("destination-owned enclosing expression copied/reimported", changed, err)
+	}
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 45002}
+	next.SetDescriptor(address, &catalog.Relation{ObjectAddress: address, Columns: []catalog.Column{{Name: "a", Usage: d.Usage()}}})
+	original := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{value}}}}
+	stores := map[ids.ObjectAddress]*storage.Relation{address: original}
+	if err := stored.ReownScalarTypes(next, stores, nil); err != nil {
+		t.Fatal(err)
+	}
+	if stores[address] == original || original.Versions[0].Values[0] != value || stores[address].Versions[0].Values[0] == value {
+		t.Fatal("same-descriptor row import/copy-on-change")
+	}
+}
+
+func TestACLItemRestoreFence(t *testing.T) {
+	source, target := engine.New(), engine.New()
+	aclUnitRoles(source, "acl_fence_a", "acl_fence_b")
+	aclUnitRoles(target, "acl_fence_a", "acl_fence_b")
+	value := aclUnitValue(t, source, "acl_fence_a=r*/acl_fence_b")
+	captured := target.Roles()
+	old, _ := captured.Lookup("acl_fence_a")
+	importer := target.RoleStore.ACLItemImporter(source.RoleStore, &target.Catalog, source.Roles(), captured, nil)
+	target.Mu.Lock()
+	next := cloneRoleFixture(target.RoleStore.Published)
+	retireFixtureRole(next, old.Ref)
+	old.Ref = target.RoleStore.Domain.Principal(30000)
+	putFixtureRole(next, old)
+	target.RoleStore.PublishLocked(next)
+	target.Mu.Unlock()
+	if _, err := typedef.ReownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
+		t.Fatal("drop/recreate crossed captured target fence")
+	}
+	// Expected importTargets rejects a different captured incarnation as well.
+	original, _ := source.Roles().Lookup("acl_fence_a")
+	expected := map[authorization.PrincipalRef]authorization.PrincipalRef{original.Ref: target.RoleStore.Domain.Principal(20000)}
+	importer = target.RoleStore.ACLItemImporter(source.RoleStore, &target.Catalog, source.Roles(), target.Roles(), expected)
+	if _, err := typedef.ReownDomainDatum(value, aclUnitType(t, target, sqltype.ACLItem), nil, nil, importer); err == nil {
+		t.Fatal("expected target incarnation ignored")
+	}
+	freshSource, freshTarget := engine.New(), engine.New()
+	if _, err := freshTarget.ReplaceCatalogInOperation(context.Background(), freshSource, freshSource.CatalogRead(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if freshTarget.Catalog.State.ACLItemImport() != nil || freshSource.Catalog.State.ACLItemImport() != nil {
+		t.Fatal("import callback published")
+	}
+	aclUnitRoles(freshSource, "acl_missing_target")
+	freshSource.Mu.Lock()
+	public := freshSource.Catalog.State.MustNamespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
+	copy := *public
+	role, _ := freshSource.RoleStore.PublishedRead(&freshSource.Catalog.Owner, freshSource.Catalog.Current()).Lookup("acl_missing_target")
+	copy.Owner = role.Ref
+	freshSource.Catalog.PublishLocked(catalog.CloneState(freshSource.Catalog.State))
+	freshSource.Catalog.State.SetDescriptor(copy.Address(), &copy)
+	freshSource.Mu.Unlock()
+	before := freshTarget.Catalog.State
+	if _, err := freshTarget.ReplaceCatalogInOperation(context.Background(), freshSource, freshSource.CatalogRead(), nil); err == nil {
+		t.Fatal("missing target principal admitted")
+	}
+	if freshTarget.Catalog.State != before || freshTarget.Catalog.State.ACLItemImport() != nil || freshSource.Catalog.State.ACLItemImport() != nil {
+		t.Fatal("failure published state/import callback")
+	}
+}
+
+func TestACLItemStaleDump(t *testing.T) {
+	e := engine.New()
+	aclUnitRoles(e, "acl_dump_a", "acl_dump_b")
+	value := aclUnitValue(t, e, "acl_dump_a=r*/acl_dump_b")
+	captured := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles(), Lossless: true}
+	ctx := regobj.ACLItemOutputContext(context.Background(), captured)
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
+	if text, err := regobj.Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
+		t.Fatal(text, err)
+	}
+	if _, err := regobj.Literal(context.Background(), e.CatalogRead(), literal); err == nil {
+		t.Fatal("literal rendered without authority")
+	}
+	a, _ := e.Roles().Lookup("acl_dump_a")
+	e.Mu.Lock()
+	next := cloneRoleFixture(e.RoleStore.Published)
+	retireFixtureRole(next, a.Ref)
+	e.RoleStore.PublishLocked(next)
+	e.Mu.Unlock()
+	ordinary := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles()}
+	text, err := value.Type().OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: ordinary})
+	if err != nil || text != "20000=r*/acl_dump_b" {
+		t.Fatal("stale ordinary output", text, err)
+	}
+	if err := regobj.PreflightACLItemValue(context.Background(), regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: e.Roles(), Lossless: true}, value); err == nil {
+		t.Fatal("stale dump leaf accepted")
+	}
+	if text, err := regobj.Literal(ctx, e.CatalogRead(), literal); err != nil || text != "CAST('acl_dump_a=r*/acl_dump_b' AS ACLITEM)" {
+		t.Fatal("captured role snapshot consulted live roles", text, err)
+	}
+	if _, err := (stored.Deparser{View: e.CatalogRead()}).Literal(context.Background(), literal); err == nil {
+		t.Fatal("renderer accepted missing ACL authority")
+	}
+	if text, err := (stored.Deparser{View: e.CatalogRead(), Output: sqltype.OutputEnvironment{ACLItem: ordinary}}).Literal(context.Background(), literal); err != nil || text == "" {
+		t.Fatal("ordinary renderer inherited dump lossless policy", text, err)
+	}
+}
+
+func aclUnitRoles(e *engine.Engine, names ...string) {
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	next := cloneRoleFixture(e.RoleStore.Published)
+	for i, name := range names {
+		putFixtureRole(next, authorization.RoleDescriptor{Ref: e.RoleStore.Domain.Principal(uint64(20000 + i)), Name: name, Inherit: true, ConnectionLimit: -1})
+	}
+	e.RoleStore.PublishLocked(next)
+	if nextID := uint64(20000 + len(names)); e.RoleStore.NextPrincipal() < nextID {
+		e.RoleStore.InstallPrincipalFrontierLocked(nextID)
+	}
+}
+
+func aclUnitValue(t *testing.T, e *engine.Engine, text string) sqltype.Value {
+	t.Helper()
+	d := aclUnitType(t, e, sqltype.ACLItem)
+	v, err := d.InputWithEnvironment(context.Background(), text, -1, sqltype.InputEnvironment{ACLItem: e.CaptureACLItemInput(engine.AuthorizationView{View: access.View{Roles: e.Roles()}}, nil)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+func aclUnitType(t *testing.T, e *engine.Engine, id sqltype.ID) *sqltype.Descriptor {
+	t.Helper()
+	d, ok := e.CatalogRead().LookupType(id)
+	if !ok {
+		t.Fatal("missing type", id)
+	}
+	return d
+}
+
+func retireFixtureRole(r *access.RoleRecord, ref authorization.PrincipalRef) {
+	d := fixtureRole(r, ref)
+	r.Root = r.Root.Retire(map[authorization.PrincipalRef]authorization.RoleDescriptor{ref: d})
+}
+
+func fixtureRole(r *access.RoleRecord, ref authorization.PrincipalRef) authorization.RoleDescriptor {
+	d, _ := r.Root.Read(authorization.PrincipalRef{}).Find(ref)
+	return d
+}

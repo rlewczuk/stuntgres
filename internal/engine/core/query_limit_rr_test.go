@@ -34,5 +34,3 @@ func TestQueryLimitLockRepeatableRead(t *testing.T) {
 		}
 	}
 }
-
-var rowLockTestClauses = []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"}

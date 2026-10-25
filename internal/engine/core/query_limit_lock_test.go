@@ -173,33 +173,3 @@ func queryLimitGrants(t *testing.T, e *engine.Engine, ticket *lock.Ticket, table
 		t.Fatal("exact physical count frontier", got, want)
 	}
 }
-
-func rowLockViewAsync(t *testing.T, s *session.Session, parent context.Context, q string) <-chan deleteOutcome {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
-	ast := enginetest.Statement(t, q)
-	done := make(chan deleteOutcome, 1)
-	go func() {
-		op, _, err := s.AcquireCommand(ctx)
-		var result engine.Result
-		if err == nil {
-			result, err = engine.EngineOf(s).Execute(op, ast, 0, nil)
-			err = op.CommandError(err)
-			op.Done()
-		}
-		done <- deleteOutcome{result, err}
-		close(done)
-	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case remaining := <-done:
-			if remaining.result.Rows != nil {
-				remaining.result.Rows.Close()
-			}
-		case <-time.After(5 * time.Second):
-			t.Error("view row waiter did not join")
-		}
-	})
-	return done
-}

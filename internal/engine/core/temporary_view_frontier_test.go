@@ -15,7 +15,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
 )
@@ -146,20 +145,6 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 	if got := enginetest.Tuples(enginetest.SessionSQL(t, owner, "SELECT v FROM retained_w ORDER BY v")); !reflect.DeepEqual(got, [][]driver.Value{{int64(11)}, {int64(12)}}) {
 		t.Fatal(got)
 	}
-}
-
-func namespaceCapturedAuthorization(t *testing.T, s *session.Session) engine.AuthorizationView {
-	t.Helper()
-	op, err := s.Acquire(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer op.Done()
-	auth, err := engine.OperationAuthorization(op)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return auth
 }
 
 func infoUserMappingsUnitText(t *testing.T, value sqltype.Value) string {

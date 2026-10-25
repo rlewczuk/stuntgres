@@ -230,32 +230,6 @@ func timeoutPendingRequest(t *testing.T, e *engine.Engine, op *session.Operation
 	}
 }
 
-func rowLockQueued(t *testing.T, e *engine.Engine, holder *lock.Ticket, mode lock.Mode) {
-	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		lockState := e.Locks.Inspect()
-		found := false
-		for resource, entry := range lockState.Resources {
-			if resource.Row == 0 || entry.Holders[holder].Mode == 0 {
-				continue
-			}
-			for _, request := range entry.Pending {
-				if request.Mode == mode && !request.Terminal && request.Ticket != holder {
-					found = true
-				}
-			}
-		}
-		if found {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("exact row request not queued")
-		}
-		runtime.Gosched()
-	}
-}
-
 func timeoutPendingPublish(t *testing.T, e *engine.Engine, request *lock.Request, now time.Time) {
 	t.Helper()
 	// The real cancellation callback may already own terminal publication

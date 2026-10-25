@@ -2,7 +2,6 @@ package tablecmds_test
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 
@@ -11,8 +10,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/sqlstate"
 )
 
 func TestAlterSchemaSourceAuthorityPublicationFence(t *testing.T) {
@@ -114,35 +111,4 @@ func TestAlterSchemaSourceRenamePublicationFence(t *testing.T) {
 	}
 	enginetest.Run(t, e, "ALTER TABLE renamed_source.t SET SCHEMA s2")
 	enginetest.LockEmpty(t, e)
-}
-
-// Ordinary table owner in a separately owned namespace: USAGE and CREATE are
-// independent host grants, so CREATE can be revoked without hiding the source.
-func renameAuthorityFixture(t *testing.T) (*engine.Engine, *session.Session, *session.Session, ids.ObjectRef, authorization.ACLValue) {
-	t.Helper()
-	e := engine.New()
-	admin, owner := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
-	enginetest.SessionSQL(t, admin, "CREATE USER rename_transition_owner")
-	enginetest.SessionSQL(t, admin, "CREATE SCHEMA protected")
-	actor, _ := e.Roles().Lookup("rename_transition_owner")
-	view := e.CatalogRead()
-	address := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "protected"})
-	ns := e.Catalog.Domain.Ref(view.Epoch(), address)
-	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.MustNamespace(address).Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
-	if err := enginetest.SetObjectACL(e, context.Background(), ns, acl); err != nil {
-		t.Fatal(err)
-	}
-	enginetest.SessionSQL(t, owner, "SET SESSION AUTHORIZATION rename_transition_owner")
-	enginetest.SessionSQL(t, owner, "CREATE TABLE protected.t(a INT CONSTRAINT nn NOT NULL,b TEXT)")
-	enginetest.SessionSQL(t, owner, "INSERT INTO protected.t VALUES(7,'keep')")
-	return e, admin, owner, ns, acl
-}
-
-func renameWantError(t *testing.T, err error, code, message string) {
-	t.Helper()
-	var got *sqlstate.Error
-	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
-	if !errors.As(err, &got) || *got != want {
-		t.Fatal(err, got, want)
-	}
 }
