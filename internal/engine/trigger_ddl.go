@@ -10,11 +10,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// executeTrigger runs CREATE [OR REPLACE], ALTER and DROP TRIGGER. Locks are
+// ExecuteTrigger runs CREATE [OR REPLACE], ALTER and DROP TRIGGER. Locks are
 // acquired before Engine.mu: the statement admission, and for a rename the
 // partition descendants in AccessExclusive. view.PlanTrigger decides the change
 // under Engine.mu, and publishRelationChangeLocked stages and publishes it.
-func executeTrigger(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+func ExecuteTrigger(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

@@ -18,10 +18,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// ImportMaterializedSnapshots installs the materialized view rows a native
+// Dump captured into e, a private Restore engine, in one publication.
+//
 // All rows and descriptors belong exclusively to Restore's isolated engine.
 // No public INSERT execution, authority relaxation or definition evaluation is
 // involved. The destination engine still receives one fenced replacement only.
-func importMaterializedSnapshots(e *core.Engine, ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
+func ImportMaterializedSnapshots(e *core.Engine, ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -83,7 +86,7 @@ func importMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 			if captured, ok := domainReplayPairs[s]; ok {
 				replay = &captured
 			}
-			values, err := importMaterializedSnapshotRow(e, ctx, op, auth, d, s, input, replay)
+			values, err := ImportMaterializedSnapshotRow(e, ctx, op, auth, d, s, input, replay)
 			if err != nil {
 				return err
 			}
@@ -119,10 +122,13 @@ func importMaterializedSnapshots(e *core.Engine, ctx context.Context, op *sessio
 	return nil
 }
 
+// ImportMaterializedSnapshotRow evaluates one snapshot INSERT into rows of
+// relation d, with its paired native domain replay record if any.
+//
 // Captured cells use the same exact INSERT binder transport as ordinary private
 // table replay. A real statement scope also retains normal CHECK providers for
 // all other non-NULL conversions; no constraint suppression is introduced here.
-func importMaterializedSnapshotRow(e *core.Engine, ctx context.Context, op *session.Operation, auth core.AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
+func ImportMaterializedSnapshotRow(e *core.Engine, ctx context.Context, op *session.Operation, auth core.AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return nil, err

@@ -123,7 +123,7 @@ func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *sessio
 // finishRestoreMaterializedSnapshots populates materialized views from the
 // decoded snapshots.
 func finishRestoreMaterializedSnapshots(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return importMaterializedSnapshots(r.stage, ctx, op, r.snapshots)
+	return ImportMaterializedSnapshots(r.stage, ctx, op, r.snapshots)
 }
 
 // beforeRestoreRoutineDirective consumes the directive that defers SQL

@@ -159,7 +159,7 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 			e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 			e.Mu.Unlock()
 			before, store := e.Catalog.State, e.Storage.Relations[d.Address()]
-			if err := importMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
+			if err := ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
 				t.Fatal("accepted noncanonical/effectful snapshot")
 			}
 			if e.Catalog.State != before || e.Storage.Relations[d.Address()] != store || d.Populated {
@@ -175,10 +175,10 @@ func TestMaterializedViewSnapshotImport(t *testing.T) {
 	e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
 	e.Mu.Unlock()
 	record := view.MaterializedSnapshot{Schema: "public", Name: "unit_mv", Populated: true, Rows: "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
-	if err := importMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record, record}); err == nil {
+	if err := ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record, record}); err == nil {
 		t.Fatal("duplicate target accepted")
 	}
-	if err := importMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record}); err != nil {
+	if err := ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record}); err != nil {
 		t.Fatal(err)
 	}
 	current := e.Catalog.State.MustRelation(d.Address())

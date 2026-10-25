@@ -11,9 +11,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// executePolicy runs CREATE, ALTER and DROP POLICY: the preflight, then
+// ExecutePolicy runs CREATE, ALTER and DROP POLICY: the preflight, then
 // view.PlanPolicy under Engine.mu, then publishRelationChangeLocked.
-func executePolicy(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+func ExecutePolicy(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	op := scope.Op
 	e.Mu.Lock()
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }

@@ -14,10 +14,10 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// executeRule alternates canonical locked definition phases with unlocked lock
+// ExecuteRule alternates canonical locked definition phases with unlocked lock
 // admission. The partial definition and lexical manifests are statement-local;
 // neither held handles nor the Host cache authority or wait under Engine.mu.
-func executeRule(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	e.Mu.Lock()
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {

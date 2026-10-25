@@ -18,8 +18,11 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
+// RefreshMaterializedLocked runs REFRESH MATERIALIZED VIEW, ordinary or
+// CONCURRENTLY, WITH DATA or WITH NO DATA.
+//
 // Engine.mu is held on entry, and is consumed on every return.
-func refreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, caller core.AuthorizationView, stmt *parser.RefreshMaterializedView, count int) (core.Result, error) {
+func RefreshMaterializedLocked(e *core.Engine, scope *core.StatementScope, caller core.AuthorizationView, stmt *parser.RefreshMaterializedView, count int) (core.Result, error) {
 	if count != 0 {
 		e.Mu.Unlock()
 		return core.Result{}, fmt.Errorf("stuntgres: REFRESH MATERIALIZED VIEW takes no arguments")

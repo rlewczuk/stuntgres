@@ -146,7 +146,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 					e.Mu.Unlock()
 					t.Fatal(err)
 				}
-				result, err := refreshMaterializedLocked(e, scope, auth, stmt, 0)
+				result, err := RefreshMaterializedLocked(e, scope, auth, stmt, 0)
 				if err != nil || result.Count != 0 || result.Rows != nil {
 					t.Fatal(result, err)
 				}

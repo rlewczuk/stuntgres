@@ -11,7 +11,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeCreateView(e *core.Engine, scope *core.StatementScope, createView *parser.CreateView, count int) (core.Result, error) {
+// ExecuteCreateView runs CREATE [OR REPLACE] VIEW, including TEMP views,
+// which publish through the session's catalog overlay.
+func ExecuteCreateView(e *core.Engine, scope *core.StatementScope, createView *parser.CreateView, count int) (core.Result, error) {
 	op := scope.Op
 	e.Mu.Lock()
 	if err := scope.ValidateLockedRelation(e); err != nil {

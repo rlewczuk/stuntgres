@@ -15,9 +15,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
+// ExecuteAlterView runs ALTER [MATERIALIZED] VIEW other than OWNER TO,
+// handing RENAME and SET SCHEMA to tablecmds.
+//
 // Utility admission pins the target identity before waiting. Shared rename and
 // namespace operations retain their ordinary descriptor publication path.
-func executeAlterView(e *core.Engine, scope *core.StatementScope, s *parser.AlterView, count int) (core.Result, error) {
+func ExecuteAlterView(e *core.Engine, scope *core.StatementScope, s *parser.AlterView, count int) (core.Result, error) {
 	e.Mu.Lock()
 	fail := func(err error) (core.Result, error) { e.Mu.Unlock(); return core.Result{}, err }
 	if count != 0 {
@@ -85,9 +88,11 @@ func executeAlterView(e *core.Engine, scope *core.StatementScope, s *parser.Alte
 	return core.Result{}, err
 }
 
+// ExecuteDropView runs DROP [MATERIALIZED] VIEW and its dependency closure.
+//
 // Resolve the complete group before locking; names are never replayed after a
 // wait. The dependency closure and all removals publish as one catalog stage.
-func executeDropView(e *core.Engine, scope *core.StatementScope, s *parser.DropView, count int) (core.Result, error) {
+func ExecuteDropView(e *core.Engine, scope *core.StatementScope, s *parser.DropView, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
