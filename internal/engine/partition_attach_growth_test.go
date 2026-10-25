@@ -266,7 +266,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				}
 				var lockChild func(catalog.Read, ids.ObjectAddress) (catalog.Read, *catalog.Relation, error)
 				if mode != "candidate_proven" {
-					lockChild = scope.lockPartitionAttachChild
+					lockChild = lockPartitionAttachChild(scope)
 				}
 				var err error
 				scans, err = partition.AttachFrontier(scope.Op.Context(), scope.Input, e.CatalogRead(), parent, target, bound, mode != "candidate_proven", lockChild)

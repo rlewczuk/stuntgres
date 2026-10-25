@@ -14,7 +14,7 @@ import (
 
 // Engine.mu is consumed on every return. The execution scope owns parent AX;
 // DEFAULT, candidate and descendant waits use the same ticket without Engine.mu.
-func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (Result, error) {
+func detachPartitionLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -26,7 +26,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	if parent.Partition == nil {
 		return fail(partition.DetachKindError(auth.Catalog, parent, false))
 	}
-	if err := e.partitionAttachName(auth, raw.Name, scope.LockedRef); err != nil {
+	if err := partitionAttachName(e, auth, raw.Name, scope.LockedRef); err != nil {
 		return fail(err)
 	}
 	defaultAddress := parent.Partition.DefaultChild
@@ -65,7 +65,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err = scope.AcquirePartitionLock(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
-	catalog, child, err := e.partitionAttachRelation(scope, candidate)
+	catalog, child, err := partitionAttachRelation(e, scope, candidate)
 	if err != nil {
 		return Result{}, err
 	}
@@ -78,10 +78,10 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operat
 	e.Mu.Lock()
 	auth, err = e.StatementAuthorizationLocked(op, raw)
 	if err == nil {
-		err = e.partitionAttachName(auth, raw.Name, scope.LockedRef)
+		err = partitionAttachName(e, auth, raw.Name, scope.LockedRef)
 	}
 	if err == nil {
-		err = e.partitionAttachName(auth, raw.Partition, candidate)
+		err = partitionAttachName(e, auth, raw.Partition, candidate)
 	}
 	if err == nil {
 		err = auth.Check(access.Requirement{Object: scope.LockedRef, OwnerOnly: true, OwnerNoun: "table"})

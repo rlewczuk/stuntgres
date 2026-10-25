@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) pairRestoredGeneration(op *session.Operation, raw *parser.AlterTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) error {
+func pairRestoredGeneration(e *Engine, op *session.Operation, raw *parser.AlterTable, origins map[table.RestoredGenerationKey]table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
@@ -32,7 +32,7 @@ func (e *Engine) pairRestoredGeneration(op *session.Operation, raw *parser.Alter
 	return table.PairRestoredGeneration(auth.Catalog, relationProvider, ref, raw, origins)
 }
 
-func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
+func captureRestoredGeneration(e *Engine, op *session.Operation, raw *parser.AlterTable) (table.RestoredGenerationRecipe, error) {
 	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return table.RestoredGenerationRecipe{}, err
@@ -49,7 +49,7 @@ func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.Al
 // Recursive generation replay retains connected repair authority. Fresh
 // recursive declarations require absent names throughout the affected closure.
 // Binding, ownership, row validation and publication belong to ordinary ALTER.
-func (e *Engine) restoreCheck(op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
+func restoreCheck(e *Engine, op *session.Operation, raw *parser.AlterTable, repairs []table.RestoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (e *Engine) restoreCheck(op *session.Operation, raw *parser.AlterTable, rep
 	return table.InheritedCheckRecipe(auth.Catalog, relationProvider, ref, repairs)
 }
 
-func (e *Engine) closeRestoredRecipesForData(op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {
+func closeRestoredRecipesForData(e *Engine, op *session.Operation, raw *parser.Insert, repairs []table.RestoredGenerationRecipe) ([]table.RestoredGenerationRecipe, error) {
 	auth, err := OperationAuthorization(op)
 	if err != nil {
 		return nil, err

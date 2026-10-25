@@ -43,9 +43,9 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return dispatched(e.executePolicy(scope, stmt, count))
 	case *parser.CreateIndex:
-		return dispatched(e.executeCreateIndex(scope, stmt.(*parser.CreateIndex), count))
+		return dispatched(executeCreateIndex(e, scope, stmt.(*parser.CreateIndex), count))
 	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
-		return dispatched(e.executeIndexMaintenance(scope, stmt, count))
+		return dispatched(executeIndexMaintenance(e, scope, stmt, count))
 	case *parser.CreateView:
 		return dispatched(e.executeCreateView(scope, stmt.(*parser.CreateView), count))
 	case *parser.AlterOwner:
@@ -155,9 +155,9 @@ func (familyStatements) ExecuteLocked(e *Engine, scope *StatementScope, auth Aut
 	case *parser.AlterTableOf:
 		return dispatched(e.alterTableOfLocked(scope, op, auth, s, count))
 	case *parser.AlterTableAttachPartition:
-		return dispatched(e.attachPartitionLocked(scope, op, auth, s, count))
+		return dispatched(attachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableDetachPartition:
-		return dispatched(e.detachPartitionLocked(scope, op, auth, s, count))
+		return dispatched(detachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableRenameConstraint:
 		return dispatched(renameConstraintLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableSetSchema:

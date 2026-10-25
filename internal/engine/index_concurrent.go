@@ -9,31 +9,31 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeConcurrentIndex(scope *StatementScope, syntax *parser.CreateIndex, initial *catalog.Relation) (Result, error) {
-	if err := scope.waitIndexWriters(initial.Address()); err != nil {
+func executeConcurrentIndex(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, initial *catalog.Relation) (Result, error) {
+	if err := waitIndexWriters(scope, initial.Address()); err != nil {
 		return Result{}, err
 	}
-	if _, err := e.publishConcurrentIndexRoot(scope, syntax, initial.Address(), true); err != nil {
+	if _, err := publishConcurrentIndexRoot(e, scope, syntax, initial.Address(), true); err != nil {
 		return Result{}, err
 	}
-	if err := scope.waitIndexWriters(initial.Address()); err != nil {
+	if err := waitIndexWriters(scope, initial.Address()); err != nil {
 		return Result{}, err
 	}
-	xmin, err := e.publishConcurrentIndexRoot(scope, syntax, initial.Address(), false)
+	xmin, err := publishConcurrentIndexRoot(e, scope, syntax, initial.Address(), false)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.waitOlderIndexSnapshots(xmin, initial.Address()); err != nil {
+	if err := waitOlderIndexSnapshots(scope, xmin, initial.Address()); err != nil {
 		return Result{}, err
 	}
-	if err := e.publishConcurrentIndexValid(scope, syntax, initial.Address()); err != nil {
+	if err := publishConcurrentIndexValid(e, scope, syntax, initial.Address()); err != nil {
 		return Result{}, err
 	}
 	scope.Completed = true
 	return Result{}, nil
 }
 
-func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) (*catalog.Relation, *catalog.Relation, AuthorizationView, error) {
+func concurrentIndexAuthorityLocked(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) (*catalog.Relation, *catalog.Relation, AuthorizationView, error) {
 	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
 		return nil, nil, AuthorizationView{}, err
 	}
@@ -58,10 +58,10 @@ func (e *Engine) concurrentIndexAuthorityLocked(scope *StatementScope, syntax *p
 	return index, parent, auth, nil
 }
 
-func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress, first bool) (uint64, error) {
+func publishConcurrentIndexRoot(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress, first bool) (uint64, error) {
 	for {
 		e.Mu.Lock()
-		idx, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
+		idx, parent, auth, err := concurrentIndexAuthorityLocked(e, scope, syntax, address)
 		if err != nil {
 			e.Mu.Unlock()
 			return 0, err
@@ -143,10 +143,10 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 	}
 }
 
-func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) error {
+func publishConcurrentIndexValid(e *Engine, scope *StatementScope, syntax *parser.CreateIndex, address ids.ObjectAddress) error {
 	for {
 		e.Mu.Lock()
-		index, parent, auth, err := e.concurrentIndexAuthorityLocked(scope, syntax, address)
+		index, parent, auth, err := concurrentIndexAuthorityLocked(e, scope, syntax, address)
 		if err != nil {
 			e.Mu.Unlock()
 			return err

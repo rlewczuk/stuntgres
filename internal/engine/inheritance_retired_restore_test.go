@@ -180,7 +180,7 @@ func retiredReject(t *testing.T, e *Engine, op *session.Operation, q string, a *
 	stores := maps.Clone(e.Storage.Relations)
 	capture := retiredAuthorityClone(a)
 	resources := retiredResourceCounts(e)
-	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err == nil {
+	if err := restoreRetiredConstraint(e, op, retiredRaw(t, q), a); err == nil {
 		t.Fatal("forged repair gained authority", q)
 	}
 	if e.Catalog.State != before || !reflect.DeepEqual(stores, e.Storage.Relations) || !retiredAuthorityEqual(a, capture) || retiredResourceCounts(e) != resources {
@@ -271,10 +271,10 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	defer cancelDone()
 	cancel()
 	before := e.Catalog.State
-	if err := e.restoreRetiredConstraint(canceled, retiredRaw(t, q), a); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
+	if err := restoreRetiredConstraint(e, canceled, retiredRaw(t, q), a); !errors.Is(err, context.Canceled) || e.Catalog.State != before {
 		t.Fatal("canceled importer repair published", err)
 	}
-	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err != nil {
+	if err := restoreRetiredConstraint(e, op, retiredRaw(t, q), a); err != nil {
 		t.Fatal("actual paired NN repair rejected", err)
 	}
 	current := retiredUnitTable(t, e, "c")
@@ -296,7 +296,7 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 	} {
 		retiredReject(t, e, op, strings.Replace(sibling, change[0], change[1], 1), a)
 	}
-	if err := e.restoreRetiredConstraint(op, retiredRaw(t, sibling), a); err != nil {
+	if err := restoreRetiredConstraint(e, op, retiredRaw(t, sibling), a); err != nil {
 		t.Fatal("consistent shared source rejected", err)
 	}
 	d := retiredUnitTable(t, e, "d")
@@ -321,13 +321,13 @@ func TestRestoreConstraintHistoryAuthority(t *testing.T) {
 			retiredReject(t, e, op, check, bad)
 		})
 	}
-	if err := e.restoreRetiredConstraint(op, retiredRaw(t, check), a); err != nil {
+	if err := restoreRetiredConstraint(e, op, retiredRaw(t, check), a); err != nil {
 		t.Fatal(err)
 	}
 	ck := retiredUnitTable(t, e, "c").Constraints.Check[0]
 	saved := a.Facts[retiredUnitTable(t, e, "f").Constraints.NotNull[0].OID]
 	distinct := retiredRepairSQL("f", "nn", "n", false, false, 1, retiredRow("n", "0:8", fmt.Sprint(liveQ))+", "+retiredRow("n", "0:9", fmt.Sprint(liveQ)))
-	if err := e.restoreRetiredConstraint(op, retiredRaw(t, distinct), a); err != nil {
+	if err := restoreRetiredConstraint(e, op, retiredRaw(t, distinct), a); err != nil {
 		t.Fatal("archival identities falsely aliased current OID namespace", err)
 	}
 	f := retiredUnitTable(t, e, "f")
@@ -410,7 +410,7 @@ func TestRestoreConstraintHistoryPrimarySupport(t *testing.T) {
 	table.CaptureHistoricalRelation(e.CatalogRead(), ref, a.Facts)
 	before := a.Facts[oid]
 	q := retiredRepairSQL("d", "nn", "n", false, before.Local, before.Count, retiredRow("n", "0:7", "77"))
-	if err := e.restoreRetiredConstraint(op, retiredRaw(t, q), a); err != nil {
+	if err := restoreRetiredConstraint(e, op, retiredRaw(t, q), a); err != nil {
 		t.Fatal("ordinary validated NN with genuine primary support rejected", err)
 	}
 	current := retiredUnitTable(t, e, "d")

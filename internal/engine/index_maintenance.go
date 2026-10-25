@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeIndexMaintenance(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -80,7 +80,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		}
 	}
 	if _, ok := stmt.(*parser.DropIndex); ok {
-		if err := e.stagePartitionIndexValidity(stage, ids.ObjectAddress{}); err != nil {
+		if err := stagePartitionIndexValidity(e, stage, ids.ObjectAddress{}); err != nil {
 			return Result{}, err
 		}
 	}

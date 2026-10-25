@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Update, authority *table.RestoredHistoryAuthority) error {
+func restoreRetiredConstraint(e *Engine, op *session.Operation, raw *parser.Update, authority *table.RestoredHistoryAuthority) error {
 	repair, err := table.RestoreRetiredSyntax(raw)
 	if err != nil {
 		return err

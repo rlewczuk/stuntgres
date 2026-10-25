@@ -15,7 +15,7 @@ import (
 
 // This origin belongs to one private-import operation and one captured definition,
 // target and subtree, after its intended plain tree is already attached.
-func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.AlterTable) error {
+func beginPartitionUniqueReplay(e *Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition unique operation")
 	}

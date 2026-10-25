@@ -13,7 +13,7 @@ import (
 // This capability is an exact private-import target, not a public hierarchy
 // ALTER policy. The ordinary ALTER binder, providers, stage and Finish still own
 // every definition and publication check.
-func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.AlterTable) error {
+func beginPartitionCheckReplay(e *Engine, op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}

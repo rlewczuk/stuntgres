@@ -65,7 +65,7 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	e, mid, leaf, raw := partitionUniqueReplayUnit(t, true)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	if err := e.beginPartitionUniqueReplay(op, raw); err != nil {
+	if err := beginPartitionUniqueReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := OperationAuthorization(op)
@@ -107,7 +107,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 			t.Run(map[bool]string{false: "unique", true: "primary"}[primary]+map[bool]string{false: "/publish", true: "/cancel"}[cancel], func(t *testing.T) {
 				e, mid, leaf, raw := partitionUniqueReplayUnit(t, primary)
 				scope, op := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-				if err := e.beginPartitionUniqueReplay(op, raw); err != nil {
+				if err := beginPartitionUniqueReplay(e, op, raw); err != nil {
 					t.Fatal(err)
 				}
 				if err := scope.AcquireRelation(raw, true); err != nil {
@@ -165,7 +165,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 	e, mid, leaf, raw := partitionUniqueReplayUnit(t, true)
 	scope, op := partitionAttachUnitScope(t, e, sessionStart(t, e, nil))
-	if err := e.beginPartitionUniqueReplay(op, raw); err != nil {
+	if err := beginPartitionUniqueReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	if err := scope.AcquireRelation(raw, true); err != nil {

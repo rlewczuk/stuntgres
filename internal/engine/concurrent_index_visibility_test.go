@@ -43,7 +43,7 @@ func concurrentUnitOlderWait(t *testing.T, scope *StatementScope, xmin uint64, c
 	t.Helper()
 	done := make(chan error, 1)
 	joined := false
-	go func() { done <- scope.waitOlderIndexSnapshots(xmin, ids.ObjectAddress{}) }()
+	go func() { done <- waitOlderIndexSnapshots(scope, xmin, ids.ObjectAddress{}) }()
 	t.Cleanup(func() {
 		cancel()
 		if !joined {
@@ -217,7 +217,7 @@ func TestConcurrentIndexU3GenuinelyNewerXminNotCommitSeq(t *testing.T) {
 		t.Fatal("newer xmin incorrectly tied to CommitSeq", v, boundary)
 	}
 	scope, op, _ := concurrentUnitSnapshotScope(t, e, builder)
-	if err := scope.waitOlderIndexSnapshots(boundary, ids.ObjectAddress{}); err != nil {
+	if err := waitOlderIndexSnapshots(scope, boundary, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
 	lockPending(t, e, 0)

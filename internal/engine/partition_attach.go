@@ -15,7 +15,7 @@ import (
 
 // Engine.mu is held on entry and consumed on every return. The parent SUE grant
 // is already admitted. All bound/provider work and manager waits run unlocked.
-func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableAttachPartition, count int) (Result, error) {
+func attachPartitionLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableAttachPartition, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -31,7 +31,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err != nil {
 		return fail(err)
 	}
-	if err = e.partitionAttachName(lookupAuth, raw.Name, scope.LockedRef); err != nil {
+	if err = partitionAttachName(e, lookupAuth, raw.Name, scope.LockedRef); err != nil {
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
@@ -58,11 +58,11 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		if err = scope.AcquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 			return Result{}, err
 		}
-		catalog, root, err := e.partitionAttachRelation(scope, ref)
+		catalog, root, err := partitionAttachRelation(e, scope, ref)
 		if err != nil {
 			return Result{}, err
 		}
-		defaultScans, err = partition.AttachFrontier(scope.Op.Context(), scope.Input, catalog, parent, root, bound, true, scope.lockPartitionAttachChild)
+		defaultScans, err = partition.AttachFrontier(scope.Op.Context(), scope.Input, catalog, parent, root, bound, true, lockPartitionAttachChild(scope))
 		if err != nil {
 			return Result{}, err
 		}
@@ -89,7 +89,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	if err = scope.AcquirePartitionLock(candidate, lock.AccessExclusive); err != nil {
 		return Result{}, err
 	}
-	catalog, child, err := e.partitionAttachRelation(scope, candidate)
+	catalog, child, err := partitionAttachRelation(e, scope, candidate)
 	if err != nil {
 		return Result{}, err
 	}
@@ -108,10 +108,10 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		lookupAuth, err = e.PartitionAttachAuthorization(op, auth)
 	}
 	if err == nil {
-		err = e.partitionAttachName(lookupAuth, raw.Name, scope.LockedRef)
+		err = partitionAttachName(e, lookupAuth, raw.Name, scope.LockedRef)
 	}
 	if err == nil {
-		err = e.partitionAttachName(lookupAuth, raw.Partition, candidate)
+		err = partitionAttachName(e, lookupAuth, raw.Partition, candidate)
 	}
 	if err == nil {
 		err = lookupAuth.Check(access.Requirement{Object: scope.LockedRef, OwnerOnly: true, OwnerNoun: "table"})
@@ -165,7 +165,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, err
 	}
 	jobs := append(defaultScans, candidateScans...)
-	if err = e.partitionAttachCapture(scope, stage, auth.Catalog, child, jobs); err != nil {
+	if err = partitionAttachCapture(e, scope, stage, auth.Catalog, child, jobs); err != nil {
 		return Result{}, err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Host: HostOf(scope), Input: scope.Input, Output: scope.Output}}
@@ -197,7 +197,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 	return Result{}, err
 }
 
-func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectName, held ids.ObjectRef) error {
+func partitionAttachName(e *Engine, auth AuthorizationView, name parser.ObjectName, held ids.ObjectRef) error {
 	current, err := e.ResolveRelationReference(auth, name, true)
 	if err != nil || current != held {
 		return ids.ErrCatalogReplaced
@@ -205,7 +205,7 @@ func (e *Engine) partitionAttachName(auth AuthorizationView, name parser.ObjectN
 	return nil
 }
 
-func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRef) (catalog.Read, *catalog.Relation, error) {
+func partitionAttachRelation(e *Engine, scope *StatementScope, ref ids.ObjectRef) (catalog.Read, *catalog.Relation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	view := e.PrivateCatalogLocked(scope.Owner.Catalog)

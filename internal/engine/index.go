@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex, count int) (Result, error) {
+func executeCreateIndex(e *Engine, scope *StatementScope, s *parser.CreateIndex, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -139,7 +139,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			e.Mu.Lock()
 			e.Visibility.ResetPhaseLocked(scope.TxRef)
 			e.Mu.Unlock()
-			return e.executeConcurrentIndex(scope, s, d)
+			return executeConcurrentIndex(e, scope, s, d)
 		}
 		if err == nil {
 			scope.Completed = true

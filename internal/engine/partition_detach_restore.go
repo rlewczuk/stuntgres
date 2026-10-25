@@ -13,7 +13,7 @@ import (
 
 // Only the private importer records exact empty DEFAULT identities before an
 // emitted detach. A name prefix alone cannot grant arbitrary DROP admission.
-func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
+func capturePartitionReplayTeardown(e *Engine, op *session.Operation, s *parser.AlterTableDetachPartition) (partition.ReplayTeardown, error) {
 	if !strings.HasPrefix(s.Partition.Parts[len(s.Partition.Parts)-1].Text, partition.ReplayStem) {
 		return partition.ReplayTeardown{}, nil
 	}
@@ -46,7 +46,7 @@ func (e *Engine) capturePartitionReplayTeardown(op *session.Operation, s *parser
 	return partition.ReplayTeardown{Child: child, Parent: parent}, nil
 }
 
-func (e *Engine) validatePartitionReplayTeardown(op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
+func validatePartitionReplayTeardown(e *Engine, op *session.Operation, name parser.ObjectName, records map[ids.ObjectAddress]partition.ReplayTeardown) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	auth, err := e.AuthorizationLocked(op)

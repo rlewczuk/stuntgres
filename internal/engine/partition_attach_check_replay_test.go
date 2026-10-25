@@ -22,7 +22,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddCheck, Check: &parser.CheckConstraint{Name: parser.Identifier{Text: "local"}, NotValid: true, Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}}}}}
-	if err := e.beginPartitionCheckReplay(op, raw); err != nil {
+	if err := beginPartitionCheckReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := OperationAuthorization(op)
@@ -66,7 +66,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	OperationReplay(op).PartitionCheck = nil
 	publicOp, publicDone := roleOperation(t, source, "postgres")
 	defer publicDone()
-	if err := source.beginPartitionCheckReplay(publicOp, raw); err == nil {
+	if err := beginPartitionCheckReplay(source, publicOp, raw); err == nil {
 		t.Fatal("public bootstrap forged private import")
 	}
 	OperationReplay(op).PartitionCheck = child

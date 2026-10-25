@@ -61,7 +61,7 @@ func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 	e.Mu.Unlock()
 }
 
-func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddress) error {
+func waitOlderIndexSnapshots(s *StatementScope, xmin uint64, idx ids.ObjectAddress) error {
 	e := s.Engine()
 	e.Mu.Lock()
 	if s.TxRef.Epoch() != e.Catalog.State.Epoch() {
@@ -73,12 +73,12 @@ func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, idx ids.ObjectAddr
 	refs := e.Visibility.OlderSnapshotsLocked(s.TxRef, xmin)
 	// Publish only after dropping validation ownership and freezing the cohort,
 	// under the same critical section used by the sole coordinator observation.
-	if err := e.admitIndexBuildWaitLocked(idx, s.TxRef, index.WaitOlderSnapshots); err != nil {
+	if err := admitIndexBuildWaitLocked(e, idx, s.TxRef, index.WaitOlderSnapshots); err != nil {
 		e.Mu.Unlock()
 		return err
 	}
 	e.Mu.Unlock()
-	defer e.clearIndexBuildWait(idx, s.TxRef, index.WaitOlderSnapshots)
+	defer clearIndexBuildWait(e, idx, s.TxRef, index.WaitOlderSnapshots)
 	for _, ref := range refs {
 		e.Mu.Lock()
 		eligible := e.Visibility.SnapshotOlderLocked(ref, xmin)

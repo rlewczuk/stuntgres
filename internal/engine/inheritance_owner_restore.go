@@ -11,7 +11,7 @@ import (
 // A genuine named owner directive followed immediately by the bootstrap context
 // carries the captured role identity. CREATE/OWNER must be the next exact pair;
 // no input can retarget an existing relation or choose an unrelated owner.
-func (e *Engine) captureInheritedOwner(op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (table.RestoredInheritedOwner, error) {
+func captureInheritedOwner(e *Engine, op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (table.RestoredInheritedOwner, error) {
 	if err := op.Context().Err(); err != nil {
 		return table.RestoredInheritedOwner{}, err
 	}
@@ -32,7 +32,7 @@ func (e *Engine) captureInheritedOwner(op *session.Operation, created ids.Object
 	return table.CaptureInheritedOwner(auth.View, created, owner)
 }
 
-func (e *Engine) restoreInheritedOwner(op *session.Operation, raw *parser.AlterOwner, pair table.RestoredInheritedOwner) error {
+func restoreInheritedOwner(e *Engine, op *session.Operation, raw *parser.AlterOwner, pair table.RestoredInheritedOwner) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}

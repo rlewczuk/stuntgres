@@ -31,7 +31,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	raw := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: child.Name()}}}, Actions: []parser.AlterTableAction{{Action: parser.AddUsingIndex, UsingIndex: &parser.UsingIndexConstraint{Name: parser.Identifier{Text: index.Name()}, Index: parser.Identifier{Text: index.Name()}}}}}
-	if err := e.beginPartitionUsingIndexReplay(op, raw); err != nil {
+	if err := beginPartitionUsingIndexReplay(e, op, raw); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := OperationAuthorization(op)
@@ -81,7 +81,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	}
 	publicOp, publicDone := roleOperation(t, source, "postgres")
 	defer publicDone()
-	if err := source.beginPartitionUsingIndexReplay(publicOp, raw); err == nil {
+	if err := beginPartitionUsingIndexReplay(source, publicOp, raw); err == nil {
 		t.Fatal("public bootstrap forged import origin")
 	}
 	done()

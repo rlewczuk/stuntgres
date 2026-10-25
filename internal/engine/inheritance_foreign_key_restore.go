@@ -12,7 +12,7 @@ import (
 // This is not a general valid ALTER whitelist. Only a successful isolated
 // import of both actual relations, with a strict ordinary inheritance edge,
 // can issue a receipt. The incumbent pending binder remains the sole FK binder.
-func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
+func captureInheritedForeignKey(e *Engine, op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (table.RestoredForeignKeys, bool, error) {
 	if handled, err := table.InheritedForeignKeyShape(raw); !handled || err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}

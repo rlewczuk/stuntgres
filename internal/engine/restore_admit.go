@@ -113,7 +113,7 @@ func admitRestoreAlterOwner(r *restoreRun, op *session.Operation, s *parser.Alte
 	if s.Kind == "type" {
 		return admitRestoreInstalledTypeOwner(r, op, s)
 	}
-	return r.stage.restoreInheritedOwner(op, s, r.cur.ownerPair)
+	return restoreInheritedOwner(r.stage, op, s, r.cur.ownerPair)
 }
 
 func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *parser.AlterOwner) error {
@@ -179,7 +179,7 @@ func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.Alte
 		return nil // Execution uses the ordinary bounded validator and private stage.
 	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.AddCheck && s.Actions[0].Check != nil && !s.Actions[0].Check.NotValid {
-		return r.stage.restoreCheck(op, s, r.generationRepairs)
+		return restoreCheck(r.stage, op, s, r.generationRepairs)
 	}
 	return table.RestoreAlterConstraints(s)
 }
@@ -190,7 +190,7 @@ func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser
 	if s.IfExists || s.Only || len(s.Name.Parts) != 2 || len(s.Partition.Parts) != 2 {
 		return SQLError("0A000", "restore accepts only unconditional qualified partition detachments")
 	}
-	record, err := r.stage.capturePartitionReplayTeardown(op, s)
+	record, err := capturePartitionReplayTeardown(r.stage, op, s)
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func admitRestoreDropTable(r *restoreRun, op *session.Operation, s *parser.DropT
 	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partition.ReplayStem) {
 		return SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
-	return r.stage.validatePartitionReplayTeardown(op, s.Names[0], r.partitionTeardowns)
+	return validatePartitionReplayTeardown(r.stage, op, s.Names[0], r.partitionTeardowns)
 }
 
 // admitRestoreAlterSequence admits OWNED BY, or an identity configuration
@@ -241,7 +241,7 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 		return r.stage.restoreObjectACL(op, s)
 	}
 	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
-		err = r.stage.restoreRetiredConstraint(op, s, r.historicalAuthority)
+		err = restoreRetiredConstraint(r.stage, op, s, r.historicalAuthority)
 	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {
 		err = restoreNoInheritNotNull(r.stage, op, s, r.pairedNotNull)
 		if err == nil {
