@@ -1,23 +1,25 @@
-package engine
+package tablecmds_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 )
 
 func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
-	e := New()
-	run(t, e, `CREATE SEQUENCE q`)
+	e := engine.New()
+	enginetest.Run(t, e, `CREATE SEQUENCE q`)
 	base := e.CatalogRead().State()
 	target := roleTableRef(t, e, "q").Address
-	run(t, e, `CREATE TABLE t(id INT DEFAULT nextval('q'))`)
+	enginetest.Run(t, e, `CREATE TABLE t(id INT DEFAULT nextval('q'))`)
 	changes := session.NewJournal()
 	changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{base, []ids.ObjectAddress{target}})
 	e.Mu.Lock()

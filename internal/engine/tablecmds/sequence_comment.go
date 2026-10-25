@@ -1,4 +1,4 @@
-package engine
+package tablecmds
 
 import (
 	"fmt"

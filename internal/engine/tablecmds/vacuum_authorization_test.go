@@ -1,15 +1,19 @@
-package engine
+package tablecmds_test
 
 import (
 	"context"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"testing"
 )
 
 func vacuumLeaseCheckpoint(t *testing.T) {
-	e := New()
+	e := engine.New()
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TABLE lease_target(id INT)")
 	sessionSQL(t, s, "CREATE TABLE lease_prior(id INT)")
@@ -21,7 +25,7 @@ func vacuumLeaseCheckpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	raw := statement(t, "VACUUM lease_target").(*parser.Vacuum)
+	raw := enginetest.Statement(t, "VACUUM lease_target").(*parser.Vacuum)
 	if err := scope.Gate(raw); err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
@@ -32,7 +36,7 @@ func vacuumLeaseCheckpoint(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	_, err = ExecuteVacuum(e, scope, raw, 0)
+	_, err = tablecmds.ExecuteVacuum(e, scope, raw, 0)
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
@@ -60,7 +64,7 @@ func vacuumLeaseCheckpoint(t *testing.T) {
 	lockEmpty(t, e)
 }
 func vacuumGrantTimeRecheck(t *testing.T) {
-	e := New()
+	e := engine.New()
 	owner, holder, worker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 	for _, q := range []string{"CREATE ROLE vacuum_recheck_actor", "CREATE TABLE recheck(id INT)", "INSERT INTO recheck VALUES(1),(2)", "DELETE FROM recheck WHERE id=1", "GRANT MAINTAIN ON recheck TO vacuum_recheck_actor"} {
 		sessionSQL(t, owner, q)
@@ -73,7 +77,7 @@ func vacuumGrantTimeRecheck(t *testing.T) {
 	}
 	// Genuine NoWait unavailability skips without enqueuing a request or progress.
 	op := transactionOperation(t, worker)
-	result, err := e.Execute(op, statement(t, "VACUUM (SKIP_LOCKED) recheck"), 0, nil)
+	result, err := e.Execute(op, enginetest.Statement(t, "VACUUM (SKIP_LOCKED) recheck"), 0, nil)
 	notices := op.DetachNotices()
 	op.Done()
 	if err != nil || result.Count != 0 || result.Rows != nil || result.CommandTag != "VACUUM" {

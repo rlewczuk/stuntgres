@@ -33,7 +33,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.Load:
 		return dispatched(executeLoad(e, op, stmt.(*parser.Load), count))
 	case *parser.Vacuum:
-		return dispatched(ExecuteVacuum(e, scope, stmt.(*parser.Vacuum), count))
+		return dispatched(tablecmds.ExecuteVacuum(e, scope, stmt.(*parser.Vacuum), count))
 	case *parser.CreateExtension:
 		return dispatched(executeExtension(e, scope, stmt.(*parser.CreateExtension), count))
 	case *parser.DropExtension:
@@ -66,7 +66,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.DropView:
 		return dispatched(executeDropView(e, scope, stmt.(*parser.DropView), count))
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
-		return dispatched(ExecuteSequenceDDL(e, scope, stmt, count))
+		return dispatched(tablecmds.ExecuteSequenceDDL(e, scope, stmt, count))
 	case *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum:
 		return dispatched(executeEnumDDL(e, scope, stmt, count))
 	case *parser.AlterDomain:
@@ -86,7 +86,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		return dispatched(executeAlterComposite(e, scope, op, stmt.(*parser.AlterComposite), count))
 	case *parser.Comment:
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
-			return dispatched(ExecuteSequenceComment(e, scope, c, count))
+			return dispatched(tablecmds.ExecuteSequenceComment(e, scope, c, count))
 		}
 		result, err := executeComment(e, scope, stmt.(*parser.Comment), count)
 		if err == nil {

@@ -1,16 +1,19 @@
-package engine
+package tablecmds_test
 
 import (
 	"context"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
-	"testing"
 )
 
 func vacuumLateCompletion(t *testing.T) {
-	e := New()
+	e := engine.New()
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "CREATE TABLE late(id INT)")
 	sessionSQL(t, s, "INSERT INTO late VALUES(1),(2)")
@@ -27,7 +30,7 @@ func vacuumLateCompletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := scope.Execute(statement(t, "VACUUM late"), 0, nil)
+	result, err := scope.Execute(enginetest.Statement(t, "VACUUM late"), 0, nil)
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
@@ -44,7 +47,7 @@ func vacuumLateCompletion(t *testing.T) {
 func vacuumReplacementWait(t *testing.T) {
 	for _, restore := range []bool{false, true} {
 		t.Run(map[bool]string{false: "Reset", true: "Restore"}[restore], func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			owner, holder, worker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 			for _, q := range []string{"CREATE TABLE waiting(id INT)", "INSERT INTO waiting VALUES(1),(2)", "DELETE FROM waiting WHERE id=1"} {
 				sessionSQL(t, owner, q)
@@ -68,9 +71,9 @@ func vacuumReplacementWait(t *testing.T) {
 			lockPending(t, e, 1)
 			var err error
 			if restore {
-				err = Restore(context.Background(), e, strings.NewReader("CREATE TABLE waiting(id INT); INSERT INTO waiting VALUES(9);"))
+				err = engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE waiting(id INT); INSERT INTO waiting VALUES(9);"))
 			} else {
-				err = Reset(context.Background(), e)
+				err = engine.Reset(context.Background(), e)
 			}
 			if err != nil {
 				t.Fatal(err)

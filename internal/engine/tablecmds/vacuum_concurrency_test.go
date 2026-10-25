@@ -1,18 +1,20 @@
-package engine
+package tablecmds_test
 
 import (
 	"context"
 	"errors"
 	"runtime"
 	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"sync"
-	"testing"
-	"time"
 )
 
 // A test-owned Context parks its actual caller at a factored maintenance step.
@@ -118,7 +120,7 @@ func TestVacuumPublicationFences(t *testing.T) {
 	t.Run("replacement_wait", vacuumReplacementWait)
 	for _, mutation := range []string{"append", "update", "delete", "snapshot", "comment", "comment_wait", "cancel", "replace"} {
 		t.Run(mutation, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			writer, worker, peer := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 			for _, q := range []string{"CREATE TABLE fence(id INT)", "INSERT INTO fence VALUES(1),(2),(3)", "DELETE FROM fence WHERE id=1"} {
 				sessionSQL(t, writer, q)
@@ -176,7 +178,7 @@ func TestVacuumPublicationFences(t *testing.T) {
 			case "cancel":
 				task.cancel()
 			case "replace":
-				if err := Reset(context.Background(), e); err != nil {
+				if err := engine.Reset(context.Background(), e); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -233,7 +235,7 @@ func TestVacuumPublicationFences(t *testing.T) {
 		})
 	}
 	t.Run("final_preinstall_cancel", func(t *testing.T) {
-		e := New()
+		e := engine.New()
 		s, worker := sessionStart(t, e, nil), sessionStart(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE boundary(id INT)")
 		sessionSQL(t, s, "INSERT INTO boundary VALUES(1),(2)")
@@ -258,7 +260,7 @@ func TestVacuumAuthorizationLocks(t *testing.T) {
 	t.Run("grant_time_recheck", vacuumGrantTimeRecheck)
 	for _, mode := range []lock.Mode{lock.AccessExclusive, lock.Share} {
 		t.Run(map[lock.Mode]string{lock.AccessExclusive: "selection_AS", lock.Share: "work_SUE"}[mode], func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			holder, worker := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			sessionSQL(t, holder, "CREATE TABLE target(id INT)")
 			ref, _ := vacuumStore(t, e, "target")
@@ -300,7 +302,7 @@ func TestVacuumAuthorizationLocks(t *testing.T) {
 		})
 	}
 	t.Run("per_relation_lease_and_preserved_completion", func(t *testing.T) {
-		e := New()
+		e := engine.New()
 		owner, holder, worker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 		sessionSQL(t, owner, "CREATE TABLE first_target(id INT)")
 		sessionSQL(t, owner, "CREATE TABLE second_target(id INT)")

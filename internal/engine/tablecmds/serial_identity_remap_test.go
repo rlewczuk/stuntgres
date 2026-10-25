@@ -8,9 +8,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/enginetest"
-	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/plan"
 )
 
 func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
@@ -64,15 +61,5 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			}
 			checkReviewDependencyValid(t, dest)
 		})
-	}
-}
-
-func serialLeaf(node expr.Expr) functions.SequenceCall {
-	for {
-		if wrapper, ok := node.(plan.CoercionExpr); ok {
-			node = wrapper.Child
-			continue
-		}
-		return node.(functions.SequenceCall)
 	}
 }

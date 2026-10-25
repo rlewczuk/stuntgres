@@ -1,14 +1,17 @@
-package engine
+package tablecmds_test
 
 import (
 	"context"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 func vacuumProgressCapture(t *testing.T, e *core.Engine, observer *session.Session) [][]sqltype.Value {
@@ -50,12 +53,12 @@ func vacuumProgressCapture(t *testing.T, e *core.Engine, observer *session.Sessi
 }
 func TestVacuumProgressLifecycle(t *testing.T) {
 	t.Run("empty_sources", func(t *testing.T) {
-		e := New()
+		e := engine.New()
 		s := sessionStart(t, e, nil)
 		for _, view := range []string{"pg_stat_progress_vacuum", "pg_stat_user_tables"} {
 			result := sessionSQL(t, s, "SELECT count(*)=0 AS empty FROM pg_catalog."+view)
 			defer result.Rows.Close()
-			rows := tuples(result)
+			rows := enginetest.Tuples(result)
 			if len(rows) != 1 || rows[0][0] != true {
 				t.Fatal("actual empty provider source not queryable", view, rows)
 			}
@@ -70,7 +73,7 @@ func TestVacuumProgressLifecycle(t *testing.T) {
 		for _, completion := range []string{"complete", "cancel", "session_close"} {
 			name := tc.phase + "/" + completion
 			t.Run(name, func(t *testing.T) {
-				e := New()
+				e := engine.New()
 				owner, worker, observer := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
 				for _, q := range []string{"CREATE TABLE progress(id INT)", "INSERT INTO progress VALUES(1),(2),(3)", "CREATE INDEX progress_ix ON progress(id)", "DELETE FROM progress WHERE id=1", "CREATE ROLE progress_reader", "CREATE ROLE progress_worker", "ALTER TABLE progress OWNER TO progress_reader", "GRANT MAINTAIN ON progress TO progress_worker"} {
 					sessionSQL(t, owner, q)
