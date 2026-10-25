@@ -71,13 +71,14 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   dependency removal and remap use the shared extension lifecycle; no lock state
   is serialized.
 - **isn** (`isn_provider.go`, `isn_stage.go`): the trusted, relocatable 1.3
-  provider installs `ean13`, `isbn`, `isbn13`, `ismn` and `ismn13`, each with a
+  provider installs `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13` and `issn`, each with a
   reciprocal lookup-only associated array and immutable strict C-language codecs.
-  Fifteen append-only manifest slots bind `ean13_in(cstring)`/`ean13_out(ean13)`,
+  Eighteen append-only manifest slots bind `ean13_in(cstring)`/`ean13_out(ean13)`,
   `isbn_in(cstring)`/`isn_out(isbn)`,
   `isbn13_in(cstring)`/`ean13_out(isbn13)`,
-  `ismn_in(cstring)`/`isn_out(ismn)` and
-  `ismn13_in(cstring)`/`ean13_out(ismn13)` to their own scalars. The ISBN13 and
+  `ismn_in(cstring)`/`isn_out(ismn)`,
+  `ismn13_in(cstring)`/`ean13_out(ismn13)` and
+  `issn_in(cstring)`/`isn_out(issn)` to their own scalars. The ISBN13 and
   ISMN13 input SQL identities have immutable source symbols `isbn_in` and
   `ismn_in`; output overloads are
   distinguished by their own scalar signature. Owner metadata records
@@ -249,7 +250,7 @@ the extension, so provider identity, conflicts, forged manifests and owner impor
 are engine units. Public SQL lives in
 [reference/catalogs](../../../reference/catalogs/README.md#testing) (extension
 DDL and catalogs), [reference/types](../../../reference/types/README.md#testing)
-(citext, earth, cube and lo values) and
+(citext, earth, cube, lo and ISN values) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
 
@@ -261,7 +262,7 @@ the retained TEMP descriptor; incidental prerequisite-member counts are not
 collision evidence.
 
 ```sh
-make check RUN='^Test(Extension|Citext(Provider|Comparison|Pattern)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
+make check RUN='^Test(Extension|Isn|Issn|Citext(Provider|Comparison|Pattern)|CubeProvider|CubeCoordinateProvider|CubeSpatialProvider|EarthProvider|EarthCoordinate|PgrowlocksProvider|PgcryptoOwner|InstalledCodecArray)'
 make check RUN='^TestReference(Extension|AvailableExtensions)'
 ```
 

@@ -14,8 +14,8 @@ other differences were 18.0 defects that 18.6 fixed; stuntgres now follows
 
 ## Reproduction environment
 
-All outputs below were observed on 2026-10-18 with these images, initialized
-like the reference fixture (UTF8, C locale, English messages):
+The earlier regression outputs were observed on 2026-10-18 with these images,
+initialized like the reference fixture (UTF8, C locale, English messages):
 
 | Release | Image |
 |---|---|
@@ -30,6 +30,36 @@ until docker exec pg-regress pg_isready -U postgres; do sleep 1; done
 docker exec -i pg-regress psql -U postgres -X < repro.sql
 docker rm -f pg-regress
 ```
+
+## ISSN output discards invalid markers and nonzero issue digits
+
+PostgreSQL 18.6's `isn` extension emits short ISSN output even when that output
+cannot preserve the complete value. The following outputs were observed with
+the pinned 18.6 image above on 2026-10-25, UTF8 encoding, C locale and English
+messages. No claim about another release is implied.
+
+```sql
+CREATE EXTENSION isn;
+SELECT '12345670!'::issn AS marked,
+       '9771234567898'::issn AS issue89,
+       '9771234567898!'::issn AS marked_issue89;
+```
+
+All three columns return `1234-5679`: the invalid-input `!` marker is absent,
+and issue digits `89` are not represented. The
+[ISN manual](https://www.postgresql.org/docs/18/isn.html) describes retained
+invalid markers and short notation when a value can fit. In
+[18.6 `ean2ISSN`](https://github.com/postgres/postgres/blob/REL_18_6/contrib/isn/isn.c),
+short output unconditionally terminates after the recomputed ISSN check digit,
+discarding the remaining long-output characters.
+
+Native ISSN output keeps `1234-5679!` for marked zero-issue values and uses
+`977-1234-567-89-8` or `977-1234-567-89-8!` when issue digits cannot fit in
+short notation. SQL serialization always retains the complete thirteen-digit
+number and optional marker. The shared ISSN reference scenarios explicitly
+expect the three truncated PostgreSQL displays while keeping independent
+lossless native expectations; actual native dump replay uses those PostgreSQL
+display expectations too.
 
 ## Regression: `to_date` and `to_timestamp` fail internally on TM fields under an indeterminate collation
 

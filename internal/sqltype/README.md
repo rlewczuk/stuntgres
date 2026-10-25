@@ -41,7 +41,7 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   requires the same type ID, domain/base identity and constraints, and rejects
   foreign citext/ISN generations and enum members even for equal OIDs; only
   source-authorized catalog import remaps explicitly (`RemapCitext`,
-  `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`).
+  `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`).
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -189,7 +189,7 @@ or widen it.
 
 ## ISN identifiers
 
-`Ean13`, `Isbn`, `Isbn13`, `Ismn` and `Ismn13` descriptors own distinct scalar roles with packed
+`Ean13`, `Isbn`, `Isbn13`, `Ismn`, `Ismn13` and `Issn` descriptors own distinct scalar roles with packed
 thirteen-digit identifiers and independent invalid-input flags. Their shared
 scanner preserves raw character lookahead and ASCII separator rules. ISBN and
 ISBN13 share ISBN-family input validation: short input validates its weighted
@@ -199,6 +199,10 @@ formatter. ISMN and ISMN13 share short M or modern 9790 input validation.
 ISMN emits short M notation directly from its packed identifier; ISMN13 uses
 the validated long formatter. Formatting uses the attributed PostgreSQL 18.6
 ranges in `ean13_ranges.go`.
+ISSN validates its modulo-11 short check digit before expanding into the 977
+family. Its short output preserves the invalid marker; nonzero issue digits
+use long output. SQL serialization always emits the complete compact EAN and
+marker, independently of display notation.
 Leading zeros, computed check digits, marked corrected inputs and typed NULLs
 retain distinct identities. Explicit text I/O and assignment to text reuse the
 shared coercion planner; typed text needs an explicit conversion to an installed
@@ -416,7 +420,7 @@ match engine tests of the same mechanism):
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`
 - Regex, SQL/JSON, JSONPath: `RUN='^Test(RegexpFunctions|RegexpSubstr|SimilarActualMatcherCancellation|SQLJSON|JSONTablePlan|JSONBPathOps)'`
 - pgcrypto, binary hashing: `RUN='^Test(Pgcrypto|BinaryHash)'`
-- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
+- Codecs, identifiers, COPY input, ordering, Unicode: `RUN='^Test(ProtocolValueCodecs|Citext|Ean13|Isbn|Ismn|Issn|IdentifierScalarProviders|XIDScalarAuthorityAndGrouping|CopyFilter(ProviderProvenance|ArrayInputDemand)|SearchOccurrenceOrdering|OrderingBtree|Unicode16)'`
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`
 - Trailing array slices and payload ownership: `RUN='^TestArrayForeachSlice$'`

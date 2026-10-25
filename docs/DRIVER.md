@@ -209,16 +209,18 @@ NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-n
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
 
-After `CREATE EXTENSION isn`, ISBN, ISBN13 and ISMN columns accept textual literals
-and bound strings or bytes, including NULL. Results expose `ISBN`, `ISBN13` or
-`ISMN` database type metadata and string scan types. ISBN13 always formats the long
-thirteen-digit value, including expanded ISBN10 input and any retained `!` marker;
-ISBN retains its short-output convention. ISMN accepts M-prefixed or modern 9790
-input and returns the short, hyphenated M form with any retained `!` marker.
-An already-typed text expression requires an explicit `::isbn`, `::isbn13` or
-`::ismn` conversion; the driver does not add implicit conversions between installed
-scalar families. Native Reset/Dump/Restore preserves canonical values, validity
-flags, NULLs and independent type identities.
+After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13 and ISSN columns
+accept textual literals and bound strings or bytes, including NULL. Results
+expose the corresponding uppercase database type name and string scan type.
+ISBN13 and ISMN13 format the long thirteen-digit value, including expanded
+short input and any retained `!` marker. ISBN retains its short-output convention;
+ISMN accepts M-prefixed or modern 9790 input and returns hyphenated M notation.
+ISSN accepts short or 977-prefixed input, keeps its invalid marker in short output,
+and uses long output when nonzero issue digits cannot fit in the short form.
+An already-typed text expression requires an explicit conversion to its installed
+scalar type; the driver does not add implicit conversions between installed
+families. Native Reset/Dump/Restore preserves full values, validity flags, issue
+digits, NULLs and independent type identities.
 
 ## Errors
 

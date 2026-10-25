@@ -122,10 +122,12 @@ these are shared across families:
   GeometryMeasurePath families share these helpers; path-specific helpers live in
   `geometry_measure_path_helpers_test.go`.
 - `ean13_helpers_test.go`: shared installed-ISN scenario, raw string/byte
-  transport, exact diagnostics and metadata checks for EAN13, ISBN, ISBN13 and ISMN.
+  transport, exact diagnostics and metadata checks for installed ISN scalar roles.
   ISBN helpers share relational manifest identity and owner-record mutation
-  checks across all four roles. The reusable family selector is
-  `RUN='^TestReference(Ean13|Isbn|Ismn)'`; controls retain readers across replacement,
+  checks across all six roles. ISSN expectations preserve invalid markers and
+  nonzero issue digits, including full-number serialization in native controls.
+  The reusable family selector is
+  `RUN='^TestReference(Ean13|Isbn|Ismn|Issn)'`; controls retain readers across replacement,
   validate whole-script diagnostic positions and rollback with identical failing
   SQL on PostgreSQL, and replay actual emitted SQL on PostgreSQL.
   Relational identity witnesses filter catalog inputs to the installed

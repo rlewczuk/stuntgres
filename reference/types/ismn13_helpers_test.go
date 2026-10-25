@@ -19,7 +19,7 @@ func ismn13Cancellation(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql
 	cast := ean13Held(t, p, c, "SELECT $1::ismn13")
 	insert := ean13Held(t, p, c, "INSERT INTO ismn13_values VALUES(99,$1)")
 	stamps := map[string][4]int64{}
-	for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13"} {
+	for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
 		stamps[typ] = isbnIdentityStamp(t, p, c, typ)
 	}
 	for _, expired := range []bool{false, true} {

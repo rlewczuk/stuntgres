@@ -137,6 +137,7 @@ type Descriptor struct {
 	isbn13                           bool
 	ismn                             bool
 	ismn13                           bool
+	issn                             bool
 	composite                        *compositeDefinition
 	rangeSubtype                     *Descriptor
 	customRange                      *RangeDefinition
@@ -172,7 +173,7 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 	if d.IsEnum() {
 		return 4
 	}
-	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() {
+	if d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() {
 		return 8
 	}
 	if d.IsArray() || d.IsComposite() || d.rangeSubtype != nil || d.multirangeRange != nil {
@@ -489,6 +490,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if fromEnum.IsIsmn13() != toEnum.IsIsmn13() || fromEnum.IsIsmn13() && (fromEnum != toEnum || !v.null && !v.validIsmn13()) {
 		return Value{}, fmt.Errorf("incompatible ismn13 generation")
 	}
+	if fromEnum.IsIssn() != toEnum.IsIssn() || fromEnum.IsIssn() && (fromEnum != toEnum || !v.null && !v.validIssn()) {
+		return Value{}, fmt.Errorf("incompatible issn generation")
+	}
 	if fromEnum.IsEnum() != toEnum.IsEnum() {
 		return Value{}, fmt.Errorf("incompatible enum declaration")
 	}
@@ -782,7 +786,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -809,6 +813,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsIsmn() || d.IsIsmn13() {
 		return d.ismnInput(text)
+	}
+	if d.IsIssn() {
+		return d.issnInput(text)
 	}
 	if d.IsRange() {
 		return d.rangeInput(ctx, text, env)
@@ -1127,6 +1134,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsIsmn13() {
 		return d.ismn13Output(v)
 	}
+	if d.IsIssn() {
+		return d.issnOutput(v)
+	}
 	if d.IsRange() {
 		return v.rangeOutput(ctx, env)
 	}
@@ -1391,6 +1401,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + text + "'", nil
+	}
+	if d.IsIssn() {
+		return d.issnSQLLiteral(v)
 	}
 	switch d.id {
 	case Path:

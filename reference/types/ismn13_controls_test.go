@@ -54,7 +54,7 @@ func TestReferenceIsmn13Controls(t *testing.T) {
 			t.Fatal(err)
 		}
 		run(fixture.Select("SELECT extname FROM pg_extension WHERE extname='isn'", []string{"extname"}, []string{"NAME"}, [][]any{}))
-		run(fixture.Select("SELECT typname FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('ean13','_ean13','isbn','_isbn','isbn13','_isbn13','ismn','_ismn','ismn13','_ismn13')", []string{"typname"}, []string{"NAME"}, [][]any{}))
+		run(fixture.Select("SELECT typname FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('ean13','_ean13','isbn','_isbn','isbn13','_isbn13','ismn','_ismn','ismn13','_ismn13','issn','_issn')", []string{"typname"}, []string{"NAME"}, [][]any{}))
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +106,7 @@ func TestReferenceIsmn13FeatureSmoke(t *testing.T) {
 		verify(p, b, c)
 		held := ean13Held(t, p, c, "INSERT INTO ismn13_smoke VALUES(4,$1),(5,$2)")
 		stamps := map[string][4]int64{}
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
 			stamps[typ] = isbnIdentityStamp(t, p, c, typ)
 		}
 		want := isbnBoundDiagnostic("22P02", `invalid check digit for ISMN number: "M123456780", should be 5`, "M123456780", "$2")
@@ -150,7 +150,7 @@ func TestReferenceIsmn13FeatureSmoke(t *testing.T) {
 		tb := fixture.Backend{Recorder: target.MemoryRecord, DB: target.Memory}
 		fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE TABLE ismn13_smoke_spacer(v integer)", 0))
 		fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE EXTENSION isn", 0))
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
 			source, destination := isbnIdentityStamp(t, p, c, typ), isbnIdentityStamp(t, target, conn, typ)
 			for i := range source {
 				if source[i] == destination[i] {
