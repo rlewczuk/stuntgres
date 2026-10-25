@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// Public IO/error/transport cases live in reference/types. These units target
+// Public IO/error/transport cases live in reference/geometry_network. These units target
 // immutable ownership, bit identity and scalar-versus-generic authority.
 func TestPathDatum(t *testing.T) {
 	d := testTypes()[Path]

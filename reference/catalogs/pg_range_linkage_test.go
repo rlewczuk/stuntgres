@@ -89,7 +89,7 @@ func pgRangeSemantics(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		{int64(1), "[1,5)", "[1,5)", "[1,4]", "[2000-02-28,2000-03-02)", `["2000-01-01 00:00:00","2000-01-02 00:00:00"]`, `["2000-01-01 00:00:00+00","2000-01-02 00:00:00+00"]`},
 		{int64(2), nil, nil, nil, nil, nil, nil},
 	})
-	// Follow reference/types rangeSelect's public transport contract without
+	// Follow reference/ranges_text_search rangeSelect's public transport contract without
 	// expanding the shared fixture's generic raw-type inventory.
 	s.CheckRaw = func(t *testing.T, column, row int, value any) bool {
 		if column == 0 {

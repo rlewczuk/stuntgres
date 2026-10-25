@@ -356,7 +356,7 @@ reports mixed MACADDR/MACADDR8 AND/OR as ambiguous (42725), including typed NULL
 XOR/shifts, general cross-MAC conversions, arrays and binary codecs are not
 provided by these kernels; scalar operators also grant no default MACADDR8
 ordering/grouping/index authority. Public SQL/API coverage is owned by
-[`reference/types`](../../reference/types/README.md#mac-address-operations).
+[`reference/geometry_network`](../../reference/geometry_network/README.md#mac-address-operations).
 
 ### Geometry relations
 

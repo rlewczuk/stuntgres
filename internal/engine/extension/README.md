@@ -265,8 +265,10 @@ with the registry unchanged). Every other witness needs an engine that installs
 the extension, so provider identity, conflicts, forged manifests and owner import
 are engine units. Public SQL lives in
 [reference/catalogs](../../../reference/catalogs/README.md#testing) (extension
-DDL and catalogs), [reference/types](../../../reference/types/README.md#testing)
-(citext, earth, cube, lo and ISN values) and
+DDL and catalogs),
+[reference/extension_types](../../../reference/extension_types/README.md#testing)
+(earth, cube, lo and ISN values),
+[reference/types](../../../reference/types/README.md#testing) (citext) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.
 

@@ -103,6 +103,6 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 Binary range transport over the COPY stream:
 `make check RUN='^TestReference(DateRangeBinary|TimestampRangeComposition|TimestamptzRangeBinaryComposition)$'`
-(`TimestampRangeComposition` also runs its `reference/types` namesake). COPY into
+(`TimestampRangeComposition` also runs its `reference/ranges_text_search` namesake). COPY into
 TEMP namespaces: `make check RUN='^TestReferencePGNamespaceCopyStoragePrecedence$'`.
 Engine and parser units: `make check RUN='^Test(Merge|InsertConflict|InsertReturning|UpdateRow|CTEDML|Truncate|Copy|DeleteCurrentOf|UpdateCurrentOf|DeleteUsing)'`.

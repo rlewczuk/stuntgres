@@ -67,8 +67,11 @@ User enums, domains and domain chains, composites, arrays of domains and
 occurrence shapes (CYCLE `RECORD[]`, `information_schema.time_stamp`) are
 parameterized rules, not finite identities; their OIDs are backend-owned, never
 hardcoded. The 87-identity corpus is fixed by the facts file; comparison
-witnesses for types outside it (geometry, MACADDR, text search, query_int) live
-in [reference/types](../types/README.md#testing).
+witnesses for types outside it live in
+[reference/geometry_network](../geometry_network/README.md#testing) (geometry,
+MACADDR), [reference/ranges_text_search](../ranges_text_search/README.md#testing)
+(text search) and [reference/extension_types](../extension_types/README.md#testing)
+(query_int).
 
 ## Coverage per definition
 

@@ -130,7 +130,7 @@ group identity and operator capture. Its template rendering retains qualified
 operator identity and typed formal transports during replay; binary relations
 retain their two-child infix form.
 Public execution, ACLs and stored consumers use
-[`reference/types`](../../../reference/types/README.md#testing).
+[`reference/geometry_network`](../../../reference/geometry_network/README.md#testing).
 
 
 ## Callable competition with SQL overloads
@@ -379,7 +379,7 @@ publication and lock-manager tickets stay in the engine.
   the original typed source in `pg_catalog.macaddr8_set7bit`, without a
   cross-width CAST. Catalog lifetime/provenance remains with existing admission
   and stored-renderer owners. See [kernels](../../sqltype/README.md#mac-address-operations)
-  and [public proof](../../../reference/types/README.md#mac-address-operations).
+  and [public proof](../../../reference/geometry_network/README.md#mac-address-operations).
 - **cube**: `cubeFunctionNames` is the single name inventory for registry dispatch
   and analyzer family recognition; registry folding does not bypass exact
   installed resolution. `bindCube` consumes selected/coerced operands from the

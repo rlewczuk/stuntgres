@@ -156,7 +156,7 @@ retired physical parameter OID and report a cache-lookup error. Dump rejects
 unrepresentable explicit ACLs before emitting output.
 The SQL authority is [ALTER TYPE](https://www.postgresql.org/docs/18/sql-altertype.html)
 and [DROP TYPE](https://www.postgresql.org/docs/18/sql-droptype.html); public
-proof belongs in [reference/types](../../../reference/types/README.md#type-identity-lifecycle).
+proof belongs in [reference/domain_types](../../../reference/domain_types/README.md#type-identity-lifecycle).
 
 The engine admits shipped domain/composite creation, domain rule changes,
 composite attribute evolution and type/domain identity/drop through its canonical
@@ -254,4 +254,5 @@ make check RUN='^Test(DomainDefaultReplay(Admission|DeferredChecks|RoutineManife
 
 Public behavior is covered by the domain, enum, composite, collation,
 conversion, typed-table and Dump/Restore families in `reference/` (see
+[reference/domain_types](../../../reference/domain_types/README.md#testing) and
 [reference/types](../../../reference/types/README.md#testing)).

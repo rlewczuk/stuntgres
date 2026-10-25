@@ -6,7 +6,7 @@ statement atomicity, binding and raw metadata, ordering and comparison, clocks,
 notices, retained cursors, cancellation, and native Dump/Reset/Restore with
 PostgreSQL replay of the emitted SQL. Date/time functions, time zones and
 INTERVAL arithmetic are in [reference/datetime](../datetime/README.md#testing);
-temporal ranges are in [reference/types](../types/README.md#testing); timestamp
+temporal ranges are in [reference/ranges_text_search](../ranges_text_search/README.md#testing); timestamp
 series are in [reference/numeric](../numeric/README.md#testing).
 
 ## Testing

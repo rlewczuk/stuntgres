@@ -8,7 +8,8 @@ aggregates and SQL/JSON `JSON_OBJECTAGG`/`JSON_ARRAYAGG`; bitwise and range
 aggregates. Related families elsewhere: numeric SUM/AVG in `reference/numeric`,
 INTERVAL AVG in `reference/temporal_types`, `array_agg` and `intagg` in
 `reference/binary_json_arrays`, `string_agg` in `reference/strings`, Boolean
-aggregates and multiranges in `reference/types`, count expressions in
+aggregates in `reference/types`, multiranges in `reference/ranges_text_search`,
+count expressions in
 `reference/query_order`.
 
 ## Testing

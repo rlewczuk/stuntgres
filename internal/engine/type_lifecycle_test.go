@@ -18,7 +18,7 @@ import (
 )
 
 // These witnesses exercise private immutable staging/publication functions;
-// public SQL/API behavior is exclusively in reference/types/type_lifecycle_*.
+// public SQL/API behavior is exclusively in reference/domain_types/type_lifecycle_*.
 func TestTypeLifecycleGenerationClosure(t *testing.T) {
 	for _, family := range []struct{ name, extension, create, input string }{
 		{"mood", "", "CREATE TYPE public.mood AS ENUM ('z','a')", "z"},

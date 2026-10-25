@@ -6,8 +6,8 @@ ARRAY types, expressions and functions (construction, transformation, search,
 comparison, dimensions, `array_sample`/`array_shuffle`/`unnest`, `array_agg`);
 BIT/VARBIT types, operators and functions; BYTEA types, functions, hashing, bit and
 byte access and binary conversion; and the `intagg` extension. JSON aggregates
-live in `reference/aggregates`; Boolean aggregates, ranges and multiranges in
-`reference/types`; other string functions in `reference/strings`; the intagg
+live in `reference/aggregates`; Boolean aggregates in `reference/types`; ranges
+and multiranges in `reference/ranges_text_search`; other string functions in `reference/strings`; the intagg
 `pg_aggregate` identity in `reference/catalogs`.
 
 ## Testing

@@ -117,7 +117,7 @@ tokenization, including literal released regression rows and boundary/fallback
 cases. FTS typed values, operators and dump live in `sqltype`, `functions` and
 `dump` units. Cancellation units use deterministic interior boundaries in sorting,
 duplicate reduction, long document tokens, lookahead and replay, never elapsed time. Public SQL
-scenarios live in [reference/types](../../../reference/types/README.md#testing).
+scenarios live in [reference/ranges_text_search](../../../reference/ranges_text_search/README.md#testing).
 
 ```sh
 make check RUN='^TestFTS'            # FTS units across packages; add RACE=1 for cancellation
