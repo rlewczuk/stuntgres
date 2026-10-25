@@ -220,12 +220,13 @@ binding passes the core `DDLHost`.
 
 ## What stays in the engine
 
-The `TypeHost` methods (`typedef_host.go`) and schema dispatch; the
-self-orchestrating executors (`executeEnumDDL`, `executeAlterDomain`,
-`executeAlterComposite`, `alterTableOfLocked`), which hold the lock windows,
-lock-manager waits, row validation and publication; enum journal updates; the
-native replay INSERT (`domain_default_restore.go`, with the scalar leaf built by
-`domainReplayEnv`); the TEMP preservation orchestrator;
+[`typecmds`](../typecmds/README.md) holds the self-orchestrating executors
+(`ExecuteEnumDDL`, `ExecuteAlterDomain`, `ExecuteAlterComposite`,
+`AlterTableOfLocked`), which hold the lock windows, lock-manager waits, row
+validation and publication; enum journal updates; and the native replay INSERT
+(`domain_default_restore.go`, with the scalar leaf built by `DomainReplayEnv`).
+The `TypeHost` methods are [`tablecmds`](../tablecmds/README.md#hosts)'s, and
+schema dispatch is the root's. Core holds the TEMP preservation orchestrator;
 publication-time reownership and domain index generations; TEMP collation
 cleanup; and domain check programs and evaluation.
 
@@ -240,8 +241,9 @@ Package units pin the seeds, replay pairing, the scalar leaf callback contract
 copy-on-write, default snapshots and storage admission. Engine witnesses in
 `internal/engine` cover the `TypeHost` side, ALTER DOMAIN publication, the replay
 walk with the real leaf and the dump statements; collation and conversion DDL
-units live in `internal/engine/schemacmds`, ALTER TYPE on typed tables in
-`internal/engine/typecmds`, CREATE TABLE OF in `internal/engine/tablecmds`, and
+units live in `internal/engine/schemacmds`, ALTER TYPE on typed tables and the
+geometry domain replay in `internal/engine/typecmds`, CREATE TABLE OF in
+`internal/engine/tablecmds`, and
 runtime domain checks and type catalog descriptions in `internal/engine/core`.
 Lifecycle units cover provider/companion ownership, pending-root protection,
 retained immutable graphs, publication fences and replay-name cycles.

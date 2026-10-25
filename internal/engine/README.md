@@ -6,11 +6,12 @@ The root is the composition layer ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SP
 `Dump` and `Restore` with the Restore hooks, and, until each moves to its
 `*cmds` package, the family statement code and its hosts; table, sequence,
 identity and VACUUM statements are [`tablecmds`](tablecmds/README.md)'s,
-index statements [`indexcmds`](indexcmds/README.md)'s, and ATTACH and DETACH
+index statements [`indexcmds`](indexcmds/README.md)'s, ATTACH and DETACH
 PARTITION with the partition and inheritance Restore repairs
-[`partitioncmds`](partitioncmds/README.md)'s. Runtime state,
-admission, publication and the transaction lifecycle are core's. No package
-imports the root except tests and `enginetest`.
+[`partitioncmds`](partitioncmds/README.md)'s, and ALTER DOMAIN, ALTER TYPE,
+enum and range DDL and ALTER TABLE OF [`typecmds`](typecmds/README.md)'s.
+Runtime state, admission, publication and the transaction lifecycle are
+core's. No package imports the root except tests and `enginetest`.
 
 ## Composition
 
@@ -22,11 +23,12 @@ implements `Execute` and `ExecuteLocked` in the historical case order, and
 and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
 `*core.Engine`.
 
-Family statement code still in the root (types, views, rules, policies,
-triggers, roles, schema objects, routines, extensions and FDW) is written as
-receiver-first functions over core types (`typedStage(stage)`,
-`executeSchema(e, ...)`), so that it can leave with its family; it names only exported core and `tablecmds` members. A root
-file holds one family's declarations and nothing else.
+Family statement code still in the root (views, rules, policies, triggers,
+roles, schema objects, routines, extensions and FDW) is written as
+receiver-first functions over core types (`executeSchema(e, ...)`,
+`executeAlterView(e, ...)`), so that it can leave with its family; it names
+only exported core, `tablecmds` and `typecmds` members. A root file holds one
+family's declarations and nothing else.
 
 Trigger definitions and lifecycle utilities publish immutable relation payloads
 through the ordinary catalog stage and transaction journal. Definitions,
@@ -49,11 +51,10 @@ rename/drop utilities.
 
 Each family host embeds core's `DDLHost` with its `{E, Op, CatalogStage}`
 layout and is built by family code; each carries a compile-time assertion.
-`TableHost` and `AlterHost` are [`tablecmds`](tablecmds/README.md#hosts)'s.
+`TableHost`, `AlterHost` and `TypeHost` are [`tablecmds`](tablecmds/README.md#hosts)'s.
 
 | Root type | Implements |
 | --- | --- |
-| `TypeHost` (over `tablecmds.TableHost`; `typedef_host.go`) | `typedef.StageHost` |
 | `ViewHost` (over `tablecmds.TableHost`; `view_host.go`, `policy_expression.go`) | `view.Host`, `view.StageHost` |
 | `RoutineHost` (`routine_host.go`, `operator_family_host.go`) | `routine.DDLHost`, `index.FamilyDDLHost` |
 | `RoleHost` (`role_host.go`) | `role.Host`, `role.StageHost` |

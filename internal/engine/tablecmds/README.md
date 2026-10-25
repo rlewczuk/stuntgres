@@ -8,7 +8,7 @@ TABLE ... ALTER COLUMN DEFAULT, CREATE TABLE (LIKE, typed, PARTITION OF),
 DROP TABLE, RENAME of relations, columns and constraints, and SET SCHEMA;
 CREATE, ALTER and DROP SEQUENCE with OWNED BY, and COMMENT ON SEQUENCE;
 VACUUM; the table Restore repairs and the Restore identity check; and the
-`TableHost` and `AlterHost` family hosts. The decisions are
+`TableHost`, `AlterHost` and `TypeHost` family hosts. The decisions are
 [`table`](../table/README.md)'s, [`sequence`](../sequence/README.md)'s,
 `index`'s and `partition`'s; this package orchestrates them over core's
 runtime.
@@ -18,10 +18,13 @@ runtime.
 It imports [`core`](../core/README.md) and the decision packages, never the
 root or another family. The root composition (dispatch and Restore hooks),
 [`indexcmds`](../indexcmds/README.md),
-[`partitioncmds`](../partitioncmds/README.md) and the families still in the
-root import it; by rule 6 every later family except `rolecmds` may. Code that tables share with those families lives here:
-renames, SET SCHEMA, typed sources, the IF EXISTS skip, the ALTER column
-candidates and type rebinds, `PrepareAlterTypeLocked`, and the hosts.
+[`partitioncmds`](../partitioncmds/README.md),
+[`typecmds`](../typecmds/README.md) and the families still in the root
+import it; by rule 6 every later family except `rolecmds` may. Code that
+tables share with those families lives here: renames, SET SCHEMA, typed
+sources, the IF EXISTS skip, the ALTER column candidates and type rebinds,
+`PrepareAlterTypeLocked`, and the hosts, `TypeHost` among them (typecmds and
+the schema statements build it, with no arrow between them).
 
 Stays in core: FK enforcement and actions, the DROP pipeline (`DropProvider`),
 TEMP preservation, relation admission and publication.
@@ -47,7 +50,9 @@ TEMP preservation, relation admission and publication.
 - Shared with other families: `SchemaTableLocked` (CREATE TABLE inside CREATE
   SCHEMA), `SkipMissingRelationLocked`, `AcquireTypedSources`,
   `AcquirePartitionValidationViewsLocked`, `PendingPartitionDefinition` and
-  `PartitionBoundBinder` (`partitioncmds`' ATTACH PARTITION).
+  `PartitionBoundBinder` (`partitioncmds`' ATTACH PARTITION), and the ALTER
+  column candidates, `AlterRowEvaluation`, the check and index captures and
+  type rebinds (`typecmds`' ALTER TYPE on composites).
 
 `Engine` (`inheritance_alter_admission.go`) is a defined type over
 `core.Engine` that carries only `admitInheritanceAlter`, whose
@@ -73,8 +78,9 @@ waiting.
 | --- | --- |
 | `TableHost` (`table_host.go`, `index_host.go`, `partition_host.go`) | `table.Host`, `index.Host`, `partition.Host`, `fdw.Host` |
 | `AlterHost{TableHost; Scope}` (`alter_host.go`) | `table.AlterHost`, one per call: the ALTER loop begins its stage lazily |
+| `TypeHost{TableHost}` (`typedef_host.go`, `domain_default_snapshot.go`) | `typedef.StageHost`, built by `typecmds` and the schema statements; `BindRestoredDomainDefault` binds a trusted Restore domain default snapshot |
 
-The root's `TypeHost` and `ViewHost` embed `TableHost`.
+The root's `ViewHost` embeds `TableHost` too.
 
 ## Testing
 
