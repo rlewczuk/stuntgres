@@ -229,4 +229,9 @@ func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body 
 	body()
 }
 
+// testSessionID numbers the sessions this package's tests start directly. It
+// starts above the IDs the enginetest helpers mint, so a test that uses both
+// never registers a duplicate advisory session.
 var testSessionID atomic.Uint64
+
+func init() { testSessionID.Store(1 << 20) }
