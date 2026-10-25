@@ -124,7 +124,7 @@ func TestCompositeAlterDomainCheckPruning(t *testing.T) {
 	if e.CatalogRead().State() != before.State() {
 		t.Fatal("private pruning published")
 	}
-	if err := (TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: stage}}}).RemoveDomainCheck(next, next.DomainChecks[0].OID); err != nil {
+	if err := (tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: stage}}}).RemoveDomainCheck(next, next.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	if len(stage.Get(original.Address()).(*catalog.Type).DomainChecks) != 0 || len(next.DomainChecks) != 1 {

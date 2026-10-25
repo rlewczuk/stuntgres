@@ -277,7 +277,7 @@ func prepareCollationCreateLocked(e *core.Engine, op *session.Operation, stmt *p
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	plan, err := typedef.PrepareCreateCollationLocked(TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, stmt)
+	plan, err := typedef.PrepareCreateCollationLocked(tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, stmt)
 	return stage, plan, err
 }
 
@@ -301,7 +301,7 @@ func completeCollationCreateLocked(e *core.Engine, op *session.Operation, prepar
 		e.DiscardCatalogStage(prepared)
 	}
 	stage.AuthorizeLocked(auth, op.Session)
-	host := TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
+	host := tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	err = typedef.StagePreparedCollationLocked(host, auth, plan)
 	return stage, err
 }
@@ -345,7 +345,7 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	host := core.DDLHost{E: e, Op: op, CatalogStage: stage}
-	typeHost, routineHost, schemaHost := TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
+	typeHost, routineHost, schemaHost := tablecmds.TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
 	case *parser.CreateAccessMethod:
 		if err = index.StageCreateAccessMethod(routineHost, auth, s); err != nil {

@@ -408,7 +408,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 						if control == "rewired" {
 							rewire := e.BeginCatalogStage(current)
 							defer e.DiscardCatalogStage(rewire)
-							if err := (TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: rewire}}}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
+							if err := (tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: rewire}}}).RemoveDomainCheck(d, d.DomainChecks[0].OID); err != nil {
 								t.Fatal(err)
 							}
 							candidate.SetDescriptor(d.Address(), rewire.Get(d.Address()))

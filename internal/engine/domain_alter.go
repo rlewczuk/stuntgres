@@ -55,7 +55,7 @@ func ExecuteAlterDomain(e *core.Engine, scope *core.StatementScope, raw *parser.
 	scope.RoutineAuth = auth
 	scope.Domains.InputCatalog = auth.Catalog
 	stage.DomainBases = append(stage.DomainBases, old)
-	edit, err := typedef.StageAlterDomainLocked(TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, old, raw, scope.Input, scope.Output)
+	edit, err := typedef.StageAlterDomainLocked(tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, old, raw, scope.Input, scope.Output)
 	if err == nil && edit.Skipped {
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)

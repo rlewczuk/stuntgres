@@ -193,7 +193,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	stage = e.BeginCatalogStage(auth.Catalog)
 	change := &parser.AlterCollation{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "private"}, {Text: "owned"}}}, Action: "owner", Target: parser.Identifier{Text: "target"}}
 	e.Mu.Lock()
-	err = typedef.StageAlterCollationLocked(engine.TypeHost{TableHost: tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
+	err = typedef.StageAlterCollationLocked(tablecmds.TypeHost{TableHost: tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema private" || stage.DescriptorCount() != 0 {
@@ -202,7 +202,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 	auth.State.CurrentUser = bootstrap.Ref
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err = typedef.StageAlterCollationLocked(engine.TypeHost{TableHost: tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
+	err = typedef.StageAlterCollationLocked(tablecmds.TypeHost{TableHost: tablecmds.TableHost{DDLHost: core.DDLHost{E: e, Op: admin, CatalogStage: stage}}}, auth, change)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("superuser failed owner transfer", err)

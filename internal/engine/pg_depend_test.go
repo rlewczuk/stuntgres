@@ -252,7 +252,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	assertEdges(before, true)
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	if err := (TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: stage}}}).RemoveDomainCheck(domain, check.OID); err != nil {
+	if err := (tablecmds.TypeHost{tablecmds.TableHost{core.DDLHost{CatalogStage: stage}}}).RemoveDomainCheck(domain, check.OID); err != nil {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, stage)
