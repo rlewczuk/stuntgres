@@ -1,0 +1,204 @@
+package tablecmds_test
+
+import (
+	"database/sql/driver"
+	"errors"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqlstate"
+)
+
+func TestSequenceGenericRelationRenameAuthority(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared], func(t *testing.T) {
+			e := engine.New()
+			s := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, s, "CREATE SEQUENCE s START 14 CACHE 1")
+			ast, description := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
+			ref := description.Sequences.Constants[0].Ref
+			before := e.Catalog.State.MustRelation(ref.Address)
+			generator := e.Storage.Sequences[ref.Address]
+			state := *generator
+			utility := enginetest.Statement(t, "ALTER TABLE s RENAME TO identity")
+			var expected *engine.StatementDescription
+			if prepared {
+				_, d := sequencePreparedDescription(t, e, s, "ALTER TABLE s RENAME TO identity")
+				expected = &d
+			}
+			r, err := sequencePreparedExecute(e, s, utility, expected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r.Rows != nil {
+				t.Fatal("utility unexpectedly returned rows")
+			}
+			after := e.Catalog.State.MustRelation(ref.Address)
+			if after.Address() != before.Address() || after.Owner != before.Owner || after.Namespace() != before.Namespace() || !reflect.DeepEqual(after.Sequence, before.Sequence) || !reflect.DeepEqual(after.Columns, before.Columns) {
+				t.Fatal("rename changed identity/owner/options/shape")
+			}
+			if e.Storage.Sequences[ref.Address] != generator || *generator != state {
+				t.Fatal("rename replaced or changed generator")
+			}
+			_, err = sequencePreparedExecute(e, s, ast, &description)
+			var got *sqlstate.Error
+			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P01", Message: `relation "s" does not exist`, Position: "16"}
+			if !errors.As(err, &got) || !reflect.DeepEqual(got, want) {
+				t.Fatalf("held error=%#v (%v), want=%#v", got, err, want)
+			}
+			if *generator != state {
+				t.Fatal("failed retained source allocated")
+			}
+			if after.SequencePlanStamp == before.SequencePlanStamp {
+				t.Fatal("generic rename did not invalidate sequence stamp")
+			}
+			sequenceScalar(t, s, "SELECT nextval('identity')", 14)
+		})
+	}
+}
+
+func TestSequenceGenericColumnRenameAuthority(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		for _, keyword := range []string{"COLUMN ", ""} {
+			for _, source := range []string{"last_value", "missing", "ctid"} {
+				q := "ALTER TABLE s RENAME " + keyword + source + " TO renamed"
+				t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared]+"/"+q, func(t *testing.T) {
+					e := engine.New()
+					op, done := enginetest.RoleOperation(t, e, "postgres")
+					defer done()
+					enginetest.RoleExecute(t, e, op, "CREATE SEQUENCE s START 14 CACHE 1")
+					ref := enginetest.RoleTableRef(t, e, "s")
+					before := e.Catalog.State.Get(ref.Address)
+					generator := e.Storage.Sequences[ref.Address]
+					state := *generator
+					err := sequenceOwnerCommand(t, e, op, q, prepared)
+					sequenceOwnerDiagnostic(t, err, "42809", `cannot rename columns of relation "s"`, "This operation is not supported for sequences.")
+					if e.Catalog.State.Get(ref.Address) != before || e.Storage.Sequences[ref.Address] != generator || *generator != state {
+						t.Fatal("rejected rename changed descriptor or generator")
+					}
+					r := enginetest.RoleExecute(t, e, op, "SELECT nextval('s')")
+					values := enginetest.Tuples(r)
+					r.Rows.Close()
+					if !reflect.DeepEqual(values, [][]driver.Value{{int64(14)}}) {
+						t.Fatal("rejected rename consumed progression", values)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestSequenceGenericRenamePreservesCacheAndDependencies(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared], func(t *testing.T) {
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
+			defer done()
+			for _, q := range []string{"CREATE TABLE owner_table(id INT)", "CREATE SEQUENCE s START 14 CACHE 7 OWNED BY owner_table.id", "SELECT nextval('s')"} {
+				r := enginetest.RoleExecute(t, e, op, q)
+				if r.Rows != nil {
+					r.Rows.Close()
+				}
+			}
+			ref := enginetest.RoleTableRef(t, e, "s")
+			before := e.Catalog.State.MustRelation(ref.Address)
+			dependencies := descriptorReferences(before)
+			generator := e.Storage.Sequences[ref.Address]
+			state := *generator
+			if err := sequenceOwnerCommand(t, e, op, "ALTER TABLE s RENAME TO identity", prepared); err != nil {
+				t.Fatal(err)
+			}
+			after := e.Catalog.State.MustRelation(ref.Address)
+			if after.Address() != before.Address() || after.Owner != before.Owner || !reflect.DeepEqual(after.Sequence, before.Sequence) || !reflect.DeepEqual(descriptorReferences(after), dependencies) || e.Storage.Sequences[ref.Address] != generator || *generator != state {
+				t.Fatal("rename changed ownership/dependencies/generator")
+			}
+			for _, q := range []string{"SELECT currval('identity')", "SELECT lastval()", "SELECT nextval('identity')"} {
+				r := enginetest.RoleExecute(t, e, op, q)
+				values := enginetest.Tuples(r)
+				r.Rows.Close()
+				want := int64(14)
+				if q == "SELECT nextval('identity')" {
+					want = 15
+				}
+				if !reflect.DeepEqual(values, [][]driver.Value{{want}}) {
+					t.Fatal(q, values, want)
+				}
+			}
+			if *generator != state {
+				t.Fatal("rename discarded local cache tail")
+			}
+		})
+	}
+}
+
+func TestSequenceGenericRenameStampExhaustion(t *testing.T) {
+	for _, prepared := range []bool{false, true} {
+		t.Run(map[bool]string{false: "Direct", true: "Prepared"}[prepared], func(t *testing.T) {
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
+			defer done()
+			enginetest.RoleExecute(t, e, op, "CREATE SEQUENCE s START 14 CACHE 1")
+			ref := enginetest.RoleTableRef(t, e, "s")
+			before := e.Catalog.State.Get(ref.Address)
+			generator := e.Storage.Sequences[ref.Address]
+			state := *generator
+			e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
+			err := sequenceOwnerCommand(t, e, op, "ALTER TABLE s RENAME TO identity", prepared)
+			if err == nil || err.Error() != "stuntgres: catalog definition revision exhausted" {
+				t.Fatalf("stamp exhaustion error=%v", err)
+			}
+			if e.Catalog.State.Get(ref.Address) != before || e.Storage.Sequences[ref.Address] != generator || *generator != state {
+				t.Fatal("exhausted rename published descriptor or generator")
+			}
+			if got := enginetest.RoleTableRef(t, e, "s"); got != ref {
+				t.Fatal("exhausted rename changed source identity")
+			}
+		})
+	}
+}
+
+// descriptorReferences lists every principal a descriptor references: owner,
+// policy roles, ACL grantors and grantees, including column ACLs.
+func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
+	switch t := d.(type) {
+	case *catalog.ForeignObject:
+		if t.Address().ClassID == ids.ForeignMappingClassID {
+			if t.MappedRole == (authorization.PrincipalRef{}) {
+				return nil
+			}
+			return []authorization.PrincipalRef{t.MappedRole}
+		}
+	case *catalog.TSTemplate:
+		return nil
+	}
+	owner, acl, cols := access.DescriptorACL(d)
+	refs := []authorization.PrincipalRef{owner}
+	if relation, ok := d.(*catalog.Relation); ok {
+		for _, policy := range relation.Security.Policies {
+			for _, role := range policy.Roles {
+				if !role.Public {
+					refs = append(refs, role.Ref)
+				}
+			}
+		}
+	}
+	add := func(a authorization.ACLValue) {
+		for _, x := range a.Entries {
+			refs = append(refs, x.Grantor)
+			if !x.Grantee.Public {
+				refs = append(refs, x.Grantee.Role)
+			}
+		}
+	}
+	add(acl)
+	for _, a := range cols {
+		add(a)
+	}
+	return refs
+}

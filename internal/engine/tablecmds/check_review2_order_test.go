@@ -1,0 +1,188 @@
+package tablecmds_test
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/sqlstate"
+)
+
+func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
+	e := engine.New()
+	a := enginetest.StartSession(t, e, nil)
+	enginetest.SessionSQL(t, a, "CREATE TABLE t(a INT,b INT,CONSTRAINT z CHECK(a>0),CONSTRAINT m CHECK(b>0),CONSTRAINT a CHECK(a<10))")
+	view := e.CatalogRead()
+	d := view.MustRelation(enginetest.CatalogRef(t, e, view, "t").Address)
+	if err := table.ValidateChecks(view, d, map[string]bool{}); err != nil {
+		t.Fatal("valid initial descriptor rejected", err)
+	}
+	for _, tc := range []struct {
+		name   string
+		change func([]catalog.CheckConstraint)
+	}{
+		{"negative", func(c []catalog.CheckConstraint) { c[0].Ordinal = -1 }},
+		{"duplicate", func(c []catalog.CheckConstraint) { c[1].Ordinal = c[0].Ordinal }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			copy := *d
+			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), d.Constraints.Check...)
+			tc.change(copy.Constraints.Check)
+			if err := table.ValidateChecks(view, &copy, map[string]bool{}); err == nil {
+				t.Fatal("malformed declaration ordinal accepted")
+			}
+		})
+	}
+	// Actual DROP paths leave legal nondense identity metadata; alphabetic
+	// enforcement storage must not renumber declaration identity to hide gaps.
+	enginetest.SessionSQL(t, a, "ALTER TABLE t DROP CONSTRAINT z")
+	view = e.CatalogRead()
+	d = view.MustRelation(enginetest.CatalogRef(t, e, view, "t").Address)
+	ordered := table.OrderedChecks(d)
+	if len(ordered) != 2 || ordered[0].Name != "m" || ordered[0].Ordinal != 1 || ordered[1].Name != "a" || ordered[1].Ordinal != 2 {
+		t.Fatal("DROP CONSTRAINT rewrote surviving declaration identities", ordered)
+	}
+	if err := table.ValidateChecks(view, d, map[string]bool{}); err != nil {
+		t.Fatal("nondense post-DROP CONSTRAINT descriptor rejected", err)
+	}
+	enginetest.SessionSQL(t, a, "ALTER TABLE t DROP COLUMN b")
+	view = e.CatalogRead()
+	d = view.MustRelation(enginetest.CatalogRef(t, e, view, "t").Address)
+	if len(d.Constraints.Check) != 1 || d.Constraints.Check[0].Name != "a" || d.Constraints.Check[0].Ordinal != 2 {
+		t.Fatal("DROP COLUMN rewrote surviving declaration identity", d.Constraints.Check)
+	}
+	if err := table.ValidateChecks(view, d, map[string]bool{}); err != nil {
+		t.Fatal("nondense post-DROP COLUMN descriptor rejected", err)
+	}
+	enginetest.SessionSQL(t, a, "INSERT INTO t VALUES(1)")
+}
+
+func checkReview2OrderNativeRestrict(t *testing.T, e *engine.Engine, a *session.Session, detail string) {
+	t.Helper()
+	op, err := a.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := e.Execute(op, enginetest.Statement(t, "DROP SEQUENCE s"), 0, nil)
+	op.Done()
+	if result.Rows != nil || result.Count != 0 {
+		t.Fatal("failed DROP exposed successful result", result)
+	}
+	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "2BP01", Message: "cannot drop sequence s because other objects depend on it", Detail: detail, Hint: "Use DROP ... CASCADE to drop the dependent objects too."})
+}
+
+func TestCheckReview2OrderNativeRoundtrip(t *testing.T) {
+	for _, mixed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "tables", true: "mixed"}[mixed], func(t *testing.T) {
+			e := engine.New()
+			a := enginetest.StartSession(t, e, nil)
+			enginetest.SessionSQL(t, a, "CREATE SEQUENCE s")
+			detail := "constraint cz on table z depends on sequence s\nconstraint ca on table a depends on sequence s"
+			if mixed {
+				enginetest.SessionSQL(t, a, "CREATE VIEW v AS SELECT nextval('s') AS n")
+				detail = "view v depends on sequence s\n" + detail
+			}
+			enginetest.SessionSQL(t, a, "CREATE TABLE z(a INT CONSTRAINT cz CHECK(nextval('s')>0))")
+			enginetest.SessionSQL(t, a, "CREATE TABLE a(a INT CONSTRAINT ca CHECK(nextval('s')>0))")
+			enginetest.SessionSQL(t, a, "INSERT INTO z VALUES(11)")
+			enginetest.SessionSQL(t, a, "INSERT INTO a VALUES(22)")
+			checkReview2OrderNativeRestrict(t, e, a, detail)
+			var dump, again strings.Builder
+			if err := engine.Dump(context.Background(), e, &dump); err != nil {
+				t.Fatal(err)
+			}
+			if err := engine.Restore(context.Background(), e, strings.NewReader(dump.String())); err != nil {
+				t.Fatal(err)
+			}
+			checkReview2OrderNativeRestrict(t, e, a, detail)
+			checkReviewDependencyValid(t, e)
+			if err := engine.Dump(context.Background(), e, &again); err != nil || dump.String() != again.String() {
+				t.Fatal("roundtrip changed definitions/data/provider state", err)
+			}
+		})
+	}
+}
+
+func TestCheckReview2OrderRemappedSourceTopology(t *testing.T) {
+	ctx := context.Background()
+	source := engine.New()
+	a := enginetest.StartSession(t, source, nil)
+	for _, sql := range []string{
+		"CREATE SEQUENCE s MINVALUE -10 START 1",
+		"CREATE TABLE t(a INT CONSTRAINT c CHECK(nextval('s')>0))",
+		"INSERT INTO t VALUES(7)",
+		"CREATE VIEW v AS SELECT a FROM t",
+		"CREATE VIEW w AS SELECT a FROM v",
+	} {
+		enginetest.SessionSQL(t, a, sql)
+	}
+	var first, second strings.Builder
+	if err := engine.Dump(ctx, source, &first); err != nil {
+		t.Fatal(err)
+	}
+	destination := engine.New()
+	b := enginetest.StartSession(t, destination, nil)
+	enginetest.SessionSQL(t, b, "CREATE TEMPORARY SEQUENCE retained")
+	// Advance through real disposable relations beyond the source graph before
+	// replacing it. Retained temporary collisions then move the table above
+	// its views, independent of definition allocations between those relations.
+	lastSource := enginetest.CatalogRef(t, source, source.CatalogRead(), "w")
+	for i := 0; ; i++ {
+		name := fmt.Sprintf("advance_%d", i)
+		enginetest.SessionSQL(t, b, "CREATE SEQUENCE "+name)
+		ref := enginetest.CatalogRef(t, destination, destination.CatalogRead(), name)
+		if ref.Address.ObjectID > lastSource.Address.ObjectID {
+			break
+		}
+	}
+	if err := engine.Restore(ctx, destination, strings.NewReader(first.String())); err != nil {
+		t.Fatal(err)
+	}
+	view := destination.CatalogRead()
+	table := enginetest.CatalogRef(t, destination, view, "t")
+	dependent := enginetest.CatalogRef(t, destination, view, "v")
+	// Assert the exceptional identity relationship, never a literal allocator
+	// value or diagnostic-order parity with the unremapped source.
+	if table.Address.ObjectID <= dependent.Address.ObjectID {
+		t.Fatal("fixture did not remap the table above its dependent view", table, dependent)
+	}
+	if err := engine.Dump(ctx, destination, &second); err != nil {
+		t.Fatal(err)
+	}
+	tableAt := strings.Index(second.String(), `CREATE TABLE "public"."t"`)
+	viewAt := strings.Index(second.String(), `CREATE VIEW "public"."v"`)
+	nestedAt := strings.Index(second.String(), `CREATE VIEW "public"."w"`)
+	if tableAt < 0 || viewAt <= tableAt || nestedAt <= viewAt {
+		t.Fatal("remapped creation addresses overrode source topology", second.String())
+	}
+	replayed := engine.New()
+	c := enginetest.StartSession(t, replayed, nil)
+	if err := engine.Restore(ctx, replayed, strings.NewReader(second.String())); err != nil {
+		t.Fatal("topology-ordered dump was not executable", err)
+	}
+	if rows := enginetest.Tuples(enginetest.SessionSQL(t, c, "SELECT a FROM w")); len(rows) != 1 || rows[0][0] != int64(7) {
+		t.Fatal("replayed nested view lost table data", rows)
+	}
+	checkReviewDependencyValid(t, replayed)
+	checkReview2OrderNativeRestrict(t, replayed, c, "constraint c on table t depends on sequence s")
+	enginetest.SessionSQL(t, c, "SELECT setval('s',-1,true)")
+	op, err := c.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := replayed.Execute(op, enginetest.Statement(t, "INSERT INTO t VALUES(8)"), 0, nil)
+	op.Done()
+	if result.Rows != nil || result.Count != 0 {
+		t.Fatal("failed replayed CHECK exposed successful result", result)
+	}
+	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "c"`, Detail: "Failing row contains (8).", Schema: "public", Table: "t", Constraint: "c"})
+	if rows := enginetest.Tuples(enginetest.SessionSQL(t, c, "SELECT a FROM w")); len(rows) != 1 || rows[0][0] != int64(7) {
+		t.Fatal("replayed CHECK failure changed nested view rows", rows)
+	}
+}

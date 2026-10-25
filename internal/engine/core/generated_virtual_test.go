@@ -1,0 +1,189 @@
+package core_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
+	_, _, d := generatedUnitDescriptor(t)
+	typ := d.Columns[0].Usage.Type
+	base := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
+	two, _ := sqltype.Integer(typ, 2)
+	seven, _ := sqltype.Integer(typ, 7)
+	ten, _ := sqltype.Integer(typ, 10)
+	row := []sqltype.Value{two, seven}
+	eval := exec.Context{}
+	if err := table.EvaluateGenerations(context.Background(), d, row, &eval); err != nil || !row[1].IsNull() || row[1].Type() != typ {
+		t.Fatal(row, err)
+	}
+	generated := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 2}.WithGeneration(d, 1, 1)
+	outer := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{ten, two, row[1]}, OldRow: []sqltype.Value{ten, seven, row[1]}}}
+	inner := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 8, Outer: &outer}}
+	v, err := generated.Eval(&inner)
+	if n, e := v.Integer(); err != nil || e != nil || n != 2 {
+		t.Fatal(v, err, e)
+	}
+	v, err = (plan.ReturningColumnExpr{ColumnExpr: generated, Old: true}).Eval(&inner)
+	if n, e := v.Integer(); err != nil || e != nil || n != 7 {
+		t.Fatal(v, err, e)
+	}
+	if outer.Frame != 4 || len(outer.Row) != 3 || inner.Frame != 8 {
+		t.Fatal("caller frame changed", outer, inner)
+	}
+	// An absent side finds its owning frame but never demands a virtual value.
+	invalid := base
+	invalid.Slot = 99
+	generated.Virtual = invalid
+	if v, err = (plan.ReturningColumnExpr{ColumnExpr: generated, Absent: true}).Eval(&inner); err != nil || !v.IsNull() || v.Type() != typ {
+		t.Fatal(v, err)
+	}
+	if _, err = generated.Eval(&inner); err == nil {
+		t.Fatal("demand failed to evaluate retained plan")
+	}
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	inner.Context = canceled
+	if _, err = generated.Eval(&inner); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: base, Planned: base}}
+	if err := table.EvaluateGenerations(context.Background(), d, row, &eval); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := row[1].Integer(); err != nil || n != 2 {
+		t.Fatal(n, err)
+	}
+}
+
+func TestGeneratedVirtualUnsimplifiedTypeSecurity(t *testing.T) {
+	_, view, d := generatedUnitDescriptor(t)
+	integer := d.Columns[0].Usage.Type
+	domain, err := sqltype.Domain(64001, "vd", "public.vd", integer.Usage())
+	if err != nil {
+		t.Fatal(err)
+	}
+	array, err := sqltype.Array(64002, "_vd", domain)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enum, err := sqltype.Enum(64003, "ve", "public.ve", []string{"x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enumArray, err := sqltype.Array(64004, "_ve", enum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		typ    *sqltype.Descriptor
+		domain bool
+	}{{domain, true}, {array, true}, {enum, false}, {enumArray, false}} {
+		err := table.VirtualDestination(catalog.Column{Name: "b", Usage: tc.typ.Usage()})
+		var diagnostic *sqlstate.Error
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" {
+			t.Fatal(tc, err)
+		}
+		if tc.domain {
+			if diagnostic.Message != `virtual generated column "b" cannot have a domain type` || diagnostic.Detail != "" {
+				t.Fatal(diagnostic)
+			}
+		} else if diagnostic.Message != `virtual generated column "b" cannot have a user-defined type` || diagnostic.Detail != "Virtual generated columns that make use of user-defined types are not yet supported." {
+			t.Fatal(diagnostic)
+		}
+	}
+	builtinArray, ok := view.LookupType(1007)
+	if !ok {
+		t.Fatal("int[] missing")
+	}
+	if err := table.VirtualDestination(catalog.Column{Name: "b", Usage: builtinArray.Usage()}); err != nil {
+		t.Fatal(err)
+	}
+	hidden := plan.LiteralExpr{Info: expr.Info{Usage: domain.Usage(), Pos: parser.Position{Character: 17}}, Value: sqltype.Null(domain)}
+	otherwise := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
+	tree := plan.CaseExpr{Info: expr.Info{Usage: integer.Usage()}, Arms: []plan.CaseBranch{{Result: hidden}}, Otherwise: otherwise}
+	var diagnostic *sqlstate.Error
+	if err := table.VirtualGenerationSecurity(tree); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Position != "17" || diagnostic.Message != "generation expression uses user-defined type" {
+		t.Fatal(err)
+	}
+	if err := table.VirtualGenerationSecurity(otherwise); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
+	e, view, d := generatedUnitDescriptor(t)
+	typ := d.Columns[0].Usage.Type
+	base := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
+	ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
+	b := engine.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
+	node := b.QueryColumnAt(analyze.QueryColumn{Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}, parser.Position{})
+	if len(b.Query.Sources[0].Uses) != 1 || b.Query.Sources[0].Uses[0] != 1 {
+		t.Fatal("base SELECT widened", b.Query.Sources[0].Uses)
+	}
+	value, _ := sqltype.Integer(typ, 9)
+	row := []sqltype.Value{value, sqltype.Null(typ)}
+	source := &exec.Source{Anonymous: [][]sqltype.Value{row}, Occurrence: 0}
+	state := &exec.State{Source: source, IdentityReads: true}
+	eval := state.Evaluation(context.Background())
+	eval.BindQueryRow(source, 0)
+	if v, err := node.Eval(&eval); err != nil || v.IsNull() {
+		t.Fatal(v, err)
+	}
+	d.Columns[1].Nullable = false
+	validator := table.NewAlterRowValidator(d, "public")
+	if err := validator.Validate(row, &eval); err != nil {
+		t.Fatal("physical NULL rejected logical nine", err)
+	}
+	detail, err := exec.FailingRowDetail(row, sqltype.OutputEnvironment{}, nil, nil, d)
+	if err != nil || detail != "Failing row contains (9, virtual)." {
+		t.Fatal(detail, err)
+	}
+}
+
+func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
+	e, view, d := generatedUnitDescriptor(t)
+	oid, ok := view.LookupType(sqltype.Oid)
+	if !ok {
+		t.Fatal("oid missing")
+	}
+	original := d.Address()
+	d.ObjectAddress.ObjectID++
+	d.Columns[1].Usage = oid.Usage()
+	ref := e.Catalog.Domain.Ref(view.Epoch()+1, d.Address())
+	node := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
+	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: node, Planned: node}}
+	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
+	store := &storage.Relation{Versions: []storage.RowVersion{{Values: []sqltype.Value{base, sqltype.Null(oid)}}}}
+	next := catalog.CloneState(view.State())
+	next.SetEpoch(next.Epoch() + 1)
+	next.SetDescriptor(d.Address(), d)
+	if err := table.RecomputeRemappedGenerations(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{d.Address(): store}, map[ids.ObjectAddress]ids.ObjectAddress{original: d.Address()}, exec.Context{}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if !store.Versions[0].Values[1].IsNull() {
+		t.Fatal("virtual owner was materialized")
+	}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: store.Versions[0].Values}}
+	v, err := table.LogicalColumnValue(d, 1, eval.Row, &eval)
+	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.Address().ObjectID {
+		t.Fatal(v, err, e)
+	}
+}

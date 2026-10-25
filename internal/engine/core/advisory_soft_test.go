@@ -3,7 +3,6 @@ package core_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/enginetest"
@@ -69,15 +68,4 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if err = deadlockResult(t, writer); err != nil || advisoryUnitHold(b, x).Exclusive != 1 {
 		t.Fatal("explicit retained-count cleanup did not wake writer", err)
 	}
-}
-
-func deadlockRequest(t *testing.T, e *engine.Engine, ticket *lock.Ticket, resource lock.Resource, mode lock.Mode) *lock.Request {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	t.Cleanup(cancel)
-	r, err := e.Locks.StartAcquire(ctx, ticket, resource, mode, lock.Policy{CompletionPurpose: lock.CompletionVirtual})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return r
 }

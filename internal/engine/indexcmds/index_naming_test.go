@@ -1,0 +1,57 @@
+package indexcmds_test
+
+import (
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
+)
+
+func TestBtreeIndexReleaseNaming(t *testing.T) {
+	e := engine.New()
+	a, b, c := strings.Repeat("a", 40), strings.Repeat("b", 40), strings.Repeat("c", 40)
+	enginetest.Run(t, e, "CREATE TABLE t(a INT,"+a+" INT,"+b+" INT,"+c+" INT)")
+	enginetest.Run(t, e, "CREATE INDEX ON t(a,a)")
+	index, _ := btreeRoot(t, e, "t_a_a1_idx")
+	if index.Columns[0].Name != "a" || index.Columns[1].Name != "a1" || index.SQLIndex.Keys[0].Attribute != index.SQLIndex.Keys[1].Attribute {
+		t.Fatal(index)
+	}
+	enginetest.Run(t, e, "CREATE INDEX ON t(a,a)")
+	btreeRoot(t, e, "t_a_a1_idx1")
+	keys := a + "," + b + "," + c
+	enginetest.Run(t, e, "CREATE INDEX ON t("+keys+")")
+	btreeRoot(t, e, "t_"+a+"_"+strings.Repeat("b", 16)+"_idx")
+	enginetest.Run(t, e, "CREATE INDEX ON t("+keys+")")
+	btreeRoot(t, e, "t_"+a+"_"+strings.Repeat("b", 15)+"_idx1")
+	table := strings.Repeat("t", 40)
+	enginetest.Run(t, e, "CREATE TABLE "+table+"("+a+" INT,"+b+" INT,"+c+" INT)")
+	enginetest.Run(t, e, "CREATE INDEX ON "+table+"("+keys+")")
+	btreeRoot(t, e, strings.Repeat("t", 29)+"_"+strings.Repeat("a", 29)+"_idx")
+	enginetest.Run(t, e, "CREATE INDEX ON "+table+"("+keys+")")
+	btreeRoot(t, e, strings.Repeat("t", 29)+"_"+strings.Repeat("a", 28)+"_idx1")
+	enginetest.Run(t, e, `CREATE TABLE "éTable"("列" INT,index TEXT)`)
+	enginetest.Run(t, e, `CREATE INDEX "éIndex" ON "éTable"("列",index DESC)`)
+	index, _ = btreeRoot(t, e, `"éIndex"`)
+	if index.Columns[0].Name != "列" || !index.SQLIndex.Keys[1].Desc {
+		t.Fatal(index)
+	}
+}
+
+func TestBtreeIndexUtf8AndRepeatedLabels(t *testing.T) {
+	e := engine.New()
+	unicodeKey := strings.Repeat("é", 30)
+	second := strings.Repeat("b", 40)
+	enginetest.Run(t, e, `CREATE TABLE t("`+unicodeKey+`" INT,`+second+` INT)`)
+	enginetest.Run(t, e, `CREATE INDEX ON t("`+unicodeKey+`",`+second+`)`)
+	index, _ := btreeRoot(t, e, `"t_`+strings.Repeat("é", 28)+`_idx"`)
+	if len(index.Name()) != 62 {
+		t.Fatal("UTF8 clipping redistributed spare byte", index.Name())
+	}
+	enginetest.Run(t, e, "CREATE TABLE dup(a INT,a1 INT)")
+	enginetest.Run(t, e, "CREATE INDEX ON dup(a,a,a1)")
+	index, _ = btreeRoot(t, e, "dup_a_a1_a11_idx")
+	if index.Columns[2].Name != "a11" {
+		t.Fatal(index.Columns)
+	}
+}

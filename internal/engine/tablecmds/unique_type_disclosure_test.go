@@ -1,0 +1,112 @@
+package tablecmds_test
+
+import (
+	"context"
+	"database/sql/driver"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/sqlstate"
+)
+
+// SQL GRANT/REVOKE is excluded natively. Real catalog ACL mutation supplies the
+// independent counterpart of the pinned owner-REVOKE PostgreSQL control.
+func TestUniqueTypeBuildOwnerDisclosure(t *testing.T) {
+	for _, mode := range []string{"none", "partial", "all", "table"} {
+		for _, prepared := range []bool{false, true} {
+			t.Run(mode+map[bool]string{false: "/direct", true: "/prepared"}[prepared], func(t *testing.T) {
+				e := engine.New()
+				admin, adminDone := enginetest.RoleOperation(t, e, "postgres")
+				defer adminDone()
+				enginetest.RoleExecute(t, e, admin, "CREATE ROLE unique_type_owner LOGIN")
+				owner, ownerDone := enginetest.RoleOperation(t, e, "unique_type_owner")
+				defer ownerDone()
+				withPublicSchemaUnitOwner(t, e, "unique_type_owner", func() {
+					enginetest.RoleExecute(t, e, owner, "CREATE TABLE t(a INT,b TEXT,CONSTRAINT u UNIQUE(a,b))")
+				})
+				enginetest.RoleExecute(t, e, owner, "INSERT INTO t VALUES(1,'protected'),(2,'protected')")
+				ref := enginetest.RoleTableRef(t, e, "t")
+				actor, ok := e.Roles().Lookup("unique_type_owner")
+				if !ok || actor.Superuser {
+					t.Fatal("owner fixture must be nonsuperuser", actor, ok)
+				}
+				grant := func(attribute int32, privileges authorization.Privileges) {
+					target := ref
+					target.Address.SubID = attribute
+					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: privileges}}}
+					if err := enginetest.SetObjectACL(e, context.Background(), target, acl); err != nil {
+						t.Fatal(err)
+					}
+				}
+				tableRights := authorization.InsertPrivilege
+				if mode == "table" {
+					tableRights |= authorization.SelectPrivilege
+				}
+				grant(0, tableRights)
+				if mode == "partial" || mode == "all" {
+					grant(1, authorization.SelectPrivilege)
+				}
+				if mode == "all" {
+					grant(2, authorization.SelectPrivilege)
+				}
+				before := e.Catalog.State
+				parent := before.MustRelation(ref.Address)
+				constraint := parent.Constraints.Unique[0]
+				root := e.Storage.IndexRoots[constraint.Index]
+				store := e.Storage.Relations[ref.Address]
+				execute := func(query string) (engine.Result, error) {
+					ast := enginetest.Statement(t, query)
+					if !prepared {
+						return e.Execute(owner, ast, 0, nil)
+					}
+					scope, err := e.StartStatement(owner)
+					if err != nil {
+						return engine.Result{}, err
+					}
+					description, err := scope.Describe(ast)
+					if err != nil {
+						scope.Finish(err)
+						return engine.Result{}, err
+					}
+					scope.Expected = &description
+					result, err := scope.Execute(ast, 0, nil)
+					scope.Finish(err)
+					return result, err
+				}
+				result, err := execute("ALTER TABLE t ALTER a TYPE BIGINT USING 0")
+				if result.Count != 0 || result.Rows != nil {
+					t.Fatal("failed TYPE returned output", result)
+				}
+				detail := "Duplicate keys exist."
+				if mode == "all" || mode == "table" {
+					detail = "Key (a, b)=(0, protected) is duplicated."
+				}
+				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "u"`, Detail: detail, Schema: "public", Table: "t", Constraint: "u"})
+				if e.Catalog.State != before || e.Storage.Relations[ref.Address] != store || e.Storage.IndexRoots[constraint.Index] != root {
+					t.Fatal("failed TYPE changed catalog/storage/root identity")
+				}
+				current := e.Catalog.State.MustRelation(ref.Address)
+				if current.Constraints.Unique[0].OID != constraint.OID || current.Constraints.Unique[0].Index != constraint.Index {
+					t.Fatal("failed TYPE reminted identities")
+				}
+				wantRows := [][]driver.Value{{int64(1), "protected"}, {int64(2), "protected"}}
+				if got := enginetest.Tuples(enginetest.RoleExecute(t, e, admin, "SELECT a,b FROM t ORDER BY a")); !reflect.DeepEqual(got, wantRows) {
+					t.Fatal(got, wantRows)
+				}
+				result, err = execute("INSERT INTO t VALUES(1,'protected')")
+				if result.Count != 0 || result.Rows != nil {
+					t.Fatal("duplicate returned output", result)
+				}
+				runtimeDetail := ""
+				if mode == "all" || mode == "table" {
+					runtimeDetail = "Key (a, b)=(1, protected) already exists."
+				}
+				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "u"`, Detail: runtimeDetail, Schema: "public", Table: "t", Constraint: "u"})
+				enginetest.LockEmpty(t, e)
+			})
+		}
+	}
+}

@@ -1,0 +1,106 @@
+package tablecmds_test
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/index"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+)
+
+// Native SQL GRANT/REVOKE is excluded. Real SetObjectACL on a nonsuperuser
+// owner supplies the counterpart of the PostgreSQL-only disclosure phases.
+func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
+	for _, mode := range []string{"none", "partial", "keys", "table"} {
+		for _, prepared := range []bool{false, true} {
+			t.Run(mode+map[bool]string{false: "/direct", true: "/held"}[prepared], func(t *testing.T) {
+				e, owner, parent, idx := primaryKeyUnitFixture(t)
+				actor, ok := e.Roles().Lookup("pk_owner")
+				if !ok || actor.Superuser || parent.Owner != actor.Ref {
+					t.Fatal(actor, parent.Owner)
+				}
+				duplicate := primaryKeyUnitInsert(1)
+				typeBuild := &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}, TypeName: parser.TypeName{Name: "bigint"}, Using: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 0}}}}}
+				var heldDuplicate, heldType engine.StatementDescription
+				if prepared {
+					var err error
+					heldDuplicate, err = e.Describe(owner, duplicate)
+					if err != nil {
+						t.Fatal(err)
+					}
+					heldType, err = e.Describe(owner, typeBuild)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				grant := func(attribute int32, rights authorization.Privileges) {
+					view := e.CatalogRead()
+					address := parent.Address()
+					address.SubID = attribute
+					ref := e.Catalog.Domain.Ref(view.Epoch(), address)
+					acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
+					if err := enginetest.SetObjectACL(e, context.Background(), ref, acl); err != nil {
+						t.Fatal(err)
+					}
+				}
+				grant(0, authorization.InsertPrivilege)
+				switch mode {
+				case "partial":
+					grant(1, authorization.SelectPrivilege)
+				case "keys":
+					grant(1, authorization.SelectPrivilege)
+					grant(2, authorization.SelectPrivilege)
+				case "table":
+					grant(0, authorization.InsertPrivilege|authorization.SelectPrivilege)
+				}
+				view := e.CatalogRead()
+				current := view.MustRelation(parent.Address())
+				auth, err := engine.OperationAuthorization(owner)
+				if err != nil {
+					t.Fatal(err)
+				}
+				allowed, err := index.UniqueKeyDetailAllowed(auth.View, auth, e.Catalog.Domain.Ref(view.Epoch(), parent.Address()), idx.SQLIndex.Keys)
+				if err != nil || allowed != (mode == "keys" || mode == "table") {
+					t.Fatal("actual current key disclosure authority", allowed, err)
+				}
+				before, store, root := e.Catalog.State, e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()]
+				execute := func(ast parser.Statement, held *engine.StatementDescription) (engine.Result, error) {
+					if !prepared {
+						return e.Execute(owner, ast, 0, nil)
+					}
+					scope, err := e.StartStatement(owner)
+					if err != nil {
+						return engine.Result{}, err
+					}
+					scope.Expected = held
+					result, err := scope.Execute(ast, 0, nil)
+					scope.Finish(err)
+					return result, err
+				}
+				result, err := execute(duplicate, &heldDuplicate)
+				detail := ""
+				if allowed {
+					detail = "Key (a, b)=(1, protected) already exists."
+				}
+				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `duplicate key value violates unique constraint "pk"`, Detail: detail, Schema: "public", Table: "t", Constraint: "pk"})
+				if result.Count != 0 || result.Rows != nil {
+					t.Fatal(result)
+				}
+				result, err = execute(typeBuild, &heldType)
+				detail = "Duplicate keys exist."
+				if allowed {
+					detail = "Key (a, b)=(0, protected) is duplicated."
+				}
+				nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23505", Message: `could not create unique index "pk"`, Detail: detail, Schema: "public", Table: "t", Constraint: "pk"})
+				if result.Count != 0 || result.Rows != nil || e.Catalog.State != before || e.Storage.Relations[parent.Address()] != store || e.Storage.IndexRoots[idx.Address()] != root || e.Catalog.State.Get(parent.Address()) != current {
+					t.Fatal("failed runtime/TYPE disclosed or published protected state", result)
+				}
+				enginetest.LockEmpty(t, e)
+			})
+		}
+	}
+}

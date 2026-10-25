@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -568,15 +567,3 @@ func TestTransactionControlsMissingOperationAuthority(t *testing.T) {
 	enginetest.TransactionRows(t, b, "SELECT v FROM t", 1)
 	enginetest.LockEmpty(t, e)
 }
-
-func mustLockStatement(q string) parser.Statement {
-	statements, err := parser.Parse(q)
-	if err != nil {
-		panic(err)
-	}
-	return statements[0]
-}
-
-type relationFailReader struct{ err error }
-
-func (r relationFailReader) Read([]byte) (int, error) { return 0, r.err }

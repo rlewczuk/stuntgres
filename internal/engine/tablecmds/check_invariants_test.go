@@ -1,0 +1,142 @@
+package tablecmds_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestCheckDescriptorInvariants(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	enginetest.RoleExecute(t, e, op, "CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1))")
+	ref := enginetest.RoleTableRef(t, e, "t")
+	view := e.CatalogRead()
+	descriptor, _ := view.Descriptor(ref.Address)
+	original := descriptor.(*catalog.Relation)
+	predicate := original.Constraints.Check[0].Expression.(plan.ComparisonExpr)
+	column := predicate.Left.(plan.ColumnExpr)
+	for _, tc := range []struct {
+		name   string
+		change func(*plan.ColumnExpr)
+	}{
+		{"foreign owner", func(c *plan.ColumnExpr) { c.Origin = engine.New().Catalog.Domain.Ref(c.Origin.Epoch, c.Origin.Address) }},
+		{"foreign relation", func(c *plan.ColumnExpr) { c.Origin.Address.ObjectID++ }},
+		{"foreign epoch", func(c *plan.ColumnExpr) { c.Origin.Epoch++ }},
+		{"stale attribute", func(c *plan.ColumnExpr) { c.Origin.Address.SubID++ }},
+		{"wrong dense slot", func(c *plan.ColumnExpr) { c.Slot++ }},
+		{"wrong scope", func(c *plan.ColumnExpr) { c.Scope++ }},
+		{"wrong frame", func(c *plan.ColumnExpr) { c.Frame++ }},
+		{"foreign type", func(c *plan.ColumnExpr) { c.Usage.Type, _ = engine.New().CatalogRead().LookupType(sqltype.Int4) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			copy := *original
+			copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
+			bad := column
+			tc.change(&bad)
+			p := predicate
+			p.Left = bad
+			copy.Constraints.Check[0].Expression = p
+			if err := table.ValidateChecks(view, &copy, map[string]bool{}); err == nil {
+				t.Fatal("invalid descriptor accepted")
+			}
+		})
+	}
+	for _, node := range []expr.Expr{
+		plan.ParameterExpr{Info: expr.Info{Usage: predicate.Usage}, Number: 1},
+		plan.AggregateExpr{Info: expr.Info{Usage: predicate.Usage}, Slot: 0},
+	} {
+		copy := *original
+		copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
+		copy.Constraints.Check[0].Expression = node
+		if err := table.ValidateChecks(view, &copy, map[string]bool{}); err == nil {
+			t.Fatalf("unpersistable %T accepted", node)
+		}
+	}
+	copy := *original
+	copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)
+	copy.Constraints.Check[0].Dependencies = nil
+	if err := table.ValidateChecks(view, &copy, map[string]bool{}); err == nil {
+		t.Fatal("missing dependency manifest accepted")
+	}
+}
+
+func TestCheckCompletedRowValidator(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	enginetest.RoleExecute(t, e, op, "CREATE TABLE t(a INT CONSTRAINT c CHECK(a=1))")
+	ref := enginetest.RoleTableRef(t, e, "t")
+	d, _ := e.CatalogRead().Descriptor(ref.Address)
+	tbl := d.(*catalog.Relation)
+	old := []sqltype.Value{sqltype.Null(tbl.Columns[0].Usage.Type)}
+	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Row: old, Scope: 7, Frame: 9}}
+	for _, n := range []int64{1, 2} {
+		v, err := sqltype.Integer(tbl.Columns[0].Usage.Type, n)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, err := table.ValidateCheckRow(tbl, []sqltype.Value{v}, &eval)
+		if err != nil || (c != nil) != (n == 2) {
+			t.Fatal(n, c, err)
+		}
+	}
+	if c, err := table.ValidateCheckRow(tbl, old, &eval); err != nil || c != nil {
+		t.Fatal("UNKNOWN rejected", c, err)
+	}
+	if eval.Scope != 7 || eval.Frame != 9 || &eval.Row[0] != &old[0] {
+		t.Fatal("validator leaked row frame")
+	}
+}
+
+func TestCheckNativeCatalogReplacementOrigins(t *testing.T) {
+	for _, self := range []bool{false, true} {
+		t.Run(map[bool]string{false: "foreign", true: "self"}[self], func(t *testing.T) {
+			source := engine.New()
+			op, done := enginetest.RoleOperation(t, source, "postgres")
+			enginetest.RoleExecute(t, source, op, "CREATE TABLE t(a INT CHECK(a=1))")
+			enginetest.RoleExecute(t, source, op, "INSERT INTO t VALUES(1)")
+			done()
+			target := source
+			if !self {
+				target = engine.New()
+			}
+			if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
+			actor, finish := enginetest.RoleOperation(t, target, "postgres")
+			defer finish()
+			ref := enginetest.RoleTableRef(t, target, "t")
+			d, _ := target.CatalogRead().Descriptor(ref.Address)
+			if err := table.ValidateChecks(target.CatalogRead(), d.(*catalog.Relation), map[string]bool{}); err != nil {
+				t.Fatal(err)
+			}
+			ast := enginetest.Statement(t, "INSERT INTO t VALUES(2)")
+			result, err := target.Execute(actor, ast, 0, nil)
+			if result.Rows != nil || result.Count != 0 {
+				t.Fatal(result)
+			}
+			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "t" violates check constraint "t_a_check"`, Detail: "Failing row contains (2).", Schema: "public", Table: "t", Constraint: "t_a_check"})
+		})
+	}
+}
+
+func nullCountUnitDiagnostic(t *testing.T, err error, want sqlstate.Error) {
+	t.Helper()
+	want.Severity, want.SeverityUnlocalized = "ERROR", "ERROR"
+	var got *sqlstate.Error
+	if !errors.As(err, &got) || *got != want {
+		t.Fatalf("got %#v (%v), want %#v", got, err, want)
+	}
+}

@@ -12,7 +12,6 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -146,26 +145,4 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 			enginetest.LockEmpty(t, e)
 		})
 	}
-}
-
-func waitsCommandAsync(e *engine.Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
-	done := make(chan error, 1)
-	go func() {
-		op, _, err := s.AcquireCommand(ctx)
-		if err == nil {
-			if prepare {
-				_, err = e.Describe(op, mustLockStatement(q))
-			} else {
-				var r engine.Result
-				r, err = e.Execute(op, mustLockStatement(q), 0, nil)
-				if r.Rows != nil {
-					r.Rows.Close()
-				}
-			}
-			err = op.CommandError(err)
-			op.Done()
-		}
-		done <- err
-	}()
-	return done
 }

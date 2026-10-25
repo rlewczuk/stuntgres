@@ -1,0 +1,157 @@
+package tablecmds_test
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/ids"
+)
+
+func TestAlterDefaultGrantTimeDescriptor(t *testing.T) {
+	for _, action := range []string{"SET DEFAULT 7", "DROP DEFAULT"} {
+		for _, kind := range []string{"revision", "shadow", "reset", "restore", "recreate"} {
+			t.Run(action+"/"+kind, func(t *testing.T) {
+				e := engine.New()
+				a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+				enginetest.SessionSQL(t, a, "CREATE SCHEMA shadow")
+				enginetest.SessionSQL(t, a, "CREATE TABLE t(a INT DEFAULT 11,b INT DEFAULT 13)")
+				enginetest.SessionSQL(t, a, "INSERT INTO t DEFAULT VALUES")
+				if kind == "shadow" {
+					enginetest.SessionSQL(t, b, "SET search_path TO shadow,public")
+				}
+				ref := enginetest.RoleTableRef(t, e, "t")
+				tx := enginetest.TransactionBegin(t, a)
+				enginetest.SessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				done := enginetest.LockAsync(e, b, ctx, "ALTER TABLE t ALTER a "+action, false)
+				enginetest.LockPending(t, e, 1)
+				switch kind {
+				case "revision":
+					old := e.Catalog.State.MustRelation(ref.Address)
+					next := *old
+					next.ObjectRevision++
+					next.Comment = "retained"
+					stage := e.BeginCatalogStage(e.CatalogRead())
+					defer e.DiscardCatalogStage(stage)
+					if err := stage.Replace(&next); err != nil {
+						t.Fatal(err)
+					}
+					prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+						t.Fatal(err)
+					}
+				case "shadow":
+					enginetest.Run(t, e, "CREATE TABLE shadow.t(a INT DEFAULT 99)")
+				case "reset":
+					if err := engine.Reset(context.Background(), e); err != nil {
+						t.Fatal(err)
+					}
+				case "restore":
+					if err := engine.Restore(context.Background(), e, strings.NewReader("CREATE TABLE t(a INT DEFAULT 99)")); err != nil {
+						t.Fatal(err)
+					}
+				case "recreate":
+					// The AX holder replaces its own target atomically; a third
+					// owner would queue behind the waiting ALTER.
+					enginetest.SessionSQL(t, a, "DROP TABLE t")
+					enginetest.SessionSQL(t, a, "CREATE TABLE t(a INT DEFAULT 99)")
+				}
+				if kind == "reset" || kind == "restore" {
+					enginetest.LockAwait(t, done, ids.ErrCatalogReplaced)
+					enginetest.TransactionEnd(t, a, tx, false)
+				} else {
+					enginetest.TransactionEnd(t, a, tx, kind == "recreate")
+					if kind == "revision" {
+						enginetest.LockAwait(t, done, nil)
+						d := e.Catalog.State.MustRelation(ref.Address)
+						if d.Comment != "retained" {
+							t.Fatal("lost grant-time revision")
+						}
+						enginetest.Run(t, e, "INSERT INTO t DEFAULT VALUES")
+						got := enginetest.Tuples(enginetest.Run(t, e, "SELECT * FROM t ORDER BY a"))
+						if len(got) != 2 {
+							t.Fatal(got)
+						}
+						if action == "SET DEFAULT 7" {
+							if got[0][0] != int64(7) || got[0][1] != int64(13) || got[1][0] != int64(11) {
+								t.Fatal(got)
+							}
+						} else if got[0][0] != int64(11) || got[1][0] != nil || got[1][1] != int64(13) {
+							t.Fatal(got)
+						}
+					} else {
+						enginetest.LockAwait(t, done, ids.ErrCatalogReplaced)
+					}
+				}
+				enginetest.LockEmpty(t, e)
+			})
+		}
+	}
+}
+
+func TestAlterDefaultProviderDropFences(t *testing.T) {
+	for _, kind := range []string{"cancel", "descriptor", "insert"} {
+		t.Run(kind, func(t *testing.T) {
+			e := engine.New()
+			enginetest.Run(t, e, "CREATE TABLE t(a INT DEFAULT 11)")
+			enginetest.Run(t, e, "INSERT INTO t DEFAULT VALUES")
+			ref := enginetest.RoleTableRef(t, e, "t")
+			old := e.Catalog.State.MustRelation(ref.Address)
+			storage := e.Storage.Relations[ref.Address]
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			provider := e.Catalog.Providers[ids.RelationClassID]
+			op, cleanup, err := enginetest.Operation(e, ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cleanup()
+			e.Catalog.Providers[ids.RelationClassID] = alterDropProvider{provider, func() {
+				e.Catalog.Providers[ids.RelationClassID] = provider
+				switch kind {
+				case "cancel":
+					cancel()
+				case "descriptor":
+					next := *old
+					next.ObjectRevision++
+					next.Comment = "changed"
+					stage := e.BeginCatalogStage(e.CatalogRead())
+					defer e.DiscardCatalogStage(stage)
+					if err := stage.Replace(&next); err != nil {
+						t.Fatal(err)
+					}
+					prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err = enginetest.PublishCatalog(e, prepared, engine.PublicationToken{Epoch: ref.Epoch}); err != nil {
+						t.Fatal(err)
+					}
+				case "insert":
+					e.Mu.Lock()
+					row := storage.Versions[0]
+					row.Row = 99
+					row.Version = 99
+					storage.Versions = append(storage.Versions, row)
+					e.Mu.Unlock()
+				}
+			}}
+			_, err = e.Execute(op, enginetest.Statement(t, "ALTER TABLE t ALTER a DROP DEFAULT"), 0, nil)
+			if err == nil {
+				t.Fatal("stale DROP published")
+			}
+			current := e.Catalog.State.MustRelation(ref.Address)
+			if current.ColumnMeta.Defaults[current.Attributes[0]].Expression != old.ColumnMeta.Defaults[old.Attributes[0]].Expression || e.Storage.Relations[ref.Address] != storage {
+				t.Fatal("failed DROP removed definition")
+			}
+			enginetest.LockEmpty(t, e)
+		})
+	}
+}

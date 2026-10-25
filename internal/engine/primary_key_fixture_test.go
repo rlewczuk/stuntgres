@@ -1,11 +1,12 @@
 package engine
 
 import (
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 func primaryKeyUnitName(name string) parser.ObjectName {
