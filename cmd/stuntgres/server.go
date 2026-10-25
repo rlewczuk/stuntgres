@@ -10,6 +10,7 @@ import (
 	"math"
 	"net"
 	"sync"
+	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/session"
@@ -37,6 +38,8 @@ type server struct {
 	backends map[uint32]*client
 	failure  error // mu; first visible runtime/logging failure
 	workers  sync.WaitGroup
+	// referenceTimeout bounds each reference login and response wait.
+	referenceTimeout time.Duration
 }
 type client struct {
 	server         *server
@@ -64,8 +67,9 @@ type client struct {
 	readFailure    error // Reader-owned; published by closing messages/readDone.
 	stopPeerWatch  func()
 	sessionDone    chan struct{}
-	fatalSent      bool          // Serial writer only; prevents duplicate terminal replies.
-	capture        *queryCapture // Serial dispatcher only; nil unless query.log is enabled.
+	fatalSent      bool                // Serial writer only; prevents duplicate terminal replies.
+	capture        *queryCapture       // Serial dispatcher only; nil unless query.log is enabled.
+	reference      *referenceForwarder // Set before register; nil unless the database has a reference.
 }
 
 func newServer(ctx context.Context, users accounts, databases map[string]*database, logs *serverLogs) (*server, error) {
@@ -114,12 +118,19 @@ func (s *server) register(c *client) error {
 	return nil
 }
 func (s *server) cancelCommand(id uint32, key []byte) {
+	var reference *referenceForwarder
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if c := s.backends[id]; c != nil && len(key) == c.keyLength && subtle.ConstantTimeCompare(c.key[:c.keyLength], key) == 1 && c.commandCancel != nil {
 		// context cancellation has no engine callback or external I/O. Holding mu
 		// fences this exact registration against a later command replacing it.
 		c.commandCancel(errUserCancel)
+		reference = c.reference
+	}
+	s.mu.Unlock()
+	if reference != nil {
+		// Only immutable session identity is read; the socket I/O runs unlocked
+		// on this cancel connection's own goroutine.
+		reference.cancelRequest()
 	}
 }
 func (c *client) beginCommand() (context.Context, func()) {
@@ -221,6 +232,9 @@ func (c *client) finish(reason session.EndReason) {
 	_ = c.socket.Close()
 	if c.stopPeerWatch != nil {
 		c.stopPeerWatch()
+	}
+	if c.reference != nil {
+		c.reference.close()
 	}
 	if c.readDone != nil {
 		<-c.readDone

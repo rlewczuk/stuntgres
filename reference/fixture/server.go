@@ -83,7 +83,12 @@ type ServerFixture struct {
 	events                                                   []map[string]any
 	changed                                                  chan struct{}
 	readers                                                  sync.WaitGroup
-	queryLog                                                 bool
+	queryLog, dual                                           bool
+	args                                                     []string
+	// ReferenceURL and ReferenceDB are the dual-backend reference of
+	// ServerDatabase (see ServerDualReference); ReferenceDB is a direct pool.
+	ReferenceURL string
+	ReferenceDB  *sql.DB
 }
 
 // ServerOption configures the native server process of a ServerFixture.
@@ -92,6 +97,18 @@ type ServerOption func(*ServerFixture)
 // ServerQueryLog starts the native server with -q, so it writes
 // Logdir/query.log.
 func ServerQueryLog() ServerOption { return func(f *ServerFixture) { f.queryLog = true } }
+
+// ServerArgs appends serve options to the native server command line.
+func ServerArgs(args ...string) ServerOption {
+	return func(f *ServerFixture) { f.args = append(f.args, args...) }
+}
+
+// ServerDualReference runs ServerDatabase in dual-backend mode (with -q).
+// Its reference is the pinned PostgreSQL in real mode and otherwise a second
+// native server process; ReferenceDB reaches that reference directly.
+func ServerDualReference() ServerOption {
+	return func(f *ServerFixture) { f.queryLog, f.dual = true, true }
+}
 
 func NewServerFixture(t *testing.T, options ...ServerOption) *ServerFixture {
 	t.Helper()
@@ -180,6 +197,9 @@ func NewServerFixture(t *testing.T, options ...ServerOption) *ServerFixture {
 		t.Fatal(serverBuild.err)
 	}
 	f.Binary = serverBuild.binary
+	if f.dual {
+		f.startReference(t)
+	}
 	users, err := serverUserfile()
 	if err != nil {
 		t.Fatal(err)
@@ -192,6 +212,28 @@ func NewServerFixture(t *testing.T, options ...ServerOption) *ServerFixture {
 	native := Backend{Name: "server", DB: f.openPool(t, f.DSN, rec), Recorder: rec}
 	f.backends = append([]Backend{native}, f.backends...)
 	return f
+}
+
+// startReference provisions the dual-backend reference before the server
+// that forwards to it starts.
+func (f *ServerFixture) startReference(t *testing.T) {
+	t.Helper()
+	var dsn string
+	if *Mode {
+		dsn = DSN
+		f.ReferenceDB = f.openPool(t, DSN, nil)
+	} else {
+		reference := NewServerFixture(t)
+		native, _ := reference.NativeBackend()
+		dsn, f.ReferenceDB = reference.DSN, reference.RawPool(t, native)
+	}
+	u, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Path, u.RawQuery = "/"+ServerDatabase, "sslmode=disable"
+	f.ReferenceURL = u.String()
+	f.args = append(f.args, "--reference", ServerDatabase+"="+f.ReferenceURL)
 }
 
 func (f *ServerFixture) resetReference(t *testing.T) {
@@ -301,6 +343,7 @@ func (f *ServerFixture) start(t *testing.T, restore bool) {
 	if f.queryLog {
 		args = append(args, "-q")
 	}
+	args = append(args, f.args...)
 	f.cmd = exec.Command(f.Binary, args...)
 	stdout, err := f.cmd.StdoutPipe()
 	if err != nil {

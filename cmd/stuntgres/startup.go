@@ -174,6 +174,9 @@ func (c *client) startup() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if db.reference != nil {
+		c.startReference(db.reference, pairs, negotiated)
+	}
 	if err := c.server.register(c); err != nil {
 		return false, err
 	}
@@ -324,6 +327,34 @@ func startupOptions(options string) (startupDefaults, error) {
 		defaults[startupSettingName(name)] = value
 	}
 	return defaults, nil
+}
+
+// startReference logs in to the database's reference with the client's
+// startup settings. A failure is logged; the connection still serves.
+func (c *client) startReference(config *referenceConfig, pairs map[string]string, version uint32) {
+	settings := make(map[string]string, len(pairs))
+	for name, value := range pairs {
+		switch name {
+		case "user", "database", "replication":
+			continue
+		}
+		if !strings.HasPrefix(name, "_pq_.") {
+			settings[name] = value
+		}
+	}
+	warn := func(message string, args ...any) {
+		c.server.log(slog.LevelWarn, message, append([]any{"connection_id", c.id, "database", c.database, "user", c.user}, args...)...)
+	}
+	// PostgreSQL implements 3.0 and 3.2 only; 3.1 shares 3.0's messages.
+	protocol := uint32(protocolVersion3)
+	if version >= protocolVersionLatest {
+		protocol = protocolVersionLatest
+	}
+	var err error
+	c.reference, err = startReference(c.ctx, config, c.server.referenceTimeout, referenceStartup{version: protocol, settings: settings}, warn)
+	if err != nil {
+		warn("reference connection failed", "reference", config.display(), "error", err.Error())
+	}
 }
 
 func (c *client) settingsSnapshot() ([]parameterValue, error) {

@@ -179,7 +179,7 @@ func TestServerCLIChildEnvironment(t *testing.T) {
 // empty values are ignored by the configuration resolver.
 func clearConfigEnvironment(t *testing.T) {
 	for _, key := range serveKeys {
-		t.Setenv(envPrefix+"_"+strings.ToUpper(key), "")
+		t.Setenv(envPrefix+"_"+strings.ToUpper(envKeys.Replace(key)), "")
 	}
 }
 

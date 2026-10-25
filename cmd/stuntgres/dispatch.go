@@ -108,11 +108,20 @@ func (c *client) run() {
 			continue
 		}
 		if m.tag == 'X' {
+			if c.reference != nil {
+				c.reference.forward(m)
+			}
 			c.releaseMessage(m)
 			reason = session.CleanClose
 			return
 		}
 		if m.tag != 'd' && m.tag != 'c' && m.tag != 'f' {
+			if c.reference != nil {
+				if c.capture != nil && !c.capture.open {
+					c.emitQuery() // reference output received while idle
+				}
+				c.reference.forward(m)
+			}
 			c.capture.begin(m.tag)
 		}
 		if c.protocolState == protocolRecovery && m.tag != 'S' {
@@ -235,6 +244,9 @@ func knownFrontendTag(tag byte) bool {
 func (c *client) readyBoundary() error {
 	if c.ctx.Err() != nil {
 		return nil
+	}
+	if c.reference != nil {
+		c.reference.await(c.ctx)
 	}
 	values, err := c.settingsSnapshot()
 	if err != nil {
