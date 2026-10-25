@@ -1,0 +1,150 @@
+package schemacmds_test
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/engine/view"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func TestRegclassDropColumnStagedOwnerDefinitions(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	for _, query := range []string{
+		"CREATE TABLE rr_stage_owner(v INT DEFAULT 7,kept INT DEFAULT 11 CONSTRAINT rr_kept_positive CHECK(kept>0))",
+		"CREATE VIEW rr_stage_view AS SELECT v FROM rr_stage_owner",
+		"ALTER TABLE rr_stage_owner ADD COLUMN r regclass DEFAULT 'rr_stage_view' CONSTRAINT rr_stage_bound CHECK(r='rr_stage_view'::regclass)",
+	} {
+		enginetest.RoleExecute(t, e, op, query)
+	}
+	ref := enginetest.RoleTableRef(t, e, "rr_stage_owner")
+	catalogView := e.CatalogRead()
+	descriptor, _ := catalogView.Descriptor(ref.Address)
+	old := descriptor.(*catalog.Relation)
+	kept := old.Attributes[old.Index["kept"]]
+	remaining := old.ColumnMeta.Defaults[kept]
+	stage := e.BeginCatalogStage(catalogView)
+	defer e.DiscardCatalogStage(stage)
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scope.Finish(nil)
+	changes := session.NewJournal()
+	next, err := tablecmds.DropColumnCandidate(scope, stage, old, ref, parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "v"}, Mode: parser.DropCascade}, changes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(old.Columns) != 3 || len(old.ColumnMeta.Defaults) != 3 || len(old.Constraints.Check) != 2 {
+		t.Fatal("original descriptor mutated")
+	}
+	if len(next.Columns) != 2 || next.Index["kept"] != 0 || next.Index["r"] != 1 || !reflect.DeepEqual(next.Attributes, old.Attributes[1:]) || len(next.ColumnMeta.Defaults) != 1 || next.ColumnMeta.Defaults[kept].OID != remaining.OID || remaining.OID == 0 {
+		t.Fatal("staged definitions or stable shape lost", next.Columns, next.Attributes, next.ColumnMeta.Defaults)
+	}
+	if len(next.Constraints.Check) != 1 || next.Constraints.Check[0].Name != "rr_kept_positive" || stage.Get(ref.Address) != next {
+		t.Fatal("surviving CHECK or latest staged descriptor lost", next.Constraints.Check)
+	}
+	integer, err := sqltype.Integer(next.Columns[0].Usage.Type, 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := next.Constraints.Check[0].Expression.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{integer, sqltype.String(next.Columns[1].Usage.Type, "0")}}})
+	if err != nil {
+		t.Fatal("surviving CHECK slot migration", err)
+	}
+	valid, err := result.Boolean()
+	if err != nil || !valid {
+		t.Fatal(valid, err)
+	}
+	view := enginetest.RoleTableRef(t, e, "rr_stage_view")
+	if _, removed := stage.Removal(view.Address); !removed {
+		t.Fatal("view removal missing")
+	}
+}
+
+func TestRegclassDependencyIdentitySiblingTraversal(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	for _, query := range []string{
+		"CREATE TABLE rr_order_owner(v INT)",
+		"CREATE TABLE rr_order_original(v INT)",
+		"CREATE VIEW rr_order_view AS SELECT v FROM rr_order_original",
+		"ALTER TABLE rr_order_owner ADD COLUMN r regclass DEFAULT 'rr_order_view' CONSTRAINT rr_order_zfirst CHECK(r='rr_order_view'::regclass) CONSTRAINT rr_order_afinal CHECK(r='rr_order_view'::regclass)",
+		"CREATE VIEW rr_order_bridge AS SELECT v FROM rr_order_owner",
+		"CREATE OR REPLACE VIEW rr_order_view AS SELECT v FROM rr_order_bridge",
+	} {
+		enginetest.RoleExecute(t, e, op, query)
+	}
+	ref := enginetest.RoleTableRef(t, e, "rr_order_owner")
+	read := e.CatalogRead()
+	descriptor, _ := read.Descriptor(ref.Address)
+	owner := descriptor.(*catalog.Relation)
+	target := ref.Address
+	target.SubID = owner.Attributes[owner.Index["v"]]
+	stage := e.BeginCatalogStage(read)
+	defer e.DiscardCatalogStage(stage)
+	views := viewDependencyClosure(read, []ids.ObjectAddress{target}, stage)
+	expanded := []ids.ObjectAddress{target}
+	for _, edge := range views {
+		expanded = append(expanded, edge.View.Address())
+	}
+	checks, err := stageCheckDependents(stage, expanded, parser.DropRestrict)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaults, err := stageDefaultDependents(stage, expanded, parser.DropRestrict)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordered := view.DependentLabels(read, []ids.ObjectAddress{target}, checks, views, defaults, nil)
+	var labels []string
+	for _, dependent := range ordered {
+		if dependent.OID == 0 {
+			t.Fatal("missing genuine consumer identity")
+		}
+		labels = append(labels, dependent.Label)
+	}
+	want := []string{"view rr_order_bridge", "view rr_order_view", "default value for column r of table rr_order_owner", "constraint rr_order_zfirst on table rr_order_owner", "constraint rr_order_afinal on table rr_order_owner"}
+	if !reflect.DeepEqual(labels, want) || ordered[0].OID <= ordered[1].OID || ordered[2].OID != owner.ColumnMeta.Defaults[owner.Attributes[owner.Index["r"]]].OID || ordered[3].OID != checks[0].Check.OID || ordered[4].OID != checks[1].Check.OID || ordered[3].OID <= ordered[4].OID {
+		t.Fatal("provider traversal or genuine sibling identity lost", labels, ordered)
+	}
+	duplicate := view.DependentLabels(read, []ids.ObjectAddress{target, target}, checks, views, defaults, nil)
+	if !reflect.DeepEqual(duplicate, ordered) {
+		t.Fatal("duplicate roots emitted consumers twice", duplicate)
+	}
+	other := target
+	other.SubID = owner.Attributes[owner.Index["r"]]
+	if got := view.DependentLabels(read, []ids.ObjectAddress{other}, checks, views, defaults, nil); len(got) != 0 {
+		t.Fatal("column identity ignored", got)
+	}
+}
+
+// viewDependencyClosure lists the views that depend on targets.
+func viewDependencyClosure(catalog catalog.Read, targets []ids.ObjectAddress, stage *core.CatalogStage) []view.DependencyEdge {
+	return view.DependentViews(&core.DropProvider{Base: catalog, Stage: stage}, targets)
+}
+
+// Provider references join the incumbent dependency stage. Owner-local column
+// dependencies are AUTO and are handled by DROP COLUMN's stable-slot migration.
+func stageCheckDependents(stage *core.CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.CheckDependencyEdge, error) {
+	return table.CheckDependents(core.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+}
+
+// stageDefaultDependents lists the column defaults that depend on targets.
+func stageDefaultDependents(stage *core.CatalogStage, targets []ids.ObjectAddress, mode parser.DropMode) ([]table.DefaultDependencyEdge, error) {
+	return table.DefaultDependents(core.StageDropProvider(context.Background(), stage, nil, nil, nil), targets, mode)
+}

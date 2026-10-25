@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 )
 
@@ -36,7 +37,7 @@ func validateRestoredSQLRoutines(e *core.Engine, ctx context.Context, op *sessio
 				}
 				continue
 			}
-			binding, _, bindErr := BindSQLRoutineLocked(e, op, auth, d, input, nil)
+			binding, _, bindErr := schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, nil)
 			if bindErr != nil && !binding.UnresolvedCallable {
 				return bindErr
 			}

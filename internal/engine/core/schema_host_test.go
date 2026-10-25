@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,7 +28,7 @@ func TestDDLHostStageSchemaTableKeepsAuthority(t *testing.T) {
 	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := engine.SchemaHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}
+	h := schemacmds.SchemaHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 	oid, err := h.AllocateOID()
 	if err != nil {
 		t.Fatal(err)

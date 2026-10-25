@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
@@ -271,7 +272,7 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 			declaration := enginetest.Statement(t, sample.definition).(*parser.CreateFunction)
 			e.Mu.Lock()
 			stage := e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(engine.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(schemacmds.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("private callable declaration", err)

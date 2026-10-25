@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -34,7 +35,7 @@ func operatorUnitStage(t *testing.T, e *core.Engine, op *session.Operation, auth
 	t.Helper()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err := routine.StageCreateOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s)
+	err := routine.StageCreateOperator(schemacmds.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +89,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	bad.Options = append(bad.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#@#")})
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err := routine.StageCreateOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, bad)
+	err := routine.StageCreateOperator(schemacmds.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, bad)
 	e.Mu.Unlock()
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "42P13" || d.Message != "only boolean operators can have negators" {
@@ -544,7 +545,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	base := auth.Catalog.State()
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err := routine.StageCreateOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, create)
+	err := routine.StageCreateOperator(schemacmds.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, create)
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "operator #=# already exists" {
@@ -555,7 +556,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err = routine.StageAlterOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: []parser.OperatorOption{{Name: "hashes", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: "true"}}})
+	err = routine.StageAlterOperator(schemacmds.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: []parser.OperatorOption{{Name: "hashes", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: "true"}}})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal("exact ALTER lookup", err)
@@ -567,7 +568,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 		t.Fatal("ALTER must preserve identity and immutable predecessor", altered, d)
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
-	if err := routine.StageDropOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature}}); err != nil {
+	if err := routine.StageDropOperator(schemacmds.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature}}); err != nil {
 		t.Fatal("exact DROP lookup", err)
 	}
 	if len(stage.DomainTargets) != 1 || stage.DomainTargets[0] != d.Address() {
@@ -630,7 +631,7 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 		return parser.OperatorSignature{Name: operatorUnitName("public", name), Left: parser.TypeName{Name: "int4"}, Right: parser.TypeName{Name: "int4"}}
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
-	if err := routine.StageDropOperator(engine.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature("#!#"), signature("#~#"), signature("#!#")}}); err != nil {
+	if err := routine.StageDropOperator(schemacmds.RoutineHost{DDLHost: core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature("#!#"), signature("#~#"), signature("#!#")}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(stage.DomainTargets) != 2 {

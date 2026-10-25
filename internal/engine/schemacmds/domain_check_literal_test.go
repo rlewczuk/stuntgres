@@ -1,0 +1,68 @@
+package schemacmds_test
+
+import (
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+func TestDomainCheckNominalLiteralAdmissionInternal(t *testing.T) {
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	defer done()
+	domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN public.nominal_positive AS integer CHECK(VALUE>0)"))
+	for _, tc := range []struct{ query, bindCode, evalCode string }{
+		{"SELECT nominal_positive '1'", "", ""},
+		{"SELECT public.nominal_positive '0'", "", "23514"},
+		{"SELECT uuid 'not-a-uuid'", "0A000", ""},
+		{`SELECT "name" 'x'`, "0A000", ""},
+		{"SELECT public.int4 '1'", "42704", ""},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			raw := enginetest.Statement(t, tc.query).(*parser.Select).Targets[0].(parser.TypedLiteralExpr)
+			if !raw.RequiresDomain {
+				t.Fatal("nominal syntax lost domain-only admission fact")
+			}
+			e.Mu.Lock()
+			auth, err := e.AuthorizationLocked(op)
+			if err != nil {
+				e.Mu.Unlock()
+				t.Fatal(err)
+			}
+			binder := core.NewExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
+			binder.Query.Auth = &auth
+			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
+			e.Mu.Unlock()
+			if tc.bindCode != "" {
+				var d *sqlstate.Error
+				if !errors.As(err, &d) || d.Code != tc.bindCode {
+					t.Fatal("nominal admission", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: binder.Input}}
+			value, err := node.Eval(&evaluation)
+			if tc.evalCode != "" {
+				var d *sqlstate.Error
+				if !errors.As(err, &d) || d.Code != tc.evalCode {
+					t.Fatal("domain literal conversion", err)
+				}
+				return
+			}
+			if err != nil || !value.Type().IsDomain() {
+				t.Fatal("lost logical domain value", value, err)
+			}
+		})
+	}
+}

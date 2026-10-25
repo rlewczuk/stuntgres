@@ -1,0 +1,229 @@
+package schemacmds_test
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func soundexUnitExpression(t *testing.T, e *core.Engine, name string) plan.InstalledSoundexExpr {
+	t.Helper()
+	binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	args := []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Ann"}}}
+	if name == "difference" {
+		args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Anne"}})
+	}
+	node, err := binder.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: args})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return node.(plan.InstalledSoundexExpr)
+}
+
+func TestSoundexExpressionIdentity(t *testing.T) {
+	e, ext := daitchUnitInstalled(t)
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
+	for i, name := range []string{"soundex", "difference"} {
+		t.Run(name, func(t *testing.T) {
+			n := soundexUnitExpression(t, e, name)
+			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.Catalog.State.Get(n.Ref.Address) || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
+				t.Fatal("identity/properties", n)
+			}
+			value, err := n.Eval(ctx)
+			if err != nil || value.Type() != n.ResultUsage().Type {
+				t.Fatal(value, err)
+			}
+			if name == "soundex" {
+				if code, err := value.Text(); err != nil || code != "A500" {
+					t.Fatal(code, err)
+				}
+			} else if score, err := value.Integer(); err != nil || score != 4 {
+				t.Fatal(score, err)
+			}
+			if err := stored.ValidateInstalledSoundex(n, e.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
+			refs, err := stored.ExpressionDependRefs(ctx.Context, e.CatalogRead(), n)
+			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
+				t.Fatal(refs, err)
+			}
+			var children []expr.Expr
+			plan.ExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
+			if !reflect.DeepEqual(children, n.Args) || !analyze.SameGroupExpression(n, n) {
+				t.Fatal(children)
+			}
+			changed := n
+			changed.Args = append([]expr.Expr(nil), n.Args...)
+			changed.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
+			if analyze.SameGroupExpression(n, changed) {
+				t.Fatal("argument identity collapsed")
+			}
+			other := n
+			other.Ref.Address = ext.Members[0]
+			if analyze.SameGroupExpression(n, other) {
+				t.Fatal("procedure identity collapsed")
+			}
+			consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.Ref}}}}}
+			if err := table.ValidateGenerationProviders(e.CatalogRead(), consumer); err != nil {
+				t.Fatal(err)
+			}
+			if err := table.ValidateGenerationPlan(e.CatalogRead(), consumer, n); err != nil {
+				t.Fatal(err)
+			}
+			for _, mutate := range []func(*catalog.Procedure){
+				func(p *catalog.Procedure) { p.Result = 1009 },
+				func(p *catalog.Procedure) { p.Signature = "23" },
+				func(p *catalog.Procedure) { p.ObjectName = "text_soundex" },
+				func(p *catalog.Procedure) {
+					p.Implementation = new(*extension.StockFuzzystrmatch)
+				},
+				func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
+			} {
+				state := catalog.CloneState(e.Catalog.State)
+				bad := *n.Procedure
+				mutate(&bad)
+				state.SetDescriptor(n.Ref.Address, &bad)
+				forged := n
+				forged.Procedure = &bad
+				if err := stored.ValidateInstalledSoundex(forged, e.Catalog.Read(state)); err == nil {
+					t.Fatal("forged identity", bad)
+				}
+			}
+			for _, foreign := range []bool{false, true} {
+				stale := n
+				if foreign {
+					stale.Ref = engine.New().Catalog.Domain.Ref(stale.Ref.Epoch, stale.Ref.Address)
+				} else {
+					stale.Ref.Epoch++
+				}
+				if _, err := (stored.ScalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), stale); err == nil {
+					t.Fatal("foreign/stale reference")
+				}
+			}
+			retagged, _, err := stored.RetagTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := stored.ValidateInstalledSoundex(retagged.(plan.InstalledSoundexExpr), e.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
+			folded, _, err := exec.SimplifyConditional(ctx, n, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := folded.(plan.LiteralExpr); !ok {
+				t.Fatal("immutable call not folded", folded)
+			}
+		})
+	}
+}
+
+func TestSoundexExpressionRemap(t *testing.T) {
+	for _, name := range []string{"soundex", "difference"} {
+		t.Run(name, func(t *testing.T) {
+			e, ext := daitchUnitInstalled(t)
+			call := soundexUnitExpression(t, e, name)
+			before := e.CatalogRead()
+			mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000}}
+			for i, address := range ext.Members {
+				mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: ids.OID(900001 + i)}
+			}
+			next := catalog.CloneState(before.State())
+			for address := range mapping {
+				next.UnbindName(catalog.DescriptorNameKey(before.Get(address)))
+				next.RemoveDescriptor(address)
+			}
+			for address, destination := range mapping {
+				descriptor := extension.RemapDescriptor(before.Get(address), mapping)
+				next.SetDescriptor(destination, descriptor)
+				next.BindName(catalog.DescriptorNameKey(descriptor), destination)
+			}
+			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
+			consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref}}}}}
+			next.SetDescriptor(address, consumer)
+			next.SetEpoch(next.Epoch() + 1)
+			if err := stored.ReownExpressions(e.Catalog.Read(next), next, mapping, false, stored.NewRoutineRemap(e.Catalog.Read(next), mapping, nil, extension.ProcedureRemapper(mapping, nil, nil), false)); err != nil {
+				t.Fatal(err)
+			}
+			view := e.Catalog.Read(next)
+			relocated := next.MustRelation(address)
+			for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
+				n := node.(plan.InstalledSoundexExpr)
+				if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || !exec.SameRoutineDeclaration(next.MustProcedure(n.Ref.Address), n.Procedure) || n.Procedure.Revision() != call.Procedure.Revision() {
+					t.Fatal("stale remapped authority", n.Ref)
+				}
+				if err := stored.ValidateInstalledSoundex(n, view); err != nil {
+					t.Fatal(err)
+				}
+				value, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+				if err != nil || value.Type() != n.ResultUsage().Type {
+					t.Fatal(value, err)
+				}
+			}
+			if call.Ref.Epoch != before.Epoch() || call.Procedure != before.Get(call.Ref.Address) {
+				t.Fatal("source mutated")
+			}
+		})
+	}
+}
+
+func TestSoundexExpressionProperties(t *testing.T) {
+	e, _ := daitchUnitInstalled(t)
+	for _, name := range []string{"soundex", "difference"} {
+		n := soundexUnitExpression(t, e, name)
+		binder := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+		rewritten, err := binder.RewriteGroup(n, []expr.Expr{n.Args[0]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		grouped := rewritten.(plan.InstalledSoundexExpr)
+		if _, ok := grouped.Args[0].(plan.GroupExpr); !ok || !grouped.Properties().StageDependent {
+			t.Fatal("grouped child/stage lost", grouped)
+		}
+		if _, ok := n.Args[0].(plan.LiteralExpr); !ok {
+			t.Fatal("group rewrite mutated source")
+		}
+		for _, property := range []expr.Properties{
+			{Volatility: expr.Stable}, {Volatility: expr.Volatile}, {RowDependent: true},
+			{ParameterDependent: true}, {StageDependent: true}, {DomainDependent: true},
+			{RuntimeDomainConversion: true},
+		} {
+			modified := n
+			modified.Args = append([]expr.Expr(nil), n.Args...)
+			modified.Args[0] = plan.ParameterExpr{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, Number: 1}
+			modified.Property = property
+			if exec.PlannedVolatility(modified) != property.Volatility {
+				t.Fatal("child volatility lost", property)
+			}
+			if property.Volatility != expr.Immutable && plan.GenerationImmutable(modified) {
+				t.Fatal("nonimmutable child admitted", property)
+			}
+			retagged, _, err := stored.RetagTypes(e.CatalogRead(), modified, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := retagged.(plan.InstalledSoundexExpr)
+			if got.Properties() != property || got.Args[0].Properties() != property {
+				t.Fatal("retag discarded dependence", property, got.Properties())
+			}
+			if err := stored.ValidateInstalledSoundex(got, e.CatalogRead()); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}

@@ -1,0 +1,421 @@
+package schemacmds_test
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+func daitchUnitInstalled(t *testing.T) (*core.Engine, *catalog.Extension) {
+	t.Helper()
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ""))
+	return e, e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+}
+
+func daitchUnitExpression(t *testing.T, e *core.Engine, input string) plan.InstalledTextExpr {
+	t.Helper()
+	b := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
+	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "daitch_mokotoff"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}}}
+	node, err := b.BindFunctionProvider(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return node.(plan.InstalledTextExpr)
+}
+
+func TestDaitchMokotoffProviderIdentity(t *testing.T) {
+	e, ext := daitchUnitInstalled(t)
+	view := e.CatalogRead()
+	if len(ext.Members) != 10 {
+		t.Fatal("member count", ext.Members)
+	}
+	proc := view.MustProcedure(ext.Members[0])
+	if proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
+		t.Fatal("installed identity", proc)
+	}
+	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
+	addresses := map[ids.ObjectAddress]bool{}
+	for _, address := range ext.Members {
+		member := view.MustProcedure(address)
+		key := member.Name() + ":" + string(member.Signature)
+		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.Namespace() != ext.TargetNamespace || member.Extension != ext.Address() || member.Volatility != expr.Immutable || !member.Strict || extension.FuzzystrmatchProviderOf(member) != extension.StockFuzzystrmatch {
+			t.Fatal("selected member identity", member)
+		}
+		delete(expected, key)
+		addresses[address] = true
+		if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(expected) != 0 {
+		t.Fatal("missing selected members", expected)
+	}
+	for _, d := range []catalog.Descriptor{ext, proc} {
+		if err := (extension.CatalogProvider{d.Address().ClassID}).Validate(view, d); err != nil {
+			t.Fatal(err)
+		}
+	}
+	edges, err := pgcatalog.CollectDepend(context.Background(), view, core.EngineCatalogRuntime{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	members := 0
+	for _, edge := range edges {
+		if edge.Referenced == ext.Address() && edge.DepType == 'e' {
+			if !addresses[edge.Dependent] {
+				t.Fatal("foreign member edge")
+			}
+			members++
+		}
+	}
+	if members != 10 {
+		t.Fatal("membership edges", members)
+	}
+	renamed := *proc
+	renamed.ObjectName = "text_soundex"
+	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
+	state := catalog.CloneState(view.State())
+	state.UnbindName(catalog.DescriptorNameKey(proc))
+	state.SetDescriptor(proc.Address(), &renamed)
+	state.BindName(catalog.DescriptorNameKey(&renamed), renamed.Address())
+	current := e.Catalog.Read(state)
+	if symbol, err := extension.ProcedureSymbol(current, &renamed); err != nil || symbol != "daitch_mokotoff" {
+		t.Fatal("relabel lost installed symbol", symbol, err)
+	}
+	if err := extension.StockFuzzystrmatch.ValidateExtension(current, ext); err != nil {
+		t.Fatal("genuine relabel rejected", err)
+	}
+	if ext.TargetNamespace != proc.Namespace() || view.Get(proc.Address()) != proc {
+		t.Fatal("relabel mutated installation/source")
+	}
+	for _, mutate := range []func(*catalog.Procedure){
+		func(p *catalog.Procedure) { p.ObjectAddress.SubID = 1 }, func(p *catalog.Procedure) { p.Signature = "23" },
+		func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Volatility = expr.Stable },
+		func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = extension.StockIntarray }, func(p *catalog.Procedure) {
+			p.Implementation = new(*extension.StockFuzzystrmatch)
+		},
+		func(p *catalog.Procedure) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
+		func(p *catalog.Procedure) { p.Dictionary = ext.Address() }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },
+	} {
+		state := catalog.CloneState(e.Catalog.State)
+		state.UnbindName(catalog.DescriptorNameKey(proc))
+		bad := *proc
+		mutate(&bad)
+		state.SetDescriptor(proc.Address(), &bad)
+		state.BindName(catalog.DescriptorNameKey(&bad), bad.Address())
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.Catalog.Read(state), ext); err == nil {
+			t.Fatal("invalid procedure admitted", bad)
+		}
+	}
+	for _, members := range [][]ids.ObjectAddress{nil, {proc.Address(), proc.Address()}, {{ClassID: ids.TypeClassID, ObjectID: proc.Address().ObjectID}}} {
+		bad := *ext
+		bad.Members = members
+		if err := extension.StockFuzzystrmatch.ValidateExtension(view, &bad); err == nil {
+			t.Fatal("invalid membership admitted", members)
+		}
+	}
+	duplicate := *ext
+	duplicate.Members = append([]ids.ObjectAddress(nil), ext.Members...)
+	duplicate.Members[4] = duplicate.Members[1]
+	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &duplicate); err == nil {
+		t.Fatal("full-size duplicate inventory admitted")
+	}
+	metadata, err := extension.OwnerMetadata(view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ext)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []extension.OwnerRecord
+	_, err = parser.ParseWithOptions("CREATE EXTENSION fuzzystrmatch;\n"+metadata, parser.Options{Context: context.Background(), StandardConformingStrings: true, LineComment: func(comment string, _ parser.Position) error {
+		record, found, err := extension.DecodeOwners(comment)
+		if found && err == nil {
+			records = append(records, record)
+		}
+		return err
+	}})
+	if err != nil || len(records) != 1 || len(records[0].Members) != 10 || records[0].Members[0].Name != "daitch_mokotoff" || records[0].Members[0].Signature != "25" {
+		t.Fatal("symbolic ownership", records, err)
+	}
+	symbolic := map[string]bool{"daitch_mokotoff:25": true, "levenshtein:25,25": true, "levenshtein:25,25,23,23,23": true, "levenshtein_less_equal:25,25,23": true, "levenshtein_less_equal:25,25,23,23,23,23": true, "metaphone:25,23": true, "dmetaphone:25": true, "dmetaphone_alt:25": true, "soundex:25": true, "difference:25,25": true}
+	for slot, member := range records[0].Members {
+		key := member.Name + ":" + member.Signature
+		if member.Slot != slot || member.Schema != "public" || member.Kind != "procedure" || member.Owner != "postgres" || !symbolic[key] {
+			t.Fatal("symbolic member identity", member)
+		}
+		delete(symbolic, key)
+	}
+	if len(symbolic) != 0 {
+		t.Fatal("missing symbolic selected members", symbolic)
+	}
+	for _, payload := range []string{
+		`{"name":"fuzzystrmatch","schema":"public","version":"1.1","owner":"postgres","members":[]}`,
+		`{"name":"fuzzystrmatch","schema":"public","version":"1.2","owner":"postgres","members":[{"kind":"procedure","name":"text_soundex","signature":"25","owner":"postgres"}]}`,
+		`{"name":"fuzzystrmatch","schema":"public","version":"1.2","owner":"postgres","members":[]}`,
+	} {
+		if _, _, err := extension.DecodeOwners(" " + extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString([]byte(payload))); err == nil {
+			t.Fatal("foreign owner manifest accepted", payload)
+		}
+	}
+	t.Run("canceled_stage_does_not_publish", func(t *testing.T) {
+		e := engine.New()
+		op, done := enginetest.RoleOperation(t, e, "postgres")
+		defer done()
+		before := e.Catalog.State
+		stage := intarrayUnitStage(t, e, op, "fuzzystrmatch", "")
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		if _, err := e.ValidateCatalogStage(ctx, stage); !errors.Is(err, context.Canceled) {
+			t.Fatal("canceled validation", err)
+		}
+		if e.Catalog.State != before {
+			t.Fatal("canceled stage published")
+		}
+	})
+	t.Run("own_TEMP_has_no_dictionary_helper_restriction", func(t *testing.T) {
+		e := engine.New()
+		op, closeOwner := extensionTemporaryOperation(t, e, "postgres")
+		defer closeOwner()
+		ns := intarrayUnitTemporaryNamespace(t, e, op)
+		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.Name()))
+		ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.CatalogRead(), ext); err != nil {
+			t.Fatal("own TEMP provider", err)
+		}
+		member := ext.Members[0]
+		closeOwner()
+		if e.Catalog.State.Get(ext.Address()) != nil || e.Catalog.State.Get(member) != nil {
+			t.Fatal("TEMP provider survived owner retirement")
+		}
+		for _, address := range ext.Members {
+			if e.Catalog.State.Get(address) != nil {
+				t.Fatal("TEMP selected member survived owner retirement", address)
+			}
+		}
+	})
+}
+
+type daitchCountingArgument struct {
+	expr.Info
+	calls *int
+	value sqltype.Value
+}
+
+func (a daitchCountingArgument) Eval(expr.Context) (sqltype.Value, error) {
+	*a.calls++
+	return a.value, nil
+}
+
+func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
+	e, ext := daitchUnitInstalled(t)
+	n := daitchUnitExpression(t, e, "Bierschbach")
+	ctx := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
+	value, err := n.Eval(ctx)
+	text, _ := n.Usage.Type.Output(ctx.Context, value)
+	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || exec.PlannedVolatility(n) != expr.Immutable || !plan.GenerationImmutable(n) {
+		t.Fatal("immutable complete evaluation", text, err)
+	}
+	if n.Ref.Address != ext.Members[0] || n.Dictionary != nil || n.Template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
+		t.Fatal("captured authority", n)
+	}
+	for i := range value.ArrayLen() {
+		if value.ArrayElement(i).Type() != n.Usage.Type.Element() {
+			t.Fatal("foreign element generation")
+		}
+	}
+	refs, err := stored.ExpressionDependRefs(ctx.Context, e.CatalogRead(), n)
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
+		t.Fatal("dependency", refs, err)
+	}
+	consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{
+		1: {Expression: n, Dependencies: []ids.ObjectRef{n.Ref}},
+	}}}
+	if err := table.ValidateGenerationProviders(e.CatalogRead(), consumer); err != nil {
+		t.Fatal("installed generation procedure dependency", err)
+	}
+	badRef := n.Ref
+	badRef.Address.SubID = 1
+	invalid := *consumer
+	invalid.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{
+		1: {Expression: n, Dependencies: []ids.ObjectRef{badRef}},
+	}
+	if err := table.ValidateGenerationProviders(e.CatalogRead(), &invalid); err == nil {
+		t.Fatal("procedure subobject generation dependency admitted")
+	}
+	state := catalog.CloneState(e.Catalog.State)
+	badProcedure := *n.Procedure
+	badProcedure.Result = 25
+	state.SetDescriptor(n.Ref.Address, &badProcedure)
+	if err := table.ValidateGenerationProviders(e.Catalog.Read(state), consumer); err == nil {
+		t.Fatal("corrupt installed generation manifest admitted")
+	}
+	children := 0
+	plan.ExpressionChildren(n, func(expr.Expr) { children++ })
+	if children != 1 || !analyze.SameGroupExpression(n, n) {
+		t.Fatal("walker/group identity", children)
+	}
+	stored, err := (stored.ScalarRenderer{}).SQL(ctx.Context, e.CatalogRead(), n)
+	if err != nil || !strings.Contains(stored, "daitch_mokotoff") {
+		t.Fatal("stored renderer", stored, err)
+	}
+	folded, _, err := exec.SimplifyConditional(ctx, n, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := folded.(plan.LiteralExpr); !ok {
+		t.Fatal("immutable literal function not folded", folded)
+	}
+	for _, input := range []string{"", "---"} {
+		v, err := daitchUnitExpression(t, e, input).Eval(ctx)
+		if err != nil || !v.IsNull() || v.Type() != n.Usage.Type {
+			t.Fatal("typed no-encodable NULL", v, err)
+		}
+	}
+	foreign := engine.New()
+	foreignArray, _ := foreign.CatalogRead().LookupType(1009)
+	forged := n
+	forged.Usage.Type = foreignArray
+	if analyze.ValidInstalledText(forged) {
+		t.Fatal("foreign array/argument generation admitted")
+	}
+	if _, err := forged.Eval(ctx); err == nil {
+		t.Fatal("foreign generation evaluated")
+	}
+	calls := 0
+	n.Arg = daitchCountingArgument{Info: expr.Info{Usage: n.Arg.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
+	v, err := n.Eval(ctx)
+	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || exec.PlannedVolatility(n) != expr.Volatile || plan.GenerationImmutable(n) {
+		t.Fatal("strict single eval/child volatility", calls, v, err)
+	}
+	ctxCanceled, cancel := context.WithCancel(ctx.Context)
+	cancel()
+	if _, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctxCanceled}}); !errors.Is(err, context.Canceled) || calls != 1 {
+		t.Fatal("precanceled evaluation", calls, err)
+	}
+	unaccent, _, _ := extensionUnitInstalled(t)
+	b := enginetest.ExpressionBinder(t, ctx.Context, unaccent, sqltype.InputEnvironment{}, nil)
+	u, err := b.BindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
+	if err != nil || exec.PlannedVolatility(u) != expr.Stable || plan.GenerationImmutable(u) {
+		t.Fatal("unaccent remains stable", u, err)
+	}
+}
+
+func TestDaitchMokotoffRemap(t *testing.T) {
+	source, ext := daitchUnitInstalled(t)
+	old := daitchUnitExpression(t, source, "John")
+	oldValue, err := old.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceView := source.CatalogRead()
+	sourceArray, sourceText := oldValue.Type(), oldValue.ArrayElement(0).Type()
+	sourceProcedure := old.Procedure
+	procedureBefore := *sourceProcedure
+	sourceRef, sourceUsage := old.Ref, old.ResultUsage()
+	sourceDimensions := oldValue.ArrayDimensions()
+	target := engine.New()
+	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
+		t.Fatal(err)
+	}
+	imported := target.Catalog.State.MustExtension(target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
+	mapping := map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): imported.Address()}
+	for i, address := range ext.Members {
+		mapping[address] = imported.Members[i]
+	}
+	view := target.CatalogRead()
+	mapper := stored.ViewQueryRemapper{Catalog: view, Ref: func(ref ids.ObjectRef) ids.ObjectRef {
+		if address, ok := mapping[ref.Address]; ok {
+			ref.Address = address
+		}
+		return target.Catalog.Domain.Ref(view.Epoch(), ref.Address)
+	}, Type: func(d *sqltype.Descriptor) *sqltype.Descriptor {
+		owned, ok := view.LookupType(d.ID())
+		if !ok {
+			t.Fatal("missing target type", d.ID())
+		}
+		return owned
+	}, Procedure: extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)}
+	query := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "codes", Usage: old.ResultUsage()}}, Child: &plan.ValuesNode{Rows: [][]expr.Expr{{}}}, Expressions: []expr.Expr{old}}
+	remapped, err := mapper.Query(query)
+	if err != nil {
+		t.Fatal("remap original provider", err)
+	}
+	mapped := remapped.(*plan.ProjectNode).Expressions[0]
+	n := mapped.(plan.InstalledTextExpr)
+	v, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	ownedArray, _ := target.CatalogRead().LookupType(1009)
+	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
+	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || !exec.SameRoutineDeclaration(view.MustProcedure(imported.Members[0]), n.Procedure) || n.Procedure.Revision() != sourceProcedure.Revision() || n.Dictionary != nil || n.Template != nil {
+		t.Fatal("remapped provider/generations", v, err)
+	}
+	// Foreign import can share immutable builtin TEXT/text[] descriptors.
+	// Retention means unchanged source ownership/data, not pointer inequality
+	// between the two catalogs' immutable builtin descriptors.
+	currentSourceArray, _ := source.CatalogRead().LookupType(1009)
+	currentSourceText, _ := source.CatalogRead().LookupType(sqltype.Text)
+	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.Procedure != sourceProcedure || source.Catalog.State.Get(sourceRef.Address) != sourceProcedure || old.Ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
+		t.Fatal("retained source changed")
+	}
+	if n.Ref.Address != n.Procedure.Address() || n.Ref.Domain() != target.Catalog.Domain || n.Ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+		t.Fatal("remapped installed authority still belongs to source")
+	}
+	retainedText, err := sourceArray.Output(context.Background(), oldValue)
+	if err != nil || retainedText != "{160000,460000}" {
+		t.Fatal("retained array data changed", retainedText, err)
+	}
+	retainedValue, err := old.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
+	if err != nil || retainedValue.Type() != sourceArray || retainedValue.ArrayElement(0).Type() != sourceText {
+		t.Fatal("retained source expression generation changed", retainedValue, err)
+	}
+	retainedText, err = sourceArray.Output(context.Background(), retainedValue)
+	if err != nil || retainedText != "{160000,460000}" {
+		t.Fatal("retained source expression data changed", retainedText, err)
+	}
+	text, err := ownedArray.Output(context.Background(), v)
+	if err != nil || text != "{160000,460000}" {
+		t.Fatal("remapped output", text, err)
+	}
+	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), target.CatalogRead(), old); err == nil {
+		t.Fatal("foreign stored expression admitted")
+	}
+	if _, err := (stored.ScalarRenderer{}).SQL(context.Background(), target.CatalogRead(), n); err != nil {
+		t.Fatal("remapped stored expression", err)
+	}
+}
+
+func TestFuzzystrmatchManifestSlotAuthority(t *testing.T) {
+	e, _, ext := extensionVersionUnitInstalled(t, "1.1")
+	view := e.CatalogRead()
+	copy := *ext
+	copy.Members = append([]ids.ObjectAddress(nil), ext.Members...)
+	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &copy); err != nil {
+		t.Fatal("equivalent base manifest rejected", err)
+	}
+	// dmetaphone/dmetaphone_alt have the same signature/result.
+	// Supplied slot order must still match the authoritative inventory.
+	copy.Members[5], copy.Members[6] = copy.Members[6], copy.Members[5]
+	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &copy); err == nil {
+		t.Fatal("same-shape supplied slots reordered")
+	}
+}

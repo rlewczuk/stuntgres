@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -69,7 +70,7 @@ func TestRoutineDropReplayClassification(t *testing.T) {
 		}
 		d := &catalog.Procedure{ObjectName: "rd_unit_replay", SQL: definition, Result: 23}
 		before := auth.Catalog.State()
-		binding, _, err := engine.BindSQLRoutineLocked(e, op, auth, d, input, nil)
+		binding, _, err := schemacmds.BindSQLRoutineLocked(e, op, auth, d, input, nil)
 		var diagnostic *sqlstate.Error
 		if tc.code == "" {
 			if err != nil {

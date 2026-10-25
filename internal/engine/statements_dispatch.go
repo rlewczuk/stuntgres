@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/indexcmds"
 	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/rolecmds"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typecmds"
@@ -24,9 +25,9 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
 		return dispatched(viewcmds.ExecuteTrigger(e, scope, stmt, count))
 	case *parser.CreateFunction, *parser.CreateAggregate:
-		return dispatched(ExecuteSQLRoutineDDL(e, scope, stmt, count))
+		return dispatched(schemacmds.ExecuteSQLRoutineDDL(e, scope, stmt, count))
 	case *parser.ForeignDDL:
-		result, err := ExecuteForeignDDL(e, scope, stmt.(*parser.ForeignDDL), count)
+		result, err := schemacmds.ExecuteForeignDDL(e, scope, stmt.(*parser.ForeignDDL), count)
 		if err == nil {
 			scope.Completed = true
 		}
@@ -34,17 +35,17 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.CreateDatabaseStmt:
 		return dispatched(rolecmds.ExecuteCreateDatabase(e, scope, stmt.(*parser.CreateDatabaseStmt), count))
 	case *parser.CreateTablespace:
-		return dispatched(ExecuteCreateTablespace(e, op, stmt.(*parser.CreateTablespace), count))
+		return dispatched(schemacmds.ExecuteCreateTablespace(e, op, stmt.(*parser.CreateTablespace), count))
 	case *parser.Load:
-		return dispatched(ExecuteLoad(e, op, stmt.(*parser.Load), count))
+		return dispatched(schemacmds.ExecuteLoad(e, op, stmt.(*parser.Load), count))
 	case *parser.Vacuum:
 		return dispatched(tablecmds.ExecuteVacuum(e, scope, stmt.(*parser.Vacuum), count))
 	case *parser.CreateExtension:
-		return dispatched(ExecuteExtension(e, scope, stmt.(*parser.CreateExtension), count))
+		return dispatched(schemacmds.ExecuteExtension(e, scope, stmt.(*parser.CreateExtension), count))
 	case *parser.DropExtension:
-		return dispatched(ExecuteDropExtension(e, scope, stmt.(*parser.DropExtension), count))
+		return dispatched(schemacmds.ExecuteDropExtension(e, scope, stmt.(*parser.DropExtension), count))
 	case *parser.AlterExtensionUpdate:
-		return dispatched(ExecuteExtensionUpdate(e, scope, stmt.(*parser.AlterExtensionUpdate), count))
+		return dispatched(schemacmds.ExecuteExtensionUpdate(e, scope, stmt.(*parser.AlterExtensionUpdate), count))
 	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
 		return dispatched(viewcmds.ExecuteRule(e, scope, stmt, count))
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
@@ -79,7 +80,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		var result core.Result
 		var err error
 		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
-			result, err = ExecuteSchema(e, scope, op, stmt, count, scope.Input)
+			result, err = schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		} else {
 			result, err = typecmds.ExecuteAlterDomain(e, scope, domain, count)
 		}
@@ -93,25 +94,25 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
 			return dispatched(tablecmds.ExecuteSequenceComment(e, scope, c, count))
 		}
-		result, err := ExecuteComment(e, scope, stmt.(*parser.Comment), count)
+		result, err := schemacmds.ExecuteComment(e, scope, stmt.(*parser.Comment), count)
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.CreateSchema, *parser.CreateLanguage, *parser.AlterSchema, *parser.DropSchema, *parser.CreateComposite, *parser.AlterType, *parser.DropType, *parser.CreateDomain, *parser.DropDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
-		result, err := ExecuteSchema(e, scope, op, stmt, count, scope.Input)
+		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
-		result, err := ExecuteSchema(e, scope, op, stmt, count, scope.Input)
+		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.CreateCast, *parser.DropCast, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
-		result, err := ExecuteSchema(e, scope, op, stmt, count, scope.Input)
+		result, err := schemacmds.ExecuteSchema(e, scope, op, stmt, count, scope.Input)
 		if err == nil {
 			scope.Completed = true
 		}
@@ -125,7 +126,7 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.ObjectGrant:
 		grant := stmt.(*parser.ObjectGrant)
 		if session.ForeignGrantKind(grant.Kind) {
-			return dispatched(ExecuteForeignGrant(e, scope, grant, count))
+			return dispatched(schemacmds.ExecuteForeignGrant(e, scope, grant, count))
 		}
 		if grant.Kind == "database" {
 			return dispatched(rolecmds.ExecuteDatabaseGrant(e, scope, grant, count))
@@ -156,7 +157,7 @@ func (familyStatements) ExecuteLocked(e *core.Engine, scope *core.StatementScope
 	case *parser.AlterTableDefault:
 		return dispatched(tablecmds.AlterDefaultLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAllInTablespace:
-		return dispatched(AlterAllTablespaceLocked(e, scope, auth, s, count))
+		return dispatched(schemacmds.AlterAllTablespaceLocked(e, scope, auth, s, count))
 	case *parser.RefreshMaterializedView:
 		return dispatched(viewcmds.RefreshMaterializedLocked(e, scope, auth, s, count))
 	case *parser.AlterTableOf:

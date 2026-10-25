@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partitioncmds"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
@@ -118,7 +119,7 @@ func afterRestoreTypeOwner(r *restoreRun, op *session.Operation, stmt parser.Sta
 
 // finishRestoreExtensionOwners imports the decoded extension owners.
 func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return ImportExtensionOwners(r.stage, ctx, op, r.extensionOwners)
+	return schemacmds.ImportExtensionOwners(r.stage, ctx, op, r.extensionOwners)
 }
 
 // finishRestoreMaterializedSnapshots populates materialized views from the

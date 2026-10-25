@@ -2,11 +2,8 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"reflect"
 	"slices"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,8 +13,6 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func extensionTemporaryOperation(t *testing.T, e *core.Engine, name string) (*session.Operation, func()) {
@@ -52,6 +47,7 @@ func extensionTemporaryOperation(t *testing.T, e *core.Engine, name string) (*se
 	}
 	return op, close
 }
+
 func extensionTemporaryInstalled(t *testing.T) (*core.Engine, *session.Operation, *session.Operation, *catalog.Extension, func()) {
 	t.Helper()
 	e := New()
@@ -65,6 +61,7 @@ func extensionTemporaryInstalled(t *testing.T) (*core.Engine, *session.Operation
 	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 	return e, owner, installer, ext, closeOwner
 }
+
 func extensionTemporaryConsumerUnits(t *testing.T, e *core.Engine, op *session.Operation, ext *catalog.Extension) *catalog.Relation {
 	t.Helper()
 	name := e.Catalog.State.Get(ext.TargetNamespace).Name()
@@ -79,6 +76,7 @@ func extensionTemporaryConsumerUnits(t *testing.T, e *core.Engine, op *session.O
 	}
 	return e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_survivor"}))
 }
+
 func extensionTemporaryGoneUnit(t *testing.T, e *core.Engine, ext *catalog.Extension) {
 	t.Helper()
 	namespace, ok := e.Catalog.State.Namespace(ext.TargetNamespace)
@@ -104,38 +102,5 @@ func extensionTemporaryGoneUnit(t *testing.T, e *core.Engine, ext *catalog.Exten
 		if edge.Referenced == ext.Address() || edge.Dependent == ext.Address() || slices.Contains(ext.Members[:], edge.Referenced) || slices.Contains(ext.Members[:], edge.Dependent) {
 			t.Fatal("dangling retirement edge", edge)
 		}
-	}
-}
-func TestExtensionSchemaClosure(t *testing.T) {
-	e, op, ext := extensionUnitInstalled(t)
-	survivor := extensionTemporaryConsumerUnits(t, e, op, ext)
-	base := e.Catalog.State
-	restrictStmt := statement(t, "DROP SCHEMA public")
-	e.Mu.Lock()
-	stage, err := StageSchemaLocked(e, op, restrictStmt, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.Mu.Unlock()
-	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "2BP01" || !strings.Contains(diagnostic.Detail, "extension unaccent depends on schema public") || stage != nil || e.Catalog.State != base {
-		t.Fatal("schema restriction did not use genuine extension dependency", stage, err)
-	}
-	// Prepare a real CASCADE candidate, then introduce a late dependent. The
-	// publication token must reject the entire predecessor rather than prune it.
-	e.Mu.Lock()
-	candidate, err := StageSchemaLocked(e, op, statement(t, "DROP SCHEMA public CASCADE"), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
-	e.Mu.Unlock()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { e.DiscardCatalogStage(candidate) })
-	roleExecute(t, e, op, "CREATE VIEW public.ext_schema_late AS SELECT v FROM public.ext_chain")
-	prepared, err := e.ValidateCatalogStage(context.Background(), candidate)
-	if err == nil {
-		_, err = e.PublishCatalogOperation(op, nil, prepared, core.PublicationToken{Epoch: candidate.Base.Epoch()})
-	}
-	if err == nil {
-		t.Fatal("late schema dependent bypassed publication fence")
-	}
-	if e.Catalog.State.Get(survivor.Address()) != survivor || !reflect.DeepEqual(e.Catalog.State.Get(ext.Address()), ext) {
-		t.Fatal("failed schema candidate published partially")
 	}
 }

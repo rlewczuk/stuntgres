@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -166,7 +167,7 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 			}
 			defer done()
 			auth := core.EngineBootstrapAuthorization(e, family.Owner)
-			host := engine.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}
+			host := schemacmds.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}
 			err = index.StageAlterOperatorFamily(host, auth, &parser.AlterOperatorFamily{Action: "drop", Name: parser.ObjectName{Parts: []parser.Identifier{{Text: family.Name()}}}, Method: parser.Identifier{Text: "btree"}, Items: []parser.OperatorFamilyItem{
 				{Function: function, Number: "1", Association: []parser.TypeName{{Name: "integer"}}},
 				{Function: function, Number: "2", Association: []parser.TypeName{{Name: "integer"}}},
@@ -192,7 +193,7 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 		auth := core.EngineBootstrapAuthorization(e, family.Owner)
 		core.SetAuthorizationPathPrefix(&auth, family.Namespace())
 		auth.Owner = nil // Actual stale-authority rejection in referencePath/CanUse.
-		err = (engine.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}).CheckFamilyMemberDrop(auth, support.Address())
+		err = (schemacmds.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}).CheckFamilyMemberDrop(auth, support.Address())
 		if err == nil || err.Error() != "stuntgres: foreign or stale authorization object" {
 			t.Fatalf("dependency-path error = %#v", err)
 		}
@@ -215,7 +216,7 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 		}
 		defer done()
 		cancel() // No timer, worker or scheduling-dependent cancellation window.
-		err = (engine.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}).CheckFamilyMemberDrop(core.EngineBootstrapAuthorization(e, family.Owner), support.Address())
+		err = (schemacmds.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}).CheckFamilyMemberDrop(core.EngineBootstrapAuthorization(e, family.Owner), support.Address())
 		if err != context.Canceled {
 			t.Fatalf("closure error = %#v, want original context.Canceled", err)
 		}

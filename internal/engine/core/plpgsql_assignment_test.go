@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/schemacmds"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/typedef"
@@ -451,7 +452,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		var stage *core.CatalogStage
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(engine.RoutineHost{core.DDLHost{E: e, Op: s.Op, CatalogStage: stage}}, auth, raw, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(schemacmds.RoutineHost{core.DDLHost{E: e, Op: s.Op, CatalogStage: stage}}, auth, raw, sqltype.InputEnvironment{})
 		}
 		e.Mu.Unlock()
 		if err != nil {
