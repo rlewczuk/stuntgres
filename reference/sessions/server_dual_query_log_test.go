@@ -5,6 +5,8 @@ package reference_test
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
+	"io"
 	"net"
 	"path/filepath"
 	"reflect"
@@ -136,8 +138,12 @@ func TestReferenceServerDualQueryLog(t *testing.T) {
 	// A database without a reference keeps single-backend records.
 	single := serverAuthenticated(t, f.DSNForDatabase(native, fixture.ServerUser))
 	serverWantRaw(t, single.query(t, "SELECT 42 AS answer"), [][][]byte{{[]byte("42")}})
+	// Close before the server stops, so no shutdown error can follow.
 	for _, c := range []*serverWire{w, unreachable, single} {
 		c.send(t, serverPacket('X', nil))
+		if _, err := c.readFrame(); !errors.Is(err, io.EOF) {
+			t.Fatalf("terminate: %v", err)
+		}
 	}
 	f.Stop(t)
 
