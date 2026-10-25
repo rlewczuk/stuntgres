@@ -16,12 +16,12 @@ import this package directly.
   `Access`, `Unit`, category and optional extra description; builtin metadata
   follows PostgreSQL 18 English wording. `Validate` captures the custom
   category `Customized Options`, dotted names, bounds, enums and exact typed
-  boot values; `BootValue`, `FoldName`, `CustomName`, `DisplayName` and
+  boot values; `BootValue`, `DefaultValue`, `FoldName`, `CustomName`, `DisplayName` and
   `SessionDefaultProvider`. Validation errors use the same `"stuntgres: "`
   prefix as the engine's `RegistrationError`, which stays in the engine
   because foreign-data registration shares it.
 - **Builtins** (`builtins.go`, `messages.go`, `format_encoding.go`): the
-  private builtin table in PostgreSQL 18.0 `short_desc` wording, the
+  private builtin table in PostgreSQL 18 English `short_desc` wording, the
   `application_name`, `client_min_messages` (`ClientMinMessages`),
   encoding, locale and `icu_validation_level` normalizers. `MessageLevelRank`
   orders the client message levels; the `session.NoticeLevel` constants
@@ -35,9 +35,10 @@ import this package directly.
 - **Search path** (`search_path.go`): the pure list parser. Namespace and ACL
   resolution are in `analyze` (`search_path.go`).
 - **Registry** (`registry.go`): `NewRegistry(registered,
-  trackCommitTimestamps)` captures builtin boot values (the engine passes its
-  commit-timestamp tracking flag), adds validated registered definitions and
-  sorts the names. `Lookup`, `Definitions` and `Order` read it.
+  trackCommitTimestamps)` captures builtin boot and effective native startup
+  values once (the engine passes its commit-timestamp tracking flag), adds
+  validated registered definitions and sorts the names. `Lookup`, `Definitions`
+  and `Order` read it.
 
 ## Invariants
 
@@ -53,6 +54,32 @@ import this package directly.
   messages, SQLSTATEs, hints and unit conversions are compatibility
   contracts; `SHOW ALL` and the reference suite observe them.
 
+## Simulated file-location defaults
+
+The five restricted-read string definitions have `StartupOnly` access, category
+`File Locations` and SQL context `postmaster`. Their effective native initial
+values are immutable simulated labels:
+
+| Setting | Initial/current value | Reset metadata |
+| --- | --- | --- |
+| `config_file` | `/stuntgres/simulated/postgresql.conf` | same string |
+| `data_directory` | `/stuntgres/simulated/data` | same string |
+| `external_pid_file` | empty string | SQL NULL |
+| `hba_file` | `/stuntgres/simulated/pg_hba.conf` | same string |
+| `ident_file` | `/stuntgres/simulated/pg_ident.conf` | same string |
+
+All five boot metadata values are SQL NULL. `BootDefaultNull` describes that
+metadata; `NativeStartup` separately owns the immutable `StartupDefault` and
+cached typed effective default returned by `DefaultValue`. Current values remain
+non-NULL strings. Ordinary custom empty defaults keep non-NULL empty boot/reset
+metadata. Registration rejects these builtin-only flags and payloads.
+
+The four explicit simulated assignments report source `override`; the unset PID
+setting reports `default`. A same-value session provider retains source `client`,
+but a different startup value is rejected. Neither the registry nor its consumers
+load configuration/authentication files, select disk storage, create PID files,
+or restart processes. The labels need not exist on the host.
+
 ## What stays in the engine
 
 SET/RESET/SHOW execution, `current_setting`/`set_config` and RESET ALL stay
@@ -67,15 +94,15 @@ live in [`session`](../session/README.md).
 ## Testing
 
 Package units cover typed input and formatting, the normalizers, search-path
-parsing, registry metadata and raw integer/real formatting:
+parsing, registry metadata, simulated startup defaults and raw integer/real formatting:
 
 ```sh
-make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers|ApplicationNameNormalizer|ParseSearchPath|SettingsMetadata(Raw|Registry))$$'
+make check RUN='^Test(ParseAndFormatTypedInput|EncodingLocaleAndLevelNormalizers|ApplicationNameNormalizer|ParseSearchPath|SettingsMetadata(Raw|Registry)|PhysicalSettingsDefinitions)$$'
 ```
 
 Public metadata, registered-custom and SHOW scenarios live in
 [reference/session_state](../../../reference/session_state/README.md#testing).
 Their `SHOW ALL` expectations assert every built-in description independently
-against PostgreSQL 18.0 `short_desc`, including the current and default
+against PostgreSQL 18 `short_desc`, including the current and default
 transaction settings, and every registered custom description, with no
 empty-string exemptions.

@@ -17,6 +17,11 @@ var applicationName = Definition{
 }
 var builtins = []Definition{
 	applicationName,
+	{Name: "config_file", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{Value: "/stuntgres/simulated/postgresql.conf"}, Description: "Sets the server's main configuration file."},
+	{Name: "data_directory", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{Value: "/stuntgres/simulated/data"}, Description: "Sets the server's data directory."},
+	{Name: "external_pid_file", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{ResetNull: true}, Description: "Writes the postmaster PID to the specified file."},
+	{Name: "hba_file", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{Value: "/stuntgres/simulated/pg_hba.conf"}, Description: `Sets the server's "hba" configuration file.`},
+	{Name: "ident_file", Type: String, Access: StartupOnly, BootDefaultNull: true, ReadRestricted: true, NativeStartup: &StartupDefault{Value: "/stuntgres/simulated/pg_ident.conf"}, Description: `Sets the server's "ident" configuration file.`},
 	{Name: "row_security", Type: Boolean, BootDefault: "on", Description: "Enables row security."},
 	{Name: "plpgsql.check_asserts", Type: Boolean, BootDefault: "on", Description: "Perform checks given in ASSERT statements."},
 	{Name: "track_commit_timestamp", Type: Boolean, Access: StartupOnly, BootDefault: "off", Description: "Collects transaction commit time."},

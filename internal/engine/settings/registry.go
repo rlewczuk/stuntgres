@@ -31,6 +31,12 @@ func NewRegistry(registered []Definition, trackCommitTimestamps bool) Registry {
 				} // Builtin definitions are source-owned constants.
 				d.bootValue = v
 				d.BootDefault = d.Format(v)
+				if d.NativeStartup != nil {
+					d.startupValue, err = d.Parse(d.NativeStartup.Value)
+					if err != nil {
+						panic(err)
+					}
+				}
 			}
 			r.definitions[d.Name] = d
 			r.order = append(r.order, d.Name)

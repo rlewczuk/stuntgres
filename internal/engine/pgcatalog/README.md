@@ -266,7 +266,12 @@ authority, never the recorded `Version`.
 - `pg_transform` (3576): checks cancellation, then the five carrier types, and
   returns a non-nil empty source.
 - `pg_settings`: projects registry metadata and one coherent typed snapshot;
-  owns its enum-array buffers and never publishes partial canceled rows.
+  the engine filters restricted rows using captured effective-user INHERIT
+  authority before acquiring the settings mutex. Boot/reset metadata preserves
+  SQL NULL separately from empty current strings and simulated startup defaults.
+  Explicit simulated startup assignments report `override`, not a loaded file;
+  source locations remain NULL. The producer owns its enum-array buffers and
+  never publishes partial canceled rows.
 - Table-statistics and progress views: committed logical DML and manual VACUUM
   facts and real active phases with authenticated-owner visibility, captured
   under the engine capture lock; unknown metrics stay typed NULL.

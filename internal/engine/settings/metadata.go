@@ -5,6 +5,8 @@ package settings
 func builtinMetadata(d Definition) Definition {
 	d.Category = "Client Connection Defaults / Statement Behavior"
 	switch d.Name {
+	case "config_file", "data_directory", "external_pid_file", "hba_file", "ident_file":
+		d.Category = "File Locations"
 	case "plpgsql.check_asserts":
 		d.Category = "Customized Options"
 	case "application_name":

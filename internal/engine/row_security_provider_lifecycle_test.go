@@ -56,7 +56,8 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if got, ok := sess.Setting("row_security"); !ok || got != value {
 					t.Fatal("effective setting", got, ok, value)
 				}
-				rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{settings: sess.Settings, registry: e.Settings}}, capturePGSettings)
+				runtime := settingsRuntimeForTest(t, e, sess)
+				rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: runtime}, capturePGSettings)
 				if err != nil || len(rows.Anonymous) != len(e.Settings.Order()) {
 					t.Fatal(rows, err)
 				}

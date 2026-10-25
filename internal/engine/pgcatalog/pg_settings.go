@@ -61,8 +61,12 @@ func capturePGSettings(in Input) ([][]sqltype.Value, error) {
 				return nil, err
 			}
 		}
-		text(12, d.Raw(d.BootValue()))
-		text(13, d.Raw(fact.Reset))
+		if !d.BootDefaultNull {
+			text(12, d.Raw(d.BootValue()))
+		}
+		if d.NativeStartup == nil || !d.NativeStartup.ResetNull {
+			text(13, d.Raw(fact.Reset))
+		}
 		row[16] = sqltype.Boolean(source.Columns[16].Usage.Type, false)
 		rows[i] = row
 	}

@@ -39,7 +39,7 @@ func TestSettingsShowAllRowsLocked(t *testing.T) {
 	}
 	registry := settings.NewRegistry(nil, false)
 	s := &SettingsStore{Values: map[string]string{"application_name": "app"}, Defaults: map[string]string{}}
-	rows, err := s.ShowAllRowsLocked(context.Background(), registry, typ)
+	rows, err := s.ShowAllRowsLocked(context.Background(), registry, typ, true)
 	if err != nil || len(rows) != len(registry.Order()) {
 		t.Fatal(len(rows), err)
 	}
@@ -55,7 +55,7 @@ func TestSettingsShowAllRowsLocked(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rows, err := s.ShowAllRowsLocked(ctx, registry, typ); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := s.ShowAllRowsLocked(ctx, registry, typ, true); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("canceled SHOW ALL returned rows", len(rows), err)
 	}
 }

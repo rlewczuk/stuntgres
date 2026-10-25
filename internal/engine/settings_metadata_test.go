@@ -9,13 +9,31 @@ import (
 	"stuntgres/internal/engine/settings"
 )
 
+// settingsRuntimeForTest captures the same validated operation authority as the
+// production pg_settings source. The returned view retains immutable roots only.
+func settingsRuntimeForTest(t *testing.T, e *Engine, s *session.Session) EngineCatalogRuntime {
+	t.Helper()
+	op, err := s.Acquire(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Done()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return EngineCatalogRuntime{Auth: auth, settings: s.Settings, registry: e.Settings}
+}
+
 func TestPGSettingsProviderCapture(t *testing.T) {
 	e := New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"application_name": "", "statement_timeout": "2s"}, calls: map[string]int{}}
 	a := sessionStart(t, e, provider)
 	capture := func(s *session.Session) map[string]string {
 		t.Helper()
-		facts, err := (EngineCatalogRuntime{settings: s.Settings, registry: e.Settings}).SessionSettings(t.Context())
+		facts, err := settingsRuntimeForTest(t, e, s).SessionSettings(t.Context())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +85,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if facts, err := (EngineCatalogRuntime{settings: a.Settings, registry: e.Settings}).SessionSettings(ctx); facts != nil || err != context.Canceled {
+	if facts, err := settingsRuntimeForTest(t, e, a).SessionSettings(ctx); facts != nil || err != context.Canceled {
 		t.Fatal(facts, err)
 	}
 	store := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
@@ -84,6 +102,7 @@ func TestPGSettingsCoherentCapture(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
+	runtime := settingsRuntimeForTest(t, e, s)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -100,7 +119,7 @@ func TestPGSettingsCoherentCapture(t *testing.T) {
 	}()
 	defer func() { <-done }()
 	for range 1000 {
-		facts, err := (EngineCatalogRuntime{settings: s.Settings, registry: e.Settings}).SessionSettings(ctx)
+		facts, err := runtime.SessionSettings(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}

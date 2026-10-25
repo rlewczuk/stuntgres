@@ -338,6 +338,17 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.Show:
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
+		readRestricted := false
+		if !s.All {
+			auth, err := e.AuthorizationLocked(op)
+			if err != nil {
+				return StatementDescription{}, err
+			}
+			readRestricted, err = auth.CanReadRestrictedSettings()
+			if err != nil {
+				return StatementDescription{}, err
+			}
+		}
 		op.Session.Settings.Mu.Lock()
 		defer op.Session.Settings.Mu.Unlock()
 		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
@@ -346,6 +357,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		}
 		d, err := op.Session.Settings.LookupDefinition(e.Settings, s.Name.Text, false)
 		if err != nil {
+			return StatementDescription{}, err
+		}
+		if err := session.SettingReadAccess(d, s.Name.Text, readRestricted); err != nil {
 			return StatementDescription{}, err
 		}
 		return StatementDescription{Results: settingColumns(typ, settings.DisplayName(d.Name))}, nil

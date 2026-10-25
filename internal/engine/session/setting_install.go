@@ -75,14 +75,18 @@ func (s *SettingsStore) ResetAllLocked(registry settings.Registry) {
 }
 
 // ShowAllRowsLocked returns the SHOW ALL rows (name, setting,
-// description) in registry order. Caller holds Settings.Mu.
-func (s *SettingsStore) ShowAllRowsLocked(ctx context.Context, registry settings.Registry, typ *sqltype.Descriptor) ([][]sqltype.Value, error) {
+// description) in registry order, omitting restricted rows unless readRestricted
+// grants captured effective-user authority. Caller holds Settings.Mu.
+func (s *SettingsStore) ShowAllRowsLocked(ctx context.Context, registry settings.Registry, typ *sqltype.Descriptor, readRestricted bool) ([][]sqltype.Value, error) {
 	rows := make([][]sqltype.Value, 0, len(registry.Order()))
 	for _, key := range registry.Order() {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		d := registry.Definitions()[key]
+		if d.ReadRestricted && !readRestricted {
+			continue
+		}
 		rows = append(rows, []sqltype.Value{sqltype.String(typ, settings.DisplayName(key)), sqltype.String(typ, s.Value(key)), sqltype.String(typ, d.Description)})
 	}
 	if err := ctx.Err(); err != nil {

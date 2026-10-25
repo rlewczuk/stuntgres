@@ -187,11 +187,19 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 	s.Placeholders = make(map[string]bool)
 	for _, name := range names {
 		d := definitions[name]
-		v := d.BootValue()
-		normalized := d.BootDefault
+		v := d.DefaultValue()
+		initial := d.BootDefault
+		if d.NativeStartup != nil {
+			initial = d.NativeStartup.Value
+		}
+		normalized := initial
 		if provider != nil {
 			copy := d
 			copy.EnumValues = append([]string(nil), d.EnumValues...)
+			if d.NativeStartup != nil {
+				startup := *d.NativeStartup
+				copy.NativeStartup = &startup
+			}
 			input, present, err := provider.SessionDefault(ctx, copy)
 			if err != nil {
 				return err
@@ -208,7 +216,7 @@ func (s *SettingsStore) Initialize(ctx context.Context, definitions map[string]s
 				normalized = d.Format(v)
 			}
 		}
-		if (d.Access == settings.StartupOnly || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
+		if (d.Access == settings.StartupOnly || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != initial {
 			return errors.New("stuntgres: default provider cannot change " + d.Name)
 		}
 		if err := ctx.Err(); err != nil {

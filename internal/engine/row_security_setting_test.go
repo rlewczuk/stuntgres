@@ -41,16 +41,15 @@ func TestRowSecuritySettingsCapture(t *testing.T) {
 func TestRowSecuritySettingProvenance(t *testing.T) {
 	e := New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"row_security": "off"}, calls: map[string]int{}}
-	settings := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
-	if err := settings.Initialize(context.Background(), e.Settings.Definitions(), e.Settings.Order(), provider); err != nil {
-		t.Fatal(err)
-	}
+	sess := sessionStart(t, e, provider)
+	settings := sess.Settings
 	view := e.CatalogRead()
 	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.SettingsOID})
 	ref := e.Catalog.Domain.Ref(view.Epoch(), d.Address())
 	capture := func(value, source string) *exec.Source {
 		t.Helper()
-		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{settings: settings, registry: e.Settings}}, capturePGSettings)
+		runtime := settingsRuntimeForTest(t, e, sess)
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: runtime}, capturePGSettings)
 		if err != nil || len(rows.Anonymous) != len(e.Settings.Order()) {
 			t.Fatal(rows, err)
 		}
@@ -84,9 +83,10 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	if got, _ := settingsMetadataRow(t, old.Anonymous, "row_security")[8].Text(); got != "client" {
 		t.Fatal("retained metadata changed", got)
 	}
+	runtime := settingsRuntimeForTest(t, e, sess)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: EngineCatalogRuntime{settings: settings, registry: e.Settings}}, capturePGSettings); source != nil || err != context.Canceled {
+	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: runtime.Auth.Catalog, Roles: runtime.Auth.Roles, Owner: runtime.Auth.Owner, Ref: ref, Source: d, Runtime: runtime}, capturePGSettings); source != nil || err != context.Canceled {
 		t.Fatal(source, err)
 	}
 }

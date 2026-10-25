@@ -67,6 +67,19 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 		return Result{}, errors.New("stuntgres: invalid setting statement")
 	}
 	e.Mu.Lock()
+	readRestricted := false
+	if !write {
+		auth, err := e.AuthorizationLocked(op)
+		if err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+		readRestricted, err = auth.CanReadRestrictedSettings()
+		if err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+	}
 	owner.Mu.Lock()
 	op.Session.Mu.Lock()
 	locked := true
@@ -88,7 +101,7 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 			owner.ResetAllLocked(e.Settings)
 			return Result{}, nil
 		}
-		rows, err := owner.ShowAllRowsLocked(op.Ctx, e.Settings, typ)
+		rows, err := owner.ShowAllRowsLocked(op.Ctx, e.Settings, typ, readRestricted)
 		if err != nil {
 			return Result{}, err
 		}
@@ -106,6 +119,9 @@ func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, co
 		unlock()
 		locked = false
 		_, err = e.applySetting(op, owner, d, input, local)
+		return Result{}, err
+	}
+	if err := session.SettingReadAccess(d, name, readRestricted); err != nil {
 		return Result{}, err
 	}
 	if err := op.Ctx.Err(); err != nil {

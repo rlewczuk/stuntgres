@@ -305,6 +305,24 @@ Names must be dotted custom names. Types: `SettingBoolean`, `SettingString`,
 (zero bounds mean exactly zero); the default is validated like any later value.
 Registered settings appear in `SHOW ALL` and `pg_settings`.
 
+The builtin file-location settings `config_file`, `data_directory`,
+`external_pid_file`, `hba_file` and `ident_file` expose simulated startup values,
+not host paths in use by the engine. The four path labels are respectively
+`/stuntgres/simulated/postgresql.conf`, `/stuntgres/simulated/data`,
+`/stuntgres/simulated/pg_hba.conf` and `/stuntgres/simulated/pg_ident.conf`;
+the external PID value is empty. All five have NULL `pg_settings.boot_val`;
+the PID `reset_val` is also NULL, while the other reset values equal their labels.
+Source `override` denotes the four simulated initial assignments, not file loading.
+
+SHOW/current_setting require the effective superuser or INHERIT-effective
+`pg_read_all_settings` privileges; SHOW ALL and `pg_settings` omit these rows
+otherwise. Held prepared readers recheck current privileges. Every individual
+SET/RESET/set_config assignment fails with startup-context SQLSTATE `55P02`,
+including same values and DEFAULT. RESET ALL leaves their values unchanged.
+There is no configuration/HBA/ident file loading, data-directory selection,
+PID-file creation, reload or restart effect. These strings neither change
+logical database contents nor configure authentication or persistence.
+
 ## Foreign data wrappers
 
 Register a handler and validator implemented in Go, then create the SQL objects:

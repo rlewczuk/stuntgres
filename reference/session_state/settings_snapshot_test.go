@@ -3,6 +3,8 @@ package reference_test
 import (
 	"database/sql"
 	"reflect"
+	"sort"
+	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -75,10 +77,10 @@ func TestReferenceSettingsUtilitySnapshotOwnership(t *testing.T) {
 					}
 				}
 				expected := make(map[string]string)
-				for _, row := range settingsSnapshotExpectedRows() {
+				for _, row := range settingsSnapshotExpectedRows(backend.PG) {
 					expected[row[0]] = row[1]
 				}
-				selectedRows, selectedIndex := settingsSnapshotExpectedRows(), 0
+				selectedRows, selectedIndex := settingsSnapshotExpectedRows(backend.PG), 0
 				for rows.Next() {
 					var name, value, description string
 					if err := rows.Scan(&name, &value, &description); err != nil {
@@ -115,8 +117,8 @@ func TestReferenceSettingsUtilitySnapshotOwnership(t *testing.T) {
 	}
 }
 
-func settingsSnapshotExpectedRows() [][]string {
-	return [][]string{
+func settingsSnapshotExpectedRows(postgres bool) [][]string {
+	rows := [][]string{
 		{"application_name", "initial"},
 		{"bytea_output", "hex"},
 		{"client_encoding", "UTF8"},
@@ -152,4 +154,11 @@ func settingsSnapshotExpectedRows() [][]string {
 		{"transaction_read_only", "off"},
 		{"transaction_timeout", "0"},
 	}
+	if !postgres {
+		for _, def := range physicalSettings {
+			rows = append(rows, []string{def.name, def.value})
+		}
+		sort.Slice(rows, func(i, j int) bool { return strings.ToLower(rows[i][0]) < strings.ToLower(rows[j][0]) })
+	}
+	return rows
 }

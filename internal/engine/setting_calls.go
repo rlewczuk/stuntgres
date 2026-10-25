@@ -152,6 +152,14 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 		e.Mu.Unlock()
 		return Result{}, catalog.Conflict{}
 	}
+	readRestricted := false
+	if s.Name == "current_setting" {
+		readRestricted, err = current.CanReadRestrictedSettings()
+		if err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+	}
 	owner := op.Session.Settings
 	locked := true
 	unlock := func() { op.Session.Mu.Unlock(); owner.Mu.Unlock(); e.Mu.Unlock() }
@@ -167,7 +175,7 @@ func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall
 	}
 	var output sqltype.Value
 	if s.Name == "current_setting" {
-		if output, err = owner.CurrentSettingLocked(op.Ctx, e.Settings, typ, inputs[0]); err != nil {
+		if output, err = owner.CurrentSettingLocked(op.Ctx, e.Settings, typ, inputs[0], readRestricted); err != nil {
 			return Result{}, err
 		}
 	} else {

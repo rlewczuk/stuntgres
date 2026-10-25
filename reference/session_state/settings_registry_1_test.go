@@ -250,6 +250,10 @@ func TestReferenceSettingsRegistryPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rows.Close()
+	physicalExpected := make(map[string]string, len(physicalSettings))
+	for _, def := range physicalSettings {
+		physicalExpected[def.name] = def.value
+	}
 	for rows.Next() {
 		var name, value, description string
 		if err = rows.Scan(&name, &value, &description); err != nil {
@@ -258,9 +262,18 @@ func TestReferenceSettingsRegistryPublication(t *testing.T) {
 		if name == "demo.mode" && (value != "safe" || description != "original") {
 			t.Fatal(name, value, description)
 		}
+		if want, selected := physicalExpected[name]; selected {
+			if value != want {
+				t.Fatal(name, value, want)
+			}
+			delete(physicalExpected, name)
+		}
 	}
 	if err = rows.Err(); err != nil {
 		t.Fatal(err)
+	}
+	if len(physicalExpected) != 0 {
+		t.Fatal("missing physical registry rows", physicalExpected)
 	}
 	if err = db.Close(); err != nil {
 		t.Fatal(err)
@@ -337,6 +350,9 @@ func TestReferenceSettingsShowAllPlaceholdersAndLifecycle(t *testing.T) {
 		"transaction_read_only": "off", "client_encoding": "UTF8", "lc_messages": "C",
 		"lc_monetary": "C", "lc_numeric": "C", "lc_time": "C",
 		"icu_validation_level": "warning", "extra_float_digits": "1",
+	}
+	for _, def := range physicalSettings {
+		expected[def.name] = def.value
 	}
 	for _, v := range settingsDefinitionsForTest() {
 		value := v.Default

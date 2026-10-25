@@ -119,6 +119,16 @@ func (v AuthorizationView) WithCurrentUser(principal authorization.PrincipalRef)
 	return v, v.Roles.ValidatePrincipal(principal)
 }
 
+// CanReadRestrictedSettings uses only the captured effective principal and
+// INHERIT closure. SET membership and authenticated identity confer no read.
+func (v AuthorizationView) CanReadRestrictedSettings() (bool, error) {
+	target, ok := v.Roles.Lookup("pg_read_all_settings")
+	if !ok {
+		return false, fmt.Errorf("stuntgres: missing pg_read_all_settings role")
+	}
+	return v.Roles.InheritsRole(v.State.CurrentUser, target.Ref)
+}
+
 // CheckViewRowMarks checks the stored and inherited row marks of a view
 // source with the current user as invoker. Without either it checks nothing.
 func (v AuthorizationView) CheckViewRowMarks(relation *catalog.Relation, mark plan.RowMark) error {

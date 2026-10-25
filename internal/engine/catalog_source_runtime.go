@@ -54,11 +54,18 @@ func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	facts := make([]pgcatalog.SettingsFact, len(r.registry.Order()))
+	readRestricted, err := r.Auth.CanReadRestrictedSettings()
+	if err != nil {
+		return nil, err
+	}
+	facts := make([]pgcatalog.SettingsFact, 0, len(r.registry.Order()))
 	s := r.settings
 	s.Mu.Lock()
-	for i, name := range r.registry.Order() {
+	for _, name := range r.registry.Order() {
 		d := r.registry.Definitions()[name]
+		if d.ReadRestricted && !readRestricted {
+			continue
+		}
 		value := s.TypedValue(name)
 		switch name {
 		case "transaction_isolation":
@@ -71,13 +78,16 @@ func (r EngineCatalogRuntime) SessionSettings(ctx context.Context) ([]pgcatalog.
 			value = settings.Value{Boolean: s.CurrentDeferrable}
 		}
 		source := "default"
+		if d.NativeStartup != nil && !d.NativeStartup.ResetNull {
+			source = "override"
+		}
 		if s.ProviderDefaults[name] {
 			source = "client"
 		}
 		if _, present := s.Values[name]; present {
 			source = "session"
 		}
-		facts[i] = pgcatalog.SettingsFact{Definition: d, Value: value, Reset: s.DefaultTyped[name], Source: source}
+		facts = append(facts, pgcatalog.SettingsFact{Definition: d, Value: value, Reset: s.DefaultTyped[name], Source: source})
 	}
 	s.Mu.Unlock()
 	if err := ctx.Err(); err != nil {

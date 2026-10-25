@@ -152,6 +152,11 @@ func TestReferenceSettingsBuiltinRegistry(t *testing.T) {
 						"lc_monetary": "C", "lc_numeric": "C", "lc_time": "C",
 						"icu_validation_level": "warning", "extra_float_digits": "1",
 					}
+					if !backend.PG {
+						for _, def := range physicalSettings {
+							expected[def.name] = def.value
+						}
+					}
 					query := "SHOW ALL"
 					if backend.Name == "postgres" {
 						expected["TimeZone"] = "Etc/UTC"

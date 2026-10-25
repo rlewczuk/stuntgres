@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/sqlstate"
 )
 
 // SettingAccess checks whether d may be set at all: startup-only and
@@ -26,6 +27,19 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 			}
 		}
 		return sqlError("42501", fmt.Sprintf(`permission denied to set parameter "%s"`, d.Name))
+	}
+	return nil
+}
+
+// SettingReadAccess applies the captured effective user's restricted-read
+// authority. Requested spelling belongs in the PostgreSQL diagnostic.
+func SettingReadAccess(d settings.Definition, requested string, allowed bool) error {
+	if d.ReadRestricted && !allowed {
+		return &sqlstate.Error{
+			Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501",
+			Message: fmt.Sprintf(`permission denied to examine "%s"`, requested),
+			Detail:  `Only roles with privileges of the "pg_read_all_settings" role may examine this parameter.`,
+		}
 	}
 	return nil
 }

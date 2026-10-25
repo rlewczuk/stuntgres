@@ -47,24 +47,43 @@ const (
 	Minutes
 )
 
+// StartupDefault is a builtin's simulated initial assignment, distinct from its
+// nullable PostgreSQL boot metadata. It is immutable registry-owned metadata.
+type StartupDefault struct {
+	Value     string
+	ResetNull bool
+}
+
 // Definition is immutable shared metadata, never session value storage.
 type Definition struct {
-	Name, Description, BootDefault string
-	Category, ExtraDescription     string
+	Name, Description, BootDefault  string
+	Category, ExtraDescription      string
 	Type                           Type
 	Access                         Access
 	Unit                           Unit
-	IntegerMin, IntegerMax         int32
-	FloatMin, FloatMax             float64
+	IntegerMin, IntegerMax          int32
+	FloatMin, FloatMax              float64
 	EnumValues                     []string
+	BootDefaultNull, ReadRestricted bool
+	NativeStartup                  *StartupDefault
 	// Normalize is reserved for builtin behavior; registration has no callbacks.
-	Normalize func(string) (string, *sqlstate.Error, error)
-	bootValue Value
+	Normalize    func(string) (string, *sqlstate.Error, error)
+	bootValue    Value
+	startupValue Value
 }
 
 // BootValue returns the exact captured default, without reparsing display text.
 // Its path slice is borrowed immutable storage and must not be changed.
 func (d Definition) BootValue() Value { return d.bootValue }
+
+// DefaultValue returns the captured effective native startup default. Current
+// values are typed non-NULL strings even when boot/reset metadata is SQL NULL.
+func (d Definition) DefaultValue() Value {
+	if d.NativeStartup != nil {
+		return d.startupValue
+	}
+	return d.bootValue
+}
 
 // DisplayName returns PostgreSQL's mixed-case spelling for diagnostics.
 func DisplayName(name string) string {
@@ -128,6 +147,9 @@ func Validate(d Definition) (Definition, error) {
 	d.Name = FoldName(d.Name)
 	d.Category = "Customized Options"
 	d.ExtraDescription = ""
+	if d.BootDefaultNull || d.ReadRestricted || d.NativeStartup != nil {
+		return d, registrationError("builtin-only setting metadata")
+	}
 	if !CustomName(d.Name) || d.Type > Enum || d.Access > Privileged || d.Unit > Minutes || !utf8.ValidString(d.Description) || strings.IndexByte(d.Description, 0) >= 0 {
 		return d, registrationError("invalid setting definition")
 	}

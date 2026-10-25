@@ -66,14 +66,21 @@ implement its slots, so either import would form a cycle.
 - **Settings store** (`settings_store.go`): `SettingsStore` (values, defaults,
   provider provenance, SET LOCAL and role setting actions, characteristic
   projections) and `SettingsMark`. Default providers run once at physical
-  startup, never for metadata reads or RESET. The settings cores
+  startup, never for metadata reads or RESET.
+  Effective defaults use the registry's cached `DefaultValue`, separately from
+  nullable boot/reset metadata. Startup-only provider values must equal that
+  effective default; identical supplied values retain provider provenance. The settings cores
   (`Presentation`, `LookupDefinition`, `ParseValue`, `SetInput`,
   `SettingAccess`) parse and check without installing. Under the root's
   install window, `AdmitLocked` checks the operation and attachment;
   `ApplyLocked`, `ResetAllLocked` and `ShowAllRowsLocked` (`setting_install.go`)
   install, reset and list values; `CurrentSettingLocked` and
   `SetConfigInputLocked` (`setting_calls.go`) decode the setting-function
-  arguments. Each takes the `settings.Registry` and domain as values. DISCARD
+  arguments. Individual reads take explicit restricted-read authority captured
+  by the engine from effective CurrentUser and INHERIT membership. `SettingReadAccess`
+  rejects restricted individual reads; `ShowAllRowsLocked` omits their rows.
+  Prepared execution receives fresh authority, never a prepare-time capability.
+  Each takes the `settings.Registry` and domain as values. DISCARD
   ALL's identity reset (`discard_role_reset.go`): `DiscardRoleReset` computes
   it, `ValidateRoleResetLocked` checks it against an `authorization.Read`, and
   `Operation.FinishDiscardRoleResetLocked` installs it after publication. The
@@ -293,7 +300,8 @@ survival, the `lc_messages` access callback, the UUID v1 allocator, the
 protocol codec, statement classification and statement data views. Engine
 tests (in `internal/engine`) cover the host and root slots, catalog fences,
 column-shape projections, data-view and snapshot capture, and settings
-provider capture.
+provider capture. Metadata unit fixtures capture validated operation authority
+before reading settings; a zero or incomplete role view is not a visibility grant.
 
 ```sh
 make check RUN='^Test(AssignModesValidation|CharacteristicModeMapping|Journal|NoticesFilter|Notification(Queue|RegistryEndLocked|Publication)|Owner(ChainModes|PrepareRefusalOrder)|PreparedRegistry|ProtocolCodec|ClassifyControl|AbortedControlAllowed|ReadOnlyRefusal|ExplicitUtilityRefusal|TransactionalSchemaAdmission|StatementPhases|DataView|PrivateStorage|CommittedRoots|NeedsSnapshotProjection|SerializableWriteSurvives|SettingAccessAllowedCallback|Settings(Local|ResetAllLocked|ShowAllRowsLocked)|SessionCharacteristicSetting|UUIDOsspTime)'

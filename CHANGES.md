@@ -1,3 +1,10 @@
+File-location settings now expose deterministic, explicitly simulated startup
+labels through SHOW, current_setting and pg_settings, including exact nullable
+boot/reset metadata. Effective-user read privileges filter aggregate rows and
+are rechecked by held prepared readers. Individual assignments retain the
+startup-only refusal; no files, storage placement, authentication rules or
+process lifecycle are changed.
+
 The `stuntgres` server's new `--reference DB=URL` option (repeatable,
 requires `-q`) runs database DB in dual-backend mode: every command is also
 sent to the real PostgreSQL server at URL, clients still receive stuntgres's
