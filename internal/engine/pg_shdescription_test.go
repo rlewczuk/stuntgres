@@ -138,7 +138,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 		plan.LiteralExpr{Info: expr.Info{Usage: oidUsage}, Value: oid},
 		plan.LiteralExpr{Info: expr.Info{Usage: nameUsage}, Value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
-	value, err := expr.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(&StatementScope{Inquiry: inquirySnapshot{commentRoles: roles, CommentCatalog: catalog}})}})
+	value, err := expr.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(&StatementScope{Inquiry: NewInquiry(InquiryFields{CommentRoles: roles, CommentCatalog: catalog})})}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +323,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	if nested.NestedInputs == nil || nested.NestedInputs.NestedInputs == nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, nested.NestedInputs.NestedInputs), map[uint32]string{20000: "old"}) {
 		t.Fatal("nested opening lost saved roles")
 	}
-	pgShDescriptionUnitInquiry(t, e, scope.Inquiry.commentRoles, scope.Inquiry.CommentCatalog, 20000, new("old"))
+	pgShDescriptionUnitInquiry(t, e, InquiryCommentRoles(&scope.Inquiry), scope.Inquiry.CommentCatalog, 20000, new("old"))
 	fresh := &StatementScope{Op: op, Owner: op.Session.Transactions}
 	e.Mu.Lock()
 	err = e.CaptureCommentSnapshotLocked(fresh)

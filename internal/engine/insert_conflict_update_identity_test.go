@@ -119,7 +119,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			if err != nil || result.Count != 1 || result.Rows != nil {
 				t.Fatal(result, err)
 			}
-			if scope.LockedRef != ref || scope.lockedIdentityOnly ||
+			if scope.LockedRef != ref || MutationTargetLockedIdentityOnly(&scope.StatementMutation.MutationTarget) ||
 				(scope.LockedStorage != nil) != mode.storage ||
 				(mode.storage && scope.LockedStorage != e.Storage.Relations[ref.Address]) {
 				t.Fatal("exact target fence", scope.LockedRef, scope.LockedStorage, mode.storage)

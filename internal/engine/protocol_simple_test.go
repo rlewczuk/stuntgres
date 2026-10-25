@@ -56,7 +56,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	scope.ReplacementRead = true
 	rows := exec.NewFinalRows(nil, 0)
 	calls := 0
-	PayloadPreparedSQL(PayloadOf(session)).portals = map[string]*protocolPortal{"": {tx: ref, rows: protocolDisposalProbe{RowResult: rows, close: func() error {
+	SetPreparedRegistryPortals(PayloadPreparedSQL(PayloadOf(session)), map[string]*ProtocolPortal{"": NewPortal(PortalFields{Tx: ref, Rows: protocolDisposalProbe{RowResult: rows, close: func() error {
 		calls++
 		if !owner.Admission.TryLock() {
 			t.Error("disposal held admission")
@@ -74,8 +74,8 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 			e.ReplacementMu.Unlock()
 		}
 		return rows.Close()
-	}}}}
-	if err := scope.beginProtocolSimplePortal(); err != nil {
+	}}})})
+	if err := ScopeBeginProtocolSimplePortal(scope); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 1 || !rows.Closed || scope.TxRef != ref || scope.CommandID != command || owner.Ref != ref || owner.Command != command || !scope.ReplacementRead || owner.CopyLease != nil {
@@ -83,10 +83,10 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	}
 	// The same attached owner must support subsequent real output reservation;
 	// no stale reservation or replay may survive portal replacement.
-	if err := scope.protocolSimpleIO(func() error { calls++; return nil }); err != nil {
+	if err := ScopeProtocolSimpleIO(scope, func() error { calls++; return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.beginProtocolSimplePortal(); err != nil || calls != 2 {
+	if err := ScopeBeginProtocolSimplePortal(scope); err != nil || calls != 2 {
 		t.Fatal("replacement replayed disposal or prevented reservation reuse", calls, err)
 	}
 }
@@ -130,11 +130,11 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			source.Close()
 			t.Fatal(err)
 		}
-		p := &protocolPortal{producer: &sqlCursor{root: root, Source: source, state: state, stage: &stage}}
-		defer p.close(context.Background())
+		p := NewPortal(PortalFields{Producer: NewCursor(CursorFields{Root: root, Source: source, State: state, Stage: &stage})})
+		defer PortalClose(p, context.Background())
 		row := make([]sqltype.Value, 2)
 		for i := range 4 {
-			present, err := p.next(context.Background(), row)
+			present, err := PortalNext(p, context.Background(), row)
 			if err != nil || !present || calls != i+1 {
 				t.Fatal("planned graph replayed or looked ahead", present, calls, err)
 			}

@@ -30,18 +30,18 @@ type deleteAdmissionContext struct {
 func (c *deleteAdmissionContext) Err() error {
 	c.checks++
 	a := &c.engine.ReplacementMu
-	a.mu.Lock()
-	c.lost = c.lost || a.readers != 1 || a.writing
-	a.mu.Unlock()
+	ReplacementAdmissionMuRef(a).Lock()
+	c.lost = c.lost || ReplacementAdmissionReaders(a) != 1 || ReplacementAdmissionWriting(a)
+	ReplacementAdmissionMuRef(a).Unlock()
 	return c.Context.Err()
 }
 
 func deleteReplacementAdmissionEmpty(t *testing.T, e *Engine) {
 	t.Helper()
 	a := &e.ReplacementMu
-	a.mu.Lock()
-	readers, writers, writing := a.readers, a.writers, a.writing
-	a.mu.Unlock()
+	ReplacementAdmissionMuRef(a).Lock()
+	readers, writers, writing := ReplacementAdmissionReaders(a), ReplacementAdmissionWriters(a), ReplacementAdmissionWriting(a)
+	ReplacementAdmissionMuRef(a).Unlock()
 	if readers != 0 || writers != 0 || writing {
 		t.Fatalf("residual replacement admission: readers=%d writers=%d writing=%t", readers, writers, writing)
 	}
@@ -102,9 +102,9 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 	}()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		e.ReplacementMu.mu.Lock()
-		waiting := e.ReplacementMu.writers == 1 && e.ReplacementMu.readers == 1 && !e.ReplacementMu.writing
-		e.ReplacementMu.mu.Unlock()
+		ReplacementAdmissionMuRef(&e.ReplacementMu).Lock()
+		waiting := ReplacementAdmissionWriters(&e.ReplacementMu) == 1 && ReplacementAdmissionReaders(&e.ReplacementMu) == 1 && !ReplacementAdmissionWriting(&e.ReplacementMu)
+		ReplacementAdmissionMuRef(&e.ReplacementMu).Unlock()
 		if waiting {
 			break
 		}

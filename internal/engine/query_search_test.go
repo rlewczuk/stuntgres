@@ -262,14 +262,14 @@ func TestQuerySearchSignature(t *testing.T) {
 		}
 		expected := StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: left}}}
 		actual := StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: right}}}
-		if err := checkStatementSignature(expected, actual); err != nil {
+		if err := CheckStatementSignature(expected, actual); err != nil {
 			t.Fatal(err)
 		}
 		expected.Parameters.Count = 1
 		actual.Parameters.Count = 1
 		expected.Parameters.Types = []sqltype.Usage{left}
 		actual.Parameters.Types = []sqltype.Usage{right}
-		if err := checkStatementSignature(expected, actual); err == nil {
+		if err := CheckStatementSignature(expected, actual); err == nil {
 			t.Fatal("parameter shape relaxed")
 		}
 	}
@@ -282,10 +282,10 @@ func TestQuerySearchSignature(t *testing.T) {
 	}
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, named.Usage(), false)
-		expected := StatementDescription{catalogOwner: &New().Catalog.Owner, Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}}
+		expected := *NewDescription(DescriptionFields{CatalogOwner: &New().Catalog.Owner, Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}})
 		actual := expected
-		actual.catalogOwner = &New().Catalog.Owner
-		if err := checkStatementSignature(expected, actual); err == nil {
+		SetDescriptionCatalogOwner(&actual, &New().Catalog.Owner)
+		if err := CheckStatementSignature(expected, actual); err == nil {
 			t.Fatal("catalog leaf owner fence relaxed")
 		}
 	}

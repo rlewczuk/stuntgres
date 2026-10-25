@@ -47,7 +47,7 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 			}
 			formal := analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, tc.formal)}}
 			frame := make([]sqltype.Value, 1)
-			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.Ctx, formal, frame, scope.Input)
+			err = ScopeSQLExecuteImporter(scope, &parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.Ctx, formal, frame, scope.Input)
 			if !e.Mu.TryLock() {
 				t.Fatal("SQL actual importer retained engine mutex")
 			}
@@ -56,7 +56,7 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			if scope.Inquiry.CommentCatalog.State() != nil || scope.Inquiry.deparseAuth.RoleRecord != nil || scope.Inquiry.visibilityCatalog.State() != nil || scope.Inquiry.DeparsePath != nil {
+			if scope.Inquiry.CommentCatalog.State() != nil || InquiryDeparseAuth(&scope.Inquiry).RoleRecord != nil || InquiryVisibilityCatalog(&scope.Inquiry).State() != nil || scope.Inquiry.DeparsePath != nil {
 				t.Fatal("primitive/dead actual captured catalog environment")
 			}
 			if frame[0].Type() != formal.Types[0].Type {
@@ -90,7 +90,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "length"}}},
 		Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "owned"}}},
 	}
-	importer := scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{actual}}, true)
+	importer := ScopeSQLExecuteImporter(scope, &parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{actual}}, true)
 	formal := analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}
 	frame := make([]sqltype.Value, 1)
 	var original []exec.RoutineCall

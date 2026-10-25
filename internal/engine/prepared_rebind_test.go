@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func preparedRebindValid(t *testing.T, e *Engine, s *session.Session, cell *preparedAnalysis) bool {
+func preparedRebindValid(t *testing.T, e *Engine, s *session.Session, cell *PreparedAnalysis) bool {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -32,7 +32,7 @@ func preparedRebindValid(t *testing.T, e *Engine, s *session.Session, cell *prep
 	if err != nil {
 		t.Fatal(err)
 	}
-	return e.preparedAnalysisValidLocked(auth, cell, path)
+	return EnginePreparedAnalysisValidLocked(e, auth, cell, path)
 }
 
 func TestPreparedRebindValidity(t *testing.T) {
@@ -42,12 +42,12 @@ func TestPreparedRebindValidity(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	_, d := sequencePreparedDescription(t, e, s, "SELECT l.v,r.v FROM t AS l CROSS JOIN t AS r")
-	cell := d.analysis
-	if cell == nil || len(cell.sources) != 2 {
+	cell := DescriptionAnalysis(&d)
+	if cell == nil || len(PreparedAnalysisSources(cell)) != 2 {
 		t.Fatal("occurrences were collapsed", cell)
 	}
 	var source ids.ObjectRef
-	for _, occurrence := range cell.sources {
+	for _, occurrence := range PreparedAnalysisSources(cell) {
 		if source == (ids.ObjectRef{}) {
 			source = occurrence.Ref
 		}
@@ -56,7 +56,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		}
 	}
 	relations := 0
-	for _, dependency := range cell.dependencies {
+	for _, dependency := range PreparedAnalysisDependencies(cell) {
 		if dependency.Ref.Address.ClassID == ids.RelationClassID {
 			relations++
 			if dependency.Ref != source {
@@ -74,12 +74,12 @@ func TestPreparedRebindValidity(t *testing.T) {
 		}
 	}
 	foreign := *cell
-	foreign.domain = &ids.Domain{}
+	SetPreparedAnalysisDomain(&foreign, &ids.Domain{})
 	if preparedRebindValid(t, e, s, &foreign) {
 		t.Fatal("foreign owner was accepted")
 	}
 	private := *cell
-	private.private = &session.Journal{}
+	SetPreparedAnalysisPrivate(&private, &session.Journal{})
 	if preparedRebindValid(t, e, s, &private) {
 		t.Fatal("different private catalog certified")
 	}
@@ -89,28 +89,28 @@ func TestPreparedRebindValidity(t *testing.T) {
 	}
 	_, pathDescription := sequencePreparedDescription(t, e, s, "SELECT v FROM t")
 	sessionSQL(t, s, "SET search_path TO b,a")
-	if preparedRebindValid(t, e, s, pathDescription.analysis) {
+	if preparedRebindValid(t, e, s, DescriptionAnalysis(&pathDescription)) {
 		t.Fatal("effective path reorder ignored")
 	}
 	_, dependencyDescription := sequencePreparedDescription(t, e, s, "SELECT v FROM b.t")
 	sessionSQL(t, s, "ALTER TABLE b.t ADD unused INT")
-	if preparedRebindValid(t, e, s, dependencyDescription.analysis) {
+	if preparedRebindValid(t, e, s, DescriptionAnalysis(&dependencyDescription)) {
 		t.Fatal("dependency definition change ignored")
 	}
 	_, removed := sequencePreparedDescription(t, e, s, "SELECT v FROM b.t")
 	sessionSQL(t, s, "DROP TABLE b.t")
-	if preparedRebindValid(t, e, s, removed.analysis) {
+	if preparedRebindValid(t, e, s, DescriptionAnalysis(&removed)) {
 		t.Fatal("missing dependency accepted")
 	}
 	sessionSQL(t, s, "CREATE TABLE b.t(v INT)")
-	if preparedRebindValid(t, e, s, removed.analysis) {
+	if preparedRebindValid(t, e, s, DescriptionAnalysis(&removed)) {
 		t.Fatal("replacement dependency reused old identity")
 	}
 	_, native := sequencePreparedDescription(t, e, s, "SELECT v FROM b.t")
 	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if preparedRebindValid(t, e, s, native.analysis) {
+	if preparedRebindValid(t, e, s, DescriptionAnalysis(&native)) {
 		t.Fatal("replacement catalog kept validity")
 	}
 	t.Run("PrivateRollback", func(t *testing.T) {
@@ -120,11 +120,11 @@ func TestPreparedRebindValidity(t *testing.T) {
 			sessionSQL(t, privateSession, q)
 		}
 		_, retained := sequencePreparedDescription(t, privateEngine, privateSession, "SELECT v FROM pg_temp.rollback_source")
-		if !preparedRebindValid(t, privateEngine, privateSession, retained.analysis) {
+		if !preparedRebindValid(t, privateEngine, privateSession, DescriptionAnalysis(&retained)) {
 			t.Fatal("private analysis was not initially valid")
 		}
 		sessionSQL(t, privateSession, "ROLLBACK TO before_temp")
-		if preparedRebindValid(t, privateEngine, privateSession, retained.analysis) {
+		if preparedRebindValid(t, privateEngine, privateSession, DescriptionAnalysis(&retained)) {
 			t.Fatal("rolled-back private metadata retained validity")
 		}
 		sessionSQL(t, privateSession, "ROLLBACK")
@@ -151,16 +151,16 @@ func TestPreparedRebindValidity(t *testing.T) {
 		sessionSQL(t, caller, "SET SESSION AUTHORIZATION acl_reader")
 		ast, description := sequencePreparedDescription(t, engine, caller, "SELECT v FROM t")
 		qualifiedAST, qualified := sequencePreparedDescription(t, engine, caller, "SELECT v FROM b.t")
-		if description.analysis == nil || len(description.analysis.sources) != 1 || qualified.analysis == nil || len(qualified.analysis.sources) != 1 {
+		if DescriptionAnalysis(&description) == nil || len(PreparedAnalysisSources(DescriptionAnalysis(&description))) != 1 || DescriptionAnalysis(&qualified) == nil || len(PreparedAnalysisSources(DescriptionAnalysis(&qualified))) != 1 {
 			t.Fatal("missing initial prepared namespace identities")
 		}
 		bound := engine.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: late.Address, Name: "t"})[0]
-		for _, source := range description.analysis.sources {
+		for _, source := range PreparedAnalysisSources(DescriptionAnalysis(&description)) {
 			if source.Ref.Address != bound {
 				t.Fatal("inaccessible early schema participated in initial resolution")
 			}
 		}
-		initial := description.analysis
+		initial := DescriptionAnalysis(&description)
 		set(early, usage)
 		if preparedRebindValid(t, engine, caller, initial) {
 			t.Fatal("real schema-USAGE callback retained validity")
@@ -171,10 +171,10 @@ func TestPreparedRebindValidity(t *testing.T) {
 		}
 		result.Rows.Close()
 		bound = engine.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: early.Address, Name: "t"})[0]
-		if description.analysis == initial {
+		if DescriptionAnalysis(&description) == initial {
 			t.Fatal("schema-USAGE invalidation did not publish a new identity cell")
 		}
-		for _, source := range description.analysis.sources {
+		for _, source := range PreparedAnalysisSources(DescriptionAnalysis(&description)) {
 			if source.Ref.Address != bound {
 				t.Fatal("schema-USAGE grant did not rebind to early identity")
 			}
@@ -190,7 +190,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for schema b" || diagnostic.Position != "15" {
 			t.Fatal("schema denial lost ordinary source-positioned authority diagnostic", err)
 		}
-		if qualified.analysis != original.analysis || !reflect.DeepEqual(qualified.Parameters, original.Parameters) || !reflect.DeepEqual(qualified.Results, original.Results) {
+		if DescriptionAnalysis(&qualified) != DescriptionAnalysis(&original) || !reflect.DeepEqual(qualified.Parameters, original.Parameters) || !reflect.DeepEqual(qualified.Results, original.Results) {
 			t.Fatal("schema denial published candidate identities or signatures")
 		}
 		set(late, usage)
@@ -199,7 +199,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 			t.Fatal("same qualified handle did not recover schema-USAGE", err)
 		}
 		result.Rows.Close()
-		if qualified.analysis == original.analysis {
+		if DescriptionAnalysis(&qualified) == DescriptionAnalysis(&original) {
 			t.Fatal("schema-USAGE repair kept invalid analysis")
 		}
 	})
@@ -220,7 +220,7 @@ func TestPreparedRebindDependencyManifest(t *testing.T) {
 	} {
 		_, description := sequencePreparedDescription(t, e, s, query)
 		seen := make(map[ids.ObjectAddress]bool)
-		for _, dependency := range description.analysis.dependencies {
+		for _, dependency := range PreparedAnalysisDependencies(DescriptionAnalysis(&description)) {
 			seen[dependency.Ref.Address] = true
 		}
 		for _, name := range []string{"t", "dep", "inner_view", "outer_view"} {
@@ -262,10 +262,10 @@ func TestPreparedRebindPublication(t *testing.T) {
 		if len(first.Prepared.Temporals) != 4 {
 			t.Fatal("missing logical and genuine temporal captures", first.Prepared.Temporals)
 		}
-		description := StatementDescription{Parameters: first.Parameters, Results: first.Query.Root.Schema(), Temporals: first.Prepared.Temporals, catalogOwner: &engine.Catalog.Owner, catalogEpoch: engine.CatalogRead().Epoch()}
+		description := *NewDescription(DescriptionFields{Parameters: first.Parameters, Results: first.Query.Root.Schema(), Temporals: first.Prepared.Temporals, CatalogOwner: &engine.Catalog.Owner, CatalogEpoch: engine.CatalogRead().Epoch()})
 		frozen := append([]analyze.TemporalConstant(nil), first.Prepared.Temporals...)
 		run(t, engine, "ALTER TYPE mood RENAME VALUE 'q' TO 'end'")
-		description.refreshTemporals = true
+		SetDescriptionRefreshTemporals(&description, true)
 		fresh := bind(sqltype.InputEnvironment{TransactionStart: time.Date(2004, 8, 8, 12, 13, 14, 0, time.UTC)}, &description)
 		if len(fresh.Prepared.Temporals) != len(frozen) {
 			t.Fatal("candidate lost captures", fresh.Prepared.Temporals)
@@ -284,7 +284,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		engine := New()
 		session := sessionStart(t, engine, nil)
 		ast, description := sequencePreparedDescription(t, engine, session, "VALUES(TIMESTAMP 'now',('{now}'::timestamp[])[1])")
-		if len(description.Temporals) != 2 || description.analysis == nil {
+		if len(description.Temporals) != 2 || DescriptionAnalysis(&description) == nil {
 			t.Fatal("missing initial VALUES analysis", description.Temporals)
 		}
 		original := description
@@ -294,7 +294,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			result.Rows.Close()
-			if description.analysis != original.analysis || len(description.Temporals) != 2 || &description.Temporals[0] != &original.Temporals[0] {
+			if DescriptionAnalysis(&description) != DescriptionAnalysis(&original) || len(description.Temporals) != 2 || &description.Temporals[0] != &original.Temporals[0] {
 				t.Fatal("unchanged VALUES use replaced retained capture state")
 			}
 		}
@@ -305,14 +305,14 @@ func TestPreparedRebindPublication(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT t.*,TIMESTAMP 'now','{now}'::timestamp[],nextval('q'),'integer'::regtype FROM t")
-	if len(d.Temporals) < 2 || d.Sequences == nil || d.regtypes == nil || d.analysis == nil {
+	if len(d.Temporals) < 2 || d.Sequences == nil || DescriptionRegtypes(&d) == nil || DescriptionAnalysis(&d) == nil {
 		t.Fatal("missing genuine capture groups")
 	}
 	before := d
-	sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
+	sequenceBefore, regtypeBefore := *d.Sequences, *DescriptionRegtypes(&d)
 	assertUnchanged := func() {
 		t.Helper()
-		if d.analysis != before.analysis || len(d.Temporals) != len(before.Temporals) || &d.Temporals[0] != &before.Temporals[0] || d.Sequences != before.Sequences || d.regtypes != before.regtypes || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) || !reflect.DeepEqual(d.Parameters, before.Parameters) || !reflect.DeepEqual(d.Results, before.Results) {
+		if DescriptionAnalysis(&d) != DescriptionAnalysis(&before) || len(d.Temporals) != len(before.Temporals) || &d.Temporals[0] != &before.Temporals[0] || d.Sequences != before.Sequences || DescriptionRegtypes(&d) != DescriptionRegtypes(&before) || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*DescriptionRegtypes(&d), regtypeBefore) || !reflect.DeepEqual(d.Parameters, before.Parameters) || !reflect.DeepEqual(d.Results, before.Results) {
 			t.Fatal("failed analysis published retained state")
 		}
 	}
@@ -339,10 +339,10 @@ func TestPreparedRebindPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if d.analysis == before.analysis || len(d.Temporals) != len(before.Temporals) || &d.Temporals[0] == &before.Temporals[0] || d.Sequences != before.Sequences || d.regtypes != before.regtypes {
+	if DescriptionAnalysis(&d) == DescriptionAnalysis(&before) || len(d.Temporals) != len(before.Temporals) || &d.Temporals[0] == &before.Temporals[0] || d.Sequences != before.Sequences || DescriptionRegtypes(&d) != DescriptionRegtypes(&before) {
 		t.Fatal("complete group did not publish together")
 	}
-	if err := checkStatementSignature(before, d); err != nil {
+	if err := CheckStatementSignature(before, d); err != nil {
 		t.Fatal(err)
 	}
 	stable := d
@@ -351,13 +351,13 @@ func TestPreparedRebindPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if d.analysis != stable.analysis || len(d.Temporals) != len(stable.Temporals) || &d.Temporals[0] != &stable.Temporals[0] || d.Sequences != stable.Sequences || d.regtypes != stable.regtypes {
+	if DescriptionAnalysis(&d) != DescriptionAnalysis(&stable) || len(d.Temporals) != len(stable.Temporals) || &d.Temporals[0] != &stable.Temporals[0] || d.Sequences != stable.Sequences || DescriptionRegtypes(&d) != DescriptionRegtypes(&stable) {
 		t.Fatal("valid use allocated retained state")
 	}
 
 	// Successful analysis publication precedes importing execution values.
 	parameterAST, parameterDescription := sequencePreparedDescription(t, e, s, "SELECT $1::int,TIMESTAMP 'now' FROM t")
-	old := parameterDescription.analysis
+	old := DescriptionAnalysis(&parameterDescription)
 	sessionSQL(t, s, "ALTER TABLE t ADD unused INT")
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -374,7 +374,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		return importFailure
 	})
 	err = scope.Finish(err)
-	if !errors.Is(err, importFailure) || parameterDescription.analysis == old {
+	if !errors.Is(err, importFailure) || DescriptionAnalysis(&parameterDescription) == old {
 		t.Fatal("analysis publication incorrectly depended on importer success", err)
 	}
 	t.Run("NativeProvenancePublishesNothing", func(t *testing.T) {
@@ -385,7 +385,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		}
 		ast, description := sequencePreparedDescription(t, engine, session, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('source_q'),'integer'::regtype FROM source")
 		old := description
-		sequence, regtype := *description.Sequences, *description.regtypes
+		sequence, regtype := *description.Sequences, *DescriptionRegtypes(&description)
 		if err := Reset(context.Background(), engine); err != nil {
 			t.Fatal(err)
 		}
@@ -397,7 +397,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 			result.Rows.Close()
 			t.Fatal("retired provenance exposed rows")
 		}
-		if !errors.Is(err, ids.ErrCatalogReplaced) || description.analysis != old.analysis || len(description.Temporals) != len(old.Temporals) || &description.Temporals[0] != &old.Temporals[0] || !reflect.DeepEqual(*description.Sequences, sequence) || !reflect.DeepEqual(*description.regtypes, regtype) {
+		if !errors.Is(err, ids.ErrCatalogReplaced) || DescriptionAnalysis(&description) != DescriptionAnalysis(&old) || len(description.Temporals) != len(old.Temporals) || &description.Temporals[0] != &old.Temporals[0] || !reflect.DeepEqual(*description.Sequences, sequence) || !reflect.DeepEqual(*DescriptionRegtypes(&description), regtype) {
 			t.Fatal("native lifetime rejection published capture/identity state", err)
 		}
 	})

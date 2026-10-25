@@ -27,7 +27,7 @@ func triggerUnitAdmit(t *testing.T, s *StatementScope, relation *catalog.Relatio
 	if err := s.Gate(statement); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.acquireRelationTarget(statement, statement, true, false); err != nil {
+	if err := ScopeAcquireRelationTarget(s, statement, statement, true, false); err != nil {
 		t.Fatal(err)
 	}
 }

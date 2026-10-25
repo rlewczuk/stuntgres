@@ -37,7 +37,7 @@ func discardUnitApply(t *testing.T, session *session.Session, category parser.Di
 	t.Helper()
 	op, scope := discardUnitScope(t, session, context.Background(), category)
 	defer op.Done()
-	_, err := scope.executeDiscard(&parser.Discard{Category: category}, 0)
+	_, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: category}, 0)
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}
@@ -54,28 +54,28 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			PayloadOf(b).Sequences.DemandLocked(address).SetLocked(8, true)
 			PayloadOf(a).Sequences.RecordLastLocked(address)
 			PayloadOf(b).Sequences.RecordLastLocked(address)
-			entry := &sqlPreparedStatement{body: &parser.Select{}}
-			PayloadPreparedSQL(PayloadOf(a)).entries["p"], PayloadPreparedSQL(PayloadOf(b)).entries["p"] = entry, entry
+			entry := NewPreparedStatement(PreparedStatementFields{Body: &parser.Select{}})
+			PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(a)))["p"], PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(b)))["p"] = entry, entry
 			var tx ids.TxRef
 			if category != parser.DiscardAll {
 				tx = transactionBegin(t, a)
 			}
-			cursor := &sqlCursor{root: &plan.ProjectNode{}, authority: &exec.Authority{}}
-			cursor.tx = tx
+			cursor := NewCursor(CursorFields{Root: &plan.ProjectNode{}, Authority: &exec.Authority{}})
+			SetCursorTx(cursor, tx)
 			PayloadOf(a).Cursors.Entries["c"] = cursor
 			resources, serial, ticket, catalog, roles := a.Resources, a.Serial, a.Advisory.Ticket, e.Catalog.State, e.RoleStore.Published
 			discardUnitApply(t, a, category)
 			if a.Resources != resources || a.Serial != serial || a.Advisory.Ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
-			if e.Catalog.State != catalog || e.RoleStore.Published != roles || PayloadPreparedSQL(PayloadOf(b)).entries["p"] != entry || !currvalIs(PayloadOf(b).Sequences.Memory(address), 8) || PayloadOf(b).Sequences.Last() != address || b.DiscardPlansGeneration != 0 {
+			if e.Catalog.State != catalog || e.RoleStore.Published != roles || PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(b)))["p"] != entry || !currvalIs(PayloadOf(b).Sequences.Memory(address), 8) || PayloadOf(b).Sequences.Last() != address || b.DiscardPlansGeneration != 0 {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {
-				if len(PayloadPreparedSQL(PayloadOf(a)).entries) != 0 || len(PayloadOf(a).Cursors.Entries) != 0 || cursor.root != nil || cursor.authority.Host != nil {
+				if len(PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(a)))) != 0 || len(PayloadOf(a).Cursors.Entries) != 0 || CursorRoot(cursor) != nil || CursorAuthority(cursor).Host != nil {
 					t.Fatal("ALL did not dispose actual registries")
 				}
-			} else if PayloadPreparedSQL(PayloadOf(a)).entries["p"] != entry || PayloadOf(a).Cursors.Entries["c"] != cursor || cursor.root == nil {
+			} else if PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(a)))["p"] != entry || PayloadOf(a).Cursors.Entries["c"] != cursor || CursorRoot(cursor) == nil {
 				t.Fatal("subset deallocated definitions/cursors")
 			}
 			if category == parser.DiscardPlans {
@@ -106,7 +106,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 				if before {
 					cancel()
 				}
-				result, err := scope.executeDiscard(&parser.Discard{Category: category}, 0)
+				result, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: category}, 0)
 				if before {
 					if !errors.Is(err, context.Canceled) || scope.Completed || s.DiscardPlansGeneration != 0 || PayloadOf(s).Sequences.Memory(address) == nil {
 						t.Fatal("canceled preflight installed effects", err)
@@ -138,7 +138,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 		defer cancel()
 		op, scope := discardUnitScope(t, s, ctx, parser.DiscardTemp)
 		defer op.Done()
-		_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardTemp}, 0)
+		_, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardTemp}, 0)
 		if err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
@@ -183,11 +183,11 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		sessionSQL(t, s, "CREATE TABLE discard_signature_capture(v int)")
 		sessionSQL(t, s, "CREATE SEQUENCE discard_signature_seq")
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT *,TIMESTAMP 'now',nextval('discard_signature_seq'),'integer'::regtype FROM discard_signature_capture")
-		if len(d.Temporals) == 0 || d.Sequences == nil || d.regtypes == nil {
+		if len(d.Temporals) == 0 || d.Sequences == nil || DescriptionRegtypes(&d) == nil {
 			t.Fatal("missing real capture groups")
 		}
 		before := d
-		sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
+		sequenceBefore, regtypeBefore := *d.Sequences, *DescriptionRegtypes(&d)
 		sessionSQL(t, s, "ALTER TABLE discard_signature_capture ADD COLUMN other text")
 		discardUnitApply(t, s, parser.DiscardPlans)
 		for range 2 {
@@ -200,7 +200,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 			if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "0A000" || err.Error() != "stuntgres: cached plan must not change result type" {
 				t.Fatal("changed signature admitted", err)
 			}
-			if d.planOwner != before.planOwner || d.planGeneration != before.planGeneration || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(d.Results, before.Results) || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
+			if DescriptionPlanOwner(&d) != DescriptionPlanOwner(&before) || DescriptionPlanGeneration(&d) != DescriptionPlanGeneration(&before) || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(d.Results, before.Results) || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*DescriptionRegtypes(&d), regtypeBefore) {
 				t.Fatal("signature rejection published capture group or stamp")
 			}
 		}
@@ -211,7 +211,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		sessionSQL(t, s, "CREATE SEQUENCE discard_retired_seq")
 		ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now',nextval('discard_retired_seq'),'integer'::regtype")
 		before := d
-		sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
+		sequenceBefore, regtypeBefore := *d.Sequences, *DescriptionRegtypes(&d)
 		if err := Reset(context.Background(), e); err != nil {
 			t.Fatal(err)
 		}
@@ -226,7 +226,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 			if !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("DISCARD rescued retired sequence provenance", err)
 			}
-			if d.planOwner != before.planOwner || d.planGeneration != before.planGeneration || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
+			if DescriptionPlanOwner(&d) != DescriptionPlanOwner(&before) || DescriptionPlanGeneration(&d) != DescriptionPlanGeneration(&before) || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*DescriptionRegtypes(&d), regtypeBefore) {
 				t.Fatal("replacement rejection published capture group or stamp")
 			}
 		}
@@ -237,13 +237,13 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	// only fixture construction, not a duplicate public response witness.
 	sessionSQL(t, s, "CREATE SEQUENCE discard_capture_seq")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT TIMESTAMP 'now','{now}'::timestamp[],nextval('discard_capture_seq'),'integer'::regtype")
-	if len(d.Temporals) < 2 || d.Sequences == nil || d.regtypes == nil || d.planOwner != s.SessionToken {
+	if len(d.Temporals) < 2 || d.Sequences == nil || DescriptionRegtypes(&d) == nil || DescriptionPlanOwner(&d) != s.SessionToken {
 		t.Fatal("missing complete private capture fixture")
 	}
 	original := d
-	sequenceCell, regtypeCell := d.Sequences, d.regtypes
+	sequenceCell, regtypeCell := d.Sequences, DescriptionRegtypes(&d)
 	discardUnitApply(t, s, parser.DiscardPlans)
-	if d.planGeneration != original.planGeneration || &d.Temporals[0] != &original.Temporals[0] {
+	if DescriptionPlanGeneration(&d) != DescriptionPlanGeneration(&original) || &d.Temporals[0] != &original.Temporals[0] {
 		t.Fatal("discard eagerly mutated descriptions")
 	}
 	result, err := sequencePreparedExecute(e, s, ast, &d)
@@ -251,10 +251,10 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if d.planGeneration != s.DiscardPlansGeneration || d.planOwner != s.SessionToken || d.Sequences != sequenceCell || d.regtypes != regtypeCell || &d.Temporals[0] == &original.Temporals[0] {
+	if DescriptionPlanGeneration(&d) != s.DiscardPlansGeneration || DescriptionPlanOwner(&d) != s.SessionToken || d.Sequences != sequenceCell || DescriptionRegtypes(&d) != regtypeCell || &d.Temporals[0] == &original.Temporals[0] {
 		t.Fatal("capture groups not lazily refreshed together")
 	}
-	if err := checkStatementSignature(original, d); err != nil {
+	if err := CheckStatementSignature(original, d); err != nil {
 		t.Fatal("DISCARD changed fixed signature", err)
 	}
 	stable := d
@@ -263,7 +263,7 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if &d.Temporals[0] != &stable.Temporals[0] || d.Sequences != stable.Sequences || d.regtypes != stable.regtypes {
+	if &d.Temporals[0] != &stable.Temporals[0] || d.Sequences != stable.Sequences || DescriptionRegtypes(&d) != DescriptionRegtypes(&stable) {
 		t.Fatal("unchanged generation allocated capture state")
 	}
 	// A genuine missing dependency fails reanalysis before publishing any stamp
@@ -271,16 +271,16 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 	sessionSQL(t, s, "DROP SEQUENCE discard_capture_seq")
 	discardUnitApply(t, s, parser.DiscardPlans)
 	before := d
-	sequenceBefore, regtypeBefore := *d.Sequences, *d.regtypes
+	sequenceBefore, regtypeBefore := *d.Sequences, *DescriptionRegtypes(&d)
 	_, err = sequencePreparedExecute(e, s, ast, &d)
-	if err == nil || d.planGeneration != before.planGeneration || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*d.regtypes, regtypeBefore) {
+	if err == nil || DescriptionPlanGeneration(&d) != DescriptionPlanGeneration(&before) || &d.Temporals[0] != &before.Temporals[0] || !reflect.DeepEqual(*d.Sequences, sequenceBefore) || !reflect.DeepEqual(*DescriptionRegtypes(&d), regtypeBefore) {
 		t.Fatal("failed group published captures", err)
 	}
 	s.DiscardPlansGeneration = ^uint64(0)
-	PayloadPreparedSQL(PayloadOf(s)).entries["p"] = &sqlPreparedStatement{body: ast, description: d}
+	PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(s)))["p"] = NewPreparedStatement(PreparedStatementFields{Body: ast, Description: d})
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
-	_, err = scope.executeDiscard(&parser.Discard{Category: parser.DiscardAll}, 0)
-	if err == nil || PayloadPreparedSQL(PayloadOf(s)).entries["p"] == nil || scope.Completed {
+	_, err = ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardAll}, 0)
+	if err == nil || PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(s)))["p"] == nil || scope.Completed {
 		t.Fatal("generation exhaustion installed effects", err)
 	}
 	scope.Finish(err)
@@ -313,7 +313,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		}
 	}
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
-	_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardTemp}, 0)
+	_, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardTemp}, 0)
 	if err != nil {
 		scope.Finish(err)
 		op.Done()
@@ -406,7 +406,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					sessionSQL(t, s, "SAVEPOINT original")
 				}
 				op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
-				_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardTemp}, 0)
+				_, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardTemp}, 0)
 				if err != nil {
 					scope.Finish(err)
 					op.Done()
@@ -462,20 +462,20 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				rows.Rows.Close()
 			}
 			cursor := PayloadOf(s).Cursors.Entries["c"]
-			if cursor.root == nil || len(cursor.leaves) == 0 {
+			if CursorRoot(cursor) == nil || len(CursorLeaves(cursor)) == 0 {
 				t.Fatal("missing actual retained source manifest")
 			}
 			catalog, namespace := e.Catalog.State, s.TemporaryNamespace
 			op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
-			_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardTemp}, 0)
-			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.Catalog != nil || ScopeProjectedRoots(scope) || e.Catalog.State != catalog || s.TemporaryNamespace != namespace || cursor.root == nil {
+			_, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardTemp}, 0)
+			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.Catalog != nil || ScopeProjectedRoots(scope) || e.Catalog.State != catalog || s.TemporaryNamespace != namespace || CursorRoot(cursor) == nil {
 				scope.Finish(err)
 				op.Done()
 				t.Fatal("live cursor preflight installed effects or lost source", err)
 			}
 			// The concrete ALL composition owns CLOSE at its eventual successful
 			// frontier, so its staged closure must not reject the same source.
-			if err := scope.stageDiscardTemporary(true); err != nil {
+			if err := ScopeStageDiscardTemporary(scope, true); err != nil {
 				scope.Finish(err)
 				op.Done()
 				t.Fatal("ALL staging failed its CLOSE exemption", err)
@@ -521,7 +521,7 @@ func TestDiscardConfiguredReset(t *testing.T) {
 	before := s.Authorization.State
 	s.Authorization.Revision = ^uint64(0)
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
-	_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardAll}, 0)
+	_, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardAll}, 0)
 	if err == nil || !reflect.DeepEqual(before, s.Authorization.State) || scope.Completed {
 		t.Fatal("revision exhaustion installed effects", err)
 	}

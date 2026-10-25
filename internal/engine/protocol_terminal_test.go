@@ -47,8 +47,8 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	rows := exec.NewFinalRows(columns, 1)
 	rows.Values = []sqltype.Value{value}
 	disposals := 0
-	p := &protocolPortal{tx: scope.TxRef, born: 1, entry: sqlPreparedStatement{body: &parser.Select{}}, columns: columns, started: true, context: session.ProtocolContext{Source: "retained source"}}
-	p.rows = protocolDisposalProbe{RowResult: rows, close: func() error {
+	p := NewPortal(PortalFields{Tx: scope.TxRef, Born: 1, Entry: *NewPreparedStatement(PreparedStatementFields{Body: &parser.Select{}}), Columns: columns, Started: true, Context: session.ProtocolContext{Source: "retained source"}})
+	SetPortalRows(p, protocolDisposalProbe{RowResult: rows, close: func() error {
 		disposals++
 		if op.Context().Err() == nil {
 			t.Error("disposal did not exercise canceled operation")
@@ -69,8 +69,8 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 			e.ReplacementMu.Unlock()
 		}
 		return rows.Close()
-	}}
-	PayloadPreparedSQL(PayloadOf(sess)).portals = map[string]*protocolPortal{"p": p}
+	}})
+	SetPreparedRegistryPortals(PayloadPreparedSQL(PayloadOf(sess)), map[string]*ProtocolPortal{"p": p})
 	e.ReplacementMu.RLock()
 	scope.ReplacementRead = true
 	_, err = scope.ExecuteProtocolPortal("p", 0, func(fields []session.ProtocolField) error {
@@ -83,21 +83,21 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if !errors.Is(err, primary) || disposals != 1 || !rows.Closed {
 		t.Fatal("failed executor lost primary or retained resources", err, disposals)
 	}
-	if p.retired || PayloadPreparedSQL(PayloadOf(sess)).portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
+	if PortalRetired(p) || PreparedRegistryPortals(PayloadPreparedSQL(PayloadOf(sess)))["p"] != p || PortalContext(p).Source != "retained source" || len(PortalColumns(p)) != 1 || PortalRows(p) != nil || PortalProducer(p) != nil || PortalRow(p) != nil || PortalScratch(p) != nil {
 		t.Fatal("failed resource release removed identity or retained executor buffers")
 	}
 	// Restoring a frontier that includes this owner keeps its identity, without
 	// reacquiring resources or repeating terminal callbacks.
 	scope.Owner.Mu.Lock()
-	retireProtocolPortalsAfter(scope.Owner, 1)
+	RetireProtocolPortalsAfter(scope.Owner, 1)
 	scope.Owner.Mu.Unlock()
-	if err := DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadPreparedSQL(PayloadOf(sess)).portals["p"] != p || disposals != 1 {
+	if err := DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PreparedRegistryPortals(PayloadPreparedSQL(PayloadOf(sess)))["p"] != p || disposals != 1 {
 		t.Fatal("older failed identity did not survive frontier", err, disposals)
 	}
 	scope.Owner.Mu.Lock()
-	retireProtocolPortalsAfter(scope.Owner, 0)
+	RetireProtocolPortalsAfter(scope.Owner, 0)
 	scope.Owner.Mu.Unlock()
-	if err := DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadPreparedSQL(PayloadOf(sess)).portals["p"] != nil || disposals != 1 {
+	if err := DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PreparedRegistryPortals(PayloadPreparedSQL(PayloadOf(sess)))["p"] != nil || disposals != 1 {
 		t.Fatal("retirement leaked identity or repeated executor disposal", err, disposals)
 	}
 }
@@ -118,7 +118,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scope.protocol().command = wire
+			SetProtocolScopeCommand(ScopeProtocol(scope), wire)
 			defer scope.Finish(context.Canceled)
 			cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 			cancel(cause)

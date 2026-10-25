@@ -123,15 +123,15 @@ func TestPLpgSQLCursorLookupBeforeCount(t *testing.T) {
 	t.Run("retained_identity", func(t *testing.T) {
 		_, s := cursorUnitScope(t)
 		registry := PayloadOf(s.Op.Session).Cursors
-		original := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch()}
+		original := NewCursor(CursorFields{Tx: s.TxRef, Epoch: s.TxRef.Epoch()})
 		registry.Entries["retained"] = original
-		retained, err := s.resolveCursorPortal("retained")
+		retained, err := ScopeResolveCursorPortal(s, "retained")
 		if err != nil || retained != original {
 			t.Fatal("lookup did not retain exact portal", err)
 		}
-		replacement := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch()}
+		replacement := NewCursor(CursorFields{Tx: s.TxRef, Epoch: s.TxRef.Epoch()})
 		registry.Entries["retained"] = replacement
-		_, err = s.fetchCursorPortal(retained, &parser.FetchCursor{Name: parser.Identifier{Text: "retained"}, Count: 1})
+		_, err = ScopeFetchCursorPortal(s, retained, &parser.FetchCursor{Name: parser.Identifier{Text: "retained"}, Count: 1})
 		var got *sqlstate.Error
 		if !errors.As(err, &got) || got.Code != "34000" || registry.Entries["retained"] != replacement || replacement.Place != exec.CursorBefore {
 			t.Fatal("motion redirected retained identity to replacement", err)
@@ -148,12 +148,12 @@ func TestPLpgSQLCursorInstallationNames(t *testing.T) {
 	root := &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: seven}}}
 	root.QuerySchema = []catalog.Column{{Name: "i", Usage: integer.Usage()}}
 	declaration := &parser.DeclareCursor{Name: parser.Identifier{Text: "immutable_request"}}
-	install := func(name *string, closed *int) (*sqlCursor, string, error) {
+	install := func(name *string, closed *int) (*SQLCursor, string, error) {
 		restore := s.activateSQLRoutine(nil, read)
 		SetScopeAuthority(s, &exec.Authority{Host: HostOf(s)})
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}, NestedStage: &exec.Stage{Finish: func() error { (*closed)++; return nil }}}
-		cursor, actual, err := s.installCursor(declaration, name, root, source, nil, true)
+		cursor, actual, err := ScopeInstallCursor(s, declaration, name, root, source, nil, true)
 		return cursor, actual, restore(err)
 	}
 	closed := 0
@@ -166,17 +166,17 @@ func TestPLpgSQLCursorInstallationNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry := PayloadOf(s.Op.Session).Cursors
-	if firstName == "" || firstName == secondName || registry.Entries[firstName] != first || registry.Entries[secondName] != second || first.ordinal >= second.ordinal || declaration.Name.Text != "immutable_request" || closed != 0 {
+	if firstName == "" || firstName == secondName || registry.Entries[firstName] != first || registry.Entries[secondName] != second || CursorOrdinal(first) >= CursorOrdinal(second) || declaration.Name.Text != "immutable_request" || closed != 0 {
 		t.Fatal("late allocation changed syntax, identity or live ownership")
 	}
-	ordinal := registry.ordinal
+	ordinal := CursorsOrdinal(registry)
 	duplicate, actual, err := install(&firstName, &closed)
 	var got *sqlstate.Error
-	if !errors.As(err, &got) || got.Code != "42P03" || duplicate != nil || actual != "" || registry.Entries[firstName] != first || registry.ordinal != ordinal || closed != 1 {
+	if !errors.As(err, &got) || got.Code != "42P03" || duplicate != nil || actual != "" || registry.Entries[firstName] != first || CursorsOrdinal(registry) != ordinal || closed != 1 {
 		t.Fatal("final install overwrote a live identity or leaked failed source", err)
 	}
 	for _, name := range []string{firstName, secondName} {
-		if _, err := s.closeCursor(&parser.CloseCursor{Name: parser.Identifier{Text: name}}); err != nil {
+		if _, err := ScopeCloseCursor(s, &parser.CloseCursor{Name: parser.Identifier{Text: name}}); err != nil {
 			t.Fatal(err)
 		}
 	}

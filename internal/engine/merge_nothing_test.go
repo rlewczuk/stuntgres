@@ -98,7 +98,7 @@ func TestMergeNothingPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, query, false)
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), ScopeMergeInput(scope, op.Context(), b, target, nil, nil, "public"), &cursor, query, false)
 			if err != nil {
 				t.Fatal(err)
 			}

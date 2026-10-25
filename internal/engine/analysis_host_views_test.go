@@ -25,7 +25,7 @@ func TestAnalysisHostReadsStoredViews(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	read := e.CatalogRead()
-	auth := authorityOf(catalogAuthorization(e, read))
+	auth := AuthorityOf(catalogAuthorization(e, read))
 	host := e.AnalysisHost(nil)
 	relation := func(name string) plan.Node {
 		return &plan.SourceNode{Ref: catalogRef(t, e, read, name)}

@@ -66,23 +66,23 @@ func TestPreparedSQLSessionOwner(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	r := PayloadPreparedSQL(PayloadOf(a))
-	if r == nil || a.Resources[session.PreparedSQL] == nil || a.Resources[session.PreparedSQL].Owner != r || r.token != a.SessionToken {
+	if r == nil || a.Resources[session.PreparedSQL] == nil || a.Resources[session.PreparedSQL].Owner != r || PreparedRegistryToken(r) != a.SessionToken {
 		t.Fatal("missing attached session owner")
 	}
-	entry := &sqlPreparedStatement{body: &parser.Select{}}
-	r.entries["p"] = entry
-	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || r.entries["p"] != entry {
+	entry := NewPreparedStatement(PreparedStatementFields{Body: &parser.Select{}})
+	PreparedRegistryEntries(r)["p"] = entry
+	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || PreparedRegistryEntries(r)["p"] != entry {
 		t.Fatal("foreign end mutated registry", err)
 	}
-	if err := r.EndSession(a.SessionToken, session.InitFailure); err != nil || len(r.entries) != 0 {
+	if err := r.EndSession(a.SessionToken, session.InitFailure); err != nil || len(PreparedRegistryEntries(r)) != 0 {
 		t.Fatal("end did not clear definitions", err)
 	}
 	if a.Resources[session.PreparedSQL].Owner != r {
 		t.Fatal("clearing detached owner")
 	}
-	r.entries["p"] = entry
+	PreparedRegistryEntries(r)["p"] = entry
 	a.RequestEnd(session.CleanClose)
-	if err := a.WaitEnd(context.Background()); err != nil || len(r.entries) != 0 {
+	if err := a.WaitEnd(context.Background()); err != nil || len(PreparedRegistryEntries(r)) != 0 {
 		t.Fatal("physical cleanup retained definition", err)
 	}
 	if PayloadPreparedSQL(PayloadOf(b)) == r {
@@ -107,11 +107,11 @@ func TestPreparedSQLCanceledPublication(t *testing.T) {
 	if err := scope.Gate(raw); err != nil {
 		t.Fatal(err)
 	}
-	entry := &sqlPreparedStatement{body: &parser.Select{}}
-	PayloadPreparedSQL(PayloadOf(session)).entries["p"] = entry
+	entry := NewPreparedStatement(PreparedStatementFields{Body: &parser.Select{}})
+	PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(session)))["p"] = entry
 	cancel()
-	_, err = scope.executeDeallocateSQL(raw, 0)
-	if !errors.Is(err, context.Canceled) || PayloadPreparedSQL(PayloadOf(session)).entries["p"] != entry || scope.Completed {
+	_, err = ScopeExecuteDeallocateSQL(scope, raw, 0)
+	if !errors.Is(err, context.Canceled) || PreparedRegistryEntries(PayloadPreparedSQL(PayloadOf(session)))["p"] != entry || scope.Completed {
 		t.Fatal("canceled publication mutated owner", err)
 	}
 	if finish := scope.Finish(err); !errors.Is(finish, context.Canceled) {

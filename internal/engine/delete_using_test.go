@@ -47,7 +47,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	if err != nil || r.Count != 3 || calls != 3 {
 		t.Fatal(r, err, calls)
 	}
-	got := tuples(outcomeResult(r))
+	got := tuples(OutcomeResult(r))
 	r.Rows.Close()
 	if !reflect.DeepEqual(got, [][]driver.Value{{int64(2), int64(20), "same", nil}, {int64(2), int64(20), "same", nil}, {int64(3), int64(30), "third", nil}}) {
 		t.Fatal(got)
@@ -198,7 +198,7 @@ func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 	if err != nil || r.Count != 2 {
 		t.Fatal(r, err)
 	}
-	got := tuples(outcomeResult(r))
+	got := tuples(OutcomeResult(r))
 	r.Rows.Close()
 	if !reflect.DeepEqual(got, [][]driver.Value{{int64(11), int64(100)}, {int64(20), int64(200)}}) {
 		t.Fatal(got)

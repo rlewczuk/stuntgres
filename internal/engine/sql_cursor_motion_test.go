@@ -12,19 +12,19 @@ func TestSQLCursorScrollRetainedEOFAndMotion(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")
 	c := PayloadOf(s).Cursors.Entries["c"]
 	first := cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
-	stage := c.stage
+	stage := CursorStage(c)
 	if stage == nil || stage.Closed || c.OrdinalPosition != 3 || !c.AtEnd || c.CurrentSource != nil {
 		t.Fatal("EOF destroys retained tree or keeps lineage", c)
 	}
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2)}})
 	result, err := cursorUnitExecute(t, s, context.Background(), "MOVE BACKWARD ALL FROM c")
-	if err != nil || result.Count != 1 || result.Rows != nil || c.Place != exec.CursorBefore || c.CurrentSource != nil || c.stage != stage || c.authority.Host != nil {
+	if err != nil || result.Count != 1 || result.Rows != nil || c.Place != exec.CursorBefore || c.CurrentSource != nil || CursorStage(c) != stage || CursorAuthority(c).Host != nil {
 		t.Fatal(result, err, c)
 	}
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "CLOSE c")
-	if !stage.Closed || c.Source != nil || c.authority.Expression != nil {
+	if !stage.Closed || c.Source != nil || CursorAuthority(c).Expression != nil {
 		t.Fatal("close leaks retained tree", c)
 	}
 	if first.Count != 3 {
@@ -42,8 +42,8 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	c := PayloadOf(s).Cursors.Entries["c"]
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1), int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2), int64(4)}})
-	stage := c.stage
-	if stage == nil || stage.Position != 2 || !stage.Retain || !c.state.IdentityReads {
+	stage := CursorStage(c)
+	if stage == nil || stage.Position != 2 || !stage.Retain || !CursorState(c).IdentityReads {
 		t.Fatal("motion and virtual frame retention did not compose", c)
 	}
 	// Selected ordinal zero is present; the sequential frontier at ordinal
@@ -51,7 +51,7 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(1), int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 3 FROM c", [][]driver.Value{{int64(3), nil}})
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{})
-	if c.stage != stage || stage.Closed || stage.Position != 3 || !c.AtEnd {
+	if CursorStage(c) != stage || stage.Closed || stage.Position != 3 || !c.AtEnd {
 		t.Fatal("EOF lost retained frame or frontier", c)
 	}
 	// At EOF the sequential frontier is outside the permutation. Identity
@@ -75,14 +75,14 @@ func TestSQLCursorStoredViewFrontier(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c SCROLL CURSOR FOR SELECT i FROM unit_cached_view")
 	c := PayloadOf(s).Cursors.Entries["c"]
 	move := sessionSQL(t, s, "MOVE NEXT FROM c")
-	source, stage := c.Source, c.stage
+	source, stage := c.Source, CursorStage(c)
 	child := source.NestedStage
 	if move.Count != 1 || move.Rows != nil || child == nil || child.Position != 1 || source.FlatCount != 1 || len(source.Flat) != 1 {
 		t.Fatal("partial view demand did not retain exactly one occurrence", move, source, child)
 	}
 	captured := source.Flat[0]
 	sessionSQL(t, s, "MOVE ABSOLUTE 0 FROM c")
-	if c.stage != stage || source.NestedStage != child || child.Position != 1 || source.FlatCount != 1 || len(source.Flat) != 1 || source.Flat[0] != captured {
+	if CursorStage(c) != stage || source.NestedStage != child || child.Position != 1 || source.FlatCount != 1 || len(source.Flat) != 1 || source.Flat[0] != captured {
 		t.Fatal("position-only rewind invalidates capture or loses child frontier", source, child)
 	}
 	cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})

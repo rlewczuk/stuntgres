@@ -29,7 +29,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 				if ScopeForeignActionsSlot(scope) != nil {
 					t.Fatal("unconstrained DML allocated exception/FK effect bookkeeping")
 				}
-				if err := scope.completeCommandEffects(false, false); err != nil {
+				if err := ScopeCompleteCommandEffects(scope, false, false); err != nil {
 					t.Fatal(err)
 				}
 				if ScopeForeignActionsSlot(scope) != nil {
@@ -74,7 +74,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			t.Fatal("incoming FK deletion lost its exact predecessor event", events)
 		}
 		var diagnostic *sqlstate.Error
-		if err := scope.completeCommandEffects(false, false); !errors.As(err, &diagnostic) || diagnostic.Code != "23503" {
+		if err := ScopeCompleteCommandEffects(scope, false, false); !errors.As(err, &diagnostic) || diagnostic.Code != "23503" {
 			t.Fatal("NOT VALID incoming FK was ignored at completion", err)
 		}
 	})
@@ -125,7 +125,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{a: {child}}
 		SetScopeForeignActionsSlot(s, &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: root, Command: 0}, {Relation: a, Old: root, Next: child, Command: 2}}})
 		SetScopeEffectCommand(s, 2)
-		if err := s.completeCommandEffects(false, true); err != nil {
+		if err := ScopeCompleteCommandEffects(s, false, true); err != nil {
 			t.Fatal(err)
 		}
 		events := ScopeForeignActionsSlot(s).Transitions
@@ -133,7 +133,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			t.Fatal("command ownership was a global suffix/RowID filter", events)
 		}
 		SetScopeEffectCommand(s, 0)
-		if err := s.completeCommandEffects(false, false); err != nil {
+		if err := ScopeCompleteCommandEffects(s, false, false); err != nil {
 			t.Fatal(err)
 		}
 		if !ScopeForeignActionsSlot(s).Transitions[0].Checked {
@@ -175,14 +175,14 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			scope.Stage.Rows[relation] = append(scope.Stage.Rows[relation], child)
 			scope.foreignActions().Transitions = append(scope.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: relation, Next: child, Command: 2})
 			SetScopeEffectCommand(scope, 2)
-			if err := scope.completeCommandEffects(false, true); err != nil {
+			if err := ScopeCompleteCommandEffects(scope, false, true); err != nil {
 				t.Fatal("child checked incomplete outer producer", err)
 			}
 			if ScopeForeignActionsSlot(scope).Transitions[0].Checked || len(scope.WriteHost().PrivateRows(ref.Address).Staged) < 1 {
 				t.Fatal("child hid/consumed outer visibility or obligation")
 			}
 			SetScopeEffectCommand(scope, 0)
-			err = scope.completeCommandEffects(false, false)
+			err = ScopeCompleteCommandEffects(scope, false, false)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "23503" {
 				t.Fatal("root lost its pending FK obligation", err)
@@ -209,7 +209,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		previous := scope.WriteHost().SwapForeignActionAuthority(auth)
 		defer scope.WriteHost().SwapForeignActionAuthority(previous)
 		ScopeForeignActionsSlot(scope).Settling = true
-		if err := scope.completeCommandEffects(false, false); err != nil {
+		if err := ScopeCompleteCommandEffects(scope, false, false); err != nil {
 			t.Fatal(err)
 		}
 		if !ScopeForeignActionsSlot(scope).Settling || scope.ForeignActionAuth != foreignAuthorizationOf(auth) {
@@ -230,7 +230,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			t.Fatal("same-row causal transitions collapsed", diamond)
 		}
 		count, frontier := len(ScopeForeignActionsSlot(scope).Transitions), e.Storage.VersionFrontier()
-		if err := scope.completeCommandEffects(false, false); err != nil {
+		if err := ScopeCompleteCommandEffects(scope, false, false); err != nil {
 			t.Fatal(err)
 		}
 		if len(ScopeForeignActionsSlot(scope).Transitions) != count || e.Storage.VersionFrontier() != frontier {

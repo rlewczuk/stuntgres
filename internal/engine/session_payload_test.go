@@ -13,10 +13,10 @@ func TestSessionPayloadHoldsRootResources(t *testing.T) {
 	if p == nil {
 		t.Fatal("started session has no payload")
 	}
-	if p.Cursors == nil || p.Cursors.token != s.SessionToken {
+	if p.Cursors == nil || CursorsToken(p.Cursors) != s.SessionToken {
 		t.Fatalf("payload cursors = %+v, want a registry for %v", p.Cursors, s.SessionToken)
 	}
-	if PayloadPreparedSQL(p) == nil || PayloadPreparedSQL(p).token != s.SessionToken {
+	if PayloadPreparedSQL(p) == nil || PreparedRegistryToken(PayloadPreparedSQL(p)) != s.SessionToken {
 		t.Fatalf("payload prepared registry = %+v, want a registry for %v", PayloadPreparedSQL(p), s.SessionToken)
 	}
 	if PayloadNotifications(p).Session != s || EngineOf(PayloadNotifications(p).Session) != e {

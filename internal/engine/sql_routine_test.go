@@ -105,12 +105,12 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	if err := result.Rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	var retained *preparedAnalysis
+	var retained *PreparedAnalysis
 	for _, entry := range PayloadSQLRoutines(PayloadOf(op.Session)) {
 		if len(entry.descriptions) != 1 {
 			t.Fatal("single-command retention shape", len(entry.descriptions))
 		}
-		retained = entry.descriptions[0].analysis
+		retained = DescriptionAnalysis(&entry.descriptions[0])
 	}
 	if retained == nil {
 		t.Fatal("body bypassed shared prepared analysis owner")
@@ -121,7 +121,7 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, entry := range PayloadSQLRoutines(PayloadOf(op.Session)) {
-		if len(entry.descriptions) != 1 || entry.descriptions[0].analysis != retained {
+		if len(entry.descriptions) != 1 || DescriptionAnalysis(&entry.descriptions[0]) != retained {
 			t.Fatal("unchanged body identity reanalyzed")
 		}
 	}

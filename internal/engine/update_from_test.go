@@ -115,7 +115,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 		t.Fatal(metadata)
 	}
 	original := append([]storage.RowVersion(nil), target.Committed...)
-	r, err := executeUpdate(op.Ctx, scope, b, target, from, nil, "public")
+	r, err := ExecuteUpdate(op.Ctx, scope, b, target, from, nil, "public")
 	if err != nil || r.Count != 2 {
 		scope.Finish(err)
 		op.Done()
@@ -169,7 +169,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 			})
 			out := b.Returning.Expressions[0]
 			b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { outputs++; return out.Eval(c) })
-			r, err := executeUpdate(op.Ctx, scope, b, target, from, nil, "public")
+			r, err := ExecuteUpdate(op.Ctx, scope, b, target, from, nil, "public")
 			if calls != 6 || outputs != 2 {
 				t.Fatal("pair versus successful-target demand", calls, outputs)
 			}
@@ -224,7 +224,7 @@ func TestUpdateFromImmediateGrantFreezesSource(t *testing.T) {
 	sessionSQL(t, a, "UPDATE s SET n=999")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
 	sessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
-	r, err := executeUpdate(op.Ctx, scope, b, target, from, nil, "public")
+	r, err := ExecuteUpdate(op.Ctx, scope, b, target, from, nil, "public")
 	if err != nil || r.Count != 2 {
 		t.Fatal(r, err)
 	}

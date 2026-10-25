@@ -66,7 +66,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 						return value, err
 					})
 				}
-				r, err := executeUpdate(ctx, scope, b, target, from, nil, "public")
+				r, err := ExecuteUpdate(ctx, scope, b, target, from, nil, "public")
 				wantCalls := 2
 				if phase == "source_rejected" || phase == "candidate_rejected" {
 					wantCalls = 3

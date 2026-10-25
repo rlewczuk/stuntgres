@@ -25,10 +25,10 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		sessionSQL(t, s, "DECLARE bad CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 		sessionSQL(t, s, "DECLARE ordinary CURSOR FOR SELECT i FROM unit_rows")
 		good, bad := PayloadOf(s).Cursors.Entries["good"], PayloadOf(s).Cursors.Entries["bad"]
-		goodPin, badPin, badCell := good.Source.View, bad.Source.View, bad.authority
-		original, calls := bad.root.Expressions[0], 0
+		goodPin, badPin, badCell := good.Source.View, bad.Source.View, CursorAuthority(bad)
+		original, calls := CursorRoot(bad).Expressions[0], 0
 		sentinel := errors.New("remaining projection failed")
-		bad.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
+		CursorRoot(bad).Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 			calls++
 			if calls == 2 {
 				return sqltype.Value{}, sentinel
@@ -37,7 +37,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		})
 		sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
-		if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || calls != 2 || !good.promoted || PayloadOf(s).Cursors.Entries["good"] != good || PayloadOf(s).Cursors.Entries["bad"] != nil || PayloadOf(s).Cursors.Entries["ordinary"] != nil || bad.values != nil || bad.Source != nil || badPin.Load() != nil || goodPin.Load() != nil || badCell.Host != nil || s.Transactions.State != session.TxIdle {
+		if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || calls != 2 || !CursorPromoted(good) || PayloadOf(s).Cursors.Entries["good"] != good || PayloadOf(s).Cursors.Entries["bad"] != nil || PayloadOf(s).Cursors.Entries["ordinary"] != nil || CursorValues(bad) != nil || bad.Source != nil || badPin.Load() != nil || goodPin.Load() != nil || badCell.Host != nil || s.Transactions.State != session.TxIdle {
 			t.Fatal("failed end retracts promotion or publishes pending store", result, err, calls)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM good", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
@@ -60,8 +60,8 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		sessionSQL(t, peer, "INSERT INTO hold_ssi VALUES(1,40)")
 		sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT nextval('hold_ssi_draw') AS n")
 		c := PayloadOf(s).Cursors.Entries["h"]
-		original, calls := c.root.Expressions[0], 0
-		c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
+		original, calls := CursorRoot(c).Expressions[0], 0
+		CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
 			calls++
 			return original.Eval(eval)
 		})
@@ -70,7 +70,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
 		serializableUnitDiagnostic(t, err, "Canceled on identification as a pivot, during commit attempt.")
 		after := serializableSnapshotPublication(e)
-		if result.Rows != nil || calls != 1 || !c.promoted || c.count != 1 || c.Source != nil || c.authority != nil || e.Catalog.State != before.catalog || e.Visibility.CommitSeq() != before.frontier || !reflect.DeepEqual(before.storage, after.storage) || !reflect.DeepEqual(before.indexes, after.indexes) {
+		if result.Rows != nil || calls != 1 || !CursorPromoted(c) || CursorCount(c) != 1 || c.Source != nil || CursorAuthority(c) != nil || e.Catalog.State != before.catalog || e.Visibility.CommitSeq() != before.frontier || !reflect.DeepEqual(before.storage, after.storage) || !reflect.DeepEqual(before.indexes, after.indexes) {
 			t.Fatal("final SSI failure retracts export or publishes private storage", result, calls)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM h", [][]driver.Value{{int64(10)}})
@@ -102,7 +102,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 			t.Fatal("installation classified as external completion", result, err)
 		}
 		c := PayloadOf(s).Cursors.Entries["implicit_h"]
-		pin, cell := c.Source.View, c.authority
+		pin, cell := c.Source.View, CursorAuthority(c)
 		cancel()
 		if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 			t.Fatal("implicit materialization cancellation suppressed", err)
@@ -157,7 +157,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR "+query)
 			c, ref := PayloadOf(s).Cursors.Entries["h"], s.Transactions.Ref
 			ticket := s.Transactions.Ticket
-			pin, cell := c.Source.View, c.authority
+			pin, cell := c.Source.View, CursorAuthority(c)
 			sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -167,8 +167,8 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 				sessionSQL(t, holder, "ALTER SEQUENCE hold_draw RESTART 20")
 				defer transactionEnd(t, holder, holderRef, false)
 			} else {
-				original, calls := c.root.Expressions[0], 0
-				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
+				original, calls := CursorRoot(c).Expressions[0], 0
+				CursorRoot(c).Expressions[0] = queryProbe(original.ResultUsage(), func(eval *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						close(entered)
@@ -220,7 +220,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			joined = true
-			if c.promoted || c.values != nil || c.Source != nil || c.stage != nil || pin.Load() != nil || cell.Host != nil || PayloadOf(s).Cursors.Entries["h"] != nil || s.Transactions.Ticket != nil || s.Transactions.State != session.TxIdle {
+			if CursorPromoted(c) || CursorValues(c) != nil || c.Source != nil || CursorStage(c) != nil || pin.Load() != nil || cell.Host != nil || PayloadOf(s).Cursors.Entries["h"] != nil || s.Transactions.Ticket != nil || s.Transactions.State != session.TxIdle {
 				t.Fatal("canceled commit retains partial store/producer/admission")
 			}
 			s.Mu.Lock()

@@ -25,14 +25,14 @@ func TestPGCursorsSource(t *testing.T) {
 	}
 	sessionSQL(t, s, "DECLARE own SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
 	cursor := PayloadOf(s).Cursors.Entries["own"]
-	original := cursor.root.Expressions[0]
+	original := CursorRoot(cursor).Expressions[0]
 	calls := 0
-	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+	CursorRoot(cursor).Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
 	source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
-	if err != nil || len(source.Anonymous) != 1 || calls != 0 || cursor.Place != exec.CursorBefore || cursor.stage != nil {
+	if err != nil || len(source.Anonymous) != 1 || calls != 0 || cursor.Place != exec.CursorBefore || CursorStage(cursor) != nil {
 		t.Fatal("metadata demanded producer", source, err, calls)
 	}
 	row := source.Anonymous[0]
@@ -47,7 +47,7 @@ func TestPGCursorsSource(t *testing.T) {
 	binary, _ := row[3].Boolean()
 	scroll, _ := row[4].Boolean()
 	instant, err := row[5].TimestampTime()
-	if name != "own" || statement != cursor.statement || !hold || binary || !scroll || err != nil || instant.IsZero() {
+	if name != "own" || statement != CursorStatement(cursor) || !hold || binary || !scroll || err != nil || instant.IsZero() {
 		t.Fatal("wrong cursor fact", row, err)
 	}
 	// A new catalog's consumer must receive its own timestamp descriptor,
@@ -55,14 +55,14 @@ func TestPGCursorsSource(t *testing.T) {
 	current := New()
 	currentDescriptor := current.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	currentRef := current.Catalog.Domain.Ref(current.Catalog.State.Epoch(), currentDescriptor.Address())
-	stored, epoch := cursor.created, cursor.epoch
+	stored, epoch := CursorCreated(cursor), CursorEpoch(cursor)
 	reowned, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: currentRef, Source: currentDescriptor, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
 	if err != nil {
 		t.Fatal(err)
 	}
 	projected := reowned.Anonymous[0][5]
 	projectedInstant, err := projected.TimestampTime()
-	if err != nil || !projectedInstant.Equal(instant) || projected.Type() != currentDescriptor.Columns[5].Usage.Type || projected.Type() == stored.Type() || cursor.created != stored || cursor.epoch != epoch || row[5] != stored || calls != 0 {
+	if err != nil || !projectedInstant.Equal(instant) || projected.Type() != currentDescriptor.Columns[5].Usage.Type || projected.Type() == stored.Type() || CursorCreated(cursor) != stored || CursorEpoch(cursor) != epoch || row[5] != stored || calls != 0 {
 		t.Fatal("timestamp projection changes datum, registry, prior result or producer", projected, err)
 	}
 	// A bad scalar identity is an error, never a fallback or partial source.
@@ -85,9 +85,9 @@ func TestPGCursorsSource(t *testing.T) {
 
 	// Restore the real expression, then explicitly fail the cursor producer.
 	// The recovered failed entry is still observable without rerunning it.
-	cursor.root.Expressions[0] = original
+	CursorRoot(cursor).Expressions[0] = original
 	sessionSQL(t, s, "SAVEPOINT recover")
-	cursor.root.Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
+	CursorRoot(cursor).Expressions[0] = queryProbe(original.ResultUsage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("failed producer")
 	})
@@ -113,7 +113,7 @@ func TestPGCursorsSource(t *testing.T) {
 		}
 	}
 	snapshot := append([]sqltype.Value(nil), source.Anonymous[0]...)
-	if err := disposeSQLCursors(context.Background(), PayloadOf(s).Cursors.clear()); err != nil {
+	if err := DisposeSQLCursors(context.Background(), CursorsClear(PayloadOf(s).Cursors)); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(source.Anonymous[0], snapshot) || len(PayloadOf(s).Cursors.Entries) != 0 {

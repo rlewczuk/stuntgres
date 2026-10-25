@@ -19,50 +19,50 @@ func TestProtocolPortalProducer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cursor := &sqlCursor{root: root, Source: source, state: state, stage: &stage}
-	p := &protocolPortal{producer: cursor}
+	cursor := NewCursor(CursorFields{Root: root, Source: source, State: state, Stage: &stage})
+	p := NewPortal(PortalFields{Producer: cursor})
 	row := make([]sqltype.Value, 1)
 	if calls != 0 {
 		t.Fatal("producer initialization demanded target", calls)
 	}
 	for i := range 4 {
-		present, err := p.next(context.Background(), row)
+		present, err := PortalNext(p, context.Background(), row)
 		if err != nil || !present || calls != i+1 || cursor.OrdinalPosition != int64(i+1) {
 			t.Fatal("finite demand replayed or looked ahead", present, calls, cursor.OrdinalPosition, err)
 		}
 	}
-	if present, err := p.next(context.Background(), row); err != nil || present || calls != 4 {
+	if present, err := PortalNext(p, context.Background(), row); err != nil || present || calls != 4 {
 		t.Fatal("exhaustion projected an extra target", present, calls, err)
 	}
 	// Savepoint retirement uses the canonical birth frontier without rewinding
 	// older demand or disposing a different transaction's exported owner.
 	session := sessionStart(t, e, nil)
 	owner := session.Transactions
-	p.tx, p.born = owner.Ref, 1
+	*PortalTxRef(p), *PortalBornRef(p) = owner.Ref, 1
 	newRows, foreignRows := exec.NewFinalRows(nil, 0), exec.NewFinalRows(nil, 0)
-	newPortal := &protocolPortal{tx: owner.Ref, born: 2, rows: newRows}
-	foreign := &protocolPortal{tx: owner.Ref, born: 3, rows: foreignRows}
-	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)
-	PayloadPreparedSQL(PayloadOf(session)).portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
+	newPortal := NewPortal(PortalFields{Tx: owner.Ref, Born: 2, Rows: newRows})
+	foreign := NewPortal(PortalFields{Tx: owner.Ref, Born: 3, Rows: foreignRows})
+	SetPortalTx(foreign, withTxID(PortalTx(foreign), PortalTx(foreign).ID()+1))
+	SetPreparedRegistryPortals(PayloadPreparedSQL(PayloadOf(session)), map[string]*ProtocolPortal{"old": p, "new": newPortal, "foreign": foreign})
 	owner.Mu.Lock()
-	retireProtocolPortalsAfter(owner, 1)
+	RetireProtocolPortalsAfter(owner, 1)
 	owner.Mu.Unlock()
-	if p.retired || !newPortal.retired || foreign.retired || cursor.OrdinalPosition != 4 {
+	if PortalRetired(p) || !PortalRetired(newPortal) || PortalRetired(foreign) || cursor.OrdinalPosition != 4 {
 		t.Fatal("savepoint frontier changed older position or foreign ownership")
 	}
 	if err := DrainCursorCleanup(owner, context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
-	if !newRows.Closed || foreignRows.Closed || p.producer == nil || stage.Closed || calls != 4 {
+	if !newRows.Closed || foreignRows.Closed || PortalProducer(p) == nil || stage.Closed || calls != 4 {
 		t.Fatal("savepoint retirement leaked new rows or disposed retained producer")
 	}
-	if err = p.close(context.Background()); err != nil {
+	if err = PortalClose(p, context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !stage.Closed || cursor.root != nil || cursor.Source != nil || cursor.stage != nil || p.producer != nil {
+	if !stage.Closed || CursorRoot(cursor) != nil || cursor.Source != nil || CursorStage(cursor) != nil || PortalProducer(p) != nil {
 		t.Fatal("terminal close retained producer")
 	}
-	if err = p.close(context.Background()); err != nil || calls != 4 {
+	if err = PortalClose(p, context.Background()); err != nil || calls != 4 {
 		t.Fatal("repeat close replayed/disposed inconsistently", err, calls)
 	}
 }

@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func cursorPromotedUnit(t *testing.T, s *StatementScope, name, column string, first int64) *sqlCursor {
+func cursorPromotedUnit(t *testing.T, s *StatementScope, name, column string, first int64) *SQLCursor {
 	t.Helper()
 	integer, ok := s.Engine().CatalogRead().LookupType(sqltype.Int4)
 	if !ok {
@@ -28,7 +28,7 @@ func cursorPromotedUnit(t *testing.T, s *StatementScope, name, column string, fi
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &sqlCursor{epoch: s.TxRef.Epoch(), promoted: true, hold: true, scroll: true, schema: []catalog.Column{{Name: column, Usage: integer.Usage()}}, values: []sqltype.Value{one, two}, count: 2}
+	c := NewCursor(CursorFields{Epoch: s.TxRef.Epoch(), Promoted: true, Hold: true, Scroll: true, Schema: []catalog.Column{{Name: column, Usage: integer.Usage()}}, Values: []sqltype.Value{one, two}, Count: 2})
 	PayloadOf(s.Op.Session).Cursors.Entries[name] = c
 	return c
 }
@@ -42,7 +42,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 					c := cursorPromotedUnit(t, s, "held", "i", 7)
 					s.Completed, *ScopeSessionCompletedRef(s) = completed, sessionCompleted
 					motion := &parser.FetchCursor{Name: parser.Identifier{Text: "held"}, Count: 1, Move: move}
-					result, err := s.fetchCursor(motion)
+					result, err := ScopeFetchCursor(s, motion)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -65,7 +65,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					result, err = s.executeFetchCursor(motion, 0)
+					result, err = ScopeExecuteFetchCursor(s, motion, 0)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -93,14 +93,14 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		row := frame.Values[2]
-		if row.Type().CompositeMember(0).Name != "original_field" || original.recordShape != row.Type() || other.recordShape != nil || other.OrdinalPosition != 0 {
+		if row.Type().CompositeMember(0).Name != "original_field" || CursorRecordShape(original) != row.Type() || CursorRecordShape(other) != nil || other.OrdinalPosition != 0 {
 			t.Fatal("implicit movement followed mutable slot or descriptor")
 		}
 		if n, err := row.CompositeField(0).Integer(); err != nil || n != 7 {
 			t.Fatal(n, err)
 		}
 		PayloadOf(s.Op.Session).Cursors.Entries["original"] = other
-		_, err := s.fetchCursorPortal(original, motion)
+		_, err := ScopeFetchCursorPortal(s, original, motion)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "34000" || original.OrdinalPosition != 1 || other.OrdinalPosition != 0 {
 			t.Fatal("same-name replacement redirected retained portal", err)
@@ -129,11 +129,11 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 	t.Run("pinned_drop_and_forced_cleanup", func(t *testing.T) {
 		e, s := cursorUnitScope(t)
 		c := cursorPromotedUnit(t, s, "pinned", "i", 7)
-		c.pinned = true
+		SetCursorPinned(c, true)
 		calls := 0
-		c.stage = &exec.Stage{Finish: func() error {
+		SetCursorStage(c, &exec.Stage{Finish: func() error {
 			calls++
-			if c.pinned || PayloadOf(s.Op.Session).Cursors.Entries["pinned"] != nil {
+			if CursorPinned(c) || PayloadOf(s.Op.Session).Cursors.Entries["pinned"] != nil {
 				t.Error("cleanup before unpin/detach")
 			}
 			if !e.Mu.TryLock() {
@@ -152,32 +152,32 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 				s.Op.Session.Mu.Unlock()
 			}
 			return nil
-		}}
+		}})
 		priorReplacement := s.ReplacementRead
 		for _, all := range []bool{false, true} {
-			_, err := s.closeCursor(&parser.CloseCursor{Name: parser.Identifier{Text: "pinned"}, All: all})
+			_, err := ScopeCloseCursor(s, &parser.CloseCursor{Name: parser.Identifier{Text: "pinned"}, All: all})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "24000" || diagnostic.Message != "cannot drop pinned portal \"pinned\"" {
 				t.Fatal(err)
 			}
-			if PayloadOf(s.Op.Session).Cursors.Entries["pinned"] != c || !c.pinned || calls != 0 || s.ReplacementRead != priorReplacement {
+			if PayloadOf(s.Op.Session).Cursors.Entries["pinned"] != c || !CursorPinned(c) || calls != 0 || s.ReplacementRead != priorReplacement {
 				t.Fatal("rejected drop changed owner state")
 			}
 		}
 		// Pinning protects user drop only, not explicit shared motion.
-		if _, err := s.fetchCursor(&parser.FetchCursor{Name: parser.Identifier{Text: "pinned"}, Move: true, Count: 1}); err != nil {
+		if _, err := ScopeFetchCursor(s, &parser.FetchCursor{Name: parser.Identifier{Text: "pinned"}, Move: true, Count: 1}); err != nil {
 			t.Fatal(err)
 		}
-		if !c.pinned || c.OrdinalPosition != 1 {
+		if !CursorPinned(c) || c.OrdinalPosition != 1 {
 			t.Fatal("movement changed protection")
 		}
-		if err := disposeSQLCursors(context.Background(), PayloadOf(s.Op.Session).Cursors.clear()); err != nil {
+		if err := DisposeSQLCursors(context.Background(), CursorsClear(PayloadOf(s.Op.Session).Cursors)); err != nil {
 			t.Fatal(err)
 		}
-		if err := c.dispose(context.Background()); err != nil {
+		if err := CursorDispose(c, context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if calls != 1 || c.pinned {
+		if calls != 1 || CursorPinned(c) {
 			t.Fatal("forced cleanup was not once/unpinned", calls)
 		}
 	})

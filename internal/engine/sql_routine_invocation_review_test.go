@@ -62,13 +62,13 @@ func TestSQLRoutineReturnContract(t *testing.T) {
 	e := New()
 	integer, wide, text := testUsage(e, sqltype.Int4), testUsage(e, sqltype.Int8), testUsage(e, sqltype.Text)
 	for _, columns := range [][]catalog.Column{nil, {{Usage: integer}, {Usage: integer}}, {{Usage: text}}} {
-		_, err := validateSQLRoutineResult(columns, integer)
+		_, err := ValidateSQLRoutineResult(columns, integer)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42P13" || d.Context != "" {
 			t.Fatal(err)
 		}
 	}
-	if _, err := validateSQLRoutineResult([]catalog.Column{{Usage: wide}}, integer); err != nil {
+	if _, err := ValidateSQLRoutineResult([]catalog.Column{{Usage: wide}}, integer); err != nil {
 		t.Fatal("assignment conversion rejected", err)
 	}
 }

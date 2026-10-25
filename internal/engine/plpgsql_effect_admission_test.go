@@ -19,7 +19,7 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	}
 	scope := foreignActionUnitScope(t, e, sess, "INSERT INTO routed VALUES(0),(1),(0),(1) RETURNING v")
 	state := scope.PartitionInsert
-	if state == nil || len(state.Order) != 2 || ScopeForeignActionsSlot(scope) != nil || scope.effectAdmission.catalog != nil {
+	if state == nil || len(state.Order) != 2 || ScopeForeignActionsSlot(scope) != nil || StatementMutationEffectAdmissionRef(&scope.StatementMutation).catalog != nil {
 		t.Fatal("alternating accepted rows did not retain allocation-free per-destination admission")
 	}
 	view := e.CatalogRead()
@@ -43,7 +43,7 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 		for i, group := range state.Order {
 			scope.UniqueBinding = group.Unique
 			binding, err := dml.BindUniqueWrite(scope.WriteHost(), group.Ref)
-			if err != nil || binding != original[i] || scope.foreignEffectRelevant(group.Ref, view) || scope.effectAdmission.catalog != nil {
+			if err != nil || binding != original[i] || scope.foreignEffectRelevant(group.Ref, view) || StatementMutationEffectAdmissionRef(&scope.StatementMutation).catalog != nil {
 				t.Fatal("alternation discarded retained physical admission", err)
 			}
 		}
@@ -59,8 +59,8 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	}
 	for i, group := range state.Order {
 		scope.UniqueBinding = original[i]
-		scope.effectAdmission = foreignEffectAdmission{}
-		if scope.foreignEffectRelevant(group.Ref, current) || scope.effectAdmission.catalog != current.State() || scope.effectAdmission.ref != group.Ref {
+		SetStatementMutationEffectAdmission(&scope.StatementMutation, foreignEffectAdmission{})
+		if scope.foreignEffectRelevant(group.Ref, current) || StatementMutationEffectAdmissionRef(&scope.StatementMutation).catalog != current.State() || StatementMutationEffectAdmissionRef(&scope.StatementMutation).ref != group.Ref {
 			t.Fatal("stale catalog binding bypassed current-authority classification")
 		}
 		binding, err := dml.BindUniqueWrite(scope.WriteHost(), group.Ref)
@@ -68,8 +68,8 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 			t.Fatal("physical admission did not rebuild under new catalog authority", err)
 		}
 		group.Unique = binding
-		scope.effectAdmission = foreignEffectAdmission{}
-		if scope.foreignEffectRelevant(group.Ref, current) || scope.effectAdmission.catalog != nil || original[i].Catalog != view.State() {
+		SetStatementMutationEffectAdmission(&scope.StatementMutation, foreignEffectAdmission{})
+		if scope.foreignEffectRelevant(group.Ref, current) || StatementMutationEffectAdmissionRef(&scope.StatementMutation).catalog != nil || original[i].Catalog != view.State() {
 			t.Fatal("rebuilt admission was not retained or mutated the old binding")
 		}
 	}
@@ -77,8 +77,8 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	// authority, even though both happen to have irrelevant constraints.
 	first, second := state.Order[0], state.Order[1]
 	scope.UniqueBinding = second.Unique
-	scope.effectAdmission = foreignEffectAdmission{}
-	if scope.foreignEffectRelevant(first.Ref, current) || scope.effectAdmission.ref != first.Ref || scope.effectAdmission.catalog != current.State() {
+	SetStatementMutationEffectAdmission(&scope.StatementMutation, foreignEffectAdmission{})
+	if scope.foreignEffectRelevant(first.Ref, current) || StatementMutationEffectAdmissionRef(&scope.StatementMutation).ref != first.Ref || StatementMutationEffectAdmissionRef(&scope.StatementMutation).catalog != current.State() {
 		t.Fatal("relevance reused a different physical reference")
 	}
 	if ScopeForeignActionsSlot(scope) != nil {

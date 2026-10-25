@@ -68,12 +68,12 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}}
 		declaration := &parser.DeclareCursor{Name: parser.Identifier{Text: "unit_owned"}}
-		cursor, _, err := s.installCursor(declaration, &declaration.Name.Text, root, source, nil, true)
+		cursor, _, err := ScopeInstallCursor(s, declaration, &declaration.Name.Text, root, source, nil, true)
 		err = restore(err)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Completed || ScopeSessionCompleted(s) || ScopeSQLRoutineRef(s).lexical != outer || ScopeAuthority(s) != parentAuthority || cursor.stage != nil || cursor.authority.Host != nil {
+		if s.Completed || ScopeSessionCompleted(s) || ScopeSQLRoutineRef(s).lexical != outer || ScopeAuthority(s) != parentAuthority || CursorStage(cursor) != nil || CursorAuthority(cursor).Host != nil {
 			t.Fatal("PL installation changed root flags/scratch or eagerly opened producer")
 		}
 		frame := &proc.PLFrame{Values: []sqltype.Value{seven}}
@@ -82,7 +82,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 			t.Fatal("ordinary portal attached to frame lifetime")
 		}
 		calls := 0
-		cursor.stage = &exec.Stage{Finish: func() error {
+		SetCursorStage(cursor, &exec.Stage{Finish: func() error {
 			calls++
 			if !e.Mu.TryLock() {
 				t.Error("callback under engine lock")
@@ -103,14 +103,14 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 				t.Error("callback before registry detach")
 			}
 			return nil
-		}}
-		if _, err = s.closeCursor(&parser.CloseCursor{Name: parser.Identifier{Text: "unit_owned"}}); err != nil {
+		}})
+		if _, err = ScopeCloseCursor(s, &parser.CloseCursor{Name: parser.Identifier{Text: "unit_owned"}}); err != nil {
 			t.Fatal(err)
 		}
-		if err = cursor.dispose(context.Background()); err != nil {
+		if err = CursorDispose(cursor, context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if calls != 1 || s.Completed || ScopeSessionCompleted(s) || cursor.Source != nil || cursor.authority.Host != nil {
+		if calls != 1 || s.Completed || ScopeSessionCompleted(s) || cursor.Source != nil || CursorAuthority(cursor).Host != nil {
 			t.Fatal("lower close completion/once-only disposal", calls)
 		}
 	})
@@ -143,7 +143,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 				defer func() { s.Op.Ctx = original }()
 			}
 			declaration := &parser.DeclareCursor{Name: parser.Identifier{Text: "failed_owner"}}
-			_, _, err := s.installCursor(declaration, &declaration.Name.Text, root, source, nil, false)
+			_, _, err := ScopeInstallCursor(s, declaration, &declaration.Name.Text, root, source, nil, false)
 			if err == nil || cancelOpen && !errors.Is(err, context.Canceled) {
 				t.Fatal("missing primary open failure", err)
 			}
@@ -166,7 +166,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 			d := cursorOwnerRoutine(t, e, s, "DECLARE c CURSOR FOR SELECT 7 AS i; n integer:=0; BEGIN c:='unit_loop'; FOR r IN c LOOP "+body+" END LOOP; RETURN n; END")
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
-			before := PayloadOf(s.Op.Session).Cursors.ordinal
+			before := CursorsOrdinal(PayloadOf(s.Op.Session).Cursors)
 			_, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			if exit == "error" {
 				var diagnostic *sqlstate.Error
@@ -177,7 +177,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 				t.Fatal(err)
 			}
 			registry := PayloadOf(s.Op.Session).Cursors
-			if registry.Entries["unit_loop"] != nil || registry.ordinal != before+1 || s.Completed || ScopeSessionCompleted(s) {
+			if registry.Entries["unit_loop"] != nil || CursorsOrdinal(registry) != before+1 || s.Completed || ScopeSessionCompleted(s) {
 				t.Fatal("loop ownership did not unwind before transaction finish")
 			}
 		})
@@ -212,7 +212,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		// automatic portal was installed; no timer/sleep guesses its phase.
 		lockPending(t, e, 1)
 		active := PayloadOf(s.Op.Session).Cursors.Entries["unit_cancel_loop"]
-		if active == nil || !active.pinned {
+		if active == nil || !CursorPinned(active) {
 			t.Fatal("admitted loop lacks portal protection")
 		}
 		cancel()
@@ -225,7 +225,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("admitted cancellation did not finish")
 		}
-		if active.pinned || PayloadOf(s.Op.Session).Cursors.Entries["unit_cancel_loop"] != nil || s.Completed || ScopeSessionCompleted(s) {
+		if CursorPinned(active) || PayloadOf(s.Op.Session).Cursors.Entries["unit_cancel_loop"] != nil || s.Completed || ScopeSessionCompleted(s) {
 			t.Fatal("canceled loop retained portal/root completion")
 		}
 	})
@@ -234,18 +234,18 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		r := PayloadOf(s.Op.Session).Cursors
 		for _, end := range []string{"transaction", "session"} {
 			calls := 0
-			c := &sqlCursor{tx: s.TxRef, pinned: true, stage: &exec.Stage{Finish: func() error { calls++; return nil }}}
+			c := NewCursor(CursorFields{Tx: s.TxRef, Pinned: true, Stage: &exec.Stage{Finish: func() error { calls++; return nil }}})
 			r.Entries["unit_detach"] = c
 			var err error
 			if end == "transaction" {
-				err = disposeSQLCursors(context.Background(), r.endTransaction(s.TxRef))
+				err = DisposeSQLCursors(context.Background(), CursorsEndTransaction(r, s.TxRef))
 			} else {
-				err = r.EndSession(r.token, session.CleanClose)
+				err = r.EndSession(CursorsToken(r), session.CleanClose)
 			}
-			if err != nil || c.pinned || calls != 1 || r.Entries["unit_detach"] != nil {
+			if err != nil || CursorPinned(c) || calls != 1 || r.Entries["unit_detach"] != nil {
 				t.Fatal("end owner", end, calls, err)
 			}
-			if err = c.dispose(context.Background()); err != nil || calls != 1 {
+			if err = CursorDispose(c, context.Background()); err != nil || calls != 1 {
 				t.Fatal("duplicate teardown", err, calls)
 			}
 		}
@@ -262,7 +262,7 @@ func TestPLpgSQLCursorTargetAtomicity(t *testing.T) {
 	eight, _ := sqltype.Integer(integer, 8)
 	f := &proc.PLFrame{Program: &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot}, {Name: "first", Usage: integer.Usage()}, {Name: "second", Usage: integer.Usage(), NotNull: true}, {Name: "r", Record: true}}}, Values: []sqltype.Value{sqltype.Boolean(boolean, false), seven, seven, {}}}
 	defer f.Close()
-	cursor := &sqlCursor{schema: []catalog.Column{{Name: "i", Usage: integer.Usage()}, {Name: "t", Usage: text.Usage()}}}
+	cursor := NewCursor(CursorFields{Schema: []catalog.Column{{Name: "i", Usage: integer.Usage()}, {Name: "t", Usage: text.Usage()}}})
 	err := s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{{Slot: 1}, {Slot: 2}}, cursor, []sqltype.Value{eight, sqltype.Null(integer)}, read)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22004" || f.Values[1] != seven || f.Values[2] != seven {

@@ -17,9 +17,9 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 AS projected FROM unit_rows ORDER BY i FOR UPDATE")
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
 	c := PayloadOf(s).Cursors.Entries["c"]
-	source, index, root := c.CurrentSource, c.CurrentIndex, c.root
+	source, index, root := c.CurrentSource, c.CurrentIndex, CursorRoot(c)
 	ref := catalogRef(t, EngineOf(s), EngineOf(s).CatalogRead(), "unit_rows")
-	identity := exec.CursorOccurrenceVersion(source, index, 0, c.locks)
+	identity := exec.CursorOccurrenceVersion(source, index, 0, CursorLocks(c))
 	EngineOf(s).Mu.Lock()
 	want := EngineOf(s).Storage.Relations[ref.Address].Versions[1].Row
 	EngineOf(s).Mu.Unlock()
@@ -28,7 +28,7 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	}
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
-	if c.CurrentSource != source || c.CurrentIndex != index || c.root != root || c.Place != exec.CursorOn || c.authority.Host != nil || exec.CursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
+	if c.CurrentSource != source || c.CurrentIndex != index || CursorRoot(c) != root || c.Place != exec.CursorOn || CursorAuthority(c).Host != nil || exec.CursorOccurrenceVersion(source, index, 0, CursorLocks(c)).Row != want {
 		t.Fatal("UPDATE consumed or replaced borrowed cursor authority")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 3, 22)
@@ -47,7 +47,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 	sessionSQL(t, s, "SAVEPOINT recover")
 	c := PayloadOf(s).Cursors.Entries["c"]
-	identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks)
+	identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, CursorLocks(c))
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, err := s.Acquire(ctx)
@@ -109,7 +109,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 		}
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if PayloadOf(s).Cursors.Entries["c"] != c || c.Place != exec.CursorOn || c.authority.Host != nil {
+	if PayloadOf(s).Cursors.Entries["c"] != c || c.Place != exec.CursorOn || CursorAuthority(c).Host != nil {
 		t.Fatal("mutation cancellation invalidated healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -127,7 +127,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 FROM keyed WHERE id=1 FOR KEY SHARE")
 		cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
 		c := PayloadOf(s).Cursors.Entries["c"]
-		identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks)
+		identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, CursorLocks(c))
 		ref := catalogRef(t, e, e.CatalogRead(), "keyed")
 		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
 		lockState := e.Locks.Inspect()
@@ -154,7 +154,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	sessionSQL(t, worker, "DECLARE c CURSOR FOR SELECT 99 FROM t")
 	cursorUnitBatch(t, worker, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
 	c := PayloadOf(worker).Cursors.Entries["c"]
-	identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, c.locks)
+	identity := exec.CursorOccurrenceVersion(c.CurrentSource, c.CurrentIndex, 0, CursorLocks(c))
 	tx := transactionBegin(t, holder)
 	deleteCount(t, holder, "UPDATE t SET v=8 WHERE v=7", 2)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -202,7 +202,7 @@ func TestUpdateCurrentOfLifetime(t *testing.T) {
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 2, 3, 11)
 	sessionSQL(t, s, "CLOSE c")
-	if old.CurrentSource != nil || old.Source != nil || old.authority.Host != nil {
+	if old.CurrentSource != nil || old.Source != nil || CursorAuthority(old).Host != nil {
 		t.Fatal("disposed cursor retains authority")
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")

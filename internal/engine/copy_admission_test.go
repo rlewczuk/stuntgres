@@ -321,15 +321,15 @@ func TestCopyTextCopiedReservation(t *testing.T) {
 	if err := scope.Gate(copyUnitSyntax()); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.reserveCopy(); err != nil {
+	if err := ScopeReserveCopy(scope); err != nil {
 		t.Fatal(err)
 	}
 	copied := *scope
-	copied.releaseCopyReservation()
+	ScopeReleaseCopyReservation(&copied)
 	if scope.Owner.CopyLease != ScopeLeaseRef(scope) {
 		t.Fatal("copied scope released reservation")
 	}
-	if _, err := copied.copyIO(func() (int, error) { t.Fatal("copied scope invoked I/O"); return 0, nil }); err == nil {
+	if _, err := ScopeCopyIO(&copied, func() (int, error) { t.Fatal("copied scope invoked I/O"); return 0, nil }); err == nil {
 		t.Fatal("copied reservation admitted")
 	}
 }

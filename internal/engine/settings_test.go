@@ -71,7 +71,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		t.Fatal("Close retained anonymous row ownership")
 	}
 	// A whole typed NULL likewise belongs to the anonymous result, not a session.
-	nullResult, err := anonymousResult([]catalog.Column{{Name: "v", Usage: typ.Usage(), Nullable: true}}, [][]sqltype.Value{{sqltype.Null(typ)}}, 1)
+	nullResult, err := AnonymousResult([]catalog.Column{{Name: "v", Usage: typ.Usage(), Nullable: true}}, [][]sqltype.Value{{sqltype.Null(typ)}}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

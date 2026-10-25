@@ -176,7 +176,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	e.Catalog.PublishLocked(&newState)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope := &StatementScope{Op: op, Owner: op.Session.Transactions, Inquiry: inquirySnapshot{CommentCatalog: old}}
+	scope := &StatementScope{Op: op, Owner: op.Session.Transactions, Inquiry: NewInquiry(InquiryFields{CommentCatalog: old})}
 	e.Mu.Lock()
 	frozen, err := e.openRelationSourceLocked(scope, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err != nil || pgDescriptionUnitBag(t, frozen)[relation] != "whole" {

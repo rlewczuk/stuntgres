@@ -54,18 +54,18 @@ func TestProtocolPreparedRegistry(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	r := PayloadPreparedSQL(PayloadOf(a))
-	entry := &sqlPreparedStatement{body: &parser.Select{}}
-	p := &protocolPortal{entry: *entry, context: session.ProtocolContext{Source: "original"}}
-	r.entries["s"] = entry
-	r.portals = map[string]*protocolPortal{"p": p}
-	delete(r.entries, "s")
-	if p.entry.body != entry.body || p.context.Source != "original" {
+	entry := NewPreparedStatement(PreparedStatementFields{Body: &parser.Select{}})
+	p := NewPortal(PortalFields{Entry: *entry, Context: session.ProtocolContext{Source: "original"}})
+	PreparedRegistryEntries(r)["s"] = entry
+	SetPreparedRegistryPortals(r, map[string]*ProtocolPortal{"p": p})
+	delete(PreparedRegistryEntries(r), "s")
+	if PreparedStatementBody(PortalEntryRef(p)) != PreparedStatementBody(entry) || PortalContext(p).Source != "original" {
 		t.Fatal("definition removal lost retained portal recipe")
 	}
-	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || p.retired {
+	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || PortalRetired(p) {
 		t.Fatal("foreign retirement modified registry", err)
 	}
-	if err := r.EndSession(a.SessionToken, session.CleanClose); err != nil || !p.retired || len(r.portals) != 0 {
+	if err := r.EndSession(a.SessionToken, session.CleanClose); err != nil || !PortalRetired(p) || len(PreparedRegistryPortals(r)) != 0 {
 		t.Fatal("owned retirement retained portal", err)
 	}
 }
@@ -131,7 +131,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 		rows := exec.NewFinalRows(nil, 1)
 		for _, quoted := range []bool{false, true, false} {
 			scope.Output.QuoteAllIdentifiers = quoted
-			err = scope.captureProtocolOutput(rows, []sqltype.Value{value}, e.CatalogRead())
+			err = ScopeCaptureProtocolOutput(scope, rows, []sqltype.Value{value}, e.CatalogRead())
 			if err != nil {
 				break
 			}
@@ -334,14 +334,14 @@ func TestProtocolCopyHooks(t *testing.T) {
 	}
 	// A real reservation is required; optional nil hook does not create one.
 	sentinel := errors.New("start veto")
-	if err = scope.startProtocolCopy(CopyProtocolHooks{}, true, copyfmt.Options{}, 2); err != nil {
+	if err = ScopeStartProtocolCopy(scope, CopyProtocolHooks{}, true, copyfmt.Options{}, 2); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.reserveCopy(); err != nil {
+	if err = ScopeReserveCopy(scope); err != nil {
 		t.Fatal(err)
 	}
 	called := false
-	err = scope.startProtocolCopy(CopyProtocolHooks{Start: func(meta CopyProtocolMetadata) error {
+	err = ScopeStartProtocolCopy(scope, CopyProtocolHooks{Start: func(meta CopyProtocolMetadata) error {
 		called = true
 		if !meta.From || meta.Format != 1 || len(meta.ColumnFormats) != 2 || meta.ColumnFormats[0] != 1 || meta.ColumnFormats[1] != 1 {
 			t.Fatal(meta)

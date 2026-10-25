@@ -170,7 +170,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		}
 		return sqltype.Integer(c.Row[0].Type(), 9)
 	})
-	r, err := executeUpdate(op.Ctx, scope, bound, source, nil, nil, "public")
+	r, err := ExecuteUpdate(op.Ctx, scope, bound, source, nil, nil, "public")
 	if err != sentinel || r.Count != 0 || calls != 2 {
 		scope.Finish(err)
 		t.Fatal(r, err, calls)

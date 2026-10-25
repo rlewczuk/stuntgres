@@ -97,7 +97,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			scope.protocol().command = true
+			SetProtocolScopeCommand(ScopeProtocol(scope), true)
 			defer scope.Finish(context.Canceled)
 			var cursor exec.RowCursor
 			binding := analyze.Binding{
@@ -187,7 +187,7 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer scope.Finish(context.Canceled)
-			scope.protocol().command = true
+			SetProtocolScopeCommand(ScopeProtocol(scope), true)
 			reader := strings.NewReader(tc.input)
 			called := false
 			if tc.before {
@@ -204,7 +204,7 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 				}
 				return nil
 			}})
-			err = scope.copyCommandError(err)
+			err = ScopeCopyCommandError(scope, err)
 			if count != 0 || called == tc.before || len(scope.Stage.Rows) != 0 {
 				t.Fatal("COPY Start cancellation lost admission or staged rows", count, called, err)
 			}

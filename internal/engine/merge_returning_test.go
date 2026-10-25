@@ -122,7 +122,7 @@ func TestMergeReturningPublication(t *testing.T) {
 				})
 			}
 			state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
-			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), cursor, state, false)
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), ScopeMergeInput(scope, op.Context(), b, target, nil, nil, "public"), cursor, state, false)
 			if phase == "producerClose" || phase == "outputLate" || phase == "typeDrift" {
 				if rows != nil || err == nil {
 					t.Fatal("failed private output escaped", rows, err)

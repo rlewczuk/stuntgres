@@ -102,7 +102,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &StatementDescription{Temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: &e.Catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
+	description := NewDescription(DescriptionFields{Temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()})
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.InputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {

@@ -319,7 +319,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		v, _ := sqltype.Integer(testUsage(e, sqltype.Int4).Type, 1)
 		err = scope.Writes().Apply(ref, [][]sqltype.Value{{v, sqltype.String(testUsage(e, sqltype.Text).Type, "owned")}})
 	case "row_grant":
-		_, err = (*statementHost)(scope).AcquireQueryRow(exec.Leaf{Ref: ref, Relation: d, Storage: store}, 1, plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockBlock})
+		_, err = (*StatementHost)(scope).AcquireQueryRow(exec.Leaf{Ref: ref, Relation: d, Storage: store}, 1, plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockBlock})
 	case "catalog":
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		defer e.DiscardCatalogStage(stage)

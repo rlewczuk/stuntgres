@@ -158,7 +158,7 @@ func TestProtocolCopyStartCancellation(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				scope.protocol().simple, scope.protocol().command = simple, !simple
+				*ProtocolScopeSimpleRef(ScopeProtocol(scope)), *ProtocolScopeCommandRef(ScopeProtocol(scope)) = simple, !simple
 				cause := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "57014", Message: "canceling statement due to user request"}
 				count, err := scope.CopyProtocol(statement(t, "COPY t FROM STDIN").(*parser.Copy), strings.NewReader(input.text), nil, CopyProtocolHooks{
 					Start: func(CopyProtocolMetadata) error {

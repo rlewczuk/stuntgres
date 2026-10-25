@@ -333,7 +333,7 @@ func TestQueryCoreZeroWidth(t *testing.T) {
 		t.Fatal(present, err)
 	}
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-	anonymous, err := anonymousResult([]catalog.Column{{Name: "value", Usage: typ.Usage()}}, nil, 0)
+	anonymous, err := AnonymousResult([]catalog.Column{{Name: "value", Usage: typ.Usage()}}, nil, 0)
 	if err != nil || anonymous.Rows == nil || len(anonymous.Rows.Schema()) != 1 {
 		t.Fatal(anonymous, err)
 	}

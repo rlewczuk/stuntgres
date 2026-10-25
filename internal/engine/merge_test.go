@@ -31,7 +31,7 @@ func TestMergeInsertBinding(t *testing.T) {
 	if inputs.View.Data() != data || len(data.Committed) != 2 {
 		t.Fatal("target/source did not share frontier")
 	}
-	r, err := executeMerge(op.Ctx, scope, b, target, inputs, nil, "public")
+	r, err := ExecuteMerge(op.Ctx, scope, b, target, inputs, nil, "public")
 	if err != nil || r.Count != 2 || r.Rows != nil || len(scope.Stage.Rows[b.Ref.Address]) != 2 {
 		t.Fatal("completed producer", r, err, scope.Stage.Rows)
 	}
@@ -91,7 +91,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				cursor.closeError = cleanup
 			}
 			state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
-			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), cursor, state, false)
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), ScopeMergeInput(scope, op.Ctx, b, target, nil, nil, "public"), cursor, state, false)
 			if cursor.closed != 1 || len(scope.Stage.Rows) != 0 {
 				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.Stage.Rows)
 			}
@@ -170,14 +170,14 @@ func TestMergeInsertCancellation(t *testing.T) {
 					cursor.beforeClose = cancel
 				}
 				state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
-				_, err = dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
+				_, err = dml.AssembleMergeRows(scope.WriteHost(), ScopeMergeInput(scope, ctx, b, target, nil, nil, "public"), cursor, state, false)
 				if cursor.closed != 1 {
 					t.Fatal("canceled source not closed")
 				}
 				target.Close()
 				inputs.Close()
 			} else {
-				result, err = executeMerge(ctx, scope, b, target, inputs, nil, "public")
+				result, err = ExecuteMerge(ctx, scope, b, target, inputs, nil, "public")
 			}
 			if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil || len(scope.Stage.Rows) != 0 {
 				t.Fatal("cancellation leaked publication", result, err, scope.Stage.Rows)

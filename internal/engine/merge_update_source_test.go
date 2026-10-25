@@ -69,7 +69,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 				}
 			}
 			state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
-			rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(ctx, b, target, nil, nil, "public"), cursor, state, false)
+			rows, err := dml.AssembleMergeRows(scope.WriteHost(), ScopeMergeInput(scope, ctx, b, target, nil, nil, "public"), cursor, state, false)
 			want := primary
 			if phase == "close" {
 				want = cleanup

@@ -14,10 +14,10 @@ import (
 func TestInfoRoleUsageGrantsDeparseFrontier(t *testing.T) {
 	e := New()
 	read := e.CatalogRead()
-	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: read, deparseAuth: catalogAuthorization(e, read), DeparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
-	old := scope.deparseInputs()
+	scope := &StatementScope{Inquiry: NewInquiry(InquiryFields{CommentCatalog: read, DeparseAuth: catalogAuthorization(e, read), DeparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}})}
+	old := ScopeDeparseInputs(scope)
 	scope.Output.QuoteAllIdentifiers = true
-	fresh := scope.deparseInputs()
+	fresh := ScopeDeparseInputs(scope)
 	text, ok := read.LookupType(sqltype.Text)
 	if !ok {
 		t.Fatal("missing text")

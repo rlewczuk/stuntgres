@@ -230,7 +230,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 			if s.TransactionState() != session.TxIdle {
 				t.Error("transaction cleanup did not precede resources")
 			}
-			if len(PayloadOf(s).Cursors.Entries) != 0 || cursor.Source != nil || cursor.authority.Host != nil {
+			if len(PayloadOf(s).Cursors.Entries) != 0 || cursor.Source != nil || CursorAuthority(cursor).Host != nil {
 				t.Error("named execution cleanup did not precede resources")
 			}
 			mu.Lock()

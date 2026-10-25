@@ -178,7 +178,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	oldVersions, oldEnds, oldGeneration := oldPeer.Versions, oldPeer.Ends, oldPeer.Generation
 	scope := truncateUnitStage(t, e, owner, "p")
 	_, stagedPeer := scope.Catalog.Storage[peerAddress]
-	excluded := scope.truncateOrZero().Selected[peerAddress] == 0 && !stagedPeer && len(scope.truncateOrZero().Relations) == 3
+	excluded := ScopeTruncateOrZero(scope).Selected[peerAddress] == 0 && !stagedPeer && len(ScopeTruncateOrZero(scope).Relations) == 3
 	lockState := e.Locks.Inspect(scope.LockTicket)
 	_, journaledPeer := lockState.Journals[scope.LockTicket][lock.Resource{ObjectRef: peerRef}]
 	excluded = excluded && !journaledPeer && lockState.Resources[lock.Resource{ObjectRef: peerRef}] == nil
@@ -191,7 +191,7 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 			continue
 		}
 		grant, held := entry.Holders[scope.LockTicket]
-		admitted = admitted && held && grant.Mode == lock.AccessExclusive && scope.truncateOrZero().Selected[address] != 0
+		admitted = admitted && held && grant.Mode == lock.AccessExclusive && ScopeTruncateOrZero(scope).Selected[address] != 0
 	}
 	if !excluded || !admitted {
 		t.Fatalf("temporary descendant admission: foreign excluded=%v, own/persistent AX admitted=%v", excluded, admitted)

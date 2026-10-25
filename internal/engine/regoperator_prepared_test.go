@@ -81,15 +81,15 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT '551'::regtype AS t,'551'::regoper AS r,'551'::regoperator AS s,'597'::regoper AS other")
-	if d.regtypes == nil || len(d.regtypes.Constants) != 4 {
-		t.Fatal("mixed constants did not share one analysis cell", d.regtypes)
+	if DescriptionRegtypes(&d) == nil || len(DescriptionRegtypes(&d).Constants) != 4 {
+		t.Fatal("mixed constants did not share one analysis cell", DescriptionRegtypes(&d))
 	}
-	for _, constant := range d.regtypes.Constants {
+	for _, constant := range DescriptionRegtypes(&d).Constants {
 		if len(constant.Operands) != 0 {
 			t.Fatal("numeric or name-only input invented operand dependencies", constant)
 		}
 	}
-	cell := d.regtypes
+	cell := DescriptionRegtypes(&d)
 	backing := &cell.Constants[0]
 	constants := regoperatorPreparedSnapshot(cell.Constants)
 	signature := slices.Clone(d.Results)
@@ -114,12 +114,12 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	shared := StatementDescription{regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{
+	shared := *NewDescription(DescriptionFields{Regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{
 		{Offset: 7, ID: 551},
 		{Offset: 7, Operator: sqltype.Regoper, ID: 551},
 		{Offset: 7, Operator: sqltype.Regoperator, ID: 551},
 		{Offset: 8, Operator: sqltype.Regoper, ID: 597},
-	}}}
+	}}})
 	b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &shared)
 	b.Query.Auth = &auth
 	for i, id := range ids {
@@ -151,7 +151,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		}
 		regoperatorPreparedValues(t, next, ids, texts)
 		next.Rows.Close()
-		if d.regtypes != cell || &d.regtypes.Constants[0] != backing || !reflect.DeepEqual(cell.Constants, constants) || !reflect.DeepEqual(d.Results, signature) {
+		if DescriptionRegtypes(&d) != cell || &DescriptionRegtypes(&d).Constants[0] != backing || !reflect.DeepEqual(cell.Constants, constants) || !reflect.DeepEqual(d.Results, signature) {
 			t.Fatal("unrelated role change replaced constants or changed signatures")
 		}
 	}
@@ -169,7 +169,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	regoperatorPreparedInstall(t, e, a, 91000, 23, 23)
 	regoperatorPreparedInstall(t, e, b, 91001, 23, 23)
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT '#=#'::regoper AS r,'#=#(int4,int4)'::regoperator AS s")
-	oldConstants := regoperatorPreparedSnapshot(d.regtypes.Constants)
+	oldConstants := regoperatorPreparedSnapshot(DescriptionRegtypes(&d).Constants)
 	oldSignature := slices.Clone(d.Results)
 	r, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
@@ -186,7 +186,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	}
 	newValues := regoperatorPreparedValues(t, next, typeIDs, texts)
 	next.Rows.Close()
-	for _, c := range d.regtypes.Constants {
+	for _, c := range DescriptionRegtypes(&d).Constants {
 		if c.ID != 91001 {
 			t.Fatal("effective operator path did not reanalyze", c)
 		}
@@ -211,14 +211,14 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	sessionSQL(t, s, "SET search_path TO regop_a")
-	before := regoperatorPreparedSnapshot(d.regtypes.Constants)
-	analysis := d.analysis
+	before := regoperatorPreparedSnapshot(DescriptionRegtypes(&d).Constants)
+	analysis := DescriptionAnalysis(&d)
 	failed, err := sequencePreparedExecute(e, s, ast, &d)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || failed.Rows != nil {
 		t.Fatal("later literal failure did not reject entire result", err, failed.Rows)
 	}
-	if !reflect.DeepEqual(d.regtypes.Constants, before) || d.analysis != analysis || !reflect.DeepEqual(d.Results, oldSignature) {
+	if !reflect.DeepEqual(DescriptionRegtypes(&d).Constants, before) || DescriptionAnalysis(&d) != analysis || !reflect.DeepEqual(d.Results, oldSignature) {
 		t.Fatal("failed reanalysis partially published constants, plan or signature")
 	}
 	sessionSQL(t, s, "SET search_path TO regop_b")
@@ -250,13 +250,13 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 				query = "SELECT '||/'::regoper AS first,'public.#=#(secret,integer)'::regoperator AS second"
 			}
 			ast, d := sequencePreparedDescription(t, e, s, query)
-			old := regoperatorPreparedSnapshot(d.regtypes.Constants)
+			old := regoperatorPreparedSnapshot(DescriptionRegtypes(&d).Constants)
 			signature := slices.Clone(d.Results)
 			operands := old[1].Operands
 			if len(operands) != 2 || operands[0].Ref.Address != typ.Address() || operands[0].Revision != typ.Revision() || operands[1].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) {
 				t.Fatal("shared cell lacks exact ordered operand identity/revision manifest", operands)
 			}
-			if !regoperatorPreparedCellValid(t, e, s, d.regtypes) {
+			if !regoperatorPreparedCellValid(t, e, s, DescriptionRegtypes(&d)) {
 				t.Fatal("unchanged operand group failed direct shared-cell validation")
 			}
 			r, err := sequencePreparedExecute(e, s, ast, &d)
@@ -267,7 +267,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			// Preserve the unread result across both success and failure below.
 			if change == "Revision" {
 				found := false
-				for _, dep := range d.analysis.dependencies {
+				for _, dep := range PreparedAnalysisDependencies(DescriptionAnalysis(&d)) {
 					if dep.Ref.Address == typ.Address() && dep.Revision == typ.Revision() {
 						found = true
 					}
@@ -308,17 +308,17 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			} else {
 				sessionSQL(t, s, "SET search_path TO public")
 			}
-			if regoperatorPreparedCellValid(t, e, s, d.regtypes) {
+			if regoperatorPreparedCellValid(t, e, s, DescriptionRegtypes(&d)) {
 				t.Error("changed operand environment passed direct shared-cell validation", change)
 			}
-			beforeAnalysis := d.analysis
+			beforeAnalysis := DescriptionAnalysis(&d)
 			result, failure := sequencePreparedExecute(e, s, ast, &d)
 			if change == "Revision" {
 				if failure != nil {
 					t.Fatal(failure)
 				}
 				result.Rows.Close()
-				if d.analysis == beforeAnalysis {
+				if DescriptionAnalysis(&d) == beforeAnalysis {
 					t.Error("actual operand revision change reused stale prepared analysis")
 				}
 			} else {
@@ -335,7 +335,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 					}
 					t.Errorf("operand %s change: error=%v rows=%v want SQLSTATE %s/no rows", change, failure, result.Rows, code)
 				}
-				if !reflect.DeepEqual(d.regtypes.Constants, old) || d.analysis != beforeAnalysis {
+				if !reflect.DeepEqual(DescriptionRegtypes(&d).Constants, old) || DescriptionAnalysis(&d) != beforeAnalysis {
 					t.Error("failed operand reanalysis published partial state")
 				}
 			}
@@ -373,7 +373,7 @@ func TestRegOperatorPreparedOperandBoundaries(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	_, d := sequencePreparedDescription(t, e, s, "SELECT '-(NONE,int4)'::regoperator,'551'::regoperator,'||/'::regoper")
-	constants := d.regtypes.Constants
+	constants := DescriptionRegtypes(&d).Constants
 	if len(constants) != 3 || len(constants[0].Operands) != 1 || constants[0].Operands[0].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) || len(constants[1].Operands) != 0 || len(constants[2].Operands) != 0 {
 		t.Fatal("NONE, numeric, or name-only input invented operand identities", constants)
 	}

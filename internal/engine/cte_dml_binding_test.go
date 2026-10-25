@@ -28,7 +28,7 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 			t.Fatal(usage)
 		}
 	}
-	if len(ScopeMutations(scope)) != 3 || description.analysis == nil || len(description.analysis.targets) != 3 {
+	if len(ScopeMutations(scope)) != 3 || DescriptionAnalysis(&description) == nil || len(PreparedAnalysisTargets(DescriptionAnalysis(&description))) != 3 {
 		t.Fatal("occurrences were conflated", len(ScopeMutations(scope)))
 	}
 	seen := make(map[parser.Statement]bool)
@@ -37,7 +37,7 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 		if i == scope.ActiveMutation {
 			mutation = scope.StatementMutation
 		}
-		if seen[mutation.Statement] || mutation.LockedRef != ref || description.analysis.targets[mutation.Statement] != ref {
+		if seen[mutation.Statement] || mutation.LockedRef != ref || PreparedAnalysisTargets(DescriptionAnalysis(&description))[mutation.Statement] != ref {
 			t.Fatal("wrong exact target occurrence", i, mutation.LockedRef)
 		}
 		seen[mutation.Statement] = true

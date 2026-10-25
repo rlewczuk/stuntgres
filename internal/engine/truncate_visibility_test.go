@@ -115,12 +115,12 @@ func TestTruncateActivity(t *testing.T) {
 		sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT id FROM p ORDER BY id")
 		transactionRows(t, s, "FETCH ALL FROM c", 1, 2)
 		cursor := PayloadOf(s).Cursors.Entries["c"]
-		if cursor.root == nil || cursor.Place != exec.CursorAfter || len(cursor.leaves) == 0 {
+		if CursorRoot(cursor) == nil || cursor.Place != exec.CursorAfter || len(CursorLeaves(cursor)) == 0 {
 			t.Fatal("fixture did not retain exhausted real producer")
 		}
 		sessionSQL(t, s, "SAVEPOINT recover")
 		truncateUnitError(t, e, s, "TRUNCATE p", "55006")
-		if len(e.Storage.Relations[p.Address].Versions) != 2 || cursor.root == nil {
+		if len(e.Storage.Relations[p.Address].Versions) != 2 || CursorRoot(cursor) == nil {
 			t.Fatal("activity rejection retired producer/storage")
 		}
 		sessionSQL(t, s, "ROLLBACK TO recover")
@@ -135,7 +135,7 @@ func TestTruncateActivity(t *testing.T) {
 		sessionSQL(t, s, "SAVEPOINT before_fetch")
 		truncateUnitError(t, e, s, "FETCH ALL FROM c", "22012")
 		cursor := PayloadOf(s).Cursors.Entries["c"]
-		if cursor.Place != exec.CursorFailed || cursor.root != nil || cursor.leaves != nil {
+		if cursor.Place != exec.CursorFailed || CursorRoot(cursor) != nil || CursorLeaves(cursor) != nil {
 			t.Fatal("failed portal retained producer references")
 		}
 		sessionSQL(t, s, "ROLLBACK TO before_fetch")
@@ -148,7 +148,7 @@ func TestTruncateActivity(t *testing.T) {
 		sessionSQL(t, s, "DECLARE c CURSOR WITH HOLD FOR SELECT id FROM p ORDER BY id")
 		transactionEnd(t, s, tx, true)
 		cursor := PayloadOf(s).Cursors.Entries["c"]
-		if !cursor.promoted || cursor.root != nil || len(cursor.leaves) != 0 || cursor.count != 2 {
+		if !CursorPromoted(cursor) || CursorRoot(cursor) != nil || len(CursorLeaves(cursor)) != 0 || CursorCount(cursor) != 2 {
 			t.Fatal("HOLD fixture is not a detached real typed buffer")
 		}
 		truncateUnitExecute(t, e, s, truncateUnitAST("p"))

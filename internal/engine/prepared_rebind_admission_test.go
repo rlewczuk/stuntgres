@@ -76,9 +76,9 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					query = "SELECT v FROM (SELECT v FROM t) AS d"
 				}
 				ast, description := sequencePreparedDescription(t, e, caller, query)
-				late := description.analysis.target
+				late := PreparedAnalysisTarget(DescriptionAnalysis(&description))
 				if kind == "nested_source" {
-					for _, source := range description.analysis.sources {
+					for _, source := range PreparedAnalysisSources(DescriptionAnalysis(&description)) {
 						late = source.Ref
 					}
 				}
@@ -126,7 +126,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					}
 				}()
 				lockPending(t, e, 1)
-				before := description.analysis
+				before := DescriptionAnalysis(&description)
 				switch action {
 				case "cancel":
 					cancel()
@@ -148,16 +148,16 @@ func TestPreparedRebindAdmission(t *testing.T) {
 				joined = true
 				cancel()
 				if action == "cancel" {
-					if !errors.Is(out.err, context.Canceled) || out.rows || description.analysis != before {
+					if !errors.Is(out.err, context.Canceled) || out.rows || DescriptionAnalysis(&description) != before {
 						t.Fatal("cancellation leaked result/publication", out)
 					}
 				} else if action == "shadow_during_wait" {
-					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || description.analysis != before {
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || DescriptionAnalysis(&description) != before {
 						t.Fatal("new shadow during admission crossed native conflict fence", out)
 					}
 					transactionRows(t, caller, "SELECT v FROM b.t")
 				} else if action == "reset" || action == "restore" {
-					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || description.analysis != before {
+					if !errors.Is(out.err, ids.ErrCatalogReplaced) || out.rows || DescriptionAnalysis(&description) != before {
 						t.Fatal("admitted replacement retargeted/published", out)
 					}
 					if action == "reset" {
@@ -182,11 +182,11 @@ func TestPreparedRebindAdmission(t *testing.T) {
 					if kind == "nested_source" && (len(out.sources) != 1 || out.sources[0] != late) {
 						t.Fatal("nested source retargeted", out.sources, late)
 					}
-					if action == "namespace_while_invalid" && preparedRebindValid(t, e, caller, description.analysis) {
+					if action == "namespace_while_invalid" && preparedRebindValid(t, e, caller, DescriptionAnalysis(&description)) {
 						t.Fatal("older resolution certified under later namespace")
 					}
 					if action == "grant_definition" {
-						if !description.analysis.needsReanalysis || preparedRebindValid(t, e, caller, description.analysis) {
+						if !PreparedAnalysisNeedsReanalysis(DescriptionAnalysis(&description)) || preparedRebindValid(t, e, caller, DescriptionAnalysis(&description)) {
 							t.Fatal("grant-time definition evolution certified old resolution")
 						}
 						transactionEnd(t, ddl, earlyHolder, false)
@@ -196,7 +196,7 @@ func TestPreparedRebindAdmission(t *testing.T) {
 						next := preparedRebindJoin(t, done)
 						joined = true
 						cancel()
-						if next.err != nil || description.analysis.needsReanalysis {
+						if next.err != nil || PreparedAnalysisNeedsReanalysis(DescriptionAnalysis(&description)) {
 							t.Fatal("next boundary did not reanalyze normally", next.err)
 						}
 						if kind == "target" && next.target != early || kind == "nested_source" && (len(next.sources) != 1 || next.sources[0] != early) {

@@ -89,7 +89,7 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 
 	// Execute against that frozen candidate through the actual command owner.
 	// The incumbent row-lock/latest-version seam must use peer's 20, not 10.
-	result, err := e.executeStatement(writer, update, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+	result, err := EngineExecuteStatement(e, writer, update, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 		return nil
 	})
 	if err != nil || result.Count != 1 {

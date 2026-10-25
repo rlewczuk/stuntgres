@@ -43,8 +43,8 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 			sessionSQL(t, owner, "DECLARE c CURSOR FOR SELECT id FROM t WHERE id=1 FOR NO KEY UPDATE")
 			cursorUnitBatch(t, owner, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
 			c := PayloadOf(owner).Cursors.Entries["c"]
-			source, index, root := c.CurrentSource, c.CurrentIndex, c.root
-			original := exec.CursorOccurrenceVersion(source, index, 0, c.locks)
+			source, index, root := c.CurrentSource, c.CurrentIndex, CursorRoot(c)
+			original := exec.CursorOccurrenceVersion(source, index, 0, CursorLocks(c))
 			ref := catalogRef(t, e, e.CatalogRead(), "t")
 			committed := func() storage.RowVersion {
 				e.Mu.Lock()
@@ -57,7 +57,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				return storage.RowVersion{}
 			}
 			deleteCount(t, owner, "UPDATE t SET v='owner' WHERE CURRENT OF c", 1)
-			if c.CurrentSource != source || c.CurrentIndex != index || c.root != root || c.Place != exec.CursorOn || c.authority.Host != nil {
+			if c.CurrentSource != source || c.CurrentIndex != index || CursorRoot(c) != root || c.Place != exec.CursorOn || CursorAuthority(c).Host != nil {
 				t.Fatal("positioned owner replaced or advanced borrowed cursor authority")
 			}
 			if got := committed(); got.Version != original.Version || testExport(got.Values[1]) != "one" {
@@ -119,7 +119,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				t.Fatal("missing command snapshot")
 			}
 			execute := func() {
-				result, executeErr = e.executeStatement(scope, update, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+				result, executeErr = EngineExecuteStatement(e, scope, update, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 					return nil
 				})
 			}

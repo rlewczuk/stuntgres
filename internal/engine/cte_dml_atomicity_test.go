@@ -184,7 +184,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			quotes := exec.QuoteCaptureCandidate{}
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output, QuoteCaptures: &quotes}}
 			e.Mu.Lock()
-			result, err := e.executeCTECommandsLocked(scope, ast, bound, auth, nil, evaluation, nil, nil)
+			result, err := EngineExecuteCTECommandsLocked(e, scope, ast, bound, auth, nil, evaluation, nil, nil)
 			want := primary
 			if phase == "output_cancel" {
 				want = context.Canceled

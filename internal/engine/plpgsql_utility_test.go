@@ -52,7 +52,7 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 					if scope.Completed || ScopeSessionCompleted(scope) {
 						t.Fatal("nested child did not start with reset completion flags")
 					}
-					if _, err := e.executeStatement(scope, statement(t, "SET application_name TO 'child'"), 0, nil); err != nil || !scope.Completed {
+					if _, err := EngineExecuteStatement(e, scope, statement(t, "SET application_name TO 'child'"), 0, nil); err != nil || !scope.Completed {
 						t.Fatal("actual child utility failed to install completion", err)
 					}
 					if err := nestedRestore(nil); err != nil || scope.Completed || ScopeSessionCompleted(scope) {
@@ -86,14 +86,14 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 		op, scope := discardUnitScope(t, sess, ctx, parser.DiscardPlans)
 		defer op.Done()
 		defer scope.Finish(context.Canceled)
-		if _, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardPlans}, 0); err != nil || !scope.Completed || !ScopeSessionCompleted(scope) || sess.DiscardPlansGeneration != 1 {
+		if _, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardPlans}, 0); err != nil || !scope.Completed || !ScopeSessionCompleted(scope) || sess.DiscardPlansGeneration != 1 {
 			t.Fatal("root utility did not actually install its outcome", err)
 		}
 		restore := scope.activateSQLRoutine(nil, e.CatalogRead())
 		if scope.Completed || ScopeSessionCompleted(scope) {
 			t.Fatal("completed root outcome leaked into child")
 		}
-		if _, err := e.executeStatement(scope, statement(t, "SET application_name TO 'child'"), 0, nil); err != nil {
+		if _, err := EngineExecuteStatement(e, scope, statement(t, "SET application_name TO 'child'"), 0, nil); err != nil {
 			t.Fatal(err)
 		}
 		if err := restore(nil); err != nil || !scope.Completed || !ScopeSessionCompleted(scope) {

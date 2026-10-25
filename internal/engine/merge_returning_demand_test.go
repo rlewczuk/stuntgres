@@ -39,7 +39,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Context(), b, target, nil, nil, "public"), &cursor, state, false)
+		rows, err := dml.AssembleMergeRows(scope.WriteHost(), ScopeMergeInput(scope, op.Context(), b, target, nil, nil, "public"), &cursor, state, false)
 		if err != nil {
 			scope.Finish(err)
 			t.Fatal(err)

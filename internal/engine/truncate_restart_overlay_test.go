@@ -224,7 +224,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 		foreign := catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.TemporaryNamespace, Name: "peer_s"})
 		original := e.Storage.Sequences[foreign]
 		scope := truncateRestartUnitStage(t, e, s, "p")
-		if scope.Catalog.Generators[own] == nil || scope.Catalog.Generators[foreign] != nil || len(scope.truncateOrZero().Sequences) != 1 {
+		if scope.Catalog.Generators[own] == nil || scope.Catalog.Generators[foreign] != nil || len(ScopeTruncateOrZero(scope).Sequences) != 1 {
 			t.Fatal("TEMP ownership not isolated")
 		}
 		lockState := e.Locks.Inspect(scope.LockTicket)

@@ -199,7 +199,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	version := source.Committed[0]
 	candidate := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	copiedScope := *scope
-	if err := copiedScope.acquireRow(candidate); err == nil {
+	if err := ScopeAcquireRow(&copiedScope, candidate); err == nil {
 		t.Fatal("copied scope acquired a row")
 	}
 	var absent *WriteStage
@@ -209,7 +209,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	if _, err := scope.Writes().Delete(candidate); err == nil {
 		t.Fatal("ungranted deletion accepted")
 	}
-	if err := scope.acquireRow(candidate); err != nil {
+	if err := ScopeAcquireRow(scope, candidate); err != nil {
 		t.Fatal(err)
 	}
 	copied := *scope.Writes()
@@ -219,7 +219,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	invalidStorage := *candidate.Storage
 	invalid := candidate
 	invalid.Storage = &invalidStorage
-	if err := scope.acquireRow(invalid); err == nil {
+	if err := ScopeAcquireRow(scope, invalid); err == nil {
 		t.Fatal("copied storage acquired a row")
 	}
 	if _, err := scope.Writes().Delete(invalid); err == nil {
@@ -259,7 +259,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.Committed[0]
 	candidate := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: version.Row, Version: version.Version, Ordinal: 0}
-	if err := scope.acquireRow(candidate); err != nil {
+	if err := ScopeAcquireRow(scope, candidate); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
@@ -269,7 +269,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)
 	}
-	if err := scope.acquireRow(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := ScopeAcquireRow(scope, candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted row acquisition", err)
 	}
 	_ = scope.Finish(ids.ErrCatalogReplaced)

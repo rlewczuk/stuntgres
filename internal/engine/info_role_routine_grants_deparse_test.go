@@ -17,7 +17,7 @@ import (
 func TestInfoRoleRoutineGrantsDefaultDeparse(t *testing.T) {
 	e := New()
 	read := e.CatalogRead()
-	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: read, deparseAuth: catalogAuthorization(e, read), DeparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}}
+	scope := &StatementScope{Inquiry: NewInquiry(InquiryFields{CommentCatalog: read, DeparseAuth: catalogAuthorization(e, read), DeparsePath: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}})}
 	text, ok := read.LookupType(sqltype.Text)
 	if !ok {
 		t.Fatal("missing text")
@@ -36,7 +36,7 @@ func TestInfoRoleRoutineGrantsDefaultDeparse(t *testing.T) {
 		signature functions.DeparseSignature
 		value     sqltype.Value
 	}{{functions.DeparseViewOID, id}, {functions.DeparseViewText, sqltype.String(text, "information_schema.role_routine_grants")}} {
-		value, err := table.Deparse(ctx, scope.deparseInputs(), tc.signature, [3]sqltype.Value{tc.value}, text)
+		value, err := table.Deparse(ctx, ScopeDeparseInputs(scope), tc.signature, [3]sqltype.Value{tc.value}, text)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -49,14 +49,14 @@ func TestInfoRoleRoutineGrantsDefaultDeparse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := table.Deparse(ctx, scope.deparseInputs(), functions.DeparseViewOID, [3]sqltype.Value{nonview}, text)
+	value, err := table.Deparse(ctx, ScopeDeparseInputs(scope), functions.DeparseViewOID, [3]sqltype.Value{nonview}, text)
 	if err != nil || !value.IsNull() {
 		t.Fatal("nonview must remain NULL", value, err)
 	}
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 	ctx.Context = canceled
-	if _, err := table.Deparse(ctx, scope.deparseInputs(), functions.DeparseViewOID, [3]sqltype.Value{id}, text); !errors.Is(err, context.Canceled) {
+	if _, err := table.Deparse(ctx, ScopeDeparseInputs(scope), functions.DeparseViewOID, [3]sqltype.Value{id}, text); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled builtin definition", err)
 	}
 }
@@ -90,8 +90,8 @@ func TestInfoRoleRoutineGrantsDeparseFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldScope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: base, deparseAuth: catalogAuthorization(e, base), DeparsePath: []ids.ObjectAddress{pg}}}
-	oldInputs := oldScope.deparseInputs()
+	oldScope := &StatementScope{Inquiry: NewInquiry(InquiryFields{CommentCatalog: base, DeparseAuth: catalogAuthorization(e, base), DeparsePath: []ids.ObjectAddress{pg}})}
+	oldInputs := ScopeDeparseInputs(oldScope)
 	const oldDefinition = ` SELECT n.nspname AS schemaname,
     c.relname AS viewname,
     pg_get_userbyid(c.relowner) AS viewowner,
@@ -143,9 +143,9 @@ func TestInfoRoleRoutineGrantsDeparseFrontier(t *testing.T) {
 	// even after publication and mutation of the scope that supplied them.
 	oldScope.Output.QuoteAllIdentifiers = true
 	fresh := e.CatalogRead()
-	freshScope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: fresh, deparseAuth: catalogAuthorization(e, fresh), DeparsePath: []ids.ObjectAddress{pg}}}
+	freshScope := &StatementScope{Inquiry: NewInquiry(InquiryFields{CommentCatalog: fresh, DeparseAuth: catalogAuthorization(e, fresh), DeparsePath: []ids.ObjectAddress{pg}})}
 	freshScope.Output.QuoteAllIdentifiers = true
-	freshInputs := freshScope.deparseInputs()
+	freshInputs := ScopeDeparseInputs(freshScope)
 	check(oldInputs, oldDefinition)
 	check(freshInputs, freshDefinition)
 	check(oldInputs, oldDefinition)

@@ -49,7 +49,7 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 				return c.Row[0], nil
 			})}
 			b.Returning.Schema = b.Returning.Schema[:1]
-			r, err := executeUpdate(ctx, scope, b, source, nil, nil, "public")
+			r, err := ExecuteUpdate(ctx, scope, b, source, nil, nil, "public")
 			finishErr := scope.Finish(err)
 			op.Done()
 			cancel()
@@ -83,7 +83,7 @@ func TestUpdateReturningConstraintBeforeProjection(t *testing.T) {
 		op, scope, b, source := updateBoundSource(t, e, s, context.Background(), q)
 		calls := 0
 		b.Returning.Expressions[0] = queryProbe(b.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) { calls++; return c.OldRow[0], nil })
-		r, err := executeUpdate(op.Context(), scope, b, source, nil, nil, "public")
+		r, err := ExecuteUpdate(op.Context(), scope, b, source, nil, nil, "public")
 		if err == nil || calls != 0 || r.Rows != nil || r.Count != 0 {
 			t.Fatal(r, err, calls)
 		}
