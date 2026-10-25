@@ -406,5 +406,40 @@ inspection accessors were added.
   `typedReview{ACLFixture,TypeACL}`. The 192 non-free group files (66 reach core
   internals, 82 family code, 43 shared or several families, 1 unassigned) wait
   for items 193–194 and 203.
-- 193: not started.
+- 193: done (`4d534b352`, `83aca4617`, `71c7556ae`, `3b9051c1b`). Group measured
+  with `group.py`
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-193-TEST-ACCESSORS-I-RUNTIME-AREAS/`, the item
+  184/185 areas and prefixes) at `7177872dd`: 309 root test files, 199 reach
+  only core internals (195 build an engine, 4 are pure units), 50 are free and
+  60 reach family or shared code (item 194). `closure` now counts 335 reached
+  unexported core names (528 in the item text, an earlier tip). T2: the `dead`
+  tool deleted 16 root test helpers without users (the leftovers items 184–187
+  listed, 7 files emptied); a per-function `refcover` pass over the 227 test
+  functions that reach no internal found only tests that assert Go transaction
+  refs, provider call counts, plan nodes or retained streams, so no test was
+  deleted (0.01 MB, not the estimated 0.1 MB). Routing: the type-checked `acc`
+  tool (`c2.sh g1|g2|g3` replays the three commits, then `post.py`) rewrote
+  every site in the declarations reachable from the 195 engine-building files:
+  318 accessors plus `PLHostBeginQueryRows` by hand, in 19
+  `inspect_<area>_test.go` files filed by the member's declaring-file area (core
+  members in DDL-area files land in `inspect_table`, `inspect_view`, ...).
+  Forms: `<Prefix><Field>` getter, `Set…` setter, `…Ref` for address, compound
+  writes and addressable chains, a value getter for fields of unaddressable
+  struct values, same-signature wrappers for methods and functions, constants,
+  12 type aliases (`SQLCursor`, `PLHost`, `StatementHost`, `SessionHost`, ...;
+  deviation: test-only aliases are the only way an external test names an
+  unexported type) and 10 `New<Prefix>(<Prefix>Fields{…})` constructors for
+  literals with unexported fields. Check: `census -loose` finds no unexported
+  core member named outside the inspect files; `closure` puts 178 of the 195
+  files in the free bucket directly, and the other 17 only call exported methods
+  of unexported types (`replacementAdmission.Lock`,
+  `statementHost.AcquireQueryRow`, `cursorRegistry.EndSession`, ...), which an
+  external test calls on the values accessors return. Kept with direct access,
+  as core internal tests for item 195: `replacement_admission`, `catalog_fence`,
+  `expected_inputs`, `fts_query_runtime`. For item 194: run `acc` with that
+  item's seeds; it skips `inspect_*` files but does not yet reuse accessors they
+  already declare (it reports a scope CLASH), so teach it to reuse an existing
+  accessor with the same name and signature first. For item 195: the inspect
+  files become core's `export_test.go` (one file or `export_<area>_test.go`),
+  and the aliases and constructors go with them.
 - 194: not started.

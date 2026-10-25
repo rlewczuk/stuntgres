@@ -766,6 +766,21 @@ Routine-metadata units use the same real capture fixture and staged extension
 constructors for declaration completeness, independent source bags, redaction,
 empty/canceled results and generation fences: `RUN='^TestInfoRoutines'`.
 
+Root runtime tests that build an engine (statement, query, DML, transaction,
+session, catalog, procedural and producer areas) name no unexported core member.
+They use the exported accessors in `inspect_<area>_test.go`, filed by the area
+of the member's declaring file, which become core's `export_test.go` when core
+moves. `<Prefix><Field>(x)` reads a field, `Set<Prefix><Field>(x, v)` writes it
+and `<Prefix><Field>Ref(x)` returns its address. `<Prefix><Method>(x, …)` and
+`<Func>(…)` wrap unexported methods and functions,
+`New<Prefix>(<Prefix>Fields{…})` builds a struct with unexported fields, and an
+exported alias names an unexported type. Prefixes shorten common owners: `Scope`
+(`StatementScope`), `Stage` (`CatalogStage`), `CatalogRuntime`, `Description`,
+`Cursor`, `Portal` and `Payload`. Tests call exported methods of unexported
+types directly. Pure units that build no engine (`replacement_admission`,
+`catalog_fence`, `expected_inputs`, `fts_query_runtime`) keep direct access:
+they become core's internal tests.
+
 ### Advisory timer scheduling and shared result waits
 
 - Timer cases of `TestAdvisorySessionQueueTimersDeadlock` run under

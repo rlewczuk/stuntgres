@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `2d17556a7` (item 192 rebased on it).
+Last verified against `master` at `58bb1fc13` (item 193 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 193.
+- 194.
 
 ## Linear plan
 
@@ -177,9 +177,19 @@ ENGINE-SPLIT.md §4.
      model) 28.37k → 28.30k lines; quickcheck passed; bench skipped (no per-row
      change; escape diff shows no new heap move); `REFERENCE=1` not in the
      Verify list; racecheck and finalcheck skipped at user request
-193. [ ] Test accessors I: runtime areas —
+193. [x] Test accessors I: runtime areas —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-193--test-accessors-i-runtime-areas)
-     · needs 192 · P
+     · needs 192 · P (`4d534b352`, `83aca4617`, `71c7556ae`, `3b9051c1b`, docs
+     commit) · the 195 engine-building root test files of the runtime areas that
+     reach only core internals (and the helpers they reach) now name no
+     unexported core member: 318 generated accessors plus one by hand (getters,
+     setters, `Ref`, method and function wrappers, constants, 12 type aliases
+     and 10 `New<Prefix>` field constructors) in 19 `inspect_<area>_test.go`
+     files, by the `acc` tool; 4 pure unit files keep direct access; T2 deleted
+     16 root test helpers without users (7 files) and no test; root tests 775
+     files and 6.25 MB (+69 KB: 63 KB accessors); quickcheck passed;
+     `REFERENCE=1` and bench skipped (no production change), racecheck and
+     finalcheck skipped at user request
 194. [ ] Test accessors II: DDL areas and family tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-194--test-accessors-ii-ddl-areas-and-family-tests)
      · needs 193 · P
