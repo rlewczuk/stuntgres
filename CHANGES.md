@@ -17,6 +17,12 @@ locks so cancellation while aggregate retirement waits cannot publish a partial
 drop. Ordered identity signatures recognize equivalent parsed pg_catalog type
 names without substituting call-site type coercion.
 
+Installed cube supports cube_subset, cube_union, cube_inter and cube_enlarge
+through shared typed binding, prepared calls and stored expressions. Repeated
+dimension selection, disjoint crossed intersections and radius-driven dimension
+changes preserve binary64 coordinates through native Dump/Reset/Restore.
+Coincident subset boxes expose geometric point text and inquiry results.
+
 Tsvector utilities now support lexeme counts, weight assignment, stripping,
 exact deletion, weight filtering and canonical text-array conversion, including
 typed internal-char arrays with generic storage, bounds, NULLs and native

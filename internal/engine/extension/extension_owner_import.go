@@ -149,7 +149,7 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				switch {
 				case member.Slot >= cubeCoordinateOperatorStart && member.Slot < cubeSpatialProcedureStart:
 					i := member.Slot - cubeCoordinateOperatorStart
-					backing := ext.Members[cubeRoutineMember(len(cubeRoutines)-len(cubeCoordinateOperators)+i)]
+					backing := ext.Members[cubeRoutineMember(cubeCoordinateOperators[i].routineIndex)]
 					if selected.Right != ids.OID(sqltype.Int4) || selected.Result != ids.OID(sqltype.Float8) || selected.Function != backing.ObjectID || selected.Commutator != 0 || selected.Negator != 0 || selected.Restriction != 0 || selected.Join != 0 || selected.Hash || selected.Merge {
 						return false, fmt.Errorf("stuntgres: invalid cube ownership signature")
 					}

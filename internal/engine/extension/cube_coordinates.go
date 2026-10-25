@@ -10,23 +10,28 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-var cubeCoordinateOperators = [...]string{"->", "~>"}
+var cubeCoordinateOperators = [...]struct {
+	name string
+	routineIndex int
+}{
+	{"->", cubeRawCoordinateRoutineIndex},
+	{"~>", cubeSignedCoordinateRoutineIndex},
+}
 
 func cubeCoordinateOwnerName(name string) bool {
 	return name == "->" || name == "~>"
 }
 
 func (p *CubeProvider) stageCoordinates(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef, typ *sqltype.Descriptor) error {
-	for i, name := range cubeCoordinateOperators {
+	for i, member := range cubeCoordinateOperators {
 		revision, err := stage.Revision()
 		if err != nil {
 			return err
 		}
-		// The last two routine declarations are the genuine operator backings.
-		proc := ext.Members[cubeRoutineMember(len(cubeRoutines)-2+i)]
-		op := &catalog.Operator{ObjectAddress: ext.Members[cubeCoordinateOperatorStart+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Left: ids.OID(typ.ID()), Right: ids.OID(sqltype.Int4), Owner: owner, Result: ids.OID(sqltype.Float8), Function: proc.ObjectID}
+		proc := ext.Members[cubeRoutineMember(member.routineIndex)]
+		op := &catalog.Operator{ObjectAddress: ext.Members[cubeCoordinateOperatorStart+i], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.name, Left: ids.OID(typ.ID()), Right: ids.OID(sqltype.Int4), Owner: owner, Result: ids.OID(sqltype.Float8), Function: proc.ObjectID}
 		if stage.LookupName(catalog.DescriptorNameKey(op)) != (ids.ObjectAddress{}) {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf("operator %s already exists", name)}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf("operator %s already exists", member.name)}
 		}
 		if err := stage.Create(op); err != nil {
 			return err
@@ -36,10 +41,10 @@ func (p *CubeProvider) stageCoordinates(stage Stage, ext *catalog.Extension, own
 }
 
 func (p *CubeProvider) validateCoordinates(v catalog.Read, ext *catalog.Extension, base *catalog.Type) error {
-	for i, name := range cubeCoordinateOperators {
+	for i, member := range cubeCoordinateOperators {
 		address := ext.Members[cubeCoordinateOperatorStart+i]
 		op, ok := v.Operator(address)
-		if !ok || address.ClassID != ids.OperatorClassID || op.Address() != address || op.Namespace() != ext.TargetNamespace || op.Extension != ext.Address() || op.Revision() == 0 || op.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(op)) != address || op.Name() != name || op.Left != ids.OID(base.SQLType.ID()) || op.Right != ids.OID(sqltype.Int4) || op.Result != ids.OID(sqltype.Float8) || op.Function != ext.Members[cubeRoutineMember(len(cubeRoutines)-2+i)].ObjectID || op.Commutator != 0 || op.Negator != 0 || op.Restriction != 0 || op.Join != 0 || op.Hash || op.Merge {
+		if !ok || address.ClassID != ids.OperatorClassID || op.Address() != address || op.Namespace() != ext.TargetNamespace || op.Extension != ext.Address() || op.Revision() == 0 || op.Owner == (authorization.PrincipalRef{}) || v.NameAddress(catalog.DescriptorNameKey(op)) != address || op.Name() != member.name || op.Left != ids.OID(base.SQLType.ID()) || op.Right != ids.OID(sqltype.Int4) || op.Result != ids.OID(sqltype.Float8) || op.Function != ext.Members[cubeRoutineMember(member.routineIndex)].ObjectID || op.Commutator != 0 || op.Negator != 0 || op.Restriction != 0 || op.Join != 0 || op.Hash || op.Merge {
 			return fmt.Errorf("stuntgres: invalid cube coordinate operator")
 		}
 	}

@@ -28,6 +28,7 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 	floating, _ := before.LookupType(sqltype.Float8)
 	array, _ := before.LookupType(1022)
 	integer, _ := before.LookupType(sqltype.Int4)
+	integers, _ := before.LookupType(1007)
 	boolean, _ := before.LookupType(sqltype.Bool)
 	ctx := context.Background()
 	value := func(d *sqltype.Descriptor, text string) expr.Expr {
@@ -89,7 +90,7 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 	}
 	procedureMapper := extension.ProcedureRemapper(mapping, replacementProcedurePolicyFixture(source, target), nil)
 	for operation := first; operation <= last; operation++ {
-		formals, count := functions.CubeFormals(operation, base.SQLType, floating, array, integer)
+		formals, count := functions.CubeFormals(operation, base.SQLType, floating, array, integer, integers)
 		args := make([]expr.Expr, count)
 		for i := range args {
 			switch formals[i] {
@@ -97,6 +98,8 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 				args[i] = value(base.SQLType, "(1),(2)")
 			case array:
 				args[i] = value(array, "{1,2}")
+			case integers:
+				args[i] = value(integers, "{1}")
 			case integer:
 				args[i] = value(integer, "1")
 			default:
@@ -110,7 +113,7 @@ func cubeCallableIdentity(t *testing.T, first, last sqltype.CubeOperation) {
 		if operation == sqltype.CubeIsPoint {
 			result = boolean
 		}
-		if operation >= sqltype.CubeLowerCoordinate {
+		if operation >= sqltype.CubeLowerCoordinate && operation <= sqltype.CubeSignedCoordinate {
 			result = floating
 		}
 		identity := functions.Cube{Operation: operation, Args: args}

@@ -47,6 +47,19 @@ func TestLookupClaimsRegisteredNames(t *testing.T) {
 			t.Fatalf("Lookup(%q) = %+v, %v", name, definition.Names, ok)
 		}
 	}
+	// Installed cube admission and exact analyzer family recognition share one
+	// complete name set, while registry matching retains its folded spelling.
+	for _, name := range []string{"cube", "cube_dim", "cube_is_point", "cube_ll_coord", "cube_ur_coord", "cube_coord", "cube_coord_llur", "cube_subset", "cube_union", "cube_inter", "cube_enlarge"} {
+		if !CubeFunctionName(name) || CubeFunctionName(strings.ToUpper(name)) {
+			t.Fatalf("incorrect exact cube family recognition: %q", name)
+		}
+		for _, spelling := range []string{name, strings.ToUpper(name)} {
+			definition, ok := Lookup(spelling)
+			if !ok || definition.Bind == nil || definition.ExactSpelling || definition.SharedGates || !slices.Contains(definition.Names, name) || len(definition.Names) != 11 {
+				t.Fatalf("Lookup(%q) = %+v, %v", spelling, definition, ok)
+			}
+		}
+	}
 	// The array and range families sat before the shared gates and matched names
 	// case-insensitively; the bind code owns exact-spelling resolution.
 	for _, name := range []string{"array_dims", "Cardinality", "array_sample", "ARRAY_SHUFFLE", "array_append", "ARRAY_SORT", "trim_array", "array_to_string", "array_position", "array_positions", "Array_Remove", "array_replace", "IsEmpty", "lower_inc", "UPPER_INF", "range_merge", "multirange"} {

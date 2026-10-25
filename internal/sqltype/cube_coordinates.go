@@ -11,8 +11,8 @@ func CubeCoordinate(ctx context.Context, d *Descriptor, value Value, operation C
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	if _, _, err := CubeInfo(d, value); err != nil {
-		return 0, err
+	if !d.IsCube() || value.typ != d || value.null || !value.validCube() {
+		return 0, fmt.Errorf("invalid cube inquiry operand")
 	}
 	p := value.cube
 	switch operation {

@@ -156,10 +156,26 @@ func cubeComparisonProviderRemap(t *testing.T) {
 		t.Fatal("portable owner decoding", err)
 	}
 	kinds := map[string]int{}
+	transforms := map[string]string{
+		"cube_subset": "cube,1007",
+		"cube_union": "cube,cube",
+		"cube_inter": "cube,cube",
+		"cube_enlarge": "cube,701,23",
+	}
+	seenTransforms := map[string]bool{}
 	for _, member := range record.Members {
 		kinds[member.Kind]++
+		if signature, selected := transforms[member.Name]; selected {
+			if seenTransforms[member.Name] || member.Kind != "procedure" || member.Signature != signature || member.Owner != record.Owner || member.Schema != record.Schema {
+				t.Fatal("exact transformation symbolic ownership", member)
+			}
+			seenTransforms[member.Name] = true
+		}
 	}
-	for kind, want := range map[string]int{"type": 1, "procedure": 27, "operator": 14, "operator_class": 1, "operator_family": 1} {
+	if len(seenTransforms) != len(transforms) {
+		t.Fatal("missing transformation symbolic owners", seenTransforms)
+	}
+	for kind, want := range map[string]int{"type": 1, "procedure": 31, "operator": 14, "operator_class": 1, "operator_family": 1} {
 		if kinds[kind] != want {
 			t.Fatal("complete symbolic owner kinds", kind, kinds)
 		}

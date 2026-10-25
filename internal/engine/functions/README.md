@@ -370,13 +370,17 @@ publication and lock-manager tickets stay in the engine.
   cross-width CAST. Catalog lifetime/provenance remains with existing admission
   and stored-renderer owners. See [kernels](../../sqltype/README.md#mac-address-operations)
   and [public proof](../../../reference/types/README.md#mac-address-operations).
-- **cube**: `bindCube` consumes selected/coerced operands from the shared
-  analyzer callable selector; exact/preferred/unknown ranking and type-name
+- **cube**: `cubeFunctionNames` is the single name inventory for registry dispatch
+  and analyzer family recognition; registry folding does not bypass exact
+  installed resolution. `bindCube` consumes selected/coerced operands from the
+  shared analyzer callable selector; exact/preferred/unknown ranking and type-name
   coercion remain shared. Explicit operation/formal selection includes int4
-  coordinate indices and FLOAT8 extraction results.
+  coordinate indices, INT4[] subset selectors, FLOAT8 enlargement radii and
+  FLOAT8 extraction results.
   `CubeRoutine` exposes the resolved installation's cube descriptor without a
   type-name lookup in `Binder`. `Cube` invokes sqltype's immutable constructor,
-  inquiry and coordinate kernels; strict evaluation finishes all children first.
+  inquiry, coordinate and transformation kernels; strict evaluation finishes
+  all children first.
   `plan.InstalledCubeExpr` preserves procedure authority through
   rebuild, retag, substitution, grouping and stored rendering.
 - **earthdistance**: `EarthRoutine` exposes the genuine installed domain to

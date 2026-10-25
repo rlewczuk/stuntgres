@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// CubeOperation is the bounded installed constructor/inquiry selection.
+// CubeOperation is the bounded installed constructor/inquiry/transform selection.
 type CubeOperation uint8
 
 const (
@@ -23,19 +23,33 @@ const (
 	CubeUpperCoordinate
 	CubeRawCoordinate
 	CubeSignedCoordinate
+	CubeSubset
+	CubeUnion
+	CubeIntersection
+	CubeEnlarge
 )
 
 func cubeConstructionLimit(message string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "54000", Message: message, Detail: "A cube cannot have more than 100 dimensions."}
 }
 
-// CubeInfo inspects the immutable payload without copying coordinates. The
-// descriptor comparison rejects values from another installed generation.
-func CubeInfo(d *Descriptor, value Value) (dimension int, point bool, err error) {
+// CubeDimensionCount validates the payload and reads its stored dimension
+// without examining coordinate values.
+func CubeDimensionCount(d *Descriptor, value Value) (int, error) {
 	if !d.IsCube() || value.typ != d || value.null || !value.validCube() {
-		return 0, false, fmt.Errorf("invalid cube inquiry operand")
+		return 0, fmt.Errorf("invalid cube inquiry operand")
 	}
-	return value.cube.dimension, value.cube.point, nil
+	return value.cube.dimension, nil
+}
+
+// CubeInfo reports dimension and geometric point status, not the raw storage
+// flag, without copying coordinates. Descriptor identity rejects other generations.
+func CubeInfo(d *Descriptor, value Value) (dimension int, point bool, err error) {
+	dimension, err = CubeDimensionCount(d, value)
+	if err != nil {
+		return 0, false, err
+	}
+	return dimension, value.cube.isPoint(), nil
 }
 
 // ConstructCube builds a payload directly from already-coerced formal values.

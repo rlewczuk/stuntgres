@@ -371,6 +371,8 @@ host methods.
   to other usages remain. This keeps Dump/Restore/redump byte-stable instead of
   accumulating geometric casts; analyzed display and private scalar replay retain
   their separate formal-cast channels.
+  Installed cube source leaves use the same direct-leaf, exact-Usage rule;
+  their type-owned annotation remains single across replay without erasing outer casts.
 - **SQL/JSON.** Query nodes carry their RETURNING usage in
   `Rendering.OwnedReturning`; replay and display use it, not raw type spelling.
   Raw view capture keeps all query children and options. Reconstruction remints

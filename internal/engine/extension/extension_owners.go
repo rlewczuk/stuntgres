@@ -405,7 +405,7 @@ func cubeOwnerOperatorIdentity(slot int) (string, string, bool) {
 		return cubeOperatorNames[slot-10], "cube,cube", true
 	}
 	if slot >= cubeCoordinateOperatorStart && slot < cubeSpatialProcedureStart {
-		return cubeCoordinateOperators[slot-cubeCoordinateOperatorStart], "cube,23", true
+		return cubeCoordinateOperators[slot-cubeCoordinateOperatorStart].name, "cube,23", true
 	}
 	if slot >= cubeSpatialOperatorStart && slot < CubeMemberCount {
 		return cubeSpatialMembers[slot-cubeSpatialOperatorStart].operator, "cube,cube", true

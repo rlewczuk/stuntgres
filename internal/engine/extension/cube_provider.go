@@ -57,6 +57,12 @@ type cubeRoutineSpec struct {
 	source string
 }
 
+// Key the operator backings explicitly: later routine additions are not backings.
+const (
+	cubeRawCoordinateRoutineIndex = 19
+	cubeSignedCoordinateRoutineIndex = 20
+)
+
 var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube_in", [3]sqltype.ID{2275}, 1, 0, "cube_in"},
 	{"cube_out", [3]sqltype.ID{0}, 1, 2275, "cube_out"},
@@ -77,8 +83,12 @@ var cubeRoutines = [...]cubeRoutineSpec{
 	{"cube_is_point", [3]sqltype.ID{0}, 1, sqltype.Bool, "cube_is_point"},
 	{"cube_ll_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ll_coord"},
 	{"cube_ur_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_ur_coord"},
-	{"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord"},
-	{"cube_coord_llur", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord_llur"},
+	cubeRawCoordinateRoutineIndex: {"cube_coord", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord"},
+	cubeSignedCoordinateRoutineIndex: {"cube_coord_llur", [3]sqltype.ID{0, sqltype.Int4}, 2, sqltype.Float8, "cube_coord_llur"},
+	{"cube_subset", [3]sqltype.ID{0, 1007}, 2, 0, "cube_subset"},
+	{"cube_union", [3]sqltype.ID{0, 0}, 2, 0, "cube_union"},
+	{"cube_inter", [3]sqltype.ID{0, 0}, 2, 0, "cube_inter"},
+	{"cube_enlarge", [3]sqltype.ID{0, sqltype.Float8, sqltype.Int4}, 3, 0, "cube_enlarge"},
 }
 
 // The selected comparison graph keeps its stable prefix. Other installed

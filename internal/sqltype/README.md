@@ -255,6 +255,18 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   without allocation or text conversion. Normalized bounds retain ordered C
   min/max selection (including NaN and signed-zero ties); signed projections
   widen int4 before absolute value and negate the selected binary64 value.
+- `CubeDimensionCount` validates the exact payload generation and reads the
+  stored dimension without coordinate comparisons. `CubeInfo` additionally
+  inspects geometric point status; dimension-only inquiry uses the count path.
+- `TransformCube` reads immutable cube and flattened INT4[] payloads directly.
+  Subset preserves entered orientation and the source point flag. Bounding
+  operations retain ordered C min/max selection; enlargement retains direct
+  binary64 subtraction, addition and crossed-bound averaging. Bounded stack
+  scratch precedes one owned result coordinate buffer, with no text roundtrip
+  or padded input copies. Signature validation precedes strict whole NULLs;
+  subset NULL elements precede length and index checks.
+  Public point inquiry and cube output share the geometric endpoint predicate,
+  recognizing coincident subset boxes without mutating their retained storage flag.
 - `EarthCoordinatePlan` captures actual earth/cube/FLOAT8 generations and shares
   `EarthRadius` with the released domain checks. Checked binary64 arithmetic
   retains SQL NaN ordering, signed zero and underflow. Projection borrows private

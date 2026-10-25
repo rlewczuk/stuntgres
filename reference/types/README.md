@@ -364,6 +364,9 @@ mixed cube/integer/Boolean result adapter. `cubeConstructorScenario` borrows and
 closes one connection per backend. `cubeConstructorSelect` checks cube raw cells
 and metadata without replacing the ordinary scalar-column assertions.
 Expected array and point text is specified independently of native formatting.
+Transformation scenarios reuse this adapter for scalar cube results, including
+empty and NULL-only projections. Their stored calls retain the same installed
+carrier through same-target and allocator-colliding fresh-driver replacement.
 
 `cube_coordinate_helpers_test.go` checks FLOAT8 metadata and exact extraction
 bits before parity, including signed zero and NaN classification. Coordinate
@@ -394,8 +397,8 @@ The comparison graph has 18 direct extension members: the scalar, nine
 strict immutable procedures (text input/output, six comparisons and `cube_cmp`),
 six comparison operators, and the default B-tree `cube_ops` class and family.
 The complete installed manifest also includes eight constructor/dimension/point
-routines, four coordinate routines, two coordinate operators and six spatial
-routine/operator pairs, for 44 direct members. The
+routines, four coordinate routines, two coordinate operators, four scalar
+transformation routines and six spatial routine/operator pairs, for 48 direct members. The
 associated `_cube` catalog identity remains lookup-only and internally dependent,
 not array storage. Equality is merge-capable, not HASHES; there is no cube
 hash-index class. Native receive/send metadata stays zero. Constructor and spatial

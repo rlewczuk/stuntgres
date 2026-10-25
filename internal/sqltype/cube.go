@@ -22,6 +22,21 @@ type cubePayload struct {
 	coordinates []float64
 }
 
+// isPoint also recognizes coincident endpoints in an uncollapsed box. Subset
+// preserves the source storage flag, while inquiry/output inspect its geometry.
+// The raw point flag remains authoritative for NaN point payloads.
+func (p *cubePayload) isPoint() bool {
+	if p.point {
+		return true
+	}
+	for i := range p.dimension {
+		if p.coordinates[i] != p.coordinates[p.dimension+i] {
+			return false
+		}
+	}
+	return true
+}
+
 func (v Value) validCube() bool {
 	if v.cube == nil || v.cube.dimension < 0 || v.cube.dimension > 100 {
 		return false
@@ -269,7 +284,7 @@ func (d *Descriptor) cubeOutput(ctx context.Context, v Value, env OutputEnvironm
 	}
 	var out strings.Builder
 	corners := 1
-	if !v.cube.point {
+	if !v.cube.isPoint() {
 		corners = 2
 	}
 	for corner := range corners {

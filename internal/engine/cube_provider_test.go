@@ -54,7 +54,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if ext.Version != "1.5" || len(ext.Members) != 44 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
+	if ext.Version != "1.5" || len(ext.Members) != 48 || base.Extension != ext.Address() || !base.SQLType.IsCube() || base.Owner != ext.Owner {
 		t.Fatal("installed identity", ext, base)
 	}
 	array, ok := view.LookupArray(base.SQLType)
@@ -108,6 +108,10 @@ func TestCubeProviderIdentity(t *testing.T) {
 		{"cube_dim", cubeID, 23}, {"cube_is_point", cubeID, 16},
 		{"cube_ll_coord", cubeID + ",23", 701}, {"cube_ur_coord", cubeID + ",23", 701},
 		{"cube_coord", cubeID + ",23", 701}, {"cube_coord_llur", cubeID + ",23", 701},
+		{"cube_subset", cubeID + ",1007", ids.OID(base.SQLType.ID())},
+		{"cube_union", cubeID + "," + cubeID, ids.OID(base.SQLType.ID())},
+		{"cube_inter", cubeID + "," + cubeID, ids.OID(base.SQLType.ID())},
+		{"cube_enlarge", cubeID + ",701,23", ids.OID(base.SQLType.ID())},
 	} {
 		p, ok := view.Procedure(view.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: expected.name, Signature: expected.signature}))
 		if !ok || p.Name() != expected.name || string(p.Signature) != expected.signature || p.Result != expected.result {
@@ -132,7 +136,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 			arrayInternal = true
 		}
 	}
-	if len(members) != 44 || !arrayInternal {
+	if len(members) != 48 || !arrayInternal {
 		t.Fatal("dependency ownership", members, arrayInternal)
 	}
 	for _, address := range ext.Members {
@@ -161,7 +165,7 @@ func TestCubeProviderIdentity(t *testing.T) {
 		t.Fatal("owner metadata comments", records, err)
 	}
 	record := records[0]
-	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 44 {
+	if record.Name != "cube" || record.Schema != "public" || record.Version != "1.5" || record.Owner != "postgres" || len(record.Members) != 48 {
 		t.Fatal("owner metadata", record)
 	}
 	for _, member := range record.Members {
@@ -176,6 +180,8 @@ func TestCubeProviderIdentity(t *testing.T) {
 		"cube_dim(cube)": true, "cube_is_point(cube)": true,
 		"cube_ll_coord(cube,23)": true, "cube_ur_coord(cube,23)": true,
 		"cube_coord(cube,23)": true, "cube_coord_llur(cube,23)": true,
+		"cube_subset(cube,1007)": true, "cube_union(cube,cube)": true,
+		"cube_inter(cube,cube)": true, "cube_enlarge(cube,701,23)": true,
 		"->": true, "~>": true,
 		"cube_overlap(cube,cube)": true, "cube_contains(cube,cube)": true, "cube_contained(cube,cube)": true,
 		"cube_distance(cube,cube)": true, "distance_taxicab(cube,cube)": true, "distance_chebyshev(cube,cube)": true,

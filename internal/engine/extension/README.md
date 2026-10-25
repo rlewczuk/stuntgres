@@ -47,13 +47,16 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   installed codec's array through the type provider registered in the catalog
   owner.
 - **Cube members** (`cube_provider.go`, `cube_coordinates.go`, `cube_spatial.go`,
-  `cube_spatial_call.go`): one atomic installation validates all 44 direct members.
+  `cube_spatial_call.go`): one atomic installation validates all 48 direct members.
   The comparison graph keeps its 18-member prefix; constructor/inquiry/coordinate
-  procedures and two coordinate operators precede the spatial procedure/operator
-  tails. Starts and `CubeMemberCount` derive from the routine tables; each table
+  and four transformation procedures and two coordinate operators precede the
+  spatial procedure/operator tails. Starts and `CubeMemberCount` derive from the
+  routine tables; each table
   retains its feature authority. Operators carry real extension membership and
-  exact backing-procedure links. Symbolic owner signatures preserve every builtin
-  formal, including `cube,23` coordinate operators. Import resolves the expected
+  explicit backing-procedure indices independent of appended routine tails.
+  Staging, validation and ownership import share these links. Symbolic owner signatures preserve every builtin
+  formal, including `cube,1007` subset and `cube,23` coordinate signatures.
+  Import resolves the expected
   destination member, not an arbitrary same-name object.
   Comparison support keeps its exact INTERNAL class address; a family owner is
   not an interchangeable execution capability. `RemapDescriptor` delegates class,

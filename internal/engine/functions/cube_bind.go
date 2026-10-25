@@ -59,9 +59,9 @@ func bindCube(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 	floating, array := b.Type(sqltype.Float8), b.Type(1022)
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	operation, found := sqltype.CubeScalar, false
-	for candidate := sqltype.CubeScalar; candidate <= sqltype.CubeSignedCoordinate; candidate++ {
+	for candidate := sqltype.CubeScalar; candidate <= sqltype.CubeEnlarge; candidate++ {
 		candidateName := (Cube{Operation: candidate}).Name()
-		formals, n := CubeFormals(candidate, cube, floating, array, b.Type(sqltype.Int4))
+		formals, n := CubeFormals(candidate, cube, floating, array, b.Type(sqltype.Int4), b.Type(1007))
 		if name != candidateName || n != len(args) {
 			continue
 		}
@@ -91,7 +91,7 @@ func bindCube(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		result = b.Type(sqltype.Int4)
 	} else if operation == sqltype.CubeIsPoint {
 		result = b.Type(sqltype.Bool)
-	} else if operation >= sqltype.CubeLowerCoordinate {
+	} else if operation >= sqltype.CubeLowerCoordinate && operation <= sqltype.CubeSignedCoordinate {
 		result = b.Type(sqltype.Float8)
 	}
 	call, err := NewCube(b.Info(result.Usage(), raw.Pos, properties), operation, cube, children)
