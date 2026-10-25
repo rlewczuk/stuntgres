@@ -123,7 +123,7 @@ func roleTransactionConflictControls(t *testing.T) {
 				run(a, fixture.Exec("GRANT rf_control TO rf_actor", 0))
 				run(w, fixture.Exec("BEGIN", 0))
 				if kind != "cancel" {
-					run(w, fixture.Exec("SET "+kind+"='2s'", 0))
+					run(w, fixture.Exec("SET "+kind+"='100ms'", 0))
 				}
 				ctx, cancel := context.WithCancel(p.Ctx)
 				defer cancel()
@@ -134,8 +134,10 @@ func roleTransactionConflictControls(t *testing.T) {
 					return fixture.RelationOutcome{Result: r, Err: err}
 				})
 				t.Cleanup(func() { a.ExecContext(p.Ctx, "ROLLBACK") })
-				roleTransactionT2Wait(t, p, b, wpid, apid, completed)
+				// A timer's exact outcome proves the wait; never race an observer
+				// against the short timer.
 				if kind == "cancel" {
+					roleTransactionT2Wait(t, p, b, wpid, apid, completed)
 					if b.PG {
 						var signaled bool
 						if err := fixture.Admin.QueryRowContext(p.Ctx, "SELECT pg_cancel_backend($1)", wpid).Scan(&signaled); err != nil || !signaled {

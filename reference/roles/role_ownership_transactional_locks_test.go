@@ -61,7 +61,7 @@ func TestReferenceRoleOwnershipTransactionalLocks(t *testing.T) {
 							x.exec("SAVEPOINT lock_mark")
 						}
 						if failure == "timeout" {
-							x.exec("SET lock_timeout='3s'")
+							x.exec("SET lock_timeout='100ms'")
 						}
 						ctx, cancel := context.WithCancel(s.p.Ctx)
 						defer cancel()
@@ -84,10 +84,11 @@ func TestReferenceRoleOwnershipTransactionalLocks(t *testing.T) {
 								join()
 							}
 						}()
-						fixture.RelationLockPending(s.t, s.p, s.backend, waiterPID, holderPID, oid, "AccessExclusiveLock", finished)
-						// Independent committed work while the real command is parked.
-						fixture.RunStep(s.t, s.p.Ctx, s.backend.DB, s.record, fixture.Exec("INSERT INTO tx_lock_unrelated VALUES(9)", 1))
+						unrelated := fixture.Exec("INSERT INTO tx_lock_unrelated VALUES(9)", 1)
 						if failure == "cancel" {
+							fixture.RelationLockPending(s.t, s.p, s.backend, waiterPID, holderPID, oid, "AccessExclusiveLock", finished)
+							// Independent committed work while the real command is parked.
+							fixture.RunStep(s.t, s.p.Ctx, s.backend.DB, s.record, unrelated)
 							if s.backend.PG {
 								var canceled bool
 								if err := fixture.Admin.QueryRowContext(s.p.Ctx, "SELECT pg_cancel_backend($1)", waiterPID).Scan(&canceled); err != nil || !canceled {
@@ -103,8 +104,12 @@ func TestReferenceRoleOwnershipTransactionalLocks(t *testing.T) {
 							s.t.Fatal("failed waiter returned result", out.Result)
 						}
 						if failure == "timeout" {
+							// The exact lock-timeout outcome proves the waiter queued
+							// behind the holder; never race an observer against the
+							// short timer. The cancel branch covers work while parked.
 							d := fixture.ControlsReferenceDiagnostic("55P03", "canceling statement due to lock timeout")
 							fixture.AssertDiagnostic(s.t, out.Err, &d)
+							fixture.RunStep(s.t, s.p.Ctx, s.backend.DB, s.record, unrelated)
 						} else if s.backend.PG {
 							d := fixture.ControlsReferenceDiagnostic("57014", "canceling statement due to user request")
 							fixture.AssertDiagnostic(s.t, out.Err, &d)
@@ -225,7 +230,7 @@ func TestReferenceRoleOwnershipTransactionalPolicyLocks(t *testing.T) {
 				defer x.abort()
 				x.exec("SAVEPOINT policy_mark")
 				if end == "timeout" {
-					x.exec("SET lock_timeout='3s'")
+					x.exec("SET lock_timeout='100ms'")
 				}
 				ctx, cancel := context.WithCancel(s.p.Ctx)
 				defer cancel()
@@ -248,7 +253,11 @@ func TestReferenceRoleOwnershipTransactionalPolicyLocks(t *testing.T) {
 						join()
 					}
 				}()
-				fixture.RelationLockPending(s.t, s.p, s.backend, ownerPID, peerPID, oid, "AccessExclusiveLock", finished)
+				// A timeout's exact 55P03 outcome proves the wait; never race an
+				// observer against the short timer.
+				if end != "timeout" {
+					fixture.RelationLockPending(s.t, s.p, s.backend, ownerPID, peerPID, oid, "AccessExclusiveLock", finished)
+				}
 				if end == "cancel" {
 					if s.backend.PG {
 						var canceled bool
