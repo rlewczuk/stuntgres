@@ -141,13 +141,13 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	next.Constraints.NotNull = nil
 	next.Constraints.Check = nil
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}}
-	scope.inheritancePlan().RecordAction(p, &next, action)
+	inheritancePlan(scope).RecordAction(p, &next, action)
 	event := state.Events[p.Address()]
 	if len(event) != 1 || len(event[0].RetiredNotNull) != 1 || len(event[0].RetiredChecks) != 1 {
 		t.Fatal("actual DROP callback failed to capture removed facts", event)
 	}
 	graph := catalog.CloneInheritance(c.Inheritance)
-	table.InheritRetiredColumnConstraints(&state.InheritanceAlterPlan, state.retiredBase(), c, graph, c.Attributes[c.Index["a"]])
+	table.InheritRetiredColumnConstraints(&state.InheritanceAlterPlan, retiredBase(state), c, graph, c.Attributes[c.Index["a"]])
 	if len(graph.NotNull[1].Retired) != 1 || len(graph.Checks["ck"].Retired) != 1 {
 		t.Fatal("recorded DROP failed to issue historical support")
 	}
@@ -159,7 +159,7 @@ func TestInheritanceConstraintHistoryIssuer(t *testing.T) {
 	} {
 		state.Events[p.Address()] = []table.InheritanceAlterEvent{bad}
 		g := catalog.CloneInheritance(c.Inheritance)
-		table.InheritRetiredColumnConstraints(&state.InheritanceAlterPlan, state.retiredBase(), c, g, 1)
+		table.InheritRetiredColumnConstraints(&state.InheritanceAlterPlan, retiredBase(state), c, g, 1)
 		if len(g.NotNull[1].Retired) != 0 || len(g.Checks["ck"].Retired) != 0 {
 			t.Fatal("noncontributing event issued history", bad)
 		}

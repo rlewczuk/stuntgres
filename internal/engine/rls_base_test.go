@@ -143,7 +143,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	retained := e.CatalogRead()
 	noOpScope := &StatementScope{Op: op}
 	e.Mu.Lock()
-	if _, err := e.stageRowSecurityFlagsLocked(noOpScope, op, auth, d, d); err != nil {
+	if _, err := stageRowSecurityFlagsLocked(e, noOpScope, op, auth, d, d); err != nil {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().State() != retained.State() {
@@ -154,7 +154,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	exhaustedNext := access.RowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
 	exhaustedScope := &StatementScope{Op: op, Owner: &session.TransactionOwner{}}
 	e.Mu.Lock()
-	if _, err := e.stageRowSecurityFlagsLocked(exhaustedScope, op, auth, &exhausted, exhaustedNext); err == nil || err.Error() != "stuntgres: definition revision exhausted" {
+	if _, err := stageRowSecurityFlagsLocked(e, exhaustedScope, op, auth, &exhausted, exhaustedNext); err == nil || err.Error() != "stuntgres: definition revision exhausted" {
 		t.Fatal("revision exhaustion", err)
 	}
 	if e.CatalogRead().State() != retained.State() || exhaustedScope.Catalog != nil {

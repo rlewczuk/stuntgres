@@ -22,7 +22,7 @@ func domainUnitTable(t *testing.T, e *Engine, op *session.Operation, q string) *
 	auth, err := e.AuthorizationLocked(op)
 	stage := e.BeginCatalogStage(auth.Catalog)
 	if err == nil {
-		err = e.SchemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {

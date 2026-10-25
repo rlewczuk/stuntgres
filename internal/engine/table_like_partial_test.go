@@ -285,7 +285,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	if err == nil {
-		err = e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE anchor(a INT)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
+		err = SchemaTableLocked(e, op, auth, stage, statement(t, "CREATE TABLE anchor(a INT)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
 		auth.Catalog = e.StageRead(stage)
@@ -295,7 +295,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	var created *catalog.Relation
 	if err == nil {
 		var predicate *catalog.IndexPredicate
-		predicate, err = e.bindIndexPredicate(op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
+		predicate, err = bindIndexPredicate(e, op, sqltype.InputEnvironment{}, auth, source, raw.Predicate)
 		if err == nil {
 			definition, columns, attributes, lookup, bindErr := index.BindAttributes(TableHost{DDLHost{E: e, Op: op}}, auth, sqltype.InputEnvironment{}, source, raw)
 			err = bindErr
@@ -321,7 +321,7 @@ func TestTableLikePartialPrivateProvenance(t *testing.T) {
 	if err == nil {
 		auth.Catalog = e.StageRead(stage)
 		auth.Recapture(auth.Catalog)
-		err = e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE clone(lead TEXT,LIKE private_source INCLUDING ALL)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
+		err = SchemaTableLocked(e, op, auth, stage, statement(t, "CREATE TABLE clone(lead TEXT,LIKE private_source INCLUDING ALL)").(*parser.CreateTable), source.Namespace(), source.Owner, sqltype.InputEnvironment{}, nil)
 	}
 	e.Mu.Unlock()
 	if err != nil {

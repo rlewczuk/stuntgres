@@ -11,7 +11,7 @@ import (
 // auth's catalog, goes through a private stage and publishes with no
 // statement scope. The caller holds e.mu; this releases it before
 // validation and publication, and discards the stage on every exit.
-func (e *Engine) publishRestoreRepairLocked(op *session.Operation, auth AuthorizationView, next *catalog.Relation, epoch ids.CatalogEpoch) error {
+func publishRestoreRepairLocked(e *Engine, op *session.Operation, auth AuthorizationView, next *catalog.Relation, epoch ids.CatalogEpoch) error {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	e.Mu.Unlock()

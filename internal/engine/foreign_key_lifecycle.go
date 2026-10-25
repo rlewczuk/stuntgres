@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/table"
 )
 
-func (s *StatementScope) acquireForeignKeyTypeProviders(view catalog.Read, address ids.ObjectAddress) error {
+func acquireForeignKeyTypeProviders(s *StatementScope, view catalog.Read, address ids.ObjectAddress) error {
 	for _, ref := range table.ForeignKeyTypeProviders(view, s.Engine().Catalog.Domain, address) {
 		if err := s.ForeignKeyGrant(ref, 0, lock.RowShare, nil); err != nil {
 			return err

@@ -58,7 +58,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 	original := old.ColumnMeta.Generations[2]
 	retained := auth.Catalog
 	unaffected := old.ColumnMeta.Generations[3]
-	next, attribute, err := e.generationCandidate(scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
+	next, attribute, err := generationCandidate(e, scope, admin, auth, old, alterGenerationAction(alterGenerationLiteral(8)))
 	if err != nil || attribute != 2 || next == old || next.ColumnMeta.Generations[2].OID != 0 || next.ColumnMeta.Generations[2].Kind != catalog.GenerationStored {
 		t.Fatal(next, attribute, err)
 	}
@@ -75,18 +75,18 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal("unaffected definition reminted/mutated")
 	}
 	drop := parser.AlterTableAction{Action: parser.DropExpression, Column: parser.Identifier{Text: "b"}}
-	dropped, changed, err := e.generationCandidate(scope, admin, auth, next, drop)
+	dropped, changed, err := generationCandidate(e, scope, admin, auth, next, drop)
 	if err != nil || changed != 0 || len(dropped.ColumnMeta.Generations) != 1 || len(next.ColumnMeta.Generations) != 2 || dropped.Columns[1] != old.Columns[1] || dropped.ColumnMeta.Generations[3].OID != unaffected.OID {
 		t.Fatal(dropped, changed, err)
 	}
 	target := ref.Address
 	target.SubID = 1
-	originalDrop, _, err := e.generationCandidate(scope, admin, auth, old, drop)
+	originalDrop, _, err := generationCandidate(e, scope, admin, auth, old, drop)
 	if err != nil || !table.GenerationDepends(old, target) || table.GenerationDepends(next, target) || table.GenerationDepends(originalDrop, target) || originalDrop.ColumnMeta.Generations[3].OID != unaffected.OID {
 		t.Fatal("SET/DROP dependency edges or unaffected definition wrong", err)
 	}
 	drop.IfExists = true
-	same, _, err := e.generationCandidate(scope, admin, auth, dropped, drop)
+	same, _, err := generationCandidate(e, scope, admin, auth, dropped, drop)
 	if err != nil || same != dropped || same.Revision() != dropped.Revision() {
 		t.Fatal("no-op changed descriptor", err)
 	}

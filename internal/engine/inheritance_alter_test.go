@@ -80,7 +80,7 @@ func TestInheritanceAlterOrigins(t *testing.T) {
 					stage.UpdateDescriptor(&next)
 					state := &InheritanceAlterState{Stage: stage, InheritanceAlterPlan: table.InheritanceAlterPlan{Root: p, Targets: []*catalog.Relation{p, c}, Selected: map[ids.ObjectAddress]bool{p.Address(): true, c.Address(): true}, Only: only, Actions: []parser.AlterTableAction{action}, Events: make(map[ids.ObjectAddress][]table.InheritanceAlterEvent)}}
 					state.InheritanceAlterPlan.RecordAction(p, &next, action)
-					actions, graph, err := e.inheritedAlterActions(state, c)
+					actions, graph, err := inheritedAlterActions(e, state, c)
 					if err != nil {
 						t.Fatal(kind, only, other, local, err)
 					}
@@ -260,7 +260,7 @@ func TestInheritanceAlterOnlyMixedActions(t *testing.T) {
 		}}
 		state.RecordAction(p, &next, drop)
 		state.RecordAction(p, &next, later)
-		actions, graph, err := e.inheritedAlterActions(state, c)
+		actions, graph, err := inheritedAlterActions(e, state, c)
 		if err != nil || len(actions) != 0 {
 			t.Fatal("ONLY root recipe/key acquired descendant physical action", actions, err)
 		}
@@ -301,7 +301,7 @@ func TestInheritanceAlterCheckProvenanceAtomicity(t *testing.T) {
 		Events:   make(map[ids.ObjectAddress][]table.InheritanceAlterEvent),
 	}}
 	state.RecordAction(p, &nextParent, drop)
-	_, graph, err := e.inheritedAlterActions(state, c)
+	_, graph, err := inheritedAlterActions(e, state, c)
 	if err != nil {
 		t.Fatal(err)
 	}

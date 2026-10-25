@@ -15,7 +15,7 @@ import (
 )
 
 // Called under Engine.mu. Every return releases it, like the existing DDL path.
-func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.CreateTable, count int) (Result, error) {
+func createTableLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.CreateTable, count int) (Result, error) {
 	if count != 0 {
 		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -68,9 +68,9 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 	stage.AuthorizeLocked(auth, op.Session)
 	var partition *pendingPartitionDefinition
 	if s.PartitionBy != nil || s.PartitionOf != nil {
-		partition, err = e.schemaPartitionTableLocked(scope, auth, stage, s, ns.Address)
+		partition, err = schemaPartitionTableLocked(e, scope, auth, stage, s, ns.Address)
 	} else {
-		err = e.SchemaTableLocked(op, auth, stage, s, ns.Address, auth.State.CurrentUser, scope.Input, scope.foreignKeysOrZero().KeyTargets)
+		err = SchemaTableLocked(e, op, auth, stage, s, ns.Address, auth.State.CurrentUser, scope.Input, foreignKeysOrZero(scope).KeyTargets)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -83,7 +83,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 	// Preserve entry admission and acquire genuine definition-provider holds
 	// afterward, under their existing publication/cancellation policy.
 	replacementRead := scope.ReplacementRead
-	if err = scope.acquireTypedSources(stage, false); err != nil {
+	if err = acquireTypedSources(scope, stage, false); err != nil {
 		return Result{}, err
 	}
 	if !replacementRead && scope.ReplacementRead {
@@ -169,6 +169,6 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 
 // SchemaTableLocked stages CREATE TABLE s without a PARTITION clause; see
 // table.StageCreateTable. Called under Engine.mu.
-func (e *Engine) SchemaTableLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
+func SchemaTableLocked(e *Engine, op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	return table.StageCreateTable(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s, ns, owner, input, foreignTargets)
 }

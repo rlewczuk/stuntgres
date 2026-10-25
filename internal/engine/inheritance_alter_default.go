@@ -12,8 +12,8 @@ import (
 // The ordinary default provider is metadata-only. Cook each physical default
 // against its own column Usage, but publish the complete hierarchy only once.
 // The caller holds Engine.mu; every return releases it.
-func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (Result, error) {
-	targets, auth, err := scope.acquireInheritanceDefinitions(root, !raw.Only)
+func alterInheritanceDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (Result, error) {
+	targets, auth, err := acquireInheritanceDefinitions(scope, root, !raw.Only)
 	if err != nil {
 		return Result{}, err
 	}
@@ -39,7 +39,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *sessio
 		}
 		var definition catalog.ColumnDefault
 		if err == nil && raw.Action == parser.SetDefault {
-			definition, err = e.cookAlterDefaultLocked(scope, op, auth, old, childSlot, raw.Expression)
+			definition, err = cookAlterDefaultLocked(e, scope, op, auth, old, childSlot, raw.Expression)
 		}
 		if err != nil {
 			e.Mu.Unlock()

@@ -14,7 +14,7 @@ import (
 // The owner-authorized AX grant protects identity; publication changes only the
 // immutable descriptor and never evaluates a default or rewrites row storage.
 // Every return releases Engine.mu.
-func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableDefault, count int) (Result, error) {
+func alterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableDefault, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -42,11 +42,11 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 	}
 	attr := old.Attributes[slot]
 	if catalog.InheritanceParticipant(auth.Catalog, old) {
-		return e.alterInheritanceDefaultLocked(scope, op, auth, s, old)
+		return alterInheritanceDefaultLocked(e, scope, op, auth, s, old)
 	}
 	var definition catalog.ColumnDefault
 	if s.Action == parser.SetDefault {
-		definition, err = e.cookAlterDefaultLocked(scope, op, auth, old, slot, s.Expression)
+		definition, err = cookAlterDefaultLocked(e, scope, op, auth, old, slot, s.Expression)
 		if err != nil {
 			return fail(err)
 		}
@@ -104,6 +104,6 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 }
 
 // cookAlterDefaultLocked cooks SET DEFAULT; the caller holds Engine.mu.
-func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
+func cookAlterDefaultLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
 	return table.CookAlterDefault(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, old, slot, expression)
 }

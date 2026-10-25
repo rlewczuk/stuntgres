@@ -88,7 +88,7 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared, err := scope.prepareColumnDrop(auth, source, sourceRef, raw.Actions[0])
+	prepared, err := prepareColumnDrop(scope, auth, source, sourceRef, raw.Actions[0])
 	if err != nil {
 		t.Fatal(err)
 	}

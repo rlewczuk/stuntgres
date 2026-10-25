@@ -12,13 +12,13 @@ import (
 
 // Metadata-only graph evolution shares the same one-stage atomic publication
 // contract as shape ALTER, without running a physical row rewrite.
-func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
+func renameInheritanceColumnLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
 	candidate, err := table.RenameInheritanceColumnPrecheck(auth.Catalog, root, column, destination, only)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	targets, auth, err := scope.acquireInheritanceDefinitions(root, !only)
+	targets, auth, err := acquireInheritanceDefinitions(scope, root, !only)
 	if err != nil {
 		return Result{}, err
 	}
@@ -60,14 +60,14 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *sessio
 	return Result{}, err
 }
 
-func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (Result, error) {
+func renameInheritanceConstraintLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (Result, error) {
 	name := raw.Constraint.Text
 	recurse, err := table.RenameInheritanceConstraintPrecheck(auth.Catalog, root, name, kind, raw.Only)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	targets, auth, err := scope.acquireInheritanceDefinitions(root, recurse)
+	targets, auth, err := acquireInheritanceDefinitions(scope, root, recurse)
 	if err != nil {
 		return Result{}, err
 	}
@@ -102,7 +102,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *se
 // The caller holds Engine.mu. Success retains it so the caller can create its
 // sole stage from the returned authentic authorization/catalog without a gap;
 // every error returns unlocked. AX waits always run outside Engine.mu.
-func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relation, recurse bool) ([]*catalog.Relation, AuthorizationView, error) {
+func acquireInheritanceDefinitions(scope *StatementScope, root *catalog.Relation, recurse bool) ([]*catalog.Relation, AuthorizationView, error) {
 	e := scope.Engine()
 	epoch := scope.LockedRef.Epoch
 	captured := map[ids.ObjectAddress]*catalog.Relation{root.Address(): root}

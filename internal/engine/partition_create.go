@@ -20,7 +20,7 @@ type pendingPartitionDefinition struct {
 	view  *visibility.View
 }
 
-func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*pendingPartitionDefinition, error) {
+func schemaPartitionTableLocked(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, syntax *parser.CreateTable, namespace ids.ObjectAddress) (*pendingPartitionDefinition, error) {
 	op := scope.Op
 	if err := partition.RejectForeignKeys(syntax); err != nil {
 		return nil, err
@@ -46,7 +46,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			return nil, err
 		}
 	}
-	definition, err := partition.StageCreate(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, scope.foreignKeysOrZero().KeyTargets)
+	definition, err := partition.StageCreate(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, foreignKeysOrZero(scope).KeyTargets)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 		}
 		// Constraint validation must include writers completed before the
 		// hierarchy lock grant, without advancing the active utility pair.
-		pending.view, err = scope.acquirePartitionValidationViewsLocked(e, pending.DefaultLeaves)
+		pending.view, err = acquirePartitionValidationViewsLocked(scope, e, pending.DefaultLeaves)
 		if err != nil {
 			return nil, err
 		}

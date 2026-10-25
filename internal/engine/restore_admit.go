@@ -159,7 +159,7 @@ func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *par
 func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.CreateTable) error {
 	if declarations := table.ForeignKeyDeclarations(s); len(declarations) != 0 {
 		var err error
-		r.cur.pending, err = r.stage.captureRestoredForeignKeys(op, declarations)
+		r.cur.pending, err = captureRestoredForeignKeys(r.stage, op, declarations)
 		if err != nil {
 			return err
 		}
@@ -243,12 +243,12 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
 		err = r.stage.restoreRetiredConstraint(op, s, r.historicalAuthority)
 	} else if table.RestoreCatalogName(s.Name, "pg_constraint") {
-		err = r.stage.restoreNoInheritNotNull(op, s, r.pairedNotNull)
+		err = restoreNoInheritNotNull(r.stage, op, s, r.pairedNotNull)
 		if err == nil {
 			delete(r.notNullOrigins, r.pairedNotNull.Constraint)
 		}
 	} else {
-		err = r.stage.restoreAttributeRank(op, s)
+		err = restoreAttributeRank(r.stage, op, s)
 	}
 	r.pairedNotNull = table.RestoredNotNull{}
 	return err
@@ -258,12 +258,12 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 // last one hands its relation to a foreign key provider and may defer a
 // primary key.
 func replayRestorePhysicalNotNull(r *restoreRun, op *session.Operation, s *parser.Delete) error {
-	if err := r.stage.restorePhysicalNotNull(op, s, r.pairedPhysical); err != nil {
+	if err := restorePhysicalNotNull(r.stage, op, s, r.pairedPhysical); err != nil {
 		return err
 	}
 	if r.pairedPhysical.Position == len(r.pairedPhysical.Repairs) {
 		var err error
-		r.physicalForeignProvider, err = r.stage.capturePhysicalForeignKeyProvider(op, r.pairedPhysical.Repairs[0].Relation, r.historicalRefs)
+		r.physicalForeignProvider, err = capturePhysicalForeignKeyProvider(r.stage, op, r.pairedPhysical.Repairs[0].Relation, r.historicalRefs)
 		if err != nil {
 			return err
 		}

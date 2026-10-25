@@ -13,14 +13,14 @@ import (
 // The owner-authorized AX grant pins the private parent incarnation. Rename is
 // metadata-only: the existing overlay and Finish own publication of the group.
 // Engine.mu is held on entry and released on every return.
-func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (Result, error) {
+func renameConstraintLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	ref, err := e.ResolveRelationReference(auth, raw.Name, true)
 	if raw.IfExists && table.RenameMissing(err) {
-		return e.renameRelationLocked(scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, false, count)
+		return renameRelationLocked(e, scope, op, auth, raw.Name, "", raw.NewName.Text, true, false, false, false, count)
 	}
 	if err != nil {
 		return fail(err)
@@ -37,7 +37,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Opera
 		return fail(err)
 	}
 	if (kind == 'n' || kind == 'c') && catalog.InheritanceParticipant(auth.Catalog, parent) {
-		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
+		return renameInheritanceConstraintLocked(e, scope, op, auth, raw, parent, kind)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)

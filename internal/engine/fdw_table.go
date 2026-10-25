@@ -38,11 +38,11 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 	if s.Inner != nil {
 		switch inner := s.Inner.(type) {
 		case *parser.AlterTableRenameTable:
-			return e.renameRelationLocked(scope, scope.Op, auth, inner.Name, "", inner.NewName.Text, inner.IfExists, false, false, false, 0)
+			return renameRelationLocked(e, scope, scope.Op, auth, inner.Name, "", inner.NewName.Text, inner.IfExists, false, false, false, 0)
 		case *parser.AlterTableRenameColumn:
-			return e.renameRelationLocked(scope, scope.Op, auth, inner.Name, inner.Column.Text, inner.NewName.Text, inner.IfExists, true, false, false, 0)
+			return renameRelationLocked(e, scope, scope.Op, auth, inner.Name, inner.Column.Text, inner.NewName.Text, inner.IfExists, true, false, false, 0)
 		case *parser.AlterTableSetSchema:
-			return e.alterSchemaLocked(scope, scope.Op, auth, inner, 0)
+			return alterSchemaLocked(e, scope, scope.Op, auth, inner, 0)
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
@@ -101,7 +101,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 					delete(next.ColumnMeta.Defaults, attribute)
 				} else {
 					e.Mu.Lock()
-					definition, er := e.cookAlterDefaultLocked(scope, scope.Op, auth, &next, slot, a.Expression)
+					definition, er := cookAlterDefaultLocked(e, scope, scope.Op, auth, &next, slot, a.Expression)
 					e.Mu.Unlock()
 					if er != nil {
 						return Result{}, er
@@ -128,13 +128,13 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				err = table.BindChecks(alterHost{h, scope}, auth, candidate, []*parser.CheckConstraint{a.Check}, scope.Input, true, nil)
 				e.Mu.Unlock()
 			case parser.DropColumn:
-				candidate, err = scope.dropColumnCandidate(stage, &next, ref, a, nil)
+				candidate, err = dropColumnCandidate(scope, stage, &next, ref, a, nil)
 			case parser.AddColumn:
 				if err = fdw.CheckAddedColumn(a.Definition); err != nil {
 					return Result{}, err
 				}
 				var added table.AddedColumn
-				candidate, added, err = e.addColumnCandidate(scope, scope.Op, auth, &next, a, nil)
+				candidate, added, err = addColumnCandidate(e, scope, scope.Op, auth, &next, a, nil)
 				if err == nil && added.Column != nil {
 					if added.Declaration.NotNull {
 						candidate, err = table.NotNullCandidate(scope.Op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, table.NotNullDirect)
@@ -170,9 +170,9 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				if prepareErr != nil {
 					return Result{}, prepareErr
 				}
-				candidate, _, err = e.alterTypeCandidate(scope, scope.Op, auth, stage, old, &next, ref, a, prepared)
+				candidate, _, err = alterTypeCandidate(e, scope, scope.Op, auth, stage, old, &next, ref, a, prepared)
 			case parser.SetExpression, parser.DropExpression:
-				candidate, _, err = e.generationCandidate(scope, scope.Op, auth, &next, a)
+				candidate, _, err = generationCandidate(e, scope, scope.Op, auth, &next, a)
 			default:
 				return Result{}, fdw.UnsupportedAlter()
 			}
@@ -186,7 +186,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		}
 		if err == nil && pass == 1 {
 			var rebound *catalog.Relation
-			rebound, _, err = e.rebindAlterTypeChecks(scope, scope.Op, auth, ref, &next, pendingChecks)
+			rebound, _, err = rebindAlterTypeChecks(e, scope, scope.Op, auth, ref, &next, pendingChecks)
 			if err == nil {
 				next = *rebound
 			}

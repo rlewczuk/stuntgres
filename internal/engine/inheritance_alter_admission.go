@@ -86,7 +86,7 @@ func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operat
 			state.Graph = table.AlterGraph(actual)
 			planned := state.Actions
 			if state.Descendant {
-				planned, state.Graph, err = e.inheritedAlterActions(state, actual)
+				planned, state.Graph, err = inheritedAlterActions(e, state, actual)
 				if err != nil {
 					return err
 				}

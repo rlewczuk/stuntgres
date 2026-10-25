@@ -56,8 +56,8 @@ func (h alterHost) BindDefault(a ddl.Authority, relation *catalog.Relation, colu
 
 func (h alterHost) BindGeneration(a ddl.Authority, relation *catalog.Relation, slot int, raw parser.Expr) (catalog.ColumnGeneration, error) {
 	auth := DDLAuthorityOf(a)
-	namespace := h.E.GenerationNamespace(auth, relation)
-	return h.E.BindGeneration(h.Op, auth, relation, slot, raw, h.scope.Input, &namespace)
+	namespace := GenerationNamespace(h.E, auth, relation)
+	return BindGeneration(h.E, h.Op, auth, relation, slot, raw, h.scope.Input, &namespace)
 }
 
 func (h alterHost) RebindCheck(a ddl.Authority, relation *catalog.Relation, ref ids.ObjectRef, raw parser.Expr, literals []plan.LiteralExpr) (expr.Expr, error) {
@@ -100,5 +100,5 @@ func (h alterHost) TypeChangeDependents(a ddl.Authority, target ids.ObjectAddres
 }
 
 func (h alterHost) StageIdentitySequenceOptions(relation *catalog.Relation, attribute int32, sequence ids.ObjectAddress, raw []parser.SequenceOption) error {
-	return h.E.stageIdentitySequenceOptionsLocked(h.scope, h.CatalogStage, relation, attribute, sequence, raw)
+	return stageIdentitySequenceOptionsLocked(h.E, h.scope, h.CatalogStage, relation, attribute, sequence, raw)
 }

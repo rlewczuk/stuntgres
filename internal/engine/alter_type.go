@@ -13,7 +13,7 @@ import (
 
 // Sequence AS uses admitted target usages, including the prefix retained when
 // transformation completion fails. It never visits an unadmitted later TYPE.
-func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, actions []parser.AlterTableAction, prepared []table.AlterTypePreparation) (*CatalogStage, error) {
+func stageAlterIdentityTypes(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, actions []parser.AlterTableAction, prepared []table.AlterTypePreparation) (*CatalogStage, error) {
 	var stage *CatalogStage
 	index := 0
 	for _, action := range actions {
@@ -34,7 +34,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Oper
 					stage.AuthorizeLocked(auth, op.Session)
 				}
 			}
-			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.Sequence, prepared[index].Usage); err != nil {
+			if err := alterIdentityTypeSequence(e, scope, stage, original, attribute, identity.Sequence, prepared[index].Usage); err != nil {
 				return stage, err
 			}
 		}
@@ -52,7 +52,7 @@ func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *session.Opera
 
 // alterTypeCandidate runs the TYPE candidate under Engine.mu; stage, when
 // begun, supplies the staged dependent views.
-func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
+func alterTypeCandidate(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return table.AlterTypeCandidate(alterHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, scope}, auth, original, next, ref, a, prepared)

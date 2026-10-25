@@ -32,11 +32,11 @@ func beforeRestorePhysicalConstructor(r *restoreRun, op *session.Operation, stmt
 		return false, nil
 	}
 	var err error
-	r.cur.physicalConstructor, err = r.stage.preparePhysicalNotNullConstructor(op, alteration, table.PhysicalNotNullFollowing(r.statements, r.cur.index), r.historicalRefs)
+	r.cur.physicalConstructor, err = preparePhysicalNotNullConstructor(r.stage, op, alteration, table.PhysicalNotNullFollowing(r.statements, r.cur.index), r.historicalRefs)
 	if err != nil || r.cur.physicalConstructor != nil {
 		return false, err
 	}
-	r.cur.physicalConstructor, err = r.stage.prepareDeferredPhysicalPrimary(op, alteration, r.deferredPhysical, r.historicalRefs)
+	r.cur.physicalConstructor, err = prepareDeferredPhysicalPrimary(r.stage, op, alteration, r.deferredPhysical, r.historicalRefs)
 	return false, err
 }
 
@@ -77,7 +77,7 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 		r.physicalForeignProvider = nil
 		return false, nil
 	}
-	declaration, admitted, err := r.stage.capturePhysicalSelfForeignKey(op, alteration, r.physicalForeignProvider, r.historicalRefs)
+	declaration, admitted, err := capturePhysicalSelfForeignKey(r.stage, op, alteration, r.physicalForeignProvider, r.historicalRefs)
 	if err != nil {
 		return false, err
 	}
@@ -86,7 +86,7 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 		r.pairedNotNull = table.RestoredNotNull{}
 		return true, nil
 	}
-	r.cur.physicalConstructor, err = r.stage.preparePhysicalCompetingUnique(op, alteration, r.physicalForeignProvider, r.historicalRefs)
+	r.cur.physicalConstructor, err = preparePhysicalCompetingUnique(r.stage, op, alteration, r.physicalForeignProvider, r.historicalRefs)
 	if err != nil {
 		return false, err
 	}
@@ -112,7 +112,7 @@ func prepareRestoreNotNullPair(r *restoreRun, op *session.Operation, stmt parser
 		return nil
 	}
 	var err error
-	r.pairedNotNull, err = r.stage.pairRestoredNotNull(op, alteration, r.notNullOrigins)
+	r.pairedNotNull, err = pairRestoredNotNull(r.stage, op, alteration, r.notNullOrigins)
 	return err
 }
 
@@ -123,7 +123,7 @@ func afterRestorePhysicalConstructor(r *restoreRun, op *session.Operation, _ par
 		return nil
 	}
 	var err error
-	r.pairedPhysical, err = r.stage.capturePhysicalNotNullConstructor(op, r.cur.physicalConstructor, r.physicalIndexes)
+	r.pairedPhysical, err = capturePhysicalNotNullConstructor(r.stage, op, r.cur.physicalConstructor, r.physicalIndexes)
 	return err
 }
 
@@ -135,7 +135,7 @@ func afterRestorePhysicalForeignKeyProvider(r *restoreRun, op *session.Operation
 		return nil
 	}
 	var err error
-	r.physicalForeignProvider, err = r.stage.capturePhysicalForeignKeyProvider(op, alteration.Name, r.historicalRefs)
+	r.physicalForeignProvider, err = capturePhysicalForeignKeyProvider(r.stage, op, alteration.Name, r.historicalRefs)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func afterRestoreForeignKeys(r *restoreRun, _ *session.Operation, _ parser.State
 		return nil
 	}
 	r.cur.pending.Child = outcome.Created
-	if err := r.stage.resolveRestoredForeignKeyTargets(&r.cur.pending); err != nil {
+	if err := resolveRestoredForeignKeyTargets(r.stage, &r.cur.pending); err != nil {
 		return err
 	}
 	r.pendingForeignKeys = append(r.pendingForeignKeys, r.cur.pending)
@@ -183,13 +183,13 @@ func afterRestoreForeignKeys(r *restoreRun, _ *session.Operation, _ parser.State
 // afterRestoreDefault validates a deferred DEFAULT alteration.
 func afterRestoreDefault(r *restoreRun, op *session.Operation, stmt parser.Statement, _ control.Outcome) error {
 	if alteration, ok := stmt.(*parser.AlterTableDefault); ok {
-		return r.stage.validateRestoredDefault(op, alteration)
+		return validateRestoredDefault(r.stage, op, alteration)
 	}
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		if alteration := restoreForeignDefault(foreign); alteration != nil {
 			qualified := *alteration
 			qualified.Name = foreign.Name
-			return r.stage.validateRestoredDefault(op, &qualified)
+			return validateRestoredDefault(r.stage, op, &qualified)
 		}
 	}
 	return nil
@@ -206,5 +206,5 @@ func finishRestorePhysicalBoundary(r *restoreRun, _ context.Context, _ *session.
 
 // finishRestoreForeignKeys binds every captured foreign key.
 func finishRestoreForeignKeys(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return r.stage.bindRestoredForeignKeys(ctx, op, r.pendingForeignKeys)
+	return bindRestoredForeignKeys(r.stage, ctx, op, r.pendingForeignKeys)
 }

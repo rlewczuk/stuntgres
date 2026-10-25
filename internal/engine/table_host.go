@@ -30,7 +30,7 @@ type TableHost struct {
 
 var _ table.Host = TableHost{}
 
-func (h TableHost) TableStage() *table.Stage { return h.CatalogStage.table() }
+func (h TableHost) TableStage() *table.Stage { return tableStage(h.CatalogStage) }
 
 func (h TableHost) SequenceStage() *sequence.Stage { return h.CatalogStage.SequenceState() }
 
@@ -79,7 +79,7 @@ func (h TableHost) BindColumnDefaults(a ddl.Authority, columns []catalog.Column,
 }
 
 func (h TableHost) BindGenerations(a ddl.Authority, relation *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
-	return h.E.bindCreateGenerations(h.Op, DDLAuthorityOf(a), relation, declarations, input)
+	return bindCreateGenerations(h.E, h.Op, DDLAuthorityOf(a), relation, declarations, input)
 }
 
 func (h TableHost) BindCheckExpression(a ddl.Authority, relation *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (expr.Expr, []int, error) {

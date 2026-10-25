@@ -144,7 +144,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stm
 	case *parser.DropType, *parser.DropDomain:
 		droppingTypedSource = true
 	}
-	if err := scope.acquireTypedSources(stage, droppingTypedSource); err != nil {
+	if err := acquireTypedSources(scope, stage, droppingTypedSource); err != nil {
 		return Result{}, err
 	}
 	domainMode := parser.DropCascade

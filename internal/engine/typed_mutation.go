@@ -39,10 +39,10 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 			var err error
 			switch a.Action {
 			case parser.DropColumn:
-				mutation.next, err = scope.dropColumnCandidate(stage, mutation.next, ref, a, nil)
+				mutation.next, err = dropColumnCandidate(scope, stage, mutation.next, ref, a, nil)
 			case parser.AddColumn:
 				var added table.AddedColumn
-				mutation.next, added, err = e.addColumnCandidate(scope, op, auth, mutation.next, a, planned.Usage)
+				mutation.next, added, err = addColumnCandidate(e, scope, op, auth, mutation.next, a, planned.Usage)
 				if err == nil && added.Column != nil {
 					if planned.Usage != nil {
 						mutation.next.Columns[mutation.next.IndexForAttribute(added.Attribute)].DeclaredDimensions = planned.DeclaredDimensions
@@ -79,7 +79,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 					prepared.DeclaredDimensions = planned.DeclaredDimensions
 				}
 				var transform index.ColumnTransformation
-				mutation.next, transform, err = e.alterTypeCandidate(scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
+				mutation.next, transform, err = alterTypeCandidate(e, scope, op, auth, stage, old, mutation.next, ref, planned.Action, prepared)
 				if err != nil {
 					return mutation, err
 				}
@@ -87,9 +87,9 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 					mutation.transforms = append(mutation.transforms, transform)
 				}
 			}
-			mutation.next, mutation.checks, err = e.rebindAlterTypeChecks(scope, op, auth, ref, mutation.next, checks)
+			mutation.next, mutation.checks, err = rebindAlterTypeChecks(e, scope, op, auth, ref, mutation.next, checks)
 			if err == nil {
-				err = e.rebindAlterTypeIndexes(scope, auth, mutation.next, stage, indexes)
+				err = rebindAlterTypeIndexes(e, scope, auth, mutation.next, stage, indexes)
 			}
 			if err != nil {
 				return mutation, err
@@ -173,7 +173,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		checks := *next
 		checks.Constraints.Check = mutation.checks
 		validator.Checks = table.ValidCheckTraversal(&checks)
-		if err := e.captureCheckSnapshots(scope, &checks); err != nil {
+		if err := captureCheckSnapshots(e, scope, &checks); err != nil {
 			return err
 		}
 	}

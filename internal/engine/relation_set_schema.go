@@ -13,7 +13,7 @@ import (
 
 // Engine.mu is held on entry and released on every return. Dependency waits
 // and provider callbacks run without it; one stage publishes the entire closure.
-func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableSetSchema, count int) (Result, error) {
+func alterSchemaLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableSetSchema, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -23,7 +23,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if s.IfExists && table.RenameMissing(err) {
-		return e.skipMissingRelationLocked(scope, op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
+		return skipMissingRelationLocked(e, scope, op, s.Name.Parts[len(s.Name.Parts)-1].Text, false)
 	}
 	if err != nil {
 		return fail(err)

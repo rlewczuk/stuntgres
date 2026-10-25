@@ -35,7 +35,7 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
 			action := parser.AlterTableAction{Action: parser.AddIdentity, Column: parser.Identifier{Text: "id"}, Identity: &parser.IdentityDefinition{Mode: parser.IdentityAlways, Options: []parser.SequenceOption{{Name: "cache", Value: tc.cache}}}}
-			next, err := e.identityCandidate(nil, AuthorizationView{}, stage, old, action)
+			next, err := identityCandidate(e, nil, AuthorizationView{}, stage, old, action)
 			if tc.code != "" {
 				var d *sqlstate.Error
 				if !errors.As(err, &d) || d.Code != tc.code || d.Message != tc.message {
@@ -114,7 +114,7 @@ func TestIdentityModeConflictCandidateUnchanged(t *testing.T) {
 	identity := old.ColumnMeta.Identities[1]
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	next, err := e.identityCandidate(nil, AuthorizationView{}, stage, old, parser.AlterTableAction{
+	next, err := identityCandidate(e, nil, AuthorizationView{}, stage, old, parser.AlterTableAction{
 		Action: parser.SetIdentity, Column: parser.Identifier{Text: "id"},
 		Identity: &parser.IdentityDefinition{Mode: parser.IdentityByDefault, ConflictingModes: true},
 	})

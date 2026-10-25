@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
+func pairRestoredNotNull(e *Engine, op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]table.RestoredNotNull) (table.RestoredNotNull, error) {
 	if !table.RestoredNotNullShape(raw) {
 		return table.RestoredNotNull{}, SQLError("0A000", table.RestoreNoInheritBoundary)
 	}
@@ -26,7 +26,7 @@ func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTab
 
 // Unlike public UPDATE, this interpreter can only run inside isolated Restore,
 // after an imported explicit validated local NN and its immediately paired SET.
-func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Update, origin table.RestoredNotNull) error {
+func restoreNoInheritNotNull(e *Engine, op *session.Operation, raw *parser.Update, origin table.RestoredNotNull) error {
 	name, column, label, err := table.RestoreNoInheritSyntax(raw)
 	if err != nil {
 		return err
@@ -60,5 +60,5 @@ func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Upda
 		e.Mu.Unlock()
 		return err
 	}
-	return e.publishRestoreRepairLocked(op, auth, next, ref.Epoch)
+	return publishRestoreRepairLocked(e, op, auth, next, ref.Epoch)
 }

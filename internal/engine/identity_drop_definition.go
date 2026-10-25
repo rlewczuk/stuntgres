@@ -100,7 +100,7 @@ func ApplyIdentityDropTombstone(stage *CatalogStage, address ids.ObjectAddress) 
 	stage.Sequence.DeleteGenerator(address)
 }
 
-func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
+func prepareIdentityDropDefinition(e *Engine, scope *StatementScope, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*preparedIdentityDrop, error) {
 	if action.Action != parser.DropIdentity {
 		return nil, fmt.Errorf("stuntgres: invalid identity drop")
 	}
@@ -108,7 +108,7 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 	if old != nil {
 		ref.Address = old.Address()
 	}
-	provider, err := scope.prepareDropDefinitionProvider(auth, old, ref, nil)
+	provider, err := prepareDropDefinitionProvider(scope, auth, old, ref, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -120,14 +120,14 @@ func (e *Engine) prepareIdentityDropDefinition(scope *StatementScope, auth Autho
 		return nil, err
 	}
 	capture := provider.IdentityDrop
-	drop, err := scope.finishDropDefinition(provider, next)
+	drop, err := finishDropDefinition(scope, provider, next)
 	if err != nil {
 		return nil, err
 	}
 	return &preparedIdentityDrop{old: old, ref: ref, next: next, drop: drop, sequence: capture.Sequence, original: capture.Original}, nil
 }
 
-func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, prepared *preparedIdentityDrop, old *catalog.Relation, ref ids.ObjectRef) (*catalog.Relation, error) {
+func consumeIdentityDropDefinition(scope *StatementScope, stage *CatalogStage, prepared *preparedIdentityDrop, old *catalog.Relation, ref ids.ObjectRef) (*catalog.Relation, error) {
 	if err := scope.Active(); err != nil {
 		return nil, err
 	}
@@ -143,7 +143,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 			return nil, ids.ErrCatalogReplaced
 		}
 	}
-	next, err := scope.consumePreparedDrop(stage, prepared.drop, old, ref, nil)
+	next, err := consumePreparedDrop(scope, stage, prepared.drop, old, ref, nil)
 	if err != nil {
 		return nil, err
 	}

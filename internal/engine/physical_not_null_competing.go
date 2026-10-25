@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) preparePhysicalCompetingUnique(op *session.Operation, raw *parser.AlterTable, provider *table.RestoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
+func preparePhysicalCompetingUnique(e *Engine, op *session.Operation, raw *parser.AlterTable, provider *table.RestoredPhysicalForeignKeyProvider, created map[ids.ObjectAddress]ids.ObjectRef) (*table.PhysicalNotNullConstructor, error) {
 	if handled, err := table.CompetingUniqueShape(op, raw, provider); !handled || err != nil {
 		return nil, err
 	}

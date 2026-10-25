@@ -21,7 +21,7 @@ type InheritanceAlterState struct {
 	Prepared map[ids.ObjectAddress]*table.InheritancePreparedNode
 }
 
-func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (Result, error) {
+func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (Result, error) {
 	root := scope.LockedDescriptor.(*catalog.Relation)
 	plan, preparatory, err := table.PlanInheritanceAlter(auth.Catalog, root, raw)
 	if err != nil {
@@ -94,7 +94,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 			state.Graph = catalog.CloneInheritance(cached.Graph)
 		} else if state.Descendant {
 			var err error
-			planned, state.Graph, err = e.inheritedAlterActions(state, old)
+			planned, state.Graph, err = inheritedAlterActions(e, state, old)
 			if err != nil {
 				return Result{}, err
 			}
@@ -112,7 +112,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		scope.LockedStorage = e.PrivateStorageLocked(scope.Owner.Catalog, old.Address())
 		e.Mu.Unlock()
 		if len(planned) == 0 {
-			next, err := scope.finishInheritanceAlterCandidate(old, old)
+			next, err := finishInheritanceAlterCandidate(scope, old, old)
 			if err != nil {
 				return Result{}, err
 			}
@@ -131,7 +131,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 		childAuth.Catalog = e.StageRead(stage)
 		childAuth.Recapture(childAuth.Catalog)
 		e.Mu.Lock()
-		if _, err := e.alterTableLocked(scope, op, childAuth, &command, count); err != nil {
+		if _, err := alterTableLocked(e, scope, op, childAuth, &command, count); err != nil {
 			return Result{}, err
 		}
 	}
@@ -170,15 +170,15 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Opera
 
 // inheritedAlterActions reads the members as staged, or as the definition
 // preparation sees them before the stage begins.
-func (e *Engine) inheritedAlterActions(state *InheritanceAlterState, old *catalog.Relation) ([]parser.AlterTableAction, *catalog.TableInheritance, error) {
+func inheritedAlterActions(e *Engine, state *InheritanceAlterState, old *catalog.Relation) ([]parser.AlterTableAction, *catalog.TableInheritance, error) {
 	view := state.Definition.Base
 	if state.Stage != nil {
 		view = e.StageRead(state.Stage)
 	}
-	return table.InheritedAlterActions(&state.InheritanceAlterPlan, view, state.retiredBase(), old)
+	return table.InheritedAlterActions(&state.InheritanceAlterPlan, view, retiredBase(state), old)
 }
 
-func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.Relation) (*catalog.Relation, error) {
+func finishInheritanceAlterCandidate(scope *StatementScope, old, next *catalog.Relation) (*catalog.Relation, error) {
 	state := scope.Inheritance.Alter
 	if state == nil || old.Inheritance == nil && !state.Partition {
 		return next, nil

@@ -25,7 +25,7 @@ func (h SchemaHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddres
 	v := DDLAuthorityOf(a)
 	v.State.CurrentUser = owner
 	v.pathPrefix = namespace
-	return h.E.SchemaTableLocked(h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
+	return SchemaTableLocked(h.E, h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
 }
 
 func (h SchemaHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {

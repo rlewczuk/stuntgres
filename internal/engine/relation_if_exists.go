@@ -7,7 +7,7 @@ import "stuntgres/internal/engine/session"
 // the skip NOTICE. Engine.mu is held on entry and released on every return.
 // The partition forms unlock before checking the publication error and do not
 // check the context.
-func (e *Engine) skipMissingRelationLocked(scope *StatementScope, op *session.Operation, name string, partition bool) (Result, error) {
+func skipMissingRelationLocked(e *Engine, scope *StatementScope, op *session.Operation, name string, partition bool) (Result, error) {
 	op.Session.Mu.Lock()
 	err := PublicationOperationLocked(e, op)
 	op.Session.Mu.Unlock()

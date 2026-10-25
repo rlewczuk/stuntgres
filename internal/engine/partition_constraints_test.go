@@ -441,7 +441,7 @@ func TestPartitionConstraintsDropClosure(t *testing.T) {
 	f.view.State().SetDescriptor(independent.Address(), &independent)
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := f.e.stagePartitionConstraintDrop(stage, f.root.Constraints.Unique[0].OID); err != nil {
+	if err := stagePartitionConstraintDrop(f.e, stage, f.root.Constraints.Unique[0].OID); err != nil {
 		t.Fatal(err)
 	}
 	if err := index.StagePartitionIndexDrop(stage, f.parent); err != nil {
@@ -1192,7 +1192,7 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 	e.Mu.Unlock()
 	if key {
 		root := base.MustRelation(roleTableRef(t, e, "root_key").Address)
-		if err := e.stagePartitionConstraintDrop(stage, root.SQLIndex.Constraint.OID); err != nil {
+		if err := stagePartitionConstraintDrop(e, stage, root.SQLIndex.Constraint.OID); err != nil {
 			t.Fatal(err)
 		}
 		if err := index.StagePartitionIndexDrop(stage, root); err != nil {

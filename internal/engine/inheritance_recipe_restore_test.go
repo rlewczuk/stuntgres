@@ -425,7 +425,7 @@ func TestRestoreInheritedOwnerPair(t *testing.T) {
 	if err := e.pairRestoredGeneration(op, generation, origins); err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual generation identity", err)
 	}
-	if err := e.restoreNoInheritNotNull(op, restoreNNRaw("public.c", "a", "local_nn"), nn); err != nil {
+	if err := restoreNoInheritNotNull(e, op, restoreNNRaw("public.c", "a", "local_nn"), nn); err != nil {
 		t.Fatal("legal owner metadata copy invalidated actual NN identity", err)
 	}
 	if current := e.CatalogRead().MustRelation(refs["c"].Address); current.Owner != owner.Ref || !current.Constraints.NotNull[0].NoInherit || current.Constraints.NotNull[0].OID != nn.Constraint {

@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relation, view catalog.Read, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
+func prepareExclusionShape(s *StatementScope, original, parent *catalog.Relation, view catalog.Read, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
 	if len(original.Constraints.Exclusion)+len(parent.Constraints.Exclusion) == 0 {
 		return nil
 	}

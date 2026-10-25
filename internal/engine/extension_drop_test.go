@@ -264,7 +264,7 @@ func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *session.Operati
 	var stage *CatalogStage
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err = e.SchemaTableLocked(op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+		err = SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	}
 	e.Mu.Unlock()
 	if stage != nil {

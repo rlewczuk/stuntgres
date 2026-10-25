@@ -264,7 +264,7 @@ func TestPGAttributePublication(t *testing.T) {
 func TestPGAttributeDeclaredRank(t *testing.T) {
 	e, scope, auth, old := alterAddUnitScope(t)
 	action := alterAddUnitAction(t, "ALTER TABLE t ADD b integer[2][3]")
-	next, _, err := e.addColumnCandidate(scope, scope.Op, auth, old, action, nil)
+	next, _, err := addColumnCandidate(e, scope, scope.Op, auth, old, action, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	ref := e.Catalog.Domain.Ref(base.Epoch(), old.Address())
 	action := parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: "a"}, Mode: parser.DropRestrict}
-	next, err := scope.dropColumnCandidate(stage, old, ref, action, session.NewJournal())
+	next, err := dropColumnCandidate(scope, stage, old, ref, action, session.NewJournal())
 	if err != nil {
 		t.Fatal(err)
 	}

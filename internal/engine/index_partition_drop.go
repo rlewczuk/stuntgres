@@ -10,12 +10,12 @@ import (
 
 // stagePartitionConstraintDrop serves ALTER TABLE and the partition
 // constraint tests; it does not need Engine.mu.
-func (e *Engine) stagePartitionConstraintDrop(stage *CatalogStage, oid ids.OID) error {
+func stagePartitionConstraintDrop(e *Engine, stage *CatalogStage, oid ids.OID) error {
 	return index.StagePartitionConstraintDrop(stage, oid)
 }
 
 // The caller owns Engine.mu; all exits release it before candidate validation.
-func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, tbl *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
+func executePartitionConstraintDropLocked(e *Engine, scope *StatementScope, auth AuthorizationView, tbl *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
 	stage.Indexes().Output = scope.Output

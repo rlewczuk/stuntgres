@@ -8,14 +8,14 @@ import (
 	"stuntgres/internal/engine/table"
 )
 
-func (scope *StatementScope) inheritancePreparedNode() *table.InheritancePreparedNode {
+func inheritancePreparedNode(scope *StatementScope) *table.InheritancePreparedNode {
 	if scope.Inheritance.Alter == nil {
 		return nil
 	}
 	return scope.Inheritance.Alter.Prepared[scope.LockedRef.Address]
 }
 
-func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *table.InheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, table.AddedColumn, bool, error) {
+func consumeInheritancePreparedAction(scope *StatementScope, stage *CatalogStage, prepared *table.InheritancePreparedNode, idx int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, table.AddedColumn, bool, error) {
 	if prepared == nil {
 		return nil, table.AddedColumn{}, false, nil
 	}
@@ -38,11 +38,11 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		}
 	}
 	if step.Drop != nil {
-		next, err := scope.consumePreparedDrop(stage, preparedDropOf(step.Drop), old, ref, changes)
+		next, err := consumePreparedDrop(scope, stage, preparedDropOf(step.Drop), old, ref, changes)
 		return next, step.Added, true, err
 	}
 	if step.Identity != nil {
-		next, err := scope.consumeIdentityDropDefinition(stage, preparedIdentityDropOf(step.Identity), old, ref)
+		next, err := consumeIdentityDropDefinition(scope, stage, preparedIdentityDropOf(step.Identity), old, ref)
 		return next, step.Added, true, err
 	}
 	if step.Using != nil {

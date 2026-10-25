@@ -135,7 +135,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 // candidate view, as the operation's authority over view. Only definitions an
 // ALTER introduced or whose values it changed get this initial historical
 // scan; the ordinary Finish checker remains responsible for later writes.
-func (s *StatementScope) validateForeignKeys(view catalog.Read, checks []table.ForeignKeyCheck) error {
+func validateForeignKeys(s *StatementScope, view catalog.Read, checks []table.ForeignKeyCheck) error {
 	auth, err := OperationAuthorization(s.Op)
 	if err != nil {
 		return err

@@ -12,7 +12,7 @@ import (
 // Remove retains the original reference/name observations and locks the engine;
 // neither retirement nor dependency traversal publishes the private candidate.
 // Each action classifies its own dependencies before any later backing removal.
-func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *session.Journal) (*catalog.Relation, *CatalogStage, error) {
+func stageDroppedConstraintIndexes(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *session.Journal) (*catalog.Relation, *CatalogStage, error) {
 	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return next, stage, nil
 	}
@@ -24,11 +24,11 @@ func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth Autho
 	return next, stage, err
 }
 
-func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *table.DropPreparation) (*table.DropPreparation, error) {
+func prepareConstraintIndexDrop(scope *StatementScope, auth AuthorizationView, old, next *catalog.Relation, actions []parser.AlterTableAction, prior *table.DropPreparation) (*table.DropPreparation, error) {
 	if !table.HasDroppedConstraintIndexes(old, actions) {
 		return nil, nil
 	}
-	provider, err := scope.prepareDropDefinitionProvider(auth, next, scope.LockedRef, prior)
+	provider, err := prepareDropDefinitionProvider(scope, auth, next, scope.LockedRef, prior)
 	if err != nil {
 		return nil, err
 	}
@@ -36,5 +36,5 @@ func (scope *StatementScope) prepareConstraintIndexDrop(auth AuthorizationView, 
 	if err != nil {
 		return nil, err
 	}
-	return scope.finishDropDefinition(provider, next)
+	return finishDropDefinition(scope, provider, next)
 }

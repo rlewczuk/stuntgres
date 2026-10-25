@@ -138,7 +138,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					_, stage, err := e.stageDroppedConstraintIndexes(scope, auth, nil, parent, next, actions, nil)
+					_, stage, err := stageDroppedConstraintIndexes(e, scope, auth, nil, parent, next, actions, nil)
 					defer e.DiscardCatalogStage(stage)
 					if !inferred && !cascade {
 						var diagnostic *sqlstate.Error

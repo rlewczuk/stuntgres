@@ -55,7 +55,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation
 		// Execution can select a source created while target admission waited.
 		// Grant the actual staged attachment, not just the pre-wait source.
 		replacementRead := scope.ReplacementRead
-		if err := scope.acquireTypedSources(stage, false); err != nil {
+		if err := acquireTypedSources(scope, stage, false); err != nil {
 			return Result{}, err
 		}
 		// Release only this helper's incidental reservation before provider
@@ -75,7 +75,7 @@ func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation
 	return Result{}, err
 }
 
-func (scope *StatementScope) acquireTypedSources(stage *CatalogStage, drop bool) error {
+func acquireTypedSources(scope *StatementScope, stage *CatalogStage, drop bool) error {
 	if stage == nil || stage.Owner != scope.Engine() || stage.Base.Domain() != scope.Engine().Catalog.Domain || stage.Base.Epoch() != scope.TxRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}

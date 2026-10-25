@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindCreateGenerations(op *session.Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
+func bindCreateGenerations(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.Generation != nil {
 			if d.ColumnMeta.Generations == nil {
@@ -32,12 +32,12 @@ func (e *Engine) bindCreateGenerations(op *session.Operation, auth Authorization
 	if len(d.ColumnMeta.Generations) == 0 {
 		return nil
 	}
-	ns := e.GenerationNamespace(auth, d)
+	ns := GenerationNamespace(e, auth, d)
 	for slot, declaration := range declarations {
 		if declaration.Generation == nil {
 			continue
 		}
-		definition, err := e.BindGeneration(op, auth, d, slot, declaration.Generation.Expression, input, &ns)
+		definition, err := BindGeneration(e, op, auth, d, slot, declaration.Generation.Expression, input, &ns)
 		if err != nil {
 			return err
 		}
@@ -46,12 +46,12 @@ func (e *Engine) bindCreateGenerations(op *session.Operation, auth Authorization
 	return nil
 }
 
-func (e *Engine) GenerationNamespace(auth AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
+func GenerationNamespace(e *Engine, auth AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
 	return analyze.RelationNamespace(auth.Catalog, d, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), 0)
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.
-func (e *Engine) BindGeneration(op *session.Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
+func BindGeneration(e *Engine, op *session.Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
 	b := NewExpressionBinder(op.Context(), e, input, op, nil)
 	b.Target.GeneratedOwner = d
 	b.Params.NoParameters = true

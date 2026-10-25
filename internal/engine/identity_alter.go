@@ -13,7 +13,7 @@ import (
 
 // identityCandidate applies ADD, SET or DROP identity. SET acquires the
 // identity sequence between the table decisions; ADD stages under Engine.mu.
-func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, error) {
+func identityCandidate(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, error) {
 	switch action.Action {
 	case parser.DropIdentity:
 		return table.DropIdentity(StageDropProvider(scope.Op.Context(), stage, scope, nil, nil), old, action)
@@ -47,7 +47,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 
 // Both identity SET and TYPE AS use the sequence owner's migration/state rules.
 // Caller holds Engine.mu after the exact linked sequence's operation lock grant.
-func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, raw []parser.SequenceOption) error {
+func stageIdentitySequenceOptionsLocked(e *Engine, scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, raw []parser.SequenceOption) error {
 	if err := e.RefreshIdentitySequenceLocked(scope, stage, table, attribute, address); err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	return nil
 }
 
-func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
+func alterIdentityTypeSequence(e *Engine, scope *StatementScope, stage *CatalogStage, table *catalog.Relation, attribute int32, address ids.ObjectAddress, usage sqltype.Usage) error {
 	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), address)
 	if err := scope.AcquireSequence(ref, lock.ShareRowExclusive, false); err != nil {
 		return err
@@ -101,7 +101,7 @@ func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *Catalog
 	if err != nil {
 		return err
 	}
-	if err := e.stageIdentitySequenceOptionsLocked(scope, stage, table, attribute, address, []parser.SequenceOption{as}); err != nil {
+	if err := stageIdentitySequenceOptionsLocked(e, scope, stage, table, attribute, address, []parser.SequenceOption{as}); err != nil {
 		return err
 	}
 	// AS discards this backend's tail even if a later table pass rolls back.

@@ -24,7 +24,7 @@ func TestTableHostBindColumnDefaultsMatchesCreateTable(t *testing.T) {
 
 	created := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(created)
-	if err := e.SchemaTableLocked(op, auth, created, s, public, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil); err != nil {
+	if err := engine.SchemaTableLocked(e, op, auth, created, s, public, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	address, ok := created.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: public, Name: "host_defaults"})

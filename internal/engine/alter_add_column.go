@@ -10,7 +10,7 @@ import (
 
 // The ADD COLUMN candidate runs under Engine.mu; DEFAULT recipes keep the
 // statement's authority for row fills.
-func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, table.AddedColumn, error) {
+func addColumnCandidate(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, table.AddedColumn, error) {
 	scope.RoutineAuth = auth
 	e.Mu.Lock()
 	defer e.Mu.Unlock()

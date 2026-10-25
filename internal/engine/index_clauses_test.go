@@ -649,7 +649,7 @@ func TestIndexClausesBoundDerivedEvolution(t *testing.T) {
 			}
 			auth.Catalog = compactedView
 			auth.Recapture(auth.Catalog)
-			if err := e.rebindAlterTypeIndexes(scope, auth, &final, stage, queue); err != nil {
+			if err := rebindAlterTypeIndexes(e, scope, auth, &final, stage, queue); err != nil {
 				t.Fatal(err)
 			}
 			if err := e.EvolveStageIndexesLocked(stage, parent.Address(), []index.ColumnTransformation{{Attribute: attribute}}); err != nil {

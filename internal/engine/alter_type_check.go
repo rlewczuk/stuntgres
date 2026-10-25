@@ -8,7 +8,7 @@ import (
 )
 
 // rebindAlterTypeChecks rebinds the affected CHECKs under Engine.mu.
-func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, ref ids.ObjectRef, next *catalog.Relation, queue []table.AlterTypeCheck) (*catalog.Relation, []catalog.CheckConstraint, error) {
+func rebindAlterTypeChecks(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, ref ids.ObjectRef, next *catalog.Relation, queue []table.AlterTypeCheck) (*catalog.Relation, []catalog.CheckConstraint, error) {
 	if len(queue) == 0 {
 		return next, nil, nil
 	}

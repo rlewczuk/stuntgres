@@ -82,11 +82,11 @@ func (command *inheritanceMetadataAdmissionCase) run() error {
 	var err error
 	switch raw := command.raw.(type) {
 	case *parser.AlterTableDefault:
-		_, err = command.e.alterInheritanceDefaultLocked(command.scope, command.op, command.auth, raw, root)
+		_, err = alterInheritanceDefaultLocked(command.e, command.scope, command.op, command.auth, raw, root)
 	case *parser.AlterTableRenameColumn:
-		_, err = command.e.renameInheritanceColumnLocked(command.scope, command.op, command.auth, root, raw.Column.Text, raw.NewName.Text, raw.Only)
+		_, err = renameInheritanceColumnLocked(command.e, command.scope, command.op, command.auth, root, raw.Column.Text, raw.NewName.Text, raw.Only)
 	case *parser.AlterTableRenameConstraint:
-		_, err = command.e.renameInheritanceConstraintLocked(command.scope, command.op, command.auth, raw, root, 'n')
+		_, err = renameInheritanceConstraintLocked(command.e, command.scope, command.op, command.auth, raw, root, 'n')
 	default:
 		command.e.Mu.Unlock()
 		return errors.New("metadata admission fixture has no matching private provider")
@@ -137,7 +137,7 @@ func inheritanceMetadataChild(t *testing.T, e *Engine, parent *catalog.Relation,
 	var child *catalog.Relation
 	if err == nil {
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err = e.SchemaTableLocked(op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
+		err = SchemaTableLocked(e, op, auth, stage, raw, parent.Namespace(), owner, sqltype.InputEnvironment{}, nil)
 	}
 	if err == nil {
 		address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: parent.Namespace(), Name: name})
@@ -291,7 +291,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 				}
 				for _, old := range originals {
 					ref := e.Catalog.Domain.Ref(grown.Epoch(), old.Address())
-					if !command.scope.holdsColumnDropGrant(ref) {
+					if !holdsColumnDropGrant(command.scope, ref) {
 						t.Fatal("actual reconciled target lacks AX admission", old.Name())
 					}
 					current, _ := completed.Relation(old.Address())

@@ -21,7 +21,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.LockedRef.Domain() == nil {
-		return e.skipMissingRelationLocked(scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
+		return skipMissingRelationLocked(e, scope, op, raw.Name.Parts[len(raw.Name.Parts)-1].Text, true)
 	}
 	parent := scope.LockedDescriptor.(*catalog.Relation)
 	if err := partition.CheckAttachTarget(parent, OperationReplayOrZero(op).PartitionAttach); err != nil {

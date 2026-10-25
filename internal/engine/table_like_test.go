@@ -31,7 +31,7 @@ func tableLikeBuild(t *testing.T, e *Engine, op *session.Operation, query string
 	if syntax.Persistence == "temporary" {
 		namespace = op.Session.TemporaryNamespace
 	}
-	err = e.SchemaTableLocked(op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = SchemaTableLocked(e, op, auth, stage, syntax, namespace, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	var destination *catalog.Relation
 	if err == nil {
 		address, _ := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: syntax.Name.Parts[len(syntax.Name.Parts)-1].Text})

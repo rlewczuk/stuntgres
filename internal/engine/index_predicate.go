@@ -16,7 +16,7 @@ import (
 )
 
 // Caller holds engine.mu and supplies final parent/catalog authority.
-func (e *Engine) bindIndexPredicate(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr) (*catalog.IndexPredicate, error) {
+func bindIndexPredicate(e *Engine, op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr) (*catalog.IndexPredicate, error) {
 	if raw == nil {
 		return nil, nil
 	}

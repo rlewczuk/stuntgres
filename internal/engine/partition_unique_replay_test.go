@@ -120,7 +120,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 					e.Mu.Unlock()
 					t.Fatal(err)
 				}
-				_, err = e.alterTableLocked(scope, op, auth, raw, 0)
+				_, err = alterTableLocked(e, scope, op, auth, raw, 0)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -177,7 +177,7 @@ func TestPartitionDetachUniqueReplayEvents(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	if _, err = e.alterTableLocked(scope, op, auth, raw, 0); err != nil {
+	if _, err = alterTableLocked(e, scope, op, auth, raw, 0); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.Finish(nil); err != nil {

@@ -11,7 +11,7 @@ import (
 // Called by the existing ALTER executor with Engine.mu held. Flag-only and
 // relation-option lists stage only metadata: no storage clone, row scan, policy
 // copy or definition OID reminting. StatementScope owns merge/publication.
-func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, old, next *catalog.Relation) (Result, error) {
+func stageRowSecurityFlagsLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, old, next *catalog.Relation) (Result, error) {
 	scope.CatalogAuthority = auth.CatalogAuthorityLocked(scope.LockedRef, e.Catalog.State.Get(old.Address()))
 	if next == old {
 		e.Mu.Unlock()

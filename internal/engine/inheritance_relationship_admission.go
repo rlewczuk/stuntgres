@@ -64,7 +64,7 @@ func (s *StatementScope) captureInheritanceRelationshipsLocked(e *Engine, auth A
 // Resolve semantics only when this misc action is reached. Initial absence is
 // still an observation: a newly visible same-name object is never its target.
 // Caller holds Engine.mu; neither lookup nor this comparison waits for grants.
-func (s *StatementScope) currentInheritanceRelationshipLocked(e *Engine, capture *InheritanceRelationshipAdmission) (AuthorizationView, *catalog.Relation, error) {
+func currentInheritanceRelationshipLocked(s *StatementScope, e *Engine, capture *InheritanceRelationshipAdmission) (AuthorizationView, *catalog.Relation, error) {
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err != nil {
 		return auth, nil, err
@@ -97,7 +97,7 @@ func (s *StatementScope) currentInheritanceRelationshipLocked(e *Engine, capture
 	return auth, actual, nil
 }
 
-func (s *StatementScope) admitInheritanceRelationship(capture *InheritanceRelationshipAdmission) error {
+func admitInheritanceRelationship(s *StatementScope, capture *InheritanceRelationshipAdmission) error {
 	if capture.Admitted {
 		return nil
 	}
@@ -106,7 +106,7 @@ func (s *StatementScope) admitInheritanceRelationship(capture *InheritanceRelati
 	}
 	e := s.Engine()
 	e.Mu.Lock()
-	_, _, err := s.currentInheritanceRelationshipLocked(e, capture)
+	_, _, err := currentInheritanceRelationshipLocked(s, e, capture)
 	e.Mu.Unlock()
 	if err != nil {
 		return err
@@ -119,7 +119,7 @@ func (s *StatementScope) admitInheritanceRelationship(capture *InheritanceRelati
 		return err
 	}
 	e.Mu.Lock()
-	auth, actual, err := s.currentInheritanceRelationshipLocked(e, capture)
+	auth, actual, err := currentInheritanceRelationshipLocked(s, e, capture)
 	if err == nil && capture.Action.Action == parser.InheritTable {
 		err = auth.Check(access.Requirement{Object: capture.Ref, OwnerOnly: true})
 	}
@@ -160,7 +160,7 @@ func (s *StatementScope) validateInheritanceRelationshipsLocked(e *Engine) error
 	return nil
 }
 
-func (s *StatementScope) inheritanceRelationshipCandidate(stage *CatalogStage, child *catalog.Relation, _ int, action parser.AlterTableAction) (*catalog.Relation, error) {
+func inheritanceRelationshipCandidate(s *StatementScope, stage *CatalogStage, child *catalog.Relation, _ int, action parser.AlterTableAction) (*catalog.Relation, error) {
 	if err := table.RelationshipChildKind(child, action.Action); err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (s *StatementScope) inheritanceRelationshipCandidate(stage *CatalogStage, c
 		if capture.Action.Pos != action.Pos || capture.Action.Action != action.Action {
 			continue
 		}
-		if err := s.admitInheritanceRelationship(capture); err != nil {
+		if err := admitInheritanceRelationship(s, capture); err != nil {
 			return nil, err
 		}
 		view := s.Engine().StageRead(stage)

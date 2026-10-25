@@ -79,14 +79,14 @@ func inheritanceAlterAdmissionScope(t *testing.T, e *Engine, role, sql string) *
 }
 func (c *inheritanceAlterAdmissionCase) run() error {
 	c.e.Mu.Lock()
-	prepared, err := c.e.prepareAlterTableActions(c.scope, c.op, c.auth, c.scope.LockedDescriptor.(*catalog.Relation), c.scope.LockedRef, c.raw.Actions)
+	prepared, err := prepareAlterTableActions(c.e, c.scope, c.op, c.auth, c.scope.LockedDescriptor.(*catalog.Relation), c.scope.LockedRef, c.raw.Actions)
 	if err != nil {
 		c.e.Mu.Unlock()
 		return err
 	}
 	command := *c.raw
 	command.Actions = prepared.Actions
-	_, err = c.e.alterInheritanceLocked(c.scope, c.op, c.auth, &command, 0, prepared.Destination, prepared.Types)
+	_, err = alterInheritanceLocked(c.e, c.scope, c.op, c.auth, &command, 0, prepared.Destination, prepared.Types)
 	return err
 }
 func inheritanceAlterAXHolder(t *testing.T, e *Engine, table *catalog.Relation) *StatementScope {
@@ -249,7 +249,7 @@ func TestInheritanceAlterAdmissionGrowth(t *testing.T) {
 	}
 	for _, old := range []*catalog.Relation{p, currentChild, g} {
 		ref := e.Catalog.Domain.Ref(grown.Epoch(), old.Address())
-		if !command.scope.holdsColumnDropGrant(ref) {
+		if !holdsColumnDropGrant(command.scope, ref) {
 			t.Fatal("expanded graph lacks real AX admission", old.Name())
 		}
 		replacement := command.scope.Catalog.Descriptors[old.Address()].(*catalog.Relation)
@@ -328,7 +328,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 		if err := inheritanceAlterJoin(t, result, joined); err != nil {
 			t.Fatal("valid root fact reached held/foreign-owner child", err)
 		}
-		if command.scope.holdsColumnDropGrant(e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())) || command.scope.Catalog.Descriptors[c.Address()] != nil || command.scope.Catalog.Storage[c.Address()].Replacement != nil {
+		if holdsColumnDropGrant(command.scope, e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), c.Address())) || command.scope.Catalog.Descriptors[c.Address()] != nil || command.scope.Catalog.Storage[c.Address()].Replacement != nil {
 			t.Fatal("valid NN no-op acquired or changed child")
 		}
 		if err := command.scope.Finish(nil); err != nil {
@@ -354,7 +354,7 @@ func TestInheritanceAlterAdmissionStops(t *testing.T) {
 			t.Fatal("plain ADD crossed existing-column merge stop", err)
 		}
 		ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), leaf.Address())
-		if command.scope.holdsColumnDropGrant(ref) || command.scope.Catalog.Descriptors[leaf.Address()] != nil {
+		if holdsColumnDropGrant(command.scope, ref) || command.scope.Catalog.Descriptors[leaf.Address()] != nil {
 			t.Fatal("plain ADD locked/owned below actual merge stop")
 		}
 		if err := command.scope.Finish(nil); err != nil {
@@ -653,7 +653,7 @@ func TestInheritanceAlterAdmissionPreparedEffects(t *testing.T) {
 			if cooked.Constraints.NotNull[0].OID != 0 || cooked.Constraints.Check[0].OID != 0 {
 				t.Fatal("normal physical OID assignment mutated immutable preparation")
 			}
-			if _, consumed := command.scope.dropsOrZero().ConsumedColumns[drop]; !consumed || state.Stage == nil {
+			if _, consumed := scopeDropsOrZero(command.scope).ConsumedColumns[drop]; !consumed || state.Stage == nil {
 				t.Fatal("sole pipeline did not consume actual DROP effects")
 			}
 			if e.CatalogRead().State() != before.State() {

@@ -12,23 +12,23 @@ import (
 // prepareAddedChecks cooks ADD CHECK under Engine.mu. Definition cooking is
 // independent of stage ownership. Admission retains this exact result; the
 // sole physical pipeline installs it and scans rows once.
-func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (table.PreparedAddedChecks, error) {
+func prepareAddedChecks(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (table.PreparedAddedChecks, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.PrepareAddedChecks(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, scope.inheritancePlan(), auth, parent, raw)
+	return table.PrepareAddedChecks(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, inheritancePlan(scope), auth, parent, raw)
 }
 
-func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
+func stageAddedChecks(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
 	var prepared table.PreparedAddedChecks
 	var err error
-	if definition := scope.inheritancePreparedNode(); definition != nil && !definition.PhaseZeroOnly {
+	if definition := inheritancePreparedNode(scope); definition != nil && !definition.PhaseZeroOnly {
 		prepared = definition.Checks
 		if prepared.Old != parent {
 			return nil, ids.ErrCatalogReplaced
 		}
 		err = definition.ChecksError
 	} else {
-		prepared, err = e.prepareAddedChecks(scope, op, auth, parent, raw)
+		prepared, err = prepareAddedChecks(e, scope, op, auth, parent, raw)
 	}
 	if err != nil {
 		return nil, err
@@ -43,11 +43,11 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, 
 		return nil, err
 	}
 	*scans = append(*scans, prepared.Scans...)
-	scope.inheritancePlan().RecordChecks(parent, &next, raw, prepared.Ordinal)
+	inheritancePlan(scope).RecordChecks(parent, &next, raw, prepared.Ordinal)
 	return &next, nil
 }
 
-func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
+func stageAddedUnique(e *Engine, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	h := TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}
@@ -58,7 +58,7 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 	return next, nil
 }
 
-func (e *Engine) stageAddedForeignKey(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
+func stageAddedForeignKey(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return table.StageAddedForeignKey(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, parent, raw, target, supporting)

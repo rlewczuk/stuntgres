@@ -52,7 +52,7 @@ func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, change
 	return scope.StageColumnShape(stage, changes, old, next, false)
 }
 
-func (scope *StatementScope) stagePreparedColumnShape(stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation) error {
+func stagePreparedColumnShape(scope *StatementScope, stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation) error {
 	return scope.StageColumnShape(stage, changes, old, next, true)
 }
 

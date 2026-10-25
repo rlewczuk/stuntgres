@@ -13,7 +13,7 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 }
 
 // rebindAlterTypeIndexes rebinds the queued indexes under Engine.mu.
-func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []table.AlterTypeIndex) error {
+func rebindAlterTypeIndexes(e *Engine, scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []table.AlterTypeIndex) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	return table.RebindAlterTypeIndexes(alterHost{TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, scope}, auth, parent, queue)

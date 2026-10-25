@@ -77,7 +77,7 @@ func TestSchemaExplicitCatalogPlacement(t *testing.T) {
 	e.Mu.Lock()
 	auth := catalogAuthorization(e, e.Catalog.Current())
 	stage := e.BeginCatalogStage(auth.Catalog)
-	err := e.SchemaTableLocked(op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
+	err := SchemaTableLocked(e, op, auth, stage, statement(t, "CREATE TABLE t(id INT)").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), sqltype.InputEnvironment{}, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

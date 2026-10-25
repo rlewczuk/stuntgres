@@ -202,7 +202,7 @@ func (s *StatementScope) foreignKeys() *table.ForeignKeyCreation {
 }
 
 // foreignKeysOrZero reads the foreign-key slot; a nil slot reads as zero.
-func (s *StatementScope) foreignKeysOrZero() table.ForeignKeyCreation {
+func foreignKeysOrZero(s *StatementScope) table.ForeignKeyCreation {
 	if s.ForeignKeysSlot == nil {
 		return table.ForeignKeyCreation{}
 	}

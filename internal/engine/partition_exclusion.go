@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
+func executePartitionExclusionAddLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
 	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	e.Mu.Unlock()
 	if err := scope.AcquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {

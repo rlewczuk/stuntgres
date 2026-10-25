@@ -105,14 +105,14 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	foreign, closeForeign := roleOperation(t, ordinary, "postgres")
 	defer closeForeign()
 	beforeAuthority := e.Catalog.State
-	if err := e.restoreAttributeRank(foreign, parse("a")); err == nil || e.Catalog.State != beforeAuthority {
+	if err := restoreAttributeRank(e, foreign, parse("a")); err == nil || e.Catalog.State != beforeAuthority {
 		t.Fatal("foreign operation admitted", err)
 	}
 	ordinaryState := ordinary.Catalog.State
-	if err := ordinary.restoreAttributeRank(foreign, parse("a")); err == nil || ordinary.Catalog.State != ordinaryState {
+	if err := restoreAttributeRank(ordinary, foreign, parse("a")); err == nil || ordinary.Catalog.State != ordinaryState {
 		t.Fatal("ordinary engine admitted private repair", err)
 	}
-	if err := e.restoreAttributeRank(op, parse("a")); err != nil {
+	if err := restoreAttributeRank(e, op, parse("a")); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead().MustRelation(old.Address())
@@ -122,13 +122,13 @@ func TestAttributeRankRestorePublication(t *testing.T) {
 	before := e.Catalog.State
 	for _, name := range []string{"b", "........pg.dropped.2........"} {
 		var diagnostic *sqlstate.Error
-		err := e.restoreAttributeRank(op, parse(name))
+		err := restoreAttributeRank(e, op, parse(name))
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42703" || e.Catalog.State != before {
 			t.Fatal("missing/dropped repair published", name, err)
 		}
 	}
 	var diagnostic *sqlstate.Error
-	err = e.restoreAttributeRank(op, parse("scalar"))
+	err = restoreAttributeRank(e, op, parse("scalar"))
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || e.Catalog.State != before {
 		t.Fatal("scalar rank repair published", err)
 	}

@@ -41,7 +41,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, stage, err := e.stageDroppedConstraintIndexes(scope, auth, nil, old, next, actions, nil)
+	next, stage, err := stageDroppedConstraintIndexes(e, scope, auth, nil, old, next, actions, nil)
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {
 		t.Fatal(err)
@@ -52,7 +52,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	if stage.LookupName(key) != (ids.ObjectAddress{}) || !removed || removal.Ref.Address != backing || !touched || observed != backing {
 		t.Fatal("retirement did not vacate private name with original publication fences")
 	}
-	next, err = e.stageAddedUnique(op, auth, stage, next, actions[0].Unique)
+	next, err = stageAddedUnique(e, op, auth, stage, next, actions[0].Unique)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 					}
 				}
 			}
-			_, stage, err := e.stageDroppedConstraintIndexes(scope, auth, nil, old, next, actions, nil)
+			_, stage, err := stageDroppedConstraintIndexes(e, scope, auth, nil, old, next, actions, nil)
 			defer e.DiscardCatalogStage(stage)
 			if succeeds {
 				if err != nil {

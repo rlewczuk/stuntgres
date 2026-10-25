@@ -135,7 +135,7 @@ func (i *inheritanceScope) endStatement() {
 
 // inheritancePlan is the recursing ALTER's plan record, nil when the statement
 // is not recursing through an inheritance tree. Its methods are nil-safe.
-func (scope *StatementScope) inheritancePlan() *table.InheritanceAlterPlan {
+func inheritancePlan(scope *StatementScope) *table.InheritanceAlterPlan {
 	if state := scope.Inheritance.Alter; state != nil {
 		return &state.InheritanceAlterPlan
 	}

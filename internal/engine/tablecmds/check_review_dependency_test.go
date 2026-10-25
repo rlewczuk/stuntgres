@@ -31,7 +31,7 @@ func checkReviewDependencyStage(t *testing.T, e *engine.Engine) *engine.CatalogS
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	err = e.SchemaTableLocked(op, auth, stage, enginetest.Statement(t, "CREATE TABLE newly_dependent(a INT CONSTRAINT c CHECK(nextval('s')>0))").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	err = engine.SchemaTableLocked(e, op, auth, stage, enginetest.Statement(t, "CREATE TABLE newly_dependent(a INT CONSTRAINT c CHECK(nextval('s')>0))").(*parser.CreateTable), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

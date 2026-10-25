@@ -71,7 +71,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err := e.stageAddedUnique(op, auth, stage, original, raw[0].(*parser.AlterTable).Actions[0].Unique)
+	next, err := stageAddedUnique(e, op, auth, stage, original, raw[0].(*parser.AlterTable).Actions[0].Unique)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,8 +144,8 @@ func TestAlterAddConstraintForeignKeyAdmission(t *testing.T) {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	if len(scope.foreignKeysOrZero().AlterKeys) != 1 || scope.foreignKeysOrZero().AlterKeys[0].Target.Address != original.Address() || scope.foreignKeysOrZero().AlterKeys[0].Index != (ids.ObjectAddress{}) {
-		t.Fatal("invented preexisting self provider", scope.foreignKeysOrZero().AlterKeys)
+	if len(foreignKeysOrZero(scope).AlterKeys) != 1 || foreignKeysOrZero(scope).AlterKeys[0].Target.Address != original.Address() || foreignKeysOrZero(scope).AlterKeys[0].Index != (ids.ObjectAddress{}) {
+		t.Fatal("invented preexisting self provider", foreignKeysOrZero(scope).AlterKeys)
 	}
 	candidate := scope.Catalog.Descriptors[original.Address()].(*catalog.Relation)
 	if len(candidate.Constraints.ForeignKeys) != 1 || candidate.Constraints.ForeignKeys[0].Index != candidate.Constraints.Unique[0].Index {
@@ -273,7 +273,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err := e.stageAddedUnique(op, auth, stage, original, raw[0].(*parser.AlterTable).Actions[0].Unique)
+	next, err := stageAddedUnique(e, op, auth, stage, original, raw[0].(*parser.AlterTable).Actions[0].Unique)
 	if err != nil {
 		t.Fatal(err)
 	}

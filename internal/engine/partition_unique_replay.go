@@ -61,7 +61,7 @@ func PartitionUniqueReplayAllowed(op *session.Operation, auth AuthorizationView,
 
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,
 // recursive virtual-index producer, validator and Finish overlay own all effects.
-func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
+func executePartitionUniqueReplayLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
 	ref := e.Catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	origin := OperationReplayOrZero(op).PartitionUnique
 	e.Mu.Unlock()
@@ -85,7 +85,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 	}
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
-	next, err := e.stageAddedUnique(op, auth, stage, table, origin.Definition)
+	next, err := stageAddedUnique(e, op, auth, stage, table, origin.Definition)
 	if err != nil {
 		return Result{}, err
 	}
@@ -94,7 +94,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *s
 		return Result{}, index.DefaultClassDiagnostic(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)
 	}
 	e.Mu.Lock()
-	err = e.stagePartitionIndexChildren(op, stage, next, idx, true)
+	err = stagePartitionIndexChildren(e, op, stage, next, idx, true)
 	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, index.DefaultClassDiagnostic(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, err)

@@ -35,11 +35,11 @@ func (h TableHost) ValidityTarget() index.ValidityTarget {
 }
 
 func (h TableHost) BindIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error) {
-	return h.E.bindIndexExpression(h.Op, input, DDLAuthorityOf(a), parent, raw, literals)
+	return bindIndexExpression(h.E, h.Op, input, DDLAuthorityOf(a), parent, raw, literals)
 }
 
 func (h TableHost) BindIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error) {
-	return h.E.bindIndexPredicate(h.Op, input, DDLAuthorityOf(a), parent, raw)
+	return bindIndexPredicate(h.E, h.Op, input, DDLAuthorityOf(a), parent, raw)
 }
 
 var _ index.DropStage = (*CatalogStage)(nil)

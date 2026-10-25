@@ -20,7 +20,7 @@ func TestAlterTablespacePreparation(t *testing.T) {
 	prepare := func(actions []parser.AlterTableAction) (table.AlterTablePreparation, error) {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
-		return e.prepareAlterTableActions(scope, scope.Op, auth, old, ref, actions)
+		return prepareAlterTableActions(e, scope, scope.Op, auth, old, ref, actions)
 	}
 	action := func(name string) parser.AlterTableAction {
 		return parser.AlterTableAction{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: name}}
@@ -77,7 +77,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	before, roles, store, revision, epoch := e.Catalog.State, e.RoleStore.Published, e.Storage.Relations[old.Address()], old.Revision(), e.Catalog.State.Epoch()
 	actions := []parser.AlterTableAction{{Action: parser.SetTablespace, Tablespace: parser.Identifier{Text: "pg_default"}}}
 	e.Mu.Lock()
-	prepared, err := e.prepareAlterTableActions(candidateScope, candidateScope.Op, auth, old, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), actions)
+	prepared, err := prepareAlterTableActions(e, candidateScope, candidateScope.Op, auth, old, e.Catalog.Domain.Ref(auth.Catalog.Epoch(), old.Address()), actions)
 	e.Mu.Unlock()
 	work, destination := prepared.Actions, prepared.Destination
 	if err != nil || len(work) != 0 || e.Catalog.State != before || e.RoleStore.Published != roles || e.Storage.Relations[old.Address()] != store || old.Revision() != revision || e.Catalog.State.Epoch() != epoch {
@@ -119,7 +119,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 		}
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
-		return e.prepareAlterTableActions(scope, scope.Op, auth, old, ref, statements[0].(*parser.AlterTable).Actions)
+		return prepareAlterTableActions(e, scope, scope.Op, auth, old, ref, statements[0].(*parser.AlterTable).Actions)
 	}
 	for _, tc := range []struct {
 		clause, code string
@@ -163,7 +163,7 @@ func TestAlterTablespaceTypeCapture(t *testing.T) {
 	// second raw USING graph. This is the actual mutation seam, not a binder mock.
 	action := prepared.Actions[0]
 	action.Using = alterAddUnitAction(t, "ALTER TABLE t ALTER a TYPE BIGINT USING absent").Using
-	next, consumed, err := e.alterTypeCandidate(scope, scope.Op, auth, nil, old, old, ref, action, prepared.Types[0])
+	next, consumed, err := alterTypeCandidate(e, scope, scope.Op, auth, nil, old, old, ref, action, prepared.Types[0])
 	if err != nil || next.Columns[0].Usage.Type.ID() != sqltype.Int8 || !reflect.DeepEqual(consumed, prepared.Types[0].Transformation) || old.Columns[0].Usage.Type.ID() != sqltype.Int4 {
 		t.Fatal("candidate did not consume capture", next, consumed, err)
 	}

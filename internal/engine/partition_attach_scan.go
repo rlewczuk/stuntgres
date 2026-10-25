@@ -55,6 +55,6 @@ func (e *Engine) partitionAttachCapture(scope *StatementScope, stage *CatalogSta
 	if len(refs) == 0 {
 		return nil
 	}
-	_, err := scope.acquirePartitionValidationViewsLocked(e, refs)
+	_, err := acquirePartitionValidationViewsLocked(scope, e, refs)
 	return err
 }

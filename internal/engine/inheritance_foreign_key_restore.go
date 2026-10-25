@@ -17,7 +17,7 @@ func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.A
 		return table.RestoredForeignKeys{}, false, err
 	}
 	foreign := raw.Actions[0].ForeignKey
-	pending, err := e.captureRestoredForeignKeys(op, []parser.ForeignKeyConstraint{*foreign})
+	pending, err := captureRestoredForeignKeys(e, op, []parser.ForeignKeyConstraint{*foreign})
 	if err != nil {
 		return table.RestoredForeignKeys{}, false, err
 	}

@@ -52,7 +52,7 @@ func TestInheritanceMaintAdmission(t *testing.T) {
 			done := make(chan error, 1)
 			joined := false
 			go func() {
-				done <- command.scope.admitInheritanceRelationship(&command.scope.Inheritance.Relationships[0])
+				done <- admitInheritanceRelationship(command.scope, &command.scope.Inheritance.Relationships[0])
 			}()
 			t.Cleanup(func() {
 				command.cancel()
@@ -94,7 +94,7 @@ func TestInheritanceMaintAdmission(t *testing.T) {
 func TestInheritanceMaintPublication(t *testing.T) {
 	e, p, c := inheritanceMaintPublished(t, false)
 	command := inheritanceAlterAdmissionScope(t, e, "postgres", "ALTER TABLE c INHERIT p")
-	if err := command.scope.admitInheritanceRelationship(&command.scope.Inheritance.Relationships[0]); err != nil {
+	if err := admitInheritanceRelationship(command.scope, &command.scope.Inheritance.Relationships[0]); err != nil {
 		t.Fatal(err)
 	}
 	before := e.CatalogRead()
@@ -140,7 +140,7 @@ func TestInheritanceMaintEndpointReplacement(t *testing.T) {
 			done := make(chan error, 1)
 			joined := false
 			go func() {
-				done <- command.scope.admitInheritanceRelationship(&command.scope.Inheritance.Relationships[0])
+				done <- admitInheritanceRelationship(command.scope, &command.scope.Inheritance.Relationships[0])
 			}()
 			t.Cleanup(func() {
 				command.cancel()
@@ -270,7 +270,7 @@ func TestInheritanceMaintReviewAbsentEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatal("parent semantics escaped into child admission", err)
 	}
-	err = scope.admitInheritanceRelationship(&scope.Inheritance.Relationships[0])
+	err = admitInheritanceRelationship(scope, &scope.Inheritance.Relationships[0])
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("initially absent spelling retargeted after real AX wait", err)
 	}

@@ -108,7 +108,7 @@ func TestAlterAddColumnPrivateSnapshotEqualWidthProjection(t *testing.T) {
 
 func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	source, scope, auth, old := alterAddUnitScope(t)
-	next, _, err := source.addColumnCandidate(scope, scope.Op, auth, old, alterAddUnitAction(t, "ALTER TABLE t ADD b INT DEFAULT 7"), nil)
+	next, _, err := addColumnCandidate(source, scope, scope.Op, auth, old, alterAddUnitAction(t, "ALTER TABLE t ADD b INT DEFAULT 7"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
