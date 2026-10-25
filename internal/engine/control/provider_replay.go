@@ -27,7 +27,7 @@ type providerReplay struct {
 }
 
 func (c *dumpCollection) collectProvider(p *catalog.Procedure) error {
-	if p.ACL.Explicit {
+	if p.ACL.Explicit && p.Extension == (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 	}
 	ns, ok := c.CatalogView.Namespace(p.Namespace())

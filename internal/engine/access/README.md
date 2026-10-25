@@ -89,8 +89,8 @@ No parallel language-permission table or cached grant decision exists.
   or any nonselected target prevents deletion. Other callers pass nil.
 - **Namespaces** (`namespace.go`): `CheckPersistentCreationNamespace`, the
   TEMP capability boundary of non-table creation and namespace moves,
-  `CheckTemporaryStorageAccess`, which rejects another session's stored
-  TEMP relation before storage admission, `OwnTemporaryNamespace`, which
+  `CheckTemporaryStorageAccess`, which rejects another session's stored TEMP
+  relation or sequence before storage admission, `OwnTemporaryNamespace`, which
   matches a namespace against the session's TEMP namespace address, and
   `AdjustRelationCreationPersistence`, the persistence of a relation created
   in a namespace, which reads the `Environment` only for a TEMP namespace.

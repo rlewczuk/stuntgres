@@ -7,9 +7,18 @@ import (
 	"stuntgres/internal/parser"
 )
 
+type temporaryAccessMode uint8
+
+const (
+	temporaryOwnAccess temporaryAccessMode = iota
+	temporaryTargetAttempt
+)
+
 // Statement admission serializes mutation of the sticky top-level footprint.
-// Savepoint restoration deliberately never restores it.
-func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.ObjectRef) {
+// Savepoint restoration deliberately never restores it. Ordinary callers record
+// only their own TEMP access; admitted runtime targets can record an attempted
+// foreign TEMP access before storage admission rejects it.
+func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.ObjectRef, mode temporaryAccessMode) {
 	catalog := e.privateCatalogLocked(scope.owner.Catalog)
 	if scope.catalog != nil {
 		catalog = e.privateCatalogLocked(scope.catalog)
@@ -18,7 +27,7 @@ func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.Object
 	if !ok {
 		return
 	}
-	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.SessionToken {
+	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && (mode == temporaryTargetAttempt || ns.Temporary == scope.op.Session.SessionToken) {
 		scope.owner.AccessedTemporary = true
 	}
 }

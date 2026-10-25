@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the twelve bundled extensions (citext, cube, earthdistance,
-fuzzystrmatch, intagg, intarray, isn, lo, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
+and control data for the thirteen bundled extensions (amcheck, citext, cube,
+earthdistance, fuzzystrmatch, intagg, intarray, isn, lo, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -66,6 +66,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
   identities).
+- **amcheck** (`amcheck_provider.go`): the untrusted/superuser/relocatable 1.5
+  provider installs one callable member, `verify_heapam`, with six canonical
+  inputs and five trailing defaults, a non-STRICT volatile record-set result,
+  parallel-unsafe declaration and explicit owner-only initial EXECUTE ACL.
+  Exact manifest/signature/declaration authority survives ordinary member
+  rename, move, owner transfer and symbolic replay. No scan state is serialized.
 - **pgrowlocks** (`pgrowlocks_provider.go`, `pgrowlocks_stage.go`): the
   nontrusted/superuser/relocatable 1.2 singleton installs exactly
   `pgrowlocks(text) RETURNS SETOF record` (STRICT, VOLATILE, parallel safe).
@@ -172,8 +178,8 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   `StageUpdate` make every decision of the two statements and stage the result,
   returning nil for a skipped statement (IF NOT EXISTS, already installed
   version). `DropTargets` selects DROP EXTENSION's targets (notices through a
-  callback). `ImportOwners` applies Restore's owner records to a private clone
-  of the catalog state and reports whether an owner changed.
+  callback). `ImportOwners` applies Restore's owner/installed-procedure ACL
+  records to a private catalog clone and reports whether authority changed.
   Ownership import uses the shared immutable ACL-owner transform for types,
   companions and procedures. Synthetic type baseline markers and raw NULL versus
   explicit-empty ACL distinctions survive; malformed baselines still fail the
@@ -186,6 +192,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   against that destination slot, not names in the extension target schema.
   Output type signatures stay symbolic across OID remapping. Duplicate slots,
   corrupt/unknown fields and obsolete name-only records fail.
+  Installed procedure ACL entries encode named grantors/grantees, PUBLIC,
+  EXECUTE and grant options, never borrowed principal references. Strict nested
+  decoding rejects duplicate/unknown/null fields and invalid grants. Import
+  validates the actual destination slot before resolving captured role names;
+  amcheck's canonical owner-only ACL is explicit metadata, not a PUBLIC default.
 - **Owners, remap, errors**: the owner metadata codec (`OwnerMetadata`,
   `DecodeOwners`, `OwnerRecord`, `MemberOwner`, `OwnersMarker`;
   `extension_owners.go`), `RemapDescriptor` (`extension_remap.go`),

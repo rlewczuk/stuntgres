@@ -24,6 +24,9 @@ private frames, not catalog authority.
   from execution `Language`, supplies no capability, and survives identity, ACL,
   ownership and replacement remapping by value. PL call handlers are nonstrict;
   inline and validator handlers are strict, all with zero execution Language.
+  `InstalledRoutineDeclaration` retains immutable parallel/set/row-estimate and
+  trailing-default counts by value. These facts feed shared callable shape
+  selection; the installed provider still owns exact declaration authority.
 - **Languages.** Real owner/ACL/trust and distinct call/inline/validator procedure
   capabilities are validated by `LanguageProvider`; PL installation OIDs are
   allocated, not universal constants. `Procedure.DeclarationDependencies` stores

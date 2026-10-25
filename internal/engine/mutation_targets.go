@@ -104,7 +104,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 			if err == nil {
 				s.InheritedTargets = append(s.InheritedTargets, target)
-				e.markTemporaryAccessLocked(s, target.Ref)
+				e.markTemporaryAccessLocked(s, target.Ref, temporaryOwnAccess)
 			}
 			e.mu.Unlock()
 			if err != nil {

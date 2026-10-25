@@ -123,9 +123,9 @@ standard library. It never imports the root engine. Layering is in
     installed relation bounds, so future peer-created relations are protected
     during a database-only pass. Exhaustion and unknown relation bounds keep
     no-publication behavior.
-- **Runtime-named lock observations.** Before the first data capture, the
-  engine checks the outer analyzed dependencies and executable stored-view
-  source manifests recursively for the installed pgrowlocks provider. Those
+- **Runtime-selected inspection sources.** Before the first data capture, the
+  engine checks outer analyzed dependencies and executable stored-view source
+  manifests recursively for installed pgrowlocks or heap verification. Those
   statements retain all-relation immutable prefixes in `Data.DynamicRoots` at
   the same frontier as their ordinary sources. A later dynamic target uses
   those prefixes locally, without replacing the outer view, resolving targets

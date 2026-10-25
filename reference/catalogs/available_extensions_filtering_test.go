@@ -73,6 +73,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append([][]any{{"citext", "1.8", false, true, true, true, nil, nil, "data type for case-insensitive character strings"}}, wantVersions...)
 				wantAvailable = append(wantAvailable, []any{"uuid-ossp", "1.1", nil, "generate universally unique identifiers (UUIDs)"})
 				wantVersions = append(wantVersions, []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"})
+				wantAvailable = append([][]any{{"amcheck", "1.5", nil, "functions for verifying relation integrity"}}, wantAvailable...)
+				wantVersions = append([][]any{{"amcheck", "1.5", false, true, false, true, nil, nil, "functions for verifying relation integrity"}}, wantVersions...)
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
 				for _, name := range []string{"hstore", "file_fdw", "plpgsql"} {

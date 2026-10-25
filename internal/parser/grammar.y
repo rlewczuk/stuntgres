@@ -2869,7 +2869,8 @@ scalar_projection: target_or { $$=$1 } ;
 projection_target: scalar_projection %prec NAME_LIST { $$=$1 }
  | '*' { $$=StarExpr{Pos:$1.pos} }
  | DEFAULT { sqllex.(*lexer).failAt("42601","DEFAULT is not allowed in this context",$1.pos.Offset);return 1 } ;
-/* Every call argument shares the scalar operand grammar. */
+/* Positional/VARIADIC arguments retain the scalar operand grammar. Named
+ * right-hand sides below use the ordinary predicate grammar. */
 function_argument: operand { if !scalarGrammarOperand($1) {sqllex.(*lexer).syntax(sqllex.(*lexer).current);return 1};$$=$1 } ;
 function: SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos}}},Args:$3.Args,ArgNames:$3.ArgNames,Variadic:$3.Variadic,Pos:$1.pos} }
  | name '.' SELECTED_FUNC '(' function_args ')' { $$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$5.Args,ArgNames:$5.ArgNames,Variadic:$5.Variadic,Pos:$1.pos} }
@@ -2883,15 +2884,15 @@ function_args: /* empty */ { $$=FunctionExpr{} }
  | function_argument_list ',' VARIADIC function_argument { $$=appendFunctionArgument($1,$4,Identifier{});$$.Variadic=true }
  | function_argument_list ',' VARIADIC name EQUALS_GREATER function_argument { $$=appendFunctionArgument($1,$6,Identifier{Text:$4.text,Pos:$4.pos});$$.Variadic=true } ;
 function_argument_list: function_argument { $$=FunctionExpr{Args:[]Expr{$1}} }
- | name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
+ | name EQUALS_GREATER target_or { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
  | function_argument_list ',' function_argument { $$=appendFunctionArgument($1,$3,Identifier{}) }
- | function_argument_list ',' name EQUALS_GREATER function_argument { $$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos}) } ;
+ | function_argument_list ',' name EQUALS_GREATER target_or { $$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos}) } ;
 /* Ordinary calls already have separate positional/aggregate productions.
  * A named first argument disambiguates this shared notation-preserving list. */
-ordinary_named_arguments: name EQUALS_GREATER function_argument { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
+ordinary_named_arguments: name EQUALS_GREATER target_or { $$=appendFunctionArgument(FunctionExpr{},$3,Identifier{Text:$1.text,Pos:$1.pos}) }
  | VARIADIC name EQUALS_GREATER function_argument {$$=appendFunctionArgument(FunctionExpr{},$4,Identifier{Text:$2.text,Pos:$2.pos});$$.Variadic=true}
  | ordinary_named_arguments ',' function_argument {if $1.Variadic {sqllex.(*lexer).syntax(sqllex.(*lexer).current);return 1};$$=appendFunctionArgument($1,$3,Identifier{})}
- | ordinary_named_arguments ',' name EQUALS_GREATER function_argument {if $1.Variadic {sqllex.(*lexer).syntax($3);return 1};$$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos})}
+ | ordinary_named_arguments ',' name EQUALS_GREATER target_or {if $1.Variadic {sqllex.(*lexer).syntax($3);return 1};$$=appendFunctionArgument($1,$5,Identifier{Text:$3.text,Pos:$3.pos})}
  | ordinary_named_arguments ',' VARIADIC function_argument {$$=appendFunctionArgument($1,$4,Identifier{});$$.Variadic=true}
  | ordinary_named_arguments ',' VARIADIC name EQUALS_GREATER function_argument {$$=appendFunctionArgument($1,$6,Identifier{Text:$4.text,Pos:$4.pos});$$.Variadic=true} ;
 /* Preserve the written prefix and the explicit-array marker on the tail. */

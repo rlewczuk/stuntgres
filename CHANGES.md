@@ -1,3 +1,17 @@
+Installed amcheck 1.5 provides verify_heapam with ordinary named/default
+arguments, record-set metadata, live EXECUTE authority and native logical
+row/version consistency findings. Logical findings preserve exact row/version
+identity and stable attributes; stopping finishes the first invalid version.
+Physical heap, visibility-map and TOAST options report explicit unavailability.
+Stored and prepared calls retain installed identity and exact installed-member
+EXECUTE ACLs through native controls. Named boolean predicates use the shared
+argument grammar without changing positional or VARIADIC syntax admission.
+Numeric runtime targets also enforce TEMP table/sequence session isolation.
+Admitted TEMP attempts retain PostgreSQL's sticky PREPARE footprint even when
+foreign storage is rejected; EXECUTE denial occurs before that accounting.
+Native ACL replay preserves delegated nonowner grantors, cascading grant-option
+revocation and PUBLIC execution authority across independent role domains.
+
 Installed isn now provides independently identified issn13 columns with short
 or long textual input and always-long canonical output. Literal and bound
 values retain check-digit validity, invalid markers, issue digits and NULLs

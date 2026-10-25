@@ -34,6 +34,9 @@ library, and never the root engine or `session`. The engine, the root driver
   binder state in field groups. `NewBinder` builds one over a `Host`; `Describe`
   (`describe_bind.go`) binds a statement. `functions` reaches it through
   `functions.Binder`.
+  Installed heap-verification calls retain their exact provider slot and four
+  OUT fields, use shared named/default coercion, and map written source
+  occurrences to canonical inputs for frozen-literal capture.
 - **`Host`** (`host.go`): the engine services the binder calls (name and type
   resolution, privileges, definition reads, captures, stored views). The engine
   implements it as `bindingHost`.

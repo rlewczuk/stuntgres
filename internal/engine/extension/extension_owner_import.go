@@ -3,6 +3,7 @@ package extension
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -10,9 +11,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ImportOwners applies Restore's extension owner records to candidateView's
-// private cloned state. Its real catalog owner and paired role domain retain
-// provider/provenance authority while records change member ownership.
+// ImportOwners applies Restore's extension owner and installed-procedure ACL
+// records to a private catalog clone. Real catalog/role domains retain provider
+// provenance while named grants resolve to destination-owned principals.
 func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authorization.Read, records []OwnerRecord) (bool, error) {
 	if len(records) == 0 {
 		return false, nil
@@ -195,6 +196,8 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 			if member.Name != name || member.Signature != signature || member.Kind != kind || kind == "" {
 				return false, fmt.Errorf("stuntgres: mismatching extension ownership identity")
 			}
+			if member.ACL != nil && kind != "procedure" { return false, fmt.Errorf("stuntgres: ACL on non-procedure extension member") }
+			if record.Name == "amcheck" && kind == "procedure" && member.ACL == nil { return false, fmt.Errorf("stuntgres: missing amcheck member ACL") }
 			switch d := d.(type) {
 			case *catalog.Type:
 				if d.Owner != owner.Ref {
@@ -216,10 +219,15 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 					ownersChanged = true
 				}
 			case *catalog.Procedure:
-				if d.Owner != owner.Ref {
-					n := *d
-					n.Owner = owner.Ref
-					n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
+				n := *d
+				n.Owner = owner.Ref
+				n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
+				if member.ACL != nil {
+					acl, err := restoreMemberACL(roles, member.ACL)
+					if err != nil { return false, err }
+					n.ACL = acl
+				}
+				if n.Owner != d.Owner || n.ACL.Explicit != d.ACL.Explicit || !slices.Equal(n.ACL.Entries, d.ACL.Entries) {
 					candidate.SetDescriptor(a, &n)
 					ownersChanged = true
 				}

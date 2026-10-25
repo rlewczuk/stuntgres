@@ -117,3 +117,23 @@ func TestReferenceRoutineParametersScalarOutputsIdentity(t *testing.T) {
 		userOperatorValue(t, p, b, c, "SELECT count(*) AS v FROM pg_proc WHERE proname='rp_out' OR proname='rp_out_variadic'", "INT8", int64(0))
 	})
 }
+
+func TestReferenceRoutineParametersNamedPredicates(t *testing.T) {
+	parametersScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		userOperatorExec(t, p, b, c, "CREATE FUNCTION rp_predicate(flag boolean) RETURNS boolean LANGUAGE SQL AS 'SELECT $1'")
+		for _, tc := range []struct { query string; want any; args []any }{
+			{"SELECT rp_predicate(flag=>2=2) AS v", true, nil},
+			{"SELECT rp_predicate(flag=>2=3) AS v", false, nil},
+			{"SELECT rp_predicate(flag=>NULL::integer=2) AS v", nil, nil},
+			{"SELECT rp_predicate(flag=>2=3 OR 4=4) AS v", true, nil},
+			{"SELECT * FROM rp_predicate(flag=>2=3) AS p(v)", false, nil},
+			{"SELECT rp_predicate(flag=>$1::integer=$2::integer) AS v", true, []any{7, 7}},
+		} {
+			t.Run(tc.query, func(t *testing.T) {
+				s := fixture.Select(tc.query, []string{"v"}, []string{"BOOL"}, [][]any{{tc.want}}, tc.args...)
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, s)
+				fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Prepared(s))
+			})
+		}
+	})
+}

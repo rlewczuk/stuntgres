@@ -97,7 +97,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			e.mu.Lock()
 			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.Catalog), s.owner.Catalog, leaf)
 			if err == nil {
-				e.markTemporaryAccessLocked(s, leaf.Ref)
+				e.markTemporaryAccessLocked(s, leaf.Ref, temporaryOwnAccess)
 				s.inheritance.relations = append(s.inheritance.relations, leaf)
 			}
 			e.mu.Unlock()

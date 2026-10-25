@@ -313,7 +313,8 @@ host methods.
   `ValidateTypeProviders`; `PruneQuoteCaptures`; installed-node validators
   (`ValidateInstalled*`); the view read graph and volatility
   (`ValidateViewReadGraph`, `ViewVolatile`, `CaptureRetainedInput`); row-mark
-  readers (`view_row_marks.go`); `HasPgrowlocksDependency`; view validation and
+  readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed
+  pgrowlocks and heap-verification capture); view validation and
   view-write shape; `ValidateRules`; and `DependencyObject` (object
   descriptions for DROP and role diagnostics).
   `ViewWriteShape` and `ViewUpdatabilityShape` share one automatic-admission

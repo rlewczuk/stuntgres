@@ -47,6 +47,7 @@ type InstalledRoutineDeclaration struct {
 	Parallel byte
 	ReturnsSet bool
 	Rows float32
+	Defaults uint8
 }
 
 type Procedure struct {

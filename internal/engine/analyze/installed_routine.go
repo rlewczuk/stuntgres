@@ -110,6 +110,8 @@ func (b *Binder) InstalledRoutine(name parser.ObjectName, family functions.Exten
 		installed = extension.IntaggProviderOf(proc) == extension.StockIntagg
 	case functions.PgrowlocksExtension:
 		installed = extension.PgrowlocksProviderOf(proc) == extension.StockPgrowlocks
+	case functions.AmcheckExtension:
+		installed = extension.AmcheckProviderOf(proc) == extension.StockAmcheck
 	case functions.CubeExtension:
 		installed = extension.CubeProviderOf(proc) == extension.StockCube
 	case functions.EarthdistanceExtension:
@@ -144,6 +146,8 @@ func (r installedExtensionRoutine) Validate() error {
 		return extension.StockIntagg.ValidateProcedure(r.catalog, p)
 	case extension.PgrowlocksProviderOf(p) != nil:
 		return extension.StockPgrowlocks.ValidateProcedure(r.catalog, p)
+	case extension.AmcheckProviderOf(p) != nil:
+		return extension.StockAmcheck.ValidateProcedure(r.catalog, p)
 	case extension.CubeProviderOf(p) != nil:
 		return extension.StockCube.ValidateProcedure(r.catalog, p)
 	case extension.EarthdistanceProviderOf(p) != nil:
@@ -269,6 +273,8 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		return r.attachIntaggEnumeration(c)
 	case functions.Pgrowlocks:
 		return r.attachPgrowlocks(c, ref)
+	case functions.VerifyHeapam:
+		return r.attachVerifyHeapam(c, ref)
 	}
 	return nil, fmt.Errorf("stuntgres: invalid installed %T call", call)
 }

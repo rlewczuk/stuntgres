@@ -165,7 +165,7 @@ func (s *StatementScope) captureDataRootsAtLocked(e *Engine, refs []ids.ObjectRe
 	in.Read = e.privateCatalogLocked(s.owner.Catalog)
 	if base == nil && !latest {
 		var err error
-		in.RetainDynamic, err = stored.HasPgrowlocksDependency(in.Read, s.routineDependencies, s.querySources)
+		in.RetainDynamic, err = stored.HasDynamicSourceDependency(in.Read, s.routineDependencies, s.querySources)
 		if err != nil {
 			return nil, err
 		}

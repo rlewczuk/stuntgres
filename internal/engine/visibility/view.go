@@ -32,8 +32,8 @@ type Data struct {
 	Own                    map[ids.ObjectAddress][]storage.RowVersion
 	Ends                   map[ids.ObjectAddress]*storage.DeletionRoot
 	Deleted                map[ids.ObjectAddress]*PrivateDeletes
-	// DynamicRoots retains immutable prefixes for runtime-named pgrowlocks
-	// targets. Only statements with that installed dependency allocate it.
+	// DynamicRoots retains immutable prefixes for runtime-selected inspection
+	// targets. Only statements with an installed inspection dependency allocate it.
 	DynamicRoots map[ids.ObjectAddress]Root
 }
 

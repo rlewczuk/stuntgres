@@ -197,6 +197,14 @@ subpackage types directly (no aliases).
 | `restoreHost` (`restore_run.go`) | `control.Host` |
 | `sessionHost` (an `Engine` conversion; `session_host.go`) | `session.Host` |
 
+`statementHost.VerifyHeapam` supplies the distinct heap-verification runtime.
+It resolves exact regclass authority, borrows and releases only its added
+AccessShare contribution, readmits the same descriptor/storage after waiting,
+and scans immutable unfiltered captures outside metadata locks. Sequence
+targets use sequence state. A final incarnation fence precedes returning the
+owned records; no user constraints, codecs or physical block mapping run.
+
+
 ## Lock order
 
 `replacementMu` and `TransactionOwner.Mu` precede `Engine.mu`, which precedes
@@ -666,6 +674,10 @@ remain separate. Ordinary operations and untrusted/foreign captures gain no look
 authority.
 
 ## Testing
+
+Heap-verification capture, admission, incarnation and pure logical-row units
+share `RUN='^TestVerifyHeapam'`; use `RACE=1` for capture/admission coverage.
+Public scenarios use `RUN='^TestReferenceAmcheckHeap'` in `reference/indexes`.
 
 Trigger payload/frame/runtime/remap/stage units share
 `RUN='^TestTriggerCore(Catalog|Frame|Return|Runtime|Persistence|AtomicStage|PartitionPath|WhenProvider)$'`.

@@ -14,14 +14,14 @@ func CheckPersistentCreationNamespace(view catalog.Read, namespace ids.ObjectAdd
 	return nil
 }
 
-// CheckTemporaryStorageAccess rejects another session's stored TEMP relation.
-// Namespace lookup and role privileges precede physical storage admission.
-// Identity/metadata providers do not acquire another session's stored TEMP data.
+// CheckTemporaryStorageAccess rejects another session's stored TEMP relation
+// or sequence. Namespace lookup and role privileges precede physical admission;
+// identity/metadata providers do not acquire another session's TEMP data.
 func CheckTemporaryStorageAccess(view catalog.Read, relation *catalog.Relation, token ids.SessionToken) error {
 	if relation == nil {
 		return ids.ErrCatalogReplaced
 	}
-	if !relation.RelationKind.Stored() {
+	if !relation.RelationKind.Stored() && relation.RelationKind != catalog.SequenceRelation {
 		return nil
 	}
 	namespace, ok := view.Namespace(relation.Namespace())

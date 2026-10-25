@@ -105,7 +105,7 @@ DROP/CREATE, not OR REPLACE; native claims no PostgreSQL optimizer phase.
 Persistence checks two native replays, a fresh Driver with provisioned roles,
 provider-only streams without a SQL-body directive, retained Rows and
 read/cancellation/late-invalid atomicity; real mode replays the actual emitted
-stream. Explicit routine ACL serialization retains its explicit error.
+stream. Explicit ACLs outside installed extension members retain their Dump error.
 Reset preserves roles. See [native replay](../../docs/FIXTURES.md#routine-identity-replay)
 and the [owning contract and limits](../../internal/engine/routine/README.md#routine-alter-contract).
 

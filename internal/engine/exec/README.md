@@ -10,8 +10,9 @@ implemented by the root engine.
 
 Layer L9.5 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture). It imports
 `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`, `lock`,
-`access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate` and the
-standard library. Its `extension` imports validate genuine installed cube-spatial
+`access`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate`,
+`pgcatalog` (projected relation-kind admission) and the standard library.
+Its `extension` imports validate genuine installed cube-spatial
 and earth-point calls before kernel evaluation. It never imports the engine,
 `analyze`, `session` or another feature package (`routine`, ...).
 
@@ -140,6 +141,18 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   (`row_detail.go`), single-relation source capture (`source_capture.go`),
   CURRENT OF scans (`cursor_scan.go`), `pgrowlocks` values and the session
   identity snapshot (`identity.go`).
+- **Heap verification** (`verify_heapam.go`): validate required NULLs and skip
+  before target-kind admission; explicit physical heap/visibility-map/TOAST
+  requests raise `0A000`. `VerifyHeapamPrefix` retains an unfiltered prefix,
+  checks logical roots through storage, and constructs records with NULL
+  physical coordinates and stable logical attribute identities. The root host
+  owns temporary relation locks, capture and incarnation fences. After exact
+  postwait identity and target validation, it records the sticky TEMP-target
+  attempt and rejects foreign-session TEMP table/sequence storage before
+  capturing rows or accepting a healthy sequence. Installed EXECUTE denial
+  precedes target accounting; savepoint rollback does not erase that footprint.
+  Virtual catalog views retain view-kind rejection; table-like catalog sources
+  without stored heap roots report explicit stored-data unavailability.
 - **Seams**: `Host` (`host.go`), `DetachedPresentation`, `Preparation`
   (`preparation.go`) and the admission slots `AdmissionAuthority` and
   `RoutineProgram`.

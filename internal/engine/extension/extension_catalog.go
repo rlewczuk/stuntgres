@@ -160,6 +160,8 @@ func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.Objec
 		return invalid()
 	}
 	switch {
+	case AmcheckProviderOf(d) != nil:
+		return d.Extension, AmcheckProviderOf(d).ValidateProcedure(v, d)
 	case PgrowlocksProviderOf(d) != nil:
 		return d.Extension, PgrowlocksProviderOf(d).ValidateProcedure(v, d)
 	case UUIDOsspProviderOf(d) != nil:

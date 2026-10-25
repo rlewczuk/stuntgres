@@ -296,7 +296,7 @@ func collectProcedureDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddr
 		}
 		return c.collectProvider(t)
 	}
-	if t.ACL.Explicit {
+	if t.ACL.Explicit && t.Extension == (ids.ObjectAddress{}) {
 		return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 	}
 	if catalog.ExtensionMembership(t) == (ids.ObjectAddress{}) {

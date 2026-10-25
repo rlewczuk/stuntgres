@@ -54,7 +54,7 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.State.Epoch() || ref.Epoch != s.txRef.Epoch() {
 		return ids.ErrCatalogReplaced
 	}
-	e.markTemporaryAccessLocked(s, ref)
+	e.markTemporaryAccessLocked(s, ref, temporaryOwnAccess)
 	return nil
 }
 

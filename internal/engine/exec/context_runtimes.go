@@ -603,6 +603,21 @@ func (c *Context) OpenPgrowlocks(n plan.InstalledPgrowlocksExpr) (expr.SourceCur
 	return n.Pgrowlocks.OpenSource(c)
 }
 
+func (c *Context) VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error) {
+	if err := EvaluationContext(c); err != nil { return nil, err }
+	host := c.LiveHost()
+	if host == nil { return nil, fmt.Errorf("stuntgres: verify_heapam lacks statement scope") }
+	return host.VerifyHeapam(args, result)
+}
+
+func (c *Context) OpenVerifyHeapam(n plan.InstalledVerifyHeapamExpr) (expr.SourceCursor, error) {
+	if err := EvaluationContext(c); err != nil { return expr.SourceCursor{}, err }
+	host := c.LiveHost()
+	if host == nil { return expr.SourceCursor{}, fmt.Errorf("stuntgres: verify_heapam lacks statement scope") }
+	if err := host.ValidateVerifyHeapam(n); err != nil { return expr.SourceCursor{}, err }
+	return n.VerifyHeapam.OpenSource(c)
+}
+
 func (c *Context) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
 	host := c.LiveHost()
 	if host == nil {

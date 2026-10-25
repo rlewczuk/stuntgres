@@ -47,7 +47,7 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 		candidate.NamedDeclaration = declared
 		return candidate, true
 	}
-	var defaults int
+	defaults := int(d.Installed.Defaults)
 	variadic := sqltype.ID(0)
 	if d.Builtin != nil {
 		defaults = int(d.Builtin.Defaults)

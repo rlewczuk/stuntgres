@@ -102,6 +102,7 @@ var definitions = [...]Definition{
 	{Names: []string{"now", "transaction_timestamp", "statement_timestamp", "clock_timestamp", "timeofday"}, Bind: bindTransactionTime},
 	{Names: []string{"int_array_aggregate", "int_array_enum"}, Bind: bindIntagg},
 	{Names: []string{"pgrowlocks"}, Bind: bindPgrowlocks, NamedCall: namedPgrowlocks},
+	{Names: []string{"verify_heapam"}, Bind: bindVerifyHeapam, NamedCall: namedVerifyHeapam},
 	{Names: pgcryptoNames[:], Bind: bindPgcrypto},
 	{Names: cubeSpatialNames[:], Bind: bindCubeSpatial},
 	{Names: fuzzystrmatchNames[:], Bind: bindFuzzystrmatch},

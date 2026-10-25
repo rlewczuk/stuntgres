@@ -28,6 +28,10 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
   is the standard deny → grant → revoke cycle over `objectGrantProviderCase`
   consumers; `objectGrantBodyConsumer` (`object_grant_routine_body_consumers_test.go`)
   is the SQL-body variant.
+- `ObjectGrantControls` retains zero-output rejection for unsupported builtin,
+  conversion, parameter and tablespace authority. Authentic installed members
+  instead prove owner identity and deny/grant/revoke behavior through nonempty,
+  canonical native Dump/Reset/Restore rounds inside the shared SQL scenario.
 - Builtin routine ACLs, large objects and database, parameter and tablespace
   ACLs survive the `public` reset. Defer `objectGrantRoutineCleanup`
   (`object_grant_routines_scalar_test.go`) for every builtin routine whose

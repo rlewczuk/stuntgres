@@ -58,6 +58,13 @@ privately through the FTS leaf before a source cursor can publish a token.
 Cursor advancement constructs typed records against its current result
 descriptor, so rewritten plans retain no stale composites or invocation state.
 
+`VerifyHeapam` holds six canonical typed inputs, including omitted defaults.
+Named-input binding and applicability share slot assignment and ordinary
+coercion; supplied inputs evaluate once in canonical formal order. The
+non-STRICT volatile source delegates to a distinct statement capability after
+current installed identity and EXECUTE admission. Every invocation owns its
+materialized four-field record set, including the empty set.
+
 ## Registry
 
 `registry.go` holds the static `definitions` table; there is no `init()`

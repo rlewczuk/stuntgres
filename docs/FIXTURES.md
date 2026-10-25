@@ -68,6 +68,10 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   Ordinary TYPE OWNER and FUNCTION OWNER statements preserve named owners in
   native Restore and PostgreSQL replay; native owner metadata comments provide
   additional validated member-role reconciliation during native Restore.
+- Installed routine EXECUTE ACLs are preserved by validated stable-slot owner
+  metadata during native Restore, including owner-only defaults, named/PUBLIC
+  grants, grant options and explicit-empty ACLs. These native metadata comments
+  do not apply ACL changes when the SQL stream is replayed on PostgreSQL.
 - Custom range declarations include their selected subtype class, collation,
   optional diff and generated multirange name. Restore rebuilds destination-owned
   family descriptors and endpoint values rather than retaining source captures.

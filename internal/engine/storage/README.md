@@ -28,6 +28,13 @@ and never the engine.
   two version roots by identity. `IndexIdentity` names the
   storage an index root was built from. `RowByID` finds a row by its stable
   `RowID`, trying a captured position first.
+- **Logical heap verification** (`verify_heapam.go`): `HeapVerification` borrows
+  live column usages/stable attributes and immutable committed/own version/end
+  roots. `VerifyHeapam` checks exact typed admission and bounded identity,
+  birth, private-predecessor, width and end-sequence facts without visibility
+  filtering, codec I/O, constraints or mutation. Findings retain exact RowID and
+  VersionID; Attribute zero is tuple-wide. Stopping completes every finding for
+  the first invalid version. Captured committed order precedes own order.
 - **Lineage tokens** (`lineage.go`): `TruncateLineage` and
   `MaterializedLineage`. A token is a nonzero-size allocation compared by
   pointer; it retains no storage or rows. `SameTruncateLineage` is nil-safe.
@@ -125,5 +132,6 @@ make check RUN='^Test(Store|Relation(IndexIdentity|SameTruncateLineage)|RowShape
 make check RACE=1 RUN='^Test(ConcurrentIndexU1RootPhasesAndVersions|ConcurrentIndexU6ReadyCancellationReleasesSUE|UniqueIndexPublication(Streaming|Cancellation)|GeneratedReplacement(StaleAuthority|LateCancellation)|TemporaryTableCleanupPublication)$$'
 make check RUN='^Test(MaterializedViewSnapshotImport|MaterializedViewPublication|MaterializedRefreshPublicationFences|ControlTransactionsReplacementCancellationBoundary|CommitTimePublication|TruncateGeneration|TruncateIndexes)$$'
 make check RUN='^TestVacuum'
+make check RUN='^TestVerifyHeapamLogicalRows$'
 make check RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog|HashPartition(Controls|FinalRemap))$$'
 ```

@@ -325,7 +325,7 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 		} else {
 			switch leaf.Relation.RelationKind {
 			case catalog.SequenceRelation:
-				e.markTemporaryAccessLocked(scope, leaf.Ref)
+				e.markTemporaryAccessLocked(scope, leaf.Ref, temporaryOwnAccess)
 				source, err = e.captureSequenceSourceLocked(scope, leaf.Ref, leaf.Relation)
 			case catalog.MaterializedViewRelation:
 				if !leaf.Relation.Populated {

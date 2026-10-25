@@ -237,6 +237,12 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
    if p.Installed!=m.Declaration() || p.Language!=(ids.ObjectAddress{}) || p.Display!=(catalog.RoutineDisplay{Language:catalog.SQLRoutineLanguage}) || p.SQLBody!=nil || p.SQLDefaults!=nil || len(p.Body)!=0 {return invalid()}
    if err:=ValidateProviderHeader(v,p,ids.ProcedureClassID);err!=nil {return invalid()}
   }
+	case StockAmcheck:
+		count = 1
+		name, signature, result, volatility, strict = "verify_heapam", VerifyHeapamSignature, 2249, expr.Volatile, false
+		if p.Installed != verifyHeapamDeclaration() || p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: "verify_heapam"}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			return invalid()
+		}
 	case StockPgrowlocks:
 		count = 1
 		name, signature, result, volatility = "pgrowlocks", "25", 2249, expr.Volatile

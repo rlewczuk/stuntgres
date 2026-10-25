@@ -76,18 +76,49 @@ func TestReferenceObjectGrantControls(t *testing.T) {
 			}
 			for _, ext := range []struct {
 				name, target, query, typ string
-				rows                     [][]any
+				rows, owners             [][]any
 			}{
-				{"unaccent", "unaccent(text)", "SELECT og_control_members.unaccent('Hôtel') AS v", "TEXT", [][]any{{"Hotel"}}},
-				{"pgcrypto", "digest(text,text)", "SELECT encode(og_control_members.digest('abc','md5'),'hex') AS v", "TEXT", [][]any{{"900150983cd24fb0d6963f7d28e17f72"}}},
-				{"fuzzystrmatch", "daitch_mokotoff(text)", "SELECT og_control_members.daitch_mokotoff('George')::text AS v", "TEXT", [][]any{{"{595000}"}}},
+				{"unaccent", "unaccent(text)", "SELECT og_control_members.unaccent('Hôtel') AS v", "TEXT", [][]any{{"Hotel"}}, [][]any{{true}, {true}}},
+				{"pgcrypto", "digest(text,text)", "SELECT encode(og_control_members.digest('abc','md5'),'hex') AS v", "TEXT", [][]any{{"900150983cd24fb0d6963f7d28e17f72"}}, [][]any{{true}, {true}}},
+				{"fuzzystrmatch", "daitch_mokotoff(text)", "SELECT og_control_members.daitch_mokotoff('George')::text AS v", "TEXT", [][]any{{"{595000}"}}, [][]any{{true}}},
 			} {
 				run(fixture.Exec("CREATE SCHEMA og_control_members AUTHORIZATION og_object_reader", 0))
 				run(fixture.Exec("CREATE EXTENSION "+ext.name+" SCHEMA og_control_members", 0))
-				fixture.RoleGrantActor(run, "og_object_reader", func() { run(fixture.Select(ext.query, []string{"v"}, []string{ext.typ}, ext.rows)) })
-				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION og_control_members."+ext.target+" FROM PUBLIC", 0))
-				reject()
-				run(fixture.Exec("GRANT EXECUTE ON FUNCTION og_control_members."+ext.target+" TO PUBLIC", 0))
+				name := strings.Split(ext.target, "(")[0]
+				target := "og_control_members."+ext.target
+				value := fixture.Select(ext.query, []string{"v"}, []string{ext.typ}, ext.rows)
+				owned := fixture.Select("SELECT r.rolname=current_user AS owned FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace JOIN pg_roles r ON r.oid=p.proowner WHERE n.nspname='og_control_members' AND p.proname=$1", []string{"owned"}, []string{"BOOL"}, ext.owners, name)
+				owned.Bag = true
+				check := func(allowed bool) {
+					run(owned)
+					run(value)
+					fixture.RoleGrantActor(run, "og_object_reader", func() {
+						if allowed { run(value) } else { fixture.RoleGrantPermissionDenied(run, ext.query, "function", name) }
+					})
+				}
+				roundTrip := func(allowed bool) {
+					if b.PG { return }
+					var output bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, p.Native, &output); err != nil || output.Len() == 0 { t.Fatal("installed member ACL Dump must publish a nonempty replayable stream", ext.name, err, output.Len()) }
+					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil { t.Fatal(err) }
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(output.Bytes())); err != nil { t.Fatal("installed member ACL Restore", ext.name, err) }
+					check(allowed)
+					var again bytes.Buffer
+					if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || !bytes.Equal(again.Bytes(), output.Bytes()) { t.Fatal("installed member owner/ACL replay is not canonical", ext.name, err) }
+				}
+				check(true)
+				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+target+" FROM PUBLIC", 0))
+				check(false)
+				roundTrip(false)
+				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+target+" TO og_object_reader", 0))
+				check(true)
+				roundTrip(true)
+				run(fixture.Exec("REVOKE EXECUTE ON FUNCTION "+target+" FROM og_object_reader", 0))
+				check(false)
+				roundTrip(false)
+				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+target+" TO PUBLIC", 0))
+				check(true)
+				roundTrip(true)
 				if b.PG {
 					run(fixture.Exec("DROP EXTENSION "+ext.name, 0))
 					run(fixture.Exec("DROP SCHEMA og_control_members", 0))

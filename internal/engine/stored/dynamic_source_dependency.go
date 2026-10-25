@@ -7,15 +7,14 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// HasPgrowlocksDependency reports whether a statement calls the stock
-// pgrowlocks function: directly, through its analyzed routine dependencies,
-// or through the dependencies of a stored view reachable from its executable
-// query leaves. read is the statement's private catalog.
+// HasDynamicSourceDependency reports calls to installed pgrowlocks or heap
+// verification, directly or through analyzed stored-view dependencies.
+// read is the statement's private catalog.
 //
 // Stored calls keep their own lifetime/ACL manifests rather than joining the
 // outer binder's routineDependencies. Consult those analyzed manifests before
 // the first capture, including views opened only later.
-func HasPgrowlocksDependency(read catalog.Read, dependencies []catalog.ExpressionDependency, leaves []exec.Leaf) (bool, error) {
+func HasDynamicSourceDependency(read catalog.Read, dependencies []catalog.ExpressionDependency, leaves []exec.Leaf) (bool, error) {
 	hasCall := func(dependencies []catalog.ExpressionDependency, consumer *catalog.Relation) (bool, error) {
 		for _, dependency := range dependencies {
 			if dependency.Ref.Address.ClassID != ids.ProcedureClassID {
@@ -30,7 +29,7 @@ func HasPgrowlocksDependency(read catalog.Read, dependencies []catalog.Expressio
 				}
 			}
 			procedure, ok := read.Procedure(ref.Address)
-			if ok && extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks {
+			if ok && (extension.PgrowlocksProviderOf(procedure) == extension.StockPgrowlocks || extension.AmcheckProviderOf(procedure) == extension.StockAmcheck) {
 				return true, nil
 			}
 		}

@@ -30,7 +30,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	if !ownersChanged {
 		return nil
 	}
-	// Ownership changes replace provider generations even when all SQL types are
+	// Owner/ACL changes replace provider generations even when all SQL types are
 	// unchanged. Refresh stored CHECK/view/policy/default captures through the
 	// ordinary catalog expression remapper, not its type-only rename fast path.
 	if err := stored.ReownExpressions(e.catalog.Read(candidate), candidate, nil, false, nil); err != nil {

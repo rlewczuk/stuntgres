@@ -5,8 +5,9 @@ METHOD`), operator classes and families, B-tree and hash indexes, partial,
 concurrent and UNIQUE indexes, PRIMARY KEY, index clauses (expressions, INCLUDE,
 collation/class, ordering), index property inquiry, maintenance (REINDEX, ALTER
 INDEX, DROP INDEX and their locks), `ADD CONSTRAINT ... USING INDEX` and
-exclusion constraints (including GiST). Related families: partitioned-index and
-partitioned-exclusion hierarchies in `reference/tables`; ALTER TABLE ADD
+exclusion constraints (including GiST), and amcheck heap verification. Related
+families: partitioned-index and partitioned-exclusion hierarchies in
+`reference/tables`; ALTER TABLE ADD
 CONSTRAINT in `reference/alter`.
 
 ## Testing
@@ -25,6 +26,21 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses default options
 - Access methods are database-global and survive the `public` reset: list every
   method a scenario creates in `amBackends`, which drops them through the admin
   pool before and after the case.
+- `heapScenario` (`amcheck_heap_helpers_test.go`) owns amcheck registration cleanup
+  independently of role-changing borrowers. Heap scenarios assert empty-result
+  metadata, direct/prepared execution and explicit native control phases.
+  Forced remint assertions first prove an actual retained TEMP numeric OID
+  collision on a pinned owner, then check unchanged TEMP identities and data.
+  Independent engines may legitimately reuse equal numeric OIDs otherwise.
+  `TestReferenceAmcheckHeapTemporary` pins numeric regclass calls across sessions:
+  own TEMP tables/sequences are healthy but create a PREPARE footprint; foreign
+  TEMP storage is rejected after EXECUTE admission without retaining added locks,
+  but preserves PostgreSQL 18.6's sticky TEMP-attempt preparation footprint.
+  EXECUTE denial precedes that footprint. Direct and prepared calls use the same
+  public fixture. `TestReferenceAmcheckHeapACLProvenance` records real
+  owner→grant-option-holder→third-role origins and options, then checks independent
+  native role-domain replay, missing-role atomicity, cascading grant-option
+  revocation, and an actual PUBLIC ACL Dump/Reset/Restore.
 - Rediscover user OIDs (classes, families, methods) by name after Restore or
   replay; never assume they are stable.
 - Timeout witnesses (`HashIndexBuildAdmission`, `BtreeIndexBuildTimeouts`,
@@ -70,3 +86,6 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Index maintenance and locks: `RUN='^TestReferenceIndexMaintenance'`
 - `USING INDEX`: `RUN='^TestReferenceUsingIndex'`
 - Exclusion constraints: `RUN='^TestReferenceExclusion'`
+- Heap verification: `RUN='^TestReferenceAmcheckHeap'`
+- TEMP heap admission/accounting: `RUN='^TestReferenceAmcheckHeapTemporary$'`
+- Heap ACL provenance/replay: `RUN='^TestReferenceAmcheckHeapACLProvenance$'`

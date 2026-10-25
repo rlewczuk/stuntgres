@@ -46,8 +46,10 @@ definition OIDs, parent provenance and WHEN captures remap with the destination.
   scalar identity relocation precede differences; dependent definitions follow.
   Free destinations move first; only occupied cycles or blocked intermediate keys
   need collision-checked temporary names.
-  Owner changes follow relabeling, then stable-slot owner metadata. Unchanged
-  provider streams stay unchanged; explicit routine ACLs remain a Dump error.
+  Owner changes follow relabeling, then stable-slot owner metadata. Authentic
+  installed routine ACLs use that metadata's named grantor/grantee codec during
+  native Restore, preserving absent/explicit-empty ACLs and grant options.
+  Explicit ACLs on unrelated builtin, foreign and loose routines remain errors.
   Restore/Reset starts from canonical destination providers and destination
   foreign registrations, not source callbacks. Missing/incompatible capabilities
   fail before publication. Replacement preserves provider-name tombstones so

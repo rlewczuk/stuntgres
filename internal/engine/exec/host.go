@@ -95,6 +95,8 @@ type Host interface {
 	TransactionStatus(full uint64) (string, bool, error)
 	Pgrowlocks(name string, result *sqltype.Descriptor) ([]sqltype.Value, error)
 	ValidatePgrowlocks(n plan.InstalledPgrowlocksExpr) error
+	VerifyHeapam(args [6]sqltype.Value, result *sqltype.Descriptor) ([]sqltype.Value, error)
+	ValidateVerifyHeapam(n plan.InstalledVerifyHeapamExpr) error
 	// functions.SequenceRuntime
 	Sequence(request functions.SequenceRequest) (int64, error)
 	// functions.LargeObjectRuntime

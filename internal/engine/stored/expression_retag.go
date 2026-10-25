@@ -498,6 +498,14 @@ func mapExpressionWithProcedure(view catalog.Read, reader catalog.DefinitionRead
 		n.Procedure, n.Info = proc, info
 		err = ValidateInstalledPgrowlocks(n, view)
 		rebound = n
+	case plan.InstalledVerifyHeapamExpr:
+		for i, arg := range n.Args { n.Args[i] = child(arg) }
+		proc, ok := originalProcedure(n.Procedure)
+		if !ok { return nil, false, fmt.Errorf("stuntgres: missing remapped verify_heapam function") }
+		changed = changed || n.Procedure != proc
+		n.Procedure, n.Info = proc, info
+		err = ValidateInstalledVerifyHeapam(n, view)
+		rebound = n
 	case plan.ViewQualificationExpr:
 		mapped, replaced, failure := exec.MapViewQualification(n, mapChild)
 		if failure != nil {

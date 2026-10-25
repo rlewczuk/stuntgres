@@ -229,7 +229,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err == nil {
 		schema = auth.Catalog.Get(b.Relation.Namespace()).Name()
 		s.routineAuth = auth
-		e.markTemporaryAccessLocked(s, b.Ref)
+		e.markTemporaryAccessLocked(s, b.Ref, temporaryOwnAccess)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -428,7 +428,7 @@ func (s *StatementScope) copyTableRows(b analyze.Binding, auth AuthorizationView
 	e.mu.Lock()
 	view, err := s.acquireDataViewLocked(e, b.Ref)
 	if err == nil {
-		e.markTemporaryAccessLocked(s, b.Ref)
+		e.markTemporaryAccessLocked(s, b.Ref, temporaryOwnAccess)
 	}
 	e.mu.Unlock()
 	if err != nil {

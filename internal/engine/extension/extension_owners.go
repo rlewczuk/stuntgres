@@ -22,6 +22,7 @@ type MemberOwner struct {
 	Name      string `json:"name"`
 	Signature string `json:"signature"`
 	Owner     string `json:"owner"`
+	ACL       *MemberACL `json:"acl,omitempty"`
 }
 type OwnerRecord struct {
 	Name    string        `json:"name"`
@@ -73,6 +74,10 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 				}
 			}
 			principal = d.Owner
+			if d.ACL.Explicit || len(d.ACL.Entries) != 0 || AmcheckProviderOf(d) != nil {
+				member.ACL, err = captureMemberACL(roles, d.ACL)
+				if err != nil { return "", err }
+			}
 		case *catalog.Operator:
 			name, signature, known := ownerOperatorIdentity(ext.Name(), slot)
 			if !known || d.Name() != name || d.Extension != ext.Address() {
@@ -130,6 +135,10 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 // Decode JSON keys explicitly: DisallowUnknownFields alone accepts duplicates
 // and nulls, neither of which is valid ownership authority.
 func extensionOwnerFields(data []byte, keys ...string) (map[string]json.RawMessage, error) {
+	return extensionOwnerOptionalFields(data, nil, keys...)
+}
+
+func extensionOwnerOptionalFields(data []byte, optional []string, keys ...string) (map[string]json.RawMessage, error) {
 	invalid := func() (map[string]json.RawMessage, error) {
 		return nil, fmt.Errorf("stuntgres: invalid extension owner metadata")
 	}
@@ -149,6 +158,7 @@ func extensionOwnerFields(data []byte, keys ...string) (map[string]json.RawMessa
 		for _, name := range keys {
 			allowed = allowed || name == key
 		}
+		for _, name := range optional { allowed = allowed || name == key }
 		if !allowed {
 			return invalid()
 		}
@@ -159,9 +169,10 @@ func extensionOwnerFields(data []byte, keys ...string) (map[string]json.RawMessa
 		fields[key] = value
 	}
 	token, err = decoder.Token()
-	if err != nil || token != json.Delim('}') || len(fields) != len(keys) {
+	if err != nil || token != json.Delim('}') {
 		return invalid()
 	}
+	for _, key := range keys { if fields[key] == nil { return invalid() } }
 	var extra any
 	if decoder.Decode(&extra) != io.EOF {
 		return invalid()
@@ -216,6 +227,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		expectedMembers = len(FuzzystrmatchMembers) - 1
 	case record.Name == "intagg" && record.Version == "1.1":
 		expectedMembers = len(IntaggMembers)
+	case record.Name == "amcheck" && record.Version == "1.5":
+		expectedMembers = 1
 	case record.Name == "pgrowlocks" && record.Version == "1.2":
 		expectedMembers = 1
 	case record.Name == "pgcrypto" && record.Version == "1.4":
@@ -231,7 +244,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	}
 	seen := map[string]bool{}
 	for _, data := range members {
-		fields, err := extensionOwnerFields(data, "slot", "schema", "kind", "name", "signature", "owner")
+		fields, err := extensionOwnerOptionalFields(data, []string{"acl"}, "slot", "schema", "kind", "name", "signature", "owner")
 		if err != nil {
 			return invalid()
 		}
@@ -244,6 +257,12 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		}
+		if data, present := fields["acl"]; present {
+			if member.Kind != "procedure" { return invalid() }
+			member.ACL, err = decodeMemberACL(data)
+			if err != nil { return invalid() }
+		}
+		if record.Name == "amcheck" && member.Kind == "procedure" && member.ACL == nil { return invalid() }
 		identity := fmt.Sprint(member.Slot)
 		slots := expectedMembers
 		if record.Name == "unaccent" {
@@ -344,6 +363,8 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if slot < len(FuzzystrmatchMembers) {
 			return string(FuzzystrmatchMembers[slot].Signature), true
 		}
+	case "amcheck":
+		return string(VerifyHeapamSignature), slot == 0
 	case "pgrowlocks":
 		return "25", slot == 0
 	case "unaccent":
