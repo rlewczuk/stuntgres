@@ -345,10 +345,12 @@ the types here directly (`exec.Context`, `exec.Source`, ...), without aliases.
 
 Package units cover the preparation seam, stored-view producers, source
 ownership, cursor motion (`RUN='^TestCursor'`), transition aggregates,
-ordered-aggregate sort cancellation, the pgcrypto notice host and `pgrowlocks`
-TIDs. Executor, row-lock, cursor,
-foreign-scan, preflight and routine-admission units build an `Engine` and stay
-in `internal/engine` (grep for `exec.OpenNode`); run row-lock, cursor,
+ordered-aggregate sort cancellation, the pgcrypto notice host, `pgrowlocks`
+TIDs and the query CTE, outer-join, row-mark, set-operation and subquery runtime
+units (`RUN='^TestQuery'`). Executor, row-lock, cursor, foreign-scan, preflight
+and routine-admission units build an `Engine` and live in `internal/engine` or,
+for query and DML statements, in `internal/engine/core` (grep for
+`exec.OpenNode`); run row-lock, cursor,
 foreign-scan, CTE and detach selections with `RACE=1`. `InputDomainChecks`
 changes must keep the COPY filter and JSONB record reference tests passing.
 Foreign parallel dispatch uses `testing/synctest` (`RUN='^TestFDWParallel'`):

@@ -253,14 +253,17 @@ conditions, defaults, checks, index and partition expressions); `expectedOf`,
 
 ## Testing
 
-Binder tests need an engine host, so most live in `internal/engine` and name
-`analyze.Binder` directly; package tests here cover the pure seams. Public
-binding behavior belongs in `reference/`; follow
-[docs/TESTING.md](../../../docs/TESTING.md). To find engine units that build
-bindings, grep `internal/engine/*_test.go` for `Describe(` and the payload names.
+Binder tests need an engine host, so most live in `internal/engine` or, for
+query and DML statements, in `internal/engine/core`, and name `analyze.Binder`
+directly; package tests here cover the pure seams, among them the query alias,
+CTE, row-mark and set-operation binding units. Public binding behavior belongs in
+`reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md). To find engine
+units that build bindings, grep `internal/engine/*_test.go` and
+`internal/engine/core/` for `Describe(` and the payload names.
 
 - Package seams: `RUN='^Test(SQLCallableParameterMapping|RelationNamespaceShape|InsertConflictClone|ExpectedCheckLifetime|CheckQuerySources|CheckBindingDelete|DomainIdentityCaptureRetirement)'`
 - Source identity binding and lexical frame semantics: `RUN='^TestQueryTableOID'`
+- Query binding units: `RUN='^TestQuery(Aliases|Values|CTE|Lock|Set)'`
 - Host, slots and authorities (engine): `RUN='^Test(AnalysisHost|ExpectedOfCopiesHeldInputs|CapturedInputsRetargetOnlyTheirSinks|BindingSlotsKeepNilAbsent)'`
 - Search path and type names (engine): `RUN='^Test(SearchPath|RegTSProviderResolution|DomainIdentity)'`
 - DML binding: `RUN='^TestReference(InsertConflict|InsertSelect|InsertReturning|Merge)'`

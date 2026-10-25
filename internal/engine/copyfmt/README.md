@@ -85,7 +85,8 @@ Unit tests: option parsing (`options_test.go`), CSV framing, fields and output
 (`csv_test.go`), text escapes (`line_reader_test.go`), context truncation
 (`context_test.go`), the COPY TO writers (`writer_test.go`) and the
 filter/error options and DEFAULT marker bytes. The root cursor, protocol and
-cancellation units are `^Test(Copy|ProtocolCopy)` in `internal/engine`.
+cancellation units are `^Test(Copy|ProtocolCopy)` in `internal/engine` and
+`internal/engine/core`.
 
 ```sh
 make check RUN='^TestCopy(CSV|BinaryOptions|TextEscapeUnits|WriteRows|Filter(Options|MarkerBytes))'

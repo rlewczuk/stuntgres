@@ -193,8 +193,9 @@ Package-internal helpers keep lower-case names.
 
 Unit tests here cover the ON CONFLICT predicate proofs, target admission,
 `CompleteCTEMutation`, COPY filter row admission and the routed RLS proposal
-layout. Other DML units need an engine and live in `internal/engine`, naming the
-code as `dml.X`: host seams (`statement_host_dml_test.go`,
+layout. Other DML units need an engine and live in `internal/engine/core`
+(INSERT, UPDATE, DELETE, MERGE, TRUNCATE and COPY statements) or
+`internal/engine`, naming the code as `dml.X`: host seams (`statement_host_dml_test.go`,
 `statement_host_foreign_key_test.go`), executors, probing, FK runtime, COPY and
 cancellation. Allocation guards: `BenchmarkInsertConflictCommittedOmissions`,
 `BenchmarkInsertConflictUpdateDistinctStage`, `BenchmarkUpdateCoreSparse` and
