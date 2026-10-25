@@ -184,7 +184,7 @@ func TestReferenceObjectGrantArrayTransformAuthority(t *testing.T) {
 				}
 				control := selectValue(tc.sibling, " WHERE id=1", tc.siblingValue)
 				name, _, _ := strings.Cut(tc.target, "(")
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.target, "function", name, cases, []fixture.Step{control})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.target, "function", name, cases, []fixture.Step{control})
 			})
 		})
 	}

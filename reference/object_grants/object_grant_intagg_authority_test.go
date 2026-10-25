@@ -153,7 +153,7 @@ func TestReferenceObjectGrantIntaggAuthority(t *testing.T) {
 						objectGrantProviderCase{enum("SELECT v FROM og_intagg.int_array_enum('{1,NULL,2}'::INT[]) u(v) LIMIT 0", nil), true, true},
 					)
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, target, kind, name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, kind, name, cases, controls)
 
 				// Schema USAGE remains independently required even with explicit X.
 				run(fixture.Exec("GRANT EXECUTE ON FUNCTION "+target+" TO og_object_reader", 0))

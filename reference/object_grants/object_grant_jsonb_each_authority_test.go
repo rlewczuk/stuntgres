@@ -85,7 +85,7 @@ func TestReferenceObjectGrantJSONBEachAuthority(t *testing.T) {
 				}
 				controls[1].Bag = true
 				// OUT key/value describe RECORD shape; only JSONB is an IN formal.
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"(jsonb)", "function", name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"(jsonb)", "function", name, cases, controls)
 			})
 		})
 	}

@@ -50,14 +50,25 @@ func objectGrantBodyConsumer(t *testing.T, tc objectGrantBodyCase) {
 		query := "SELECT " + tc.expression + " AS v FROM og_body_source"
 		want := fixture.Select(query, []string{"v"}, []string{tc.resultType}, [][]any{{tc.value}})
 		// Prepare and execute as the actual invoker before changing its rights.
+		// The held statement does not depend on the route: only the prepared
+		// route holds it, and each held run follows the same fresh step.
 		run(fixture.Exec("SET SESSION AUTHORIZATION og_object_reader", 0))
-		stmt, err := c.PrepareContext(p.Ctx, query)
-		if err != nil {
-			t.Fatal(err)
+		var held fixture.HeldStatement
+		heldRun := func(s fixture.Step) {
+			t.Helper()
+			if prepared {
+				fixture.RunStep(t, p.Ctx, held, b.Recorder, s)
+			}
 		}
-		defer stmt.Close()
-		held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: query}
-		fixture.RunStep(t, p.Ctx, held, b.Recorder, want)
+		if prepared {
+			stmt, err := c.PrepareContext(p.Ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stmt.Close()
+			held = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: query}
+		}
+		heldRun(want)
 		run(fixture.Exec("RESET SESSION AUTHORIZATION", 0))
 		fresh := func(step fixture.Step) {
 			t.Helper()
@@ -65,6 +76,7 @@ func objectGrantBodyConsumer(t *testing.T, tc objectGrantBodyCase) {
 			// inlining/relcache decision. It still uses the common recorder.
 			dsn := "reference/" + strings.TrimSuffix(t.Name(), "/"+b.Name)
 			var connector driver.Connector
+			var err error
 			if b.PG {
 				u, err := url.Parse(fixture.DSN)
 				if err != nil {
@@ -112,7 +124,7 @@ func objectGrantBodyConsumer(t *testing.T, tc objectGrantBodyCase) {
 			t.Helper()
 			fixture.RoleGrantActor(run, "og_object_reader", func() {
 				run(wrapperDenied(query))
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, wrapperDenied(query))
+				heldRun(wrapperDenied(query))
 				if tc.zeroRowsPruned {
 					// A non-inlined SQL body is not entered without a row.
 					run(fixture.Select(query+" WHERE FALSE", []string{"v"}, []string{tc.resultType}, nil))
@@ -137,7 +149,7 @@ func objectGrantBodyConsumer(t *testing.T, tc objectGrantBodyCase) {
 			t.Helper()
 			fixture.RoleGrantActor(run, "og_object_reader", func() {
 				run(want)
-				fixture.RunStep(t, p.Ctx, held, b.Recorder, want)
+				heldRun(want)
 				run(fixture.Select(query+" WHERE FALSE", []string{"v"}, []string{tc.resultType}, nil))
 				run(fixture.Select("SELECT "+tc.primitive+" AS v FROM og_body_source", []string{"v"}, []string{tc.primitiveType}, [][]any{{tc.primitiveValue}}))
 			})

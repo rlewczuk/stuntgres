@@ -64,7 +64,7 @@ func TestReferenceObjectGrantLevenshteinProviderAuthority(t *testing.T) {
 					{fixture.Select("SELECT "+expr+" AS v FROM og_levenshtein_source WHERE FALSE", []string{"v"}, []string{"INT4"}, nil), true, true},
 				}
 				control := fixture.Select("SELECT public.daitch_mokotoff('A') AS v", []string{"v"}, []string{"_TEXT"}, [][]any{{"{000000}"}})
-				objectGrantProviderLifecycle(t, p, b, c, run, tc.target, "function", tc.name, cases, []fixture.Step{control})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, tc.target, "function", tc.name, cases, []fixture.Step{control})
 			})
 		})
 	}

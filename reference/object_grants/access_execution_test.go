@@ -114,6 +114,16 @@ func accessExecutionHeld(t *testing.T, p *fixture.Pair, c *sql.Conn, query strin
 	return fixture.HeldStatement{Executor:c,Statement:stmt,SQL:query}
 }
 
+// accessExecutionPairedHeld runs s through h after the caller ran the same
+// fresh step. A held statement runs identically in both routes, so only the
+// prepared route runs it.
+func accessExecutionPairedHeld(t *testing.T, p *fixture.Pair, b fixture.Backend, prepared bool, h fixture.HeldStatement, s fixture.Step) {
+	t.Helper()
+	if prepared {
+		fixture.RunStep(t, p.Ctx, h, b.Recorder, s)
+	}
+}
+
 func accessExecutionError(q, code, message string, args ...any) fixture.Step {
 	s := fixture.ImplicitError(q,fixture.Diagnostic{Code:code,Message:message},args...)
 	s.SelectRows, s.ErrorStage = true,"execute"
@@ -159,7 +169,7 @@ func TestReferenceAccessExecutionOverloads(t *testing.T) {
 						}
 					}
 					run(s)
-					fixture.RunStep(t,p.Ctx,held,b.Recorder,s)
+					accessExecutionPairedHeld(t,p,b,prepared,held,s)
 					literalQuery:=call.query
 					for i,arg:=range call.args {
 						literal:=fmt.Sprint(arg)
@@ -169,8 +179,10 @@ func TestReferenceAccessExecutionOverloads(t *testing.T) {
 					run(objectGrantAccessValue(literalQuery,o.initial))
 					column := accessExecutionColumnCall(call)+" FROM ae_inputs"
 					run(objectGrantAccessValue(column,o.initial))
-					columnHeld := accessExecutionHeld(t,p,c,column)
-					fixture.RunStep(t,p.Ctx,columnHeld,b.Recorder,objectGrantAccessValue(column,o.initial))
+					if prepared {
+						columnHeld := accessExecutionHeld(t,p,c,column)
+						fixture.RunStep(t,p.Ctx,columnHeld,b.Recorder,objectGrantAccessValue(column,o.initial))
+					}
 				})
 			}
 			run(objectGrantAccessValue("SELECT "+o.function+"('og_object_reader',$1,$2) AS v",o.initial,o.name,o.privilege))
@@ -191,7 +203,7 @@ func TestReferenceAccessExecutionACL(t *testing.T) {
 					for i,call:=range calls {
 						for _, variant:=range []struct{ privilege string; value bool }{{o.privilege,ordinary},{o.privilege+" WITH GRANT OPTION",options},{" "+strings.ToLower(o.privilege)+", "+o.privilege+" WITH GRANT OPTION ",ordinary||options},{o.privilege+","+strings.ToLower(o.privilege),ordinary}} {
 							args:=append([]any(nil),call.args...); args[len(args)-1]=variant.privilege
-							s:=objectGrantAccessValue(call.query,variant.value,args...); run(s); fixture.RunStep(t,p.Ctx,held[i],b.Recorder,s)
+							s:=objectGrantAccessValue(call.query,variant.value,args...); run(s); accessExecutionPairedHeld(t,p,b,prepared,held[i],s)
 						}
 					}
 				})

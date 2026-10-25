@@ -126,7 +126,7 @@ func TestReferenceObjectGrantTIDAuthority(t *testing.T) {
 				}
 				// Shared lifecycle asserts full diagnostic fields/execute stage
 				// and the SAME held statements through PUBLIC→deny→grant→deny.
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 			})
 		})
 	}

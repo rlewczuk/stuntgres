@@ -141,7 +141,7 @@ func TestReferenceObjectGrantNetworkOperatorAuthority(t *testing.T) {
 						}
 					}
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", tc.name, cases, controls)
 				fullDiagnostic := func(s fixture.Step, name, context string) fixture.Step {
 					d := fixture.ImplicitError(s.Query, fixture.Diagnostic{Code: "42501", Message: "permission denied for function " + name, Context: context}, s.Args...)
 					d.SelectRows, d.ErrorStage = true, "execute"

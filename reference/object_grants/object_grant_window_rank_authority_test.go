@@ -46,7 +46,7 @@ func TestReferenceObjectGrantWindowRankProviderAuthority(t *testing.T) {
 				controls := []fixture.Step{
 					fixture.Select("SELECT id,pg_catalog.row_number() OVER(ORDER BY id) AS v FROM og_window_rank_source ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}}),
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.name+"()", "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.name+"()", "function", tc.name, cases, controls)
 			})
 		})
 	}

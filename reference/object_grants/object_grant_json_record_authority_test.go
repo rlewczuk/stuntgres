@@ -185,7 +185,7 @@ func TestReferenceObjectGrantJSONRecordAuthority(t *testing.T) {
 					}
 					controls = append(controls, pair("SELECT n,s FROM "+call+" ORDER BY n NULLS LAST", want))
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, family.target, "function", family.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, family.target, "function", family.name, cases, controls)
 
 				// The helper's deferred cleanup restores PUBLIC before this separate
 				// write witness. Check denied publication, then exact granted recovery.

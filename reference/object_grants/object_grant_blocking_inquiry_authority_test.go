@@ -37,7 +37,7 @@ func TestReferenceObjectGrantBlockingInquiryAuthority(t *testing.T) {
 				if name == sibling {
 					sibling = "pg_blocking_pids"
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"(integer)", "function", name, cases, []fixture.Step{value(sibling+"(pid)", " WHERE id=1", "{}")})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"(integer)", "function", name, cases, []fixture.Step{value(sibling+"(pid)", " WHERE id=1", "{}")})
 			})
 		})
 	}

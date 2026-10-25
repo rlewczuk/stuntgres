@@ -107,7 +107,7 @@ func TestReferenceObjectGrantAnalysisOnlyLifetime(t *testing.T) {
 			run(fixture.Exec("CREATE VIEW admission_owner_view AS SELECT id,pg_catalog.abs(n) AS v FROM admission_input", 0))
 			run(fixture.Exec("GRANT SELECT ON admission_owner_view TO og_object_reader", 0))
 			step := fixture.Select("SELECT id,v FROM admission_owner_view ORDER BY id", []string{"id", "v"}, []string{"INT4", "INT4"}, [][]any{{int64(1), int64(7)}, {int64(2), int64(3)}})
-			objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.abs(integer)", "function", "abs", []objectGrantProviderCase{{step, true, true}}, nil)
+			objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.abs(integer)", "function", "abs", []objectGrantProviderCase{{step, true, true}}, nil)
 		})
 	})
 	t.Run("replacement", func(t *testing.T) {

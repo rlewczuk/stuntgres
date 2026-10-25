@@ -30,7 +30,11 @@ Role-grant actors, permission diagnostics and notice helpers are the fixture's
 - `objectGrantProviderLifecycle` (`object_grant_aggregate_provider_authority_test.go`)
   is the standard deny → grant → revoke cycle over `objectGrantProviderCase`
   consumers; `objectGrantBodyConsumer` (`object_grant_routine_body_consumers_test.go`)
-  is the SQL-body variant.
+  is the SQL-body variant. A held statement is prepared once and runs unchanged
+  after the same fresh step, which does not depend on the route, so these helpers
+  and `accessExecutionPairedHeld` hold statements in the `prepared` route only.
+  Held witnesses that are the only check of a route-run statement (live authority,
+  smoke, persistence and NULL-diagnostic tails) keep both routes.
 - `ObjectGrantControls` retains zero-output rejection for unsupported parameter
   and tablespace authority. Ordinary builtin and conversion routines, as well
   as authentic installed members, prove exact raw ACLs, owner identity and

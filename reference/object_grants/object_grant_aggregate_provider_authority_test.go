@@ -13,7 +13,10 @@ type objectGrantProviderCase struct {
 	needed, held bool
 }
 
-func objectGrantProviderLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), target, kind, name string, cases []objectGrantProviderCase, controls []fixture.Step) {
+// objectGrantProviderLifecycle runs cases through deny → grant → revoke. Held
+// statements are prepared once and executed unchanged after every fresh run;
+// they do not depend on the route, so only the prepared route holds them.
+func objectGrantProviderLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool, target, kind, name string, cases []objectGrantProviderCase, controls []fixture.Step) {
 	t.Helper()
 	defer objectGrantRoutineCleanup(t, p, c, []string{target})
 	held := make(map[int]fixture.HeldStatement)
@@ -24,7 +27,7 @@ func objectGrantProviderLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backe
 	}()
 	fixture.RoleGrantActor(run, "og_object_reader", func() {
 		for i, tc := range cases {
-			if !tc.held {
+			if !tc.held || !prepared {
 				continue
 			}
 			stmt, err := c.PrepareContext(p.Ctx, tc.step.Query)
@@ -94,7 +97,7 @@ func TestReferenceObjectGrantHypotheticalProviderAuthority(t *testing.T) {
 					other, otherTyp, otherValue = "dense_rank", "INT8", int64(2)
 				}
 				control := fixture.Select("SELECT "+other+"(1,'b'::TEXT) WITHIN GROUP(ORDER BY x,y) AS v FROM og_hyp_provider", []string{"v"}, []string{otherTyp}, [][]any{{otherValue}})
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.name+`("any")`, "aggregate", tc.name, cases, []fixture.Step{control})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.name+`("any")`, "aggregate", tc.name, cases, []fixture.Step{control})
 			})
 		})
 	}
@@ -153,7 +156,7 @@ func TestReferenceObjectGrantSQLJSONObjectAggProviderAuthority(t *testing.T) {
 							otherUnique = " WITHOUT UNIQUE KEYS"
 						}
 						control := selectValue("json_objectagg(k:v"+policy+otherUnique+" RETURNING "+strings.ToLower(typ)+")", "", value)
-						objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+`("any","any")`, "aggregate", name, cases, []fixture.Step{control})
+						objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+`("any","any")`, "aggregate", name, cases, []fixture.Step{control})
 					})
 				})
 			}

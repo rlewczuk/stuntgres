@@ -39,7 +39,7 @@ func TestReferenceObjectGrantJSONBContainmentAuthority(t *testing.T) {
 					{fixture.Select("SELECT v FROM og_containment_view", []string{"v"}, []string{"BOOL"}, [][]any{{tc.want}}), true, true},
 				}
 				control := fixture.Select("SELECT j->>'a' AS v FROM og_containment WHERE id=1", []string{"v"}, []string{"TEXT"}, [][]any{{"1"}})
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.name+"(jsonb,jsonb)", "function", tc.name, cases, []fixture.Step{control})
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.name+"(jsonb,jsonb)", "function", tc.name, cases, []fixture.Step{control})
 			})
 		})
 	}

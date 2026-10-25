@@ -218,7 +218,7 @@ func TestReferenceObjectGrantStringSliceAuthority(t *testing.T) {
 				// Existing regex and POSITION identities are selection controls,
 				// not another copy of their owning comprehensive value suites.
 				controls = append(controls, fixture.Select("SELECT substring('abc'::TEXT,'b'::TEXT) AS regex,position('cd' IN 'abcdef') AS text_pos,pg_catalog.position('\\x1234567890'::BYTEA,'\\x5678'::BYTEA) AS byte_pos,position(B'010' IN B'000001101011') AS bit_pos", []string{"regex", "text_pos", "byte_pos", "bit_pos"}, []string{"TEXT", "INT4", "INT4", "INT4"}, [][]any{{"b", int64(3), int64(3), int64(8)}}))
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.target, "function", name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.target, "function", name, cases, controls)
 			})
 		})
 	}

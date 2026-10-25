@@ -88,7 +88,7 @@ func TestReferenceObjectGrantMetaphoneProviderAuthority(t *testing.T) {
 					// while only the selected target loses EXECUTE.
 					fixture.Select("SELECT public."+tc.sibling+"(source) AS v FROM og_metaphone_source WHERE id=1", []string{"v"}, []string{"TEXT"}, [][]any{{tc.siblingValue}}),
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, tc.target, "function", tc.name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, tc.target, "function", tc.name, cases, controls)
 			})
 		})
 	}

@@ -47,6 +47,6 @@ func TestReferenceObjectGrantJSONBPrettyAuthority(t *testing.T) {
 			{fixture.Select("SELECT jsonb_pretty(j) AS v FROM og_jsonb_pretty_source WHERE FALSE", []string{"v"}, []string{"TEXT"}, nil), true, true},
 		}
 		controls := []fixture.Step{selectValue("j->>'a'", " WHERE id=1", "1")}
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.jsonb_pretty(jsonb)", "function", "jsonb_pretty", cases, controls)
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.jsonb_pretty(jsonb)", "function", "jsonb_pretty", cases, controls)
 	})
 }

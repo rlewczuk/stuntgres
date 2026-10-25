@@ -51,7 +51,7 @@ func TestReferenceObjectGrantArrayUnnestProviderAuthority(t *testing.T) {
 		// Same SQL name, distinct genuine formal identity. A single sibling is sufficient.
 		control := fixture.Select("SELECT u.v FROM og_array_unnest_provider s CROSS JOIN LATERAL unnest(s.m) AS u(v) WHERE s.id=1", []string{"v"}, []string{"INT4RANGE"}, [][]any{{"[1,3)"}})
 		control.RawTypes = []string{"RECORD"}
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.unnest(anyarray)", "function", "unnest", cases, []fixture.Step{control})
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.unnest(anyarray)", "function", "unnest", cases, []fixture.Step{control})
 	})
 }
 
@@ -102,6 +102,6 @@ func TestReferenceObjectGrantMultirangeUnnestProviderAuthority(t *testing.T) {
 			cases[i].step.Bag = true
 		}
 		control := fixture.Select("SELECT v FROM unnest(ARRAY[7]) AS u(v)", []string{"v"}, []string{"INT4"}, [][]any{{int64(7)}})
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.unnest(anymultirange)", "function", "unnest", cases, []fixture.Step{control})
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.unnest(anymultirange)", "function", "unnest", cases, []fixture.Step{control})
 	})
 }

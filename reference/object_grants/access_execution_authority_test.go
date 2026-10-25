@@ -55,10 +55,10 @@ func TestReferenceAccessExecutionInquiryAuthority(t *testing.T) {
 						fixture.RoleGrantActor(run,"og_object_reader",func(){
 							s:=objectGrantAccessValue(call.query,o.initial,call.args...)
 							if deny {s=objectGrantAccessDenied(call.query,o.function,true,call.args...)}
-							run(s);fixture.RunStep(t,p.Ctx,held,b.Recorder,s)
+							run(s);accessExecutionPairedHeld(t,p,b,prepared,held,s)
 							if deny {exec:=s;exec.SelectRows=false;run(exec)}
 							// Preparation itself does not require selected EXECUTE.
-							fresh:=accessExecutionHeld(t,p,c,call.query);fixture.RunStep(t,p.Ctx,fresh,b.Recorder,s)
+							if prepared {fresh:=accessExecutionHeld(t,p,c,call.query);fixture.RunStep(t,p.Ctx,fresh,b.Recorder,s)}
 							sibling:=calls[i^1];run(objectGrantAccessValue(sibling.query,o.initial,sibling.args...))
 							// Literal NULL is the established strict simplification boundary.
 							run(objectGrantAccessValue("SELECT "+o.function+"(NULL::text,'bad') AS v",nil))
@@ -66,7 +66,7 @@ func TestReferenceAccessExecutionInquiryAuthority(t *testing.T) {
 								rows:=[][]any{{nil}};if j!=0 {rows=nil}
 								step:=fixture.Select(h.SQL,[]string{"v"},[]string{"BOOL"},rows)
 								if deny {step=objectGrantAccessDenied(h.SQL,o.function,true)}
-								run(step);fixture.RunStep(t,p.Ctx,h,b.Recorder,step)
+								run(step);accessExecutionPairedHeld(t,p,b,prepared,h,step)
 							}
 							dead:="SELECT CASE WHEN FALSE THEN "+accessExecutionColumnCall(call)[7:len(accessExecutionColumnCall(call))-5]+" ELSE FALSE END AS v FROM ae_demand"
 							run(objectGrantAccessValue(dead,false))

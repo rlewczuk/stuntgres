@@ -82,7 +82,7 @@ func TestReferenceObjectGrantCommitTimeAuthority(t *testing.T) {
 						cases = append(cases, objectGrantProviderCase{fixture.Select("SELECT * FROM pg_catalog.pg_xact_commit_timestamp(NULL::xid)", []string{name}, []string{"TIMESTAMPTZ"}, [][]any{{nil}}), false, true})
 					}
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", name, cases, nil)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", name, cases, nil)
 			})
 		})
 	}

@@ -11,11 +11,11 @@ import (
 
 func TestReferenceObjectGrantAggregateAliasStoredAuthority(t *testing.T) {
 	aggregateAliasMatrix(t, []string{"plain", "combined"}, func(t *testing.T, f aggregateAliasFamily, order, revoked int, shape string) {
-		aggregateAliasStoredScenario(t, f, order, revoked, shape, true)
+		aggregateAliasStoredScenario(t, f, order, revoked, shape)
 	})
 }
 
-func aggregateAliasStoredScenario(t *testing.T, f aggregateAliasFamily, order, revoked int, shape string, roundTrip bool) {
+func aggregateAliasStoredScenario(t *testing.T, f aggregateAliasFamily, order, revoked int, shape string) {
 	t.Helper()
 	objectGrantScenario(t, nil, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, run func(fixture.Step), prepared bool) {
 		// Capture only supported symbolic consumers with default builtin ACLs.
@@ -26,7 +26,7 @@ func aggregateAliasStoredScenario(t *testing.T, f aggregateAliasFamily, order, r
 		run(fixture.Exec("CREATE VIEW og_ai_view AS "+body, 0))
 		run(fixture.Exec("CREATE VIEW og_ai_invoker WITH(security_invoker=true) AS "+body, 0))
 		var snapshot bytes.Buffer
-		if roundTrip && !b.PG {
+		if !b.PG {
 			if err := stuntgres.Dump(p.Ctx, p.Native, &snapshot); err != nil {
 				t.Fatal(err)
 			}
@@ -45,10 +45,10 @@ func aggregateAliasStoredScenario(t *testing.T, f aggregateAliasFamily, order, r
 				run(fixture.Exec("GRANT SELECT ON "+view+" TO og_object_reader", 0))
 				cases = append(cases, objectGrantProviderCase{f.selectStep("SELECT a,z FROM "+view, shape), true, true})
 			}
-			objectGrantProviderLifecycle(t, p, b, c, run, target, "aggregate", f.names[revoked], cases, []fixture.Step{aggregateAliasControl(f, revoked, shape)})
+			objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "aggregate", f.names[revoked], cases, []fixture.Step{aggregateAliasControl(f, revoked, shape)})
 		}
 		lifecycle()
-		if roundTrip && !b.PG {
+		if !b.PG {
 			// All held handles from the first lifecycle are now closed. Reset
 			// also restores default builtin ACLs before importing the snapshot.
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {

@@ -102,7 +102,7 @@ func TestReferenceObjectGrantRegexpSubstrAuthority(t *testing.T) {
 				if arity >= 5 {
 					controls[0].Rows = [][]any{{false}}
 				}
-				objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.regexp_substr("+strings.Join(types, ",")+")", "function", "regexp_substr", cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.regexp_substr("+strings.Join(types, ",")+")", "function", "regexp_substr", cases, controls)
 			})
 		})
 	}

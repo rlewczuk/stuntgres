@@ -55,6 +55,6 @@ func TestReferenceObjectGrantJSONBPathDeleteProviderAuthority(t *testing.T) {
 		}
 		// A separately implemented extraction operator keeps its own ACL.
 		controls := []fixture.Step{selectValue("j #> p", " WHERE id=1", "20")}
-		objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog.jsonb_delete_path(jsonb,text[])", "function", "jsonb_delete_path", cases, controls)
+		objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog.jsonb_delete_path(jsonb,text[])", "function", "jsonb_delete_path", cases, controls)
 	})
 }

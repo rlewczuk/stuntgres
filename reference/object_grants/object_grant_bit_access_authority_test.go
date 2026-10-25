@@ -233,7 +233,7 @@ func TestReferenceObjectGrantBitAccessAuthority(t *testing.T) {
 					fixture.Select("SELECT "+sibling+" AS v FROM og_bit_access WHERE id=1", []string{"v"}, []string{siblingType}, [][]any{{siblingValue}}),
 					fixture.Select("SELECT "+bytea+" AS v", []string{"v"}, []string{byteaType}, [][]any{{byteaValue}}),
 				)
-				objectGrantProviderLifecycle(t, p, b, c, run, target, "function", name, cases, controls)
+				objectGrantProviderLifecycle(t, p, b, c, run, prepared, target, "function", name, cases, controls)
 				// Conversely, revoking BYTEA's distinct formal leaves BIT callable.
 				byteaTarget := "pg_catalog." + name + "(bytea,bigint"
 				if name == "set_bit" {

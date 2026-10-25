@@ -122,7 +122,7 @@ func TestReferenceObjectGrantRangeComparisonAuthority(t *testing.T) {
 						controlOp, controlValue = "<>", true
 					}
 					controls := []fixture.Step{selectValue("cr "+controlOp+" cs", " WHERE id=1", controlValue)}
-					objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"("+formal+","+formal+")", "function", name, cases, controls)
+					objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"("+formal+","+formal+")", "function", name, cases, controls)
 				})
 			})
 		}

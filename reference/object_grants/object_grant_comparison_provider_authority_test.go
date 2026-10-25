@@ -35,7 +35,7 @@ func TestReferenceObjectGrantArrayComparisonProviderAuthority(t *testing.T) {
 				other, otherValue = "<>", true
 			}
 			control := fixture.Select("SELECT a"+other+"b AS v FROM og_array_provider WHERE id=1", []string{"v"}, []string{"BOOL"}, [][]any{{otherValue}})
-			objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+tc.name+"(anyarray,anyarray)", "function", tc.name, cases, []fixture.Step{control})
+			objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+tc.name+"(anyarray,anyarray)", "function", tc.name, cases, []fixture.Step{control})
 		}
 		// Structural comparison's INT4 leaf is internal support, not a
 		// separately caller-checked routine. Demonstrate actual leaf denial
@@ -89,7 +89,7 @@ func TestReferenceObjectGrantBitComparisonProviderAuthority(t *testing.T) {
 						controlLeft, controlRight = "a", "b"
 					}
 					control := fixture.Select("SELECT "+controlLeft+tc.op+controlRight+" AS v FROM og_bit_cmp_provider WHERE id=1", []string{"v"}, []string{"BOOL"}, [][]any{{tc.value}})
-					objectGrantProviderLifecycle(t, p, b, c, run, "pg_catalog."+name+"("+family.formal+","+family.formal+")", "function", name, cases, []fixture.Step{control})
+					objectGrantProviderLifecycle(t, p, b, c, run, prepared, "pg_catalog."+name+"("+family.formal+","+family.formal+")", "function", name, cases, []fixture.Step{control})
 				}
 			})
 		})
