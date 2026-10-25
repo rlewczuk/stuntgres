@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `76055784d` (item 186 rebased on it).
+Last verified against `master` at `f24c2358f` (item 187 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 187, 189.
+- 189.
 
 ## Linear plan
 
@@ -92,9 +92,16 @@ ENGINE-SPLIT.md §4.
      root tests 866 files and 6.99 MB (−1.01 MB); quickcheck passed;
      `REFERENCE=1` and bench skipped (no production change), racecheck and
      finalcheck skipped at user request
-187. [ ] Type, view, role and schema-object DDL tests —
+187. [x] Type, view, role and schema-object DDL tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-187--type-view-role-and-schema-object-ddl-tests)
-     · needs 182 · P · 0.8 MB
+     · needs 182 · P · 0.8 MB (`9c2d30c27`, `e01a0f1a9`, docs commit) · 116 of
+     the 129 transitively free root test files of the typedef, view, trigger,
+     roles, ddlcommon, routine (DDL), extension and fdw areas moved as external
+     tests by statement under test (30 to `schemacmds`, 18 to `rolecmds`, 16 to
+     `viewcmds`, 1 to `typecmds`, 10 to `tablecmds`, 41 runtime files to
+     `core`), none deleted under T2; root tests 763 files and 6.17 MB (−0.82
+     MB); quickcheck passed; `REFERENCE=1` and bench skipped (no production
+     change), racecheck and finalcheck skipped at user request
 188. [x] Composition seams —
      [core](ENGINE-SPLIT-core.md#item-188--composition-seams) · needs 182 · P,
      bench (`368580d20`, `cbb5001f8`, `6110e58bf`, `212dce0b8`, docs commit) ·

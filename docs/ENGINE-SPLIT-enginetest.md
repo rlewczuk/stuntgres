@@ -374,6 +374,37 @@ inspection accessors were added.
   `partitionConstraintUnit`, `retiredRaw`, `retiredRepairSQL`, `retiredRow` and
   `serialLeaf`. The non-free group files (about 1 MB, 65 reach core internals)
   wait for items 193–194.
-- 187: not started.
+- 187: - 187: done (`9c2d30c27`, `e01a0f1a9`). Group measured with `group.py`
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-187-TYPE-VIEW-ROLE-SCHEMA-OBJECT-DDL-TESTS/`) at
+  `13ad970b9`: 321 root files, 129 transitively free (0.90 MB). Moved 116 (290
+  tests) with that directory's `mvtest`, replayed on item 186, by statement
+  under test: `schemacmds` 30 (schemas, COMMENT, collations, conversions,
+  operator, operator class and routine DDL, CREATE TABLESPACE, LOAD,
+  foreign-table DDL), `rolecmds` 18, `viewcmds` 16 (views, policies, rule DDL),
+  `typecmds` 1 (ALTER TYPE on typed tables) and `core` 41 (row locks, RLS, rule
+  expansion, runtime domain checks, TEMP namespace storage, object address, ACL,
+  comment, tablespace and extension inquiry functions, aclitem output, foreign
+  parallel scans, type catalog descriptions). Deviation: 10 files went to
+  `tablecmds`, beside item 186's (ALTER TABLE RENAME, whose executor
+  `renameRelationLocked` is an item 196 entry, column-default Restore and CREATE
+  TABLE OF). No extension-prefix file is free (all reach `fam:extension`); they
+  wait for item 203. T2: none deleted (every refcover candidate asserts
+  lock-manager, catalog, storage or role-store state, or runs barriers). Moved
+  callers of the root test method `Engine.Comment` use item 186's
+  `enginetest.Comment`; the method went with `comment_test.go`. This `mvtest`
+  also drops earlier destination copies of helpers that a moving file declares
+  (ten row-lock, namespace and tablespace helpers in `core`,
+  `renameAuthorityFixture` and `renameWantError` in `tablecmds`). Kept in the
+  root: the helper-only `authorization_fixtures`, `default_privileges_helpers`,
+  `domain_alter_*` (subtest bodies of `domain_test`), `extension_retirement`,
+  `operator_family_fixture`, `rls_base_lock` and `trigger_fixture`, and
+  `object_acl_fixture`; deleted the dead helper-only `fdw_parallel_pressure`,
+  `routine_builtin_capture` and `routine_program_wait`. Root helpers left
+  without root users: `alterSchemaPublishDescriptor`,
+  `databaseAdmissionPolicyLocked`, `indexMaintenanceSnapshot`,
+  `publicationConflictProvider`, `ruleUnitInt` and
+  `typedReview{ACLFixture,TypeACL}`. The 192 non-free group files (66 reach core
+  internals, 82 family code, 43 shared or several families, 1 unassigned) wait
+  for items 193–194 and 203.
 - 193: not started.
 - 194: not started.
