@@ -215,6 +215,13 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return nil
 		}
 	case parser.ColumnExpr, parser.StarExpr:
+		if column, ok := bound.(plan.TableOIDExpr); ok && column.Scope != 0 {
+			if b.Capture.Columns == nil {
+				b.Capture.Columns = make(map[ViewLiteralPath]ViewColumn)
+			}
+			b.Capture.Columns[path] = ViewColumn{TableOID: true, Owner: column.Owner, Scope: column.Scope, Frame: column.Frame, Occurrence: column.QueryOccurrence}
+			return nil
+		}
 		if column, ok := bound.(plan.ColumnExpr); ok {
 			if b.Capture.Columns == nil {
 				b.Capture.Columns = make(map[ViewLiteralPath]ViewColumn)
@@ -645,10 +652,16 @@ func (b *Binder) captureNormalizedViewLiteralTree(raw parser.Expr, bound expr.Ex
 			return children(r.Args, n.Args)
 		}
 		if n, ok := bound.(plan.InstalledVerifyHeapamExpr); ok {
-			if err := extension.ValidateVerifyHeapamIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil { return err }
-			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil { return err }
+			if err := extension.ValidateVerifyHeapamIdentity(b.BindingCatalog(), n.Procedure, n.Ref); err != nil {
+				return err
+			}
+			if err := b.Capture.CaptureRoutineReference(path, n.Ref); err != nil {
+				return err
+			}
 			args, err := n.WrittenArguments(r)
-			if err != nil { return err }
+			if err != nil {
+				return err
+			}
 			return children(r.Args, args)
 		}
 		if n, ok := bound.(plan.InstalledPgrowlocksExpr); ok {

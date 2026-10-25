@@ -29,9 +29,6 @@ func partitionAttachMappedConsumers(t *testing.T) {
 					run(fixture.Select("SELECT * FROM pa_consumer_copy ORDER BY k", []string{"k", "payload"}, []string{"INT4", "TEXT"}, want))
 					run(fixture.Select("SELECT * FROM pa_consumer_child ORDER BY k", []string{"payload", "k"}, []string{"TEXT", "INT4"}, [][]any{{"one", int64(1)}, {"two", int64(2)}, {"three", int64(3)}, {"four", int64(4)}}))
 					physical := fixture.Select("SELECT tableoid='pa_consumer_child'::regclass::OID AS physical FROM pa_consumer ORDER BY k", []string{"physical"}, []string{"BOOL"}, [][]any{{true}, {true}, {true}, {true}})
-					if !b.PG {
-						physical = fixture.ImplicitError(physical.Query, fixture.Diagnostic{Code: "42703", Message: `column "tableoid" does not exist`, Position: "8"})
-					}
 					run(physical)
 				})
 			}

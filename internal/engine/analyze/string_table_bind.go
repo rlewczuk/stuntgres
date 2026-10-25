@@ -196,6 +196,17 @@ func (b *Binder) functionCaptures(calls []expr.Expr) []plan.FunctionCorrelation 
 	for _, call := range calls {
 		for _, arg := range call.(expr.Composite).Children() {
 			WalkQueryArgumentExpression(arg, func(expr expr.Expr) {
+				if system, ok := expr.(plan.TableOIDExpr); ok && system.Scope == 1 && system.Frame == b.FrameID() && system.QueryOccurrence > 0 {
+					name := ""
+					for _, qualifier := range b.Query.Namespace.Qualifiers {
+						if qualifier.TableOIDOccurrence == system.QueryOccurrence {
+							name = qualifier.Name
+							break
+						}
+					}
+					captures = append(captures, plan.FunctionCorrelation{Frame: system.Frame, QueryOccurrence: system.QueryOccurrence, Name: name, Pos: system.Pos})
+					return
+				}
 				column, ok := expr.(plan.ColumnExpr)
 				if !ok || column.Frame != b.FrameID() {
 					return

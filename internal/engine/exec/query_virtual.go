@@ -8,30 +8,33 @@ import (
 )
 
 // Retention is an execution demand, independent of row-lock admission.
-func QueryHasVirtualReads(root plan.Node) bool {
+func QueryHasIdentityReads(root plan.Node) bool {
 	found := false
 	plan.VisitExecutableQuery(root, func(plan.Node) {}, func(expr expr.Expr) {
-		if lexicalHasVirtualReads(expr) {
+		if lexicalHasIdentityReads(expr) {
 			found = true
 		}
 	})
 	return found
 }
 
-func BoundHasVirtualReads(bound expr.Expr) bool {
-	found := lexicalHasVirtualReads(bound)
+func BoundHasIdentityReads(bound expr.Expr) bool {
+	found := lexicalHasIdentityReads(bound)
 	plan.WalkExpression(bound, func(node expr.Expr) {
 		if query, ok := node.(plan.SubqueryExpr); !found && ok && !query.CTEEdge {
-			found = QueryHasVirtualReads(query.QueryPlan.Root)
+			found = QueryHasIdentityReads(query.QueryPlan.Root)
 		}
 	})
 	return found
 }
 
-func lexicalHasVirtualReads(bound expr.Expr) bool {
+func lexicalHasIdentityReads(bound expr.Expr) bool {
 	found := false
 	plan.WalkExpression(bound, func(node expr.Expr) {
 		if column, ok := node.(plan.ColumnExpr); ok && column.Virtual != nil && column.QueryOccurrence != 0 {
+			found = true
+		}
+		if tableoid, ok := node.(plan.TableOIDExpr); ok && tableoid.QueryOccurrence != 0 {
 			found = true
 		}
 	})
@@ -47,7 +50,7 @@ func (c *Context) BindQueryRow(source *Source, index int) {
 
 func (c *Context) BindQueryIdentity(source *Source, index int) {
 	c.setQueryPresence(source, index)
-	if c.Query == nil || !c.Query.VirtualReads {
+	if c.Query == nil || !c.Query.IdentityReads {
 		return
 	}
 	if c.queryRowSource != source {

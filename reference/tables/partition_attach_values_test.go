@@ -57,9 +57,6 @@ func TestReferencePartitionAttachValues(t *testing.T) {
 					run(fixture.Select("SELECT payload FROM pa_values WHERE k=2 ORDER BY payload", []string{"payload"}, []string{"TEXT"}, [][]any{{"child"}, {"two"}}))
 					run(referenceRangeLeafMiss("INSERT INTO pa_values_child VALUES('outside',3)", "pa_values_child", "outside, 3"))
 					physical := fixture.Select("SELECT tableoid='pa_values_child'::regclass::OID AS physical FROM pa_values WHERE k=1", []string{"physical"}, []string{"BOOL"}, [][]any{{true}})
-					if !b.PG {
-						physical = fixture.ImplicitError(physical.Query, fixture.Diagnostic{Code: "42703", Message: `column "tableoid" does not exist`, Position: "8"})
-					}
 					run(physical)
 					run(fixture.Exec("CREATE TABLE pa_values_default(payload TEXT,k INT)", 0))
 					run(fixture.Exec("INSERT INTO pa_values_default VALUES('null',NULL),('ten',10)", 2))

@@ -72,6 +72,12 @@ host methods.
   only descriptor lookup normalizes to the whole owner. Capture honors staged
   definitions, and validation, rendering and remapping preserve the original
   provenance and revision while using checked current labels.
+  Tableoid occurrences use a tagged `ViewColumn` capture with full source ref,
+  lexical frame and occurrence, never an ordinary slot. Validation closes the
+  capture over the executable source; rendering uses that source's checked
+  current qualifier. Frozen leaves retain a separate table SELECT requirement.
+  Executable and presentation refs remap once together, preserving attribute -6
+  in semantic dependencies without weakening foreign-domain or epoch fences.
   Routine public name/namespace/owner are mutable presentation. Same-address
   declaration checks retain kind, exact signature/result, SQL/default/body and
   provider association. Installed captures validate their real manifest slot
@@ -513,6 +519,8 @@ Renderer-only units use frozen catalog fixtures here; engine capture, retag,
 remap, `pg_depend`, provenance and validator tests live in `internal/engine`.
 Public behavior belongs in `reference/`; follow [docs/TESTING.md](../../../docs/TESTING.md) and
 add `REFERENCE=1` for the oracle.
+Frozen source-identity captures and remapping use `RUN='^TestStoredTableOID'`.
+
 
 Provider occurrence/shape proof:
 `make check RUN='^(TestProviderRoutineOccurrenceIdentity|TestRegexpScalarViewPrefix|TestViewLiteralProtocolQueryBoundaries|TestStoredProviderCallShape)$'`.

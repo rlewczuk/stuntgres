@@ -53,6 +53,11 @@ func AuthorizeSource(a access.View, env access.Environment, ref ids.ObjectRef, d
 		if err != nil {
 			return err
 		}
+		if leaf.TableOIDRead {
+			if err := a.Check(env, access.Requirement{Object: use, Privileges: authorization.SelectPrivilege}); err != nil {
+				return err
+			}
+		}
 		if err := a.CheckColumns(env, use, source, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}

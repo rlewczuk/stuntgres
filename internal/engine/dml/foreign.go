@@ -270,18 +270,18 @@ func executeForeignRowMutation(h Host, m *fdw.Modification, b analyze.Binding, s
 	var frame []sqltype.Value
 	sourceCount := 1
 	if from != nil {
-		state.VirtualReads = exec.QueryHasVirtualReads(from) || exec.BoundHasVirtualReads(predicate)
+		state.IdentityReads = exec.QueryHasIdentityReads(from) || exec.BoundHasIdentityReads(predicate)
 		if b.Update != nil {
 			for _, expression := range b.Update.Assignments {
-				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
+				state.IdentityReads = state.IdentityReads || exec.BoundHasIdentityReads(expression)
 			}
 			for _, target := range b.Update.ArrayTargets {
-				state.VirtualReads = state.VirtualReads || exec.AssignmentTargetHasVirtualReads(target)
+				state.IdentityReads = state.IdentityReads || exec.AssignmentTargetHasIdentityReads(target)
 			}
 		}
 		if b.Returning != nil {
 			for _, expression := range b.Returning.Expressions {
-				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
+				state.IdentityReads = state.IdentityReads || exec.BoundHasIdentityReads(expression)
 			}
 		}
 		stage, err = exec.OpenNode(ctx, state, from)

@@ -16,6 +16,36 @@ func (c *Context) EvalTableOID(n plan.TableOIDExpr) (sqltype.Value, error) {
 	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
+	if n.Scope != 0 || n.Frame != 0 || n.QueryOccurrence != 0 {
+		if n.Scope != 1 || n.Frame == 0 || n.QueryOccurrence <= 0 || n.Owner.Address.ClassID != ids.RelationClassID || n.Owner.Address.ObjectID == 0 || n.Owner.Address.SubID != 0 || n.Owner.Domain() == nil {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid query tableoid coordinates")
+		}
+		for c != nil && (c.Scope != n.Scope || c.Frame != n.Frame) {
+			c = c.Outer
+		}
+		if c == nil {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: missing query tableoid frame")
+		}
+		absent, err := c.queryOperandAbsent(n.QueryOccurrence - 1)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if absent {
+			return sqltype.Null(n.Usage.Type), nil
+		}
+		source, index, err := c.queryOperandSource(n.QueryOccurrence - 1)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		if source == nil || index < 0 || index >= source.Count() {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid query tableoid row")
+		}
+		ref := source.PhysicalRef(index)
+		if ref.Address.ClassID != ids.RelationClassID || ref.Address.ObjectID == 0 || ref.Domain() != n.Owner.Domain() {
+			return sqltype.Value{}, fmt.Errorf("stuntgres: missing query tableoid physical identity")
+		}
+		return sqltype.OIDValue(n.Usage.Type, uint32(ref.Address.ObjectID))
+	}
 	if c.Scope != 1 || c.Frame != 1 || n.Owner.Address.ObjectID == 0 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
 	}

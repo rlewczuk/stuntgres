@@ -22,6 +22,10 @@ func (e DomainValueExpr) Eval(ctx expr.Context) (sqltype.Value, error) {
 type TableOIDExpr struct {
 	expr.Info
 	Owner ids.ObjectRef
+	// Zero coordinates denote the generated-owner recipe. Query mode binds
+	// one lexical frame and a one-based source occurrence, never a row slot.
+	Scope, Frame    uint32
+	QueryOccurrence int
 }
 
 func (n TableOIDExpr) Eval(ctx expr.Context) (sqltype.Value, error) {

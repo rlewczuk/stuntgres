@@ -315,7 +315,7 @@ type State struct {
 	Input                  sqltype.InputEnvironment
 	Output                 sqltype.OutputEnvironment
 	Locking                bool
-	VirtualReads           bool
+	IdentityReads          bool
 	inherited              plan.RowMark
 	Frame                  uint32
 	Outer                  *Context
@@ -877,8 +877,8 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			local.inheritAsyncAdmission(state)
 			state = &local
 		}
-		if !state.VirtualReads {
-			state.VirtualReads = QueryHasVirtualReads(n)
+		if !state.IdentityReads {
+			state.IdentityReads = QueryHasIdentityReads(n)
 		}
 		var owner *CTEInvocation
 		if n.CTEOwner {

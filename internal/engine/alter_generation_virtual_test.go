@@ -73,7 +73,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	bridge := &exec.Source{Input: current, Layout: []int{0, 1}, Scratch: make([]sqltype.Value, 2), Occurrence: 0}
 	evaluate := func(source *exec.Source, want int64, latest [][]sqltype.Value) {
 		t.Helper()
-		state := &exec.State{Source: source, VirtualReads: true}
+		state := &exec.State{Source: source, IdentityReads: true}
 		frame := state.Evaluation(context.Background())
 		frame.BindQueryRow(source, 0)
 		frame.QueryCurrentRows = latest

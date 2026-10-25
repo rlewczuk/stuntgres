@@ -86,6 +86,7 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 			return nil, err
 		}
 		leaves[i] = exec.Leaf{Ref: use, Relation: relation, Only: leaf.Only, Principal: relationPrincipal, Storage: e.PrivateStorageLocked(scope.Owner.Catalog, leaf.Ref.Address), Mark: stored.ViewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.AnalysisOnly}
+		leaves[i].TableOIDRead = leaf.TableOIDRead
 		leaves[i].Uses, err = analyze.QuerySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
 			return nil, err

@@ -73,6 +73,7 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 func InitializeAttributes(d *catalog.Relation) {
 	d.ColumnMeta.CatalogAttributes = make([]catalog.CatalogAttribute, len(d.Columns))
 	view := d.VirtualView || SummaryViewDefinition(d.Address().ObjectID) != ""
+	d.CatalogView = view
 	for i, column := range d.Columns {
 		attribute := AttributeNumber(d.Address().ObjectID, column.Name, int32(i+1))
 		d.Attributes[i], d.Columns[i].OriginAttribute = attribute, int16(attribute)

@@ -36,6 +36,10 @@ only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`, `sqlstate`,
   equality declaration beside its reference and defining recipe in the existing
   key allocation. This proof is independent of a substituted key expression.
   Private semantic-tree groupings retain no callable declaration or recipe.
+  Function-source captures distinguish ordinary row slots from one-based system
+  source occurrences. Correlated joins retain inherited identity explicitly when
+  their ordinary prefix has zero width; slot rebasing never changes occurrence
+  coordinates.
 - **Expression nodes** (`expression*.go`, `assignment_value.go`, the `series_*`,
   `subscripts_*` and `unnest_*` files): the `XxxExpr` types (`LiteralExpr`,
   `ColumnExpr`, `ParameterExpr`, `CoercionExpr`, `CaseExpr`, `RowExpr`,

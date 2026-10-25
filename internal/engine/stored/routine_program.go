@@ -80,7 +80,7 @@ func (p *RoutineProgram) ValidateAction(view catalog.Read, i int) error {
 	}
 	for _, dependency := range p.actionDependencies[i] {
 		ref := dependency.Ref
-		if ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() {
+		if ref.Domain() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
 		address := ref.Address
@@ -91,7 +91,7 @@ func (p *RoutineProgram) ValidateAction(view catalog.Read, i int) error {
 		}
 		if ref.Address.SubID != 0 {
 			relation, ok := d.(*catalog.Relation)
-			if !ok || !relation.HasAttribute(ref.Address.SubID) {
+			if !ok || !relation.HasSupportedAttribute(ref.Address.SubID) {
 				return ids.ErrCatalogReplaced
 			}
 		}
@@ -143,8 +143,9 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 		if old == (ids.ObjectRef{}) {
 			return old
 		}
-		if domain != nil && (old.Domain() != domain || old.Epoch != epoch) {
+		if old.Domain() == nil || domain == nil || old.Domain() != domain || old.Epoch != epoch {
 			invalidReference = true
+			return old
 		}
 		return view.Owner().Domain.Ref(view.Epoch(), addressMapper(old.Address))
 	}
@@ -166,10 +167,16 @@ func (p *RoutineProgram) Rebind(view catalog.Read, mapping map[ids.ObjectAddress
 			return nil, err
 		}
 		a.binding, err = remapRuleBinding(view, a.binding, ref, typ, collation, len(a.presentation.routineInputs), addressMapper, procedure)
+		if invalidReference {
+			return nil, ids.ErrCatalogReplaced
+		}
 		if err != nil {
 			return nil, err
 		}
 		a.presentation, err = remapView(view, a.presentation, mapping, ref, typ, collation, addressMapper, procedure)
+		if invalidReference {
+			return nil, ids.ErrCatalogReplaced
+		}
 		if err != nil {
 			return nil, err
 		}

@@ -93,10 +93,6 @@ func TestReferencePGDependExpressionEdges(t *testing.T) {
 							want = append(want, fixture.PgDependEdge(class, id, 0, 1259, table, 0, "a"))
 						}
 					case "view":
-						if probe == "tableoid" && !b.PG {
-							fixture.PgDependError(t, p, b, "CREATE VIEW v AS SELECT tableoid AS c FROM t", fixture.Diagnostic{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42703", Message: "column \"tableoid\" does not exist", Position: "25"})
-							return
-						}
 						fixture.PgDependExec(t, p, b, "CREATE VIEW v AS SELECT "+expr+" AS c FROM t")
 						v := fixture.PgDependRelation(t, b, "v")
 						class = 2618

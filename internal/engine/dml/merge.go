@@ -44,29 +44,29 @@ func MergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 	return plan.False, fmt.Errorf("stuntgres: invalid MERGE ON carrier")
 }
 
-func MergeHasVirtualReads(merge *analyze.MergeBinding) bool {
-	if exec.QueryHasVirtualReads(merge.Source) || exec.BoundHasVirtualReads(merge.On) {
+func MergeHasIdentityReads(merge *analyze.MergeBinding) bool {
+	if exec.QueryHasIdentityReads(merge.Source) || exec.BoundHasIdentityReads(merge.On) {
 		return true
 	}
 	for _, arm := range merge.Arms {
-		if exec.BoundHasVirtualReads(arm.Condition) {
+		if exec.BoundHasIdentityReads(arm.Condition) {
 			return true
 		}
 		if arm.Input.Update != nil {
 			for _, expr := range arm.Input.Update.Assignments {
-				if exec.BoundHasVirtualReads(expr) {
+				if exec.BoundHasIdentityReads(expr) {
 					return true
 				}
 			}
 			for _, target := range arm.Input.Update.ArrayTargets {
-				if exec.AssignmentTargetHasVirtualReads(target) {
+				if exec.AssignmentTargetHasIdentityReads(target) {
 					return true
 				}
 			}
 		}
 		for _, row := range arm.Input.Expressions {
 			for _, expr := range row {
-				if exec.BoundHasVirtualReads(expr) {
+				if exec.BoundHasIdentityReads(expr) {
 					return true
 				}
 			}

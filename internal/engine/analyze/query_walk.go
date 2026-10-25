@@ -34,6 +34,8 @@ func ExpressionUsesFrame(bound expr.Expr, frame uint32) bool {
 		switch e := expr.(type) {
 		case plan.ColumnExpr:
 			found = found || e.Frame == frame
+		case plan.TableOIDExpr:
+			found = found || e.Scope != 0 && e.Frame == frame
 		case plan.ReturningWholeRowExpr:
 			found = found || e.Frame == frame
 		case plan.MergeActionExpr:
@@ -66,6 +68,8 @@ func FirstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position
 			switch e := expr.(type) {
 			case plan.ColumnExpr:
 				matched = e.Frame == frame
+			case plan.TableOIDExpr:
+				matched = e.Scope != 0 && e.Frame == frame
 			case plan.ReturningWholeRowExpr:
 				matched = e.Frame == frame
 			case plan.MergeActionExpr:
@@ -217,6 +221,8 @@ func QueryDemandProperties(project *plan.ProjectNode, presence bool) expr.Proper
 					var frame uint32
 					switch n := expr.(type) {
 					case plan.ColumnExpr:
+						frame = n.Frame
+					case plan.TableOIDExpr:
 						frame = n.Frame
 					case plan.ReturningWholeRowExpr:
 						frame = n.Frame
@@ -480,7 +486,7 @@ func SameQuerySourceAliases(a, b parser.FromItem) bool {
 		return SameQuerySourceAliases(n.Input, o.Input)
 	case *parser.JoinReference:
 		o, ok := b.(*parser.JoinReference)
-		if !ok {
+		if !ok || n.Comma != o.Comma {
 			return false
 		}
 		if n.UsingAlias == nil || o.UsingAlias == nil {

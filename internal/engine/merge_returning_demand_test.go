@@ -30,9 +30,9 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		}
 		state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output}
 		for _, expr := range b.Returning.Expressions {
-			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
+			state.IdentityReads = state.IdentityReads || exec.BoundHasIdentityReads(expr)
 		}
-		if !state.VirtualReads {
+		if !state.IdentityReads {
 			t.Fatal("output-only virtual demand absent")
 		}
 		cursor, err := exec.OpenNode(op.Context(), state, b.Merge.Source)

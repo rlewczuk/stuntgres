@@ -171,6 +171,8 @@ capture, the row-security setting guard, DROP OWNED policy
 cleanup, the `RowSecurityKind` fallback, the TEMP namespace helpers and the
 ownerless ACL validation of access methods and casts. Engine unit tests
 exercise the checks through `AuthorizationView`.
+System-read versus ordinary-column authority uses `RUN='^TestQueryTableOIDAdmission'`.
+
 
 ```sh
 make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|RoleStore|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|TemporaryNamespaceOnly))'

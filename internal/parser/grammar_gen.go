@@ -26843,7 +26843,7 @@ sqldefault:
 	case 2164:
 		sqlDollar = sqlS[sqlpt-3 : sqlpt+1]
 		{
-			sqlVAL.fromItem = &JoinReference{Left: sqlDollar[1].fromItem, Right: sqlDollar[3].fromItem, Pos: sqlDollar[2].tok.pos}
+			sqlVAL.fromItem = &JoinReference{Left: sqlDollar[1].fromItem, Right: sqlDollar[3].fromItem, Comma: true, Pos: sqlDollar[2].tok.pos}
 		}
 	case 2165:
 		sqlDollar = sqlS[sqlpt-1 : sqlpt+1]

@@ -36,6 +36,11 @@ private frames, not catalog authority.
   `History`, and the kind payloads (`SQLIndex`, `Partition`, `Sequence`, `View`,
   ...). Sub-records are values, never pointers, so copying a `Relation` shares
   their slices and maps exactly like its top-level ones.
+  `HasSupportedAttribute` admits live positive attributes and eligible tableoid
+  attribute -6 without widening ordinary `HasAttribute`. `CatalogView` records
+  canonical SQL relation kind separately from execution `VirtualView`; bootstrap
+  stamps it from the existing catalog-view inventory. Supported subobjects
+  retain the same domain, epoch, existence and class validation as whole refs.
 - **Payload interfaces.** Engine-defined payloads stay behind `ViewPayload`,
   `RulesPayload`, `TriggersPayload`, `PolicyPayload` and `ExtensionImplementation`, which expose only
   what `analyze`, `pgcatalog` and object-identity code read. Visitors stop at the
@@ -324,6 +329,9 @@ the pinned PostgreSQL 18.6 oracle; `TestBuiltinRoutineResultInventory` checks it
 Engine-side seams (provider registry, payload accessors, operator index,
 publication, including the candidate publication helpers) are units in
 `internal/engine`.
+System-attribute eligibility and provenance use `RUN='^TestCatalogTableOID'`,
+including the bootstrap inventory in the existing external enginetests owner.
+
 
 ```sh
 make check RUN='^Test(Catalog(Read|StateWrites|CopiesStay|DescriptorsVisit|BulkLoad)|Candidate|BuiltinRoutineResultInventory|(New)?Store|SeedShare|InstallCatalogSource)'

@@ -31,6 +31,8 @@ type QueryQualifier struct {
 	SourceRoot                    plan.Node
 	NullExtended                  bool
 	LateralForbidden              bool // A DML target cannot correlate into its source, even with LATERAL.
+	TableOIDOccurrence            int  // Eligible real source, one-based; zero means no implicit attribute.
+	SystemColumnsHidden           bool // JOIN operands remain qualified-only.
 }
 
 // QueryNamespace is what a row consumer makes visible: its columns,

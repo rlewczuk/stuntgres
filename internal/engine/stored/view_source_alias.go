@@ -54,5 +54,6 @@ func (v *QueryRenderer) sourceAlias(from viewRenderFrom, name string, columns []
 	}
 	from.relation = ""
 	v.Slots[from.root] = from.slots
+	v.setSourceQualifier(from.root, qualifier)
 	return from
 }

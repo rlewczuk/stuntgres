@@ -13,10 +13,10 @@ import (
 // occurrence indexes are retained, before any target row arbitration can wait.
 func deleteUsingSource(h Host, b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned MutationRowIdentity) (outcome Outcome, err error) {
 	ctx := evaluation.Context
-	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.Delete.Using) || exec.BoundHasVirtualReads(b.Predicate)
+	evaluation.Query.IdentityReads = exec.QueryHasIdentityReads(b.Delete.Using) || exec.BoundHasIdentityReads(b.Predicate)
 	if b.Returning != nil {
 		for _, expression := range b.Returning.Expressions {
-			evaluation.Query.VirtualReads = evaluation.Query.VirtualReads || exec.BoundHasVirtualReads(expression)
+			evaluation.Query.IdentityReads = evaluation.Query.IdentityReads || exec.BoundHasIdentityReads(expression)
 		}
 	}
 	stage, err := exec.OpenNode(ctx, evaluation.Query, b.Delete.Using)

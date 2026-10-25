@@ -396,6 +396,11 @@ func ValidateFunctionFromLayout(n *plan.FunctionFromNode) error {
 	if len(n.Calls) == 0 {
 		return fmt.Errorf("stuntgres: empty function source")
 	}
+	for _, capture := range n.Captures {
+		if capture.Frame == 0 || capture.QueryOccurrence < 0 || capture.QueryOccurrence == 0 && capture.Slot < 0 || capture.QueryOccurrence > 0 && capture.Slot != 0 {
+			return fmt.Errorf("stuntgres: invalid function source capture coordinates")
+		}
+	}
 	if n.ScalarNull != nil && len(n.ScalarNull) != len(n.Calls) {
 		return fmt.Errorf("stuntgres: invalid function source scalar plan")
 	}

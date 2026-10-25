@@ -82,16 +82,16 @@ func ExecuteUpdate(h Host, in UpdateInput) (outcome Outcome, err error) {
 	var updated map[MutationRowIdentity]bool
 	sourceCount := 1
 	if b.Update.From != nil {
-		state.VirtualReads = exec.QueryHasVirtualReads(b.Update.From) || exec.BoundHasVirtualReads(b.Update.Predicate)
+		state.IdentityReads = exec.QueryHasIdentityReads(b.Update.From) || exec.BoundHasIdentityReads(b.Update.Predicate)
 		for _, expression := range b.Update.Assignments {
-			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
+			state.IdentityReads = state.IdentityReads || exec.BoundHasIdentityReads(expression)
 		}
 		for _, target := range b.Update.ArrayTargets {
-			state.VirtualReads = state.VirtualReads || exec.AssignmentTargetHasVirtualReads(target)
+			state.IdentityReads = state.IdentityReads || exec.AssignmentTargetHasIdentityReads(target)
 		}
 		if b.Returning != nil {
 			for _, expression := range b.Returning.Expressions {
-				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
+				state.IdentityReads = state.IdentityReads || exec.BoundHasIdentityReads(expression)
 			}
 		}
 		stage, err = exec.OpenNode(ctx, &state, b.Update.From)

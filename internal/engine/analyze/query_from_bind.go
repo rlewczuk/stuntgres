@@ -176,6 +176,7 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 	}
 	columns := namespace.Columns
 	frame := b.FrameID()
+	var qualified *QueryQualifier
 	if len(parts) > 1 {
 		q, err := b.queryQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
 		if err != nil {
@@ -183,6 +184,7 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 		}
 		columns = q.Columns
 		frame = b.Query.resolvedQueryFrame
+		qualified = q
 	}
 	var match *QueryColumn
 	for i := range columns {
@@ -195,6 +197,11 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 		match = &columns[i]
 		if b.Clause.AggregateClause == "FROM" && b.Clause.stringFromForbidden {
 			return nil, stringForbiddenColumn(*namespace, match.Slot, raw.Pos)
+		}
+	}
+	if name == "tableoid" {
+		if system, err := b.queryTableOID(namespace, qualified, match, frame, raw.Pos); system != nil || err != nil {
+			return system, err
 		}
 	}
 	if match != nil {
@@ -228,6 +235,11 @@ func (b *Binder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error) {
 					return nil, expr.ErrorAt("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
 				}
 				match = c
+			}
+			if name == "tableoid" {
+				if system, err := b.queryTableOID(scope.namespace, nil, match, scope.frame, raw.Pos); system != nil || err != nil {
+					return system, err
+				}
 			}
 			if match != nil {
 				if scope.stringFromForbidden {
@@ -407,6 +419,9 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		}
 		namespace, _ := b.authorityDescriptor(b.Query.Auth, relation.Namespace())
 		q := QueryQualifier{Name: relation.Name(), Original: relation.Name(), Schema: namespace.Name(), Ref: ref, Columns: columns}
+		if relation.HasSystemAttributes() {
+			q.TableOIDOccurrence = leaf + 1
+		}
 		b.Query.Hidden = append(b.Query.Hidden, q)
 		return &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, QueryNamespace{Columns: columns, Qualifiers: []QueryQualifier{q}, Frame: relation.Columns}, nil
 	case *parser.AliasReference:
@@ -471,6 +486,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		q := QueryQualifier{Name: n.Name.Text, Alias: n.Name.Text, Columns: ns.Columns}
 		if _, table := n.Input.(*parser.TableReference); table {
 			q.Ref, q.Schema, q.Original = ns.Qualifiers[0].Ref, ns.Qualifiers[0].Schema, ns.Qualifiers[0].Original
+			q.TableOIDOccurrence = ns.Qualifiers[0].TableOIDOccurrence
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
 		} else if _, values := n.Input.(*parser.ValuesQuery); values {
 			b.Query.Hidden[len(b.Query.Hidden)-1] = q
@@ -525,10 +541,25 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 		// Only captures of this join's local left operand forbid RIGHT/FULL.
 		// Ancestor-prefix captures remain free for an enclosing boundary; a
 		// descendant's internally satisfied correlation is not exported here.
-		dependent, inheritedDemand := false, false
+		dependent, inheritedDemand, inheritedIdentity := false, false, false
 		var forbidden plan.FunctionCorrelation
 		captures := append([]plan.FunctionCorrelation(nil), functionFromCaptures(left)...)
 		for _, capture := range functionFromCaptures(right) {
+			if capture.QueryOccurrence != 0 && capture.Frame == b.FrameID() {
+				if !queryNamespaceHasTableOID(&lns, capture.QueryOccurrence) {
+					if !queryNamespaceHasTableOID(inherited, capture.QueryOccurrence) {
+						return nil, QueryNamespace{}, fmt.Errorf("stuntgres: invalid function correlation occurrence")
+					}
+					captures = append(captures, capture)
+					inheritedDemand, inheritedIdentity = true, true
+					continue
+				}
+				if !dependent || capture.Pos.Offset < forbidden.Pos.Offset {
+					forbidden = capture
+				}
+				dependent = true
+				continue
+			}
 			if capture.Frame != b.FrameID() || capture.Slot < prefix {
 				captures = append(captures, capture)
 				inheritedDemand = inheritedDemand || capture.Frame == b.FrameID()
@@ -554,7 +585,7 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 			}
 			prefix = 0
 		}
-		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.FrameID(), CorrelationPrefix: prefix, Captures: captures}
+		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.FrameID(), CorrelationPrefix: prefix, CorrelationIdentityPrefix: inheritedIdentity, Captures: captures}
 		old := b.Query.Namespace
 		b.Query.Namespace = &ns
 		defer func() { b.Query.Namespace = old }()
@@ -727,6 +758,11 @@ func (b *Binder) bindFromWithDefinitions(item parser.FromItem, definitions []par
 				}
 			}
 		}
+		if !n.Comma {
+			for i := range ns.Qualifiers {
+				ns.Qualifiers[i].SystemColumnsHidden = true
+			}
+		}
 		join.QuerySchema = ns.Frame
 		return join, ns, nil
 	}
@@ -816,7 +852,7 @@ func RebaseFunctionCorrelation(host Host, view catalog.Read, root plan.Node, fra
 	needed := false
 	for _, capture := range captures {
 		if capture.Frame == frame {
-			if capture.Slot < prefix {
+			if capture.QueryOccurrence == 0 && capture.Slot < prefix {
 				return nil, fmt.Errorf("stuntgres: captured function prefix cannot be removed")
 			}
 			needed = true
@@ -827,7 +863,7 @@ func RebaseFunctionCorrelation(host Host, view catalog.Read, root plan.Node, fra
 	}
 	rebased := append([]plan.FunctionCorrelation(nil), captures...)
 	for i := range rebased {
-		if rebased[i].Frame == frame {
+		if rebased[i].Frame == frame && rebased[i].QueryOccurrence == 0 {
 			rebased[i].Slot -= prefix
 		}
 	}

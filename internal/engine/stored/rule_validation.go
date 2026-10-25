@@ -62,9 +62,9 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []Rule) erro
 			if provider == nil {
 				return fmt.Errorf("stuntgres: missing rule dependency")
 			}
-			if address.SubID != 0 && address.SubID != -6 {
+			if address.SubID != 0 {
 				relation, ok := provider.(*catalog.Relation)
-				if !ok || !relation.HasAttribute(address.SubID) {
+				if !ok || !relation.HasSupportedAttribute(address.SubID) {
 					return fmt.Errorf("stuntgres: missing rule dependency attribute")
 				}
 			}

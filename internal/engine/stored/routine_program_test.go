@@ -21,7 +21,7 @@ func routineCaptureFixture(t *testing.T) (catalog.Read, *catalog.Relation, *sqlt
 	state := catalog.NewState(1)
 	var integer, boolean *sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
-		d := &catalog.Type{SQLType: typ}
+		d := &catalog.Type{SQLType: typ, Array: typ.AssociatedArray()}
 		state.SetDescriptor(d.Address(), d)
 		switch typ.ID() {
 		case sqltype.Int4:

@@ -43,7 +43,7 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1), int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2), int64(4)}})
 	stage := c.stage
-	if stage == nil || stage.Position != 2 || !stage.Retain || !c.state.VirtualReads {
+	if stage == nil || stage.Position != 2 || !stage.Retain || !c.state.IdentityReads {
 		t.Fatal("motion and virtual frame retention did not compose", c)
 	}
 	// Selected ordinal zero is present; the sequential frontier at ordinal

@@ -41,7 +41,7 @@ func (r *DependRefs) Add(address ids.ObjectAddress) {
 	}
 	if address.SubID != 0 {
 		relation, ok := d.(*catalog.Relation)
-		if !ok || address.SubID != -6 && !relation.HasAttribute(address.SubID) {
+		if !ok || !relation.HasSupportedAttribute(address.SubID) {
 			r.Err = fmt.Errorf("stuntgres: missing dependency attribute")
 			return
 		}
@@ -61,9 +61,13 @@ func (r *DependRefs) Expression(expr expr.Expr) {
 	}
 	switch n := expr.(type) {
 	case functions.Regexp:
-		if n.Citext != nil { r.Add(n.Citext.Ref.Address) }
+		if n.Citext != nil {
+			r.Add(n.Citext.Ref.Address)
+		}
 	case functions.RegexpSet:
-		if n.Citext != nil { r.Add(n.Citext.Ref.Address) }
+		if n.Citext != nil {
+			r.Add(n.Citext.Ref.Address)
+		}
 	case plan.RangeConstructorExpr:
 		r.Add(n.Ref.Address)
 	case plan.SQLRoutineExpr:

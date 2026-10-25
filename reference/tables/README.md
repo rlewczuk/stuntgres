@@ -73,6 +73,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Typed tables: `RUN='^TestReferenceTypedTable'`
 - Storage options: `RUN='^TestReferenceRelationOptions'`
 - CHECK constraints: `RUN='^TestReference(Smoke)?Check'`
+  `TestReferenceCheckTableoidBoundary` retains PostgreSQL's positive CHECK
+  witness and the native direct/prepared rejection with table/constraint
+  publication guards; ordinary query `tableoid` remains shared-positive.
 - NOT NULL constraints: `RUN='^TestReference(Smoke)?(Drop)?NotNull'`
 - Foreign keys (also selects alter/dml callers): `RUN='^TestReferenceForeignKey'`
 - Referential actions: `RUN='^TestReferenceForeignActions'`

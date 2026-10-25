@@ -34,6 +34,9 @@ func remapView(view catalog.Read, original *View, mapping map[ids.ObjectAddress]
 	if len(original.columns) != 0 {
 		definition.columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(original.columns))
 		for path, column := range original.columns {
+			if column.TableOID {
+				column.Owner = ref(column.Owner)
+			}
 			if column.RuleSide != 0 {
 				column.RuleRef = ref(column.RuleRef)
 				if relation, ok := view.Relation(ids.ObjectAddress{ClassID: column.RuleRef.Address.ClassID, ObjectID: column.RuleRef.Address.ObjectID}); ok {

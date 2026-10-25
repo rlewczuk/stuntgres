@@ -110,6 +110,22 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		return action.policy.identifier(d.Name()) + "." + name, nil
 	}
 	r.NodeSQL = func(expr expr.Expr) (string, bool, error) {
+		if system, ok := expr.(plan.TableOIDExpr); ok && system.Scope != 0 {
+			if action.presentation == nil {
+				return "", true, fmt.Errorf("stuntgres: missing tableoid source presentation")
+			}
+			if _, err := action.presentation.tableOIDSource(view, analyze.ViewColumn{TableOID: true, Owner: system.Owner, Scope: system.Scope, Frame: system.Frame, Occurrence: system.QueryOccurrence}); err != nil {
+				return "", true, err
+			}
+			qualifier := action.sourceQualifiers[system.QueryOccurrence-1]
+			if !action.policy.Rule {
+				qualifier = action.policy.identifier("_rule_source_" + strconv.Itoa(system.QueryOccurrence-1))
+			}
+			if qualifier == "" {
+				return "", true, fmt.Errorf("stuntgres: missing rule tableoid qualifier")
+			}
+			return qualifier + ".tableoid", true, nil
+		}
 		if column, ok := expr.(plan.ReturningColumnExpr); ok && action.returning {
 			relation, exists := view.Relation(action.binding.Ref.Address)
 			if !exists {

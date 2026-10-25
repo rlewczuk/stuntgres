@@ -228,6 +228,9 @@ func (v *viewLiteralValidator) validate(catalog catalog.Read) error {
 // and slot, independently of composite expansion occurrences.
 func (v *viewLiteralValidator) validateColumnOccurrence(path analyze.ViewLiteralPath) error {
 	column, ok := v.columns[path]
+	if column.TableOID || column.Owner != (ids.ObjectRef{}) || column.Scope != 0 || column.Occurrence != 0 {
+		return fmt.Errorf("stuntgres: invalid ordinary view column mode")
+	}
 	if v.triggerRows != nil {
 		relation := v.triggerRows
 		address := column.RuleRef.Address
@@ -423,6 +426,13 @@ func (v *viewLiteralValidator) validateLiteralTree(catalog catalog.Read, raw par
 				return fmt.Errorf("stuntgres: mismatched frozen whole row qualifier")
 			}
 			(*compositeCount)++
+			return nil
+		}
+		if captured, ok := v.columns[path]; ok && captured.TableOID {
+			if err := v.validateTableOIDOccurrence(path, r.Pos); err != nil {
+				return err
+			}
+			(*columnCount)++
 			return nil
 		}
 		if err := v.validateColumnOccurrence(path); err != nil {

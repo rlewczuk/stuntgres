@@ -60,7 +60,7 @@ func (b *Binder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTarg
 		return left == nil && right == nil
 	case plan.TableOIDExpr:
 		o, ok := other.(plan.TableOIDExpr)
-		return ok && e.Owner == o.Owner
+		return ok && e.Owner == o.Owner && e.Scope == o.Scope && comparison.SameFrame(e.Frame, o.Frame) && e.QueryOccurrence == o.QueryOccurrence
 	case plan.GroupingExpr:
 		o, ok := other.(plan.GroupingExpr)
 		if !ok || !comparison.SameFrame(e.Frame, o.Frame) || len(e.Args) != len(o.Args) {
@@ -412,6 +412,21 @@ func (b *Binder) RewriteGroup(bound expr.Expr, keys []expr.Expr) (expr.Expr, err
 		return plan.GroupExpr{Info: e.Info, Slot: len(keys) + e.Slot, Frame: b.FrameID()}, nil
 	case *plan.WindowExpr:
 		return e, nil
+	case plan.TableOIDExpr:
+		if e.Scope == 0 || e.Frame != b.FrameID() {
+			return e, nil
+		}
+		name := "tableoid"
+		for _, q := range b.Query.Namespace.Qualifiers {
+			if q.TableOIDOccurrence == e.QueryOccurrence {
+				name = q.Name + ".tableoid"
+				break
+			}
+		}
+		if b.Grouping.groupSubquery {
+			return nil, expr.ErrorAt("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.Pos)
+		}
+		return nil, expr.ErrorAt("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
 	case plan.ColumnExpr:
 		if e.Frame != b.FrameID() {
 			return e, nil

@@ -71,6 +71,12 @@ func (a *ruleRendering) prepareNamespaces(ctx context.Context, view catalog.Read
 		return err
 	}
 	a.sourceSlots, a.sourceText = from.slots, from.text
+	for source, qualifier := range r.sourceQualifiers {
+		if a.sourceQualifiers == nil {
+			a.sourceQualifiers = make(map[int]string)
+		}
+		a.sourceQualifiers[source.Occurrence] = qualifier
+	}
 	return nil
 }
 

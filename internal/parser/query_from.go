@@ -47,6 +47,7 @@ type JoinReference struct {
 	Using       []Identifier
 	Natural     bool
 	UsingAlias  *Identifier
+	Comma       bool // FROM-list combination, not an explicit JOIN namespace.
 	Pos         Position
 }
 

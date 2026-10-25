@@ -59,6 +59,10 @@ func (b *Binder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 				if level(n.Frame) > ownerLevel {
 					directError = expr.ErrorAt("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
 				}
+			case plan.TableOIDExpr:
+				if n.Scope != 0 && level(n.Frame) > ownerLevel {
+					directError = expr.ErrorAt("42803", "outer-level aggregate cannot contain a lower-level variable in its direct arguments", n.SourcePosition())
+				}
 			case plan.AggregateExpr:
 				if l := level(n.Frame); l >= 0 && l <= ownerLevel {
 					directError = expr.ErrorAt("42803", "aggregate function calls cannot be nested", n.SourcePosition())
@@ -131,6 +135,8 @@ func (b *Binder) argumentQueryOwner(walk func(func(expr.Expr))) (uint32, int) {
 		var frame uint32
 		switch n := node.(type) {
 		case plan.ColumnExpr:
+			frame = n.Frame
+		case plan.TableOIDExpr:
 			frame = n.Frame
 		case plan.ReturningWholeRowExpr:
 			frame = n.Frame

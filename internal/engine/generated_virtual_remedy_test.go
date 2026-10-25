@@ -38,7 +38,7 @@ func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 1, Virtual: probe, RowWidth: 2, QueryOccurrence: 1}
 	// Local aliases 0/1 map to global physical ordinals 3/7 under locks.
 	physical := &exec.Source{Occurrence: 3}
-	state := &exec.State{Source: &exec.Source{Sources: []*exec.Source{{Input: physical}, {Occurrence: 7}}}, VirtualReads: true}
+	state := &exec.State{Source: &exec.Source{Sources: []*exec.Source{{Input: physical}, {Occurrence: 7}}}, IdentityReads: true}
 	outer := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ)}, Query: state, QueryOccurrences: []int{3, 7}, QueryProvenance: []int{exec.AbsentQueryIndex, 0}}}
 	inner := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 8, Outer: &outer, QueryOccurrences: []int{3, 7}, QueryProvenance: []int{0, exec.AbsentQueryIndex}}}
 	value, err := column.Eval(&inner)
@@ -222,7 +222,7 @@ func TestGeneratedVirtualJoinIdentityBeforeMerge(t *testing.T) {
 		if present {
 			right.Anonymous = [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}
 		}
-		state := &exec.State{Source: &exec.Source{Sources: []*exec.Source{left, right}}, VirtualReads: true}
+		state := &exec.State{Source: &exec.Source{Sources: []*exec.Source{left, right}}, IdentityReads: true}
 		schema := plan.QuerySchema{d.Columns[0], d.Columns[0], d.Columns[1], d.Columns[1]}
 		join := &plan.JoinNode{QuerySchema: schema, Kind: parser.JoinLeft, Left: &plan.SourceNode{QuerySchema: schema[:1], Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: schema[1:3], Occurrence: 1}, LeftWidth: 1, RightWidth: 2, Merges: []expr.Expr{column}}
 		stage, err := exec.OpenJoinNode(context.Background(), state, join)

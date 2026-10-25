@@ -55,6 +55,7 @@ type ViewLeaf struct {
 	Attributes   []int32
 	Reads        []int32
 	AnalysisOnly bool
+	TableOIDRead bool
 	Mark         plan.RowMark
 }
 

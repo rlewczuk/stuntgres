@@ -32,6 +32,14 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   authority a held cursor keeps) and `LockContext`. `SelectQuerySource` takes
   resolved `visibility.HeapOperations`; the row loop calls them, never a catalog
   lookup, callback or alternate visibility algorithm.
+  Query identity demand retains source-occurrence lineage for virtual recipes
+  and ordinary `tableoid` alike. A tableoid leaf follows its lexical frame and
+  actual physical source reference; outer absence is typed NULL, not inferred
+  from ordinary tuple values. Generated-owner recipes retain their separate
+  zero-coordinate mode. Neither path fabricates a stored datum or row counter.
+  Dependent function sources reuse the same lineage on each invocation. An
+  explicit identity-prefix marker carries zero-column ancestors without inventing
+  a tuple slot, and nested joins merge it with their local-left source identities.
 - **Openers and producers** (`query*.go`, `window*_query.go`,
   `aggregate_query.go`): `OpenNode` dispatches every plan node; `Finalize` and
   `FinalizeSelect` turn a root into a `RowResult`. CTEs, set operations,
@@ -348,6 +356,9 @@ settled callback counts, never elapsed time, establish backpressure.
 Async protocol, cleanup, filtered-frontier and cursor-boundary units use
 `RUN='^TestFDWAsync'`; public authentic-transport scenarios live in
 `reference/tables` (`RUN='^TestReferenceFDWAsync'`).
+Query source identity units use `RUN='^TestQueryTableOID'`; virtual recipe
+consumers additionally use `RUN='^TestGeneratedVirtual'`.
+
 
 **Frame names matched by tests.** `sortOrderedAggregate`
 (`TestReferenceOrderedSetAggregateActiveCancellation`) stays unexported, and the

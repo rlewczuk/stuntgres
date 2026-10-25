@@ -54,6 +54,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md).
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Qualified column consumers: `RUN='^TestReferenceThreePart'`
+- Source identity and system-column namespaces: `RUN='^TestReferenceQueryTableOID'`
+  `TestReferenceQueryTableOIDFrozenPrivileges` distinguishes a view's effective
+  source owner from its caller and SQL-standard invoker routines, including
+  column-only grants and retained callers across source SELECT revoke/regrant.
 - Scalar SQL routines: `RUN='^TestReferenceRoutine(Core|StoredArgumentIdentity|Review)'`
 - <a id="ordered-sql-routine-bodies"></a>Ordered and SQL-standard routine bodies, procedures: `RUN='^TestReferenceRoutineSQLBodies'`
 - DROP FUNCTION/PROCEDURE: `RUN='^TestReferenceRoutineDrop'`

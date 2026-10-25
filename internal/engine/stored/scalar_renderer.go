@@ -157,7 +157,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 	case plan.SubscriptExpr:
 		return r.subscriptSQL(ctx, view, n)
 	case plan.TableOIDExpr:
-		if r.Owner == nil || !ReferenceEpochValid(view, r.Owner, n.Owner) || n.Owner.Address != r.Owner.Address() || u.Type.ID() != sqltype.Oid {
+		if n.Scope != 0 || n.Frame != 0 || n.QueryOccurrence != 0 || r.Owner == nil || !ReferenceEpochValid(view, r.Owner, n.Owner) || n.Owner.Address != r.Owner.Address() || u.Type.ID() != sqltype.Oid {
 			return "", fmt.Errorf("stuntgres: invalid generated tableoid owner")
 		}
 		r.record(n.Owner)

@@ -82,7 +82,7 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 				*occurrences = make(map[viewWriteOccurrence]int)
 			}
 			(*occurrences)[key] = slot
-			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, Uses: uses, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly})
+			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, Uses: uses, FrozenAttributes: leaf.Attributes, Mark: leaf.Mark, Only: leaf.Only, AnalysisOnly: leaf.AnalysisOnly, TableOIDRead: leaf.TableOIDRead})
 			b.SubqueryDemand = true
 		}
 		return slot, nil
@@ -104,6 +104,18 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 	}
 	ownFrames(root)
 	translate := func(n expr.Expr) (expr.Expr, bool, error) {
+		if system, ok := n.(plan.TableOIDExpr); ok && system.Scope != 0 && frames[system.Frame] {
+			slot, err := mapOccurrence(system.QueryOccurrence - 1)
+			if err != nil {
+				return nil, false, err
+			}
+			use, err := stored.ViewUseReference(view, consumer, system.Owner)
+			if err != nil {
+				return nil, false, err
+			}
+			system.QueryOccurrence, system.Owner = slot+1, use
+			return system, true, nil
+		}
 		column, ok := n.(plan.ColumnExpr)
 		if !ok || column.Origin == (ids.ObjectRef{}) || !frames[column.Frame] {
 			return n, false, nil
@@ -125,6 +137,26 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 		column.Origin = use
 		return column, changed, nil
 	}
+	mapCaptures := func(captures []plan.FunctionCorrelation) ([]plan.FunctionCorrelation, error) {
+		var mapped []plan.FunctionCorrelation
+		for i, capture := range captures {
+			if capture.QueryOccurrence == 0 || !frames[capture.Frame] {
+				continue
+			}
+			slot, err := mapOccurrence(capture.QueryOccurrence - 1)
+			if err != nil {
+				return nil, err
+			}
+			if mapped == nil {
+				mapped = append([]plan.FunctionCorrelation(nil), captures...)
+			}
+			mapped[i].QueryOccurrence = slot + 1
+		}
+		if mapped == nil {
+			return captures, nil
+		}
+		return mapped, nil
+	}
 	return plan.RewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 		next, translated, err := stored.MapExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, translate)
 		if err != nil {
@@ -133,6 +165,30 @@ func graftStoredQuery(b *analyze.Binding, view catalog.Read, root plan.Node, def
 		lowered, changed, err := rewrite(next)
 		return lowered, translated || changed, err
 	}, func(node plan.Node) (plan.Node, error) {
+		switch n := node.(type) {
+		case *plan.FunctionFromNode:
+			captures, err := mapCaptures(n.Captures)
+			if err != nil {
+				return nil, err
+			}
+			if len(captures) == 0 || &captures[0] == &n.Captures[0] {
+				return node, nil
+			}
+			copy := *n
+			copy.Captures = captures
+			return &copy, nil
+		case *plan.JoinNode:
+			captures, err := mapCaptures(n.Captures)
+			if err != nil {
+				return nil, err
+			}
+			if len(captures) == 0 || &captures[0] == &n.Captures[0] {
+				return node, nil
+			}
+			copy := *n
+			copy.Captures = captures
+			return &copy, nil
+		}
 		source, ok := node.(*plan.SourceNode)
 		if !ok {
 			return node, nil

@@ -132,6 +132,11 @@ func CheckQuerySources(auth Privileges, sources []exec.Leaf) error {
 				return err
 			}
 		}
+		if source.TableOIDRead {
+			if err := sourceAuth.Check(access.Requirement{Object: source.Ref, Privileges: authorization.SelectPrivilege}); err != nil {
+				return err
+			}
+		}
 		if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.SelectPrivilege, source.Uses); err != nil {
 			return err
 		}

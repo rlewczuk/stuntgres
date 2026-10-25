@@ -95,6 +95,18 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				}
 			}
 			switch node := expr.(type) {
+			case plan.TableOIDExpr:
+				if node.Scope == 0 {
+					return node, false, nil
+				}
+				next := frame(node.Frame)
+				changed := next != node.Frame
+				node.Frame = next
+				if offset != 0 {
+					node.QueryOccurrence += offset
+					changed = true
+				}
+				return node, changed, nil
 			case plan.ColumnExpr:
 				if node.Scope == analyze.RulePseudoScope {
 					return expr, false, nil
@@ -278,11 +290,15 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				changed = true
 			}
 			for i, capture := range node.Captures {
-				if next := frame(capture.Frame); next != capture.Frame {
+				next, occurrence := frame(capture.Frame), capture.QueryOccurrence
+				if occurrence != 0 {
+					occurrence += offset
+				}
+				if next != capture.Frame || occurrence != capture.QueryOccurrence {
 					if len(copy.Captures) != 0 && &copy.Captures[0] == &node.Captures[0] {
 						copy.Captures = slices.Clone(node.Captures)
 					}
-					copy.Captures[i].Frame = next
+					copy.Captures[i].Frame, copy.Captures[i].QueryOccurrence = next, occurrence
 					changed = true
 				}
 			}
@@ -297,11 +313,15 @@ func NewRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				changed = true
 			}
 			for i, capture := range node.Captures {
-				if next := frame(capture.Frame); next != capture.Frame {
+				next, occurrence := frame(capture.Frame), capture.QueryOccurrence
+				if occurrence != 0 {
+					occurrence += offset
+				}
+				if next != capture.Frame || occurrence != capture.QueryOccurrence {
 					if len(copy.Captures) != 0 && &copy.Captures[0] == &node.Captures[0] {
 						copy.Captures = slices.Clone(node.Captures)
 					}
-					copy.Captures[i].Frame = next
+					copy.Captures[i].Frame, copy.Captures[i].QueryOccurrence = next, occurrence
 					changed = true
 				}
 			}

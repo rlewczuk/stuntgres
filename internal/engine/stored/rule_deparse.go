@@ -2,6 +2,7 @@ package stored
 
 import (
 	"context"
+	"strconv"
 	"strings"
 
 	"stuntgres/internal/engine/analyze"
@@ -20,6 +21,7 @@ type ruleRendering struct {
 	targetAlias        string
 	sourceRoot         plan.Node
 	sourceSlots        map[int]string
+	sourceQualifiers   map[int]string
 	sourceText         string
 	inference          bool
 	returning          bool
@@ -56,6 +58,24 @@ func (a *ruleRendering) renderer(v *View) *QueryRenderer {
 		frame := v.query.Root.(*plan.ProjectNode).Frame
 		r.ruleRootNames = a.names
 		r.ruleTables = map[uint32]ruleRangeTable{frame: *a.names}
+	}
+	if v != nil && v.frames[1] != nil {
+		for occurrence, leaf := range v.sources {
+			if !leaf.TableOIDRead {
+				continue
+			}
+			source := viewSourceAt(analyze.ViewFromRoot(v.frames[1]), occurrence)
+			if source == nil {
+				continue
+			}
+			qualifier := a.sourceQualifiers[occurrence]
+			if !a.policy.Rule {
+				qualifier = a.policy.identifier("_rule_source_" + strconv.Itoa(occurrence))
+			}
+			if qualifier != "" {
+				r.setSourceQualifier(source, qualifier)
+			}
+		}
 	}
 	return r
 }

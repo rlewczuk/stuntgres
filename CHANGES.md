@@ -9,6 +9,12 @@ The `stuntgres` server's new `-q`/`--querylog` option (requires `-L`) writes
 frontend steps and every backend message as exact base64 bytes plus a readable
 decoded form, for comparison with real PostgreSQL responses.
 
+Ordinary queries expose OID-valued tableoid through source aliases, lexical
+correlation and outer joins without changing wildcard columns. Inherited and
+partition scans report the actual containing relation. SQL-standard bodies
+retain the named relation's system-attribute dependency through native
+Dump/Restore; system reads preserve live table SELECT and RLS admission.
+
 Routine declaration defaults now retain exact named-composite and table-row
 attribute dependencies for quoted and SQL-standard bodies. Captured defaults
 preserve their original authority through rename, schema moves and native

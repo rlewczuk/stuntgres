@@ -5,11 +5,11 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-// AssignmentTargetHasVirtualReads reports whether an array assignment
-// target chain reads a virtual generated column.
-func AssignmentTargetHasVirtualReads(target *plan.ArrayAssignmentTarget) bool {
+// AssignmentTargetHasIdentityReads reports whether an array assignment
+// target chain demands query source identity.
+func AssignmentTargetHasIdentityReads(target *plan.ArrayAssignmentTarget) bool {
 	for ; target != nil; target = target.Next {
-		if target.Attribute == 0 && BoundHasVirtualReads(target.Node) {
+		if target.Attribute == 0 && BoundHasIdentityReads(target.Node) {
 			return true
 		}
 	}

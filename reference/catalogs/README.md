@@ -99,6 +99,9 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Relations and attributes: `RUN='^TestReferencePgClass'`, `RUN='^TestReferencePGAttribute'`, `RUN='^TestReferenceAttrdef'`
 - Types, enums, ranges: `RUN='^TestReferencePGType'`, `RUN='^TestReferencePGEnum'`, `RUN='^TestReferencePGRange'`
 - Dependencies: `RUN='^TestReferencePGDepend'`
+  `TestReferencePGDependExpressionEdges` includes ordinary view `tableoid`
+  references in both modes: the rule's internal view edge and the source table's
+  normal `-6` attribute edge, without a redundant whole-table reference.
 - Constraints, inheritance, partition navigation: `RUN='^TestReferencePGConstraint'`, `RUN='^TestReferencePGInherits'`, `RUN='^TestReferencePartitionInfo'`
 - Table, view and index summaries: `RUN='^TestReferencePGTableViews'`, `RUN='^TestReferencePGIndexes'`
   (`TestReferencePGTableViewsBuiltins` lives in `reference/information_schema`)

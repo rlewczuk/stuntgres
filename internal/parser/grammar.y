@@ -2933,7 +2933,7 @@ projection_item: projection_target %prec NAME_LIST { $$=&Select{Targets:[]Expr{$
 projection: projection_item { $$=$1 }
  | projection ',' projection_item { $1.Targets=append($1.Targets,$3.Targets...);$1.Labels=append($1.Labels,$3.Labels...);$$=$1 } ;
 from_list: joined_table { $$=$1 }
- | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Pos:$2.pos} } ;
+ | from_list ',' joined_table { $$=&JoinReference{Left:$1,Right:$3,Comma:true,Pos:$2.pos} } ;
 joined_table: from_atom { $$=$1 }
  | joined_table CROSS JOIN from_atom { $$=&JoinReference{Left:$1,Right:$4,Pos:$2.pos} }
  | joined_table inner_join JOIN from_atom on_keyword target_or { $$=&JoinReference{Left:$1,Right:$4,Kind:$2,On:$6,Pos:$3.pos} }

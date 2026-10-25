@@ -81,6 +81,11 @@ func CheckWrite(binding analyze.Privileges, a access.View, env access.Environmen
 					return ids.ErrCatalogReplaced
 				}
 			}
+			if leaf.TableOIDRead {
+				if err := authority.Check(env, access.Requirement{Object: use, Privileges: authorization.SelectPrivilege}); err != nil {
+					return err
+				}
+			}
 			if err := authority.CheckColumns(env, use, relation, authorization.SelectPrivilege, indices); err != nil {
 				return err
 			}

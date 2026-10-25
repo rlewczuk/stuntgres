@@ -140,7 +140,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	value, _ := sqltype.Integer(typ, 9)
 	row := []sqltype.Value{value, sqltype.Null(typ)}
 	source := &exec.Source{Anonymous: [][]sqltype.Value{row}, Occurrence: 0}
-	state := &exec.State{Source: source, VirtualReads: true}
+	state := &exec.State{Source: source, IdentityReads: true}
 	eval := state.Evaluation(context.Background())
 	eval.BindQueryRow(source, 0)
 	if v, err := node.Eval(&eval); err != nil || v.IsNull() {

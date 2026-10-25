@@ -1,6 +1,7 @@
 package reference_test
 
 import (
+	"strings"
 	"stuntgres/reference/fixture"
 	"testing"
 )
@@ -41,17 +42,31 @@ func TestReferenceCheckPrivilegeDetailPostgres(t *testing.T) {
 	}
 }
 func TestReferenceCheckTableoidBoundary(t *testing.T) {
-	if !*fixture.Mode {
-		return
-	} // Independently retained tableoid capability oracle.
-	p := fixture.NewPair(t)
-	t.Run("postgres_supported", func(t *testing.T) {
-		for _, s := range []fixture.Step{fixture.Exec("CREATE TABLE t(a INT CHECK(tableoid>0))", 0), fixture.Exec("INSERT INTO t VALUES(1)", 1), fixture.Select("SELECT a FROM t", []string{"a"}, []string{"INT4"}, [][]any{{int64(1)}})} {
-			fixture.RunStep(t, p.Ctx, p.Postgres, p.PostgresRecord, s)
-		}
-	})
-	t.Run("native_existing_system_column_boundary", func(t *testing.T) {
-		fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.Exec("CREATE TABLE t(a INT)", 0))
-		fixture.RunStep(t, p.Ctx, p.Memory, p.MemoryRecord, fixture.ImplicitError("SELECT tableoid FROM t", fixture.Diagnostic{Code: "42703", Message: `column "tableoid" does not exist`, Position: "8"}))
-	})
+	p := fixture.NewScenario(t)
+	for _, b := range p.Backends() {
+		t.Run(b.Name, func(t *testing.T) {
+			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
+			if b.PG {
+				// Keep the independent CHECK capability witness, without
+				// expanding native CHECK's consumer namespace.
+				run(fixture.Exec("CREATE TABLE t(a INT CHECK(tableoid>0))", 0))
+			} else {
+				rejected := "CREATE TABLE toi_check_rejected(a INT,CONSTRAINT toi_check_rejected_ck CHECK(tableoid>0))"
+				for _, prepared := range []bool{false, true} {
+					s := fixture.ImplicitError(rejected, fixture.Diagnostic{Code: "42703", Message: `column "tableoid" does not exist`, Position: fixture.Position(strings.Index(rejected, "tableoid") + 1)})
+					s.Prepared, s.ErrorStage = prepared, "execute"
+					run(s)
+					run(fixture.Select("SELECT count(*) AS n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='toi_check_rejected'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
+					run(fixture.Select("SELECT count(*) AS n FROM pg_constraint WHERE conname='toi_check_rejected_ck'", []string{"n"}, []string{"INT8"}, [][]any{{int64(0)}}))
+				}
+				run(fixture.Exec("CREATE TABLE t(a INT)", 0))
+			}
+			run(fixture.Exec("INSERT INTO t VALUES(1)", 1))
+			for _, prepared := range []bool{false, true} {
+				s := fixture.Select("SELECT a,tableoid='t'::regclass::oid AS physical FROM t", []string{"a", "physical"}, []string{"INT4", "BOOL"}, [][]any{{int64(1), true}})
+				s.Prepared = prepared
+				run(s)
+			}
+		})
+	}
 }

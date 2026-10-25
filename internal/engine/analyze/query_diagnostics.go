@@ -73,6 +73,9 @@ func QueryColumnDiagnostic(entries []QueryQualifier, qualifier, name string, pos
 				}
 			}
 		}
+		if name == "tableoid" && exactAttributes == 0 && q.TableOIDOccurrence != 0 {
+			exactAttributes = 1
+		}
 		if exactAttributes == 1 && (qualifier == "" || qualifier == q.Name) {
 			if exactCount == 0 {
 				exactRelation = q.Name

@@ -35,6 +35,9 @@ single-statement limit of driver calls) belong to callers.
   identifier retains its normalized spelling and source position; grouping
   does not carry a separate qualification policy. The semantic owner decides
   which rows are visible and whether its context permits column references.
+  FROM-list commas retain explicit `JoinReference.Comma` provenance, separate
+  from CROSS JOIN despite identical cross-product execution. Binding consumes
+  this syntax fact for namespace visibility, never source-text inspection.
 - Setting-call statements retain operand trees for semantic argument analysis;
   their provider, not a syntactic expression-shape check, resolves row visibility.
   Call-start and final function-name component positions remain distinct.

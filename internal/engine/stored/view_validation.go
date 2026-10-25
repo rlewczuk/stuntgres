@@ -48,6 +48,9 @@ func (definition *View) Validate(v catalog.Read, d *catalog.Relation) error {
 		if !ok || namespace.Temporary != (ids.SessionToken{}) && (!consumerOK || consumerNamespace.Temporary != namespace.Temporary) {
 			return fmt.Errorf("stuntgres: invalid view source lifetime")
 		}
+		if leaf.TableOIDRead && !source.HasSystemAttributes() {
+			return fmt.Errorf("stuntgres: invalid view system attribute source")
+		}
 		for _, attribute := range leaf.Reads {
 			frozen := false
 			for _, id := range leaf.Attributes {
@@ -74,7 +77,7 @@ func (definition *View) Validate(v catalog.Read, d *catalog.Relation) error {
 		}
 		if ref.Address.SubID != 0 {
 			relation, ok := object.(*catalog.Relation)
-			if !ok || !relation.HasAttribute(ref.Address.SubID) {
+			if !ok || !relation.HasSupportedAttribute(ref.Address.SubID) {
 				return fmt.Errorf("stuntgres: missing view dependency attribute")
 			}
 		}
@@ -183,6 +186,9 @@ func ValidateViewLeaves(catalog catalog.Read, definition *View) error {
 			}
 		case *plan.FunctionFromNode:
 			if err := exec.ValidateFunctionFromLayout(n); err != nil {
+				return err
+			}
+			if err := validateTableOIDFunctionCaptures(n); err != nil {
 				return err
 			}
 		case *plan.SetProjectNode:
@@ -330,6 +336,12 @@ func ValidateViewLeaves(catalog catalog.Read, definition *View) error {
 				}
 				if expressionError = checkUsage(expr.ResultUsage()); expressionError != nil {
 					return
+				}
+				if system, ok := expr.(plan.TableOIDExpr); ok && (system.Scope != 0 || system.Frame != 0 || system.QueryOccurrence != 0) {
+					_, expressionError = definition.tableOIDSource(catalog, analyze.ViewColumn{TableOID: true, Owner: system.Owner, Scope: system.Scope, Frame: system.Frame, Occurrence: system.QueryOccurrence})
+					if expressionError != nil {
+						return
+					}
 				}
 				if child, ok := expr.(plan.SubqueryExpr); ok {
 					if child.QueryPlan == nil || child.QueryPlan.Root == nil {

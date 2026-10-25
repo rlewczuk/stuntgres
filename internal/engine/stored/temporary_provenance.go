@@ -13,7 +13,7 @@ import (
 // replacement. This is contextual authority, never general ObjectRef validity.
 // Object addresses are nonreused; physical namespace tokens cannot be revived.
 func ReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
-	if view.Owner() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
+	if view.Owner() == nil || ref.Domain() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
 	if ref.Epoch == view.Epoch() {
@@ -38,7 +38,7 @@ func ReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref ids.
 		if !ok || ns.Temporary != namespace.Temporary {
 			return false
 		}
-		return ref.Address.SubID == 0 || target.HasAttribute(ref.Address.SubID)
+		return ref.Address.SubID == 0 || target.HasSupportedAttribute(ref.Address.SubID)
 	case *catalog.Type:
 		// Full rendering has already compared each concrete node's exact Usage
 		// generation. Native replacement retains these builtin descriptors, not
@@ -74,7 +74,7 @@ func ReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref ids.
 // Old epochs belong only to the immutable manifest of this exact retained view.
 // The ordinary ObjectRef validator and every unrelated statement stay strict.
 func ViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.ObjectRef) bool {
-	if view.Owner() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
+	if view.Owner() == nil || ref.Domain() == nil || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() {
 		return false
 	}
 	address := ref.Address
@@ -104,7 +104,7 @@ func ViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref ids.O
 	if relation, ok := target.(*catalog.Relation); ok && relation.RelationKind == catalog.CatalogRelation {
 		// Immutable catalog-source retention is independent of dependency
 		// pinning: system views record edges but retain the exact provider.
-		return target == captured && (ref.Address.SubID == 0 || relation.HasAttribute(ref.Address.SubID))
+		return target == captured && (ref.Address.SubID == 0 || relation.HasSupportedAttribute(ref.Address.SubID))
 	}
 	if !ReferenceEpochValid(view, consumer, ref) {
 		return false

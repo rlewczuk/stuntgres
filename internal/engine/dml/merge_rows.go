@@ -61,7 +61,7 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 	// The borrowed stage closes before actions, but ExecuteMerge's input owner
 	// keeps the source namespace and any action-subquery leaves live until exit.
 	var stage *exec.Stage
-	if state.VirtualReads {
+	if state.IdentityReads {
 		var ok bool
 		stage, ok = cursor.(*exec.Stage)
 		if !ok {
@@ -87,7 +87,7 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 			return nil, err
 		}
 		sources = append(sources, scratch...)
-		if state.VirtualReads {
+		if state.IdentityReads {
 			if sourceCount == 0 {
 				occurrences = exec.AppendQueryOccurrences(nil, stage.Source)
 			}
@@ -111,7 +111,7 @@ func AssembleMergeRows(h Host, in MergeInput, cursor exec.RowCursor, state *exec
 	evaluation.PresenceSlots = presenceSlots
 	evaluation.QueryOccurrences = occurrences
 	bindIdentity := func(index int) {
-		if state.VirtualReads {
+		if state.IdentityReads {
 			width := len(occurrences)
 			evaluation.QueryProvenance = provenance[index*width : (index+1)*width]
 		}

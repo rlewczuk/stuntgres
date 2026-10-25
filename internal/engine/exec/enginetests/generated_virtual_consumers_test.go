@@ -44,15 +44,15 @@ func TestGeneratedVirtualExecutableNestedDemand(t *testing.T) {
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Virtual: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}, QueryOccurrence: 1}
 	query := &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{column}}}
 	edge := plan.SubqueryExpr{Info: expr.Info{Usage: typ.Usage()}, QueryPlan: query}
-	if !exec.BoundHasVirtualReads(plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: edge}) {
+	if !exec.BoundHasIdentityReads(plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: edge}) {
 		t.Fatal("executable scalar query demand was not found")
 	}
 	edge.CTEEdge = true
-	if exec.BoundHasVirtualReads(edge) || exec.QueryHasVirtualReads(&plan.ProjectNode{AnalysisExpressions: []expr.Expr{edge}}) {
+	if exec.BoundHasIdentityReads(edge) || exec.QueryHasIdentityReads(&plan.ProjectNode{AnalysisExpressions: []expr.Expr{edge}}) {
 		t.Fatal("unused WITH definition acquired runtime demand")
 	}
 	column.QueryOccurrence = 0
-	if exec.BoundHasVirtualReads(column) {
+	if exec.BoundHasIdentityReads(column) {
 		t.Fatal("owner recipe acquired query demand")
 	}
 }
@@ -101,7 +101,7 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 			wantCalls = 1
 		}
 		joined := &exec.Source{Materialized: true, FlatWidth: 2, FlatCount: 1, Anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, Occurrence: 4, Occurrences: []int{4}, Provenance: []int{index}}
-		state := &exec.State{Source: joined, VirtualReads: true}
+		state := &exec.State{Source: joined, IdentityReads: true}
 		node := &plan.EvaluationNode{QuerySchema: d.Columns, Child: &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: column}}}
 		stage, err := exec.OpenEvaluationNode(context.Background(), state, node)
 		if err != nil {
@@ -169,7 +169,7 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 		},
 		Occurrences: []int{4}, Provenance: []int{0, exec.AbsentQueryIndex, 1},
 	}
-	state := &exec.State{Source: source, VirtualReads: true}
+	state := &exec.State{Source: source, IdentityReads: true}
 	stage := exec.Stage{
 		Source: source, Columns: []catalog.Column{d.Columns[1]},
 		Expressions: []expr.Expr{column}, Retain: true,

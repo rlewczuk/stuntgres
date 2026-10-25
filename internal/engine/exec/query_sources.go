@@ -356,6 +356,7 @@ type Leaf struct {
 	Principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
 	FrozenAttributes []int32                    // Execution-owned stored-view subquery layout.
 	Uses             []int
+	TableOIDRead     bool // Requires whole-table SELECT; Uses stays dense ordinary indices.
 	Mark             plan.RowMark
 	Query            *parser.Select
 	Table            *parser.TableReference

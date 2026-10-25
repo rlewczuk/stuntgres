@@ -68,6 +68,7 @@ func FreezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 		leaf := &definition.sources[occurrence]
 		leaf.Ref, leaf.Mark, leaf.Only = source.Ref, source.Mark, source.Only
 		leaf.AnalysisOnly = source.AnalysisOnly
+		leaf.TableOIDRead = source.TableOIDRead
 		leaf.Attributes = append([]int32(nil), source.Relation.Attributes...)
 		for _, slot := range source.Uses {
 			leaf.Reads = append(leaf.Reads, source.Relation.Attributes[slot])

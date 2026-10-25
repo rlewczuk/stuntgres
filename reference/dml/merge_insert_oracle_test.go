@@ -99,7 +99,7 @@ func TestReferenceMergeInsertOracleQuestions(t *testing.T) {
 					run(fixture.Exec("CREATE TABLE t(i TEXT)", 0))
 					run(fixture.Exec("CREATE TABLE s(i INT)", 0))
 					run(fixture.Exec("INSERT INTO s VALUES(1)", 1))
-					if tc.positive && b.PG {
+					if tc.positive && (b.PG || tc.system == "tableoid") {
 						run(fixture.Exec(tc.q, 1))
 						if strings.Contains(tc.q, "VALUES(s.xmin") {
 							// Compare to the same physical source identity, never a server's

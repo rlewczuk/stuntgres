@@ -69,13 +69,17 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		// Retagging belongs to the routine recipe's existing type mapper.
 		next = n
- case functions.String:
-  n.Args=args(n.Args)
-  if n.Citext!=nil&&ref!=nil {
-   capture:=*n.Citext;capture.Ref=ref(capture.Ref);n.Citext=&capture
-  }
-  next=n
-  if ref!=nil {next=remapQuoteOwner(next,ref)}
+	case functions.String:
+		n.Args = args(n.Args)
+		if n.Citext != nil && ref != nil {
+			capture := *n.Citext
+			capture.Ref = ref(capture.Ref)
+			n.Citext = &capture
+		}
+		next = n
+		if ref != nil {
+			next = remapQuoteOwner(next, ref)
+		}
 	case functions.Regexp:
 		n.Args = args(n.Args)
 		n.RegexpCall = remapCitextRegexpReference(n.RegexpCall, ref)
@@ -481,8 +485,12 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		next = n
 	case plan.InstalledVerifyHeapamExpr:
-		for i, arg := range n.Args { n.Args[i] = child(arg) }
-		if ref != nil { n.Ref = ref(n.Ref) }
+		for i, arg := range n.Args {
+			n.Args[i] = child(arg)
+		}
+		if ref != nil {
+			n.Ref = ref(n.Ref)
+		}
 		next = n
 	case functions.SequenceCall:
 		if ref != nil {
@@ -703,7 +711,7 @@ func (m *ViewQueryRemapper) Query(node plan.Node) (plan.Node, error) {
 	case *plan.SourceNode:
 		next = &plan.SourceNode{QuerySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot}
 	case *plan.JoinNode:
-		next = &plan.JoinNode{QuerySchema: schema, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
+		next = &plan.JoinNode{QuerySchema: schema, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, CorrelationIdentityPrefix: n.CorrelationIdentityPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
 	case *plan.SingletonNode:
 		next = &plan.SingletonNode{QuerySchema: schema}
 	case *plan.WorktableScanNode:

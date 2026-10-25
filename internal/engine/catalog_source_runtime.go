@@ -229,7 +229,7 @@ func (r EngineCatalogRuntime) ViewReferences(ctx context.Context, view catalog.R
 		address := ref.Address
 		address.SubID = 0
 		target, ok := view.Relation(address)
-		if !ok || ref.Address.SubID != 0 && ref.Address.SubID != -6 && !target.HasAttribute(ref.Address.SubID) {
+		if !ok || ref.Address.SubID != 0 && !target.HasSupportedAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid stored view dependency attribute")
 		}
 		return nil

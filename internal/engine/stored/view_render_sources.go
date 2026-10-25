@@ -60,6 +60,7 @@ type QueryRenderer struct {
 	query                    *plan.Query
 	Frame                    uint32
 	Slots                    map[plan.Node]map[int]string
+	sourceQualifiers         map[*plan.SourceNode]string
 	reserved                 map[string]bool
 	namespace                int
 	depth                    int
@@ -298,6 +299,7 @@ func (v *QueryRenderer) aliasFrom(from viewRenderFrom, ns analyze.ViewNamespace,
 	from.relation = ""
 	from.wholeSQL = catalog.QuoteIdentifier(name)
 	v.Slots[from.root] = from.slots
+	v.setSourceQualifier(from.root, catalog.QuoteIdentifier(name))
 	return from
 }
 
@@ -387,6 +389,7 @@ func (v *QueryRenderer) presentationColumnAlias(from viewRenderFrom, name string
 	from.relation = text
 	from.alias = name
 	v.Slots[from.root] = from.slots
+	v.setSourceQualifier(from.root, qualifier)
 	return from
 }
 
@@ -485,7 +488,7 @@ func (v *QueryRenderer) usingOrderAliasNeeded(bound *plan.JoinNode, ns analyze.V
 		}
 		captured := false
 		for path, column := range v.columns {
-			if path.Query == v.Frame && path.Clause == analyze.ViewOrderLiteral && column.Frame == v.Frame && column.Slot == offset+slot {
+			if !column.TableOID && path.Query == v.Frame && path.Clause == analyze.ViewOrderLiteral && column.Frame == v.Frame && column.Slot == offset+slot {
 				captured = true
 				break
 			}
@@ -609,6 +612,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 			from := viewRenderFrom{text: name, root: root, slots: make(map[int]string)}
 			from.wholeSQL = catalog.Identifier(d.Name())
 			v.simpleQualifier = v.Presentation.identifier(d.Name())
+			v.setSourceQualifier(root, v.simpleQualifier)
 			if v.rowTargets != nil {
 				key := n.Name.Parts[len(n.Name.Parts)-1].Text
 				from.rowTarget, from.rowSource = key, true
@@ -638,6 +642,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				from.relation = "ONLY " + from.relation
 			}
 			from.alias = d.Name()
+			v.setSourceQualifier(root, v.Presentation.identifier(d.Name()))
 			for i, attribute := range d.Attributes {
 				column := viewRenderColumn{name: d.Columns[i].Name, slot: -1}
 				if captured, ok := frozen[attribute]; ok {
@@ -716,6 +721,7 @@ func (v *QueryRenderer) renderFromSQL(ctx context.Context, catalogView catalog.R
 				alias := identifier(n.Name.Text)
 				v.simpleQualifier = alias
 				from.text += " " + alias
+				v.setSourceQualifier(from.root, alias)
 				from.wholeSQL = alias
 				if from.rowSource {
 					from.rowTarget, from.rowTargetSQL = n.Name.Text, alias

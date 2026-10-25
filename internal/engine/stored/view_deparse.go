@@ -638,6 +638,9 @@ func (v *QueryRenderer) columnSQL(ctx context.Context, catalog catalog.Read, pat
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing view column occurrence")
 	}
+	if column.TableOID {
+		return v.tableOIDSQL(catalog, column)
+	}
 	if column.RuleSide != 0 {
 		d, ok := catalog.Relation(ids.ObjectAddress{ClassID: column.RuleRef.Address.ClassID, ObjectID: column.RuleRef.Address.ObjectID})
 		if !ok {

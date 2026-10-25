@@ -55,12 +55,8 @@ func AttributeMetadata(relation *catalog.Relation, slot int) catalog.AttributeMe
 	return metadata
 }
 
-func HasSystemAttributes(catalog catalog.Read, relation *catalog.Relation) bool {
-	switch ClassKind(catalog, relation) {
-	case "r", "p", "m", "S", "f":
-		return true
-	}
-	return false
+func HasSystemAttributes(_ catalog.Read, relation *catalog.Relation) bool {
+	return relation.HasSystemAttributes()
 }
 
 // Caller owns e.mu. Capture uses exactly the statement's selected relation and

@@ -20,8 +20,8 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	if err := exec.SelectQuerySources(op.Ctx, inputs); err != nil {
 		t.Fatal(err)
 	}
-	state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output, VirtualReads: dml.MergeHasVirtualReads(b.Merge)}
-	if !state.VirtualReads {
+	state := &exec.State{Source: inputs, Input: scope.Input, Output: scope.Output, IdentityReads: dml.MergeHasIdentityReads(b.Merge)}
+	if !state.IdentityReads {
 		t.Fatal("MERGE action did not establish virtual demand")
 	}
 	cursor, err := exec.OpenNode(op.Ctx, state, b.Merge.Source)

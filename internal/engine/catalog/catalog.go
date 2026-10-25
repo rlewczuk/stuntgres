@@ -75,6 +75,7 @@ type Relation struct {
 	SequencePlanStamp ids.DefinitionRevision
 	View              ViewPayload
 	VirtualView       bool
+	CatalogView       bool // Catalog relation SQL kind, independent of execution dispatch.
 	Populated         bool // Independent of stored row count, including populated-empty MVs.
 	Rules             RulesPayload
 	Triggers          TriggersPayload

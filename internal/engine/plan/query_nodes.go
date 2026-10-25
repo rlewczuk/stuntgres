@@ -64,25 +64,27 @@ type JoinNode struct {
 	ViewOrdinal  int
 	PresenceSlot int
 	QuerySchema
-	Kind                  parser.JoinKind
-	Left, Right           Node
-	Predicate             expr.Expr
-	LeftWidth, RightWidth int
-	Merges                []expr.Expr
-	CorrelatedRight       bool
-	Frame                 uint32
-	CorrelationPrefix     int
-	Captures              []FunctionCorrelation
+	Kind                      parser.JoinKind
+	Left, Right               Node
+	Predicate                 expr.Expr
+	LeftWidth, RightWidth     int
+	Merges                    []expr.Expr
+	CorrelatedRight           bool
+	Frame                     uint32
+	CorrelationPrefix         int
+	CorrelationIdentityPrefix bool // Inherited occurrence lineage, even with a zero-width row prefix.
+	Captures                  []FunctionCorrelation
 }
 
 // Captures retain their binding namespace and written origin while an enclosing
 // join consumes locally satisfied references. Slots are relative to that join's
 // inherited correlation frame, not to its output row.
 type FunctionCorrelation struct {
-	Frame uint32
-	Slot  int
-	Name  string
-	Pos   parser.Position
+	Frame           uint32
+	Slot            int
+	QueryOccurrence int // One-based tableoid source capture; zero retains ordinary Slot mode.
+	Name            string
+	Pos             parser.Position
 }
 
 type LimitNode struct {

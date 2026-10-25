@@ -44,7 +44,7 @@ func ClassKind(view catalog.Read, relation *catalog.Relation) string {
 		}
 		return "i"
 	case catalog.CatalogRelation:
-		if relation.VirtualView || SummaryViewDefinition(relation.Address().ObjectID) != "" {
+		if relation.CatalogView {
 			return "v"
 		}
 	}

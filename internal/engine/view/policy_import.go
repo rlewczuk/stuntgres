@@ -136,6 +136,11 @@ func CheckPolicyAuthority(a access.View, env access.Environment, consumer *catal
 		if err != nil {
 			return err
 		}
+		if leaf.TableOIDRead {
+			if err := a.Check(env, access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
+				return err
+			}
+		}
 		if err := a.CheckColumns(env, ref, relation, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}

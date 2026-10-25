@@ -137,7 +137,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 	switch n := a.(type) {
 	case *plan.FunctionFromNode:
 		o, ok := d.(*plan.FunctionFromNode)
-		if !ok || n.Ordinality != o.Ordinality || n.Correlated != o.Correlated || len(n.Calls) != len(o.Calls) {
+		if !ok || n.Ordinality != o.Ordinality || n.Correlated != o.Correlated || len(n.Calls) != len(o.Calls) || !c.correlations(n.Captures, o.Captures) {
 			return false
 		}
 		for i, call := range n.Calls {
@@ -220,7 +220,7 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		}
 	case *plan.JoinNode:
 		o, ok := d.(*plan.JoinNode)
-		if !ok || n.Kind != o.Kind || n.LeftWidth != o.LeftWidth || n.RightWidth != o.RightWidth || n.CorrelatedRight != o.CorrelatedRight || n.CorrelationPrefix != o.CorrelationPrefix || !same(n.Predicate, o.Predicate) || !c.expressions(b, n.Merges, o.Merges) {
+		if !ok || n.Kind != o.Kind || n.LeftWidth != o.LeftWidth || n.RightWidth != o.RightWidth || n.CorrelatedRight != o.CorrelatedRight || n.CorrelationPrefix != o.CorrelationPrefix || n.CorrelationIdentityPrefix != o.CorrelationIdentityPrefix || !c.correlations(n.Captures, o.Captures) || !same(n.Predicate, o.Predicate) || !c.expressions(b, n.Merges, o.Merges) {
 			return false
 		}
 	case *plan.DerivedNode:
@@ -278,6 +278,19 @@ func (c *QueryTargetComparison) SameQuery(b *Binder, a, d plan.Node) bool {
 		}
 	default:
 		return false
+	}
+	return true
+}
+
+func (c *QueryTargetComparison) correlations(left, right []plan.FunctionCorrelation) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i, a := range left {
+		b := right[i]
+		if !c.SameFrame(a.Frame, b.Frame) || a.Slot != b.Slot || a.QueryOccurrence != b.QueryOccurrence {
+			return false
+		}
 	}
 	return true
 }

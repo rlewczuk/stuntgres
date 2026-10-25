@@ -180,6 +180,15 @@ library, and never the root engine or `session`. The engine, the root driver
   looking for its column, without retrying outer relations on a missing column.
   Allowed correlation preserves frame identity, stable attribute origins,
   descriptors and separate target/source read manifests.
+  Eligible real sources expose `tableoid` independently of ordinary slots.
+  Comma items contribute unqualified system candidates; explicit JOIN operands
+  remain relation-qualified-only. Ordinary names shadow within each visible
+  item, not across items. System reads mark a separate table SELECT requirement,
+  never a negative index in dense `Uses`; CHECK keeps its own consumer namespace.
+  Function-source arguments capture system source occurrences separately from
+  ordinary slots. Local-left occurrence membership determines dependency and
+  RIGHT/FULL rejection even for zero-column sources; ancestor captures remain
+  exported without slot arithmetic.
 
 ## Binding rules
 
@@ -251,6 +260,7 @@ binding behavior belongs in `reference/`; follow
 bindings, grep `internal/engine/*_test.go` for `Describe(` and the payload names.
 
 - Package seams: `RUN='^Test(SQLCallableParameterMapping|RelationNamespaceShape|InsertConflictClone|ExpectedCheckLifetime|CheckQuerySources|CheckBindingDelete|DomainIdentityCaptureRetirement)'`
+- Source identity binding and lexical frame semantics: `RUN='^TestQueryTableOID'`
 - Host, slots and authorities (engine): `RUN='^Test(AnalysisHost|ExpectedOfCopiesHeldInputs|CapturedInputsRetargetOnlyTheirSinks|BindingSlotsKeepNilAbsent)'`
 - Search path and type names (engine): `RUN='^Test(SearchPath|RegTSProviderResolution|DomainIdentity)'`
 - DML binding: `RUN='^TestReference(InsertConflict|InsertSelect|InsertReturning|Merge)'`

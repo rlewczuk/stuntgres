@@ -202,12 +202,9 @@ func (s *Store) ValidateObjectRefLocked(view Read, ref ids.ObjectRef) error {
 	if !ok {
 		return fmt.Errorf("stuntgres: catalog object is missing")
 	}
-	if ref.Address.SubID < 0 {
-		return fmt.Errorf("stuntgres: invalid catalog subobject")
-	}
-	if ref.Address.SubID > 0 {
+	if ref.Address.SubID != 0 {
 		r, ok := d.(*Relation)
-		if !ok || !r.HasAttribute(ref.Address.SubID) {
+		if !ok || !r.HasSupportedAttribute(ref.Address.SubID) {
 			return fmt.Errorf("stuntgres: invalid catalog subobject")
 		}
 	}

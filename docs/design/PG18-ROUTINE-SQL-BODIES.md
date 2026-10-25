@@ -83,6 +83,12 @@ The published normal dependency set de-duplicates identities and omits a
 whole-relation edge when column edges already express that relation dependency.
 The richer per-action admission manifests remain separate from this catalog
 projection and still check targets, sources and their surviving attributes.
+System-column occurrences retain the named relation and supported negative
+attribute (-6 for tableoid), while execution can report a containing descendant.
+Their existing column-occurrence capture is tagged with lexical frame and source
+occurrence rather than a fabricated slot. Qualified rendering and one-step
+reference remapping preserve that distinction through replacement.
+
 
 ## Execution and lifetime
 

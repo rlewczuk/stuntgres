@@ -73,7 +73,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 		right.Close()
 		return Stage{}, fmt.Errorf("stuntgres: invalid correlated join layout")
 	}
-	if n.CorrelatedRight && n.CorrelationPrefix > 0 && (state.Invocation == nil || state.Invocation.Scope != 1 || state.Invocation.Frame != n.Frame || len(state.Invocation.Row) < n.CorrelationPrefix) {
+	if n.CorrelatedRight && (n.CorrelationPrefix > 0 || n.CorrelationIdentityPrefix) && (state.Invocation == nil || state.Invocation.Scope != 1 || state.Invocation.Frame != n.Frame || len(state.Invocation.Row) < n.CorrelationPrefix) {
 		left.Close()
 		right.Close()
 		return Stage{}, fmt.Errorf("stuntgres: missing inherited function invocation frame")
@@ -109,7 +109,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	source := &Source{FlatWidth: width, Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}
 	presenceMoves, presence := joinPresence(source, left.Source, right.Source, n.PresenceSlot)
 	locking := state.Locking || state.Source.Locks.RowMarked()
-	identity := locking || state.VirtualReads
+	identity := locking || state.IdentityReads
 	if identity {
 		source.Occurrences = AppendQueryOccurrences(source.Occurrences, left.Source)
 		source.Occurrences = AppendQueryOccurrences(source.Occurrences, right.Source)
@@ -231,7 +231,7 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 						if identity {
 							correlation.QueryOccurrences = correlation.QueryOccurrences[:0]
 							correlation.QueryProvenance = correlation.QueryProvenance[:0]
-							if n.CorrelationPrefix > 0 {
+							if n.CorrelationPrefix > 0 || n.CorrelationIdentityPrefix {
 								correlation.QueryOccurrences = append(correlation.QueryOccurrences, state.Invocation.QueryOccurrences...)
 								correlation.QueryProvenance = append(correlation.QueryProvenance, state.Invocation.QueryProvenance...)
 							}

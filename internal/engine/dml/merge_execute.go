@@ -39,10 +39,10 @@ func ExecuteMerge(h Host, in MergeInput) (outcome Outcome, err error) {
 		return Outcome{}, err
 	}
 	input, output := h.Environments()
-	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, VirtualReads: MergeHasVirtualReads(b.Merge)}
+	state := &exec.State{Source: inputs, SourceMode: exec.SourceReusable, Parameters: in.Parameters, Input: input, Output: output, Locking: inputs.Locks != nil, IdentityReads: MergeHasIdentityReads(b.Merge)}
 	if b.Returning != nil {
 		for _, expr := range b.Returning.Expressions {
-			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
+			state.IdentityReads = state.IdentityReads || exec.BoundHasIdentityReads(expr)
 		}
 	}
 	defer state.ReleaseMemberships()
