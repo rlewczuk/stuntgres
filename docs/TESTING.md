@@ -131,11 +131,13 @@ package share one container, so **never use `t.Parallel()`**. Each package's
   soon as the condition holds. Reuse the fixture observers (`RelationLockPending`,
   `LockWaitBehind`, `LockWait`) where they fit.
 - **Timeouts.** Prepare held statements and finish setup at timeout 0, then arm a
-  short (100 ms) `statement_timeout`/`lock_timeout`. A short timer leaves no room
-  for an observer: let its exact diagnostic prove the wait, and keep the strict
-  admission observer in the matching cancellation case. Once armed, even `SHOW` or
-  `RESET` can time out: dispose of the armed owner instead of resetting it, and
-  never raise the timer or retry.
+  short timer: `lock_timeout` 10 ms (it counts only the lock wait, so it cannot
+  fire before the statement queues) or `statement_timeout` 100 ms (it also counts
+  parse and plan time). A short timer leaves no room for an observer: let its
+  exact diagnostic prove the wait, and keep the strict admission observer in the
+  matching cancellation case. Once armed, even `SHOW` or `RESET` can time out:
+  dispose of the armed owner instead of resetting it, and never raise the timer
+  or retry.
 - **Cancellation.** Native pre-canceled and expired routes return ordinary context
   errors. An operation can classify an elapsed source deadline before the source's
   Done notification: check the operation error independently, then wait for the

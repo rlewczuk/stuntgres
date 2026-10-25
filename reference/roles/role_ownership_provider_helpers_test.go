@@ -16,7 +16,11 @@ import (
 )
 
 func ownershipProviderCases(t *testing.T, body func(*membershipScenario, string)) {
-	ownershipCases(t, func(s *membershipScenario) {
+	ownershipProviderCasesFor(t, []bool{false, true}, body)
+}
+
+func ownershipProviderCasesFor(t *testing.T, modes []bool, body func(*membershipScenario, string)) {
+	ownershipCasesFor(t, modes, func(s *membershipScenario) {
 		database := ownershipDatabaseName(s)
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -26,16 +30,9 @@ func ownershipProviderCases(t *testing.T, body func(*membershipScenario, string)
 					s.t.Error(err)
 				}
 			}
-			var roles []string
-			for _, role := range ownershipRoles {
-				var exists bool
-				if err := s.c.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=$1)", role).Scan(&exists); err != nil {
-					s.t.Error(err)
-				} else if exists {
-					roles = append(roles, pq.QuoteIdentifier(role))
-				}
-			}
-			if len(roles) > 0 {
+			// Extension members owned by one role drop with their extension,
+			// owned by another, only in one DROP OWNED of both roles.
+			if roles := ownershipExistingRoles(ctx, s); len(roles) > 0 {
 				if _, err := s.c.ExecContext(ctx, "DROP OWNED BY "+strings.Join(roles, ",")+" CASCADE"); err != nil {
 					s.t.Error(err)
 				}

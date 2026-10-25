@@ -137,7 +137,7 @@ func TestReferenceRoleOwnershipTransactionalAssociations(t *testing.T) {
 func ownershipTransactionalProviders(t *testing.T) {
 	for _, route := range ownershipTransactionRoutes {
 		t.Run(route, func(t *testing.T) {
-			ownershipProviderCases(t, func(s *membershipScenario, database string) {
+			ownershipProviderCasesFor(t, ownershipRouteModes(route), func(s *membershipScenario, database string) {
 				ownershipProviderSetup(s, database, false)
 				ownershipProviderMemberOwners(s, "own_source")
 				initial := ownershipProviderIDs(s)

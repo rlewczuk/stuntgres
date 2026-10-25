@@ -160,7 +160,7 @@ func TestReferenceTransactionalPoliciesLocks(t *testing.T) {
 				defer h.Close()
 				pid := transactionalPolicyLockIdentity(s, s.c)
 				if operation == "timeout" {
-					s.exec("SET lock_timeout='100ms'")
+					s.exec("SET lock_timeout='10ms'")
 				}
 				ctx, cancel := context.WithCancel(s.p.Ctx)
 				defer cancel()

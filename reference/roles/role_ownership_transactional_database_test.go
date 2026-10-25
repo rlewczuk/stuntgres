@@ -12,7 +12,7 @@ func TestReferenceRoleOwnershipTransactionalDatabase(t *testing.T) {
 		t.Run(route, func(t *testing.T) {
 			names := []string{"tx_own_remote_direct", "tx_own_remote_held"}
 			fixture.DatabaseReferenceCleanup(t, &names)
-			ownershipProviderCases(t, func(s *membershipScenario, database string) {
+			ownershipProviderCasesFor(t, ownershipRouteModes(route), func(s *membershipScenario, database string) {
 				remoteName := "tx_own_remote_direct"
 				if s.prepared {
 					remoteName = "tx_own_remote_held"

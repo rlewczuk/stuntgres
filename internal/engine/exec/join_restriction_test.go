@@ -16,17 +16,31 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
 	predicate := plan.ColumnExpr{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
-	moved := FunctionFromWhere(join, predicate)
-	if moved == nil || moved == join || moved.Right != right || moved.Frame != join.Frame || moved.LeftWidth != 1 || moved.RightWidth != 2 {
-		t.Fatal("incorrect copied join", moved)
+	placed := func(label string, root *plan.JoinNode) {
+		t.Helper()
+		moved, ok := plan.InnerJoinRestriction(root, predicate).(*plan.JoinNode)
+		if !ok || moved == root || moved.Right != root.Right || moved.Frame != root.Frame || moved.LeftWidth != 1 || moved.RightWidth != 2 || moved.ScanOwner != root {
+			t.Fatal("incorrect copied join", label, moved)
+		}
+		filter, ok := moved.Left.(*plan.FilterNode)
+		if !ok || filter.Child != left || filter.Predicate != predicate || len(filter.Schema()) != 1 || root.Left != left || root.ScanOwner != nil {
+			t.Fatal("predicate duplicated or retained tree mutated", label, moved)
+		}
+		// A copy of a copy keeps the canonical foreign-scan owner.
+		if again, ok := plan.InnerJoinRestriction(moved, predicate).(*plan.JoinNode); !ok || again.ScanOwner != root {
+			t.Fatal("scan owner not retained", label, again)
+		}
 	}
-	filter, ok := moved.Left.(*plan.FilterNode)
-	if !ok || filter.Child != left || filter.Predicate != predicate || len(filter.Schema()) != 1 || join.Left != left {
-		t.Fatal("predicate duplicated or retained tree mutated", moved)
-	}
+	placed("correlated function", join)
+	copy := *join
+	copy.CorrelatedRight = false
+	placed("uncorrelated", &copy)
+	copy = *join
+	copy.Right = &plan.DerivedNode{}
+	placed("subquery right input", &copy)
 	unchanged := func(label string, root plan.Node, predicate expr.Expr) {
 		t.Helper()
-		if FunctionFromWhere(root, predicate) != nil {
+		if plan.InnerJoinRestriction(root, predicate) != nil {
 			t.Fatal("unsafe predicate moved", label)
 		}
 	}
@@ -35,15 +49,9 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 		copy.Kind = kind
 		unchanged("outer", &copy, predicate)
 	}
-	copy := *join
-	copy.CorrelatedRight = false
-	unchanged("uncorrelated", &copy, predicate)
 	copy = *join
 	copy.Merges = []expr.Expr{predicate}
 	unchanged("merged", &copy, predicate)
-	copy = *join
-	copy.Right = &plan.DerivedNode{}
-	unchanged("subquery boundary", &copy, predicate)
 	for _, property := range []expr.Properties{{RowDependent: true, Volatility: expr.Volatile}, {RowDependent: true, StageDependent: true}, {RowDependent: true, RuntimeDomainConversion: true}, {RowDependent: true, DomainDependent: true}} {
 		unsafe := predicate
 		unsafe.Info.Property = property
@@ -76,12 +84,12 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 		return sqltype.Boolean(usage.Type, true), nil
 	}}
 	predicate := plan.LogicalExpr{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(column.Properties(), volatile.Properties())}, Op: parser.LogicalAnd, Left: column, Right: volatile}
-	root, ok := plan.FunctionFromConjuncts(join, predicate).(*plan.FilterNode)
+	root, ok := plan.InnerJoinRestriction(join, predicate).(*plan.FilterNode)
 	if !ok || root.Predicate != volatile {
 		t.Fatal("volatile residual lost", root)
 	}
 	moved, ok := root.Child.(*plan.JoinNode)
-	if !ok || moved == join || moved.Right != right || moved.CorrelatedRight || moved.Frame != join.Frame {
+	if !ok || moved == join || moved.Right != right || moved.CorrelatedRight || moved.Frame != join.Frame || moved.ScanOwner != join {
 		t.Fatal("uncorrelated function join not copied", root.Child)
 	}
 	predecessor, ok := moved.Left.(*plan.FilterNode)
@@ -139,42 +147,59 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	virtual.Virtual = plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.Boolean(usage.Type, true)}
 	or := plan.LogicalExpr{Info: column.Info, Op: parser.LogicalOr, Left: column, Right: column}
 	not := plan.LogicalExpr{Info: column.Info, Op: parser.LogicalNot, Left: column}
+	mixed := or
+	mixed.Right = rhs
 	query := and(column, column)
 	query.QueryRight = true
+	queryOr := or
+	queryOr.QueryRight = true
 	unsupported := &queryProbeExpression{Info: expr.Info{Usage: usage}, eval: func(*Context) (sqltype.Value, error) {
 		t.Fatal("partition evaluated expression")
 		return sqltype.Value{}, nil
 	}}
-	unsafe = append(unsafe, foreign, rhs, virtual, or, not, query, unsupported)
+	unsafe = append(unsafe, foreign, rhs, virtual, mixed, query, queryOr, unsupported)
 	for _, barrier := range unsafe {
-		before, after := plan.PartitionFunctionConjuncts(join, and(column, barrier))
+		before, after := plan.PartitionJoinConjuncts(join, and(column, barrier))
 		if before != column || after != barrier {
 			t.Fatalf("unsafe conjunct moved: %T", barrier)
 		}
-		if plan.FunctionFromConjuncts(join, and(barrier, barrier)) != nil {
+		if plan.InnerJoinRestriction(join, and(barrier, barrier)) != nil {
 			t.Fatalf("no-safe-conjunct expression moved: %T", barrier)
 		}
 	}
 	for _, kind := range []parser.JoinKind{parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		copy := *join
 		copy.Kind = kind
-		if plan.FunctionFromConjuncts(&copy, and(column, column)) != nil {
+		if plan.InnerJoinRestriction(&copy, and(column, column)) != nil {
 			t.Fatal("outer join boundary crossed")
 		}
 	}
 	copy := *join
 	copy.Merges = []expr.Expr{column}
-	if plan.FunctionFromConjuncts(&copy, and(column, column)) != nil {
+	if plan.InnerJoinRestriction(&copy, and(column, column)) != nil {
 		t.Fatal("merged join boundary crossed")
 	}
+	if plan.InnerJoinRestriction(left, and(column, column)) != nil {
+		t.Fatal("nonjoin restricted")
+	}
+	// Left-only OR and NOT move whole, beside an ordinary conjunct, for any
+	// right input; the conjunction is rebuilt, never mutated.
 	copy = *join
 	copy.Right = &plan.DerivedNode{}
-	if plan.FunctionFromConjuncts(&copy, and(column, column)) != nil || plan.FunctionFromConjuncts(left, and(column, column)) != nil {
-		t.Fatal("non-function boundary crossed")
+	for _, whole := range []expr.Expr{or, not} {
+		conjunction := and(column, whole)
+		before, after := plan.PartitionJoinConjuncts(&copy, conjunction)
+		moved, ok := before.(plan.LogicalExpr)
+		if !ok || moved.Op != parser.LogicalAnd || moved.Left != column || moved.Right != whole || after != nil || conjunction.Right != whole {
+			t.Fatalf("left-only %T not moved", whole)
+		}
+		if placed, ok := plan.InnerJoinRestriction(&copy, whole).(*plan.JoinNode); !ok || placed.Left.(*plan.FilterNode).Predicate != whole || placed.ScanOwner != &copy {
+			t.Fatalf("whole left-only %T not placed", whole)
+		}
 	}
 	// A fully eligible conjunction moves as a whole, without a residual or
 	// mutation of the original expression and join.
-	if moved, ok := plan.FunctionFromConjuncts(join, and(column, column)).(*plan.JoinNode); !ok || moved == join || moved.Right != right || join.Left != left {
+	if moved, ok := plan.InnerJoinRestriction(join, and(column, column)).(*plan.JoinNode); !ok || moved == join || moved.Right != right || join.Left != left {
 		t.Fatal("safe conjunction not moved immutably")
 	}
 }

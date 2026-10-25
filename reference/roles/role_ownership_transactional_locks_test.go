@@ -61,7 +61,7 @@ func TestReferenceRoleOwnershipTransactionalLocks(t *testing.T) {
 							x.exec("SAVEPOINT lock_mark")
 						}
 						if failure == "timeout" {
-							x.exec("SET lock_timeout='100ms'")
+							x.exec("SET lock_timeout='10ms'")
 						}
 						ctx, cancel := context.WithCancel(s.p.Ctx)
 						defer cancel()
@@ -230,7 +230,7 @@ func TestReferenceRoleOwnershipTransactionalPolicyLocks(t *testing.T) {
 				defer x.abort()
 				x.exec("SAVEPOINT policy_mark")
 				if end == "timeout" {
-					x.exec("SET lock_timeout='100ms'")
+					x.exec("SET lock_timeout='10ms'")
 				}
 				ctx, cancel := context.WithCancel(s.p.Ctx)
 				defer cancel()

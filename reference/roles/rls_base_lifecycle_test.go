@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
@@ -26,19 +25,11 @@ func TestReferenceRLSBaseLocksAndCancellation(t *testing.T) {
 			}
 		}
 		// The granted incompatible lock is the synchronization event, not a sleep.
-		// A no-op DISABLE still requests AX and must not bypass this holder.
-		if s.backend.PG {
-			s.exec("SET lock_timeout='100ms'")
-			predefinedFailure(s, "ALTER TABLE t DISABLE ROW LEVEL SECURITY", fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout"}, false, "execute")
-			s.exec("RESET lock_timeout")
-		} else {
-			ctx, cancel := context.WithTimeout(s.p.Ctx, 100*time.Millisecond)
-			defer cancel()
-			_, err := s.c.ExecContext(ctx, "ALTER TABLE t DISABLE ROW LEVEL SECURITY")
-			if !errors.Is(err, context.DeadlineExceeded) {
-				s.t.Fatalf("blocked no-op: %v", err)
-			}
-		}
+		// A no-op DISABLE still requests AX and must not bypass this holder; the
+		// exact lock-timeout outcome proves the wait.
+		s.exec("SET lock_timeout='10ms'")
+		predefinedFailure(s, "ALTER TABLE t DISABLE ROW LEVEL SECURITY", fixture.Diagnostic{Code: "55P03", Message: "canceling statement due to lock timeout"}, false, "execute")
+		s.exec("RESET lock_timeout")
 		if _, err := blocker.ExecContext(s.p.Ctx, "ROLLBACK"); err != nil {
 			s.t.Fatal(err)
 		}

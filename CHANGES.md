@@ -1,3 +1,9 @@
+A WHERE condition that reads only the left input of an inner join is evaluated
+on that input before the join, as in PostgreSQL. It now raises its error (for
+example division by zero) for rows without a join partner, and catalog joins
+such as `pg_proc JOIN pg_roles ... WHERE proname = ...` no longer build every
+joined row first.
+
 Repeated `pg_type`, `pg_proc` and `pg_depend` reads between catalog changes
 reuse one captured row set instead of rebuilding the whole catalog per
 statement.

@@ -16,7 +16,12 @@ var ownershipRoles = []string{"own_source", "own_target", "own_actor", "own_othe
 
 func ownershipCases(t *testing.T, body func(*membershipScenario)) {
 	t.Helper()
-	membershipCases(t, ownershipRoles, func(s *membershipScenario) {
+	ownershipCasesFor(t, []bool{false, true}, body)
+}
+
+func ownershipCasesFor(t *testing.T, modes []bool, body func(*membershipScenario)) {
+	t.Helper()
+	membershipCasesFor(t, ownershipRoles, modes, func(s *membershipScenario) {
 		defer func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
@@ -26,31 +31,63 @@ func ownershipCases(t *testing.T, body func(*membershipScenario)) {
 			if _, err := s.c.ExecContext(ctx, "RESET SESSION AUTHORIZATION"); err != nil {
 				s.t.Error(err)
 			}
-			// Real public cleanup includes nonpublic objects and received grants.
-			// Names can intentionally have been dropped/recreated by the body.
-			for _, role := range ownershipRoles {
-				var exists bool
-				if err := s.c.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=$1)", role).Scan(&exists); err != nil {
-					s.t.Error(err)
-					continue
-				}
-				if exists {
-					if _, err := s.c.ExecContext(ctx, "DROP OWNED BY "+pq.QuoteIdentifier(role)+" CASCADE"); err != nil {
-						s.t.Error(err)
-					}
-				}
-			}
-			for _, schema := range []string{"own_class", "own_gate", "own_bulk", "own_control", "own_schema", "own_schema_renamed"} {
-				if _, err := s.c.ExecContext(ctx, "DROP SCHEMA IF EXISTS "+pq.QuoteIdentifier(schema)+" CASCADE"); err != nil {
-					s.t.Error(err)
-				}
-			}
+			ownershipCleanup(ctx, s)
 		}()
 		if s.backend.PG {
 			s.exec("GRANT USAGE ON SCHEMA public TO PUBLIC")
 		}
 		body(s)
 	})
+}
+
+// ownershipCleanup drops what the surviving ownership roles own or were
+// granted, including nonpublic objects, and then the fixture schemas. Names
+// can intentionally have been dropped or recreated by the body.
+func ownershipCleanup(ctx context.Context, s *membershipScenario) {
+	// One role per DROP OWNED: PostgreSQL 18 fails a multi-role DROP OWNED with
+	// XX000 "could not find tuple for default ACL" when a listed role's default
+	// privileges grant to another listed role.
+	for _, role := range ownershipExistingRoles(ctx, s) {
+		if _, err := s.c.ExecContext(ctx, "DROP OWNED BY "+role+" CASCADE"); err != nil {
+			s.t.Error(err)
+		}
+	}
+	if _, err := s.c.ExecContext(ctx, "DROP SCHEMA IF EXISTS own_class,own_gate,own_bulk,own_control,own_schema,own_schema_renamed CASCADE"); err != nil {
+		s.t.Error(err)
+	}
+}
+
+// ownershipExistingRoles returns the quoted ownershipRoles that exist, in
+// ownershipRoles order, from one catalog query.
+func ownershipExistingRoles(ctx context.Context, s *membershipScenario) []string {
+	literals := make([]string, len(ownershipRoles))
+	for i, role := range ownershipRoles {
+		literals[i] = pq.QuoteLiteral(role)
+	}
+	rows, err := s.c.QueryContext(ctx, "SELECT rolname FROM pg_roles WHERE rolname IN ("+strings.Join(literals, ",")+")")
+	if err != nil {
+		s.t.Error(err)
+		return nil
+	}
+	found := map[string]bool{}
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			s.t.Error(err)
+		}
+		found[role] = true
+	}
+	if err := rows.Err(); err != nil {
+		s.t.Error(err)
+	}
+	rows.Close()
+	var existing []string
+	for _, role := range ownershipRoles {
+		if found[role] {
+			existing = append(existing, pq.QuoteIdentifier(role))
+		}
+	}
+	return existing
 }
 
 func ownershipSelect(s *membershipScenario, q string, columns, types []string, rows [][]any) {

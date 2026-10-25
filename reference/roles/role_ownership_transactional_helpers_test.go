@@ -124,6 +124,18 @@ func (x *ownershipTransaction) abort() {
 func ownershipTransactionCases(t *testing.T, body func(*membershipScenario, string)) {
 	t.Helper()
 	for _, route := range ownershipTransactionRoutes {
-		t.Run(route, func(t *testing.T) { ownershipCases(t, func(s *membershipScenario) { body(s, route) }) })
+		t.Run(route, func(t *testing.T) {
+			ownershipCasesFor(t, ownershipRouteModes(route), func(s *membershipScenario) { body(s, route) })
+		})
 	}
+}
+
+// ownershipRouteModes lists the prepared modes a route adds coverage in.
+// Without held statements sql-held-inside runs exactly like sql-held-before
+// (SQL BEGIN) and go-stmt like go-prepare (BeginTx), so they run prepared only.
+func ownershipRouteModes(route string) []bool {
+	if route == "sql-held-inside" || route == "go-stmt" {
+		return []bool{true}
+	}
+	return []bool{false, true}
 }

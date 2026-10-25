@@ -12,6 +12,9 @@ import (
 
 func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, error) {
 	foreignOwner := n // Private coercion rewrites must not create new scan owners.
+	if n.ScanOwner != nil {
+		foreignOwner = n.ScanOwner
+	}
 	// Admission/preflight is independent of operand population. Opening both
 	// children must validate their row-independent coercions even when the
 	// other operand yields no candidate; this does not produce either child.
@@ -108,8 +111,8 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	frame := make([]sqltype.Value, width)
 	source := &Source{FlatWidth: width, Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}
 	presenceMoves, presence := joinPresence(source, left.Source, right.Source, n.PresenceSlot)
-	locking := state.Locking || state.Source.Locks.RowMarked()
-	identity := locking || state.IdentityReads
+	locking := queryLocking(state)
+	identity := retainsQueryIdentity(state)
 	if identity {
 		source.Occurrences = AppendQueryOccurrences(source.Occurrences, left.Source)
 		source.Occurrences = AppendQueryOccurrences(source.Occurrences, right.Source)
@@ -311,6 +314,12 @@ func OpenJoinNode(ctx context.Context, state *State, n *plan.JoinNode) (Stage, e
 	}
 	return out, nil
 }
+
+// A locking read records the row versions behind each joined row; an identity
+// read also records their provenance.
+func queryLocking(state *State) bool { return state.Locking || state.Source.Locks.RowMarked() }
+
+func retainsQueryIdentity(state *State) bool { return queryLocking(state) || state.IdentityReads }
 
 // Only top-level conjunctive equality keys spanning the two inputs initialize
 // a join strategy. Comparisons inside branches remain ordinary scalar demand.

@@ -22,7 +22,13 @@ type membershipScenario struct {
 
 func membershipCases(t *testing.T, names []string, body func(*membershipScenario)) {
 	t.Helper()
-	for _, prepared := range []bool{false, true} {
+	membershipCasesFor(t, names, []bool{false, true}, body)
+}
+
+// membershipCasesFor runs body once per listed prepared mode.
+func membershipCasesFor(t *testing.T, names []string, modes []bool, body func(*membershipScenario)) {
+	t.Helper()
+	for _, prepared := range modes {
 		t.Run(fmt.Sprintf("prepared=%v", prepared), func(t *testing.T) {
 			fixture.RoleReferenceCleanup(t, names)
 			p := fixture.NewScenario(t)

@@ -39,7 +39,7 @@ func transactionalPolicyInterruptions(t *testing.T) {
 				}
 				defer h.Close()
 				if recovery == "timeout_dispose" {
-					s.exec("SET lock_timeout='100ms'")
+					s.exec("SET lock_timeout='10ms'")
 				}
 				ctx, cancel := context.WithCancel(s.p.Ctx)
 				defer cancel()

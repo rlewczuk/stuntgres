@@ -74,6 +74,9 @@ type JoinNode struct {
 	CorrelationPrefix         int
 	CorrelationIdentityPrefix bool // Inherited occurrence lineage, even with a zero-width row prefix.
 	Captures                  []FunctionCorrelation
+	// ScanOwner is the canonical join of an execution-private copy, so foreign
+	// scans below the copy keep the canonical owner identity. Nil otherwise.
+	ScanOwner *JoinNode
 }
 
 // Captures retain their binding namespace and written origin while an enclosing

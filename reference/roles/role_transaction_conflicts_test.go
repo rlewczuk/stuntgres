@@ -123,7 +123,10 @@ func roleTransactionConflictControls(t *testing.T) {
 				run(a, fixture.Exec("GRANT rf_control TO rf_actor", 0))
 				run(w, fixture.Exec("BEGIN", 0))
 				if kind != "cancel" {
-					run(w, fixture.Exec("SET "+kind+"='100ms'", 0))
+					// A lock timer counts only the lock wait; a statement timer also
+					// counts parse and plan time.
+					timer := map[string]string{"lock_timeout": "10ms", "statement_timeout": "100ms"}[kind]
+					run(w, fixture.Exec("SET "+kind+"='"+timer+"'", 0))
 				}
 				ctx, cancel := context.WithCancel(p.Ctx)
 				defer cancel()

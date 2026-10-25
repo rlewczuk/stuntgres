@@ -679,15 +679,18 @@ func openRetainedQueryNode(ctx context.Context, state *State, node plan.Node) (o
 			return Stage{Source: source, Columns: n.Schema()}, nil
 		}
 		if join, ok := n.Child.(*plan.JoinNode); ok && !QueryHasMandatoryPhysicalFrontier(n.Child, state.Source) {
-			if partitioned := plan.FunctionFromConjuncts(join, n.Predicate); partitioned != nil {
-				return OpenNode(ctx, state, partitioned)
-			}
-			if join := FunctionFromWhere(n.Child, n.Predicate); join != nil {
-				// Keep canonical/view literal paths intact. Only this execution
-				// filters predecessor rows before opening their correlated RHS.
-				// EPQ instead retains its captured, identity-keyed topology even
-				// after its physical locking frontier has been cleared.
-				return OpenNode(ctx, state, join)
+			// A function right input always admits its predecessor rows
+			// first. Other inputs do so only in plain reads: locking and
+			// identity reads keep the post-join filter order.
+			_, function := join.Right.(*plan.FunctionFromNode)
+			if function || !retainsQueryIdentity(state) {
+				if restricted := plan.InnerJoinRestriction(join, n.Predicate); restricted != nil {
+					// Keep canonical/view literal paths intact. Only this
+					// execution filters left rows before the join. EPQ instead
+					// retains its captured, identity-keyed topology even after
+					// its physical locking frontier has been cleared.
+					return OpenNode(ctx, state, restricted)
+				}
 			}
 		}
 		AdmitPGSequencesPredicate(n.Child, state.Source, n.Predicate, 0, evaluation.Frame)

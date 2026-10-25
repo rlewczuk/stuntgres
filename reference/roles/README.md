@@ -42,7 +42,9 @@ authority.
   drop nonpublic fixture schemas before roles on failure paths.
 - `ownershipTransactionCases` covers autocommit, SQL BEGIN and Go BeginTx with
   direct and held ownership/bulk statements, earlier-private objects, peer
-  isolation and savepoint/end transitions. For database OWNER, select the ordinary
+  isolation and savepoint/end transitions. `ownershipRouteModes` runs
+  `sql-held-inside` and `go-stmt` prepared only: unprepared, they repeat
+  `sql-held-before` and `go-prepare`. For database OWNER, select the ordinary
   CREATEDB session actor before BEGIN; use SET ROLE, not SET SESSION AUTHORIZATION,
   inside the transaction.
   Cleanup authority witnesses use actual ordinary-role SELECT/UPDATE operations
