@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `e41707829` (item 182 rebased on it).
+Last verified against `master` at `8cddab66f` (item 183 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 183, 184, 185, 186, 187, 188.
+- 184, 185, 186, 187, 188.
 
 ## Linear plan
 
@@ -52,9 +52,16 @@ ENGINE-SPLIT.md §4.
      KB), tests 10.76 MB; quickcheck and the string-literal check passed; bench
      and `REFERENCE=1` skipped (renames only), racecheck and finalcheck skipped
      at user request
-183. [ ] Builtin function, operator and type tests —
+183. [x] Builtin function, operator and type tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-183--builtin-function-operator-and-type-tests)
-     · needs 182 · P · 1.25 MB
+     · needs 182 · P · 1.25 MB (`fa8fdc8e7`, `6ad4ba40b`, `8b5c5a3c1`, docs
+     commit) · 157 of the 174 transitively free root test files with
+     builtin-function, operator and type prefixes (419 tests) moved to
+     `functions/enginetests` (102), the new `internal/sqltype/enginetests` (51)
+     and `typedef/enginetests` (4), no `reference/` duplicates deleted,
+     `enginetest.SetObjectACL` added; root tests 1,211 files and 9.66 MB (−1.11
+     MB); quickcheck passed; `REFERENCE=1` and bench skipped (no production
+     change), racecheck and finalcheck skipped at user request
 184. [ ] Query, DML, COPY, cursor and protocol tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-184--query-dml-copy-cursor-and-protocol-tests)
      · needs 182 · P · 1.05 MB

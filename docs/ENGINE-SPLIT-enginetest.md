@@ -255,7 +255,35 @@ inspection accessors were added.
   `core_test` files that import `enginetest` rebuild the root and the families
   against core's test variant (the cost measured above); weigh
   `core/enginetests/` for engine tests that need no accessor.
-- 183: not started.
+- 183: done (`fa8fdc8e7`, `6ad4ba40b`, `8b5c5a3c1`). Group measured with
+  `group.py`
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-183-BUILTIN-FUNCTION-OPERATOR-TYPE-TESTS/`): 202
+  root files with a listed test-only prefix, 174 transitively free (1.23 MB).
+  Moved 157 with that directory's `mvtest` (item 181's, plus mapping of
+  test-file methods on production types, `e.SetObjectACL(...)` →
+  `enginetest.SetObjectACL(e, ...)`, renaming of locals named `engine`, reuse of
+  helpers the destination already holds, and a fixpoint for root files reduced
+  to helpers): builtin functions and aggregates to `functions/enginetests`,
+  types, operators, casts, comparisons, collation, subscripts, SQL/JSON and
+  jsonpath to `internal/sqltype/enginetests`, and `range_type_*` (range type
+  DDL, as item 181 placed range type tests) to `typedef/enginetests`. T2: none
+  deleted; the `refcover` candidates assert bound nodes, grouping, catalog or
+  view identity, or bind shapes `reference/` lacks. Left in the root: the
+  partition DDL files `range_partition_*` (10) and `list_partition_*` (3) for
+  item 186, `datetime_sleep` for item 185, the helper-only `format`,
+  `math_consumers`, `range_type` and `range_type_remedy`, and 21 moved files
+  reduced to the helpers staying root tests use. Root helpers copied into the
+  moved files (the root copies stay), as in item 181, because item 184 ran in
+  parallel on the same query helpers: `queryCoreFixture`, `queryProbe` and
+  `queryProbeExpression`, `evalContext`, `binderOperation`,
+  `bindTestTargetNamespace`, `replacementProcedurePolicyFixture` and
+  `regexpSetUnitLower`/`functionSetUnitArgument` are now copied in two or more
+  destinations and are candidates for `enginetest` (T4). Not in any wave's
+  prefix list, free, still in the root: `predefined_capabilities`, `name`,
+  `like_acl`, `like_namespace`, `nominal_type_restore_namespace`,
+  `floating_arithmetic_cancellation` (and the helper-only `eval_context`).
+  Non-free files of this group stay for items 193–194: 14 reach core internals,
+  11 family or shared code, 3 root (`bitwise`, `timestamp`, `timezone_sources`).
 - 184: not started.
 - 185: not started.
 - 186: not started.
