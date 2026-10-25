@@ -205,7 +205,8 @@ the next start with `-r`:
 **Passwords are sent in cleartext and TLS is not available.** The server listens on
 loopback by default; use it only on loopback or an independently protected network.
 `./stuntgres --help` lists all options; see [cmd/stuntgres](cmd/stuntgres/README.md#operation)
-for accounts, dumps and logs.
+for accounts, dumps and logs. Add `-q` (with `-L`) to record every query, its
+parameters and the exact responses in `query.log`.
 
 ## Building from source and contributing
 

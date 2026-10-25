@@ -64,7 +64,8 @@ type client struct {
 	readFailure    error // Reader-owned; published by closing messages/readDone.
 	stopPeerWatch  func()
 	sessionDone    chan struct{}
-	fatalSent      bool // Serial writer only; prevents duplicate terminal replies.
+	fatalSent      bool          // Serial writer only; prevents duplicate terminal replies.
+	capture        *queryCapture // Serial dispatcher only; nil unless query.log is enabled.
 }
 
 func newServer(ctx context.Context, users accounts, databases map[string]*database, logs *serverLogs) (*server, error) {

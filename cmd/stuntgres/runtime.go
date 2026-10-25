@@ -16,7 +16,7 @@ func runServe(options serveOptions) (err error) {
 			err = errors.Join(err, notifyReady("", err))
 		}
 	}()
-	logs, err := openLogs(options.logdir, options.verbose)
+	logs, err := openLogs(options.logdir, options.verbose, options.querylog)
 	if err != nil {
 		return err
 	}

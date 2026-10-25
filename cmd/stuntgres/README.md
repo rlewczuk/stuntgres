@@ -10,7 +10,7 @@ idle listeners. Transport adds no SQL, catalog or type capability of its own.
 Commands (`./stuntgres --help` lists every option and long alias):
 
 ```sh
-stuntgres serve|start [-l ADDR] [-d DUMPDIR] [-L LOGDIR] -u USERFILE [-p PIDFILE] [-r] [-v] [-b]
+stuntgres serve|start [-l ADDR] [-d DUMPDIR] [-L LOGDIR] -u USERFILE [-p PIDFILE] [-r] [-v] [-b] [-q]
 stuntgres dump|stop [-p PIDFILE]
 stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 ```
@@ -43,6 +43,21 @@ stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
   message, a `SYNTAX`/`UNSUPPORTED`/`SQL` class and Bind parameters (canonical
   text, or tagged base64 for undecoded bytes); simple queries log `params:[]`.
   Passwords and cancel keys are never logged.
+- **Query log.** `-q` (requires `-L`) appends one JSONL record per command
+  cycle to `query.log` (0600, never mirrored to stdout): a simple Query, a
+  FunctionCall, or extended messages through Sync, ending at ReadyForQuery.
+  Fields: `connection_id`, `database`, `user`, `cycle` (per connection),
+  `frontend` (message tags, e.g. `PBDES`, COPY input included), `query` (first
+  SQL source), `params` (first Bind/Execute, same shape as `error.log`),
+  `steps` (each frontend message with its statement/portal, SQL, params and
+  base64 COPY input), `response`, `error` (first SQLSTATE), `complete` and
+  `duration_us`. Each `response` entry is one backend message: `type`, `name`,
+  `data` (exact body, base64; the authority) and `decoded` (readable form;
+  binary or unprintable values as `{"hex":...}`, `null` if malformed). Output
+  sent outside a cycle (idle notifications, a terminal error) is its own record
+  with empty `frontend`; a cycle cut off by disconnect has `complete:false`.
+  Startup and authentication are never captured. Each cycle is buffered whole
+  until it ends.
 
 ## Contract
 
@@ -88,5 +103,5 @@ this package keeps command, filesystem, process, framing and log mechanics.
 
 ```sh
 make check RUN='^TestServer(ProtocolFraming|ProtocolCancellation|PreparedLogValues|StartupParameters)$'
-make check RUN='^TestServer(Framing|Logging|CLI|PID|StartupFailure|PIDSocketLifecycle)$'
+make check RUN='^TestServer(Framing|Logging|QueryLogDecode|CLI|PID|StartupFailure|PIDSocketLifecycle)$'
 ```

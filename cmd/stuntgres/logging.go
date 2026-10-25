@@ -23,6 +23,7 @@ type serverLogs struct {
 	mu       sync.Mutex
 	ops      slog.Handler
 	sql      slog.Handler
+	queries  slog.Handler // nil unless the query log is enabled
 	files    []io.Closer
 	closed   bool
 	closeErr error
@@ -73,9 +74,12 @@ func logHandler(w io.Writer, verbose bool) slog.Handler {
 	})
 }
 
-func openLogs(logdir string, verbose bool) (*serverLogs, error) {
+func openLogs(logdir string, verbose, querylog bool) (*serverLogs, error) {
 	logs := &serverLogs{}
 	var operational, sql io.Writer = os.Stdout, os.Stdout
+	if querylog && logdir == "" {
+		return nil, errors.New("query log requires a log directory")
+	}
 	if logdir != "" {
 		if err := os.MkdirAll(logdir, 0700); err != nil {
 			return nil, err
@@ -83,7 +87,11 @@ func openLogs(logdir string, verbose bool) (*serverLogs, error) {
 		if err := os.Chmod(logdir, 0700); err != nil {
 			return nil, err
 		}
-		for _, name := range []string{"server.log", "error.log"} {
+		names := []string{"server.log", "error.log"}
+		if querylog {
+			names = append(names, "query.log")
+		}
+		for _, name := range names {
 			file, err := os.OpenFile(filepath.Join(logdir, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 			if err != nil {
 				return nil, errors.Join(err, logs.Close())
@@ -92,10 +100,14 @@ func openLogs(logdir string, verbose bool) (*serverLogs, error) {
 			if err := file.Chmod(0600); err != nil {
 				return nil, errors.Join(err, logs.Close())
 			}
-			if name == "server.log" {
+			switch name {
+			case "server.log":
 				operational = logMirrors{file, os.Stdout}
-			} else {
+			case "error.log":
 				sql = logMirrors{file, os.Stdout}
+			default:
+				// Responses can be large, so the query log is never mirrored.
+				logs.queries = logHandler(file, false)
 			}
 		}
 	}
@@ -120,6 +132,10 @@ func (logs *serverLogs) handle(ctx context.Context, handler slog.Handler, level 
 
 func (logs *serverLogs) operational(ctx context.Context, level slog.Level, message string, args ...any) error {
 	return logs.handle(ctx, logs.ops, level, message, args...)
+}
+
+func (logs *serverLogs) query(ctx context.Context, args ...any) error {
+	return logs.handle(ctx, logs.queries, slog.LevelInfo, "query", args...)
 }
 
 func (logs *serverLogs) sqlError(ctx context.Context, query string, err error, parameters []loggedParameter, args ...any) error {

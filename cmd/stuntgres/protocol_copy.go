@@ -119,6 +119,7 @@ func (p *protocolCopy) Read(dst []byte) (int, error) {
 		}
 		p.current = m
 		p.borrowed = true
+		p.client.capture.copyInput(m)
 		switch m.tag {
 		case 'd':
 			continue

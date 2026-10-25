@@ -11,12 +11,12 @@ import (
 
 func TestServerCLI(t *testing.T) {
 	t.Run("aliases_and_reexec", func(t *testing.T) {
-		command, err := parseCLI([]string{"start", "-l", "5435", "--listen", "[::1]:0", "-u", "users", "-L", "logs", "-d", "dumps", "-p", "pid", "-r", "-v"}, &bytes.Buffer{})
+		command, err := parseCLI([]string{"start", "-l", "5435", "--listen", "[::1]:0", "-u", "users", "-L", "logs", "-d", "dumps", "-p", "pid", "-r", "-v", "--querylog"}, &bytes.Buffer{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		o := command.options
-		if o.listen != "[::1]:0" || !o.background || !o.restore || !o.verbose {
+		if o.listen != "[::1]:0" || !o.background || !o.restore || !o.verbose || !o.querylog {
 			t.Fatal(o)
 		}
 		for _, path := range []string{o.userfile, o.logdir, o.dumpdir, o.pidfile} {
@@ -47,7 +47,7 @@ func TestServerCLI(t *testing.T) {
 		}
 	})
 	for _, args := range [][]string{
-		{}, {"unknown"}, {"serve"}, {"serve", "-u", "users", "-r"}, {"serve", "-u", "users", "extra"},
+		{}, {"unknown"}, {"serve"}, {"serve", "-u", "users", "-r"}, {"serve", "-u", "users", "-q"}, {"serve", "-u", "users", "extra"},
 		{"serve", "-u", "users", "--unsupported"}, {"serve", "-u", "users", "-l", "::1:5434"},
 		{"serve", "-u", "users", "-l", "65536"}, {"serve", "-u", "users", "-l", "-1"},
 		{"serve", "-u", "users", "-l", "localhost:postgres"}, {"stop", "extra"}, {"dump", "-u", "users"},

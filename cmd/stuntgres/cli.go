@@ -14,7 +14,7 @@ import (
 
 type serveOptions struct {
 	listen, dumpdir, logdir, userfile, pidfile string
-	restore, verbose, background               bool
+	restore, verbose, background, querylog     bool
 }
 type cliCommand struct {
 	command   string
@@ -25,17 +25,18 @@ type cliCommand struct {
 }
 
 const usage = `Usage:
-  stuntgres serve|start [-l ADDR] [-d DUMPDIR] [-L LOGDIR] -u USERFILE [-p PIDFILE] [-r] [-v] [-b]
+  stuntgres serve|start [-l ADDR] [-d DUMPDIR] [-L LOGDIR] -u USERFILE [-p PIDFILE] [-r] [-v] [-b] [-q]
   stuntgres dump|stop [-p PIDFILE]
   stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
 
 serve runs in the foreground; start (or serve -b) reexecutes in the background.
 Listen defaults to 127.0.0.1:5434; a bare port binds loopback. -L selects logs.
 -r restores the newest native SQL dump per database and requires -d.
+-q writes every command cycle with its exact responses to query.log; requires -L.
 USR1/dump triggers asynchronous dumps; stop waits for shutdown and final dumps.
 passwd prompts twice; existing grants are preserved unless --databases is given.
 All long aliases: --listen, --dumpdir, --logdir, --userfile, --pidfile,
---restore, --verbose, --background. Filesystem paths resolve before daemonizing.
+--restore, --verbose, --background, --querylog. Filesystem paths resolve before daemonizing.
 
 PostgreSQL protocol 3.0/3.2 simple and extended queries, prepared statements,
 portals and streaming COPY over the bounded in-memory SQL engine; native dumps.
@@ -84,6 +85,7 @@ func parseCLI(args []string, out io.Writer) (cliCommand, error) {
 		boolFlag("r", "restore", &options.restore, "restore newest dumps")
 		boolFlag("v", "verbose", &options.verbose, "enable DEBUG logs")
 		boolFlag("b", "background", &options.background, "run in background")
+		boolFlag("q", "querylog", &options.querylog, "log queries with exact responses")
 	case "dump", "stop":
 		pathFlag("p", "pidfile", &options.pidfile, options.pidfile, "PID ownership file")
 	case "passwd":
@@ -129,6 +131,9 @@ func parseCLI(args []string, out io.Writer) (cliCommand, error) {
 		}
 		if options.restore && options.dumpdir == "" {
 			return command, errors.New("restore requires a dump directory")
+		}
+		if options.querylog && options.logdir == "" {
+			return command, errors.New("querylog requires a log directory")
 		}
 		options.listen, err = normalizeListen(options.listen)
 		if err != nil {
@@ -181,6 +186,9 @@ func serveArguments(options serveOptions) []string {
 	}
 	if options.verbose {
 		args = append(args, "--verbose")
+	}
+	if options.querylog {
+		args = append(args, "--querylog")
 	}
 	return args
 }

@@ -213,6 +213,8 @@ production dependency is involved.
 - **Server.** `NewServerFixture(t)` builds and launches a real `cmd/stuntgres`
   subprocess (temporary userfile, dumps, logs and PID file; reduced-KDF build tag)
   for `reference/sessions` wire tests. Embedded scenarios never start a server.
+  `NewServerFixture(t, fixture.ServerQueryLog())` adds `-q` so the native server
+  writes `Logdir/query.log`.
 
 ## Testing
 

@@ -42,6 +42,8 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		return c.writeSQLError(ctx, "", op.CommandError(err))
 	}
 	var provenance session.ProtocolContext
+	var stepName string // statement or portal name, for query.log
+	var stepTarget byte // Describe/Close subtype, for query.log
 	var response func() error
 	var stream *protocolCopy
 	switch message.tag {
@@ -51,7 +53,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		if err == nil {
 			source, err = input.String()
 		}
-		provenance.Source = source
+		provenance.Source, stepName = source, name
 		var count uint16
 		if err == nil {
 			count, err = input.Uint16()
@@ -83,6 +85,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		if err == nil {
 			provenance, err = scope.BindProtocolPortal(portal, statement, &input)
 		}
+		stepName = portal
 		response = func() error { return c.wire.send('2', nil) }
 	case 'D', 'C':
 		var subtype byte
@@ -91,6 +94,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		if err == nil {
 			name, err = input.String()
 		}
+		stepName, stepTarget = name, subtype
 		if err == nil {
 			err = input.End()
 		}
@@ -153,6 +157,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		if err == nil {
 			limit, err = input.Int32()
 		}
+		stepName = name
 		if err == nil {
 			err = input.End()
 		}
@@ -192,6 +197,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 			}
 		}
 	}
+	c.capture.detail(message.tag, stepTarget, stepName, provenance)
 	err = op.CommandError(scope.Finish(err))
 	if stream != nil && stream.transportErr != nil {
 		return stream.transportErr
