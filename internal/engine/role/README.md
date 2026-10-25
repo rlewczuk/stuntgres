@@ -22,9 +22,10 @@ library, and never the engine, `analyze`'s binder or another upper feature.
   stage (`AccessView`, `SearchNamespaces`, relation, argument type and
   parameter lookups, other databases' role dependencies and the DROP ROLE
   dependency text); `StageHost` is `ddl.Host` plus `AddDomainBase`,
-  `RemoveObject` and `OwnerStage` for REASSIGN and DROP OWNED staging. The
-  engine's `RoleHost` implements both (`role_host.go`); for `Host` it has no
-  stage. Core calls `OtherDatabaseDependencies` on the core `DDLHost`.
+  `RemoveObject` and `OwnerStage` for REASSIGN and DROP OWNED staging.
+  [`rolecmds`](../rolecmds/README.md)' `RoleHost` implements both; for
+  `Host` it has no stage. Core calls `OtherDatabaseDependencies` on the core
+  `DDLHost`.
 - **GRANT/REVOKE on objects** (`grant_plan.go`, `grant_targets.go`,
   `grant_objects.go`): `ObjectGrantRequest(h, auth, s)` validates grantor,
   kind, targets, grantees, privileges and GRANT OPTION for PUBLIC in
@@ -132,22 +133,21 @@ library, and never the engine, `analyze`'s binder or another upper feature.
 
 ## What stays in the engine
 
-`Engine.Mu` and its unlock/relock windows, lock waits, `AuthorizationView`
-capture, `access.RoleStore` publication and `installOperationRolesLocked`, the host
-adapter (`role_host.go`) and the
-`*CatalogStage` adapters (`owned_stage.go`), the `ParameterProvider`
-registration, the `roleRetirementPreflightLocked` adapter, and the
-orchestration: `stageCommentLocked` (the locked-relation check, capture, the
-private role record installation or object stage), `initialRole`,
-`executeRole` (dispatch, the SET LOCAL warning, session mutation,
-`publishDroppedRolesLocked`),
-`executeRoleAttributes`, `membershipLocked`, `objectGrantLocked`,
-`executeDatabaseGrant` and `alterDefaultPrivilegesLocked` (warnings,
-OIDs and installation), the three ALTER OWNER executors (resolution, the
-materialized view authority, `ownershipStage`, lock waits,
-`publishOwnership`) and `executeOwned` (the stage, lock waits,
+Core keeps `Engine.Mu` and its unlock/relock windows, lock waits,
+`AuthorizationView` capture, `access.RoleStore` publication and
+`InstallOperationRolesLocked`, the `*CatalogStage` adapters
+(`owned_stage.go`), the `ParameterProvider` registration, the
+`roleRetirementPreflightLocked` adapter, `initialRole` and relation
+ownership (`ExecuteRelationOwnership`, `OwnershipStage`, `PublishOwnership`).
+The statement executors are [`rolecmds`](../rolecmds/README.md)': role
+attributes and membership, SET ROLE and SESSION AUTHORIZATION, DROP ROLE
+(`PublishDroppedRolesLocked`), object and database GRANT and ALTER DEFAULT
+PRIVILEGES (warnings, OIDs and installation), the type, domain and database
+OWNER executors and `ExecuteOwned` (the stage, lock waits,
 `StageOwnedCleanup`, the scope dependents, publication and the cascade
-notice).
+notice), with the host adapter `RoleHost`. `stageCommentLocked` (the
+locked-relation check, capture, the private role record installation or
+object stage) stays with the schema statements in the root.
 
 Generic table/type/domain/database OWNER, feature-specific view/materialized OWNER
 and REASSIGN/DROP OWNED use `session.TransactionalSchemaUtility` for the shared
@@ -183,10 +183,9 @@ Dump omits shared roles, and Reset/Restore preserve their committed state.
 only unit test: tests of its other plans and staging need an `Engine` fixture.
 Roles, membership, GRANT and REVOKE, default privileges, ownership and DROP
 OWNED units live in `internal/engine/rolecmds`, COMMENT units in
-`internal/engine/schemacmds`, `object_acl_test.go` in `internal/engine/core`,
-and `object_acl_fixture_test.go`, `parameter_tablespace_grant_test.go` and
-`default_privileges_catalog_test.go` (the retirement preflight) in
-`internal/engine`.
+`internal/engine/schemacmds`, `object_acl_test.go` and
+`parameter_tablespace_grant_test.go` in `internal/engine/core`, and
+`object_acl_fixture_test.go` in `internal/engine`.
 `TestRoleHostStageless` (`role_host_test.go`) pins the host seam: a
 stage-less `RoleHost` as `Host`. Add `RACE=1` for the connection-limit and role
 switch tests.

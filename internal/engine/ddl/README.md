@@ -113,7 +113,7 @@ and none waits on the lock manager. The package adds no mutex.
   hosts share. The family hosts embed it and keep its layout:
   `tablecmds.TableHost` (`table.Host`, `index.Host`, `partition.Host`,
   `fdw.Host`), `TypeHost` and `ViewHost` over `TableHost`, `RoutineHost`,
-  `RoleHost` and `SchemaHost` (`SchemaHost` in `schema_host.go`). `extensionHost` (`extension_host.go`)
+  `rolecmds.RoleHost` and `SchemaHost` (`SchemaHost` in `schema_host.go`). `extensionHost` (`extension_host.go`)
   stays separate: it captures one view and implements `extension.Host` and
   `extension.Stage`. No adapter is a defined type over `CatalogStage`, so its
   unchecked `Create`/`Replace` are never promoted.
@@ -140,11 +140,11 @@ check, the lock and the authority capture; `alterAllTablespaceLocked` keeps
 the argument count check and the deferred `Engine.Mu` unlock, and
 `statementHost.TablespaceLocation`/`TablespaceDatabase` keep the retained
 snapshot and owner check and emit the returned warning.
-`executeCreateDatabase` keeps the argument count check, `Engine.Mu`, the
-authority capture (`databaseCreateOwnerLocked`), the `exists` answer from
-`e.cluster.targets` and the context check; `createDatabaseTarget` (private
-construction and the owner re-check), `publishDatabaseTargetLocked` and the
-cluster registry stay with it.
+`rolecmds.ExecuteCreateDatabase` keeps the argument count check, `Engine.Mu`,
+the authority capture (`databaseCreateOwnerLocked`), the `exists` answer from
+the cluster's targets and the context check; `createDatabaseTarget` (private
+construction and the owner re-check) and `publishDatabaseTargetLocked` stay
+with it.
 
 ## Testing
 
@@ -160,7 +160,7 @@ table with the given owner and namespace), LOAD validation and executor
 non-publication and CREATE TABLESPACE non-publication (in
 `internal/engine/schemacmds`), the tablespace inquiry adapter
 (`TestTablespaceInfo*`, in `internal/engine/core`) and CREATE DATABASE
-publication (`TestDatabaseCreate*`).
+publication (`TestDatabaseCreate*`, in `internal/engine/rolecmds`).
 
 ```sh
 make check RUN='^Test(CheckUsesAuthorityAsEnvironment|ObjectRefStampsCatalogEpoch|NoticeEmitsNoticeLevel|CreationErrorPositionsAtFirstNamePart|AlterTablespaceKind|TablespaceDatabaseReturnsWarning|CheckCreateDatabaseOrder)$$'

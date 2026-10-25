@@ -9,9 +9,11 @@ identity and VACUUM statements are [`tablecmds`](tablecmds/README.md)'s,
 index statements [`indexcmds`](indexcmds/README.md)'s, ATTACH and DETACH
 PARTITION with the partition and inheritance Restore repairs
 [`partitioncmds`](partitioncmds/README.md)'s, ALTER DOMAIN, ALTER TYPE, enum
-and range DDL and ALTER TABLE OF [`typecmds`](typecmds/README.md)'s, and
+and range DDL and ALTER TABLE OF [`typecmds`](typecmds/README.md)'s,
 view, REFRESH MATERIALIZED VIEW, rule, policy and trigger DDL with the
-materialized snapshot import [`viewcmds`](viewcmds/README.md)'s. Runtime
+materialized snapshot import [`viewcmds`](viewcmds/README.md)'s, and role,
+GRANT and REVOKE, default privilege, ownership and CREATE DATABASE
+statements [`rolecmds`](rolecmds/README.md)'s. Runtime
 state, admission, publication and the transaction lifecycle are core's. No
 package imports the root except tests and `enginetest`.
 
@@ -25,9 +27,9 @@ implements `Execute` and `ExecuteLocked` in the historical case order, and
 and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
 `*core.Engine`.
 
-Family statement code still in the root (roles, schema objects, routines,
+Family statement code still in the root (schema objects, routines,
 extensions and FDW) is written as receiver-first functions over core types
-(`executeSchema(e, ...)`, `executeRole(e, ...)`), so that it can leave with
+(`executeSchema(e, ...)`, `executeExtension(e, ...)`), so that it can leave with
 its family; it names only exported core, `tablecmds` and `typecmds` members.
 A root file holds one family's declarations and nothing else.
 
@@ -42,12 +44,12 @@ trigger dependency ALTERs, never arbitrary rename/drop utilities.
 Each family host embeds core's `DDLHost` with its `{E, Op, CatalogStage}`
 layout and is built by family code; each carries a compile-time assertion.
 `TableHost`, `AlterHost` and `TypeHost` are [`tablecmds`](tablecmds/README.md#hosts)'s,
-and `ViewHost` is [`viewcmds`](viewcmds/README.md#entry-points)'s.
+`ViewHost` is [`viewcmds`](viewcmds/README.md#entry-points)'s and `RoleHost`
+[`rolecmds`](rolecmds/README.md#entry-points)'s.
 
 | Root type | Implements |
 | --- | --- |
 | `RoutineHost` (`routine_host.go`, `operator_family_host.go`) | `routine.DDLHost`, `index.FamilyDDLHost` |
-| `RoleHost` (`role_host.go`) | `role.Host`, `role.StageHost` |
 | `SchemaHost` (`schema_host.go`) | `ddl.SchemaHost` |
 | `extensionHost` (`extension_host.go`) | `extension.Host`, `extension.Stage` |
 | `restoreHost` (`restore_run.go`) | `control.Host` |
@@ -113,7 +115,6 @@ exported core members, plus the inspection accessors in core's `inspect.go`.
 Tests that reach only core live in `core/`.
 
 ```sh
-make check RUN='^TestDatabaseCreate'                   # registry, template, publication, target authority
 make check RUN='^Test(CatalogSource|InfoUserMappingsProducer|PGSettingsCatalogACL)'  # producers; one catalog: ^TestPG<Name>
 make check RUN='^TestIsnProvider'                      # installed identifier authority and import
 make check RUN='^TestTransactionalSchema(Admission|PrivateProviders|Publication|DropManifest)$'  # utility policy and private catalog stages

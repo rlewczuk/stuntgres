@@ -148,18 +148,8 @@ CREATE for the new database owner. New database ACL is NULL/default rather than
 copied from the attachment. The seed is private, not a selectable mutable
 `template1` or a fabricated registry row.
 
-The create executor accepts OWNER, default/`template1` TEMPLATE, default/UTF8
-ENCODING (including numeric 6) and C/POSIX locale options. CREATEDB is the effective
-role's direct attribute (or superuser), with SET ROLE authority required for the
-new owner. Prepare is syntax-only; execution checks read-only/transaction
-admission and publishes one complete target or nothing. Option recognition
-preserves parser-decoded case. Value validation precedes owner and actor checks;
-invalid locale providers return 42P17 before capability checks. Diagnostics
-interpolate decoded names without string-literal escaping. Arbitrary template
-sources (including `template0`), non-C/POSIX locales, provider and physical
-strategy mechanisms return explicit 0A000 rather than succeeding without their
-effects. DROP/RENAME, mutable template administration and database flags/settings
-are not supplied by this create path.
+The CREATE DATABASE executor and its option rules are in
+[`rolecmds`](../rolecmds/README.md#database-creation).
 
 `pg_database` captures every registered target in this cluster, never other DSNs.
 Each row has its own stable identity, owner/ACL and runtime freezing horizon.
