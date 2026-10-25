@@ -39,7 +39,7 @@ func selectUtilityRoutine(view catalog.Read, namespaces []ids.ObjectAddress, nam
 }
 
 func utilityRoutineNoun(kind string) string {
-	if kind == "procedure" {
+	if kind == "procedure" || kind == "aggregate" {
 		return kind
 	}
 	return "function"
@@ -93,17 +93,16 @@ func utilityRoutineArguments(h DDLHost, auth ddl.Authority, target parser.GrantR
 		var digits [20]byte
 		signature.Write(strconv.AppendUint(digits[:0], uint64(id), 10))
 		typ := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id})
-		if typ.SQLType.IsUserDefined() {
-			canonical.WriteString(catalog.TypeDiagnosticNameAt(view, nil, typ, path))
-		} else {
-			canonical.WriteString(typ.SQLType.DiagnosticName())
-		}
+		canonical.WriteString(catalog.TypeDiagnosticNameAt(view, nil, typ, path))
 		written.WriteString(writtenRoutineTypeName(argument.Type))
 	}
 	return catalog.ProcedureSignature(signature.String()), canonical.String(), written.String(), nil
 }
 
 func utilityRoutineSignatureDiagnostic(h DDLHost, auth ddl.Authority, signature catalog.ProcedureSignature) (string, error) {
+	if signature == "" {
+		return "", nil
+	}
 	view := h.AccessView(auth).Catalog
 	path, err := auth.ReferencePath()
 	if err != nil {
@@ -122,11 +121,7 @@ func utilityRoutineSignatureDiagnostic(h DDLHost, auth ddl.Authority, signature 
 		if text.Len() != 0 {
 			text.WriteString(", ")
 		}
-		if typ.SQLType.IsUserDefined() {
-			text.WriteString(catalog.TypeDiagnosticNameAt(view, nil, typ, path))
-		} else {
-			text.WriteString(typ.SQLType.DiagnosticName())
-		}
+		text.WriteString(catalog.TypeDiagnosticNameAt(view, nil, typ, path))
 	}
 	return text.String(), nil
 }

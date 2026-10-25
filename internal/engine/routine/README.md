@@ -16,11 +16,16 @@ helper calls retain their normal effective-actor EXECUTE checks.
 
 ## Routine ALTER contract
 
-`ALTER FUNCTION`, `ALTER PROCEDURE` and `ALTER ROUTINE` support RENAME TO,
-SET SCHEMA and OWNER TO. Selection uses exact input identity, not call-site
-coercion or default expansion: IN/INOUT/VARIADIC types identify inputs and OUT
-arguments are ignored before lookup. FUNCTION includes ordinary, aggregate and
-window kinds; PROCEDURE selects procedures; ROUTINE selects all kinds.
+`ALTER FUNCTION`, `ALTER PROCEDURE`, `ALTER ROUTINE` and `ALTER AGGREGATE`
+support RENAME TO, SET SCHEMA and OWNER TO. Selection uses exact input identity,
+not call-site coercion or default expansion. Aggregate utilities require an
+explicit signature, with `(*)` for zero inputs; names and IN do not affect
+identity, VARIADIC names the declared type, and output arguments are rejected.
+Ordered-set utility syntax flattens direct and ordered arguments into the same
+catalog signature. Other routine utilities use IN/INOUT/VARIADIC inputs and
+ignore OUT arguments. FUNCTION includes ordinary, aggregate and window kinds;
+PROCEDURE selects procedures; ROUTINE selects all kinds. Exact lookup precedes
+the requested kind check, including for IF EXISTS.
 Name-only selection must be unambiguous. Changes preserve the routine address,
 overload siblings and immutable declaration/provider association. Collision keys
 are namespace/name/input signature, regardless of result or routine kind.
@@ -149,6 +154,11 @@ package or the engine.
 Routine, operator and cast DROP inspect the SQL diagnostic authority for their
 fixed suppression codes, emit the complete notice and return every unsuppressed
 error with its outer provenance intact. Preparation stays quiet.
+Aggregate DROP uses the same root staging and recorded dependent closure.
+RESTRICT preserves dependents; CASCADE retires dependents, never aggregate
+support/type prerequisites merely because the aggregate references them.
+DROP permits schema-owner authority; ALTER requires actual aggregate ownership.
+Missing zero-input errors render `(*)`, while missing notices retain `()`.
 
 ## Invariants
 

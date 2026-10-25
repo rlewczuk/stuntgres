@@ -12,9 +12,11 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/view"
 	"testing"
+	"time"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -139,7 +141,9 @@ func TestExtensionDropPublication(t *testing.T) {
 				e, op, ext, target := extensionDropUnitProvider(t, consumer)
 				peer, done := roleOperation(t, e, "postgres")
 				defer done()
-				// Both schedules capture retirement before a genuine peer publication.
+				// A detached validated publication can encounter a newly published
+				// consumer. A real transactional retirement instead holds provider
+				// locks: a late checked view must wait, not publish ahead of COMMIT.
 				if outer {
 					tx, err := e.Begin(op, session.TxOptions{})
 					if err != nil {
@@ -160,6 +164,10 @@ func TestExtensionDropPublication(t *testing.T) {
 							t.Fatal(err)
 						}
 						extensionDropUnitPreserved(t, e, before, ext, before.Get(target))
+						return
+					}
+					if consumer == "view" {
+						extensionDropUnitWaitingView(t, e, op, tx, ext, target)
 						return
 					}
 					owner := extensionDropUnitConsumer(t, e, peer, consumer, target)
@@ -487,13 +495,73 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 	})
 }
 
+func extensionDropUnitViewStatement() *parser.CreateView {
+	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
+	return &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_drop_late"}}}, Query: &parser.Select{Targets: []parser.Expr{call}, Labels: []parser.Identifier{{Text: "v"}}}}
+}
+
 func extensionDropUnitLateView(t *testing.T, e *Engine, op *session.Operation) {
 	t.Helper()
-	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
-	stmt := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_drop_late"}}}, Query: &parser.Select{Targets: []parser.Expr{call}, Labels: []parser.Identifier{{Text: "v"}}}}
-	if err := extensionUnitExecute(t, e, op, stmt); err != nil {
+	if err := extensionUnitExecute(t, e, op, extensionDropUnitViewStatement()); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func extensionDropUnitWaitingView(t *testing.T, e *Engine, dropper *session.Operation, tx ids.TxRef, ext *catalog.Extension, target ids.ObjectAddress) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	creator, done, err := testOperation(e, ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer done()
+	result := make(chan error, 1)
+	joined := false
+	defer func() {
+		cancel()
+		if !joined {
+			select {
+			case <-result:
+			case <-time.After(5 * time.Second):
+				t.Error("late view creator did not join")
+			}
+		}
+	}()
+	stmt := extensionDropUnitViewStatement()
+	go func() { result <- extensionUnitExecute(t, e, creator, stmt) }()
+	lockPending(t, e, 1)
+	before := e.CatalogRead()
+	resource := lock.Resource{ObjectRef: before.Domain().Ref(before.Epoch(), target)}
+	entry := e.locks.Inspect().Resources[resource]
+	if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Mode != lock.AccessShare || entry.Holders[session.TxOwnerOf(tx).Ticket].Mode&lock.AccessExclusive == 0 {
+		t.Fatal("late checked view did not wait on exact retiring member", target)
+	}
+	unchanged := extensionDropUnitStorage(t, e)
+	if _, err := e.Commit(dropper, tx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err = <-result:
+		joined = true
+	case <-time.After(5 * time.Second):
+		t.Fatal("late view creator did not finish after retirement")
+	}
+	var diagnostic *sqlstate.Error
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: "referenced function was concurrently dropped"}
+	if !errors.As(err, &diagnostic) || *diagnostic != want {
+		t.Fatalf("retired view provider diagnostic: got %v, want %#v", err, want)
+	}
+	after := e.CatalogRead()
+	for _, address := range extension.RemovalRoots(before, []ids.ObjectAddress{ext.Address()}) {
+		if after.Get(address) != nil {
+			t.Error("committed extension member survived", address)
+		}
+	}
+	if address := after.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_drop_late"}); address != (ids.ObjectAddress{}) {
+		t.Error("late view published against retired provider", address)
+	}
+	unchanged()
 }
 
 func TestExtensionDropDiagnostics(t *testing.T) {

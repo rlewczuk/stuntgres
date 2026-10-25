@@ -109,6 +109,12 @@ imports `view`.
   and row-lock legality and returns a `QueryLockDemand`; `CurrentQuerySource`
   revalidates an admitted leaf's exact identity. They read the statement's
   private `catalog.Read`; the root acquires the locks.
+  New or changed stored views also admit their checked routine dependencies
+  through the root's shared definition-provider collector: permanent views use
+  the ordinary publication hook; explicit and inferred TEMP views admit before
+  direct overlay publication. Actual procedure addresses retain AccessShare
+  until transaction end, conflict with retirement, and are revalidated after a
+  wait. Quoted source and unrelated providers add no locks.
 - **Stored view sources** (`stored_sources.go`): `FreezeStoredSources` installs
   the frozen-layout bridges and stored references of captured sources.
 - **DROP read side** (`drop_*.go`, `dependents.go`): `DropReader` is the drop

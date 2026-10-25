@@ -150,9 +150,10 @@ target's contents; it never merges. Empty input clears all user relations.
 
 ## Routine identity replay
 
-Routine rename/schema/owner changes preserve hard captured identities. Owned
-SQL declarations render current qualified names and owners, actual body forms
-and checked dependencies, never evaluated results, frames or granted authority.
+Routine and aggregate rename/schema/owner changes preserve hard captured
+identities. Owned SQL declarations and aggregate definitions render current
+qualified names and owners, actual body/support forms and checked dependencies,
+never evaluated results, frames or granted authority.
 Quoted source remains soft/original; standard bodies retain checked identities.
 Changed released/installed providers emit genuine ALTER FUNCTION after required
 schema/extension creation and before dependent definitions. Free destination
@@ -164,6 +165,9 @@ Provider-only streams need no SQL-body replay directive. Restore rebuilds
 canonical destination providers before changes, remaps checked captures and
 retains destination-configured foreign capabilities. Unchanged provider streams
 remain unchanged. Roles are destination prerequisites; Reset preserves them.
+Replaying emitted SQL on PostgreSQL also requires destination schema USAGE for
+the owner to resolve declared support routines; fixture schema recreation does
+not imply the bootstrap public-schema grants.
 Explicit SQL-routine/aggregate ACL serialization still fails before output,
 rather than dropping grants. Read errors, cancellation or late invalid
 identity/owner replay publish nothing.

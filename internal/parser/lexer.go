@@ -1400,7 +1400,7 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			}
 		}
 	case "aggregate":
-		if token.lexeme.keyword != nil && l.previousToken == CREATE {
+		if token.lexeme.keyword != nil && (l.previousToken == CREATE || l.previousToken == ALTER || l.previousToken == DROP) {
 			l.operatorDDL = true
 		}
 	case "operator":

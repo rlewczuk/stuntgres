@@ -48,6 +48,9 @@ func StageDropRoutine(h DDLHost, auth ddl.Authority, s *parser.DropRoutine) erro
 			if !target.SignatureSpecified {
 				return sqlError("42883", fmt.Sprintf(`could not find a %s named "%s"`, noun, display))
 			}
+			if s.Kind == "aggregate" && canonical == "" {
+				canonical = "*"
+			}
 			return sqlError("42883", noun+" "+display+"("+canonical+") does not exist")
 		}
 		if count > 1 {
@@ -59,6 +62,9 @@ func StageDropRoutine(h DDLHost, auth ddl.Authority, s *parser.DropRoutine) erro
 		}
 		if s.Kind == "procedure" && d.RoutineKind != catalog.ProcedureRoutine || s.Kind == "function" && d.RoutineKind == catalog.ProcedureRoutine {
 			return sqlError("42809", display+"("+canonical+") is not a "+noun)
+		}
+		if s.Kind == "aggregate" && d.RoutineKind != catalog.AggregateRoutine {
+			return sqlError("42809", "function "+display+"("+canonical+") is not an aggregate")
 		}
 		if s.Kind == "function" && d.RoutineKind == catalog.AggregateRoutine {
 			diagnostic := sqlError("42809", fmt.Sprintf(`"%s" is an aggregate function`, display)).(*sqlstate.Error)

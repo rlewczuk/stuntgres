@@ -3,6 +3,15 @@ and bound string/byte input, canonical short or lossless long output, and ISSN
 result metadata. Check digits, invalid markers, nonzero issue digits and NULLs
 survive prepared execution, extension recreation and native Reset/Dump/Restore.
 
+ALTER AGGREGATE supports exact-signature rename, owner transfer and schema
+relocation without changing identity or checked consumers. DROP AGGREGATE
+supports IF EXISTS and dependency-aware RESTRICT/CASCADE through the shared
+routine lifecycle, including prepared execution and native logical replay.
+Checked permanent and temporary view definitions retain real routine dependency
+locks so cancellation while aggregate retirement waits cannot publish a partial
+drop. Ordered identity signatures recognize equivalent parsed pg_catalog type
+names without substituting call-site type coercion.
+
 Tsvector utilities now support lexeme counts, weight assignment, stripping,
 exact deletion, weight filtering and canonical text-array conversion, including
 typed internal-char arrays with generic storage, bounds, NULLs and native

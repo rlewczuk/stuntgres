@@ -350,6 +350,8 @@ func QueryCreationUtilityTag(form parser.QueryTableForm) string {
 
 func routineDropCommandTag(kind string) string {
 	switch kind {
+	case "aggregate":
+		return "DROP AGGREGATE"
 	case "function":
 		return "DROP FUNCTION"
 	case "procedure":
@@ -361,6 +363,8 @@ func routineDropCommandTag(kind string) string {
 
 func routineAlterCommandTag(kind string) string {
 	switch kind {
+	case "aggregate":
+		return "ALTER AGGREGATE"
 	case "procedure":
 		return "ALTER PROCEDURE"
 	case "routine":

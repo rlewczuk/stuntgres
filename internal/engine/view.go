@@ -144,6 +144,12 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 		return Result{}, err
 	}
 	if scope.viewCreationOrZero().Changes != nil {
+		// TEMP definitions publish through the overlay rather than the ordinary
+		// publication hook. Admit the same checked procedure sources before
+		// either explicit or inferred TEMP state can enter that overlay.
+		if err := scope.acquireRoutineDefinitionProviders(stage); err != nil {
+			return Result{}, err
+		}
 		scope.owner.AccessedTemporary = true
 		if err := e.stageCatalogOverlay(scope, stage, scope.viewCreationOrZero().Changes); err != nil {
 			return Result{}, err

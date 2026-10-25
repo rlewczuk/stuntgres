@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/stored"
 )
 
 // Persistent definition holds use the incumbent ticket and replacement fence.
@@ -137,6 +138,20 @@ func (s *StatementScope) acquireRoutineDefinitionProviders(stage *CatalogStage) 
 			old, _ := stage.Base.Operator(address)
 			if old == nil || old.Function != d.Function || old.Restriction != d.Restriction || old.Join != d.Join {
 				routine.VisitOperatorDependencyAddresses(stage.Base, d, add)
+			}
+		case *catalog.Relation:
+			definition := stored.ViewOf(d)
+			old, _ := stage.Base.Relation(address)
+			if definition != nil && (old == nil || stored.ViewOf(old) != definition) {
+				// A checked view retains genuine routine identities just like a
+				// checked routine body. Relation sources already have their
+				// ordinary view-definition locks; do not expand this to types,
+				// names, or soft quoted-source references.
+				for _, dependency := range definition.Dependencies() {
+					if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
+						add(dependency.Ref.Address)
+					}
+				}
 			}
 		}
 	}

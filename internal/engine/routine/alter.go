@@ -43,6 +43,9 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 		if !target.SignatureSpecified {
 			return sqlError("42883", fmt.Sprintf(`could not find a %s named "%s"`, noun, display))
 		}
+		if s.Kind == "aggregate" && canonical == "" {
+			canonical = "*"
+		}
 		return sqlError("42883", noun+" "+display+"("+canonical+") does not exist")
 	}
 	if count > 1 {
@@ -50,6 +53,9 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 	}
 	if s.Kind == "procedure" && d.RoutineKind != catalog.ProcedureRoutine || s.Kind == "function" && d.RoutineKind == catalog.ProcedureRoutine {
 		return sqlError("42809", display+"("+canonical+") is not a "+noun)
+	}
+	if s.Kind == "aggregate" && d.RoutineKind != catalog.AggregateRoutine {
+		return sqlError("42809", "function "+display+"("+canonical+") is not an aggregate")
 	}
 	next := *d
 	view := h.AccessView(auth)
@@ -90,8 +96,6 @@ func StageAlterRoutine(h DDLHost, auth ddl.Authority, s *parser.AlterRoutine) er
 			kind := "function"
 			if d.RoutineKind == catalog.ProcedureRoutine {
 				kind = "procedure"
-			} else if d.RoutineKind == catalog.AggregateRoutine {
-				kind = "aggregate"
 			}
 			return sqlError("42501", "must be owner of "+kind+" "+d.Name())
 		}

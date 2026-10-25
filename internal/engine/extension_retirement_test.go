@@ -2,13 +2,16 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"sync/atomic"
@@ -81,38 +84,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		t.Error("actual session end did not reach terminal validation within5s")
 	}
 	if callback {
-		// A new independent peer consumer does not borrow a held survivor/view
-		// relation lock: it binds the still-committed genuine procedure directly.
-		namespace := e.catalog.State.Get(ext.TargetNamespace).Name()
-		stmt := statement(t, "CREATE VIEW public.ext_stale_late AS SELECT "+namespace+".unaccent('Hôtel'::text) AS v")
-		peerCtx, cancelPeer := context.WithTimeout(context.Background(), 5*time.Second)
-		peer, err := e.StartSession(peerCtx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.Domain.Principal(10)})
-		if err != nil {
-			t.Error("bounded independent peer start", err)
-		} else {
-			peerOp, err := peer.Acquire(peerCtx)
-			if err != nil {
-				t.Error("bounded independent peer admission", err)
-			} else {
-				if err := extensionUnitExecute(t, e, peerOp, stmt); err != nil {
-					t.Error("peer late consumer publication", err)
-				}
-				for _, query := range []string{"CREATE TABLE public.ext_peer_durable(id INT)", "INSERT INTO public.ext_peer_durable VALUES(41)"} {
-					if err := extensionUnitExecute(t, e, peerOp, statement(t, query)); err != nil {
-						t.Error("peer durable publication", err)
-						break
-					}
-				}
-				peerOp.Done()
-			}
-			peer.RequestEnd(session.CleanClose)
-			peerEndCtx, cancelPeerEnd := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := peer.WaitEnd(peerEndCtx); err != nil {
-				t.Error("bounded independent peer end", err)
-			}
-			cancelPeerEnd()
-		}
-		cancelPeer()
+		extensionTemporaryLatePeer(t, e, ext, mixed, resume)
 	}
 	resume()
 	select {
@@ -179,6 +151,102 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		if len(collated.Columns) != 1 || collated.Columns[0].Name != "id" || len(e.storage.Relations[collated.Address()].Versions) != 1 {
 			t.Fatal("mixed collation consumer not projected")
 		}
+	}
+}
+
+// Ordinary preparation has no retirement ticket yet, so a peer view can publish
+// and force whole-root recapture. Post-drain maintenance already holds the
+// procedure's AX lock: publish an unrelated durable root first, then prove the
+// checked view waits for retirement rather than creating an impossible
+// synchronous late-consumer schedule. Disjoint durable publication is preserved
+// by the maintenance merge; it does not itself require a new closure.
+func extensionTemporaryLatePeer(t *testing.T, e *Engine, ext *catalog.Extension, mixed bool, resume func()) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	peer, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.Domain.Principal(10)})
+	if err != nil {
+		t.Fatal("bounded independent peer start", err)
+	}
+	defer func() {
+		peer.RequestEnd(session.CleanClose)
+		endCtx, cancelEnd := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelEnd()
+		if err := peer.WaitEnd(endCtx); err != nil {
+			t.Error("bounded independent peer end", err)
+		}
+	}()
+	op, err := peer.Acquire(ctx)
+	if err != nil {
+		t.Fatal("bounded independent peer admission", err)
+	}
+	defer op.Done()
+	read := e.CatalogRead()
+	namespace := read.Get(ext.TargetNamespace).Name()
+	stmt := statement(t, "CREATE VIEW public.ext_stale_late AS SELECT "+namespace+".unaccent('Hôtel'::text) AS v")
+	durable := func() {
+		for _, query := range []string{"CREATE TABLE public.ext_peer_durable(id INT)", "INSERT INTO public.ext_peer_durable VALUES(41)"} {
+			if err := extensionUnitExecute(t, e, op, statement(t, query)); err != nil {
+				t.Fatal("peer durable publication", err)
+			}
+		}
+	}
+	if !mixed {
+		if err := extensionUnitExecute(t, e, op, stmt); err != nil {
+			t.Fatal("peer late consumer publication", err)
+		}
+		durable()
+		return
+	}
+	durable()
+	var target ids.ObjectAddress
+	for _, address := range ext.Members {
+		if p, ok := read.Procedure(address); ok && p.Name() == "unaccent" && p.Signature == catalog.UnaccentTextSignature {
+			target = address
+			break
+		}
+	}
+	if target == (ids.ObjectAddress{}) {
+		t.Fatal("missing genuine temporary unaccent(text) provider")
+	}
+	result := make(chan error, 1)
+	joined := false
+	defer func() {
+		resume()
+		cancel()
+		if !joined {
+			select {
+			case <-result:
+			case <-time.After(5 * time.Second):
+				t.Error("late temporary view worker did not join")
+			}
+		}
+	}()
+	go func() { result <- extensionUnitExecute(t, e, op, stmt) }()
+	lockPending(t, e, 1)
+	entry := e.locks.Inspect().Resources[lock.Resource{ObjectRef: read.Domain().Ref(read.Epoch(), target)}]
+	maintenanceAX := false
+	if entry != nil {
+		for ticket, hold := range entry.Holders {
+			if hold.Mode&lock.AccessExclusive != 0 && session.PrivateSessionOf(session.TxOwnerOf(ticket.Ref()).Session.SessionToken) != nil {
+				maintenanceAX = true
+			}
+		}
+	}
+	if entry == nil || len(entry.Pending) != 1 || entry.Pending[0].Mode != lock.AccessShare || session.TxOwnerOf(entry.Pending[0].Ticket.Ref()).Session != peer || !maintenanceAX {
+		t.Fatal("late view did not wait on the exact temporary procedure's maintenance AX lock", target)
+	}
+	resume()
+	select {
+	case err = <-result:
+		joined = true
+	case <-time.After(5 * time.Second):
+		t.Fatal("late temporary view worker did not finish after retirement")
+	}
+	var diagnostic *sqlstate.Error
+	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42704", Message: "referenced function was concurrently dropped"}
+	if !errors.As(err, &diagnostic) || *diagnostic != want {
+		t.Fatalf("retired temporary view provider: got %v, want %#v", err, want)
 	}
 }
 

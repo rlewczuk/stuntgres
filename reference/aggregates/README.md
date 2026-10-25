@@ -61,6 +61,13 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
 Add `REFERENCE=1` for the oracle.
 
 - <a id="create-aggregate-contract"></a>CREATE AGGREGATE: `RUN='^TestReference(CreateAggregate|AggregateFinal)'`
+- Aggregate ALTER/DROP lifecycle: `RUN='^TestReferenceAggregateLifecycle'`.
+  Lifecycle helpers reuse CREATE's direct/prepared value and metadata assertions;
+  identity checks compare OIDs only within a backend, and native-control phases
+  replay actual emitted SQL with destination roles supplied by the caller.
+  View retirement helpers cover permanent, explicit TEMP and inferred TEMP
+  persistence with real procedure-object lock admission in both directions;
+  authority helpers reuse executed statements across owner and support grants.
 - The transactional routine/operator/aggregate matrix lives in
   [query_core](../query_core/README.md#testing), reusing its held-handle routes.
   Aggregate results keep their explicit native nullable/known metadata contract

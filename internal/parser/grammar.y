@@ -897,6 +897,9 @@ package parser
 %type <grantRoutine> grant_routine
 %type <grantRoutineArgument> grant_routine_argument
 %type <grantRoutineArguments> grant_routine_arguments grant_routine_argument_list
+%type <grantRoutines> aggregate_utility_targets
+%type <grantRoutine> aggregate_utility_target
+%type <grantRoutineArguments> aggregate_utility_arguments
 %type <tok> grant_routine_kind grant_routine_mode grant_parameter_name routine_name_word
 %type <tok> grant_external_name_word
 %type <typ> standalone_type
@@ -1920,10 +1923,15 @@ alter_operator: operator_alter_head OWNER TO schema_owner {$1.Action="owner";$1.
 drop_operator: DROP OPERATOR operator_signatures drop_mode {$$=&DropOperator{Signatures:$3,Mode:$4,Pos:$1.pos}}
  | DROP OPERATOR IF EXISTS operator_signatures drop_mode {$$=&DropOperator{Signatures:$5,IfExists:true,Mode:$6,Pos:$1.pos}} ;
 drop_routine: DROP grant_routine_kind grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($3),Mode:$4,Pos:$1.pos}}
- | DROP grant_routine_kind IF EXISTS grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}} ;
+ | DROP grant_routine_kind IF EXISTS grant_routines drop_mode {$$=&DropRoutine{Kind:$2.text,Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}}
+ | DROP AGGREGATE aggregate_utility_targets drop_mode {$$=&DropRoutine{Kind:"aggregate",Targets:dropRoutineTargets($3),Mode:$4,Pos:$1.pos}}
+ | DROP AGGREGATE IF EXISTS aggregate_utility_targets drop_mode {$$=&DropRoutine{Kind:"aggregate",Targets:dropRoutineTargets($5),IfExists:true,Mode:$6,Pos:$1.pos}} ;
 alter_routine: ALTER grant_routine_kind grant_routine RENAME TO name {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"rename",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
  | ALTER grant_routine_kind grant_routine SET SCHEMA name {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"schema",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
- | ALTER grant_routine_kind grant_routine OWNER TO schema_owner {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"owner",Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}} ;
+ | ALTER grant_routine_kind grant_routine OWNER TO schema_owner {$$=&AlterRoutine{Kind:$2.text,Routine:routineUtilityTarget($3),Action:"owner",Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}}
+ | ALTER AGGREGATE aggregate_utility_target RENAME TO name {$$=&AlterRoutine{Kind:"aggregate",Routine:routineUtilityTarget($3),Action:"rename",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER AGGREGATE aggregate_utility_target SET SCHEMA name {$$=&AlterRoutine{Kind:"aggregate",Routine:routineUtilityTarget($3),Action:"schema",Target:Identifier{Text:$6.text,Pos:$6.pos},Pos:$1.pos}}
+ | ALTER AGGREGATE aggregate_utility_target OWNER TO schema_owner {$$=&AlterRoutine{Kind:"aggregate",Routine:routineUtilityTarget($3),Action:"owner",Target:Identifier{Text:$6.text,Pos:$6.pos},OwnerIdentity:$6.keyword!=nil&&$6.keyword.category==Reserved,Pos:$1.pos}} ;
 method_word: KW_U {if $1.text!="method" {sqllex.(*lexer).syntax($1);return 1};$$=$1} ;
 access_method_kind: INDEX {$$=$1} | TABLE {$$=$1} ;
 create_access_method: CREATE ACCESS method_word name TYPE access_method_kind FDW_HANDLER relation_name {$$=&CreateAccessMethod{Name:Identifier{Text:$4.text,Pos:$4.pos},MethodKind:$6.text,Handler:$8,Pos:$1.pos}} ;
@@ -3550,6 +3558,13 @@ grant_routines: grant_routine { $$=[]GrantRoutineTarget{$1} }
  | grant_routines ',' grant_routine { $$=append($1,$3) } ;
 grant_routine: relation_name { $$=GrantRoutineTarget{Name:$1} }
  | relation_name '(' grant_routine_arguments ')' { $$=GrantRoutineTarget{Name:$1,Arguments:$3,SignatureSpecified:true} } ;
+aggregate_utility_targets: aggregate_utility_target {$$=[]GrantRoutineTarget{$1}}
+ | aggregate_utility_targets ',' aggregate_utility_target {$$=append($1,$3)} ;
+aggregate_utility_target: relation_name '(' aggregate_utility_arguments ')' {$$=GrantRoutineTarget{Name:$1,Arguments:$3,SignatureSpecified:true}} ;
+aggregate_utility_arguments: '*' {$$=nil}
+ | grant_routine_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments($1,nil);if !ok {return 1}}
+ | ORDER BY grant_routine_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments(nil,$3);if !ok {return 1}}
+ | grant_routine_argument_list ORDER BY grant_routine_argument_list {var ok bool;$$,ok=sqllex.(*lexer).aggregateUtilityArguments($1,$4);if !ok {return 1}} ;
 grant_routine_arguments: /* empty */ { $$=nil }
  | grant_routine_argument_list { $$=$1 } ;
 grant_routine_argument_list: grant_routine_argument { $$=[]GrantRoutineArgument{$1} }
