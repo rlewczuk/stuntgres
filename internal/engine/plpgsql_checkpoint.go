@@ -41,7 +41,7 @@ type plExceptionCheckpoint struct {
 	foreignModifications                        int
 	holdPromotions                              []*sqlCursor
 	truncate                                    *dml.TruncateScope
-	drops                                       *DropScope
+	drops                                       StatementSlot
 	foreignKeys                                 *table.ForeignKeyCreation
 	viewCreation                                *view.CreationScope
 	materialized                                *view.MaterializedRefreshScope
@@ -141,9 +141,7 @@ func (s *StatementScope) beginPLException() (*plExceptionCheckpoint, error) {
 		c.truncate = &owned
 	}
 	if s.DropsSlot != nil {
-		owned := *s.DropsSlot
-		owned.ConsumedColumns = maps.Clone(owned.ConsumedColumns)
-		c.drops = &owned
+		c.drops = s.DropsSlot.CloneSlot()
 	}
 	if s.ForeignKeysSlot != nil {
 		owned := *s.ForeignKeysSlot

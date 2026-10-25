@@ -59,7 +59,6 @@ func citextRegexpLateConflict(t *testing.T) {
 		defer e.DiscardCatalogStage(stage)
 		stage.AuthorizeLocked(auth, op.Session)
 		namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-		stage.ExtensionNamespace = namespace
 		oid, err := e.Catalog.AllocateOIDLocked()
 		if err != nil {
 			return err

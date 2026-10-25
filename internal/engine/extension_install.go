@@ -65,7 +65,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	for key, original := range stage.Touched() {
 		changes.Names[key] = original
 	}
-	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.RoleRevision, Namespace: stage.Base.Get(stage.ExtensionNamespace), Database: stage.DatabasePredecessor}})
+	changes.AddFence(extensionAuthorityFence{observation: extension.AuthorityObservation{Roles: stage.RoleRevision, Namespace: stage.Base.Get(extensionNamespaceOf(stage)), Database: stage.DatabasePredecessor}})
 	scope.Catalog = changes
 	scope.CatalogAuthority = &session.CatalogAuthority{Session: scope.Op.Session, Authorization: stage.AuthRevision, Roles: stage.RoleRevision, Ref: ids.ObjectRef{Address: e.Catalog.Owner.DatabaseAddress()}, Descriptor: stage.DatabasePredecessor, DatabaseAuthority: stage.DatabaseAuthority, DatabasePredecessor: stage.DatabasePredecessor}
 	e.Mu.Unlock()

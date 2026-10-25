@@ -59,7 +59,6 @@ func cubeComparisonProviderConflicts(t *testing.T) {
 				defer e.DiscardCatalogStage(stage)
 				ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 				stage.AuthorizeLocked(auth, op.Session)
-				stage.ExtensionNamespace = ns
 				oid, err := e.Catalog.AllocateOIDLocked()
 				if err != nil {
 					return err

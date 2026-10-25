@@ -33,7 +33,7 @@ func citextStringLateConflict(t *testing.T) {
   auth,err:=e.AuthorizationLocked(op);if err!=nil {return err}
   stage:=e.BeginCatalogStage(auth.Catalog);defer e.DiscardCatalogStage(stage)
   stage.AuthorizeLocked(auth,op.Session)
-  namespace:=ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:ids.PublicNamespaceOID};stage.ExtensionNamespace=namespace
+  namespace:=ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:ids.PublicNamespaceOID}
   oid,err:=e.Catalog.AllocateOIDLocked();if err!=nil {return err}
   revision,err:=e.Catalog.RevisionLocked();if err!=nil {return err}
   installation:=&catalog.Extension{ObjectAddress:ids.ObjectAddress{ClassID:ids.ExtensionClassID,ObjectID:oid},ObjectRevision:revision,ObjectName:"citext",Version:"1.8",TargetNamespace:namespace,Owner:auth.State.CurrentUser}

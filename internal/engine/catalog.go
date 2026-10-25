@@ -88,7 +88,7 @@ type CatalogStage struct {
 	AuthSession         *session.Session
 	AuthRevision        uint64
 	RoleRevision        uint64
-	ExtensionNamespace  ids.ObjectAddress
+	ExtensionSlot       any // Opaque; owned by the extension host that began the stage.
 	TriggerReplacement  view.TriggerReplacement
 	CreationName        parser.ObjectName // Original destination position across namespace waits.
 	namesAdmitted       bool

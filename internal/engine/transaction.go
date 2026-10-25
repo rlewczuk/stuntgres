@@ -247,7 +247,8 @@ type StatementScope struct {
 	// values. A pointer slot xSlot stays nil until its first write through
 	// x(); reads use xOrZero(), which never allocates, so nil means all zero.
 	// Only the SQL routine scratch swaps slot pointers (protocol,
-	// presentation); nothing else resets a slot to nil.
+	// presentation); nothing else resets a slot to nil. A slot that one
+	// family owns is an opaque StatementSlot (DropsSlot).
 	Inquiry            inquirySnapshot
 	prepared           preparedRebind
 	sqlRoutine         sqlRoutineDemand
@@ -256,7 +257,7 @@ type StatementScope struct {
 	protocolSlot       *protocolScope
 	presentationSlot   *presentationCaches
 	truncateSlot       *dml.TruncateScope
-	DropsSlot          *DropScope
+	DropsSlot          StatementSlot
 	foreignActionsSlot *dml.ForeignActionScope
 	ForeignKeysSlot    *table.ForeignKeyCreation
 	viewCreationSlot   *view.CreationScope
@@ -264,6 +265,14 @@ type StatementScope struct {
 	indexesSlot        *index.Scope
 	partitionsSlot     *partition.Scope
 	foreignTablesSlot  *foreignTableScope
+}
+
+// StatementSlot is a statement slot that one family owns: StatementScope
+// holds it opaquely and the family recovers its type with one checked
+// helper. Core only keeps it across PL/pgSQL exception blocks: the
+// checkpoint saves CloneSlot() and a rollback restores the saved slot.
+type StatementSlot interface {
+	CloneSlot() StatementSlot
 }
 
 type WriteStage struct {

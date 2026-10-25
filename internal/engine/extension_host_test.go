@@ -58,7 +58,7 @@ func TestExtensionHostBeginStageHandsBackRootStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if stage.Base.State() != auth.Catalog.State() || stage.ExtensionNamespace != namespace || stage.AuthSession != op.Session || stage.RoleRevision != auth.RoleRecord.Revision {
+	if stage.Base.State() != auth.Catalog.State() || extensionNamespaceOf(stage) != namespace || stage.AuthSession != op.Session || stage.RoleRevision != auth.RoleRecord.Revision {
 		t.Fatal("begun stage does not carry the statement's catalog, authority and namespace")
 	}
 }

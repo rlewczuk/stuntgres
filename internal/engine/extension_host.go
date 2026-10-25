@@ -15,15 +15,18 @@ import (
 
 // extensionHost is the engine side of the extension handlers and their
 // staging: the engine, the statement's operation and captured authorization
-// view, and the catalog stage once BeginStage has begun it. Every method runs
-// with e.mu held (extension.Host and extension.Stage contracts). It wraps the
-// stage rather than being a defined type over CatalogStage, so Create and
-// Replace keep CatalogStage's lifecycle checks.
+// view, and the catalog stage and its namespace once BeginStage has begun it.
+// BeginStage stores the host in the stage's ExtensionSlot, so publication
+// recovers the namespace (extensionNamespaceOf). Every method runs with e.mu
+// held (extension.Host and extension.Stage contracts). It wraps the stage
+// rather than being a defined type over CatalogStage, so Create and Replace
+// keep CatalogStage's lifecycle checks.
 type extensionHost struct {
-	engine *Engine
-	op     *session.Operation
-	auth   AuthorizationView
-	stage  *CatalogStage
+	engine    *Engine
+	op        *session.Operation
+	auth      AuthorizationView
+	stage     *CatalogStage
+	namespace ids.ObjectAddress
 }
 
 var (
@@ -41,6 +44,19 @@ func stageOf(s extension.Stage) (*CatalogStage, error) {
 	return h.stage, nil
 }
 
+// extensionNamespaceOf returns the namespace stage was begun in; a stage no
+// extension host began has the zero address.
+func extensionNamespaceOf(stage *CatalogStage) ids.ObjectAddress {
+	if stage.ExtensionSlot == nil {
+		return ids.ObjectAddress{}
+	}
+	h, ok := stage.ExtensionSlot.(*extensionHost)
+	if !ok {
+		panic(fmt.Sprintf("stuntgres: unexpected extension slot %T", stage.ExtensionSlot))
+	}
+	return h.namespace
+}
+
 func (h *extensionHost) Context() context.Context { return h.op.Context() }
 func (h *extensionHost) Notice(n sqlstate.Error)  { h.op.EmitNotice(session.LevelNotice, n) }
 func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
@@ -56,8 +72,8 @@ func (h *extensionHost) BootstrapSuperuser() authorization.PrincipalRef {
 func (h *extensionHost) BeginStage(namespace ids.ObjectAddress) extension.Stage {
 	stage := h.engine.BeginCatalogStage(h.auth.Catalog)
 	stage.AuthorizeLocked(h.auth, h.op.Session)
-	stage.ExtensionNamespace = namespace
-	h.stage = stage
+	h.stage, h.namespace = stage, namespace
+	stage.ExtensionSlot = h
 	return h
 }
 

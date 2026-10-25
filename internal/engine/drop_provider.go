@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"maps"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
@@ -629,9 +630,27 @@ func (p *DropProvider) projectedDescriptor(address ids.ObjectAddress) catalog.De
 }
 
 // DropScope is the statement's DROP slot: prepared column drops already
-// consumed by this statement.
+// consumed by this statement. StatementScope.DropsSlot holds it as an opaque
+// StatementSlot.
 type DropScope struct {
 	ConsumedColumns map[*table.DropPreparation]struct{}
+}
+
+// CloneSlot copies the slot for a PL/pgSQL exception checkpoint.
+func (d *DropScope) CloneSlot() StatementSlot {
+	owned := *d
+	owned.ConsumedColumns = maps.Clone(owned.ConsumedColumns)
+	return &owned
+}
+
+// dropScopeOf recovers the drops slot. Only DropScope is ever stored there;
+// meeting another type is a bug.
+func dropScopeOf(slot StatementSlot) *DropScope {
+	d, ok := slot.(*DropScope)
+	if !ok {
+		panic(fmt.Sprintf("stuntgres: unexpected drops slot %T", slot))
+	}
+	return d
 }
 
 // drops returns the statement's drops slot, allocating it on first use.
@@ -639,7 +658,7 @@ func (s *StatementScope) drops() *DropScope {
 	if s.DropsSlot == nil {
 		s.DropsSlot = new(DropScope)
 	}
-	return s.DropsSlot
+	return dropScopeOf(s.DropsSlot)
 }
 
 // dropsOrZero reads the drops slot; a nil slot reads as zero.
@@ -647,7 +666,7 @@ func (s *StatementScope) dropsOrZero() DropScope {
 	if s.DropsSlot == nil {
 		return DropScope{}
 	}
-	return *s.DropsSlot
+	return *dropScopeOf(s.DropsSlot)
 }
 
 // dropDiscoveryInput is the definition a prepared drop discovers dependents
