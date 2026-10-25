@@ -225,7 +225,7 @@ self-orchestrating executors (`executeEnumDDL`, `executeAlterDomain`,
 `executeAlterComposite`, `alterTableOfLocked`), which hold the lock windows,
 lock-manager waits, row validation and publication; enum journal updates; the
 native replay INSERT (`domain_default_restore.go`, with the scalar leaf built by
-`Engine.domainReplayEnv`); the TEMP preservation orchestrator;
+`domainReplayEnv`); the TEMP preservation orchestrator;
 publication-time reownership and domain index generations; TEMP collation
 cleanup; and domain check programs and evaluation.
 

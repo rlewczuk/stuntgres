@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `1e4296048` (item 191 rebased on it).
+Last verified against `master` at `2d17556a7` (item 192 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 192.
+- 193.
 
 ## Linear plan
 
@@ -163,9 +163,20 @@ ENGINE-SPLIT.md §4.
      quickcheck passed; bench skipped (no per-row change; escape diff shows no
      new heap move); `REFERENCE=1` not in the Verify list; racecheck and
      finalcheck skipped at user request
-192. [ ] Family methods to functions II —
+192. [x] Family methods to functions II —
      [core](ENGINE-SPLIT-core.md#item-192--family-methods-to-functions-ii) ·
-     needs 191 · P
+     needs 191 · P (`9ca4beb4a`, `c55e99e74`, `a22094bf6`, `d096d01d2`, docs
+     commit) · 98 family methods of `Engine`, `StatementScope` and
+     `CatalogStage` (types, views, rules, policies, triggers, roles, schema
+     objects, routines, extensions, FDW and their shared sets) turned into
+     receiver-first root functions by `meth2fn`; 19 mixed root files split by
+     `movedecl` into 17 new files, so every root file is wholly core, root or
+     one family destination; `closure` gate met (no family god-struct method
+     except the kept `Engine.admitInheritanceAlter`; the method model pulls only
+     core methods); root production 1.78 MB (+2.7 KB), core by `closure` (method
+     model) 28.37k → 28.30k lines; quickcheck passed; bench skipped (no per-row
+     change; escape diff shows no new heap move); `REFERENCE=1` not in the
+     Verify list; racecheck and finalcheck skipped at user request
 193. [ ] Test accessors I: runtime areas —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-193--test-accessors-i-runtime-areas)
      · needs 192 · P

@@ -173,7 +173,7 @@ Needs 182. Mode P. About 114 files (0.78 MB).
     matview refresh;
   - `extension` or `functions` for extension function behaviour.
 - **What waits:** the extension-provider tests that call
-  `Engine.stageExtensionLocked` or `extensionHost` directly (about 1.3 MB)
+  `stageExtensionLocked` or `extensionHost` directly (about 1.3 MB)
   reach family code. They move with item 203.
 
 ## Item 193 — test accessors I: runtime areas
