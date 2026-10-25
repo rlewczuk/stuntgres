@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/engine/typedef"
 )
 
-func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *session.Journal, stage *CatalogStage) error {
+func adoptEnumGenerationsLocked(e *Engine, scope *StatementScope, changes *session.Journal, stage *CatalogStage) error {
 	next := e.StageRead(stage).State()
 	for a, rebound := range stage.RowShapes {
 		consumer, ok := stage.Get(a).(*catalog.Relation)

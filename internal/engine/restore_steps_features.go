@@ -108,7 +108,7 @@ func afterRestoreTypeOwner(r *restoreRun, op *session.Operation, stmt parser.Sta
 		return nil
 	}
 	var err error
-	r.pairedTypeOwner, err = r.stage.captureRestoredTypeOwner(op, outcome.Created, r.cur.ownerForCreate, kind)
+	r.pairedTypeOwner, err = captureRestoredTypeOwner(r.stage, op, outcome.Created, r.cur.ownerForCreate, kind)
 	return err
 }
 
@@ -120,7 +120,7 @@ func finishRestoreExtensionOwners(r *restoreRun, ctx context.Context, op *sessio
 // finishRestoreMaterializedSnapshots populates materialized views from the
 // decoded snapshots.
 func finishRestoreMaterializedSnapshots(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return r.stage.importMaterializedSnapshots(ctx, op, r.snapshots)
+	return importMaterializedSnapshots(r.stage, ctx, op, r.snapshots)
 }
 
 // beforeRestoreRoutineDirective consumes the directive that defers SQL

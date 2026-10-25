@@ -202,7 +202,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	_, err = e.refreshMaterializedLocked(scope, auth, stmt, 0)
+	_, err = refreshMaterializedLocked(e, scope, auth, stmt, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

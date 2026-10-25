@@ -139,10 +139,10 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	frontier := e.Visibility.CommitSeq()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
+	if err := stageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materialized().Replacement.Concurrent = true
+	materializedStage(stage).Replacement.Concurrent = true
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}

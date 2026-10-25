@@ -27,7 +27,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)), name.Parts[0].Pos)
 }
 
-func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableOf, count int) (Result, error) {
+func alterTableOfLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableOf, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))

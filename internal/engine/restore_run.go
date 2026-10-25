@@ -174,7 +174,7 @@ func (r *restoreRun) execute(op *session.Operation, stmt parser.Statement) (cont
 	}
 	if insertion, ok := stmt.(*parser.Insert); ok {
 		if record, paired := r.domainReplayPairs[insertion]; paired {
-			result, err = r.stage.executeDomainReplayInsert(op, insertion, record)
+			result, err = executeDomainReplayInsert(r.stage, op, insertion, record)
 		} else {
 			result, err = r.stage.Execute(op, stmt, 0, nil)
 		}

@@ -66,7 +66,7 @@ func (s *StatementScope) prepareViewCreation(createView *parser.CreateView) erro
 	return nil
 }
 
-func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.CreateView, count int) (Result, error) {
+func executeCreateView(e *Engine, scope *StatementScope, createView *parser.CreateView, count int) (Result, error) {
 	op := scope.Op
 	e.Mu.Lock()
 	if err := scope.ValidateLockedRelation(e); err != nil {
@@ -131,7 +131,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 	if err != nil {
 		return Result{}, err
 	}
-	if err := scope.acquireViewDefinitionReferences(b); err != nil {
+	if err := acquireViewDefinitionReferences(scope, b); err != nil {
 		return Result{}, err
 	}
 	if scope.ReplacementRead {

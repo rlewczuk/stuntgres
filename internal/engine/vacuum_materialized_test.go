@@ -144,7 +144,7 @@ func vacuumMaterializedPreflight(t *testing.T) {
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
 			d := stage.Base.MustRelation(ref.Address)
-			if err := e.stageMaterializedRows(ctx, stage, d, old, refreshUnitRows(t, d, 3), true, scope.TxRef); err != nil {
+			if err := stageMaterializedRows(e, ctx, stage, d, old, refreshUnitRows(t, d, 3), true, scope.TxRef); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}

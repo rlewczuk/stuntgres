@@ -15,7 +15,7 @@ import (
 // executeRule alternates canonical locked definition phases with unlocked lock
 // admission. The partial definition and lexical manifests are statement-local;
 // neither held handles nor the Host cache authority or wait under Engine.mu.
-func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeRule(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	e.Mu.Lock()
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
@@ -134,7 +134,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			retain(exec.Leaf{Ref: ref, Relation: d, Storage: e.PrivateStorageLocked(scope.Owner.Catalog, ref.Address)})
 		}
 		e.Mu.Unlock()
-		err := scope.acquireBoundViewRelations(refs)
+		err := acquireBoundViewRelations(scope, refs)
 		var providers []exec.Leaf
 		if err == nil {
 			providers, err = scope.AcquireViewSources(true)
@@ -239,7 +239,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			change.Sources = append(change.Sources, source.Relation)
 		}
 	}
-	return e.publishRelationChangeLocked(scope, auth, change)
+	return publishRelationChangeLocked(e, scope, auth, change)
 }
 
 // publishRelationChangeLocked finishes a planned RULE, POLICY or TRIGGER change.
@@ -247,9 +247,9 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 // fenced NOTICE; otherwise the change is staged with its query sources and,
 // after the unlock, replaced, validated and published against the epoch of
 // the relation reference.
-func (e *Engine) publishRelationChangeLocked(scope *StatementScope, auth AuthorizationView, change view.RelationChange) (Result, error) {
+func publishRelationChangeLocked(e *Engine, scope *StatementScope, auth AuthorizationView, change view.RelationChange) (Result, error) {
 	if change.Skip != "" {
-		return e.finishPolicyNoticeLocked(scope, change.Skip)
+		return finishPolicyNoticeLocked(e, scope, change.Skip)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)

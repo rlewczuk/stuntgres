@@ -165,7 +165,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				}
 			case parser.AlterColumnType:
 				e.Mu.Lock()
-				prepared, prepareErr := e.prepareAlterTypeLocked(scope, scope.Op, auth, old, ref, a, nil)
+				prepared, prepareErr := prepareAlterTypeLocked(e, scope, scope.Op, auth, old, ref, a, nil)
 				e.Mu.Unlock()
 				if prepareErr != nil {
 					return Result{}, prepareErr

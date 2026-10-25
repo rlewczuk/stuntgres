@@ -78,10 +78,10 @@ func concurrentUnitReplace(t *testing.T, e *Engine, d *catalog.Relation, rows []
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := e.stageMaterializedRows(context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, populated, ids.TxRef{}); err != nil {
+	if err := stageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, populated, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materialized().Replacement.Concurrent = concurrent
+	materializedStage(stage).Replacement.Concurrent = concurrent
 	queryCreatePublish(t, e, stage)
 	return e.Catalog.State.MustRelation(d.Address())
 }
@@ -355,10 +355,10 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		old := e.Storage.Relations[d.Address()]
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		rows := refreshUnitRows(t, d, count)
-		if err := e.stageMaterializedRows(context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
+		if err := stageMaterializedRows(e, context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		stage.materialized().Replacement.Concurrent = true
+		materializedStage(stage).Replacement.Concurrent = true
 		candidate := stage.MaterializedOrZero().Replacement.Storage
 		if old.MaterializedLineage != first.MaterializedLineage || candidate.MaterializedLineage != nil {
 			t.Fatal("stage stamped lineage")
@@ -395,7 +395,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			if phase == "revision" {
 				d.ObjectRevision = ids.DefinitionRevision(math.MaxUint64)
-				if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err == nil {
+				if err := stageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err == nil {
 					t.Fatal("revision overflow accepted")
 				}
 				if old.MaterializedLineage != nil {
@@ -403,10 +403,10 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				}
 				return
 			}
-			if err := e.stageMaterializedRows(context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err != nil {
+			if err := stageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
-			stage.materialized().Replacement.Concurrent = true
+			materializedStage(stage).Replacement.Concurrent = true
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			fault := errors.New("provider veto")
@@ -466,10 +466,10 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 	rows[1][0] = rows[0][0]
 	for _, concurrent := range []bool{false, true} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		if err := e.stageMaterializedRows(context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, true, ids.TxRef{}); err != nil {
+		if err := stageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, true, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		stage.materialized().Replacement.Concurrent = concurrent
+		materializedStage(stage).Replacement.Concurrent = concurrent
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
@@ -496,10 +496,10 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	d = e.Catalog.State.MustRelation(d.Address())
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := e.stageMaterializedRows(context.Background(), stage, d, e.Storage.Relations[d.Address()], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
+	if err := stageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	stage.materialized().Replacement.Concurrent = true
+	materializedStage(stage).Replacement.Concurrent = true
 	if len(stage.IndexesOrZero().Rebuilds) != 0 {
 		t.Fatal("replacement forged REINDEX intent")
 	}

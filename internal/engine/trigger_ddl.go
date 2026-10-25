@@ -12,7 +12,7 @@ import (
 // acquired before Engine.mu: the statement admission, and for a rename the
 // partition descendants in AccessExclusive. view.PlanTrigger decides the change
 // under Engine.mu, and publishRelationChangeLocked stages and publishes it.
-func (e *Engine) executeTrigger(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeTrigger(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -31,5 +31,5 @@ func (e *Engine) executeTrigger(scope *StatementScope, stmt parser.Statement, co
 	if err != nil {
 		return fail(err)
 	}
-	return e.publishRelationChangeLocked(scope, auth, change)
+	return publishRelationChangeLocked(e, scope, auth, change)
 }

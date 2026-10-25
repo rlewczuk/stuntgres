@@ -23,7 +23,7 @@ type typedRelationMutation struct {
 	checks     []catalog.CheckConstraint
 }
 
-func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
+func typedMutation(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
 	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
@@ -70,7 +70,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 					continue
 				}
 				e.Mu.Lock()
-				prepared, prepareErr := e.prepareAlterTypeLocked(scope, op, auth, old, ref, planned.Action, planned.Usage)
+				prepared, prepareErr := prepareAlterTypeLocked(e, scope, op, auth, old, ref, planned.Action, planned.Usage)
 				e.Mu.Unlock()
 				if prepareErr != nil {
 					return mutation, prepareErr
@@ -114,7 +114,7 @@ func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, aut
 	return mutation, err
 }
 
-func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, mutation typedRelationMutation) error {
+func stageTypedRows(e *Engine, scope *StatementScope, auth AuthorizationView, stage *CatalogStage, mutation typedRelationMutation) error {
 	old, next := mutation.old, mutation.next
 	if old.RelationKind != catalog.TableRelation {
 		return nil

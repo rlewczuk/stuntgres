@@ -29,7 +29,7 @@ type DomainReplayCapture struct {
 // context c. Its scalar leaf binds the captured expression as a column default
 // under Engine.mu, then evaluates it in a local copy of c with the leaf's own
 // routine manifest, so nothing leaks into c.
-func (e *Engine) domainReplayEnv(c *exec.Context, op *session.Operation, auth AuthorizationView) *typedef.DomainReplayEnv {
+func domainReplayEnv(e *Engine, c *exec.Context, op *session.Operation, auth AuthorizationView) *typedef.DomainReplayEnv {
 	scalar := func(raw parser.Expr, u sqltype.Usage) (sqltype.Value, error) {
 		if err := view.MaterializedSnapshotScalar(raw); err != nil {
 			return sqltype.Value{}, err
@@ -63,7 +63,7 @@ func (e *Engine) domainReplayEnv(c *exec.Context, op *session.Operation, auth Au
 	return &typedef.DomainReplayEnv{Context: c.Context, Catalog: auth.Catalog, Input: c.Input, Output: c.Output, Scalar: scalar}
 }
 
-func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, record typedef.DomainReplayRecord, auth AuthorizationView, relation *catalog.Relation) (*DomainReplayCapture, error) {
+func captureDomainReplay(e *Engine, scope *StatementScope, s *parser.Insert, record typedef.DomainReplayRecord, auth AuthorizationView, relation *catalog.Relation) (*DomainReplayCapture, error) {
 	e.Mu.Lock()
 	valid := PartitionConstraintReplayImport(e, scope.Op, auth)
 	e.Mu.Unlock()
@@ -100,14 +100,14 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	scope.RoutineAuth = auth
-	cells, err := typedef.DomainReplayCells(e.domainReplayEnv(&c, scope.Op, auth), s, record.Cells, relation, slots)
+	cells, err := typedef.DomainReplayCells(domainReplayEnv(e, &c, scope.Op, auth), s, record.Cells, relation, slots)
 	if err != nil {
 		return nil, err
 	}
 	return &DomainReplayCapture{Statement: s, Relation: relation, Cells: cells}, nil
 }
 
-func (e *Engine) executeDomainReplayInsert(op *session.Operation, s *parser.Insert, record typedef.DomainReplayRecord) (result Result, err error) {
+func executeDomainReplayInsert(e *Engine, op *session.Operation, s *parser.Insert, record typedef.DomainReplayRecord) (result Result, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return Result{}, err
@@ -141,7 +141,7 @@ func (e *Engine) executeDomainReplayInsert(op *session.Operation, s *parser.Inse
 	if relation == nil || relation.RelationKind != catalog.TableRelation && relation.RelationKind != catalog.PartitionedRelation {
 		return Result{}, fmt.Errorf("stuntgres: invalid native replay relation kind")
 	}
-	capture, err := e.captureDomainReplay(scope, s, record, auth, relation)
+	capture, err := captureDomainReplay(e, scope, s, record, auth, relation)
 	if err != nil {
 		return Result{}, err
 	}

@@ -19,7 +19,7 @@ import (
 // All rows and descriptors belong exclusively to Restore's isolated engine.
 // No public INSERT execution, authority relaxation or definition evaluation is
 // involved. The destination engine still receives one fenced replacement only.
-func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
+func importMaterializedSnapshots(e *Engine, ctx context.Context, op *session.Operation, records []view.MaterializedSnapshot) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -81,7 +81,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 			if captured, ok := domainReplayPairs[s]; ok {
 				replay = &captured
 			}
-			values, err := e.importMaterializedSnapshotRow(ctx, op, auth, d, s, input, replay)
+			values, err := importMaterializedSnapshotRow(e, ctx, op, auth, d, s, input, replay)
 			if err != nil {
 				return err
 			}
@@ -120,7 +120,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Op
 // Captured cells use the same exact INSERT binder transport as ordinary private
 // table replay. A real statement scope also retains normal CHECK providers for
 // all other non-NULL conversions; no constraint suppression is introduced here.
-func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
+func importMaterializedSnapshotRow(e *Engine, ctx context.Context, op *session.Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.
 	scope.Input = input
 	scope.RoutineAuth = auth
 	if replay != nil {
-		capture, captureErr := e.captureDomainReplay(scope, s, *replay, auth, d)
+		capture, captureErr := captureDomainReplay(e, scope, s, *replay, auth, d)
 		if captureErr != nil {
 			return nil, captureErr
 		}

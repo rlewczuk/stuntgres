@@ -15,7 +15,7 @@ import (
 
 // Utility admission pins the target identity before waiting. Shared rename and
 // namespace operations retain their ordinary descriptor publication path.
-func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, count int) (Result, error) {
+func executeAlterView(e *Engine, scope *StatementScope, s *parser.AlterView, count int) (Result, error) {
 	e.Mu.Lock()
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
 	if count != 0 {
@@ -85,7 +85,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 
 // Resolve the complete group before locking; names are never replayed after a
 // wait. The dependency closure and all removals publish as one catalog stage.
-func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, count int) (Result, error) {
+func executeDropView(e *Engine, scope *StatementScope, s *parser.DropView, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

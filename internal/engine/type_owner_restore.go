@@ -11,7 +11,7 @@ import (
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it
 // on every subsequent statement; it is not general ALTER OWNER eligibility.
-func (e *Engine) captureRestoredTypeOwner(op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef, kind string) (typedef.RestoredTypeOwner, error) {
+func captureRestoredTypeOwner(e *Engine, op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef, kind string) (typedef.RestoredTypeOwner, error) {
 	reject := func() (typedef.RestoredTypeOwner, error) {
 		return typedef.RestoredTypeOwner{}, SQLError("0A000", typedef.RestoreTypeOwnerBoundary(kind))
 	}
@@ -65,7 +65,7 @@ func (e *Engine) captureRestoredTypeOwner(op *session.Operation, created ids.Obj
 	return typedef.RestoredTypeOwner{Ref: created, Type: typ, Kind: kind, Namespace: namespace, Owner: owner, Creator: actor.Ref}, nil
 }
 
-func (e *Engine) restoreTypeOwner(op *session.Operation, raw *parser.AlterOwner, pair typedef.RestoredTypeOwner) error {
+func restoreTypeOwner(e *Engine, op *session.Operation, raw *parser.AlterOwner, pair typedef.RestoredTypeOwner) error {
 	kind := pair.Kind
 	if raw != nil {
 		kind = raw.Kind
@@ -74,7 +74,7 @@ func (e *Engine) restoreTypeOwner(op *session.Operation, raw *parser.AlterOwner,
 	if raw == nil || raw.Kind != pair.Kind || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.Ref == (ids.ObjectRef{}) {
 		return reject()
 	}
-	current, err := e.captureRestoredTypeOwner(op, pair.Ref, pair.Owner, pair.Kind)
+	current, err := captureRestoredTypeOwner(e, op, pair.Ref, pair.Owner, pair.Kind)
 	if err != nil {
 		return err
 	}

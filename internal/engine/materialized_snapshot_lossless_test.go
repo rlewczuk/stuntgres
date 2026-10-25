@@ -160,7 +160,7 @@ func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, insert, input, nil)
+		return importMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
 	}
 	for _, sample := range []struct {
 		text   string
@@ -221,7 +221,7 @@ func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, err := e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, insert, input, nil)
+	rows, err := importMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
 	if err != nil {
 		t.Fatal("direct rank-two target", err)
 	}
@@ -282,7 +282,7 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 			}
 			input, _ := op.Session.Settings.Presentation()
 			input.ExactSnapshot = true
-			_, err = e.importMaterializedSnapshotRow(op.Context(), op, auth, relation, insert, input, nil)
+			_, err = importMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
 			if err == nil || err.Error() != "stuntgres: invalid materialized view snapshot constructor provider" {
 				t.Fatal("same-named SQL callable gained codec authority", err)
 			}

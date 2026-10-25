@@ -92,7 +92,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 }
 
 // Engine.mu is held on entry, and is consumed on every return.
-func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller AuthorizationView, stmt *parser.RefreshMaterializedView, count int) (Result, error) {
+func refreshMaterializedLocked(e *Engine, scope *StatementScope, caller AuthorizationView, stmt *parser.RefreshMaterializedView, count int) (Result, error) {
 	if count != 0 {
 		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: REFRESH MATERIALIZED VIEW takes no arguments")
@@ -131,7 +131,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	stage := e.BeginCatalogStage(caller.Catalog)
 	stage.AuthorizeLocked(caller, scope.Op.Session)
 	stage.QuerySources = scope.MaterializedOrZero().Sources
-	stage.materialized().SourceView = scope.MaterializedOrZero().SourceView
+	materializedStage(stage).SourceView = scope.MaterializedOrZero().SourceView
 	stage.Indexes().Output = scope.Output
 	defer e.DiscardCatalogStage(stage)
 	var rows [][]sqltype.Value
@@ -139,7 +139,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		e.Mu.Unlock()
 	} else {
 		var err error
-		rows, err = e.materializedRefreshRowsLocked(scope, ref, d)
+		rows, err = materializedRefreshRowsLocked(e, scope, ref, d)
 		if err != nil {
 			return Result{}, err
 		}
@@ -159,10 +159,10 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 			return Result{}, err
 		}
 	}
-	if err := e.stageMaterializedRows(scope.Op.Context(), stage, d, scope.LockedStorage, rows, !stmt.NoData, scope.TxRef); err != nil {
+	if err := stageMaterializedRows(e, scope.Op.Context(), stage, d, scope.LockedStorage, rows, !stmt.NoData, scope.TxRef); err != nil {
 		return Result{}, err
 	}
-	stage.materialized().Replacement.Concurrent = concurrent
+	materializedStage(stage).Replacement.Concurrent = concurrent
 	// Provider validation may replace the catalog. Exact stage fences, not this
 	// admission lease, decide whether this original target can still publish.
 	if scope.ReplacementRead {
@@ -181,7 +181,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 
 // Population's effective principal and expression identity are restored before
 // any stage validation/publication. No session settings or session_user change.
-func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.ObjectRef, d *catalog.Relation) ([][]sqltype.Value, error) {
+func materializedRefreshRowsLocked(e *Engine, scope *StatementScope, ref ids.ObjectRef, d *catalog.Relation) ([][]sqltype.Value, error) {
 	op := scope.Op
 	population, owner := OperationReplayOrZero(op).MaterializedPopulation, OperationReplayOrZero(op).MaterializedOwner
 	identity, schema := scope.Identity, scope.Inquiry.CurrentSchemaResult
@@ -235,7 +235,7 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 	return result.(*exec.FinalRows).TakeTableRows(op.Context())
 }
 
-func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *catalog.Relation, previous *storage.Relation, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {
+func stageMaterializedRows(e *Engine, ctx context.Context, s *CatalogStage, d *catalog.Relation, previous *storage.Relation, rows [][]sqltype.Value, populated bool, tx ids.TxRef) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -263,8 +263,8 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 	if err := s.ReplaceDescriptor(&next, false, false); err != nil {
 		return err
 	}
-	s.materialized().Replacement = &view.MaterializedReplacement{Original: d, Descriptor: &next, Predecessor: previous, Storage: &storage.Relation{Versions: versions, Generation: previous.Generation + 1}, Generation: previous.Generation, Length: len(previous.Versions), Ends: previous.Ends}
-	s.materialized().Replacement.IndexCount = view.MaterializedIndexCount(s.Base, d.Address())
+	materializedStage(s).Replacement = &view.MaterializedReplacement{Original: d, Descriptor: &next, Predecessor: previous, Storage: &storage.Relation{Versions: versions, Generation: previous.Generation + 1}, Generation: previous.Generation, Length: len(previous.Versions), Ends: previous.Ends}
+	materializedStage(s).Replacement.IndexCount = view.MaterializedIndexCount(s.Base, d.Address())
 	if s.IndexesOrZero().Sets == nil {
 		s.Indexes().Sets = make(map[ids.ObjectAddress]int)
 	}

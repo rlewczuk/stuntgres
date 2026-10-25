@@ -11,7 +11,7 @@ import (
 
 // executePolicy runs CREATE, ALTER and DROP POLICY: the preflight, then
 // view.PlanPolicy under Engine.mu, then publishRelationChangeLocked.
-func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executePolicy(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	op := scope.Op
 	e.Mu.Lock()
 	fail := func(err error) (Result, error) { e.Mu.Unlock(); return Result{}, err }
@@ -29,12 +29,12 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err != nil {
 		return fail(err)
 	}
-	return e.publishRelationChangeLocked(scope, auth, change)
+	return publishRelationChangeLocked(e, scope, auth, change)
 }
 
 // Engine.mu is held on entry and released on every return. Even a missing-object
 // success observes final cancellation/session/epoch fences before its notice.
-func (e *Engine) finishPolicyNoticeLocked(scope *StatementScope, message string) (Result, error) {
+func finishPolicyNoticeLocked(e *Engine, scope *StatementScope, message string) (Result, error) {
 	op := scope.Op
 	op.Session.Mu.Lock()
 	err := PublicationOperationLocked(e, op)

@@ -26,7 +26,7 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	action := parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "note"}}
 	usage := testUsage(e, sqltype.Int4)
 	e.Mu.Lock()
-	prepared, err := e.prepareAlterTypeLocked(nil, op, auth, source, ref, action, &usage)
+	prepared, err := prepareAlterTypeLocked(e, nil, op, auth, source, ref, action, &usage)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

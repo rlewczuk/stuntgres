@@ -96,7 +96,7 @@ func (s *StatementScope) AcquireViewSources(retainProviders bool) (providers []e
 	return providers, nil
 }
 
-func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
+func acquireBoundViewRelations(s *StatementScope, refs []ids.ObjectRef) error {
 	return s.acquireBoundViewRelationModes(refs, nil)
 }
 
@@ -155,6 +155,6 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 	return nil
 }
 
-func (s *StatementScope) acquireViewDefinitionReferences(b analyze.Binding) error {
-	return s.acquireBoundViewRelations(view.DefinitionReferences(b, s.LockedRef, s.QuerySources))
+func acquireViewDefinitionReferences(s *StatementScope, b analyze.Binding) error {
+	return acquireBoundViewRelations(s, view.DefinitionReferences(b, s.LockedRef, s.QuerySources))
 }

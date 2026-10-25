@@ -15,7 +15,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operation, s *parser.AlterComposite, count int) (Result, error) {
+func executeAlterComposite(e *Engine, scope *StatementScope, op *session.Operation, s *parser.AlterComposite, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -60,8 +60,8 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 	stage.AuthorizeLocked(auth, op.Session)
 	stage.DependencyPath = path
 	stage.DomainBases = append(stage.DomainBases, typ)
-	stage.typedState().Source = typ.Address()
-	stage.typedState().Observed = table.TypedClosure(auth.Catalog, typ.Address())
+	typedStage(stage).Source = typ.Address()
+	typedStage(stage).Observed = table.TypedClosure(auth.Catalog, typ.Address())
 	targets := table.TypedPropagationOrder(auth.Catalog, typ.Address())
 	if len(targets) != 0 {
 		restrict := s.Rename != nil && s.Mode != parser.DropCascade
@@ -146,7 +146,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 		for i, action := range s.Actions {
 			actions[i].Action = action
 		}
-		sourceMutation, err = e.typedMutation(scope, op, auth, stage, source, actions)
+		sourceMutation, err = typedMutation(e, scope, op, auth, stage, source, actions)
 		if err != nil {
 			return Result{}, err
 		}
@@ -206,7 +206,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 				return Result{}, err
 			}
 		}
-		mutation, err := e.typedMutation(scope, op, auth, stage, tbl, actions)
+		mutation, err := typedMutation(e, scope, op, auth, stage, tbl, actions)
 		if err != nil {
 			return Result{}, err
 		}
@@ -244,7 +244,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operat
 		if err := stage.Replace(mutation.next); err != nil {
 			return Result{}, err
 		}
-		if err := e.stageTypedRows(scope, auth, stage, mutation); err != nil {
+		if err := stageTypedRows(e, scope, auth, stage, mutation); err != nil {
 			return Result{}, err
 		}
 	}

@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func (e *Engine) validateTemporaryCollationDump(ctx context.Context, view catalog.Read) error {
+func validateTemporaryCollationDump(e *Engine, ctx context.Context, view catalog.Read) error {
 	var roots []ids.ObjectAddress
 	for a, d := range view.Descriptors() {
 		if _, ok := d.(*catalog.Collation); !ok {

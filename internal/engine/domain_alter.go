@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDomain, count int) (Result, error) {
+func executeAlterDomain(e *Engine, scope *StatementScope, raw *parser.AlterDomain, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
+func executeEnumDDL(e *Engine, scope *StatementScope, stmt parser.Statement, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -119,7 +119,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		if err := e.ReownStagedTypeGenerationsLocked(stage); err != nil {
 			return Result{}, err
 		}
-		if err := e.adoptEnumGenerationsLocked(scope, changes, stage); err != nil {
+		if err := adoptEnumGenerationsLocked(e, scope, changes, stage); err != nil {
 			return Result{}, err
 		}
 	}

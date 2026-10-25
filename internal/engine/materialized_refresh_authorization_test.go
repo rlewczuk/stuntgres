@@ -155,7 +155,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			p.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: d.Columns, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{converted}}}
 		})
 		e.Mu.Lock()
-		rows, err := e.materializedRefreshRowsLocked(scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address()), d)
+		rows, err := materializedRefreshRowsLocked(e, scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address()), d)
 		if fail {
 			if !errors.Is(err, sentinel) || rows != nil {
 				t.Fatal(rows, err)

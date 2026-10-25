@@ -39,7 +39,7 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 		}
 		catalog := e.Catalog.State
 		ast := &parser.AlterEnum{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "mood"}}}, Label: parser.EnumLabel{Text: strings.Repeat("x", 64)}, Old: parser.EnumLabel{Text: "old"}, Rename: rename}
-		_, failure := e.executeEnumDDL(scope, ast, 0)
+		_, failure := executeEnumDDL(e, scope, ast, 0)
 		d, ok := failure.(*sqlstate.Error)
 		lockState := e.Locks.Inspect()
 		entry := lockState.Resources[resource]

@@ -15,7 +15,7 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	op := scope.Op
 	switch stmt.(type) {
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger:
-		return dispatched(e.executeTrigger(scope, stmt, count))
+		return dispatched(executeTrigger(e, scope, stmt, count))
 	case *parser.CreateFunction, *parser.CreateAggregate:
 		return dispatched(e.executeSQLRoutineDDL(scope, stmt, count))
 	case *parser.ForeignDDL:
@@ -39,15 +39,15 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 	case *parser.AlterExtensionUpdate:
 		return dispatched(e.executeExtensionUpdate(scope, stmt.(*parser.AlterExtensionUpdate), count))
 	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
-		return dispatched(e.executeRule(scope, stmt, count))
+		return dispatched(executeRule(e, scope, stmt, count))
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
-		return dispatched(e.executePolicy(scope, stmt, count))
+		return dispatched(executePolicy(e, scope, stmt, count))
 	case *parser.CreateIndex:
 		return dispatched(executeCreateIndex(e, scope, stmt.(*parser.CreateIndex), count))
 	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
 		return dispatched(executeIndexMaintenance(e, scope, stmt, count))
 	case *parser.CreateView:
-		return dispatched(e.executeCreateView(scope, stmt.(*parser.CreateView), count))
+		return dispatched(executeCreateView(e, scope, stmt.(*parser.CreateView), count))
 	case *parser.AlterOwner:
 		return dispatched(executeOwnership(e, scope, stmt.(*parser.AlterOwner), count))
 	case *parser.ReassignOwned, *parser.DropOwned:
@@ -60,13 +60,13 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 			}
 			return dispatched(executeRelationOwnership(e, scope, owner.Name, owner.Target.Text, owner.OwnerIdentity, kind, owner.IfExists, count))
 		}
-		return dispatched(e.executeAlterView(scope, stmt.(*parser.AlterView), count))
+		return dispatched(executeAlterView(e, scope, stmt.(*parser.AlterView), count))
 	case *parser.DropView:
-		return dispatched(e.executeDropView(scope, stmt.(*parser.DropView), count))
+		return dispatched(executeDropView(e, scope, stmt.(*parser.DropView), count))
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
 		return dispatched(executeSequenceDDL(e, scope, stmt, count))
 	case *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum:
-		return dispatched(e.executeEnumDDL(scope, stmt, count))
+		return dispatched(executeEnumDDL(e, scope, stmt, count))
 	case *parser.AlterDomain:
 		domain := stmt.(*parser.AlterDomain)
 		var result Result
@@ -74,14 +74,14 @@ func (familyStatements) Execute(e *Engine, scope *StatementScope, stmt parser.St
 		if domain.Action == parser.DomainRename || domain.Action == parser.DomainSetSchema {
 			result, err = e.executeSchema(scope, op, stmt, count, scope.Input)
 		} else {
-			result, err = e.executeAlterDomain(scope, domain, count)
+			result, err = executeAlterDomain(e, scope, domain, count)
 		}
 		if err == nil {
 			scope.Completed = true
 		}
 		return result, true, err
 	case *parser.AlterComposite:
-		return dispatched(e.executeAlterComposite(scope, op, stmt.(*parser.AlterComposite), count))
+		return dispatched(executeAlterComposite(e, scope, op, stmt.(*parser.AlterComposite), count))
 	case *parser.Comment:
 		if c := stmt.(*parser.Comment); c.Kind == parser.CommentSequence {
 			return dispatched(executeSequenceComment(e, scope, c, count))
@@ -151,9 +151,9 @@ func (familyStatements) ExecuteLocked(e *Engine, scope *StatementScope, auth Aut
 	case *parser.AlterTableAllInTablespace:
 		return dispatched(e.alterAllTablespaceLocked(scope, auth, s, count))
 	case *parser.RefreshMaterializedView:
-		return dispatched(e.refreshMaterializedLocked(scope, auth, s, count))
+		return dispatched(refreshMaterializedLocked(e, scope, auth, s, count))
 	case *parser.AlterTableOf:
-		return dispatched(e.alterTableOfLocked(scope, op, auth, s, count))
+		return dispatched(alterTableOfLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableAttachPartition:
 		return dispatched(attachPartitionLocked(e, scope, op, auth, s, count))
 	case *parser.AlterTableDetachPartition:
