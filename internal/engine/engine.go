@@ -95,7 +95,17 @@ func NewWithSettings(definitions []settings.Definition, database string, trackCo
 	return e
 }
 
+// newEngine is the composition: it seeds the state with NewEngine and then
+// registers what the root composes.
 func newEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
+	return NewEngine(providers, definitions, database, trackCommitTimestamp)
+}
+
+// NewEngine seeds one engine's state: the catalog, storage and role stores,
+// settings, visibility, locks, the catalog providers (feature-owned ones
+// first), the bundled extension registry and the builtin catalog seed. It
+// registers no statement dispatch or factory; the composition does.
+func NewEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	cluster := &DatabaseCluster{}
 	e := &Engine{Mu: &cluster.Mu, RoleStore: &cluster.Roles, Cluster: cluster, Catalog: catalog.NewStore(catalog.Owner{Providers: map[ids.OID]catalog.Provider{}}, 16384, 2)}
