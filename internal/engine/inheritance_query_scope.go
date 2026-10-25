@@ -132,12 +132,3 @@ func (i *inheritanceScope) endStatement() {
 	i.relations, i.catalog = nil, catalog.Read{}
 	i.Relationships = nil
 }
-
-// inheritancePlan is the recursing ALTER's plan record, nil when the statement
-// is not recursing through an inheritance tree. Its methods are nil-safe.
-func inheritancePlan(scope *StatementScope) *table.InheritanceAlterPlan {
-	if state := scope.Inheritance.Alter; state != nil {
-		return &state.InheritanceAlterPlan
-	}
-	return nil
-}

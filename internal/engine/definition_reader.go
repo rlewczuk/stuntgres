@@ -57,10 +57,6 @@ func (r stageDefinitionReader) HasProviderProcedureOverride(name string) bool {
 	return false
 }
 
-func definitionNamespace(a AuthorizationView, address ids.ObjectAddress) (*catalog.Namespace, bool) {
-	return catalog.DefinitionNamespaceAt(a.Catalog, a.Definition, address)
-}
-
 func (r stageDefinitionReader) IndexLayout(address ids.ObjectAddress) (index.LayoutLineage, bool) {
 	lineage, ok := r.stage.IndexesOrZero().Layouts[address]
 	return lineage, ok

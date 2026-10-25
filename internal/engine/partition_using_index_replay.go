@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
@@ -39,11 +38,4 @@ func beginPartitionUsingIndexReplay(e *Engine, op *session.Operation, raw *parse
 	}
 	OperationReplay(op).PartitionUsingIndex = partition.CaptureUsingIndexReplay(auth.Catalog, raw, table)
 	return nil
-}
-
-func partitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
-	if op == nil || raw == nil || OperationReplayOrZero(op).PartitionUsingIndex == nil {
-		return false
-	}
-	return OperationReplayOrZero(op).PartitionUsingIndex.Matches(auth.Catalog, raw, table) && PartitionConstraintReplayImport(operationEngine(op), op, auth)
 }

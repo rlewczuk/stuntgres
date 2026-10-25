@@ -1,17 +1,9 @@
 package engine
 
 import (
-	"context"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/index"
 	"stuntgres/internal/parser"
 )
-
-// stagePartitionIndexValidity runs the validity pass over the stage. It
-// needs no lock.
-func stagePartitionIndexValidity(e *Engine, stage *CatalogStage, promote ids.ObjectAddress) error {
-	return index.PartitionIndexValidity(StageDropProvider(context.Background(), stage, nil, nil, nil), promote)
-}
 
 func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 	if v, ok := stmt.(*parser.AlterIndex); ok {

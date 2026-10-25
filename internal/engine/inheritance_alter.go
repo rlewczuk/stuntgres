@@ -10,17 +10,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// One statement-owned stage carries every candidate; the ordinary provider
-// pipeline still owns cooking, row/index rewrites and physical validation.
-// Nothing is installed in the transaction owner or live catalog between nodes.
-type InheritanceAlterState struct {
-	table.InheritanceAlterPlan
-	Stage   *CatalogStage
-	Changes *session.Journal
-	// Prepared holds the root's prepared nodes, keyed by relation.
-	Prepared map[ids.ObjectAddress]*table.InheritancePreparedNode
-}
-
 func alterInheritanceLocked(e *Engine, scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []table.AlterTypePreparation) (Result, error) {
 	root := scope.LockedDescriptor.(*catalog.Relation)
 	plan, preparatory, err := table.PlanInheritanceAlter(auth.Catalog, root, raw)

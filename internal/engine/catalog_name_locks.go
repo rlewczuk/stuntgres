@@ -176,25 +176,6 @@ func (s *StatementScope) AcquireCatalogNamespace(base catalog.Read, address ids.
 	return err
 }
 
-func acquireCatalogBinding(s *StatementScope, base catalog.Read, claim catalog.BindingClaim) error {
-	key := claim.Key
-	resource := lock.Resource{ObjectRef: s.Engine().Catalog.Domain.Ref(base.Epoch(), key.Namespace), Name: key}
-	if err := s.AcquireCatalogResource(resource, lock.AccessExclusive); err != nil {
-		return err
-	}
-	e := s.Engine()
-	e.Mu.Lock()
-	defer e.Mu.Unlock()
-	auth, err := e.AuthorizationLocked(s.Op)
-	if err != nil {
-		return err
-	}
-	if auth.Catalog.Epoch() != base.Epoch() {
-		return ids.ErrCatalogReplaced
-	}
-	return catalog.BindingCurrent(base, auth.Catalog, claim)
-}
-
 // Schema removal protects the captured namespace before constructing its
 // dependency closure. Rename/owner changes deliberately do not take this AX.
 func (s *StatementScope) acquireSchemaDrop(stmt *parser.DropSchema) (ddl.SchemaDropManifest, error) {

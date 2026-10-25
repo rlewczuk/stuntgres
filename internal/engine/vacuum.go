@@ -185,3 +185,7 @@ func executeVacuum(e *Engine, s *StatementScope, raw *parser.Vacuum, count int) 
 	s.Completed = true
 	return Result{}, nil
 }
+
+func definitionNamespace(a AuthorizationView, address ids.ObjectAddress) (*catalog.Namespace, bool) {
+	return catalog.DefinitionNamespaceAt(a.Catalog, a.Definition, address)
+}

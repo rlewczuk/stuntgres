@@ -14,13 +14,6 @@ import (
 	"stuntgres/internal/engine/visibility"
 )
 
-// Project a DROP shape through committed, private-write and retained snapshot
-// roots. The original publication preconditions remain in shape.
-func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *storage.Relation, shape session.StorageChange, snapshot visibility.Root, snapshotExists bool) (session.StorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
-	writes, deletes := scope.ColumnProjectionRoots(old.Address())
-	return session.ProjectColumnShapeRoots(scope.Op.Context(), scope.Owner.Isolation.Stable(), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
-}
-
 // Nested cascades may have already projected this statement's private roots.
 func (scope *StatementScope) ColumnProjectionRoots(address ids.ObjectAddress) ([]storage.RowVersion, *visibility.PrivateDeletes) {
 	if scope.projectedRoots {
@@ -50,10 +43,6 @@ func (scope *StatementScope) StageProjectedColumnRoots(address ids.ObjectAddress
 
 func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation) error {
 	return scope.StageColumnShape(stage, changes, old, next, false)
-}
-
-func stagePreparedColumnShape(scope *StatementScope, stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation) error {
-	return scope.StageColumnShape(stage, changes, old, next, true)
 }
 
 func (scope *StatementScope) StageColumnShape(stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation, metadataPrepared bool) error {
