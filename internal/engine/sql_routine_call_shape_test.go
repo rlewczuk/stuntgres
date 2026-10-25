@@ -77,7 +77,7 @@ func TestSQLRoutineProviderCallShapes(t *testing.T) {
 				operands[i].Usage = b.Type(id).Usage()
 			}
 			found := false
-			for d := range auth.definitionProceduresNamed(namespace, tc.name) {
+			for d := range definitionProceduresNamed(auth, namespace, tc.name) {
 				if string(d.Signature) != tc.signature {
 					continue
 				}
@@ -198,7 +198,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 	}
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	var template analyze.SQLCallable
-	for d := range auth.definitionProceduresNamed(namespace, "lag") {
+	for d := range definitionProceduresNamed(auth, namespace, "lag") {
 		if d.Signature == "5077,23,5077" {
 			var ok bool
 			template, ok = analyze.SQLCallableShape(auth.Catalog, auth.Definition, d, raw)
@@ -276,7 +276,7 @@ func TestSQLRoutineNamedProviderShapes(t *testing.T) {
 				raw.ArgNames[i].Text = tc.labels[i]
 			}
 			found := false
-			for d := range auth.definitionProceduresNamed(namespace, tc.name) {
+			for d := range definitionProceduresNamed(auth, namespace, tc.name) {
 				if string(d.Signature) != tc.signature {
 					continue
 				}
@@ -336,7 +336,7 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 					args[i].Usage = b.Type(sqltype.Xid).Usage()
 				}
 				found := false
-				for d := range auth.definitionProceduresNamed(namespace, tc.name) {
+				for d := range definitionProceduresNamed(auth, namespace, tc.name) {
 					if string(d.Signature) != tc.signature {
 						continue
 					}
@@ -366,6 +366,6 @@ func TestSQLRoutineNamedCatalogCallShapes(t *testing.T) {
 
 // definitionProceduresNamed lists the procedures named name in namespace as
 // a's definition reader sees them.
-func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
+func definitionProceduresNamed(a AuthorizationView, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.Definition, namespace, name)
 }
