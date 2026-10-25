@@ -1,13 +1,17 @@
 # internal/engine/tablecmds
 
-The table statement executors ([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md)
-§3, L16): ALTER TABLE with its action passes (constraints, defaults,
-generated columns, column types, foreign keys, NOT NULL, INHERIT and
-NO INHERIT), ALTER TABLE ... ALTER COLUMN DEFAULT, CREATE TABLE (LIKE, typed,
-PARTITION OF), DROP TABLE, RENAME of relations, columns and constraints, and
-SET SCHEMA; the table Restore repairs; and the `TableHost` and `AlterHost`
-family hosts. The decisions are [`table`](../table/README.md)'s, `index`'s and
-`partition`'s; this package orchestrates them over core's runtime.
+The table, sequence and VACUUM statement executors
+([`docs/ENGINE-SPLIT.md`](../../../docs/ENGINE-SPLIT.md) §3, L16): ALTER TABLE
+with its action passes (constraints, defaults, generated columns, column
+types, identity, foreign keys, NOT NULL, INHERIT and NO INHERIT), ALTER
+TABLE ... ALTER COLUMN DEFAULT, CREATE TABLE (LIKE, typed, PARTITION OF),
+DROP TABLE, RENAME of relations, columns and constraints, and SET SCHEMA;
+CREATE, ALTER and DROP SEQUENCE with OWNED BY, and COMMENT ON SEQUENCE;
+VACUUM; the table Restore repairs and the Restore identity check; and the
+`TableHost` and `AlterHost` family hosts. The decisions are
+[`table`](../table/README.md)'s, [`sequence`](../sequence/README.md)'s,
+`index`'s and `partition`'s; this package orchestrates them over core's
+runtime.
 
 ## Layering
 
@@ -29,11 +33,16 @@ TEMP preservation, relation admission and publication.
   are lock-domain continuations: entered with `Engine.Mu` held, they release
   it on every return and run admission waits, provider work and row
   evaluation unlocked.
+- Dispatch (`core.Statements.Execute`): `ExecuteSequenceDDL`,
+  `ExecuteSequenceComment` and `ExecuteVacuum` are entered with nothing held;
+  they take `Engine.Mu` in short windows and release it around lock waits.
 - Restore hooks: `CaptureRestoredForeignKeys`,
   `ResolveRestoredForeignKeyTargets`, `BindRestoredForeignKeys`,
   `PairRestoredNotNull`, `RestoreNoInheritNotNull`, `RestoreAttributeRank`,
   the physical NOT NULL constructors and foreign-key providers,
-  `ValidateRestoredDefault` and `PublishRestoreRepairLocked`.
+  `ValidateRestoredDefault` and `PublishRestoreRepairLocked`;
+  `ValidateRestoreIdentityConfiguration` admits only the parameter-free
+  configuration of an existing internal sequence.
 - Shared with other families: `SchemaTableLocked` (CREATE TABLE inside CREATE
   SCHEMA), `SkipMissingRelationLocked`, `AcquireTypedSources`,
   `AcquirePartitionValidationViewsLocked`, `PendingPartitionDefinition` and
@@ -43,6 +52,15 @@ TEMP preservation, relation admission and publication.
 `core.Engine` that carries only `admitInheritanceAlter`, whose
 `(*Engine).admitInheritanceAlter(` frame a read-only reference cancellation
 fixture matches. Keep that name.
+
+## VACUUM
+
+`vacuum.go` runs in one `StatementScope` and transaction/ticket; per-target
+holds return to lock manager checkpoints outside engine and session locks.
+`vacuum_publication.go` rechecks root, storage, shape, authority and gate
+tokens before atomic installation; peer DML causes recapture, never SQL
+replay. The VACUUM barrier and progress tests park the statement at the
+`vacuumCompletion` frame and at `storage`'s scan frames: keep those names.
 
 ## Hosts
 
@@ -70,4 +88,7 @@ make check RUN='^TestAlter'                                # ALTER TABLE passes,
 make check RUN='^Test(InheritanceAlter|InheritanceMaint|InheritanceMetadata|TableInheritance)'  # inheritance ALTER admission
 make check RUN='^Test(TableLike|TableCore|PartitionConstraints|UsingIndex)'  # CREATE TABLE forms and constraints
 make check RUN='^Test(TableHost|AlterHost|IndexHost)'      # the hosts
+make check RUN='^Test(Sequence|Identity|Serial)'           # sequence, identity and serial DDL
+make check RUN='^TestVacuum'                               # VACUUM selection, phases, publication
+make check RACE=1 RUN='^TestVacuum(PublicationFences|AuthorizationLocks)$$'  # VACUUM lock and publication races
 ```

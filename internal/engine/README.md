@@ -4,10 +4,10 @@ The root is the composition layer ([`docs/ENGINE-SPLIT.md`](../../docs/ENGINE-SP
 §3, L17): the engine constructors, the family statement dispatch behind
 [`core`](core/README.md)'s `Statements` hook, the engine factory, `Reset`,
 `Dump` and `Restore` with the Restore hooks, and, until each moves to its
-`*cmds` package, the family statement code and its hosts; table statements
-are [`tablecmds`](tablecmds/README.md)'s. Runtime state,
-admission, publication and the transaction lifecycle are core's. No package
-imports the root except tests and `enginetest`.
+`*cmds` package, the family statement code and its hosts; table, sequence,
+identity and VACUUM statements are [`tablecmds`](tablecmds/README.md)'s.
+Runtime state, admission, publication and the transaction lifecycle are
+core's. No package imports the root except tests and `enginetest`.
 
 ## Composition
 
@@ -20,8 +20,8 @@ and `Restore(ctx, e, src)` (`control.go`) are composition functions over a
 `*core.Engine`.
 
 Family statement code still in the root (indexes, partitions, inheritance
-Restore, sequences, identity, VACUUM, types, views, rules, policies, triggers,
-roles, schema objects, routines, extensions and FDW) is written as
+Restore, types, views, rules, policies, triggers, roles, schema objects,
+routines, extensions and FDW) is written as
 receiver-first functions over core types (`attachPartitionLocked(e, scope,
 ...)`, `typedStage(stage)`, `executeSchema(e, ...)`), so that it can leave
 with its family; it names only exported core and `tablecmds` members. A root
@@ -76,17 +76,14 @@ retained catalog/storage roots unchanged. Base rename, move and ownership do not
 change installed I/O routine namespaces or owners; canonical manifest roles own
 portable ownership records and identity replay.
 
-## VACUUM and row mutation
+## Row mutation
 
-- `vacuum.go` runs in one StatementScope and transaction/ticket; per-target
-  holds return to manager checkpoints outside engine/session locks.
-  `vacuum_publication.go` rechecks root/storage/shape/authority/gate tokens
-  before atomic installation; peer DML causes recapture, never SQL replay.
-- MultiXact records, counters and history belong to the lock manager. CHECK and
-  branch admission precede the physical event; index and RETURNING evaluation
-  follow it. Shared mutations journal successor/deletion events while private
-  roots are locked and flush after the engine/owner unlock. No `Engine.Mu` →
-  manager-mutex acquisition exists. Finish discards private stages on failure.
+MultiXact records, counters and history belong to the lock manager. CHECK and
+branch admission precede the physical event; index and RETURNING evaluation
+follow it. Shared mutations journal successor/deletion events while private
+roots are locked and flush after the engine/owner unlock. No `Engine.Mu` →
+manager-mutex acquisition exists. Finish discards private stages on failure.
+VACUUM is [`tablecmds`](tablecmds/README.md#vacuum)'s.
 
 ## Native Dump and Restore
 

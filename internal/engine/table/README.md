@@ -104,9 +104,9 @@ call live here.
   post-grant gates `VacuumWork`; the detached work pass `PrepareVacuumPass`
   over a `VacuumCapture` (`CaptureIndexesLocked`, `SameLocked`), plus
   `DatabaseFrozenXIDLocked` and `VacuumReport`. Selection and gates return
-  `VacuumWarning`s, which the root emits after unlocking, in order. The pass's
-  `phase` callback takes `Engine.Mu` once per progress update, so callers hold
-  nothing.
+  `VacuumWarning`s, which [`tablecmds`](../tablecmds/README.md#vacuum) emits
+  after unlocking, in order. The pass's `phase` callback takes `Engine.Mu`
+  once per progress update, so callers hold nothing.
 - **Foreign keys** (`foreign_key*.go`): declarations and comparison binding,
   diagnostics over `access.View`, the probe (`FindForeignKeyParent`,
   `ProbeForeignKeyIndex`), OID-ordered provider walks, initial row scans and

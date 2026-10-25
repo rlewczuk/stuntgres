@@ -116,10 +116,11 @@ builds it in `sequenceObservationLocked` only for statements with literals.
 
 ## What stays in the engine
 
-The orchestration of sequence DDL and COMMENT (`sequence.go`,
-`sequence_comment.go`: `Engine.Mu`, lock waits, authorization refresh, OID and
-revision allocation, the journal and stage install, scope fields and
-notices), `ownedSequenceLocked`, `statementHost.Sequence`
+The orchestration of sequence DDL and COMMENT, with `ownedSequenceLocked`, is
+[`tablecmds`](../tablecmds/README.md)'s (`sequence.go`, `sequence_comment.go`:
+`Engine.Mu`, lock waits, authorization refresh, OID and revision allocation,
+the journal and stage install, scope fields and notices). The engine keeps
+`statementHost.Sequence`
 (`sequence_runtime.go`) and `clearPersistentSequenceMemoryLocked`;
 `StatementScope.AcquireSequence` (the scope's object lock) and
 `checkSequenceAny` (`sequence_acquire.go`), and `index.RelationDropOwner`; `sequenceEnvironmentLocked`,

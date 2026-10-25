@@ -759,6 +759,6 @@ make check RUN='^TestSnapshot'                        # binding, retained comman
 make check RUN='^Test(Serial|SourceProtocol|ViewLiteralProtocol)'  # sequences, sources, stored capture
 make check RUN='^Test([A-Za-z]+RoutineOriginalAuthority|SQLRoutine|UnavailableFunctionIdentityBoundary)'  # routines
 make check RUN='^Test(Extension|PGDepend|CatalogDrop|DropOwned)'  # extensions, drop fences
-make check RUN='^Test(Vacuum|Protocol|SessionTimeout|StatementTimeoutAdmission)'  # VACUUM, protocol, timeouts
+make check RUN='^Test(Protocol|SessionTimeout|StatementTimeoutAdmission)'  # protocol, timeouts
 ```
 ```
