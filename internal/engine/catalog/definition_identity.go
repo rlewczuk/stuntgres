@@ -151,17 +151,18 @@ func ReserveDefinitionOIDs(reserved map[ids.OID]bool, descriptor Descriptor) {
 }
 
 func ValidateDefinitionOIDs(view Read) error {
-	used := make(map[ids.OID]bool)
+	// Sized for every descriptor, so the scan below never grows the set.
+	used := make(map[ids.OID]struct{}, view.DescriptorCount())
 	for address := range view.Descriptors() {
 		if address.ClassID != ids.LargeObjectClassID {
-			used[address.ObjectID] = true
+			used[address.ObjectID] = struct{}{}
 		}
 	}
 	claim := func(id ids.OID) error {
-		if id == 0 || used[id] {
+		if _, taken := used[id]; id == 0 || taken {
 			return fmt.Errorf("stuntgres: invalid stored definition identity")
 		}
-		used[id] = true
+		used[id] = struct{}{}
 		return nil
 	}
 	for _, descriptor := range view.Descriptors() {
