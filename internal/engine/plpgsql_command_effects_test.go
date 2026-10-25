@@ -44,7 +44,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		sessionSQL(t, sess, "CREATE TABLE relevant(id integer PRIMARY KEY,parent integer REFERENCES relevant(id))")
 		scope := foreignActionUnitScope(t, e, sess, "INSERT INTO relevant VALUES(1,NULL),(2,1)")
 		ref := catalogRef(t, e, e.CatalogRead(), "relevant")
-		events := scope.foreignActionsOrZero().Transitions
+		events := ScopeForeignActionsOrZero(scope).Transitions
 		rows := scope.Stage.Rows[ref.Address]
 		if len(events) != 2 || len(rows) != 2 {
 			t.Fatal("relevant accepted insert events missing", events, rows)
@@ -69,7 +69,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			sessionSQL(t, sess, query)
 		}
 		scope := foreignActionUnitScope(t, e, sess, "DELETE FROM parent")
-		events := scope.foreignActionsOrZero().Transitions
+		events := ScopeForeignActionsOrZero(scope).Transitions
 		if len(events) != 1 || events[0].Old.Version == 0 || events[0].Next.Version != 0 {
 			t.Fatal("incoming FK deletion lost its exact predecessor event", events)
 		}
@@ -84,12 +84,12 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		sessionSQL(t, sess, "CREATE TABLE guarded(v integer,CONSTRAINT guarded_ex EXCLUDE USING btree(v WITH =) DEFERRABLE INITIALLY DEFERRED)")
 		sessionSQL(t, sess, "INSERT INTO guarded VALUES(1)")
 		scope := foreignActionUnitScope(t, e, sess, "INSERT INTO guarded VALUES(1)")
-		events := scope.foreignActionsOrZero().Transitions
+		events := ScopeForeignActionsOrZero(scope).Transitions
 		if len(events) != 1 || events[0].Command != ScopeEffectCommand(scope) {
 			t.Fatal("exclusion-only accepted row lost command ownership", events)
 		}
 		var diagnostic *sqlstate.Error
-		if err := scope.checkExclusionCommandEvents(true, nil, true); !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
+		if err := ScopeCheckExclusionCommandEvents(scope, true, nil, true); !errors.As(err, &diagnostic) || diagnostic.Code != "23P01" {
 			t.Fatal("bounded exclusion check skipped its accepted row", err)
 		}
 	})
@@ -107,13 +107,13 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		SetScopeForeignActionsSlot(s, &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: storage.RowVersion{Row: 2, Version: 2}, Command: 2}}})
 		// Missing current descriptors retire an owned event; an unowned stale
 		// event must not even be probed while its outer producer is suspended.
-		if err := s.checkExclusionCommandEvents(false, nil, true); err != nil {
+		if err := ScopeCheckExclusionCommandEvents(s, false, nil, true); err != nil {
 			t.Fatal(err)
 		}
 		if len(ScopeIndexesSlot(s).ExclusionModes.Events) != 1 || ScopeIndexesSlot(s).ExclusionModes.Events[0].Row != 1 {
 			t.Fatal("unowned exclusion event consumed")
 		}
-		if err := s.checkExclusionEvents(true, nil); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if err := ScopeCheckExclusionEvents(s, true, nil); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("root lost its original exclusion obligation", err)
 		}
 	})
@@ -143,7 +143,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 	t.Run("failed_acceptance_has_no_event", func(t *testing.T) {
 		_, s := plExceptionUnitScope(t)
 		accepted, _, err := s.WriteHost().AppendAcceptedInsert(ids.ObjectRef{}, index.WriteCandidate{})
-		if accepted || err == nil || len(s.foreignActionsOrZero().Transitions) != 0 {
+		if accepted || err == nil || len(ScopeForeignActionsOrZero(s).Transitions) != 0 {
 			t.Fatal("failed stage admission queued an effect", accepted, err)
 		}
 	})
@@ -173,7 +173,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			}
 			child := storage.RowVersion{Row: 90002, Version: 90002, Values: values}
 			scope.Stage.Rows[relation] = append(scope.Stage.Rows[relation], child)
-			scope.foreignActions().Transitions = append(scope.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: relation, Next: child, Command: 2})
+			ScopeForeignActions(scope).Transitions = append(ScopeForeignActionsOrZero(scope).Transitions, dml.ForeignActionTransition{Relation: relation, Next: child, Command: 2})
 			SetScopeEffectCommand(scope, 2)
 			if err := ScopeCompleteCommandEffects(scope, false, true); err != nil {
 				t.Fatal("child checked incomplete outer producer", err)
@@ -212,7 +212,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		if err := ScopeCompleteCommandEffects(scope, false, false); err != nil {
 			t.Fatal(err)
 		}
-		if !ScopeForeignActionsSlot(scope).Settling || scope.ForeignActionAuth != foreignAuthorizationOf(auth) {
+		if !ScopeForeignActionsSlot(scope).Settling || scope.ForeignActionAuth != ForeignAuthorizationOf(auth) {
 			t.Fatal("reentrant settlement lost authority/Settling")
 		}
 		ScopeForeignActionsSlot(scope).Settling = false
@@ -236,13 +236,13 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		if len(ScopeForeignActionsSlot(scope).Transitions) != count || e.Storage.VersionFrontier() != frontier {
 			t.Fatal("root replayed completed cascade")
 		}
-		mark, err := scope.beginPLException()
+		mark, err := ScopeBeginPLException(scope)
 		if err != nil {
 			t.Fatal(err)
 		}
 		ScopeForeignActionsSlot(scope).Transitions[0].Checked = false
 		ScopeForeignActionsSlot(scope).Transitions[0].ActionsDone = false
-		if err := scope.endPLException(mark, true, errors.New("body")); err != nil {
+		if err := ScopeEndPLException(scope, mark, true, errors.New("body")); err != nil {
 			t.Fatal(err)
 		}
 		if !ScopeForeignActionsSlot(scope).Transitions[0].Checked || !ScopeForeignActionsSlot(scope).Transitions[0].ActionsDone {

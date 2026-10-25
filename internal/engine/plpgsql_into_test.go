@@ -55,7 +55,7 @@ func TestPLpgSQLSelectIntoRuntime(t *testing.T) {
 	if integer == nil {
 		t.Fatal("missing integer")
 	}
-	columns := plColumns([]catalog.Column{{Name: "i", Usage: integer.Usage()}})
+	columns := PLColumns([]catalog.Column{{Name: "i", Usage: integer.Usage()}})
 	one, err := sqltype.Integer(integer, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestPLpgSQLSelectIntoRuntime(t *testing.T) {
 		for count := 0; count <= 3; count++ {
 			values := [][]sqltype.Value{{one}, {two}, {one}}
 			rows := &captureDemandRows{values: values[:count]}
-			fields, present, many, err := demandPLCapture(context.Background(), rows, columns, exact)
+			fields, present, many, err := DemandPLCapture(context.Background(), rows, columns, exact)
 			if err != nil || present != (count > 0) || many != (exact && count > 1) {
 				t.Fatal("cardinality", count, exact, present, many, err)
 			}
@@ -86,16 +86,16 @@ func TestPLpgSQLSelectIntoRuntime(t *testing.T) {
 	}
 	failure := errors.New("second projection")
 	rows := &captureDemandRows{values: [][]sqltype.Value{{one}, {two}, {one}}, failAt: 2, failure: failure}
-	if _, present, many, err := demandPLCapture(context.Background(), rows, columns, true); !errors.Is(err, failure) || present || many || rows.at != 2 {
+	if _, present, many, err := DemandPLCapture(context.Background(), rows, columns, true); !errors.Is(err, failure) || present || many || rows.at != 2 {
 		t.Fatal("second projection error precedence", present, many, err)
 	}
 	rows.at = 0
-	if _, present, many, err := demandPLCapture(context.Background(), rows, columns, false); err != nil || !present || many || rows.at != 1 {
+	if _, present, many, err := DemandPLCapture(context.Background(), rows, columns, false); err != nil || !present || many || rows.at != 1 {
 		t.Fatal("nonstrict demanded failing second projection", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	rows = &captureDemandRows{values: [][]sqltype.Value{{one}, {two}}, cancel: cancel}
-	if _, present, many, err := demandPLCapture(ctx, rows, columns, true); !errors.Is(err, context.Canceled) || present || many || rows.at != 1 {
+	if _, present, many, err := DemandPLCapture(ctx, rows, columns, true); !errors.Is(err, context.Canceled) || present || many || rows.at != 1 {
 		t.Fatal("cancellation published row/cardinality", err)
 	}
 	command := dml.Command{Capture: &dml.CaptureCardinality{}}
@@ -112,17 +112,17 @@ func TestPLpgSQLSelectIntoRuntime(t *testing.T) {
 	}
 	t.Run("close_and_activation_unwind", func(t *testing.T) {
 		s, _, f, read := loopUnitFrame(t, `BEGIN RETURN 7; END`)
-		previous := ScopeSQLRoutineRef(s).lexical
-		restore := s.activateSQLRoutine(nil, read)
-		ScopeSQLRoutineRef(s).lexical = f
+		previous := RoutineDemandLexical(ScopeSQLRoutineRef(s))
+		restore := ScopeActivateSQLRoutine(s, nil, read)
+		SetRoutineDemandLexical(ScopeSQLRoutineRef(s), f)
 		fatal := errors.New("fatal close")
 		main := &captureCloseRows{failure: fatal}
 		auxiliary := &captureCloseRows{}
 		primary := &sqlstate.Error{Code: "P0003", Message: "query returned more than one row"}
-		err := closePLCapture(Result{Rows: main, RowSets: []exec.RowResult{auxiliary}}, primary, func(err error) error { return err })
+		err := ClosePLCapture(Result{Rows: main, RowSets: []exec.RowResult{auxiliary}}, primary, func(err error) error { return err })
 		err = restore(err)
 		var diagnostic *sqlstate.Error
-		if !errors.Is(err, fatal) || !errors.Is(err, primary) || !errors.As(err, &diagnostic) || diagnostic.Code != "P0003" || !main.closed || !auxiliary.closed || ScopeSQLRoutineRef(s).lexical != previous {
+		if !errors.Is(err, fatal) || !errors.Is(err, primary) || !errors.As(err, &diagnostic) || diagnostic.Code != "P0003" || !main.closed || !auxiliary.closed || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != previous {
 			t.Fatal("lost primary/cleanup/activation", err)
 		}
 	})

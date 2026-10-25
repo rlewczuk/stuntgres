@@ -35,7 +35,7 @@ func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query st
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, 20008, catalog.ViewRelation, true)
+	definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), raw.Query, b, false, false, 20008, catalog.ViewRelation, true)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)

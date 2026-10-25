@@ -104,17 +104,17 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	defer input.Close()
 	invoke := func(scope *StatementScope, routine *catalog.Procedure, identity string) {
 		t.Helper()
-		before := ScopeSQLRoutineRef(scope).plDiagnostic
-		_, err := scope.invokePLRoutine(routine, input, read, sqltype.CollationRef{})
+		before := RoutineDemandPLDiagnostic(ScopeSQLRoutineRef(scope))
+		_, err := ScopeInvokePLRoutine(scope, routine, input, read, sqltype.CollationRef{})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "P0001" || diagnostic.Message != "cached" || diagnostic.Context != "PL/pgSQL function "+identity+" line 1 at RAISE" {
 			t.Fatalf("cached identity diagnostic: %#v", err)
 		}
-		if ScopeSQLRoutineRef(scope).plDiagnostic != before {
+		if RoutineDemandPLDiagnostic(ScopeSQLRoutineRef(scope)) != before {
 			t.Fatal("failed nested invocation leaked identity")
 		}
 	}
-	ScopeSQLRoutineRef(s).plDiagnostic = "outer_identity()"
+	SetRoutineDemandPLDiagnostic(ScopeSQLRoutineRef(s), "outer_identity()")
 	invoke(s, d, "pl_cache_schema.cache_fn()")
 	setPath(s, "pl_cache_schema,public")
 	invoke(s, d, "pl_cache_schema.cache_fn()")
@@ -148,18 +148,18 @@ func TestPLpgSQLRaiseDiagnosticCache(t *testing.T) {
 	e.Mu.Lock()
 	retained := PayloadSQLRoutines(PayloadOf(s.Op.Session))[d.Address()]
 	e.Mu.Unlock()
-	if retained.plProcedure != &replacement || retained.plDiagnostic != "cache_fn()" {
+	if RoutineAnalysisPLProcedure(&retained) != &replacement || RoutineAnalysisPLDiagnostic(&retained) != "cache_fn()" {
 		t.Fatal("replacement carrier did not own recaptured signature")
 	}
-	restore := s.activateSQLRoutine(nil, read)
-	if ScopeSQLRoutineRef(s).plDiagnostic != "" {
+	restore := ScopeActivateSQLRoutine(s, nil, read)
+	if RoutineDemandPLDiagnostic(ScopeSQLRoutineRef(s)) != "" {
 		t.Fatal("nested SQL activation inherited PL identity")
 	}
-	ScopeSQLRoutineRef(s).plDiagnostic = "nested_identity()"
+	SetRoutineDemandPLDiagnostic(ScopeSQLRoutineRef(s), "nested_identity()")
 	if err := restore(nil); err != nil {
 		t.Fatal(err)
 	}
-	if ScopeSQLRoutineRef(s).plDiagnostic != "outer_identity()" {
+	if RoutineDemandPLDiagnostic(ScopeSQLRoutineRef(s)) != "outer_identity()" {
 		t.Fatal("lexical scratch failed to restore PL identity")
 	}
 }

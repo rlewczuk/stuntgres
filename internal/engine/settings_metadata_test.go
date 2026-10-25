@@ -24,7 +24,7 @@ func settingsRuntimeForTest(t *testing.T, e *Engine, s *session.Session) EngineC
 	if err != nil {
 		t.Fatal(err)
 	}
-	return EngineCatalogRuntime{Auth: auth, settings: s.Settings, registry: e.Settings}
+	return NewCatalogRuntime(CatalogRuntimeFields{Auth: auth, Settings: s.Settings, Registry: e.Settings})
 }
 
 func TestPGSettingsProviderCapture(t *testing.T) {

@@ -61,9 +61,9 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		column := catalog.Column{Name: "i", Usage: integer.Usage()}
 		root := &plan.ProjectNode{QuerySchema: []catalog.Column{column}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: seven}}}
 		outer := &proc.PLFrame{}
-		ScopeSQLRoutineRef(s).lexical = outer
+		SetRoutineDemandLexical(ScopeSQLRoutineRef(s), outer)
 		parentAuthority := ScopeAuthority(s)
-		restore := s.activateSQLRoutine(nil, read)
+		restore := ScopeActivateSQLRoutine(s, nil, read)
 		SetScopeAuthority(s, &exec.Authority{Host: HostOf(s)})
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}}
@@ -73,7 +73,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Completed || ScopeSessionCompleted(s) || ScopeSQLRoutineRef(s).lexical != outer || ScopeAuthority(s) != parentAuthority || CursorStage(cursor) != nil || CursorAuthority(cursor).Host != nil {
+		if s.Completed || ScopeSessionCompleted(s) || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != outer || ScopeAuthority(s) != parentAuthority || CursorStage(cursor) != nil || CursorAuthority(cursor).Host != nil {
 			t.Fatal("PL installation changed root flags/scratch or eagerly opened producer")
 		}
 		frame := &proc.PLFrame{Values: []sqltype.Value{seven}}
@@ -167,7 +167,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
 			before := CursorsOrdinal(PayloadOf(s.Op.Session).Cursors)
-			_, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+			_, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			if exit == "error" {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
@@ -205,7 +205,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		go func() {
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
-			_, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+			_, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			done <- err
 		}()
 		// This real lock queue proves admission into the loop body, after the
@@ -263,12 +263,12 @@ func TestPLpgSQLCursorTargetAtomicity(t *testing.T) {
 	f := &proc.PLFrame{Program: &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{{Name: "found", Usage: boolean.Usage(), Role: proc.PLFoundSlot}, {Name: "first", Usage: integer.Usage()}, {Name: "second", Usage: integer.Usage(), NotNull: true}, {Name: "r", Record: true}}}, Values: []sqltype.Value{sqltype.Boolean(boolean, false), seven, seven, {}}}
 	defer f.Close()
 	cursor := NewCursor(CursorFields{Schema: []catalog.Column{{Name: "i", Usage: integer.Usage()}, {Name: "t", Usage: text.Usage()}}})
-	err := s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{{Slot: 1}, {Slot: 2}}, cursor, []sqltype.Value{eight, sqltype.Null(integer)}, read)
+	err := ScopeAssignPLCursorTargets(s, ScopeNewPLRun(s, nil, f, read), f, []proc.PLTarget{{Slot: 1}, {Slot: 2}}, cursor, []sqltype.Value{eight, sqltype.Null(integer)}, read)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22004" || f.Values[1] != seven || f.Values[2] != seven {
 		t.Fatal("failed target list partially published", err)
 	}
-	if err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{sqltype.Null(integer), sqltype.Null(text)}, read); err != nil {
+	if err = ScopeAssignPLCursorTargets(s, ScopeNewPLRun(s, nil, f, read), f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{sqltype.Null(integer), sqltype.Null(text)}, read); err != nil {
 		t.Fatal(err)
 	}
 	row := f.Values[3]
@@ -276,20 +276,20 @@ func TestPLpgSQLCursorTargetAtomicity(t *testing.T) {
 		t.Fatal("empty FETCH erased RECORD shape")
 	}
 	shape := row.Type()
-	if err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{seven, sqltype.String(text, "seven")}, read); err != nil || f.Values[3].Type() != shape || !row.CompositeField(0).IsNull() {
+	if err = ScopeAssignPLCursorTargets(s, ScopeNewPLRun(s, nil, f, read), f, []proc.PLTarget{{Slot: 3}}, cursor, []sqltype.Value{seven, sqltype.String(text, "seven")}, read); err != nil || f.Values[3].Type() != shape || !row.CompositeField(0).IsNull() {
 		t.Fatal("refill mutated prior value or rebuilt descriptor", err)
 	}
 	field := func(name string) proc.PLTarget {
 		return proc.PLTarget{Slot: 3, Steps: []parser.TargetStep{{Field: &parser.Identifier{Text: name}}}}
 	}
-	if err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{field("i"), field("t")}, cursor, []sqltype.Value{eight, sqltype.String(text, "eight")}, read); err != nil {
+	if err = ScopeAssignPLCursorTargets(s, ScopeNewPLRun(s, nil, f, read), f, []proc.PLTarget{field("i"), field("t")}, cursor, []sqltype.Value{eight, sqltype.String(text, "eight")}, read); err != nil {
 		t.Fatal(err)
 	}
 	updated := f.Values[3]
 	if !sqltype.SameDatum(updated.CompositeField(0), eight) || !sqltype.SameDatum(updated.CompositeField(1), sqltype.String(text, "eight")) {
 		t.Fatal("detached writes to the same RECORD lost a sibling")
 	}
-	err = s.assignPLCursorTargets(s.newPLRun(nil, f, read), f, []proc.PLTarget{field("t"), field("i")}, cursor, []sqltype.Value{sqltype.String(text, "changed"), sqltype.String(text, "bad")}, read)
+	err = ScopeAssignPLCursorTargets(s, ScopeNewPLRun(s, nil, f, read), f, []proc.PLTarget{field("t"), field("i")}, cursor, []sqltype.Value{sqltype.String(text, "changed"), sqltype.String(text, "bad")}, read)
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" || f.Values[3] != updated || !sqltype.SameDatum(updated.CompositeField(1), sqltype.String(text, "eight")) {
 		t.Fatal("failed field transfer published or mutated its detached ancestor", err)
 	}
@@ -309,7 +309,7 @@ func TestPLpgSQLCursorExpressionProvenance(t *testing.T) {
 			d := cursorOwnerRoutine(t, e, s, tc.source)
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
-			_, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+			_, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 				t.Fatal(err)
@@ -343,7 +343,7 @@ func TestPLpgSQLCursorPositionedDiagnostics(t *testing.T) {
 			d := cursorOwnerRoutine(t, e, s, tc.source)
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
-			_, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+			_, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" {
 				t.Fatal(err)
@@ -383,7 +383,7 @@ func TestPLpgSQLCursorTargetBoundsOrder(t *testing.T) {
 	} {
 		target := plUnitAssignmentTarget(t, tc.path)
 		target.Slot = 1
-		_, err := s.preparePLTargetValue(s.newPLRun(nil, f, read), f, target, sqltype.String(text, "bad"), initial, read)
+		_, err := ScopePreparePLTargetValue(s, ScopeNewPLRun(s, nil, f, read), f, target, sqltype.String(text, "bad"), initial, read)
 		domainUnitDiagnostic(t, err, tc.code, tc.message)
 		if f.Values[1] != initial {
 			t.Fatal("detached target preparation published its root")

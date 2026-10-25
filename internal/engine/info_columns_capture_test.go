@@ -51,7 +51,7 @@ func columnsUnitPairedCapture(t *testing.T) {
 	e.Catalog.PublishLocked(next)
 	e.RoleStore.PublishLocked(roles)
 	e.Mu.Lock()
-	captured, err := e.openRelationSourceLocked(scope, old.Owner().Domain.Ref(old.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	captured, err := EngineOpenRelationSourceLocked(e, scope, old.Owner().Domain.Ref(old.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("paired columns source", err)
 	}

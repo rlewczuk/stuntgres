@@ -63,7 +63,7 @@ func queryLoopDemandFailure(t *testing.T) {
 			if flow.Kind != proc.PLNormal || f.Values[in.QueryLoop.Target.Slot] != previous || f.Values[f.Program.FoundSlot] != found {
 				t.Fatal("failed demand published target/FOUND/control", flow)
 			}
-			if err := owned.Close(); err != nil || !owner.Closed || !rows.closed || ScopeSQLRoutineRef(s).lexical != nil {
+			if err := owned.Close(); err != nil || !owner.Closed || !rows.closed || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil {
 				t.Fatal("failed demand retained producer", err)
 			}
 		})

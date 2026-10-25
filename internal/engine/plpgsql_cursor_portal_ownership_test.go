@@ -89,7 +89,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		frame := &proc.PLFrame{Program: &proc.PLProgram{FoundSlot: 0, Variables: []proc.PLVariable{{Usage: boolean.Usage(), Role: proc.PLFoundSlot}, {Usage: refcursor.Usage()}, {Record: true}}}, Values: []sqltype.Value{sqltype.Boolean(boolean, false), sqltype.String(refcursor, "other"), {}}}
 		defer frame.Close()
 		motion := &parser.FetchCursor{Name: parser.Identifier{Text: "original"}, Count: 1}
-		if err := s.movePLCursorPortal(s.newPLRun(nil, frame, read), frame, []proc.PLTarget{{Slot: 2}}, original, motion, read); err != nil {
+		if err := ScopeMovePLCursorPortal(s, ScopeNewPLRun(s, nil, frame, read), frame, []proc.PLTarget{{Slot: 2}}, original, motion, read); err != nil {
 			t.Fatal(err)
 		}
 		row := frame.Values[2]
@@ -114,7 +114,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 			d := cursorOwnerRoutine(t, e, s, "DECLARE c CURSOR FOR VALUES(10),(20),(30); n integer:=0; BEGIN c:='owned_identity'; FOR r IN c LOOP n:=n+r.column1; c:="+assignment+"; END LOOP; RETURN n; END")
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
-			value, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+			value, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -186,7 +186,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		d := cursorOwnerRoutine(t, e, s, "DECLARE c CURSOR FOR SELECT 7 AS i; BEGIN c:='owned_pin'; FOR r IN c LOOP CLOSE c; RETURN r.i; END LOOP; RETURN 0; END")
 		frame := proc.NewFrame(nil)
 		defer frame.Close()
-		_, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+		_, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "24000" {
 			t.Fatal(err)

@@ -24,7 +24,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR WITH HOLD FOR SELECT abs(i) FROM unit_rows")
 					c := PayloadOf(s).Cursors.Entries["c"]
 					root, catalog, actor := CursorRoot(c), CursorRoutineAuth(c).Catalog.State(), CursorRoutineAuth(c).State.CurrentUser
-					if CursorRoutineAuthRef(c).inputs != &EngineOf(s).Authority || catalog == nil || CursorAuthority(c).Host != nil {
+					if AuthorizationInputs(CursorRoutineAuthRef(c)) != &EngineOf(s).Authority || catalog == nil || CursorAuthority(c).Host != nil {
 						t.Fatal("DECLARE did not detach its original routine authority")
 					}
 					original := slices.Clone(CursorRoutineDependencies(c))
@@ -59,7 +59,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					}
 					result, err := cursorUnitExecute(t, s, context.Background(), query)
 					if mutation != "intact" && mutation != "relation_metadata" {
-						if err == nil || result.Rows != nil || result.Count != 0 || c.Source != nil || CursorRoutineAuth(c).live() {
+						if err == nil || result.Rows != nil || result.Count != 0 || c.Source != nil || AuthorizationLive(CursorRoutineAuth(c)) {
 							t.Fatal("invalid original manifest survived producer admission", result, err)
 						}
 						return
@@ -71,7 +71,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 						result.Rows.Close()
 					}
 					if promotion {
-						if !CursorPromoted(c) || CursorRoutineAuth(c).live() || CursorRoutineDependencies(c) != nil || CursorRoot(c) != nil {
+						if !CursorPromoted(c) || AuthorizationLive(CursorRoutineAuth(c)) || CursorRoutineDependencies(c) != nil || CursorRoot(c) != nil {
 							t.Fatal("promotion retained declaration authority")
 						}
 					} else {
@@ -80,7 +80,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 						}
 					}
 					sessionSQL(t, s, "CLOSE c")
-					if CursorRoutineAuth(c).live() || CursorRoutineDependencies(c) != nil {
+					if AuthorizationLive(CursorRoutineAuth(c)) || CursorRoutineDependencies(c) != nil {
 						t.Fatal("CLOSE retained declaration authority")
 					}
 				})

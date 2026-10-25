@@ -58,27 +58,27 @@ func plExceptionUnlocked(t *testing.T, e *Engine, s *StatementScope) func() {
 func TestPLExceptionParticipants(t *testing.T) {
 	t.Run("late_enlistment_and_balanced_marks", func(t *testing.T) {
 		e, s := plExceptionUnitScope(t)
-		outer, err := s.beginPLException()
+		outer, err := ScopeBeginPLException(s)
 		if err != nil {
 			t.Fatal(err)
 		}
-		inner, err := s.beginPLException()
+		inner, err := ScopeBeginPLException(s)
 		if err != nil {
 			t.Fatal(err)
 		}
 		provider := &fdwUnitLifecycle{tx: &fdwUnitTransaction{}}
 		provider.tx.check = plExceptionUnlocked(t, e, s)
 		request := catalog.ForeignRequest{HandlerOID: 1, ServerOID: 2, MappingOID: 3, RoleOID: 4}
-		if _, err := s.enlistForeign(s.Op.Context(), provider, request, true); err != nil {
+		if _, err := ScopeEnlistForeign(s, s.Op.Context(), provider, request, true); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.endPLException(inner, true, errors.New("body")); err != nil {
+		if err := ScopeEndPLException(s, inner, true, errors.New("body")); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.endPLException(outer, false, nil); err != nil {
+		if err := ScopeEndPLException(s, outer, false, nil); err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"save:" + fdw.MarkName(outer.serial), "save:" + fdw.MarkName(inner.serial), "begin-statement", "rollback:" + fdw.MarkName(inner.serial), "release:" + fdw.MarkName(inner.serial), "release:" + fdw.MarkName(outer.serial)}
+		want := []string{"save:" + fdw.MarkName(PLExceptionCheckpointSerial(outer)), "save:" + fdw.MarkName(PLExceptionCheckpointSerial(inner)), "begin-statement", "rollback:" + fdw.MarkName(PLExceptionCheckpointSerial(inner)), "release:" + fdw.MarkName(PLExceptionCheckpointSerial(inner)), "release:" + fdw.MarkName(PLExceptionCheckpointSerial(outer))}
 		if !reflect.DeepEqual(provider.tx.calls, want) {
 			t.Fatal("late participant did not replay chronological unnamed marks", provider.tx.calls, want)
 		}
@@ -91,7 +91,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		OwnerExtensionForeignRef(OwnerExtensionOf(s.Owner)).Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}}}}
-		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(block)
+		_, flow, err := ScopeNewPLRun(s, nil, frame, e.CatalogRead()).Block(block)
 		if flow.Kind != proc.PLNormal || !errors.Is(err, failure) || len(s.Owner.Savepoints) != 0 || !reflect.DeepEqual(tx.calls, []string{"save:stuntgres_sql_1", "rollback"}) {
 			t.Fatal("failed acquisition ran body/retained provider mark", flow, err, tx.calls)
 		}
@@ -119,7 +119,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		frame.EnterHandler(scope, original)
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Rethrow: true}}}, HandlerScope: scope, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
 		enclosing := &proc.PLBlock{Statements: []proc.PLInstruction{{Block: block}}, HandlerScope: scope, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
-		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(enclosing)
+		_, flow, err := ScopeNewPLRun(s, nil, frame, e.CatalogRead()).Block(enclosing)
 		var diagnostic *sqlstate.Error
 		var cleanup *proc.PLExceptionCleanupError
 		if flow.Kind != proc.PLNormal || !errors.As(err, &cleanup) || !errors.As(err, &diagnostic) || diagnostic != original || !errors.Is(err, failure) {
@@ -131,14 +131,14 @@ func TestPLExceptionParticipants(t *testing.T) {
 		tx := &plExceptionFaultTx{}
 		tx.check = plExceptionUnlocked(t, e, s)
 		OwnerExtensionForeignRef(OwnerExtensionOf(s.Owner)).Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
-		mark, err := s.beginPLException()
+		mark, err := ScopeBeginPLException(s)
 		if err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(s.Op.Context())
 		cancel()
 		s.Op.Ctx = ctx
-		if err := s.endPLException(mark, true, context.Canceled); err != nil {
+		if err := ScopeEndPLException(s, mark, true, context.Canceled); err != nil {
 			t.Fatal(err)
 		}
 		if tx.canceledRollback {
@@ -152,7 +152,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		s.Op.Ctx = ctx
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}, Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}}}}
-		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(block)
+		_, flow, err := ScopeNewPLRun(s, nil, frame, e.CatalogRead()).Block(block)
 		if flow.Kind != proc.PLNormal || !errors.Is(err, context.Canceled) || len(s.Owner.Savepoints) != 0 {
 			t.Fatal("OTHERS swallowed ordinary context error", flow, err)
 		}

@@ -125,7 +125,7 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 			lockAwait(t, done, context.Canceled)
 		}
 	}()
-	go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
+	go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
 	lockPending(t, e, 1)
 	// Publication while the real utility target lock is pending must not move
 	// either half of its active snapshot. Roots are intentionally obtained later.

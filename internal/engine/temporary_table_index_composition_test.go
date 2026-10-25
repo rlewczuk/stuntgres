@@ -69,7 +69,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			SetStageTerminalCleanup(stage, mode == "TerminalMaximum")
 			changes := session.NewJournal()
 			project := func(old, next *catalog.Relation) error {
-				_, _, _, err := stagePrivateColumnShape(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: stage.Base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage, changes, old, next, nil, nil, visibility.Root{}, false, false)
+				_, _, _, err := StagePrivateColumnShape(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: stage.Base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage, changes, old, next, nil, nil, visibility.Root{}, false, false)
 				return err
 			}
 			providerRef := e.Catalog.Domain.Ref(stage.Base.Epoch(), provider.Address())
@@ -115,7 +115,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			if intermediate == idx || intermediate.SQLIndex.Keys[0].Derived == idx.SQLIndex.Keys[0].Derived {
 				t.Fatal("first candidate mutated original")
 			}
-			err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, changes, project)
+			err := StageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, changes, project)
 			if mode == "OrdinaryOverflow" {
 				if err == nil || err.Error() != "stuntgres: index revision exhausted" {
 					t.Fatal("ordinary second evolution overflow", err)

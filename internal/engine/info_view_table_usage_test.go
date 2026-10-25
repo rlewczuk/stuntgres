@@ -327,7 +327,7 @@ func infoViewTableUsageCapture(t *testing.T) {
 	next.SetDescriptor(renamed.Address(), &renamed)
 	f.e.Catalog.PublishLocked(next)
 	f.e.Mu.Lock()
-	captured, err := f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	captured, err := EngineOpenRelationSourceLocked(f.e, scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("coherent captured usage source", err)
 	}
@@ -364,7 +364,7 @@ func infoViewTableUsageCapture(t *testing.T) {
 	}
 	freshView := scope.Inquiry.CommentCatalog
 	f.e.Mu.Lock()
-	fresh, err := f.e.openRelationSourceLocked(scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	fresh, err := EngineOpenRelationSourceLocked(f.e, scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || fresh == nil {
 		t.Fatal("fresh captured usage source", err)
 	}

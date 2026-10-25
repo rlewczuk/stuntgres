@@ -27,7 +27,7 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 					ref := catalogRef(t, e, e.CatalogRead(), "ex_log")
 					prefix := scope.Stage.Rows[ref.Address][0]
 					scope.Completed, *ScopeSessionCompletedRef(scope) = completed, sessionCompleted
-					restore := scope.activateSQLRoutine(nil, e.CatalogRead())
+					restore := ScopeActivateSQLRoutine(scope, nil, e.CatalogRead())
 					if scope.Completed || ScopeSessionCompleted(scope) {
 						t.Fatal("child inherited parent's completion outcomes")
 					}
@@ -45,10 +45,10 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					expression := syntax.Statements[0].Expression
-					if _, _, _, err := scope.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{expression}, Pos: expression.SourcePosition()}, e.CatalogRead(), nil, plNoticeOrigin{}); err != nil {
+					if _, _, _, err := ScopeEvaluatePLExpression(scope, frame, &parser.Select{Targets: []parser.Expr{expression}, Pos: expression.SourcePosition()}, e.CatalogRead(), nil, NewPLNoticeOrigin(PLNoticeOriginFields{})); err != nil {
 						t.Fatal(err)
 					}
-					nestedRestore := scope.activateSQLRoutine(nil, e.CatalogRead())
+					nestedRestore := ScopeActivateSQLRoutine(scope, nil, e.CatalogRead())
 					if scope.Completed || ScopeSessionCompleted(scope) {
 						t.Fatal("nested child did not start with reset completion flags")
 					}
@@ -89,7 +89,7 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 		if _, err := ScopeExecuteDiscard(scope, &parser.Discard{Category: parser.DiscardPlans}, 0); err != nil || !scope.Completed || !ScopeSessionCompleted(scope) || sess.DiscardPlansGeneration != 1 {
 			t.Fatal("root utility did not actually install its outcome", err)
 		}
-		restore := scope.activateSQLRoutine(nil, e.CatalogRead())
+		restore := ScopeActivateSQLRoutine(scope, nil, e.CatalogRead())
 		if scope.Completed || ScopeSessionCompleted(scope) {
 			t.Fatal("completed root outcome leaked into child")
 		}

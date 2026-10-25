@@ -224,7 +224,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	open := func(s *StatementScope, r ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.Mu.Lock()
-		source, err := e.openRelationSourceLocked(s, r, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+		source, err := EngineOpenRelationSourceLocked(e, s, r, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

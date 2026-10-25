@@ -114,7 +114,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 		t.Fatal("discovery")
 	}
 	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: class, Runtime: EngineCatalogRuntime{engine: e}}, d)
+	facts, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: &e.Catalog.Owner, Source: class, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 		t.Fatal("capture mutated owner roots/frontiers")
 	}
 	d, ref := pgParameterACLUnitSource(t, e, view)
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
+	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("foreign roles accepted", err)
 	}
 	address := view.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
@@ -186,13 +186,13 @@ func TestPGParameterACLCapture(t *testing.T) {
 	corrupt.Owner = authorization.PrincipalRef{}
 	broken := catalog.CloneState(view.State())
 	broken.SetDescriptor(address, &corrupt)
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(broken), Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
+	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(broken), Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}
 	corrupt.Owner = e.RoleStore.Domain.Principal(10)
 	corrupt.ACL.Entries = append([]authorization.ACLEntry(nil), corrupt.ACL.Entries...)
 	corrupt.ACL.Entries[0].Grantor = New().RoleStore.Domain.Principal(10)
-	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(broken), Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
+	if rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(broken), Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("foreign grantor accepted", err)
 	}
 	// Real owner operations, not synthetic parameter rows, produce explicit {}.
@@ -283,7 +283,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.Mu.Lock()
-	captured, err := e.openRelationSourceLocked(scope, ref, op.RoleState().CurrentUser, plan.RowMark{}, nil, nil)
+	captured, err := EngineOpenRelationSourceLocked(e, scope, ref, op.RoleState().CurrentUser, plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +362,7 @@ func TestPGParameterACLCancellation(t *testing.T) {
 			cancel()
 		}
 		during := &aclValuesScanContext{Context: ctx, cancel: cancel, after: after}
-		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: during, Catalog: catalog, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGParameterACL)
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: during, Catalog: catalog, Roles: roles, Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGParameterACL)
 		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial/canceled capture", after, rows, err)

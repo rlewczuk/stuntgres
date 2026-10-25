@@ -163,7 +163,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			nextCatalog.SetDescriptor(idx.Address(), &idx)
 			stores := maps.Clone(f.e.Storage.Relations)
 			stores[parent.Address()] = &shaped
-			prepared, err := f.e.prepareIndexCatalog(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.e.Catalog.State, &nextCatalog, stores, f.e.Storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.Output, nil, nil, nil)
+			prepared, err := EnginePrepareIndexCatalog(f.e, &exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.e.Catalog.State, &nextCatalog, stores, f.e.Storage.IndexRoots, map[ids.ObjectAddress]bool{parent.Address(): true}, nil, scope.Output, nil, nil, nil)
 			if err != nil {
 				t.Fatal("trusted shape reconstruction", err)
 			}

@@ -152,7 +152,7 @@ func TestPGSequenceProjection(t *testing.T) {
 	e.Mu.Lock()
 	e.Storage.InstallSequenceLocked(a, &storage.SequenceGenerator{Last: 99, Called: true, Generation: 100})
 	e.Mu.Unlock()
-	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: source, Runtime: EngineCatalogRuntime{sequenceBase: &state, sequenceOwn: nil}}, capturePGSequence)
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{SequenceBase: &state, SequenceOwn: nil})}, capturePGSequence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 		{"private drop", &base, own},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: source, Runtime: EngineCatalogRuntime{sequenceBase: tc.base, sequenceOwn: tc.own}}, capturePGSequence)
+			rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{SequenceBase: tc.base, SequenceOwn: tc.own})}, capturePGSequence)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -204,7 +204,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	other := *d
 	other.ObjectAddress = dropped
 	base.SetDescriptor(dropped, &other)
-	old, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: source, Runtime: EngineCatalogRuntime{sequenceBase: &base, sequenceOwn: nil}}, capturePGSequence)
+	old, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{SequenceBase: &base, SequenceOwn: nil})}, capturePGSequence)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	owner.Catalog = own
 	scope := &StatementScope{Op: op, Owner: owner}
 	e.Mu.Lock()
-	captured, err := e.openRelationSourceLocked(scope, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+	captured, err := EngineOpenRelationSourceLocked(e, scope, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err != nil || !reflect.DeepEqual(pgSequenceUnitBag(t, captured), want) {
 		t.Fatal("retained base plus own overlay", err)
 	}
@@ -239,7 +239,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, state := range []*catalog.State{&base, catalog.NewState(0)} {
-		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: source, Runtime: EngineCatalogRuntime{sequenceBase: state, sequenceOwn: own}}, capturePGSequence)
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{SequenceBase: state, SequenceOwn: own})}, capturePGSequence)
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", rows, err)
 		}

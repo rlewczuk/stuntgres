@@ -63,19 +63,19 @@ func TestViewCapabilitiesForeignEvents(t *testing.T) {
 			}
 			read := e.CatalogRead().WithState(state)
 			for _, subset := range [][]int32{nil, {}, {1}} {
-				got, err := view.Capabilities(context.Background(), read, relation, subset, catalogViewLeafEvents)
+				got, err := view.Capabilities(context.Background(), read, relation, subset, CatalogViewLeafEvents)
 				if err != nil || got != tc.want {
 					t.Fatalf("subset%v: %d, %v; want%d", subset, got, err, tc.want)
 				}
 			}
 			missing := catalog.CloneState(state)
 			missing.RemoveDescriptor(server.Address())
-			if got, err := view.Capabilities(context.Background(), read.WithState(missing), relation, nil, catalogViewLeafEvents); got != 0 || !errors.Is(err, ids.ErrCatalogReplaced) {
+			if got, err := view.Capabilities(context.Background(), read.WithState(missing), relation, nil, CatalogViewLeafEvents); got != 0 || !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatalf("missing server: %d, %v", got, err)
 			}
 			canceled, cancel := context.WithCancel(context.Background())
 			cancel()
-			if got, err := view.Capabilities(canceled, read, relation, nil, catalogViewLeafEvents); got != 0 || !errors.Is(err, context.Canceled) {
+			if got, err := view.Capabilities(canceled, read, relation, nil, CatalogViewLeafEvents); got != 0 || !errors.Is(err, context.Canceled) {
 				t.Fatalf("canceled: %d, %v", got, err)
 			}
 		})
@@ -136,13 +136,13 @@ func TestBuiltinViewRoutineIdentity(t *testing.T) {
 				state.RemoveDescriptor(public)
 			}
 			read := base.WithState(state)
-			runtime := EngineCatalogRuntime{presentation: stored.Presentation{Path: []ids.ObjectAddress{pg}}}
+			runtime := NewCatalogRuntime(CatalogRuntimeFields{Presentation: stored.Presentation{Path: []ids.ObjectAddress{pg}}})
 			if tc.visible {
-				runtime.presentation.Path = []ids.ObjectAddress{pg, public}
+				CatalogRuntimePresentationRef(&runtime).Path = []ids.ObjectAddress{pg, public}
 			}
 			for _, quote := range []bool{false, true} {
-				runtime.presentation.Output.QuoteAllIdentifiers = quote
-				got, err := runtime.builtinViewDefinition(context.Background(), read, relation)
+				CatalogRuntimePresentationRef(&runtime).Output.QuoteAllIdentifiers = quote
+				got, err := CatalogRuntimeBuiltinViewDefinition(runtime, context.Background(), read, relation)
 				if tc.missingNamespace {
 					if got != "" || !errors.Is(err, ids.ErrCatalogReplaced) {
 						t.Fatalf("inconsistent namespace published %q, %v", got, err)
@@ -159,7 +159,7 @@ func TestBuiltinViewRoutineIdentity(t *testing.T) {
 					t.Fatalf("quote=%t definition=%q err=%v; want call %s(%s)", quote, got, err, want, argument)
 				}
 				// A newer descriptor must not leak into a previously captured read.
-				old, err := runtime.builtinViewDefinition(context.Background(), base, relation)
+				old, err := CatalogRuntimeBuiltinViewDefinition(runtime, context.Background(), base, relation)
 				oldCall := "pg_get_userbyid(c.relowner)"
 				if quote {
 					oldCall = `"pg_get_userbyid"("c"."relowner")`

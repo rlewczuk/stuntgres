@@ -25,12 +25,12 @@ func BenchmarkPLpgSQLWalk(b *testing.B) {
 			read := s.Engine().CatalogRead()
 			input := proc.NewFrame(nil)
 			defer input.Close()
-			if _, err := s.invokePLRoutine(d, input, read, sqltype.CollationRef{}); err != nil {
+			if _, err := ScopeInvokePLRoutine(s, d, input, read, sqltype.CollationRef{}); err != nil {
 				b.Fatal(err)
 			}
 			b.ReportAllocs()
 			for b.Loop() {
-				if _, err := s.invokePLRoutine(d, input, read, sqltype.CollationRef{}); err != nil {
+				if _, err := ScopeInvokePLRoutine(s, d, input, read, sqltype.CollationRef{}); err != nil {
 					b.Fatal(err)
 				}
 			}

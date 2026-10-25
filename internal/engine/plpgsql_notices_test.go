@@ -99,7 +99,7 @@ func TestPLpgSQLRaiseNoticeContext(t *testing.T) {
 		{0, "notice_unit_ok()", "", false},
 	} {
 		start := len(op.Notices)
-		value, err := s.invokePLRoutine(routines[tc.routine], input, e.CatalogRead(), sqltype.CollationRef{})
+		value, err := ScopeInvokePLRoutine(s, routines[tc.routine], input, e.CatalogRead(), sqltype.CollationRef{})
 		context := "PL/pgSQL function " + tc.inner + " line 1 at RAISE"
 		if tc.outer != "" {
 			context += "\nPL/pgSQL function " + tc.outer + " line 1 at RETURN"
@@ -130,8 +130,8 @@ func TestPLpgSQLRaiseNoticeContext(t *testing.T) {
 	}
 	// Invalid offsets are deliberately harmless for an empty range: no source
 	// slicing, rendering or allocation may occur when execution emitted nothing.
-	origin := plNoticeOrigin{position: parser.Position{Offset: 1}, action: "at RETURN"}
-	if n := testing.AllocsPerRun(100, func() { s.appendPLNoticeContext(len(op.Notices), origin) }); n != 0 {
+	origin := NewPLNoticeOrigin(PLNoticeOriginFields{Position: parser.Position{Offset: 1}, Action: "at RETURN"})
+	if n := testing.AllocsPerRun(100, func() { ScopeAppendPLNoticeContext(s, len(op.Notices), origin) }); n != 0 {
 		t.Fatalf("empty notice range allocated %v", n)
 	}
 }

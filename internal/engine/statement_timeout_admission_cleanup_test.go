@@ -77,7 +77,7 @@ func TestStatementTimeoutAdmissionFullCleanup(t *testing.T) {
 			sess.Mu.Unlock()
 		}
 	}
-	if _, err := scope.enlistForeign(work.Context(), provider, catalog.ForeignRequest{HandlerOID: 1, ServerOID: 2, MappingOID: 3, RoleOID: 4}, true); err != nil {
+	if _, err := ScopeEnlistForeign(scope, work.Context(), provider, catalog.ForeignRequest{HandlerOID: 1, ServerOID: 2, MappingOID: 3, RoleOID: 4}, true); err != nil {
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}

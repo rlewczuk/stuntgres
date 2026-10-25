@@ -16,13 +16,13 @@ import (
 // Instrument the real staged reader rather than replacing its descriptors or
 // provider behavior. Callable lookup must not invoke its full discovery API.
 type sqlRoutineLookupReader struct {
-	stageDefinitionReader
+	StageDefinitionReader
 	fullEnumerations int
 }
 
 func (r *sqlRoutineLookupReader) Descriptors() iter.Seq2[ids.ObjectAddress, catalog.Descriptor] {
 	r.fullEnumerations++
-	return r.stageDefinitionReader.Descriptors()
+	return r.StageDefinitionReader.Descriptors()
 }
 
 func TestSQLRoutineStagedLookup(t *testing.T) {
@@ -48,7 +48,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	added := current.MustProcedure(current.State().ProceduresNamed(namespace, "routine_unit_added")[0])
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	reader := &sqlRoutineLookupReader{stageDefinitionReader: StageDefinitions(stage)}
+	reader := &sqlRoutineLookupReader{StageDefinitionReader: StageDefinitions(stage)}
 	check := func(namespace ids.ObjectAddress, name string, want ...*catalog.Procedure) {
 		t.Helper()
 		found := make(map[ids.ObjectAddress]*catalog.Procedure)

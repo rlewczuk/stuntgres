@@ -121,7 +121,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	open := func(r ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.Mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, r, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+		source, err := EngineOpenRelationSourceLocked(e, scope, r, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -172,7 +172,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	current, err := e.openRelationSourceLocked(fresh, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+	current, err := EngineOpenRelationSourceLocked(e, fresh, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	defer done()
 	scope := &StatementScope{Op: op, Owner: op.Session.Transactions}
 	e.Mu.Lock()
-	source, err := e.openRelationSourceLocked(scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), unknown.Address()), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+	source, err := EngineOpenRelationSourceLocked(e, scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), unknown.Address()), e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err == nil || source != nil {
 		t.Fatal("unknown view routed to timezone")
 	}

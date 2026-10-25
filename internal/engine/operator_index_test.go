@@ -280,7 +280,7 @@ func TestUserOperatorIndexBootstrapAndPrincipalRemap(t *testing.T) {
 	candidate := catalog.CloneState(source.Catalog.State)
 	sourceRoles, targetRoles := source.Roles(), target.Roles()
 	target.Mu.Lock()
-	remapped, _, err := target.remapPreparedCatalog(candidate, sourceRoles, targetRoles, nil)
+	remapped, _, err := EngineRemapPreparedCatalog(target, candidate, sourceRoles, targetRoles, nil)
 	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

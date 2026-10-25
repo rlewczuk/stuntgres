@@ -28,7 +28,7 @@ func preparedRebindValid(t *testing.T, e *Engine, s *session.Session, cell *Prep
 	if err != nil {
 		t.Fatal(err)
 	}
-	path, err := e.sequenceEnvironmentLocked(auth)
+	path, err := EngineSequenceEnvironmentLocked(e, auth)
 	if err != nil {
 		t.Fatal(err)
 	}

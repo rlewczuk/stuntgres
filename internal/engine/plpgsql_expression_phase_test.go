@@ -51,7 +51,7 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 		}
 		raw := syntax.Statements[0].Expression
 		query := &parser.Select{Targets: []parser.Expr{raw}, Pos: raw.SourcePosition()}
-		_, _, _, err = s.evaluatePLExpression(frame, query, e.CatalogRead(), nil, plNoticeOrigin{})
+		_, _, _, err = ScopeEvaluatePLExpression(s, frame, query, e.CatalogRead(), nil, NewPLNoticeOrigin(PLNoticeOriginFields{}))
 		var diagnostic *sqlstate.Error
 		var planning *proc.PLExpressionPlanningError
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
@@ -60,7 +60,7 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 		if errors.As(err, &planning) != tc.planning {
 			t.Fatalf("expression %s planning provenance got %t want %t", tc.expression, planning != nil, tc.planning)
 		}
-		if ScopeSQLRoutineRef(s).lexical != nil || ScopeSQLRoutineRef(s).plPlanning {
+		if RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil || RoutineDemandPLPlanning(ScopeSQLRoutineRef(s)) {
 			t.Fatal("expression provenance escaped lexical activation")
 		}
 	}

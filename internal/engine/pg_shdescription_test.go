@@ -296,7 +296,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	open := func(scope *StatementScope, ref ids.ObjectRef) *exec.Source {
 		t.Helper()
 		e.Mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+		source, err := EngineOpenRelationSourceLocked(e, scope, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

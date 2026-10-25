@@ -21,10 +21,10 @@ func TestTransactionalTypesPrivateRootSelection(t *testing.T) {
 	index.JournalIndexes(changes).UniqueRoots = map[ids.ObjectAddress]*storage.IndexRoot{address: private}
 	s.Transactions.Catalog = changes
 	stage := &CatalogStage{AuthSession: s}
-	if got := e.domainStageIndexRootLocked(stage, address); got != private {
+	if got := EngineDomainStageIndexRootLocked(e, stage, address); got != private {
 		t.Fatal("explicit domain stage selected committed rather than private logical root")
 	}
-	if got := e.domainStageIndexRootLocked(&CatalogStage{}, address); got != committed {
+	if got := EngineDomainStageIndexRootLocked(e, &CatalogStage{}, address); got != committed {
 		t.Fatal("unowned stage lost committed root")
 	}
 	clone := changes.Clone()
@@ -34,7 +34,7 @@ func TestTransactionalTypesPrivateRootSelection(t *testing.T) {
 		t.Fatal("new journal mutated older savepoint index slot")
 	}
 	s.Transactions.Catalog = clone
-	if got := e.domainStageIndexRootLocked(stage, address); got != newer {
+	if got := EngineDomainStageIndexRootLocked(e, stage, address); got != newer {
 		t.Fatal("repeated private evolution ignored current root")
 	}
 }

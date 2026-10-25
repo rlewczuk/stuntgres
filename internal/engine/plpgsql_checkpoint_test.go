@@ -53,7 +53,7 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			s.Op.Session.Settings.Values["application_name"] = "outer"
 			ref, command, frontier := s.TxRef, s.Owner.Command, e.Visibility.CommitSeq()
 			rowFrontier, versionFrontier := e.Storage.RowFrontier(), e.Storage.VersionFrontier()
-			mark, err := s.beginPLException()
+			mark, err := ScopeBeginPLException(s)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -75,19 +75,19 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			SetScopeNotificationEvents(s, append(ScopeNotificationEvents(s), session.Notification{}))
 			s.Op.Session.Settings.Values["application_name"] = "inner"
 			SetScopeEffectSerial(s, 9)
-			inner, err := s.beginPLException()
+			inner, err := ScopeBeginPLException(s)
 			if err != nil {
 				t.Fatal(err)
 			}
 			s.Stage.Rows[a] = []storage.RowVersion{{Row: 1, Version: 11}, {Row: 3, Version: 3}}
 			SetWriteStageReplacing(&s.Stage, true)
-			if err := s.endPLException(inner, false, nil); err != nil {
+			if err := ScopeEndPLException(s, inner, false, nil); err != nil {
 				t.Fatal(err)
 			}
 			if !WriteStageReplacing(&s.Stage) || s.Stage.Rows[a][0].Version != 11 {
 				t.Fatal("successful inner release discarded effects")
 			}
-			if err := s.endPLException(mark, true, errors.New("body")); err != nil {
+			if err := ScopeEndPLException(s, mark, true, errors.New("body")); err != nil {
 				t.Fatal(err)
 			}
 			if len(s.Stage.Rows[a]) != 1 || s.Stage.Rows[a][0].Version != 1 || WriteStageReplacing(&s.Stage) || len(s.Stage.Deletes[a].Rows) != 1 || s.Stage.Deletes[a].Rows[7].Version != 7 {
@@ -109,28 +109,28 @@ func TestPLExceptionCheckpoint(t *testing.T) {
 			if s.TxRef != ref || s.Owner.Command != command || e.Visibility.CommitSeq() != frontier || ScopeEffectSerial(s) != 9 || e.Storage.RowFrontier() != rowFrontier || e.Storage.VersionFrontier() != versionFrontier {
 				t.Fatal("checkpoint rewound/advanced snapshot or identity")
 			}
-			if err := s.endPLException(mark, true, nil); err == nil {
+			if err := ScopeEndPLException(s, mark, true, nil); err == nil {
 				t.Fatal("double disposition accepted")
 			}
-			next, err := s.beginPLException()
+			next, err := ScopeBeginPLException(s)
 			if err != nil {
 				t.Fatal(err)
 			}
 			foreign := &StatementScope{Owner: s.Owner}
-			if err := foreign.endPLException(next, true, nil); err == nil {
+			if err := ScopeEndPLException(foreign, next, true, nil); err == nil {
 				t.Fatal("foreign statement checkpoint accepted")
 			}
-			nested, err := s.beginPLException()
+			nested, err := ScopeBeginPLException(s)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := s.endPLException(next, true, nil); err == nil {
+			if err := ScopeEndPLException(s, next, true, nil); err == nil {
 				t.Fatal("out-of-order checkpoint accepted")
 			}
-			if err := s.endPLException(nested, true, nil); err != nil {
+			if err := ScopeEndPLException(s, nested, true, nil); err != nil {
 				t.Fatal(err)
 			}
-			if err := s.endPLException(next, false, nil); err != nil {
+			if err := ScopeEndPLException(s, next, false, nil); err != nil {
 				t.Fatal(err)
 			}
 			if len(s.Owner.Savepoints) != 0 {

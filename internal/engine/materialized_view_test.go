@@ -41,7 +41,7 @@ func materializedUnitStage(t *testing.T, e *Engine) (*session.Operation, func(),
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, descriptor, skipped, err := e.prepareQueryTableLocked(op, auth, s, b)
+	stage, descriptor, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, s, b)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatalf("private stage: %v, skipped %v", err, skipped)

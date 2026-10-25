@@ -124,7 +124,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	unchanged()
@@ -134,7 +134,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		roles   authorization.Read
 		ref     ids.ObjectRef
 	}{{foreign.CatalogRead(), e.Roles(), ref}, {view, foreign.Roles(), ref}, {view, e.Roles(), foreign.Catalog.Domain.Ref(ref.Epoch, ref.Address)}} {
-		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: tc.catalog, Roles: tc.roles, Ref: tc.ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: tc.catalog, Roles: tc.roles, Ref: tc.ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got != nil || err == nil {
 			t.Fatal("foreign capture admitted", got, err)
 		}
 	}
@@ -142,14 +142,14 @@ func TestPGDatabaseCapture(t *testing.T) {
 		invalid := *d
 		invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 		invalid.Columns[i].Usage.Type, _ = foreign.CatalogRead().LookupType(column.Usage.Type.ID())
-		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got != nil || err == nil {
 			t.Fatal("foreign concrete type", i, got, err)
 		}
 	}
 	for _, width := range []int{0, 17, 19} {
 		invalid := *d
 		invalid.Columns = make([]catalog.Column, width)
-		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+		if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: ref, Source: &invalid, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got != nil || err == nil {
 			t.Fatal("invalid source width", width, got, err)
 		}
 	}
@@ -160,17 +160,17 @@ func TestPGDatabaseCapture(t *testing.T) {
 		}
 	}
 	isolated := e.Catalog.Read(private)
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got == nil || err != nil || got.Count() != 1 {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got == nil || err != nil || got.Count() != 1 {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}
 	invalidDB := *database
 	invalidDB.Owner = foreign.RoleStore.Domain.Principal(10)
 	private.SetDescriptor(catalog.CurrentDatabaseAddress, &invalidDB)
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("foreign owner admitted", got, err)
 	}
 	invalidDB.Owner = e.RoleStore.Domain.Principal(999999)
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, isolated), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("stale owner admitted", got, err)
 	}
 	unchanged()
@@ -242,7 +242,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	if fresh.Columns[0].Usage.Type == d.Columns[0].Usage.Type {
 		t.Fatal("replacement did not remint descriptors")
 	}
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGDatabase); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGDatabase); got != nil || err == nil {
 		t.Fatal("stale source admitted after replacement", got, err)
 	}
 	values := make([]sqltype.Value, 18)

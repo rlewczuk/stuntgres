@@ -361,7 +361,7 @@ func infoDomainsPairedCapture(t *testing.T) {
 	next.RemoveDescriptor(f.plain.Address())
 	f.f.e.Catalog.PublishLocked(next)
 	f.f.e.Mu.Lock()
-	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	captured, err := EngineOpenRelationSourceLocked(f.f.e, scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

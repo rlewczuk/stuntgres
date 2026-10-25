@@ -366,28 +366,28 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 	first, overlap := e.Visibility.Serializable.Nodes[a.Ref()], e.Visibility.Serializable.Nodes[b.Ref()]
 	first.Captured, overlap.Captured = true, true
 	first.Reads[d.Address()] = struct{}{}
-	before, err := e.capturePGPredicateLocksLocked()
+	before, err := EngineCapturePGPredicateLocksLocked(e)
 	if err != nil || len(before) != 1 {
 		t.Fatal("real SSI read", before, err)
 	}
 	first.Committed = true
 	EngineEndSerializableLocked(e, a.Ref(), true)
-	after, err := e.capturePGPredicateLocksLocked()
+	after, err := EngineCapturePGPredicateLocksLocked(e)
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("committed overlap changed original owner", before, after, err)
 	}
 	first.Prepared = true
-	prepared, err := e.capturePGPredicateLocksLocked()
+	prepared, err := EngineCapturePGPredicateLocksLocked(e)
 	if err != nil || len(prepared) != 1 || !prepared[0].Owner.Prepared {
 		t.Fatal("prepared SSI association", prepared, err)
 	}
 	first.Aborted = true
-	aborted, err := e.capturePGPredicateLocksLocked()
+	aborted, err := EngineCapturePGPredicateLocksLocked(e)
 	if err != nil || len(aborted) != 0 {
 		t.Fatal("aborted predicate leaked", aborted, err)
 	}
 	EngineEndSerializableLocked(e, b.Ref(), false)
-	if records, err := e.capturePGPredicateLocksLocked(); err != nil || len(records) != 0 {
+	if records, err := EngineCapturePGPredicateLocksLocked(e); err != nil || len(records) != 0 {
 		t.Fatal("overlap cleanup", records, err)
 	}
 	EngineFenceSerializableLocked(e)

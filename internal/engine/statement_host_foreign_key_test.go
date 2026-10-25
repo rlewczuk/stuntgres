@@ -26,7 +26,7 @@ func TestStatementHostForeignActionAuthoritySwap(t *testing.T) {
 	if previous := h.SwapForeignActionAuthority(auth); previous != nil {
 		t.Fatalf("empty slot returned %#v", previous)
 	}
-	if scope.ForeignActionAuth != foreignAuthorizationOf(auth) {
+	if scope.ForeignActionAuth != ForeignAuthorizationOf(auth) {
 		t.Fatal("swap did not install the authority")
 	}
 	if previous := h.SwapForeignActionAuthority(nil); previous != auth {
@@ -54,12 +54,12 @@ func TestStatementHostForeignAuthorityActingAs(t *testing.T) {
 	if auth.ActingAs(authorization.PrincipalRef{}) != auth {
 		t.Fatal("zero owner changed the authority")
 	}
-	base := foreignAuthorizationOf(auth)
+	base := ForeignAuthorizationOf(auth)
 	user := base.State.CurrentUser
 	if owner == user {
 		t.Fatal("table owner is the session user")
 	}
-	acting := foreignAuthorizationOf(auth.ActingAs(owner))
+	acting := ForeignAuthorizationOf(auth.ActingAs(owner))
 	if acting == base || acting.State.CurrentUser != owner || base.State.CurrentUser != user {
 		t.Fatal("owner substitution was not a copy", acting.State.CurrentUser, base.State.CurrentUser)
 	}

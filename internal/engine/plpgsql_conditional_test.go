@@ -71,7 +71,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 				defer cancel()
 				s.Op.Ctx = conditionalFrameCancel{Context: ctx, cancel: cancel, frame: f}
 			}
-			value, flow, err := s.newPLRun(d, f, read).Block(d.SQL.PL.Root)
+			value, flow, err := ScopeNewPLRun(s, d, f, read).Block(d.SQL.PL.Root)
 			if tc.cancel {
 				if !errors.Is(err, context.Canceled) {
 					t.Fatal("active search cancellation lost", err)
@@ -91,7 +91,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 					t.Fatal("nested RETURN did not propagate", value, flow, err)
 				}
 			}
-			if len(f.Scopes) != 0 || ScopeSQLRoutineRef(s).lexical != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
+			if len(f.Scopes) != 0 || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
 				t.Fatal("conditional leaked lexical/query/root state")
 			}
 			for _, search := range f.Searches {
@@ -135,7 +135,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 		if err != nil || before.Type() != varchar || !before.IsNull() || local.ResultUsage() != usage {
 			t.Fatalf("captured search before frame close: value=%#v usage=%#v err=%v", before, local.ResultUsage(), err)
 		}
-		evaluated, effective, present, err := s.evaluatePLExpression(frame, &parser.Select{Targets: []parser.Expr{raw}}, e.CatalogRead(), nil, plNoticeOrigin{})
+		evaluated, effective, present, err := ScopeEvaluatePLExpression(s, frame, &parser.Select{Targets: []parser.Expr{raw}}, e.CatalogRead(), nil, NewPLNoticeOrigin(PLNoticeOriginFields{}))
 		if err != nil || !present || effective != usage || evaluated.Type() != varchar || !evaluated.IsNull() {
 			t.Fatalf("expression result lost full Usage/presence: value=%#v usage=%#v present=%t err=%v", evaluated, effective, present, err)
 		}

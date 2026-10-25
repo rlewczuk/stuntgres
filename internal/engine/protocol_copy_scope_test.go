@@ -38,7 +38,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 			var lease chan struct{}
 			writer := protocolCopyScopeWriter(func([]byte) (int, error) {
 				lease = scope.Owner.CopyDone
-				if scope.foreignTablesOrZero().cursor != nil {
+				if ForeignTableScopeCursor(ScopeForeignTablesOrZero(scope)) != nil {
 					t.Error("COPY retained its producer's borrowed scope during output")
 				}
 				if scope.Expected != outer {
@@ -60,7 +60,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 			if scope.Expected != outer {
 				t.Fatal("COPY did not restore caller signature after failure")
 			}
-			if ProtocolScopeBind(ScopeProtocolOrZero(scope)) != nil || scope.foreignTablesOrZero().cursor != nil {
+			if ProtocolScopeBind(ScopeProtocolOrZero(scope)) != nil || ForeignTableScopeCursor(ScopeForeignTablesOrZero(scope)) != nil {
 				t.Fatal("COPY left borrowed preparation or producer authority attached")
 			}
 			if !test.innerError {

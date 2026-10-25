@@ -70,7 +70,7 @@ func regoperatorPreparedCellValid(t *testing.T, e *Engine, s *session.Session, c
 	if err != nil {
 		t.Fatal(err)
 	}
-	valid, err := e.regtypeAnalysisValidLocked(auth, cell)
+	valid, err := EngineRegtypeAnalysisValidLocked(e, auth, cell)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestRegOperatorSignatureArgumentLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := captureOperatorInput(auth, op)
+	input, err := CaptureOperatorInput(auth, op)
 	if err != nil {
 		t.Fatal(err)
 	}

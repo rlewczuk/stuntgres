@@ -712,7 +712,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	for address, change := range entry.Catalog.Storage {
 		stores[address], rebuild[address] = change.Replacement, true
 	}
-	roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, entry.Catalog.Cached.State(), stores, e.Storage.IndexRoots, rebuild, nil, []index.RowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := EnginePrepareIndexRoots(e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, entry.Catalog.Cached.State(), stores, e.Storage.IndexRoots, rebuild, nil, []index.RowPublication{publication}, false, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots != nil {
 		t.Fatal("validation-only PREPARE materialized installable index map/root", roots, err)
 	}
@@ -724,7 +724,7 @@ func TestPreparedValidationOmitsInstallationRoots(t *testing.T) {
 	if materialized.Next == nil || materialized.NextEnds == nil || len(materialized.Slots) != len(publication.Writes) || materialized.Slots[updatePosition] != predecessorSlot || &materialized.Next[0] == &publication.Root[0] {
 		t.Fatal("completion omitted separate UPDATE replacement heads/deletion/slot installation roots")
 	}
-	roots, err = e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, entry.Catalog.Cached.State(), stores, e.Storage.IndexRoots, rebuild, nil, []index.RowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err = EnginePrepareIndexRoots(e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, entry.Catalog.Cached.State(), stores, e.Storage.IndexRoots, rebuild, nil, []index.RowPublication{materialized}, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || len(roots) == 0 {
 		t.Fatal("completion omitted substantive index installation roots", err)
 	}

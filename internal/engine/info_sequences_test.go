@@ -245,7 +245,7 @@ func TestInfoSequencesAuthority(t *testing.T) {
 		state.SetDescriptor(relation.Address(), &relation)
 		input := f.input(t, state, f.f.owner)
 		runtime := input.Runtime.(EngineCatalogRuntime)
-		runtime.temporary = temporary
+		SetCatalogRuntimeTemporary(&runtime, temporary)
 		input.Runtime = runtime
 		if rows := infoSequencesRows(t, input); len(rows) != count {
 			t.Fatal("object boundary", boundary, rows)
@@ -311,7 +311,7 @@ func TestInfoSequencesCapture(t *testing.T) {
 	f.f.e.Catalog.PublishLocked(next)
 	f.f.e.RoleStore.PublishLocked(roles)
 	f.f.e.Mu.Lock()
-	captured, err := f.f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+	captured, err := EngineOpenRelationSourceLocked(f.f.e, scope, view.Owner().Domain.Ref(view.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 	if err != nil || captured == nil {
 		t.Fatal("paired statement capture", err)
 	}
@@ -340,7 +340,7 @@ func TestInfoSequencesCapture(t *testing.T) {
 		}
 		freshView := scope.Inquiry.CommentCatalog
 		f.f.e.Mu.Lock()
-		fresh, err := f.f.e.openRelationSourceLocked(scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
+		fresh, err := EngineOpenRelationSourceLocked(f.f.e, scope, freshView.Owner().Domain.Ref(freshView.Epoch(), source.Address()), source.Owner, plan.RowMark{}, nil, nil)
 		if err != nil || fresh == nil {
 			t.Fatal("fresh statement capture", err)
 		}

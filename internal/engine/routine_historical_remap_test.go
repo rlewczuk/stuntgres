@@ -39,7 +39,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		Routine:  ref(originals["bool_and"]), Procedure: originals["bool_and"],
 	}, {
 		Provider: functions.NewBooleanAggregateProvider(boolean.Usage(), true),
-		Routine: ref(originals["every"]), Procedure: originals["every"],
+		Routine:  ref(originals["every"]), Procedure: originals["every"],
 	}}}
 	window := &plan.WindowNode{Child: aggregate, Calls: []plan.WindowCall{{Routine: ref(originals["row_number"]), Procedure: originals["row_number"], Expression: &plan.WindowExpr{Info: expr.Info{Usage: integer.Usage()}}}}}
 	candidate := catalog.CloneState(source.Catalog.State)
@@ -62,7 +62,7 @@ func TestRoutineHistoricalBuiltinReplacementRemap(t *testing.T) {
 		t.Fatal("structural type copying acquired foreign routine authority")
 	}
 	target.Mu.Lock()
-	prepared, procedure, err := target.remapPreparedCatalog(candidate, sourceRoles, targetRoles, nil)
+	prepared, procedure, err := EngineRemapPreparedCatalog(target, candidate, sourceRoles, targetRoles, nil)
 	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -152,7 +152,7 @@ func TestRoutineHistoricalTemporaryPrincipalRemap(t *testing.T) {
 	if _, err := roles.Descriptor(owner); err == nil {
 		t.Fatal("historical-owner control unexpectedly live")
 	}
-	mapper := e.retainedRoutineProcedureRemapper(e.CatalogRead())
+	mapper := EngineRetainedRoutineProcedureRemapper(e, e.CatalogRead())
 	mapped, err := mapper(&historical)
 	if err != nil {
 		t.Fatal("retained target-domain historical metadata rejected", err)

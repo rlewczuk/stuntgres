@@ -76,7 +76,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					changes = session.NewJournal()
 				}
 				original, frontier, root := e.Catalog.State, e.Visibility.CommitSeq(), PayloadNotifications(PayloadOf(receiver)).State
-				head := e.Cluster.notificationHead
+				head := DatabaseClusterNotificationHead(e.Cluster)
 				switch failure {
 				case "cancel":
 					cancel()
@@ -93,7 +93,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					if err == nil {
 						t.Fatal("failed preflight published")
 					}
-					if PayloadNotifications(PayloadOf(receiver)).State != root || e.Catalog.State != original || e.Visibility.CommitSeq() != frontier || e.Cluster.notificationHead != head {
+					if PayloadNotifications(PayloadOf(receiver)).State != root || e.Catalog.State != original || e.Visibility.CommitSeq() != frontier || DatabaseClusterNotificationHead(e.Cluster) != head {
 						t.Fatal("partial catalog/notification installation")
 					}
 					return
@@ -101,8 +101,8 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if e.Cluster.notificationHead == head || *e.Cluster.notificationHead != (session.NotificationQueuePosition{Offset: 32}) {
-					t.Fatal("successful publication did not advance the sole head exactly once", e.Cluster.notificationHead)
+				if DatabaseClusterNotificationHead(e.Cluster) == head || *DatabaseClusterNotificationHead(e.Cluster) != (session.NotificationQueuePosition{Offset: 32}) {
+					t.Fatal("successful publication did not advance the sole head exactly once", DatabaseClusterNotificationHead(e.Cluster))
 				}
 				if e.Visibility.LastAssignedXID() == 0 {
 					t.Fatal("notification-only publication did not assign XID")

@@ -199,7 +199,7 @@ func TestInfoKeyColumnUsageCapture(t *testing.T) {
 		t.Fatal("peer TEMP disclosed", len(rows))
 	}
 	runtime := tempInput.Runtime.(EngineCatalogRuntime)
-	runtime.temporary = ns.Temporary
+	SetCatalogRuntimeTemporary(&runtime, ns.Temporary)
 	tempInput.Runtime = runtime
 	if rows := kcuUnitRows(t, tempInput); len(rows) != 4 {
 		t.Fatal("own TEMP omitted", len(rows))

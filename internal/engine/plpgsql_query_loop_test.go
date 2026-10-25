@@ -88,7 +88,7 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 				t.Fatal(err)
 			}
 			found, _ := f.Values[f.Program.FoundSlot].Boolean()
-			if found != (body != "r.i:=1/0;") || f.Values[in.QueryLoop.Target.Slot].Type() == nil || !owner.Closed || !rows.closed || ScopeSQLRoutineRef(s).lexical != nil {
+			if found != (body != "r.i:=1/0;") || f.Values[in.QueryLoop.Target.Slot].Type() == nil || !owner.Closed || !rows.closed || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil {
 				t.Fatal("producer/lexical lifetime", found, flow, err)
 			}
 			if err := owned.Close(); err != nil {
@@ -160,13 +160,13 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 	owned := &exec.CTEOwnedRows{RowResult: rows, Owner: owner, Source: source}
 	_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 	s.Op.Ctx = originalContext
-	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || ScopeSQLRoutineRef(s).lexical != nil {
+	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil {
 		t.Fatal("empty-body cancellation retained producer authority", flow, err)
 	}
 	// The same scope/frame can acquire fresh lexical demand after cancellation.
-	restore := s.activateSQLRoutine(nil, read)
-	ScopeSQLRoutineRef(s).lexical = f
-	if err := restore(nil); err != nil || ScopeSQLRoutineRef(s).lexical != nil {
+	restore := ScopeActivateSQLRoutine(s, nil, read)
+	SetRoutineDemandLexical(ScopeSQLRoutineRef(s), f)
+	if err := restore(nil); err != nil || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil {
 		t.Fatal("caller scratch did not recover", err)
 	}
 }
@@ -174,18 +174,18 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 // plQueryLoopTestRun drives query loops over rows in place of the planned
 // producer. The real adapter still owns activation, close and FOUND order.
 func plQueryLoopTestRun(s *StatementScope, d *catalog.Procedure, f *proc.PLFrame, read catalog.Read, rows exec.RowResult) *proc.PLRun {
-	run := s.newPLRun(d, f, read)
-	run.Host = plInjectedRows{plHost: run.Host.(*plHost), rows: rows}
+	run := ScopeNewPLRun(s, d, f, read)
+	run.Host = plInjectedRows{PLHost: run.Host.(*PLHost), rows: rows}
 	return run
 }
 
 type plInjectedRows struct {
-	*plHost
+	*PLHost
 	rows exec.RowResult
 }
 
 func (h plInjectedRows) OpenQuery(f *proc.PLFrame, in proc.PLInstruction) (proc.PLRows, error) {
-	q := h.beginQueryRows(f, in)
-	q.result, q.schema = Result{Rows: h.rows}, h.rows.Schema()
+	q := PLHostBeginQueryRows(h.PLHost, f, in)
+	*PLQueryRowsResultRef(q), *PLQueryRowsSchemaRef(q) = Result{Rows: h.rows}, h.rows.Schema()
 	return q, nil
 }

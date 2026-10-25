@@ -100,7 +100,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	state, oid, revision := e.Catalog.State, e.Catalog.NextOID(), e.Catalog.NextRevision()
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.Ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.Ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	if e.Catalog.State != state || e.Catalog.NextOID() != oid || e.Catalog.NextRevision() != revision {

@@ -52,11 +52,11 @@ func TestPLpgSQLLoopFrame(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, d, f, read := loopUnitFrame(t, tc.source)
-			value, flow, err := s.newPLRun(d, f, read).Block(d.SQL.PL.Root)
+			value, flow, err := ScopeNewPLRun(s, d, f, read).Block(d.SQL.PL.Root)
 			if err != nil || flow.Kind != proc.PLReturn {
 				t.Fatal("loop flow failed", flow, err)
 			}
-			if len(f.Scopes) != 0 || f.HandledError() != nil || ScopeSQLRoutineRef(s).lexical != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
+			if len(f.Scopes) != 0 || f.HandledError() != nil || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
 				t.Fatal("loop transfer retained scope/handler/query authority")
 			}
 			for slot, v := range f.Values {
@@ -94,7 +94,7 @@ func TestPLpgSQLLoopCancellation(t *testing.T) {
 		s, d, f, read := loopUnitFrame(t, source)
 		ctx, cancel := context.WithCancel(s.Op.Context())
 		s.Op.Ctx = loopFrameCancel{Context: ctx, cancel: cancel, frame: f}
-		_, flow, err := s.newPLRun(d, f, read).Block(d.SQL.PL.Root)
+		_, flow, err := ScopeNewPLRun(s, d, f, read).Block(d.SQL.PL.Root)
 		cancel()
 		if !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal {
 			t.Fatal("active loop cancellation lost", flow, err)
@@ -103,7 +103,7 @@ func TestPLpgSQLLoopCancellation(t *testing.T) {
 		if errors.As(err, &state) {
 			t.Fatal("ordinary cancellation acquired SQLSTATE", err)
 		}
-		if len(f.Scopes) != 0 || f.HandledError() != nil || ScopeSQLRoutineRef(s).lexical != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
+		if len(f.Scopes) != 0 || f.HandledError() != nil || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
 			t.Fatal("canceled loop leaked private/root state")
 		}
 	}

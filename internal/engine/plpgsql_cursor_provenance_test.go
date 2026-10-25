@@ -37,7 +37,7 @@ func TestPLpgSQLCursorSourceDiagnostics(t *testing.T) {
 			}
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
-			_, err = s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+			_, err = ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, InternalQuery: tc.query, InternalPosition: tc.position, Context: tc.context}
 			var got *sqlstate.Error
 			if !errors.As(err, &got) || *got != want {
@@ -69,7 +69,7 @@ func TestPLpgSQLCursorWholeArgumentProjection(t *testing.T) {
 			d := cursorOwnerRoutine(t, e, s, tc.source)
 			frame := proc.NewFrame(nil)
 			defer frame.Close()
-			value, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+			value, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 			if tc.code == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -108,7 +108,7 @@ func TestPLpgSQLCursorLookupBeforeCount(t *testing.T) {
 				d := cursorOwnerRoutine(t, e, s, "DECLARE c refcursor:='pc_absent'; x integer; n integer:=0; BEGIN "+motion+" RETURN 0; END")
 				frame := proc.NewFrame(nil)
 				defer frame.Close()
-				_, err := s.invokePLRoutine(d, frame, e.CatalogRead(), sqltype.CollationRef{})
+				_, err := ScopeInvokePLRoutine(s, d, frame, e.CatalogRead(), sqltype.CollationRef{})
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "34000", Message: `cursor "pc_absent" does not exist`, Context: "PL/pgSQL function cursor_owner_unit() line 1 at " + action}
 				var got *sqlstate.Error
 				if !errors.As(err, &got) || *got != want {
@@ -149,7 +149,7 @@ func TestPLpgSQLCursorInstallationNames(t *testing.T) {
 	root.QuerySchema = []catalog.Column{{Name: "i", Usage: integer.Usage()}}
 	declaration := &parser.DeclareCursor{Name: parser.Identifier{Text: "immutable_request"}}
 	install := func(name *string, closed *int) (*SQLCursor, string, error) {
-		restore := s.activateSQLRoutine(nil, read)
+		restore := ScopeActivateSQLRoutine(s, nil, read)
 		SetScopeAuthority(s, &exec.Authority{Host: HostOf(s)})
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}, NestedStage: &exec.Stage{Finish: func() error { (*closed)++; return nil }}}
@@ -199,11 +199,11 @@ func TestPLpgSQLCursorFirstRowDemand(t *testing.T) {
 	}
 	// The shared producer's wider argument-row demand must not relax the
 	// incumbent SQL scalar routine's one-column guard or evaluate its outputs.
-	rows, count, err := finalizeSQLRoutineQuery(context.Background(), root, &exec.Source{Singleton: true}, nil, true)
+	rows, count, err := FinalizeSQLRoutineQuery(context.Background(), root, &exec.Source{Singleton: true}, nil, true)
 	if err == nil || rows != nil || count != 0 {
 		t.Fatal("scalar routine accepted a multi-column projection")
 	}
-	rows, count, err = finalizeSQLRoutineQuery(context.Background(), root, &exec.Source{Singleton: true}, nil, false)
+	rows, count, err = FinalizeSQLRoutineQuery(context.Background(), root, &exec.Source{Singleton: true}, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

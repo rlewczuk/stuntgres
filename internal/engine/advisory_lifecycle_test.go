@@ -85,7 +85,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 		relations[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 	}
 	sequences, err := sequence.CopyGenerators(replacement, source.Storage.Sequences)
-	indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
+	indexes, indexErr := EngineCaptureIndexSnapshot(source, context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
 	source.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 		t.Fatal(indexErr)
 	}
 	e.Mu.Lock()
-	next, _, err := e.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
+	next, _, err := EngineRemapPreparedCatalog(e, catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 	if err == nil {
 		nextRevision := e.Catalog.NextRevision()
 		for _, descriptor := range next.Descriptors() {
@@ -105,7 +105,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 		}
 		if err == nil {
 			var prepared index.RemintedIndexStorage
-			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
+			prepared, err = EnginePrepareForeignIndexStorage(e, context.Background(), next, relations, indexes)
 			if err == nil {
 				err = EngineInstallForeignCatalogLocked(e, context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
 			}

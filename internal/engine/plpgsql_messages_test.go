@@ -45,7 +45,7 @@ func TestPLpgSQLAssertRuntime(t *testing.T) {
 				if _, err := EngineApplySetting(e, s.Op, s.Op.Session.Settings, setting, inputSetting, false); err != nil {
 					t.Fatal(err)
 				}
-				value, err := s.invokePLRoutine(d, input, read, sqltype.CollationRef{})
+				value, err := ScopeInvokePLRoutine(s, d, input, read, sqltype.CollationRef{})
 				want := tc.code
 				if !enabled {
 					want = ""
@@ -63,7 +63,7 @@ func TestPLpgSQLAssertRuntime(t *testing.T) {
 						t.Fatal("reached assertion diagnostic", want, err)
 					}
 				}
-				if ScopeActiveSQLRoutineDepth(s) != originalDepth || ScopeSQLRoutineRef(s).lexical != originalRoutine.lexical {
+				if ScopeActiveSQLRoutineDepth(s) != originalDepth || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != RoutineDemandLexical(&originalRoutine) {
 					t.Fatal("assert leaked lexical activation or depth")
 				}
 			}

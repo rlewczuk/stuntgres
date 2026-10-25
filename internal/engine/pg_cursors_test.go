@@ -19,7 +19,7 @@ func TestPGCursorsSource(t *testing.T) {
 	e := EngineOf(s)
 	d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
-	empty, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
+	empty, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(s).Cursors})}, capturePGCursors)
 	if err != nil || len(empty.Anonymous) != 0 || empty.Ref != ref {
 		t.Fatal(empty, err)
 	}
@@ -31,7 +31,7 @@ func TestPGCursorsSource(t *testing.T) {
 		calls++
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
-	source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
+	source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(s).Cursors})}, capturePGCursors)
 	if err != nil || len(source.Anonymous) != 1 || calls != 0 || cursor.Place != exec.CursorBefore || CursorStage(cursor) != nil {
 		t.Fatal("metadata demanded producer", source, err, calls)
 	}
@@ -56,7 +56,7 @@ func TestPGCursorsSource(t *testing.T) {
 	currentDescriptor := current.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	currentRef := current.Catalog.Domain.Ref(current.Catalog.State.Epoch(), currentDescriptor.Address())
 	stored, epoch := CursorCreated(cursor), CursorEpoch(cursor)
-	reowned, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: currentRef, Source: currentDescriptor, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
+	reowned, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: currentRef, Source: currentDescriptor, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(s).Cursors})}, capturePGCursors)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,12 +69,12 @@ func TestPGCursorsSource(t *testing.T) {
 	invalid := *currentDescriptor
 	invalid.Columns = append([]catalog.Column(nil), currentDescriptor.Columns...)
 	invalid.Columns[5].Usage.Type = currentDescriptor.Columns[0].Usage.Type
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: currentRef, Source: &invalid, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: currentRef, Source: &invalid, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(s).Cursors})}, capturePGCursors); got != nil || err == nil {
 		t.Fatal("incompatible timestamp ownership published facts", got, err)
 	}
 	peer := sessionStart(t, e, nil)
 	sessionSQL(t, peer, "DECLARE peer NO SCROLL CURSOR WITH HOLD FOR SELECT 99")
-	peerSource, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{cursors: PayloadOf(peer).Cursors}}, capturePGCursors)
+	peerSource, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(peer).Cursors})}, capturePGCursors)
 	if err != nil || len(peerSource.Anonymous) != 1 {
 		t.Fatal(peerSource, err)
 	}
@@ -95,7 +95,7 @@ func TestPGCursorsSource(t *testing.T) {
 		t.Fatal("producer unexpectedly succeeded")
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	failed, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
+	failed, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(s).Cursors})}, capturePGCursors)
 	if err != nil || !reflect.DeepEqual(failed.Anonymous, source.Anonymous) || cursor.Place != exec.CursorFailed || calls != 1 {
 		t.Fatal("failed cursor metadata changed/demanded", failed, err, calls)
 	}
@@ -106,7 +106,7 @@ func TestPGCursorsSource(t *testing.T) {
 	for _, at := range []int32{1, 2, 3, 4} {
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: at}
-		got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: probe, Ref: ref, Source: d, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
+		got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: probe, Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(s).Cursors})}, capturePGCursors)
 		cancel()
 		if got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial metadata publication", at, got, err)
@@ -119,7 +119,7 @@ func TestPGCursorsSource(t *testing.T) {
 	if !reflect.DeepEqual(source.Anonymous[0], snapshot) || len(PayloadOf(s).Cursors.Entries) != 0 {
 		t.Fatal("registry clear mutates captured facts")
 	}
-	cleared, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{cursors: PayloadOf(s).Cursors}}, capturePGCursors)
+	cleared, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Cursors: PayloadOf(s).Cursors})}, capturePGCursors)
 	if err != nil || len(cleared.Anonymous) != 0 {
 		t.Fatal(cleared, err)
 	}
