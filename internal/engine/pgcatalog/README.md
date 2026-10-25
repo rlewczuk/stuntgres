@@ -480,7 +480,7 @@ Package units here run without an engine. Producer behavior tests need an
 engine-seeded catalog, so they run on a composed engine in `enginetests/`
 (those not yet moved stay in `internal/engine`) and reach producers through the
 real registry; see the
-[engine Testing section](../README.md#system-catalog-producer-contract). Public
+[core Testing section](../core/README.md#system-catalog-producer-contract). Public
 catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 (large objects in `reference/object_grants`, settings in
 `reference/session_state`); follow

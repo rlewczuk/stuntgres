@@ -1,5 +1,5 @@
 // Package enginetest holds test helpers over the exported API of
-// internal/engine. Only _test.go files import it.
+// internal/engine/core. Only _test.go files import it.
 package enginetest
 
 import (

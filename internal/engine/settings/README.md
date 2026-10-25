@@ -179,7 +179,7 @@ settings, enum prefixes and padded values are rejected.
 
 SET/RESET/SHOW execution, `current_setting`/`set_config` and RESET ALL stay
 in the engine (see the
-[engine README](../README.md#immutable-settings-registry)); the `pg_settings`
+[engine README](../core/README.md#immutable-settings-registry)); the `pg_settings`
 producer is in `pgcatalog`. Per-session
 storage and the SET LOCAL action stack (`SettingsStore`), command admission,
 timeout publication, notice levels and emission, and the presentation

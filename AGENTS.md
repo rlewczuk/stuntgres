@@ -19,8 +19,8 @@
   COPY, FDW registration, Reset/Dump/Restore). Internal packages never import it.
 - `internal/parser`: AST, lexer, keywords and goyacc grammar. Edit `grammar.y`, run
   `make generate`; never hand-edit `grammar_gen.go`.
-- `internal/engine`: the analysis host, transactions, settings and lifecycle
-  publication. Its subpackages (`ids`, `expr`, `functions`, `catalog`, `storage`,
+- `internal/engine`: the composition; `core` is the runtime (transactions, settings,
+  publication). Its subpackages (`ids`, `expr`, `functions`, `catalog`, `storage`,
   `lock`, `visibility`, `plan`, `exec`, `analyze`, `session`, `dml`, `ddl`, `table`,
   `index`, `view`, ...) are layered; each README states its contract. Put new code
   in the lowest package that can own it (new builtins: the `functions` registry).

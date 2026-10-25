@@ -62,7 +62,7 @@ Reset/Dump/Restore and InspectIndex capture the selected database before releasi
 the borrower. Controls require an unwrapped native pool and affect only that
 database, preserving registrations, owners/ACLs, shared roles and other targets.
 Dump excludes cluster registration and roles; see [FIXTURES.md](FIXTURES.md).
-The engine owns the [database and template contract](../internal/engine/README.md#cluster-and-logical-database-ownership).
+The engine core owns the [database and template contract](../internal/engine/core/README.md#cluster-and-logical-database-ownership).
 
 ## Physical sessions and pooling
 

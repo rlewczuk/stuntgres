@@ -1,18 +1,18 @@
 # internal/engine/enginetest
 
-Test helpers over the exported API of `internal/engine`: they build sessions,
+Test helpers over the exported API of `internal/engine/core`: they build sessions,
 parse and run statements, and read results the way the root tests' own
 fixture (`engine_test.go`) does. The package is the test layer of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture): it
-imports the root and lower packages, and nothing imports it except tests.
+imports core and lower packages, and nothing imports it except tests.
 
 ## Contract
 
 - **Only `_test.go` files import it**, and only external tests
-  (`package x_test`) can: the package imports the root, so an internal test of
-  any engine subpackage would form an import cycle. Root `package engine` tests
+  (`package x_test`) can: the package imports core, so an internal test of
+  core or a package below it would form an import cycle. Root `package engine` tests
   keep using `engine_test.go`.
-- **Exported API only.** Helpers call exported root names and never reach
+- **Exported API only.** Helpers call exported core names and never reach
   unexported state. A helper that needs an internal is not added here.
 - **Same behavior as the root fixture.** Each helper follows its root test
   original (`engine_test.go` and the helper files it names below), so a moved test keeps its body and only qualifies

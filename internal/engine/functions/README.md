@@ -6,7 +6,7 @@ registry entry. The analyzer that drives binding is in
 [`analyze`](../analyze/README.md), stored presentation in
 [`stored`](../stored/README.md), execution in [`exec`](../exec/README.md), and
 the authority behind evaluation capabilities in the root
-[engine](../README.md#function-runtimes).
+[engine core](../core/README.md#function-runtimes).
 
 `EmbeddedVersionBanner` is the pure native product/version identity shared by
 `version()` and implementation-information metadata; it retains no runtime or
