@@ -30,6 +30,14 @@ registry and the builtin catalog seed. The composition (`newEngine`, behind
 Every database target shares both. `Reset(ctx, e)`, `Dump(ctx, e, dst)` and
 `Restore(ctx, e, src)` (`control.go`) are composition functions over an engine.
 
+The table, index, partition, inheritance, sequence, identity and VACUUM
+statement code is written as receiver-first root functions
+(`alterTableLocked(e, scope, ...)`, `tableStage(stage)`), not as methods of
+`Engine`, `StatementScope` or `CatalogStage`, so that it can leave with its
+family. Only interface implementations stay methods, and
+`Engine.admitInheritanceAlter`, whose frame a cancellation fixture matches. A
+root file holding these families' declarations holds nothing else.
+
 Trigger definitions and lifecycle utilities publish immutable relation payloads
 through the ordinary catalog stage and transaction journal. Definitions,
 dependencies and row effects commit together or restore at rollback/savepoints;

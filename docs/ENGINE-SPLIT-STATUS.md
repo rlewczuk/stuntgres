@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `e303a25ef` (item 190 rebased on it).
+Last verified against `master` at `1e4296048` (item 191 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 191.
+- 192.
 
 ## Linear plan
 
@@ -145,9 +145,24 @@ ENGINE-SPLIT.md §4.
      quickcheck passed; bench skipped (no per-statement slot; escape diff showed
      no new heap move); `REFERENCE=1` not in the Verify list; racecheck and
      finalcheck skipped at user request
-191. [ ] Family methods to functions I —
+191. [x] Family methods to functions I —
      [core](ENGINE-SPLIT-core.md#item-191--family-methods-to-functions-i) ·
-     needs 183, 184, 185, 186, 187, 190 · P
+     needs 183, 184, 185, 186, 187, 190 · P (`d95343602`, `8972334e1`,
+     `ad0dbb757`, `991fe6a68`, docs commit) · 135 family methods of `Engine`,
+     `StatementScope` and `CatalogStage` (tables, indexes, partitions,
+     inheritance, sequences, identity, VACUUM and the code tables share with
+     other families except roles) turned into receiver-first root functions by
+     `meth2fn`, with the family-only methods of `DropProvider`,
+     `AuthorizationView` and `InheritanceAlterState` and a test-only scope
+     wrapper; `Engine.admitInheritanceAlter` stays a method (frame matched by a
+     read-only reference fixture); 28 mixed root files split by `movedecl` into
+     26 new files, so every file holding these families is wholly one
+     destination (only `ddl_host.go` keeps the item-190 core base method
+     `RelationDiagnostic`); root production 1.77 MB (+3.5 KB), core by stock
+     `closure` 28.6k → 28.3k lines (the item 189 model, 28,070, is unchanged);
+     quickcheck passed; bench skipped (no per-row change; escape diff shows no
+     new heap move); `REFERENCE=1` not in the Verify list; racecheck and
+     finalcheck skipped at user request
 192. [ ] Family methods to functions II —
      [core](ENGINE-SPLIT-core.md#item-192--family-methods-to-functions-ii) ·
      needs 191 · P

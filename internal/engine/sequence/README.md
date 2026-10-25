@@ -121,8 +121,8 @@ The orchestration of sequence DDL and COMMENT (`sequence.go`,
 revision allocation, the journal and stage install, scope fields and
 notices), `ownedSequenceLocked`, `statementHost.Sequence`
 (`sequence_runtime.go`) and `clearPersistentSequenceMemoryLocked`;
-`StatementScope.AcquireSequence` (the scope's object lock),
-`checkSequenceAny` and `index.RelationDropOwner`; `sequenceEnvironmentLocked`,
+`StatementScope.AcquireSequence` (the scope's object lock) and
+`checkSequenceAny` (`sequence_acquire.go`), and `index.RelationDropOwner`; `sequenceEnvironmentLocked`,
 `journalOf` and `PreparedDefinitionStamp`, shared with ordinary prepared SQL;
 the ALTER identity staging and the identity DROP flow (table DDL; CREATE
 identity and serial staging is `table.StageCreateIdentities` and
