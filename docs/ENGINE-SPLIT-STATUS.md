@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `0a45827d7` (item 188 rebased on it).
+Last verified against `master` at `a8bd529b1` (item 184 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 184, 186, 187, 189.
+- 186, 187, 189.
 
 ## Linear plan
 
@@ -62,9 +62,16 @@ ENGINE-SPLIT.md §4.
      `enginetest.SetObjectACL` added; root tests 1,211 files and 9.66 MB (−1.11
      MB); quickcheck passed; `REFERENCE=1` and bench skipped (no production
      change), racecheck and finalcheck skipped at user request
-184. [ ] Query, DML, COPY, cursor and protocol tests —
+184. [x] Query, DML, COPY, cursor and protocol tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-184--query-dml-copy-cursor-and-protocol-tests)
-     · needs 182 · P · 1.05 MB
+     · needs 182 · P · 1.05 MB (`d42ce4707`, `d780b2628`, `7294fc404`,
+     `2896c3a92`, docs commit) · of the 154 transitively free root test files of
+     the query, dml, statement and exprutil areas, 137 engine-fixture files
+     moved to `core/` and 15 binder and executor units (split out of six mixed
+     files) to `analyze` and `exec`; 17 kept unchanged (frame-name,
+     allocation-budget and benchmark files), none deleted; root tests 993 files
+     and 8.00 MB (−0.88 MB); quickcheck passed; `REFERENCE=1` and bench skipped
+     (no production change), racecheck and finalcheck skipped at user request
 185. [x] Transaction, session, catalog and procedural tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-185--transaction-session-catalog-and-procedural-tests)
      · needs 182 · P · 0.8 MB (`daec25f89`, `3134ef51b`, `1f7b7027d`, docs

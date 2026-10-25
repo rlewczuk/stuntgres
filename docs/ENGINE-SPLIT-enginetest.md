@@ -284,7 +284,37 @@ inspection accessors were added.
   `floating_arithmetic_cancellation` (and the helper-only `eval_context`).
   Non-free files of this group stay for items 193–194: 14 reach core internals,
   11 family or shared code, 3 root (`bitwise`, `timestamp`, `timezone_sources`).
-- 184: not started.
+- 184: done (`d42ce4707`, `d780b2628`, `7294fc404`, `2896c3a92`). Group
+  re-measured at `5c9bdbeb3`: 231 root files in the `query`, `dml`, `statement`
+  and `exprutil` areas, 154 transitively free (1.09 MB). Moved: 137 files to
+  `core/` (`core_test`, including the pure `statement_host` units, which test
+  root code), and 15 test functions that build no engine, split out of
+  `query_aliases_hint`, `query_cte`, `query_outer_joins`, `query_row_marks`,
+  `query_set` and `query_subquery` into four `analyze` and five `exec` internal
+  test files. Kept in the root unchanged: `query_aggregate`, `query_window*` (12
+  files) and `query_pruning_safety` (frames), `query_joins` (allocation budget)
+  and the two `insert_conflict*` benchmark files; the other `insert_conflict`
+  tests moved. T2: none deleted; `TestQueryOrderValuesProducer`'s only cover,
+  `TestReferenceQueryOrderValuesAndAtomicity`, is a `//go:build reference` test
+  that quick mode never runs. T4: moved ACL tests use item 183's
+  `enginetest.SetObjectACL` (item 183's `mvtest` maps `e.SetObjectACL(…)` to
+  it); after item 185 merged, the core move was replayed on it: 50 root helpers
+  were copied into `core/`, 95 copies item 185 had put there were reused, and
+  its copies of `hashCaptureQuery`, `hashImplicitQuery`, `hashFilterStage` and
+  `deleteOutcome` were deleted in favor of the originals that moved with their
+  files; 4 helpers were copied into `analyze`/`exec` (`statement`,
+  `cteUnitScan`, `cteUnitNext`, `queryProbe`), and 16 root files were reduced to
+  the helpers staying tests use. For items 186–187: `mvtest` reuses helpers
+  already declared in `core/` by name, but not the other way round: a helper
+  declared by a moving file clashes with an earlier copy, which then has to go.
+  Root helpers left without root users, for the waves that move their files:
+  `alterDropTestStage`, `copyFinalCancellationVeto`, `copyTimeoutTest`,
+  `copyWaitContext`, `deleteCancelAfterCheck`, `enumCapturedArgument`,
+  `aggregateCancelContext` (in the kept `query_aggregate`),
+  `assertDistinctACLFailure`, `queryJoinsAdmittedFixture` (in the kept
+  `query_joins`), `queryCountingContext`, `updateDeleteAsync` and
+  `updateDeleteExecute`. The 77 non-free group files (71 reach test-only core
+  names) wait for item 193.
 - 185: done (`daec25f89`, `3134ef51b`, `1f7b7027d`). 111 of the 123 transitively
   free files of the group moved with `mvtest` (external tests, names and bodies
   unchanged): 44 producer tests (`pg_*`, `info_*`,
