@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `faf3a9a7d` (item 202 rebased on it).
+Last verified against `master` at `49d1ca83a` (item 203 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 203.
+- 204.
 
 ## Linear plan
 
@@ -352,8 +352,28 @@ ENGINE-SPLIT.md §4.
      `^TestReferenceDatabaseCreate` passed in the merge chain; bench skipped
      (moved code unchanged; the escape diff is empty), racecheck and finalcheck
      skipped at user request
-203. [ ] `schemacmds` — [cmds](ENGINE-SPLIT-cmds.md#item-203--schemacmds) ·
-     needs 202 · S · 1.65 MB
+203. [x] `schemacmds` — [cmds](ENGINE-SPLIT-cmds.md#item-203--schemacmds) ·
+     needs 202 · S · 1.65 MB (`c23a576d8`, `9a52da016`, `c4bc8a1a5`, docs
+     commit) · the schema-object executors (25 root production files, 2,198 file
+     lines: CREATE, ALTER and DROP SCHEMA, TYPE, DOMAIN, COLLATION and
+     CONVERSION, CREATE LANGUAGE, routine, cast, operator, operator family and
+     class and access method DDL, COMMENT, CREATE TABLESPACE and ALTER TABLE ALL
+     IN TABLESPACE, LOAD, CREATE, ALTER and DROP EXTENSION with the extension
+     owner import, the foreign-data DDL and GRANT, and `RoutineHost`,
+     `SchemaHost` and `extensionHost`) moved to `schemacmds`, which imports
+     `tablecmds`, by `cmdmv` after 18 names were exported in place; the root now
+     holds only the composition; 144 root test files moved as `schemacmds_test`
+     external tests (nine `export_test.go` aliases), none deleted; root
+     production 17 files and 0.07 MB (−0.08 MB), root tests 264 files and 1.15
+     MB (−1.25 MB); the family selectors, each `schemacmds` test alone, a
+     `RACE=1` publication and cancellation selection, quickcheck, the §3 `go
+     list` check and the library deps check passed; `REFERENCE=1`
+     `^TestReference(Extension|AvailableExtensions|Conversion|Load)`,
+     `^TestReference(Schema|Comment)`,
+     `^TestReference(OperatorClass|OperatorFamily|AccessMethod)` and
+     `^TestReferenceFDW` passed in the merge chain; bench skipped (moved code
+     unchanged; the escape diff shows only Dump's `captureDumpLocked`, see the
+     prompt Status), racecheck and finalcheck skipped at user request
 204. [ ] Composition cleanup —
      [core](ENGINE-SPLIT-core.md#item-204--composition-cleanup) · needs 203 · S
 205. [ ] Closing review 5 (docs only) —
