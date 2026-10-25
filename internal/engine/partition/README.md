@@ -132,7 +132,9 @@ and the `partitionBoundBinder` adapter; `partition_info_runtime.go` holds the
 
 Package units cover pruning proofs, the shared search budget and the inquiry
 values. Units that
-build an engine stay in `internal/engine`, naming the code as `partition.X`,
+build an engine live in `internal/engine/partitioncmds` (partition and
+inheritance DDL), `internal/engine/core` (`pg_partition_*` functions) or, until
+they move, `internal/engine`, naming the code as `partition.X`,
 and assert branch selection and unlocked provider callbacks without timing
 thresholds. Run attach/detach overlay, lock-fence and LIST cancellation units
 with `RACE=1`. Public SQL lives in

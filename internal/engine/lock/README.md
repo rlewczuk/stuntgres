@@ -228,8 +228,9 @@ resource construction, ticket choice and lock ordering.
 Unit tests run on `lockFixture` (`fixture_test.go`), which mints tickets and
 resources from an `ids.Domain` without an engine; drive deadlines with
 `ExpireWait` and explicit instants, never sleeps. Run them with the race
-detector. Engine tests that need an engine stay in `internal/engine` and read
-lock state only through the diagnostic seam.
+detector. Engine tests that need an engine live in `internal/engine/core` (relation
+locks, waits and deadlocks) or `internal/engine` and read lock state only
+through the diagnostic seam.
 
 ```sh
 make check RACE=1 RUN='^Test(RelationDeadlock|RelationLockWaits(DelayedDeadlines|TimeoutPerAcquisition)|TypeLock|Advisory(Counted|Expired)|BlockingPids(AdvisoryAuthority|Lifecycle)|MultiXact|PGLocks(ResourceRecords|ConcurrentAssignment)|UniqueJournal)'

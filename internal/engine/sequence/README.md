@@ -136,7 +136,9 @@ Package units pin the session memory, relation shape, generators,
 `CallLocked`, privileges, prepared analysis validity and fences,
 `PinReplacement`, `TemporaryEpochValid`, `DefinitionStamp`, `AlterEffects`,
 identity option splitting, control copy/retain and the stage slot. Engine
-witnesses exercise the package through sessions, DDL, DISCARD, TRUNCATE
+witnesses (sequence, identity and serial DDL in `internal/engine/tablecmds`,
+sequence functions in `internal/engine/core`, the rest in `enginetests/` and
+`internal/engine`) exercise the package through sessions, DDL, DISCARD, TRUNCATE
 RESTART IDENTITY and native Dump/Restore; add `RACE=1` for concurrent
 `nextval` and TEMP teardown.
 

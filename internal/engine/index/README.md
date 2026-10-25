@@ -239,7 +239,9 @@ callers; tests call `index` functions directly with one. The write-time loops
 
 Package units cover column capabilities, `EffectiveRoot`, the savepoint
 exclusion mark, access-method properties and operator-family validation; most
-index tests build an engine and stay in `internal/engine`. Run concurrency,
+index tests build an engine and live in `internal/engine/indexcmds` (index DDL),
+`internal/engine/core` (unique and exclusion probing), `enginetests/` or, until
+they move, `internal/engine`. Run concurrency,
 exclusion and unique-claim selections with `RACE=1`. Private units assert
 support IDs/routines and root membership, never ORDER BY results as evidence of
 index use. Public SQL: [reference/indexes](../../../reference/indexes/README.md#testing)

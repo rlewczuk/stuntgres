@@ -239,7 +239,10 @@ recaptures exact identities after waits before publishing their candidates.
 ## Testing
 
 Package units run over a fake host or a small catalog; most table tests build an
-engine and stay in `internal/engine`, naming the code as `table.X`. Run the
+engine and live in `internal/engine/tablecmds` (CREATE, ALTER and DROP TABLE,
+constraints, sequences, identity and VACUUM), `internal/engine/core` (FK
+enforcement, check evaluation on writes, lock waits) or, until they move,
+`internal/engine`, naming the code as `table.X`. Run the
 inheritance and NOT NULL admission units with `RACE=1`. Public SQL lives in
 [reference/tables](../../../reference/tables/README.md#testing),
 [reference/inheritance](../../../reference/inheritance/README.md#testing),
