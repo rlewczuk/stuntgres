@@ -64,7 +64,12 @@ type Engine struct {
 	DatabaseFrozenXID uint64
 	VacuumProgress    map[ids.TxRef]VacuumProgress // Engine.mu; only actual work.
 	Statements        Statements                   // Family dispatch; set by the composition, shared by every target.
+	Factory           EngineFactory                // Composed constructor; set by the composition, shared by every target.
 }
+
+// EngineFactory builds a fresh composed engine, as NewWithSettings does: the
+// private template1 seed and the Restore stage.
+type EngineFactory func(definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error)
 type Result struct {
 	CommandTag string
 	Count      int64
@@ -103,8 +108,13 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err != nil {
 		return nil, err
 	}
-	e.Statements = familyStatements{}
+	e.Statements, e.Factory = familyStatements{}, newSettingsEngine
 	return e, nil
+}
+
+// newSettingsEngine is the composition's EngineFactory.
+func newSettingsEngine(definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
+	return newEngine(nil, definitions, database, trackCommitTimestamp)
 }
 
 // NewEngine seeds one engine's state: the catalog, storage and role stores,

@@ -71,7 +71,10 @@ func (e *Engine) RestoreStage() *Engine {
 	sourceRoles := e.RoleStore.CaptureLocked()
 	database := e.Catalog.State.MustDatabase(e.Catalog.DatabaseAddress())
 	e.Mu.Unlock()
-	stage := NewWithSettings(nil, e.DatabaseName, false)
+	stage, err := e.Factory(nil, e.DatabaseName, false)
+	if err != nil {
+		panic(err)
+	}
 	if err := stage.InstallForeignDefinitions(e.Foreign.Definitions()); err != nil {
 		panic(err)
 	}

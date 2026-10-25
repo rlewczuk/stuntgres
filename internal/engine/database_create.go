@@ -54,7 +54,7 @@ func (e *Engine) executeCreateDatabase(scope *StatementScope, statement *parser.
 // installation below can expose a name, descriptor, target or allocator advance.
 func (e *Engine) createDatabaseTarget(ctx context.Context, scope *StatementScope, name, ownerName string, owner authorization.PrincipalRef) (Result, error) {
 	e.Cluster.SeedOnce.Do(func() {
-		candidate, err := newEngine(nil, nil, "template1", e.Visibility.TracksCommitTimestamps())
+		candidate, err := e.Factory(nil, "template1", e.Visibility.TracksCommitTimestamps())
 		if err == nil {
 			err = candidate.InstallForeignDefinitions(e.Foreign.Definitions())
 		}
