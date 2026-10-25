@@ -154,8 +154,8 @@ func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (e
 		if !execute {
 			return nil
 		}
-		// Only the event precedes qualification analysis. executeRule admits
-		// each action after the preceding canonical binding completes.
+		// Only the event precedes qualification analysis. viewcmds.ExecuteRule
+		// admits each action after the preceding canonical binding completes.
 		return s.acquireRelationTarget(stmt, stmt, true, false)
 	}
 	switch stmt.(type) {

@@ -1,8 +1,11 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
@@ -11,12 +14,12 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())
@@ -85,7 +88,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 	for _, beforeCapture := range []bool{false, true} {
 		t.Run(map[bool]string{false: "captured_first", true: "database_snapshot_before_first_demand"}[beforeCapture], func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			d = e.Catalog.State.MustRelation(d.Address())
@@ -128,7 +131,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 	}
 	for _, phase := range []string{"plain_data", "plain_no_data", "control_epoch", "ordinary_incarnation", "owner", "schema", "name", "view", "columns", "attributes", "rowtype", "ordinary_table"} {
 		t.Run("reject_"+phase, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			d = e.Catalog.State.MustRelation(d.Address())
@@ -186,7 +189,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 }
 
 func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())
@@ -203,7 +206,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	_, err = RefreshMaterializedLocked(e, scope, auth, stmt, 0)
+	_, err = viewcmds.RefreshMaterializedLocked(e, scope, auth, stmt, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

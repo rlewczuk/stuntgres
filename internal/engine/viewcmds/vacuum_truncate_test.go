@@ -1,21 +1,26 @@
-package engine
+package viewcmds_test
 
-import "testing"
+import (
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
+)
 
 func vacuumTruncateStatistics(t *testing.T) {
 	for _, explicit := range []bool{false, true} {
 		t.Run(map[bool]string{false: "autocommit", true: "explicit"}[explicit], func(t *testing.T) {
-			e := New()
-			s := sessionStart(t, e, nil)
+			e := engine.New()
+			s := enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE truncate_stats(id INT)", "INSERT INTO truncate_stats VALUES(1),(2),(3)", "DELETE FROM truncate_stats WHERE id=1", "VACUUM truncate_stats"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			ref, old := vacuumStore(t, e, "truncate_stats")
 			before := old.Maintenance
 			if explicit {
-				transactionBegin(t, s)
+				enginetest.TransactionBegin(t, s)
 			}
-			sessionSQL(t, s, "TRUNCATE truncate_stats")
+			enginetest.SessionSQL(t, s, "TRUNCATE truncate_stats")
 			if !explicit {
 				empty := e.Storage.Relations[ref.Address]
 				m := empty.Maintenance
@@ -23,12 +28,12 @@ func vacuumTruncateStatistics(t *testing.T) {
 					t.Fatal("empty truncate did not reset actual current facts", m)
 				}
 			}
-			sessionSQL(t, s, "INSERT INTO truncate_stats VALUES(9)")
+			enginetest.SessionSQL(t, s, "INSERT INTO truncate_stats VALUES(9)")
 			if explicit {
 				if e.Storage.Relations[ref.Address] != old || old.Maintenance != before {
 					t.Fatal("private truncate changed published maintenance")
 				}
-				sessionSQL(t, s, "COMMIT")
+				enginetest.SessionSQL(t, s, "COMMIT")
 			}
 			nextRef, fresh := vacuumStore(t, e, "truncate_stats")
 			m := fresh.Maintenance
@@ -44,7 +49,7 @@ func vacuumTruncateStatistics(t *testing.T) {
 			if m.Scanned {
 				t.Fatal("new truncated root retained stale scan estimate")
 			}
-			result := tuples(sessionSQL(t, s, "SELECT reltuples=-1::real AS unknown FROM pg_class WHERE oid='truncate_stats'::regclass"))
+			result := enginetest.Tuples(enginetest.SessionSQL(t, s, "SELECT reltuples=-1::real AS unknown FROM pg_class WHERE oid='truncate_stats'::regclass"))
 			if len(result) != 1 || result[0][0] != true {
 				t.Fatal("committed-table truncate estimate not unknown", result)
 			}
@@ -56,25 +61,25 @@ func vacuumTruncateStatistics(t *testing.T) {
 				t.Fatal("truncate mutated predecessor maintenance")
 			}
 			stable := fresh.Maintenance
-			transactionBegin(t, s)
-			sessionSQL(t, s, "TRUNCATE truncate_stats")
-			sessionSQL(t, s, "ROLLBACK")
+			enginetest.TransactionBegin(t, s)
+			enginetest.SessionSQL(t, s, "TRUNCATE truncate_stats")
+			enginetest.SessionSQL(t, s, "ROLLBACK")
 			if e.Storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
 				t.Fatal("rolled-back truncate changed published maintenance")
 			}
-			transactionBegin(t, s)
+			enginetest.TransactionBegin(t, s)
 			for _, q := range []string{"SAVEPOINT boundary", "TRUNCATE truncate_stats", "ROLLBACK TO boundary", "COMMIT"} {
-				sessionSQL(t, s, q)
+				enginetest.SessionSQL(t, s, q)
 			}
 			if e.Storage.Relations[ref.Address] != fresh || fresh.Maintenance != stable {
 				t.Fatal("rollback-to truncate changed published maintenance")
 			}
-			sessionSQL(t, s, "VACUUM truncate_stats")
+			enginetest.SessionSQL(t, s, "VACUUM truncate_stats")
 			if fresh.Maintenance.VacuumCount != before.VacuumCount+1 || !fresh.Maintenance.Scanned || fresh.Maintenance.Tuples != 1 {
 				t.Fatal("post-truncate VACUUM completion lost cumulative history", fresh.Maintenance)
 			}
-			sessionSQL(t, s, "DROP TABLE truncate_stats")
-			sessionSQL(t, s, "CREATE TABLE truncate_stats(id INT)")
+			enginetest.SessionSQL(t, s, "DROP TABLE truncate_stats")
+			enginetest.SessionSQL(t, s, "CREATE TABLE truncate_stats(id INT)")
 			recreatedRef, recreated := vacuumStore(t, e, "truncate_stats")
 			if recreatedRef == ref || recreated.Maintenance.VacuumCount != 0 || !recreated.Maintenance.LastVacuum.IsZero() || recreated.Maintenance.Scanned {
 				t.Fatal("same-name new table inherited truncate/vacuum history")

@@ -1,0 +1,313 @@
+package viewcmds_test
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// SQL only constructs the ordinary internal catalog fixture. Assertions exercise
+// real binders, frozen presentation, provider validation and publication directly.
+func policyUnitFixture(t *testing.T) (*core.Engine, *session.Operation, func(), *catalog.Relation) {
+	t.Helper()
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	enginetest.RoleExecute(t, e, op, "CREATE TABLE t(id INTEGER, allowed BOOLEAN)")
+	enginetest.RoleExecute(t, e, op, "CREATE TABLE helper(id INTEGER)")
+	ref := enginetest.RoleTableRef(t, e, "t")
+	d, _ := e.CatalogRead().Descriptor(ref.Address)
+	return e, op, done, d.(*catalog.Relation)
+}
+func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation, condition string) (*stored.Policy, error) {
+	t.Helper()
+	raw := enginetest.Statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
+	e.Mu.Lock()
+	defer e.Mu.Unlock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return viewcmds.ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+}
+func TestRLSPolicyFrozenExpression(t *testing.T) {
+	for _, condition := range []string{
+		"id>0", "allowed", "NULL", "'yes'", "CURRENT_USER IS NOT NULL",
+		"DATE '2000-01-01'<CURRENT_DATE",
+		"random()>=0", "pg_catalog.random()>=0 AND random()<1",
+		"TIMESTAMP(3) '2000-01-01 00:00:00.1234' IS NOT NULL",
+		"CAST(NULL AS integer) IS NULL", "id::policy_integer>0",
+		"'a' COLLATE policy_collation='a'", "nextval('policy_sequence')>0",
+		"'policy_integer'::regtype IS NOT NULL",
+		"1/(id-id)>0",
+		"(SELECT count(*)>0 FROM helper)",
+		"EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id)",
+		"EXISTS(SELECT 1 FROM helper WHERE EXISTS(SELECT 1 WHERE helper.id=t.id))",
+		"id=ANY(SELECT id FROM helper)", "id<=ALL(SELECT id FROM helper)",
+		"ROW(id,allowed)=(SELECT 1,TRUE)",
+		"(SELECT row_number() OVER(ORDER BY helper.id) FROM helper LIMIT 1)>0",
+	} {
+		t.Run(condition, func(t *testing.T) {
+			e, op, done, d := policyUnitFixture(t)
+			defer done()
+			enginetest.RoleExecute(t, e, op, "CREATE DOMAIN policy_integer AS INTEGER")
+			enginetest.RoleExecute(t, e, op, `CREATE COLLATION policy_collation FROM "C"`)
+			enginetest.RoleExecute(t, e, op, "CREATE SEQUENCE policy_sequence START 41")
+			expression, err := policyUnitBind(t, e, op, d, condition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if condition == "random()>=0" && expression.Expression().Properties().Volatility != expr.Volatile {
+				t.Fatal("policy binding lost volatile function behavior", expression.Expression().Properties())
+			}
+			if err = stored.ValidatePolicy(e.CatalogRead(), d, expression); err != nil {
+				t.Fatal(err)
+			}
+			sql, err := stored.PolicySQL(context.Background(), e.CatalogRead(), expression)
+			if err != nil || sql == "" {
+				t.Fatal(sql, err)
+			}
+			// Replay the actual renderer result through the same Boolean binder.
+			// Frozen literal types, casts, provider identities and lexical frames
+			// must survive capture again without adding casts or losing slots.
+			for range 3 {
+				replayed, err := policyUnitBind(t, e, op, d, sql)
+				if err != nil {
+					t.Fatal("rendered expression cannot bind", sql, err)
+				}
+				if err = stored.ValidatePolicy(e.CatalogRead(), d, replayed); err != nil {
+					t.Fatal("invalid recaptured expression", sql, err)
+				}
+				redump, err := stored.PolicySQL(context.Background(), e.CatalogRead(), replayed)
+				if err != nil || redump != sql {
+					t.Fatal("unstable frozen expression replay", sql, redump, err)
+				}
+				sql = redump
+			}
+			original := expression.Presentation()
+			next := catalog.CloneState(e.CatalogRead().State())
+			owner := *d
+			owner.ObjectName = "renamed"
+			owner.Columns = append([]catalog.Column(nil), d.Columns...)
+			owner.Columns[0].Name = "key"
+			next.SetDescriptor(d.Address(), &owner)
+			text, err := stored.PolicySQL(context.Background(), e.Catalog.Read(next), expression)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(sql, `"t"."id"`) && !strings.Contains(text, `"renamed"."key"`) {
+				t.Fatal("lost stable owner identity", text)
+			}
+			if expression.Presentation() != original || d.Name() != "t" || d.Columns[0].Name != "id" {
+				t.Fatal("mutated published definition")
+			}
+		})
+	}
+}
+func TestRLSPolicyBooleanContext(t *testing.T) {
+	e, op, done, d := policyUnitFixture(t)
+	defer done()
+	for _, tc := range []struct{ condition, code, message string }{
+		{"1", "42804", "argument of POLICY must be type boolean, not type integer"},
+		{"count(*)>0", "42803", "aggregate functions are not allowed in policy expressions"},
+		{"FALSE AND count(*)>0", "42803", "aggregate functions are not allowed in policy expressions"},
+		{"row_number() OVER()>0", "42P20", "window functions are not allowed in policy expressions"},
+		{"$1", "42P02", "there is no parameter $1"},
+		{"EXISTS(SELECT $1)", "42P02", "there is no parameter $1"},
+	} {
+		_, err := policyUnitBind(t, e, op, d, tc.condition)
+		diagnostic, ok := err.(*sqlstate.Error)
+		if !ok || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Position != "" {
+			t.Fatal(tc.condition, err)
+		}
+	}
+}
+func TestRLSPolicyPublicationCanceled(t *testing.T) {
+	e, op, done, d := policyUnitFixture(t)
+	defer done()
+	expression, err := policyUnitBind(t, e, op, d, "id>0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := e.CatalogRead()
+	next := *d
+	next.ObjectRevision++
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Permissive: true, Command: "all", Roles: []catalog.PolicyRole{{Public: true}}, Using: view.PolicyPayloadOf(expression)}}
+	stage := e.BeginCatalogStage(base)
+	defer e.DiscardCatalogStage(stage)
+	if err = stage.Replace(&next); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	core.SetPreparedCatalogPublicationCtx(prepared, ctx)
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err == nil {
+		t.Fatal("canceled stage published")
+	}
+	if e.CatalogRead().State() != base.State() || len(d.Security.Policies) != 0 {
+		t.Fatal("canceled publication changed immutable roots")
+	}
+}
+func TestRLSPolicyRemap(t *testing.T) {
+	e, op, done, d := policyUnitFixture(t)
+	defer done()
+	enginetest.RoleExecute(t, e, op, "CREATE DOMAIN policy_integer AS INTEGER")
+	enginetest.RoleExecute(t, e, op, `CREATE COLLATION policy_collation FROM "C"`)
+	enginetest.RoleExecute(t, e, op, "CREATE SEQUENCE policy_sequence START 41")
+	expression, err := policyUnitBind(t, e, op, d, "EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id::policy_integer) AND DATE '2000-01-01'<CURRENT_DATE AND 'a' COLLATE policy_collation='a' AND nextval('policy_sequence')>0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := *d
+	next.ObjectRevision++
+	e.Mu.Lock()
+	oid, err := e.Catalog.AllocateOIDLocked()
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	next.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Ref: d.Owner}, {Ref: d.Owner}}, Using: view.PolicyPayloadOf(expression)}}
+	base := e.CatalogRead()
+	stage := e.BeginCatalogStage(base)
+	defer e.DiscardCatalogStage(stage)
+	if err = stage.Replace(&next); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: base.Epoch()}); err != nil {
+		t.Fatal(err)
+	}
+	imported := engine.New()
+	if _, err = imported.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
+		t.Fatal(err)
+	}
+	catalogView := imported.CatalogRead()
+	var copied *catalog.Relation
+	for _, descriptor := range catalogView.Descriptors() {
+		if table, ok := descriptor.(*catalog.Relation); ok && table.Name() == "t" {
+			copied = table
+			break
+		}
+	}
+	if copied == nil || len(copied.Security.Policies) != 1 || len(copied.Security.Policies[0].Roles) != 2 {
+		t.Fatal("lost attached policy")
+	}
+	p := copied.Security.Policies[0]
+	if imported.Roles().ValidatePrincipal(p.Roles[0].Ref) != nil || p.Roles[1].Ref != p.Roles[0].Ref {
+		t.Fatal("lost principal provenance/multiplicity")
+	}
+	if err = view.ValidatePolicies(catalogView, copied); err != nil {
+		t.Fatal(err)
+	}
+	if stored.PolicyOf(p.Using) == expression || expression.Presentation().Sources()[0].Ref.Domain() != e.Catalog.Domain {
+		t.Fatal("remap mutated original expression")
+	}
+	originalSQL, err := stored.PolicySQL(context.Background(), e.CatalogRead(), expression)
+	if err != nil {
+		t.Fatal(err)
+	}
+	importedSQL, err := stored.PolicySQL(context.Background(), catalogView, stored.PolicyOf(p.Using))
+	if err != nil || importedSQL != originalSQL {
+		t.Fatal("remapped presentation lost frozen context", originalSQL, importedSQL, err)
+	}
+}
+
+func TestRLSPolicyDependencyClosure(t *testing.T) {
+	for _, tc := range []struct {
+		name, setup, condition string
+		class                  ids.OID
+	}{
+		{"helper", "CREATE VIEW dependent_view AS SELECT id FROM helper", "EXISTS(SELECT 1 FROM helper WHERE helper.id=t.id)", ids.RelationClassID},
+		{"policy_integer", "CREATE DOMAIN policy_integer AS INTEGER", "id::policy_integer>0", ids.TypeClassID},
+		{"policy_collation", `CREATE COLLATION policy_collation FROM "C"`, "'a' COLLATE policy_collation='a'", ids.CollationClassID},
+		{"policy_sequence", "CREATE SEQUENCE policy_sequence", "nextval('policy_sequence')>0", ids.RelationClassID},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, op, done, owner := policyUnitFixture(t)
+			defer done()
+			enginetest.RoleExecute(t, e, op, tc.setup)
+			expression, err := policyUnitBind(t, e, op, owner, tc.condition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			e.Mu.Lock()
+			oid, err := e.Catalog.AllocateOIDLocked()
+			e.Mu.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			base := e.CatalogRead()
+			state := catalog.CloneState(base.State())
+			attached := *owner
+			attached.Security.Policies = []catalog.PolicyDefinition{{OID: oid, Name: "p", Command: "all", Permissive: true, Roles: []catalog.PolicyRole{{Public: true}}, Using: view.PolicyPayloadOf(expression)}}
+			state.SetDescriptor(owner.Address(), &attached)
+			base = base.WithState(state)
+			var target ids.ObjectAddress
+			for address, descriptor := range state.Descriptors() {
+				if address.ClassID == tc.class && descriptor.Name() == tc.name {
+					target = address
+					break
+				}
+			}
+			if target == (ids.ObjectAddress{}) {
+				t.Fatal("missing provider")
+			}
+			stage := e.BeginCatalogStage(base)
+			defer e.DiscardCatalogStage(stage)
+			edges, err := core.DomainDependencyClosure(context.Background(), stage, []ids.ObjectAddress{target})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var labels []string
+			for _, edge := range edges {
+				if !edge.Automatic {
+					labels = append(labels, edge.Label)
+				}
+			}
+			want := "policy p on table t"
+			if tc.name == "helper" {
+				want = "view dependent_view\n" + want
+			}
+			if strings.Join(labels, "\n") != want {
+				t.Fatal("incomplete or unordered closure", labels)
+			}
+			if err := core.StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{target}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
+				t.Fatal(err)
+			}
+			survivor, ok := stage.Get(owner.Address()).(*catalog.Relation)
+			if !ok || len(survivor.Security.Policies) != 0 || len(attached.Security.Policies) != 1 {
+				t.Fatal("cascade failed to prune only the staged policy")
+			}
+			if strings.Join(stage.DropCascadeNames, "\n") != "drop cascades to "+strings.ReplaceAll(want, "\n", "\ndrop cascades to ") {
+				t.Fatal("cascade lost mixed closure notices", stage.DropCascadeNames)
+			}
+		})
+	}
+}

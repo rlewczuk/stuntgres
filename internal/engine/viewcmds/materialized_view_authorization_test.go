@@ -1,8 +1,11 @@
-package engine
+package viewcmds_test
 
 import (
 	"errors"
 	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -11,13 +14,12 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqlstate"
-	"testing"
 )
 
 // Native SQL GRANT is deliberately not expanded for this part. Exercise the
 // actual private ACL/source admission and physical-reference collector instead.
 func TestMaterializedViewAuthorization(t *testing.T) {
-	e := New()
+	e := engine.New()
 	op, done, stage, d := materializedUnitStage(t, e)
 	defer done()
 	reader := e.RoleStore.Domain.Principal(99)

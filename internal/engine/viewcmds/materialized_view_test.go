@@ -1,0 +1,192 @@
+package viewcmds_test
+
+import (
+	"context"
+	"encoding/base64"
+	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// Exercise the private binder/stager directly, not SQL execution wrappers.
+func materializedUnitStage(t *testing.T, e *core.Engine) (*session.Operation, func(), *core.CatalogStage, *catalog.Relation) {
+	t.Helper()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.unit_mv AS SELECT 1::int AS i WITH NO DATA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := statements[0].(*parser.CreateQueryTable)
+	input, _ := op.Session.Settings.Presentation()
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		e.Mu.Unlock()
+		t.Fatal(err)
+	}
+	b, err := core.Describe(context.Background(), e.AnalysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
+	if err != nil {
+		e.Mu.Unlock()
+		t.Fatal(err)
+	}
+	stage, descriptor, skipped, err := core.EnginePrepareQueryTableLocked(e, op, auth, s, b)
+	e.Mu.Unlock()
+	if err != nil || skipped {
+		t.Fatalf("private stage: %v, skipped %v", err, skipped)
+	}
+	return op, done, stage, descriptor
+}
+
+func TestMaterializedViewDescriptor(t *testing.T) {
+	e := engine.New()
+	_, done, stage, d := materializedUnitStage(t, e)
+	defer done()
+	view := e.StageRead(stage)
+	if !d.RelationKind.Stored() || d.Populated || d.View == nil || stored.ViewOf(d).RuleOID() == 0 {
+		t.Fatal("missing independent storage/definition/population identity")
+	}
+	if err := (core.RelationProvider).Validate(view, d); err != nil {
+		t.Fatal(err)
+	}
+	populated := *d
+	populated.Populated = true
+	if err := (core.RelationProvider).Validate(view, &populated); err != nil {
+		t.Fatal("empty populated descriptor:", err)
+	}
+	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.ViewRelation, catalog.CatalogRelation} {
+		invalid := populated
+		invalid.RelationKind = kind
+		if err := (core.RelationProvider).Validate(view, &invalid); err == nil {
+			t.Fatalf("accepted populated non-materialization %v", kind)
+		}
+	}
+	invalid := *d
+	invalid.View = nil
+	if err := (core.RelationProvider).Validate(view, &invalid); err == nil {
+		t.Fatal("accepted missing definition")
+	}
+}
+
+func TestMaterializedViewDefinition(t *testing.T) {
+	e := engine.New()
+	op, done, stage, d := materializedUnitStage(t, e)
+	defer done()
+	source := &catalog.Relation{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
+	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
+	b := analyze.Binding{Query: stored.ViewOf(d).Query(), QuerySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	if err != nil {
+		e.Mu.Unlock()
+		t.Fatal(err)
+	}
+	definition, err := view.FreezeDefinition(core.DDLHost{E: e}, auth.Catalog, core.CatalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.Attributes[1] = 9
+	if definition.Query() != b.Query || definition.Syntax() != stored.ViewOf(d).Syntax() || definition.RuleOID() == 0 || definition.RuleOID() == stored.ViewOf(d).RuleOID() {
+		t.Fatal("definition rebound or lost fresh rule identity")
+	}
+	if !reflect.DeepEqual(definition.Sources()[0].Attributes, []int32{1, 3}) || !reflect.DeepEqual(definition.Sources()[0].Reads, []int32{3}) || definition.Dependencies()[0] != b.Dependencies[0] {
+		t.Fatal("frozen hidden-attribute/source dependencies changed")
+	}
+}
+
+func TestMaterializedViewSnapshotCodec(t *testing.T) {
+	encode := func(raw string) string {
+		return view.MaterializedSnapshotMarker + " " + base64.StdEncoding.EncodeToString([]byte(raw))
+	}
+	raw := `{"schema":"quote\"\\雪","name":"newline\n*/--","populated":true,"rows":"INSERT INTO public.unit_mv VALUES (NULL);\n"}`
+	record, recognized, err := view.DecodeMaterializedSnapshot(encode(raw))
+	if err != nil || !recognized || record.Schema != "quote\"\\雪" || record.Name != "newline\n*/--" || record.Rows != "INSERT INTO public.unit_mv VALUES (NULL);\n" {
+		t.Fatalf("lossy codec: %#v %v", record, err)
+	}
+	if _, recognized, err := view.DecodeMaterializedSnapshot("ordinary comment"); recognized || err != nil {
+		t.Fatal("ordinary comment gained import authority")
+	}
+	for _, raw := range []string{
+		`{"schema":"public","name":"unit_mv","rows":""}`,
+		`{"schema":"public","name":"unit_mv","populated":true,"rows":"","extra":1}`,
+		`{"schema":"public","name":"unit_mv","populated":true,"rows":"","name":"again"}`,
+		`{"schema":"public","name":"unit_mv","populated":null,"rows":""}`,
+		`{"schema":"public","name":"unit_mv","populated":false,"rows":"INSERT"}`,
+		`{"schema":"public","name":"unit_mv","populated":true,"rows":""} {}`,
+		`{"schema":"","name":"unit_mv","populated":true,"rows":""}`,
+	} {
+		if _, recognized, err := view.DecodeMaterializedSnapshot(encode(raw)); !recognized || err == nil {
+			t.Fatalf("accepted malformed envelope %s", raw)
+		}
+	}
+	for _, text := range []string{"stuntgres-matview-v2 e30=", "stuntgres-matview-v1 !!!", "stuntgres-matview-v1 " + base64.StdEncoding.EncodeToString([]byte{0xff})} {
+		if _, recognized, err := view.DecodeMaterializedSnapshot(text); !recognized || err == nil {
+			t.Fatalf("accepted framing %q", text)
+		}
+	}
+}
+
+func TestMaterializedViewSnapshotImport(t *testing.T) {
+	for _, rows := range []string{
+		"INSERT INTO public.other VALUES (1);",
+		"INSERT INTO public.unit_mv (i) VALUES (1);",
+		"INSERT INTO public.unit_mv VALUES (1,2);",
+		"INSERT INTO public.unit_mv VALUES ('bad');",
+		"INSERT INTO public.unit_mv SELECT 1;",
+		"INSERT INTO public.unit_mv VALUES ($1);",
+		"INSERT INTO public.unit_mv DEFAULT VALUES;",
+		"INSERT INTO public.unit_mv VALUES (DEFAULT);",
+		"INSERT INTO public.unit_mv VALUES (nextval('missing'));",
+		"INSERT INTO public.unit_mv VALUES ((SELECT 1));",
+	} {
+		t.Run(rows, func(t *testing.T) {
+			e := engine.New().RestoreStage()
+			op, done, stage, d := materializedUnitStage(t, e)
+			defer done()
+			e.Catalog.PublishLocked(e.StageRead(stage).State())
+			e.Mu.Lock()
+			e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
+			e.Mu.Unlock()
+			before, store := e.Catalog.State, e.Storage.Relations[d.Address()]
+			if err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{{Schema: "public", Name: "unit_mv", Populated: true, Rows: rows}}); err == nil {
+				t.Fatal("accepted noncanonical/effectful snapshot")
+			}
+			if e.Catalog.State != before || e.Storage.Relations[d.Address()] != store || d.Populated {
+				t.Fatal("failed private import published a prefix")
+			}
+		})
+	}
+	e := engine.New().RestoreStage()
+	op, done, stage, d := materializedUnitStage(t, e)
+	defer done()
+	e.Catalog.PublishLocked(e.StageRead(stage).State())
+	e.Mu.Lock()
+	e.Storage.InstallRelationLocked(d.Address(), &storage.Relation{})
+	e.Mu.Unlock()
+	record := view.MaterializedSnapshot{Schema: "public", Name: "unit_mv", Populated: true, Rows: "INSERT INTO public.unit_mv VALUES (7),(7),(NULL);"}
+	if err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record, record}); err == nil {
+		t.Fatal("duplicate target accepted")
+	}
+	if err := viewcmds.ImportMaterializedSnapshots(e, context.Background(), op, []view.MaterializedSnapshot{record}); err != nil {
+		t.Fatal(err)
+	}
+	current := e.Catalog.State.MustRelation(d.Address())
+	stored := e.Storage.Relations[d.Address()].Versions
+	if current == d || !current.Populated || d.Populated || len(stored) != 3 || !sqltype.SameDatum(stored[0].Values[0], stored[1].Values[0]) || !stored[2].Values[0].IsNull() {
+		t.Fatal("import lost immutable descriptor, duplicate or NULL")
+	}
+}

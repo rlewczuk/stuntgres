@@ -1,10 +1,12 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
@@ -24,8 +26,8 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 		"SELECT 'pg_catalog.int4'::regtype AS typ",
 	} {
 		t.Run(query, func(t *testing.T) {
-			e := New()
-			op, done := roleOperation(t, e, "postgres")
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.captured AS " + query + " WITH NO DATA")
 			if err != nil {
@@ -60,8 +62,8 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			}
 		})
 	}
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.parameterized AS SELECT $1::int AS i")
 	if err != nil {

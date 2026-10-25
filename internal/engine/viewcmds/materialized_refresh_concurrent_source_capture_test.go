@@ -1,24 +1,27 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
 func concurrentSourceOuter(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW source_outer AS SELECT a.i FROM unit_mv a JOIN unit_mv b ON a.i=b.i CROSS JOIN source_gate g WITH NO DATA")
 	if err != nil {
@@ -51,7 +54,7 @@ func concurrentSourceOuter(t *testing.T, e *core.Engine) *catalog.Relation {
 }
 
 func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
-	e := New()
+	e := engine.New()
 	inner := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, inner, "inner_u", "i", "")
 	inner = e.Catalog.State.MustRelation(inner.Address())
@@ -70,8 +73,8 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	frontier := e.Visibility.CommitSeq()
 	innerVersions, gateVersions := innerStorage.Versions, gateStorage.Versions
 	innerEnds, gateEnds := innerStorage.Ends, gateStorage.Ends
-	holder := sessionStart(t, e, nil)
-	holderTx := transactionBegin(t, holder)
+	holder := enginetest.StartSession(t, e, nil)
+	holderTx := enginetest.TransactionBegin(t, holder)
 	gateRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), gate.Address())
 	defer e.EndLockOwner(holder.Transactions.Ticket)
 	if err := e.Locks.Acquire(context.Background(), holder.Transactions.Ticket, lock.Resource{ObjectRef: gateRef}, lock.AccessExclusive); err != nil {
@@ -97,7 +100,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	// This calls the actual target admission and acquireViewSources, not a
 	// manually assembled visibility.Data or materializedSourceFence.
 	go func() { done <- core.ScopeAcquireMaterializedRefresh(scope, stmt) }()
-	lockPending(t, e, 1)
+	enginetest.LockPending(t, e, 1)
 	assertSourceWait := func() {
 		t.Helper()
 		lockState := e.Locks.Inspect()
@@ -167,20 +170,20 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 		t.Fatal("source acquisition join", ctx.Err())
 	}
 	assertManifest()
-	transactionEnd(t, holder, holderTx, false)
+	enginetest.TransactionEnd(t, holder, holderTx, false)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
 	stage.QuerySources = scope.MaterializedOrZero().Sources
-	materializedStage(stage).SourceView = snapshot
+	viewcmds.MaterializedStage(stage).SourceView = snapshot
 	provider := stage.Base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
 	if provider == nil {
 		t.Fatal("missing target rowtype provider")
 	}
 	stage.DomainBases = []catalog.Descriptor{provider}
-	if err := stageMaterializedRows(e, context.Background(), stage, outer, e.Storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, outer, e.Storage.Relations[outer.Address()], refreshUnitRows(t, outer, 3), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	materializedStage(stage).Replacement.Concurrent = true
+	viewcmds.MaterializedStage(stage).Replacement.Concurrent = true
 	changes := session.NewJournal()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()

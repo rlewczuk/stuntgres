@@ -3,7 +3,6 @@ package core_test
 import (
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
@@ -14,6 +13,7 @@ import (
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/tablecmds"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -32,7 +32,7 @@ func TestTriggerCorePersistence(t *testing.T) {
 	var query *parser.Select
 	var binding analyze.Binding
 	if err == nil {
-		condition, query, binding, err = (engine.ViewHost{tablecmds.TableHost{core.DDLHost{E: source, Op: scope.Op}}}).BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.Input)
+		condition, query, binding, err = (viewcmds.ViewHost{tablecmds.TableHost{core.DDLHost{E: source, Op: scope.Op}}}).BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.Input)
 	}
 	source.Mu.Unlock()
 	if err != nil {

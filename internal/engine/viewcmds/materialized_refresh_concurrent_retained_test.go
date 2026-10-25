@@ -1,8 +1,9 @@
-package engine
+package viewcmds_test
 
 import (
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -13,7 +14,7 @@ import (
 
 func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	for _, sequence := range [][]bool{{true, true}, {true, false, true}, {false, true}} {
-		e := New()
+		e := engine.New()
 		d := concurrentUnitRelation(t, e)
 		original := e.Storage.Relations[d.Address()]
 		changes := session.NewJournal()
@@ -38,7 +39,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 			previous = replacement
 		}
 	}
-	e := New()
+	e := engine.New()
 	d := concurrentUnitRelation(t, e)
 	private := &storage.Relation{}
 	changes := session.NewJournal()
@@ -53,7 +54,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 }
 
 func TestMaterializedRefreshConcurrentProducerSourceFences(t *testing.T) {
-	e := New()
+	e := engine.New()
 	old := refreshUnitRelation(t, e)
 	materializedConcurrentUnitIndex(t, e, old, "unit_u", "i", "")
 	old = e.Catalog.State.MustRelation(old.Address())

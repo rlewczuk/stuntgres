@@ -1,14 +1,16 @@
-package engine
+package viewcmds_test
 
 import (
 	"errors"
 	"slices"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -17,6 +19,7 @@ import (
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +35,7 @@ func refreshUnitPrincipals(e *core.Engine) (authorization.PrincipalRef, authoriz
 }
 
 func TestMaterializedRefreshAuthorization(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
 	owner, caller := refreshUnitPrincipals(e)
 	d.Owner = owner
@@ -68,11 +71,11 @@ func TestMaterializedRefreshAuthorization(t *testing.T) {
 
 func TestMaterializedRefreshOwnerContext(t *testing.T) {
 	for _, fail := range []bool{false, true} {
-		e := New()
+		e := engine.New()
 		d := refreshUnitRelation(t, e)
 		owner, caller := refreshUnitPrincipals(e)
 		d.Owner = owner
-		op, done := roleOperation(t, e, "refresh_unit_caller")
+		op, done := enginetest.RoleOperation(t, e, "refresh_unit_caller")
 		t.Cleanup(done)
 		scope, err := e.StartStatement(op)
 		if err != nil {
@@ -156,7 +159,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			p.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: d.Columns, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{converted}}}
 		})
 		e.Mu.Lock()
-		rows, err := materializedRefreshRowsLocked(e, scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address()), d)
+		rows, err := viewcmds.MaterializedRefreshRowsLocked(e, scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address()), d)
 		if fail {
 			if !errors.Is(err, sentinel) || rows != nil {
 				t.Fatal(rows, err)
@@ -185,4 +188,36 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		}
 		done()
 	}
+}
+
+func putFixtureRole(r *access.RoleRecord, d authorization.RoleDescriptor) {
+	root, err := r.Root.PutDescriptor(d)
+	if err != nil {
+		panic(err)
+	}
+	r.Root = root
+}
+
+func objectACLUnitEntry(source, target authorization.PrincipalRef, use, options authorization.Privileges) authorization.ACLEntry {
+	return authorization.ACLEntry{Grantor: source, Grantee: authorization.ACLGrantee{Role: target}, Privileges: use, GrantOptions: options}
+}
+
+func queryProbe(usage sqltype.Usage, eval func(*exec.Context) (sqltype.Value, error)) expr.Expr {
+	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
+}
+
+type queryProbeExpression struct {
+	expr.Info
+	eval func(*exec.Context) (sqltype.Value, error)
+}
+
+func (e queryProbeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
+	return e.eval(evalContext(ctx))
+}
+
+// evalContext recovers the engine evaluation context in test probes. A nil or
+// foreign context yields nil.
+func evalContext(ctx expr.Context) *exec.Context {
+	c, _ := ctx.(*exec.Context)
+	return c
 }

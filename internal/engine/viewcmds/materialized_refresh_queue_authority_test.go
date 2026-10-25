@@ -1,17 +1,20 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"errors"
 	"maps"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
-	"testing"
-	"time"
 )
 
 func TestMaterializedRefreshQueuedAuthority(t *testing.T) { materializedQueuedAuthority(t, false) }
@@ -22,15 +25,15 @@ func TestMaterializedRefreshConcurrentQueuedAuthority(t *testing.T) {
 func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 	for _, phase := range []string{"owner", "schema", "name", "columns", "attributes", "rowtype", "definition", "ref", "epoch"} {
 		t.Run(phase, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := refreshUnitRelation(t, e)
 			if concurrent {
 				materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			}
 			oldStorage := e.Storage.Relations[d.Address()]
 			originalEpoch := e.Catalog.State.Epoch()
-			holder := sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
+			holder := enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
 			ref := e.Catalog.Domain.Ref(originalEpoch, d.Address())
 			mode := lock.AccessShare
 			if concurrent {
@@ -63,7 +66,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 					}
 				}
 			}()
-			lockPending(t, e, 1)
+			enginetest.LockPending(t, e, 1)
 			// Mutate authoritative immutable catalog roots while the actual request
 			// is pending. These are package fixtures, not added SQL ALTER capabilities.
 			e.Mu.Lock()
@@ -129,8 +132,8 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 			e.Catalog.State.SetEpoch(originalEpoch)
 			e.Mu.Unlock()
 			scope.Finish(err)
-			transactionEnd(t, holder, tx, false)
-			lockEmpty(t, e)
+			enginetest.TransactionEnd(t, holder, tx, false)
+			enginetest.LockEmpty(t, e)
 		})
 	}
 }

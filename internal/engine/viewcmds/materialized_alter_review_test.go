@@ -1,30 +1,36 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"errors"
 	"reflect"
 	"slices"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"testing"
-	"time"
 )
 
 func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 	for _, phase := range []string{"unrelated_column", "superuser_owner", "name", "schema"} {
 		t.Run(phase, func(t *testing.T) {
-			e := New()
-			admin, adminDone := roleOperation(t, e, "postgres")
+			e := engine.New()
+			admin, adminDone := enginetest.RoleOperation(t, e, "postgres")
 			defer adminDone()
 			actor := roleAttributeCreate(t, e, admin, "mv_queue_successor", true, parser.RoleOptions{})
-			roleExecute(t, e, admin, "CREATE SCHEMA queue_destination")
-			roleExecute(t, e, admin, "CREATE TABLE queue_source(i INT,s TEXT)")
-			roleExecute(t, e, admin, "INSERT INTO queue_source VALUES(1,'a'),(2,NULL)")
-			roleExecute(t, e, admin, "CREATE MATERIALIZED VIEW queued AS SELECT i,s FROM queue_source")
+			enginetest.RoleExecute(t, e, admin, "CREATE SCHEMA queue_destination")
+			enginetest.RoleExecute(t, e, admin, "CREATE TABLE queue_source(i INT,s TEXT)")
+			enginetest.RoleExecute(t, e, admin, "INSERT INTO queue_source VALUES(1,'a'),(2,NULL)")
+			enginetest.RoleExecute(t, e, admin, "CREATE MATERIALIZED VIEW queued AS SELECT i,s FROM queue_source")
 			address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "queued"})
 			d := e.Catalog.State.MustRelation(address)
 			index := materializedAlterIndex(t, e, admin, d)
@@ -47,12 +53,12 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 				wantSecond = "s"
 				wantNamespace = e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "queue_destination"})
 			}
-			holder, firstWorker, secondWorker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
+			holder, firstWorker, secondWorker := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
 			released := false
-			result := sessionSQL(t, holder, "SELECT i,s FROM queued")
+			result := enginetest.SessionSQL(t, holder, "SELECT i,s FROM queued")
 			if err := result.Rows.Close(); err != nil {
-				transactionEnd(t, holder, tx, false)
+				enginetest.TransactionEnd(t, holder, tx, false)
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -60,7 +66,7 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			firstJoined, secondJoined := false, false
 			defer func() {
 				if !released {
-					transactionEnd(t, holder, tx, false)
+					enginetest.TransactionEnd(t, holder, tx, false)
 				}
 				cancel()
 				for _, worker := range []struct {
@@ -76,11 +82,11 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 					}
 				}
 			}()
-			first = lockAsync(e, firstWorker, ctx, "ALTER MATERIALIZED VIEW queued "+firstSuffix, false)
-			lockPending(t, e, 1)
-			second = lockAsync(e, secondWorker, ctx, "ALTER MATERIALIZED VIEW queued RENAME COLUMN i TO key", false)
-			lockPending(t, e, 2)
-			transactionEnd(t, holder, tx, false)
+			first = enginetest.LockAsync(e, firstWorker, ctx, "ALTER MATERIALIZED VIEW queued "+firstSuffix, false)
+			enginetest.LockPending(t, e, 1)
+			second = enginetest.LockAsync(e, secondWorker, ctx, "ALTER MATERIALIZED VIEW queued RENAME COLUMN i TO key", false)
+			enginetest.LockPending(t, e, 2)
+			enginetest.TransactionEnd(t, holder, tx, false)
 			released = true
 			select {
 			case err := <-first:
@@ -108,17 +114,17 @@ func TestMaterializedAlterQueuedPredecessor(t *testing.T) {
 			if d.Name() != "queued" || d.Columns[0].Name != "i" || d.Columns[1].Name != "s" || index.Owner != d.Owner || index.Namespace() != d.Namespace() {
 				t.Fatal("captured predecessor mutated")
 			}
-			lockEmpty(t, e)
+			enginetest.LockEmpty(t, e)
 		})
 	}
 }
 
 func TestMaterializedAlterIndexColumnLabel(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
-	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW label_parent AS SELECT 1 AS i,'a'::text AS s")
-	roleExecute(t, e, op, "CREATE UNIQUE INDEX label_index ON label_parent(i) INCLUDE(s)")
+	enginetest.RoleExecute(t, e, op, "CREATE MATERIALIZED VIEW label_parent AS SELECT 1 AS i,'a'::text AS s")
+	enginetest.RoleExecute(t, e, op, "CREATE UNIQUE INDEX label_index ON label_parent(i) INCLUDE(s)")
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	parentAddress := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_parent"})
 	indexAddress := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "label_index"})
@@ -132,7 +138,7 @@ func TestMaterializedAlterIndexColumnLabel(t *testing.T) {
 	}
 	for _, transition := range []struct{ from, to string }{{"i", "key"}, {"key", "i"}} {
 		before := e.Catalog.State.MustRelation(indexAddress)
-		if err := extensionUnitExecute(t, e, op, statement(t, "ALTER MATERIALIZED VIEW label_index RENAME COLUMN "+transition.from+" TO "+transition.to)); err != nil {
+		if err := extensionUnitExecute(t, e, op, enginetest.Statement(t, "ALTER MATERIALIZED VIEW label_index RENAME COLUMN "+transition.from+" TO "+transition.to)); err != nil {
 			t.Fatal(err)
 		}
 		current := e.Catalog.State.MustRelation(indexAddress)
@@ -149,30 +155,30 @@ func TestMaterializedAlterIndexColumnLabel(t *testing.T) {
 	if captured.Columns[0].Name != "i" || !reflect.DeepEqual(captured.Index, map[string]int{"i": 0, "s": 1}) {
 		t.Fatal("original index descriptor mutated")
 	}
-	lockEmpty(t, e)
+	enginetest.LockEmpty(t, e)
 }
 
 func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 	for _, noData := range []bool{false, true} {
 		t.Run(map[bool]string{false: "data", true: "no_data"}[noData], func(t *testing.T) {
-			e := New()
-			op, done := roleOperation(t, e, "postgres")
+			e := engine.New()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
-			roleExecute(t, e, op, "CREATE TABLE refresh_queue_source(i INT,s TEXT)")
-			roleExecute(t, e, op, "INSERT INTO refresh_queue_source VALUES(1,'old')")
-			roleExecute(t, e, op, "CREATE MATERIALIZED VIEW refreshed AS SELECT i,s FROM refresh_queue_source")
+			enginetest.RoleExecute(t, e, op, "CREATE TABLE refresh_queue_source(i INT,s TEXT)")
+			enginetest.RoleExecute(t, e, op, "INSERT INTO refresh_queue_source VALUES(1,'old')")
+			enginetest.RoleExecute(t, e, op, "CREATE MATERIALIZED VIEW refreshed AS SELECT i,s FROM refresh_queue_source")
 			address := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "refreshed"})
 			parent := e.Catalog.State.MustRelation(address)
 			index := materializedAlterIndex(t, e, op, parent)
 			parent = e.Catalog.State.MustRelation(address)
 			store, root := e.Storage.Relations[address], e.Storage.IndexRoots[index.Address()]
-			roleExecute(t, e, op, "INSERT INTO refresh_queue_source VALUES(2,'new')")
-			holder, firstWorker, secondWorker := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
+			enginetest.RoleExecute(t, e, op, "INSERT INTO refresh_queue_source VALUES(2,'new')")
+			holder, firstWorker, secondWorker := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
 			released := false
-			result := sessionSQL(t, holder, "SELECT i,s FROM refreshed")
+			result := enginetest.SessionSQL(t, holder, "SELECT i,s FROM refreshed")
 			if err := result.Rows.Close(); err != nil {
-				transactionEnd(t, holder, tx, false)
+				enginetest.TransactionEnd(t, holder, tx, false)
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -180,7 +186,7 @@ func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 			firstJoined, secondJoined := false, false
 			defer func() {
 				if !released {
-					transactionEnd(t, holder, tx, false)
+					enginetest.TransactionEnd(t, holder, tx, false)
 				}
 				cancel()
 				for _, worker := range []struct {
@@ -200,11 +206,11 @@ func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 			if noData {
 				refresh += " WITH NO DATA"
 			}
-			first = lockAsync(e, firstWorker, ctx, refresh, false)
-			lockPending(t, e, 1)
-			second = lockAsync(e, secondWorker, ctx, "ALTER MATERIALIZED VIEW refreshed RENAME COLUMN i TO key", false)
-			lockPending(t, e, 2)
-			transactionEnd(t, holder, tx, false)
+			first = enginetest.LockAsync(e, firstWorker, ctx, refresh, false)
+			enginetest.LockPending(t, e, 1)
+			second = enginetest.LockAsync(e, secondWorker, ctx, "ALTER MATERIALIZED VIEW refreshed RENAME COLUMN i TO key", false)
+			enginetest.LockPending(t, e, 2)
+			enginetest.TransactionEnd(t, holder, tx, false)
 			released = true
 			select {
 			case err := <-first:
@@ -240,7 +246,7 @@ func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				rejected, err := e.Execute(checkOp, statement(t, "SELECT key,s FROM refreshed"), 0, nil)
+				rejected, err := e.Execute(checkOp, enginetest.Statement(t, "SELECT key,s FROM refreshed"), 0, nil)
 				if rejected.Rows != nil {
 					rejected.Rows.Close()
 				}
@@ -250,39 +256,39 @@ func TestMaterializedAlterQueuedRefreshCompatible(t *testing.T) {
 					t.Fatal("NO DATA relation lost demanded-read diagnostic after queued rename", err)
 				}
 				// A later genuine producer run must populate the exposed positional label.
-				roleExecute(t, e, op, "REFRESH MATERIALIZED VIEW refreshed")
+				enginetest.RoleExecute(t, e, op, "REFRESH MATERIALIZED VIEW refreshed")
 			}
-			result = sessionSQL(t, holder, "SELECT key,s FROM refreshed ORDER BY key")
-			rows := tuples(result)
+			result = enginetest.SessionSQL(t, holder, "SELECT key,s FROM refreshed ORDER BY key")
+			rows := enginetest.Tuples(result)
 			if err := result.Rows.Close(); err != nil {
 				t.Fatal(err)
 			}
 			if len(rows) != 2 || len(rows[0]) != 2 || len(rows[1]) != 2 || rows[0][0] != int64(1) || rows[0][1] != "old" || rows[1][0] != int64(2) || rows[1][1] != "new" {
 				t.Fatal("compatible refresh bag/positional output", rows)
 			}
-			lockEmpty(t, e)
+			enginetest.LockEmpty(t, e)
 		})
 	}
 }
 
 func TestMaterializedAlterQueuedDefinition(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	d := refreshUnitRelation(t, e)
 	index := materializedAlterIndex(t, e, op, d)
 	d = e.Catalog.State.MustRelation(d.Address())
 	store, root := e.Storage.Relations[d.Address()], e.Storage.IndexRoots[index.Address()]
-	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW producer_fixture AS SELECT 9 AS i")
+	enginetest.RoleExecute(t, e, op, "CREATE MATERIALIZED VIEW producer_fixture AS SELECT 9 AS i")
 	producer := e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "producer_fixture"}))
-	holder, worker := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	tx := transactionBegin(t, holder)
+	holder, worker := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	tx := enginetest.TransactionBegin(t, holder)
 	released, joined := false, false
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	var pending <-chan error
 	defer func() {
 		if !released {
-			transactionEnd(t, holder, tx, false)
+			enginetest.TransactionEnd(t, holder, tx, false)
 		}
 		cancel()
 		if pending != nil && !joined {
@@ -293,12 +299,12 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 			}
 		}
 	}()
-	result := sessionSQL(t, holder, "SELECT i FROM unit_mv")
+	result := enginetest.SessionSQL(t, holder, "SELECT i FROM unit_mv")
 	if err := result.Rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	pending = lockAsync(e, worker, ctx, "ALTER MATERIALIZED VIEW unit_mv RENAME COLUMN i TO key", false)
-	lockPending(t, e, 1)
+	pending = enginetest.LockAsync(e, worker, ctx, "ALTER MATERIALIZED VIEW unit_mv RENAME COLUMN i TO key", false)
+	enginetest.LockPending(t, e, 1)
 	// Replace only with a genuine bound, type-compatible producer. Preserve
 	// the original MV's valid rule, rowtype, exposed attributes and stale rows.
 	// Validation/publication, rather than a direct descriptor-map mutation,
@@ -317,7 +323,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)
-	transactionEnd(t, holder, tx, false)
+	enginetest.TransactionEnd(t, holder, tx, false)
 	released = true
 	select {
 	case err := <-pending:
@@ -332,32 +338,32 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	if stored.ViewOf(current) != definition || current.Columns[0].Name != "i" || current.RowType != d.RowType || !reflect.DeepEqual(current.Attributes, d.Attributes) || e.Storage.Relations[d.Address()] != store || e.Storage.IndexRoots[index.Address()] != root || stored.ViewOf(current).Query() != stored.ViewOf(producer).Query() || stored.ViewOf(current).RuleOID() != stored.ViewOf(d).RuleOID() {
 		t.Fatal("rejected queued ALTER changed validated producer predecessor")
 	}
-	result = sessionSQL(t, holder, "SELECT i FROM unit_mv ORDER BY i")
-	rows := tuples(result)
+	result = enginetest.SessionSQL(t, holder, "SELECT i FROM unit_mv ORDER BY i")
+	rows := enginetest.Tuples(result)
 	if err := result.Rows.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) != 3 || rows[0][0] != int64(1) || rows[1][0] != int64(2) || rows[2][0] != int64(3) {
 		t.Fatal("metadata producer replacement reevaluated stored rows", rows)
 	}
-	roleExecute(t, e, op, "REFRESH MATERIALIZED VIEW unit_mv")
-	result = sessionSQL(t, holder, "SELECT i FROM unit_mv")
-	rows = tuples(result)
+	enginetest.RoleExecute(t, e, op, "REFRESH MATERIALIZED VIEW unit_mv")
+	result = enginetest.SessionSQL(t, holder, "SELECT i FROM unit_mv")
+	rows = enginetest.Tuples(result)
 	if err := result.Rows.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) != 1 || rows[0][0] != int64(9) || len(e.Storage.IndexRoots[index.Address()].Entries) != 1 || len(store.Versions) != 3 || len(root.Entries) != 3 {
 		t.Fatal("validated replacement did not retain old roots and execute actual new producer", rows)
 	}
-	lockEmpty(t, e)
+	enginetest.LockEmpty(t, e)
 }
 
 func TestMaterializedAlterDefiningAuthority(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	d := refreshUnitRelation(t, e)
-	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW authority_fixture AS SELECT 9 AS other")
+	enginetest.RoleExecute(t, e, op, "CREATE MATERIALIZED VIEW authority_fixture AS SELECT 9 AS other")
 	other := e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "authority_fixture"}))
 	if d.View == other.View || d.RowType == other.RowType || &d.Columns[0] == &other.Columns[0] || &d.Attributes[0] == &other.Attributes[0] {
 		t.Fatal("fixture lacks distinct genuine defining authorities")
@@ -388,7 +394,7 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	}
 	// Exercise a genuine foreign replacement lifecycle as the coherent
 	// rowtype/attribute replacement complement; no hybrid stage is published.
-	target := New()
+	target := engine.New()
 	if _, err := target.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -396,5 +402,54 @@ func TestMaterializedAlterDefiningAuthority(t *testing.T) {
 	row := target.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(imported.RowType)})
 	if row.OwningRelation != imported.Address() || len(imported.Attributes) != 1 || imported.Attributes[0] != d.Attributes[0] || len(target.Storage.Relations[imported.Address()].Versions) != 3 || e.Catalog.State.Get(d.Address()) != d {
 		t.Fatal("real replacement lost coherent rowtype/attributes/stored authority")
+	}
+}
+
+func roleAttributeCreate(t *testing.T, e *core.Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
+	t.Helper()
+	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
+	d, ok := e.Roles().Lookup(name)
+	if !ok {
+		t.Fatal("missing role", name)
+	}
+	return d
+}
+
+func extensionUnitExecute(t *testing.T, e *core.Engine, op *session.Operation, stmt parser.Statement) error {
+	t.Helper()
+	scope, err := e.StartStatement(op)
+	if err != nil {
+		return err
+	}
+	finished := false
+	defer func() {
+		// A malformed unit AST or an unexpected engine panic must not leave
+		// statement admission held while roleOperation closes the session.
+		// Preserve the panic; this defer only performs the normal scope unwind.
+		if !finished {
+			_ = scope.Finish(errors.New("stuntgres: extension unit statement unwound"))
+		}
+	}()
+	_, err = scope.Execute(stmt, 0, nil)
+	finished = true
+	return scope.Finish(err)
+}
+
+func queryCreatePublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
+	t.Helper()
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err == nil {
+		_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func roleAttributeApply(t *testing.T, e *core.Engine, op *session.Operation, s parser.Statement) {
+	t.Helper()
+	r, err := e.Execute(op, s, 0, nil)
+	if err != nil || r.Count != 0 || r.Rows != nil {
+		t.Fatalf("attribute utility: result=%#v error=%v", r, err)
 	}
 }

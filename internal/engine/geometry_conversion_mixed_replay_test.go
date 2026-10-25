@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/typecmds"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
 )
 
@@ -106,7 +107,7 @@ func TestGeometryConversionMixedReplayBoundedRow(t *testing.T) {
 	input.ExactSnapshot = true
 	values := ` VALUES(NULL,CAST(ARRAY[ROW(pg_catalog.circle('(1,2)'::pg_catalog.point,'-1'::pg_catalog.float8))::public.conversion_row_leaf,ROW(pg_catalog.circle('(3,4)'::pg_catalog.point,'-2'::pg_catalog.float8))::public.conversion_row_leaf] AS public.conversion_row_leaf[]))`
 	source := statement(t, "INSERT INTO public.conversion_row_destination(v,a[-2:-1])"+values).(*parser.Insert)
-	rows, err := ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, source, input, &record)
+	rows, err := viewcmds.ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, source, input, &record)
 	if err != nil {
 		t.Fatal("unrelated constructor bounds rejected authentic replay", err)
 	}
@@ -129,7 +130,7 @@ func TestGeometryConversionMixedReplayBoundedRow(t *testing.T) {
 	}
 	for _, targets := range []string{"v[-4:-4],a[-2:-1]", "v,a[-2:-2]", "v,a[-2:0]"} {
 		source := statement(t, "INSERT INTO public.conversion_row_destination("+targets+")"+values).(*parser.Insert)
-		if _, err := ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, source, input, &record); err == nil {
+		if _, err := viewcmds.ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, source, input, &record); err == nil {
 			t.Fatal("partial captured target or changed constructor shape admitted", targets)
 		}
 	}

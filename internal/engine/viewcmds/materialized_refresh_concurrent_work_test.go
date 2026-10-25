@@ -1,13 +1,15 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Count real cancellation checkpoints, including those inside the bound index
@@ -27,7 +29,7 @@ func (c *materializedWorkContext) Err() error {
 func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 	const count = 1024
 	t.Run("valid_composite_null_group", func(t *testing.T) {
-		e := New()
+		e := engine.New()
 		d := concurrentUnitRelation(t, e)
 		idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i,p", "")
 		d = e.Catalog.State.MustRelation(d.Address())
@@ -62,7 +64,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 		}
 	})
 	t.Run("earliest_duplicate_prunes_remaining_pairs", func(t *testing.T) {
-		e := New()
+		e := engine.New()
 		d := concurrentUnitRelation(t, e)
 		idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 		d = e.Catalog.State.MustRelation(d.Address())
@@ -92,7 +94,7 @@ func TestMaterializedRefreshConcurrentWorkBound(t *testing.T) {
 }
 
 func TestMaterializedRefreshConcurrentDuplicateDiagnosticOrder(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := concurrentUnitRelation(t, e)
 	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())

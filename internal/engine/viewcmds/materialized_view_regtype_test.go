@@ -1,9 +1,10 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -13,7 +14,7 @@ import (
 )
 
 func TestMaterializedViewRegtypePresentation(t *testing.T) {
-	source := New()
+	source := engine.New()
 	_, sourceDone, sourceStage, original := materializedUnitStage(t, source)
 	defer sourceDone()
 	regtype, ok := sourceStage.Base.LookupType(sqltype.Regtype)
@@ -33,7 +34,7 @@ func TestMaterializedViewRegtypePresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	destination := New()
+	destination := engine.New()
 	destination.Mu.Lock()
 	_, err = destination.Catalog.AllocateOIDLocked()
 	destination.Mu.Unlock()

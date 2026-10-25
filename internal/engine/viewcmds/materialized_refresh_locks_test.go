@@ -1,17 +1,21 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
+	"testing"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 func refreshUnitScope(t *testing.T, e *core.Engine, ctx context.Context) *core.StatementScope {
 	t.Helper()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	op, err := session.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +47,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 		{"no_data_source_exclusive", false, lock.AccessExclusive, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := refreshUnitRelation(t, e)
 			stage, source := queryCreateStage(t, e, "refresh_unit_source", 1)
 			queryCreatePublish(t, e, stage)
@@ -51,8 +55,8 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			d.View = stored.ViewOf(d).With(func(p *stored.ViewParts) {
 				p.Sources = []stored.ViewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
-			holder := sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
+			holder := enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
 			ref := sourceRef
 			if tc.target {
 				ref.Address = d.Address()
@@ -68,21 +72,21 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			joined := false
 			defer func() {
 				cancel()
-				transactionEnd(t, holder, tx, false)
+				enginetest.TransactionEnd(t, holder, tx, false)
 				if !joined {
-					lockAwait(t, done, context.Canceled)
+					enginetest.LockAwait(t, done, context.Canceled)
 				}
 			}()
 			if tc.blocked {
-				lockPending(t, e, 1)
+				enginetest.LockPending(t, e, 1)
 				cancel()
-				lockAwait(t, done, context.Canceled)
+				enginetest.LockAwait(t, done, context.Canceled)
 				joined = true
 				if err := scope.Finish(context.Canceled); err == nil {
 					t.Fatal("canceled refresh scope succeeded")
 				}
 			} else {
-				lockAwait(t, done, nil)
+				enginetest.LockAwait(t, done, nil)
 				joined = true
 				if tc.noData && len(scope.MaterializedOrZero().Sources) != 0 {
 					t.Fatal("NO DATA traversed sources")
@@ -111,7 +115,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			name = "no_data_data"
 		}
 		t.Run(name, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := refreshUnitRelation(t, e)
 			original := e.Storage.Relations[d.Address()]
 			first := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: noData}
@@ -130,10 +134,10 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 				cancel()
 				a.Finish(nil)
 				if !joined {
-					lockAwait(t, done, context.Canceled)
+					enginetest.LockAwait(t, done, context.Canceled)
 				}
 			}()
-			lockPending(t, e, 1)
+			enginetest.LockPending(t, e, 1)
 			before := e.Visibility.CommitSeq()
 			execute := func(scope *core.StatementScope, stmt *parser.RefreshMaterializedView) {
 				t.Helper()
@@ -146,7 +150,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 					e.Mu.Unlock()
 					t.Fatal(err)
 				}
-				result, err := RefreshMaterializedLocked(e, scope, auth, stmt, 0)
+				result, err := viewcmds.RefreshMaterializedLocked(e, scope, auth, stmt, 0)
 				if err != nil || result.Count != 0 || result.Rows != nil {
 					t.Fatal(result, err)
 				}
@@ -164,7 +168,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if err := a.Finish(nil); err != nil {
 				t.Fatal(err)
 			}
-			lockAwait(t, done, nil)
+			enginetest.LockAwait(t, done, nil)
 			joined = true
 			if b.LockedDescriptor != descriptorA || b.LockedStorage != afterA {
 				t.Fatal("queued refresh did not capture grant-time store")
@@ -182,7 +186,7 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			if len(values) != len(want) || values[0] != want[0] {
 				t.Fatal("queued refresh final typed row differs from defining SELECT1")
 			}
-			lockEmpty(t, e)
+			enginetest.LockEmpty(t, e)
 		})
 	}
 }

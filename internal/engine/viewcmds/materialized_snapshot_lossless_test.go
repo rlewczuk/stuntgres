@@ -1,24 +1,30 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
-	e := New()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	input, _ := op.Session.Settings.Presentation()
 	input.ExactSnapshot = true
@@ -135,8 +141,8 @@ func TestMaterializedViewSnapshotConstructorTargets(t *testing.T) {
 // Exercise the closed snapshot transport and destination-owned evaluation
 // together: recognizing a function name alone must never authorize its children.
 func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
-	e := New().RestoreStage()
-	op, done := roleOperation(t, e, "postgres")
+	e := engine.New().RestoreStage()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_leaf(c circle)")
 	relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_nested(v public.snapshot_leaf[])")
@@ -161,7 +167,7 @@ func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
+		return viewcmds.ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
 	}
 	for _, sample := range []struct {
 		text   string
@@ -217,12 +223,12 @@ func TestMaterializedViewSnapshotNestedConstructors(t *testing.T) {
 	}
 	// Direct rank-two bounded targets remain supported. Without its own target,
 	// this exact value must be refused rather than silently rebased.
-	source := statement(t, `INSERT INTO public.snapshot_nested(v[-2:-1][3:3]) VALUES(CAST(ARRAY[ARRAY[`+leaf+`],ARRAY[`+leaf+`]] AS public.snapshot_leaf[]))`)
+	source := enginetest.Statement(t, `INSERT INTO public.snapshot_nested(v[-2:-1][3:3]) VALUES(CAST(ARRAY[ARRAY[`+leaf+`],ARRAY[`+leaf+`]] AS public.snapshot_leaf[]))`)
 	insert, err := view.MaterializedSnapshotInsert(record, relation, source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, err := ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
+	rows, err := viewcmds.ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
 	if err != nil {
 		t.Fatal("direct rank-two target", err)
 	}
@@ -254,18 +260,18 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 		{"cat", `CREATE FUNCTION pg_catalog.array_cat(integer[],integer[]) RETURNS integer[] LANGUAGE SQL AS $$SELECT $1$$`, `pg_catalog.array_cat(pg_catalog.array_fill(7,ARRAY[1],ARRAY[-2]),CAST(ARRAY[8] AS pg_catalog.int4[]))`},
 	} {
 		t.Run(sample.name, func(t *testing.T) {
-			e := New().RestoreStage()
-			op, done := roleOperation(t, e, "postgres")
+			e := engine.New().RestoreStage()
+			op, done := enginetest.RoleOperation(t, e, "postgres")
 			defer done()
 			relation := domainUnitTable(t, e, op, "CREATE TABLE public.snapshot_provider(v integer[])")
 			auth, err := core.OperationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
-			declaration := statement(t, sample.definition).(*parser.CreateFunction)
+			declaration := enginetest.Statement(t, sample.definition).(*parser.CreateFunction)
 			e.Mu.Lock()
 			stage := e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(engine.RoutineHost{core.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("private callable declaration", err)
@@ -276,17 +282,50 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 			record := view.MaterializedSnapshot{Schema: "public", Name: "snapshot_provider"}
-			source := statement(t, "INSERT INTO public.snapshot_provider VALUES("+sample.value+")")
+			source := enginetest.Statement(t, "INSERT INTO public.snapshot_provider VALUES("+sample.value+")")
 			insert, err := view.MaterializedSnapshotInsert(record, relation, source)
 			if err != nil {
 				t.Fatal("canonical codec syntax rejected before provider selection", err)
 			}
 			input, _ := op.Session.Settings.Presentation()
 			input.ExactSnapshot = true
-			_, err = ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
+			_, err = viewcmds.ImportMaterializedSnapshotRow(e, op.Context(), op, auth, relation, insert, input, nil)
 			if err == nil || err.Error() != "stuntgres: invalid materialized view snapshot constructor provider" {
 				t.Fatal("same-named SQL callable gained codec authority", err)
 			}
 		})
+	}
+}
+
+func domainUnitTable(t *testing.T, e *core.Engine, op *session.Operation, q string) *catalog.Relation {
+	t.Helper()
+	raw := enginetest.Statement(t, q).(*parser.CreateTable)
+	e.Mu.Lock()
+	auth, err := e.AuthorizationLocked(op)
+	stage := e.BeginCatalogStage(auth.Catalog)
+	if err == nil {
+		err = tablecmds.SchemaTableLocked(e, op, auth, stage, raw, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, auth.State.CurrentUser, sqltype.InputEnvironment{}, nil)
+	}
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	domainUnitPublish(t, e, stage)
+	view := e.CatalogRead()
+	addresses := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: raw.Name.Parts[len(raw.Name.Parts)-1].Text})
+	if len(addresses) != 1 {
+		t.Fatal(addresses)
+	}
+	return view.MustRelation(addresses[0])
+}
+
+func domainUnitPublish(t *testing.T, e *core.Engine, stage *core.CatalogStage) {
+	t.Helper()
+	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+		t.Fatal(err)
 	}
 }

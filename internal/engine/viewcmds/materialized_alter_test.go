@@ -1,24 +1,31 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"errors"
 	"reflect"
 	"slices"
-	"stuntgres/internal/engine/control"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
+	"stuntgres/internal/sqlstate"
 )
 
 func materializedAlterUnit(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation, action, target string) error {
@@ -28,13 +35,13 @@ func materializedAlterUnit(t *testing.T, e *core.Engine, op *session.Operation, 
 func materializedAlterIndex(t *testing.T, e *core.Engine, op *session.Operation, d *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	// Setup uses the real index binder and publisher; assertions below inspect roots.
-	roleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.Name()+"(i)")
+	enginetest.RoleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.Name()+"(i)")
 	return e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "unit_mv_i"}))
 }
 func TestMaterializedAlterIdentity(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	store := e.Storage.Relations[d.Address()]
 	rule, rowType := stored.ViewOf(d).RuleOID(), d.RowType
@@ -51,9 +58,9 @@ func TestMaterializedAlterIdentity(t *testing.T) {
 	}
 }
 func TestMaterializedAlterOwnerAttachments(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	index := materializedAlterIndex(t, e, op, d)
 	root := e.Storage.IndexRoots[index.Address()]
@@ -212,7 +219,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		if _, conflict := err.(catalog.Conflict); !conflict {
 			t.Fatal("retained-message retirement missed late x authority", err)
 		}
-		if _, err := publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+		if _, err := enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 			t.Fatal("late x edge allowed stale retirement")
 		}
 		if e.Catalog.State != state || e.Catalog.State.Get(d.Address()) != current || e.Catalog.State.Get(ext.Address()) != ext || e.Storage.Relations[d.Address()] != store {
@@ -235,12 +242,12 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 }
 func TestMaterializedAlterDependencyUnion(t *testing.T) {
 	e, op, ext := extensionUnitInstalled(t)
-	roleExecute(t, e, op, "CREATE MATERIALIZED VIEW union_mv AS SELECT unaccent('Hôtel'::text) AS s")
+	enginetest.RoleExecute(t, e, op, "CREATE MATERIALIZED VIEW union_mv AS SELECT unaccent('Hôtel'::text) AS s")
 	d := e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ext.TargetNamespace, Name: "union_mv"}))
 	if err := materializedAlterUnit(t, e, op, d, "depends", "unaccent"); err != nil {
 		t.Fatal(err)
 	}
-	roleExecute(t, e, op, "CREATE VIEW union_child AS SELECT s FROM union_mv")
+	enginetest.RoleExecute(t, e, op, "CREATE VIEW union_child AS SELECT s FROM union_mv")
 	child := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: "union_child"})
 	member := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ext.TargetNamespace, Name: "unaccent", Signature: string(catalog.UnaccentTextSignature)})
 	survivor := refreshUnitRelation(t, e)
@@ -335,7 +342,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "authorization":
 				op.Session.Authorization.Revision++
 			}
-			_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("unfenced publication")
 			}
@@ -349,9 +356,9 @@ func TestMaterializedAlterPublication(t *testing.T) {
 	}
 }
 func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	index := materializedAlterIndex(t, e, op, d)
 	d = e.Catalog.State.MustRelation(d.Address())
@@ -360,7 +367,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 		root := e.Storage.IndexRoots[index.Address()]
 		oldEntries := slices.Clone(root.Entries)
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		if err := stageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, count), count != 0, ids.TxRef{}); err != nil {
+		if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, count), count != 0, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
 		candidate := stage.MaterializedOrZero().Replacement.Storage
@@ -378,12 +385,12 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 	defer e.DiscardCatalogStage(stage)
 	rows := refreshUnitRows(t, d, 2)
 	rows[1] = rows[0]
-	if err := stageMaterializedRows(e, context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	extensionUnitError(t, err, "23505")
 	if e.Catalog.State != state || e.Storage.Relations[d.Address()] != old || e.Storage.IndexRoots[index.Address()] != root {
@@ -402,11 +409,11 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if extension.RemapDescriptor(d, nil) != d {
 		t.Fatal("unnecessary remap allocation")
 	}
-	target := New()
-	targetOp, done := roleOperation(t, target, "postgres")
+	target := engine.New()
+	targetOp, done := enginetest.RoleOperation(t, target, "postgres")
 	defer done()
-	roleExecute(t, target, targetOp, "CREATE TEMP TABLE remap_retained(i INT)")
-	roleExecute(t, target, targetOp, "INSERT INTO remap_retained VALUES(99)")
+	enginetest.RoleExecute(t, target, targetOp, "CREATE TEMP TABLE remap_retained(i INT)")
+	enginetest.RoleExecute(t, target, targetOp, "INSERT INTO remap_retained VALUES(99)")
 	temporary := target.Catalog.State.Get(targetOp.Session.TemporaryNamespace)
 	retained := target.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: temporary.Address(), Name: "remap_retained"})
 	retainedStore := target.Storage.Relations[retained]
@@ -452,9 +459,9 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 }
 
 func TestMaterializedAlterQueuedAuthority(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
-	admin, adminDone := roleOperation(t, e, "postgres")
+	admin, adminDone := enginetest.RoleOperation(t, e, "postgres")
 	defer adminDone()
 	actor := roleAttributeCreate(t, e, admin, "mv_queued_owner", true, parser.RoleOptions{})
 	next := *d
@@ -466,25 +473,25 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 	}
 	queryCreatePublish(t, e, stage)
 	d = e.Catalog.State.MustRelation(d.Address())
-	owner, ownerDone := roleOperation(t, e, "mv_queued_owner")
+	owner, ownerDone := enginetest.RoleOperation(t, e, "mv_queued_owner")
 	defer ownerDone()
 	owner.Done()
 	withPublicSchemaUnitOwner(t, e, "mv_queued_owner", func() {
-		holder := sessionStart(t, e, nil)
-		tx := transactionBegin(t, holder)
+		holder := enginetest.StartSession(t, e, nil)
+		tx := enginetest.TransactionBegin(t, holder)
 		ended := false
 		defer func() {
 			if !ended {
-				transactionEnd(t, holder, tx, false)
+				enginetest.TransactionEnd(t, holder, tx, false)
 			}
 		}()
-		result := sessionSQL(t, holder, "SELECT i FROM unit_mv")
+		result := enginetest.SessionSQL(t, holder, "SELECT i FROM unit_mv")
 		if err := result.Rows.Close(); err != nil {
 			t.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		done := lockAsync(e, owner.Session, ctx, "ALTER MATERIALIZED VIEW unit_mv RENAME TO saved", false)
+		done := enginetest.LockAsync(e, owner.Session, ctx, "ALTER MATERIALIZED VIEW unit_mv RENAME TO saved", false)
 		joined := false
 		defer func() {
 			if !joined {
@@ -496,7 +503,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 				}
 			}
 		}()
-		lockPending(t, e, 1)
+		enginetest.LockPending(t, e, 1)
 		changed := *d
 		changed.Owner = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 		changed.ObjectRevision++
@@ -507,7 +514,7 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 		queryCreatePublish(t, e, stage)
 		original := e.Catalog.State.Get(d.Address())
 		store := e.Storage.Relations[d.Address()]
-		transactionEnd(t, holder, tx, false)
+		enginetest.TransactionEnd(t, holder, tx, false)
 		ended = true
 		select {
 		case err := <-done:
@@ -519,6 +526,139 @@ func TestMaterializedAlterQueuedAuthority(t *testing.T) {
 		if e.Catalog.State.Get(d.Address()) != original || e.Storage.Relations[d.Address()] != store {
 			t.Fatal("queued actor used stale owner authority")
 		}
-		lockEmpty(t, e)
+		enginetest.LockEmpty(t, e)
 	})
 }
+
+func extensionUnitInstalled(t *testing.T) (*core.Engine, *session.Operation, *catalog.Extension) {
+	t.Helper()
+	e := engine.New()
+	op, done := enginetest.RoleOperation(t, e, "postgres")
+	t.Cleanup(done)
+	enginetest.RoleExecute(t, e, op, "CREATE EXTENSION unaccent")
+	a := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
+	return e, op, e.Catalog.State.MustExtension(a)
+}
+
+func extensionUnitError(t *testing.T, err error, code string) {
+	t.Helper()
+	var diagnostic *sqlstate.Error
+	if !errors.As(err, &diagnostic) || diagnostic.Code != code {
+		t.Fatalf("got %v, want SQLSTATE %s", err, code)
+	}
+}
+
+func extensionTemporaryInstalled(t *testing.T) (*core.Engine, *session.Operation, *session.Operation, *catalog.Extension, func()) {
+	t.Helper()
+	e := engine.New()
+	owner, closeOwner := extensionTemporaryOperation(t, e, "postgres")
+	installer, _ := extensionTemporaryOperation(t, e, "postgres")
+	enginetest.RoleExecute(t, e, owner, "CREATE TEMP TABLE ext_seed(id INT)")
+	namespace := e.Catalog.State.MustNamespace(owner.Session.TemporaryNamespace)
+	if err := extensionUnitExecute(t, e, installer, enginetest.Statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace.Name())); err != nil {
+		t.Fatal(err)
+	}
+	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
+	return e, owner, installer, ext, closeOwner
+}
+
+// withPublicSchemaUnitOwner provisions only a positive CREATE or owner-successor
+// precondition. It leaves the tested operation's identity and object ACLs alone.
+func withPublicSchemaUnitOwner(t *testing.T, e *core.Engine, owner string, body func()) {
+	t.Helper()
+	view := e.CatalogRead()
+	addresses := view.Lookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "public"})
+	if len(addresses) != 1 {
+		t.Fatal("public schema fixture requires one public namespace")
+	}
+	descriptor, ok := view.Descriptor(addresses[0])
+	if !ok {
+		t.Fatal("public schema fixture requires its namespace descriptor")
+	}
+	namespace, ok := descriptor.(*catalog.Namespace)
+	if !ok {
+		t.Fatal("public schema fixture has a non-namespace descriptor")
+	}
+	roles := e.Roles()
+	prior, err := roles.Descriptor(namespace.Owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bootstrap, err := roles.Descriptor(e.RoleStore.Domain.Principal(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	login, err := e.ResolveLogin(bootstrap.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		sess.RequestEnd(session.CleanClose)
+		if err := sess.WaitEnd(context.Background()); err != nil {
+			t.Error("closing public schema fixture session:", err)
+		}
+	}()
+	admin, err := sess.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Done()
+	quote := func(name string) string { return `"` + strings.ReplaceAll(name, `"`, `""`) + `"` }
+	// Restore while the borrowed operation and the prior owner are still live,
+	// including when the body terminates through testing.T.Fatal.
+	defer func() {
+		restore, err := parser.Parse("ALTER SCHEMA public OWNER TO " + quote(prior.Name))
+		if err != nil {
+			t.Error("parsing public schema owner restoration:", err)
+			return
+		}
+		if len(restore) != 1 {
+			t.Errorf("expected single public schema owner restoration statement, got %d", len(restore))
+			return
+		}
+		if _, err := e.Execute(admin, restore[0], 0, nil); err != nil {
+			t.Error("restoring public schema owner:", err)
+		}
+	}()
+	enginetest.RoleExecute(t, e, admin, "ALTER SCHEMA public OWNER TO "+quote(owner))
+	body()
+}
+
+func extensionTemporaryOperation(t *testing.T, e *core.Engine, name string) (*session.Operation, func()) {
+	t.Helper()
+	ref, err := e.ResolveLogin(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var op *session.Operation
+	var once sync.Once
+	close := func() {
+		once.Do(func() {
+			if op != nil {
+				op.Done()
+			}
+			s.RequestEnd(session.CleanClose)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := s.WaitEnd(ctx); err != nil {
+				t.Error("physical TEMP session drain", err)
+			}
+		})
+	}
+	t.Cleanup(close)
+	op, err = s.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return op, close
+}
+
+var testSessionID atomic.Uint64

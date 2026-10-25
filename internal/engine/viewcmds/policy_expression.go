@@ -1,4 +1,4 @@
-package engine
+package viewcmds
 
 import (
 	"stuntgres/internal/engine/analyze"

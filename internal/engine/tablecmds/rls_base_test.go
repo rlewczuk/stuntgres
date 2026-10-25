@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -170,7 +171,7 @@ func policyUnitBind(t *testing.T, e *core.Engine, op *session.Operation, d *cata
 	if err != nil {
 		t.Fatal(err)
 	}
-	return engine.ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return viewcmds.ViewHost{tablecmds.TableHost{core.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }
 
 func rlsBaseLockCancellation(t *testing.T, e *core.Engine, d *catalog.Relation) {

@@ -1,17 +1,27 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
-	"testing"
-	"time"
+	"stuntgres/internal/sqltype"
 )
 
 func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
@@ -29,7 +39,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 		{"invalid_no_data_before_source", false, lock.AccessExclusive, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			d = e.Catalog.State.MustRelation(d.Address())
@@ -40,8 +50,8 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				p.Sources = []stored.ViewLeaf{{Ref: sourceRef, Attributes: source.Attributes, Reads: source.Attributes}}
 			})
 			targetRef := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
-			holder := sessionStart(t, e, nil)
-			tx := transactionBegin(t, holder)
+			holder := enginetest.StartSession(t, e, nil)
+			tx := enginetest.TransactionBegin(t, holder)
 			heldRef := sourceRef
 			if tc.target {
 				heldRef = targetRef
@@ -69,7 +79,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 			}()
 			go func() { done <- core.ScopeAcquireMaterializedRefresh(scope, stmt) }()
 			if tc.blocked {
-				lockPending(t, e, 1)
+				enginetest.LockPending(t, e, 1)
 				if !tc.target {
 					lockState := e.Locks.Inspect()
 					entry := lockState.Resources[lock.Resource{ObjectRef: targetRef}]
@@ -125,14 +135,14 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				}
 			}
 			scope.Finish(err)
-			transactionEnd(t, holder, tx, false)
-			lockEmpty(t, e)
+			enginetest.TransactionEnd(t, holder, tx, false)
+			enginetest.LockEmpty(t, e)
 		})
 	}
 }
 
 func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
 	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())
@@ -140,10 +150,10 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 	frontier := e.Visibility.CommitSeq()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := stageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 128), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	materializedStage(stage).Replacement.Concurrent = true
+	viewcmds.MaterializedStage(stage).Replacement.Concurrent = true
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	counting := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 32}
@@ -156,3 +166,45 @@ func TestMaterializedRefreshConcurrentIndexCancellation(t *testing.T) {
 		t.Fatal("canceled index preparation published or stamped")
 	}
 }
+
+func queryCreateStage(t *testing.T, e *core.Engine, name string, width int) (*core.CatalogStage, *catalog.Relation) {
+	t.Helper()
+	columns := make([]catalog.Column, width)
+	for i := range columns {
+		columns[i] = catalog.Column{Name: "i", Usage: enginetest.Usage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}
+	}
+	e.Mu.Lock()
+	d, err := table.NewRelation(core.DDLHost{E: e}, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, name, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), columns, nil)
+	stage := e.BeginCatalogStage(e.Catalog.Current())
+	if err == nil {
+		err = stage.Create(d)
+	}
+	e.Mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stage, d
+}
+
+// cancelAtErrCheck drives existing cooperative cancellation boundaries without
+// sleeps or production hooks. Its embedded real context owns Done and Err state.
+type cancelAtErrCheck struct {
+	context.Context
+	cancel context.CancelFunc
+	at     int32
+	checks atomic.Int32
+}
+
+func (c *cancelAtErrCheck) Err() error {
+	if c.checks.Add(1) == c.at {
+		c.cancel()
+	}
+	return c.Context.Err()
+}
+
+// Reduced storage fixtures still need real family members and genuine callable
+// declarations. Share an immutable ordinary engine bootstrap, never a provider
+// fallback or a test callback.
+func operatorFamilyTestRead() catalog.Read { return operatorFamilyUnitSeed() }
+
+var operatorFamilyUnitSeed = sync.OnceValue(func() catalog.Read { return engine.New().CatalogRead() })

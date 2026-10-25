@@ -1,4 +1,4 @@
-package engine
+package viewcmds_test
 
 import (
 	"context"
@@ -6,25 +6,29 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/tablecmds"
 	"stuntgres/internal/engine/view"
+	"stuntgres/internal/engine/viewcmds"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Fixtures call the real private binder/stager/root builders, not SQL execution.
 func concurrentUnitRelation(t *testing.T, e *core.Engine) *catalog.Relation {
 	t.Helper()
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW unit_mv AS SELECT 1::int AS i,NULL::int AS p WITH NO DATA")
 	if err != nil {
@@ -80,17 +84,17 @@ func concurrentUnitReplace(t *testing.T, e *core.Engine, d *catalog.Relation, ro
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := stageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, populated, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, populated, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	materializedStage(stage).Replacement.Concurrent = concurrent
+	viewcmds.MaterializedStage(stage).Replacement.Concurrent = concurrent
 	queryCreatePublish(t, e, stage)
 	return e.Catalog.State.MustRelation(d.Address())
 }
 
 func materializedConcurrentUnitIndex(t *testing.T, e *core.Engine, parent *catalog.Relation, name, keys, suffix string) *catalog.Relation {
 	t.Helper()
-	op, done := roleOperation(t, e, "postgres")
+	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
 	statements, err := parser.Parse("CREATE UNIQUE INDEX " + name + " ON " + parent.Name() + "(" + keys + ")" + suffix)
 	if err != nil {
@@ -151,7 +155,7 @@ func materializedConcurrentUnitError(t *testing.T, err error, code, message stri
 }
 
 func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := concurrentUnitRelation(t, e)
 	want := `cannot refresh materialized view "public.unit_mv" concurrently`
 	diagnostic := materializedConcurrentUnitError(t, view.MaterializedConcurrentAdmission(e.CatalogRead(), d, false), "55000", want)
@@ -217,7 +221,7 @@ func TestMaterializedRefreshConcurrentEligibility(t *testing.T) {
 }
 
 func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := concurrentUnitRelation(t, e)
 	idx := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())
@@ -285,7 +289,7 @@ func TestMaterializedRefreshConcurrentDuplicatePreflight(t *testing.T) {
 func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 	for _, phase := range []string{"matched_once", "unmatched_null", "all_keys", "include", "null_key", "not_distinct_null_key"} {
 		t.Run(phase, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := concurrentUnitRelation(t, e)
 			oldRows := concurrentUnitRows(t, d, nil)
 			d = concurrentUnitReplace(t, e, d, oldRows, false, true)
@@ -346,7 +350,7 @@ func TestMaterializedRefreshConcurrentMatch(t *testing.T) {
 }
 
 func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())
@@ -357,10 +361,10 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 		old := e.Storage.Relations[d.Address()]
 		stage := e.BeginCatalogStage(e.CatalogRead())
 		rows := refreshUnitRows(t, d, count)
-		if err := stageMaterializedRows(e, context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
+		if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, rows, true, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		materializedStage(stage).Replacement.Concurrent = true
+		viewcmds.MaterializedStage(stage).Replacement.Concurrent = true
 		candidate := stage.MaterializedOrZero().Replacement.Storage
 		if old.MaterializedLineage != first.MaterializedLineage || candidate.MaterializedLineage != nil {
 			t.Fatal("stage stamped lineage")
@@ -388,7 +392,7 @@ func TestMaterializedRefreshConcurrentPublication(t *testing.T) {
 func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 	for _, phase := range []string{"provider", "cancel", "generation", "length", "ends", "storage", "definition", "index_set", "frontier", "revision"} {
 		t.Run(phase, func(t *testing.T) {
-			e := New()
+			e := engine.New()
 			d := refreshUnitRelation(t, e)
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			d = e.Catalog.State.MustRelation(d.Address())
@@ -397,7 +401,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			if phase == "revision" {
 				d.ObjectRevision = ids.DefinitionRevision(math.MaxUint64)
-				if err := stageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err == nil {
+				if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err == nil {
 					t.Fatal("revision overflow accepted")
 				}
 				if old.MaterializedLineage != nil {
@@ -405,10 +409,10 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 				}
 				return
 			}
-			if err := stageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err != nil {
+			if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, old, refreshUnitRows(t, d, 4), true, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
-			materializedStage(stage).Replacement.Concurrent = true
+			viewcmds.MaterializedStage(stage).Replacement.Concurrent = true
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			fault := errors.New("provider veto")
@@ -441,7 +445,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 					e.Visibility.SetCommitSeqLocked(ids.CommitSeq(math.MaxUint64))
 				}
 				beforeCatalog, beforeStore, beforeFrontier := e.Catalog.State, e.Storage.Relations[d.Address()], e.Visibility.CommitSeq()
-				_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 				if e.Catalog.State != beforeCatalog || e.Storage.Relations[d.Address()] != beforeStore || e.Visibility.CommitSeq() != beforeFrontier {
 					t.Fatal("veto changed publication")
 				}
@@ -460,7 +464,7 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 }
 
 func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())
@@ -468,13 +472,13 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 	rows[1][0] = rows[0][0]
 	for _, concurrent := range []bool{false, true} {
 		stage := e.BeginCatalogStage(e.CatalogRead())
-		if err := stageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, true, ids.TxRef{}); err != nil {
+		if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], rows, true, ids.TxRef{}); err != nil {
 			t.Fatal(err)
 		}
-		materializedStage(stage).Replacement.Concurrent = concurrent
+		viewcmds.MaterializedStage(stage).Replacement.Concurrent = concurrent
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
-			_, err = publishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = enginetest.PublishCatalog(e, prepared, core.PublicationToken{Epoch: stage.Base.Epoch()})
 		}
 		message := fmt.Sprintf(`could not create unique index "%s"`, index.Name())
 		if concurrent {
@@ -492,16 +496,16 @@ func TestMaterializedRefreshConcurrentUniqueMode(t *testing.T) {
 }
 
 func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
-	e := New()
+	e := engine.New()
 	d := refreshUnitRelation(t, e)
 	index := materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 	d = e.Catalog.State.MustRelation(d.Address())
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	if err := stageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
+	if err := viewcmds.StageMaterializedRows(e, context.Background(), stage, d, e.Storage.Relations[d.Address()], refreshUnitRows(t, d, 2), true, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	materializedStage(stage).Replacement.Concurrent = true
+	viewcmds.MaterializedStage(stage).Replacement.Concurrent = true
 	if len(stage.IndexesOrZero().Rebuilds) != 0 {
 		t.Fatal("replacement forged REINDEX intent")
 	}
@@ -524,4 +528,22 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	if err := core.StageMaterializedReplacementCurrent(stage, current, e.Storage.Relations[d.Address()]); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("replacement lost final exact index identity fence", err)
 	}
+}
+
+type queryCreateProbeProvider struct {
+	catalog.Provider
+	e     *core.Engine
+	t     *testing.T
+	check func() error
+}
+
+func (p queryCreateProbeProvider) Validate(view catalog.Read, d catalog.Descriptor) error {
+	if !p.e.Mu.TryLock() {
+		p.t.Fatal("definition callback under Engine.mu")
+	}
+	p.e.Mu.Unlock()
+	if err := p.Provider.Validate(view, d); err != nil {
+		return err
+	}
+	return p.check()
 }
