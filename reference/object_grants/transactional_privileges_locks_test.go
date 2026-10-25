@@ -68,7 +68,7 @@ func TestReferenceTransactionalPrivilegesLocks(t *testing.T) {
 							exec(waiter, "BEGIN")
 							defer waiter.ExecContext(p.Ctx, "ROLLBACK")
 							if action == "timeout" {
-								exec(waiter, "SET LOCAL lock_timeout='500ms'")
+								exec(waiter, "SET LOCAL lock_timeout='10ms'")
 							}
 							if action == "cancel" {
 								fixture.RelationLockActiveCancel(t, p, b, waiter, q, func(ctx context.Context) fixture.RelationOutcome {
