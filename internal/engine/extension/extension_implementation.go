@@ -11,6 +11,11 @@ func UnaccentProviderOf(d *catalog.Procedure) *UnaccentProvider {
 	return p
 }
 
+func HstoreProviderOf(d *catalog.Procedure) *HstoreProvider {
+	p, _ := d.Implementation.(*HstoreProvider)
+	return p
+}
+
 func IntarrayProviderOf(d *catalog.Procedure) *IntarrayProvider {
 	p, _ := d.Implementation.(*IntarrayProvider)
 	return p

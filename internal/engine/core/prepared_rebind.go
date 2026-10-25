@@ -75,15 +75,15 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 	return e.preparedAnalysisDefinitionsValidLocked(auth, analysis, path, false)
 }
 
-func (e *Engine) preparedIsnAuthorityRebindLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
+func (e *Engine) preparedInstalledScalarAuthorityRebindLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
 	return expected != nil && expected.planGeneration == auth.Session.DiscardPlansGeneration && e.preparedAnalysisDefinitionsValidLocked(auth, expected.analysis, path, true)
 }
 
 // Caller holds Engine.mu. Only the exact prepared source cell can authorize a
-// statement-owned ISN datum import into the genuine current manifest member.
+// statement-owned installed-scalar datum import into the genuine current member.
 // The returned slice belongs to this attempt; neither imports nor values publish
 // until the existing successful reanalysis publication path accepts them.
-func (e *Engine) preparedIsnLiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
+func (e *Engine) preparedInstalledScalarLiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
 	if expected == nil {
 		return nil
 	}
@@ -93,11 +93,11 @@ func (e *Engine) preparedIsnLiteralTemporalsLocked(auth AuthorizationView, expec
 	checked := false
 	for i, capture := range original {
 		source := capture.Value.Type()
-		if source == nil || !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() && !source.IsUpc() {
+		if source == nil || !source.IsHstore() && !source.IsEan13() && !source.IsIsbn() && !source.IsIsbn13() && !source.IsIsmn() && !source.IsIsmn13() && !source.IsIssn() && !source.IsIssn13() && !source.IsUpc() {
 			continue
 		}
 		if !checked {
-			if expected.planGeneration != auth.Session.DiscardPlansGeneration || (!e.preparedAnalysisValidLocked(auth, expected.analysis, path) && !e.preparedIsnAuthorityRebindLocked(auth, expected, path)) {
+			if expected.planGeneration != auth.Session.DiscardPlansGeneration || (!e.preparedAnalysisValidLocked(auth, expected.analysis, path) && !e.preparedInstalledScalarAuthorityRebindLocked(auth, expected, path)) {
 				return original
 			}
 			checked = true
@@ -115,7 +115,7 @@ func (e *Engine) preparedIsnLiteralTemporalsLocked(auth AuthorizationView, expec
 			}
 		}
 		current, ok := auth.Catalog.Type(address)
-		if !captured || !ok || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || source.IsIsbn13() != current.SQLType.IsIsbn13() || source.IsIsmn() != current.SQLType.IsIsmn() || source.IsIsmn13() != current.SQLType.IsIsmn13() || source.IsIssn() != current.SQLType.IsIssn() || source.IsIssn13() != current.SQLType.IsIssn13() || source.IsUpc() != current.SQLType.IsUpc() || old.Extension != current.Extension || old.Array != current.Array {
+		if !captured || !ok || source.IsHstore() != current.SQLType.IsHstore() || source.IsEan13() != current.SQLType.IsEan13() || source.IsIsbn() != current.SQLType.IsIsbn() || source.IsIsbn13() != current.SQLType.IsIsbn13() || source.IsIsmn() != current.SQLType.IsIsmn() || source.IsIsmn13() != current.SQLType.IsIsmn13() || source.IsIssn() != current.SQLType.IsIssn() || source.IsIssn13() != current.SQLType.IsIssn13() || source.IsUpc() != current.SQLType.IsUpc() || old.Extension != current.Extension || old.Array != current.Array {
 			return original
 		}
 		nominal := *old
@@ -152,9 +152,49 @@ func (e *Engine) preparedIsnLiteralTemporalsLocked(auth AuthorizationView, expec
 	return original
 }
 
-// The rebind mode validates nominal ISN occurrences only, never executable
-// reuse. Owner/ACL changes still require fresh analysis and authority checks.
-func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, isnAuthorityRebind bool) bool {
+// Caller holds Engine.mu and is building a genuinely invalidated analysis
+// candidate. An absent original type cannot authorize a datum import. Retire
+// only its authentic statement-owned capture, so ordinary binding can parse
+// the original SQL literal for its new usage. Identity-only changes never
+// enter this path while their original type address still exists.
+func (e *Engine) retirePreparedHstoreLiteralTemporalsLocked(auth AuthorizationView, expected *StatementDescription, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
+	if expected == nil || expected.planGeneration != auth.Session.DiscardPlansGeneration || !e.preparedAnalysisEnvironmentValidLocked(auth, expected.analysis, path) {
+		return captures
+	}
+	var candidate []analyze.TemporalConstant
+	for i, capture := range captures {
+		retired := false
+		source := capture.Value.Type()
+		if source.IsHstore() && source.ID() == capture.TypeID {
+			address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(capture.TypeID)}
+			old := expected.analysis.types[address]
+			if old != nil && old.SQLType == source && old.Address() == address && auth.Catalog.Get(address) == nil {
+				for _, dep := range expected.analysis.dependencies {
+					if dep.Ref.Address == address && dep.Ref.Domain() == e.Catalog.Domain && dep.Ref.Epoch == auth.Catalog.Epoch() {
+						retired = true
+						break
+					}
+				}
+			}
+		}
+		if retired {
+			if candidate == nil {
+				candidate = make([]analyze.TemporalConstant, i, len(captures))
+				copy(candidate, captures[:i])
+			}
+		} else if candidate != nil {
+			candidate = append(candidate, capture)
+		}
+	}
+	if candidate != nil {
+		return candidate
+	}
+	return captures
+}
+
+// The rebind mode validates nominal installed scalar occurrences only, never
+// executable reuse. Owner/ACL changes still require fresh analysis and checks.
+func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, installedScalarAuthorityRebind bool) bool {
 	if !e.preparedAnalysisEnvironmentValidLocked(auth, analysis, path) {
 		return false
 	}
@@ -174,14 +214,14 @@ func (e *Engine) preparedAnalysisDefinitionsValidLocked(auth AuthorizationView, 
 			if !ok {
 				return false
 			}
-			if isnAuthorityRebind && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() && !current.SQLType.IsUpc() {
+			if installedScalarAuthorityRebind && !current.SQLType.IsHstore() && !current.SQLType.IsEan13() && !current.SQLType.IsIsbn() && !current.SQLType.IsIsbn13() && !current.SQLType.IsIsmn() && !current.SQLType.IsIsmn13() && !current.SQLType.IsIssn() && !current.SQLType.IsIssn13() && !current.SQLType.IsUpc() {
 				return false
 			}
 			old := analysis.types[dep.Ref.Address]
 			if catalog.SamePreparedTypeDefinition(old, current) {
 				continue
 			}
-			if !isnAuthorityRebind || old == nil || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || old.SQLType.IsIsbn13() != current.SQLType.IsIsbn13() || old.SQLType.IsIsmn() != current.SQLType.IsIsmn() || old.SQLType.IsIsmn13() != current.SQLType.IsIsmn13() || old.SQLType.IsIssn() != current.SQLType.IsIssn() || old.SQLType.IsIssn13() != current.SQLType.IsIssn13() || old.SQLType.IsUpc() != current.SQLType.IsUpc() || !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() && !old.SQLType.IsIsbn13() && !old.SQLType.IsIsmn() && !old.SQLType.IsIsmn13() && !old.SQLType.IsIssn() && !old.SQLType.IsIssn13() && !old.SQLType.IsUpc() {
+			if !installedScalarAuthorityRebind || old == nil || old.SQLType.IsHstore() != current.SQLType.IsHstore() || old.SQLType.IsEan13() != current.SQLType.IsEan13() || old.SQLType.IsIsbn() != current.SQLType.IsIsbn() || old.SQLType.IsIsbn13() != current.SQLType.IsIsbn13() || old.SQLType.IsIsmn() != current.SQLType.IsIsmn() || old.SQLType.IsIsmn13() != current.SQLType.IsIsmn13() || old.SQLType.IsIssn() != current.SQLType.IsIssn() || old.SQLType.IsIssn13() != current.SQLType.IsIssn13() || old.SQLType.IsUpc() != current.SQLType.IsUpc() || !old.SQLType.IsHstore() && !old.SQLType.IsEan13() && !old.SQLType.IsIsbn() && !old.SQLType.IsIsbn13() && !old.SQLType.IsIsmn() && !old.SQLType.IsIsmn13() && !old.SQLType.IsIssn() && !old.SQLType.IsIssn13() && !old.SQLType.IsUpc() {
 				return false
 			}
 			// Compare the same immutable definition while deliberately leaving

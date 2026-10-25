@@ -425,8 +425,8 @@ func EngineHoldPrecommit(x *Engine, op *session.Operation, owner *session.Transa
 }
 
 // EnginePreparedAnalysisDefinitionsValidLocked calls x.preparedAnalysisDefinitionsValidLocked.
-func EnginePreparedAnalysisDefinitionsValidLocked(x *Engine, auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, isnAuthorityRebind bool) bool {
-	return x.preparedAnalysisDefinitionsValidLocked(auth, analysis, path, isnAuthorityRebind)
+func EnginePreparedAnalysisDefinitionsValidLocked(x *Engine, auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, installedScalarAuthorityRebind bool) bool {
+	return x.preparedAnalysisDefinitionsValidLocked(auth, analysis, path, installedScalarAuthorityRebind)
 }
 
 // EnginePreparedAnalysisLocked calls x.preparedAnalysisLocked.
@@ -434,14 +434,14 @@ func EnginePreparedAnalysisLocked(x *Engine, s *StatementScope, auth Authorizati
 	return x.preparedAnalysisLocked(s, auth, b)
 }
 
-// EnginePreparedIsnAuthorityRebindLocked calls x.preparedIsnAuthorityRebindLocked.
-func EnginePreparedIsnAuthorityRebindLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
-	return x.preparedIsnAuthorityRebindLocked(auth, expected, path)
+// EnginePreparedInstalledScalarAuthorityRebindLocked calls x.preparedInstalledScalarAuthorityRebindLocked.
+func EnginePreparedInstalledScalarAuthorityRebindLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
+	return x.preparedInstalledScalarAuthorityRebindLocked(auth, expected, path)
 }
 
-// EnginePreparedIsnLiteralTemporalsLocked calls x.preparedIsnLiteralTemporalsLocked.
-func EnginePreparedIsnLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
-	return x.preparedIsnLiteralTemporalsLocked(auth, expected, path)
+// EnginePreparedInstalledScalarLiteralTemporalsLocked calls x.preparedInstalledScalarLiteralTemporalsLocked.
+func EnginePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
+	return x.preparedInstalledScalarLiteralTemporalsLocked(auth, expected, path)
 }
 
 // EngineRegisterExtension calls x.registerExtension.
@@ -464,8 +464,8 @@ func DescriptionRetireAnalysisTypeCasts(x *StatementDescription) {
 }
 
 // DescriptionRetireAnalysisTypeCastsForRebind calls x.retireAnalysisTypeCastsForRebind.
-func DescriptionRetireAnalysisTypeCastsForRebind(x *StatementDescription, isnAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
-	return x.retireAnalysisTypeCastsForRebind(isnAuthorityRebind)
+func DescriptionRetireAnalysisTypeCastsForRebind(x *StatementDescription, installedScalarAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
+	return x.retireAnalysisTypeCastsForRebind(installedScalarAuthorityRebind)
 }
 
 // DescriptionTypes returns x.types.

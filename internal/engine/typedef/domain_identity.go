@@ -176,6 +176,8 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 		next.SQLType, err = sqltype.Cube(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsCitext():
 		next.SQLType, err = sqltype.Citext(old.SQLType.ID(), name, declaration)
+	case old.SQLType.IsHstore():
+		next.SQLType, err = sqltype.Hstore(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsQueryInt():
 		next.SQLType, err = sqltype.QueryInt(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsEan13():

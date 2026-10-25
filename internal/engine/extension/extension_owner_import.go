@@ -103,6 +103,9 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if IntarrayProviderOf(selected) != nil && symbol == "bqarr_out" {
 					signature = "query_int"
 				}
+				if HstoreProviderOf(selected) != nil && symbol == "hstore_out" {
+					signature = "hstore"
+				}
 				if CubeProviderOf(selected) != nil || EarthdistanceProviderOf(selected) != nil || CitextProviderOf(selected) != nil || IsnProviderOf(selected) != nil {
 					var valid bool
 					signature, valid = ownerProcedureSignature(record.Name, record.Version, member.Slot)
@@ -196,8 +199,12 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 			if member.Name != name || member.Signature != signature || member.Kind != kind || kind == "" {
 				return false, fmt.Errorf("stuntgres: mismatching extension ownership identity")
 			}
-			if member.ACL != nil && kind != "procedure" { return false, fmt.Errorf("stuntgres: ACL on non-procedure extension member") }
-			if record.Name == "amcheck" && kind == "procedure" && member.ACL == nil { return false, fmt.Errorf("stuntgres: missing amcheck member ACL") }
+			if member.ACL != nil && kind != "procedure" {
+				return false, fmt.Errorf("stuntgres: ACL on non-procedure extension member")
+			}
+			if record.Name == "amcheck" && kind == "procedure" && member.ACL == nil {
+				return false, fmt.Errorf("stuntgres: missing amcheck member ACL")
+			}
 			switch d := d.(type) {
 			case *catalog.Type:
 				if d.Owner != owner.Ref {
@@ -224,7 +231,9 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				n.ACL = authorization.SchemaACLOwner(d.ACL, d.Owner, owner.Ref)
 				if member.ACL != nil {
 					acl, err := restoreMemberACL(roles, member.ACL)
-					if err != nil { return false, err }
+					if err != nil {
+						return false, err
+					}
 					n.ACL = acl
 				}
 				if n.Owner != d.Owner || n.ACL.Explicit != d.ACL.Explicit || !slices.Equal(n.ACL.Entries, d.ACL.Entries) {

@@ -31,6 +31,22 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		v.float4Raw, other.float4Raw = 0, 0
 		v.float4RawValid, other.float4RawValid = false, false
 	}
+	if v.hstore != nil || other.hstore != nil {
+		if !v.validHstore() || !other.validHstore() || len(v.hstore.pairs) != len(other.hstore.pairs) {
+			return false, nil
+		}
+		for i, pair := range v.hstore.pairs {
+			if i&255 == 0 {
+				if err := ctx.Err(); err != nil {
+					return false, err
+				}
+			}
+			if pair != other.hstore.pairs[i] {
+				return false, nil
+			}
+		}
+		v.hstore, other.hstore = nil, nil
+	}
 	v.typ, other.typ = nil, nil
 	if math.Float64bits(v.floating) != math.Float64bits(other.floating) {
 		return false, nil

@@ -60,9 +60,13 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		return PGTypeMetadata{}, false
 	}
 	if d.IsCatalogVector() && d.IsBuiltin() {
-		f:=PGTypeMetadata{PostgreSQLAttributeFacts:d.AttributeFacts(),Kind:"b",Category:"A",Element:d.element.id,Subscript:6179,Modifier:-1}
-		if d.id==Int2Vector {f.Input,f.Output,f.Receive,f.Send=40,41,2410,2411} else {f.Input,f.Output,f.Receive,f.Send=54,55,2420,2421}
-		return f,true
+		f := PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "A", Element: d.element.id, Subscript: 6179, Modifier: -1}
+		if d.id == Int2Vector {
+			f.Input, f.Output, f.Receive, f.Send = 40, 41, 2410, 2411
+		} else {
+			f.Input, f.Output, f.Receive, f.Send = 54, 55, 2420, 2421
+		}
+		return f, true
 	}
 	if d.IsArray() {
 		if d.element.ID() == Refcursor {
@@ -93,7 +97,7 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	if d.IsCitext() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "S", Collation: 100, Modifier: -1}, true
 	}
-	if d.IsQueryInt() || d.IsCube() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
+	if d.IsHstore() || d.IsQueryInt() || d.IsCube() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "U", Modifier: -1}, true
 	}
 	if d.IsRange() {

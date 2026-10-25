@@ -173,6 +173,8 @@ func validateInstalledProcedure(v catalog.Read, d *catalog.Procedure) (ids.Objec
 		return d.Extension, FuzzystrmatchProviderOf(d).ValidateProcedure(v, d)
 	case PgcryptoProviderOf(d) != nil:
 		return d.Extension, PgcryptoProviderOf(d).ValidateProcedure(v, d)
+	case HstoreProviderOf(d) != nil:
+		return d.Extension, HstoreProviderOf(d).ValidateProcedure(v, d)
 	case IntarrayProviderOf(d) != nil:
 		return d.Extension, IntarrayProviderOf(d).ValidateProcedure(v, d)
 	case EarthdistanceProviderOf(d) != nil:

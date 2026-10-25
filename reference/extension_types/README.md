@@ -1,6 +1,6 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `cube`, `earth`, `query_int`, `ean13`,
+Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `ean13`,
 `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
@@ -54,6 +54,15 @@ these are shared across families:
   scenario and independently seeded rows. Failed public Restore preserves the
   incumbent identities, rows, metadata, retained reader and deterministic dump.
   The reusable family selector is `RUN='^TestReferenceLo'`.
+- `hstore_helpers_test.go` owns scalar text/raw metadata and complete diagnostic
+  assertions. Canonical pairs distinguish empty, NULL-valued and quoted-NULL
+  values from SQL NULL. Conflicting duplicate keys have one allowed original
+  survivor, not a backend-choice parity golden. Native controls preserve the
+  chosen stored value and retained metadata; emitted SQL is replayed directly
+  on the oracle. Held literal assignments retain their canonical values across
+  rename/schema moves; retired installations and unrelated TEXT destinations
+  bind the original SQL afresh, never stale hstore values. The reusable family
+  selector is `RUN='^TestReferenceHstore'`.
 
 Client quirks:
 

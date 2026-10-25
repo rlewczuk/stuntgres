@@ -1,0 +1,308 @@
+package reference_test
+
+import (
+	"bytes"
+	"context"
+	"database/sql"
+	"errors"
+	"reflect"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+	"unicode/utf8"
+
+	"stuntgres"
+	"stuntgres/reference/fixture"
+)
+
+func hstoreControlWant() [][]any {
+	return [][]any{{int64(1), `"a"=>"1"`}, {int64(2), ""}, {int64(3), nil}, {int64(4), `"a"=>NULL`}, {int64(5), `"a"=>"NULL"`}, {int64(6), `"é"=>"雪\\\""`}}
+}
+
+func hstoreControlSeed(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) [][]any {
+	t.Helper()
+	hstoreInstall(t, p, b, c)
+	for _, q := range []string{"CREATE TABLE hs_controls(id integer NOT NULL,v hstore)", "CREATE TABLE hs_vacant(v hstore NOT NULL)", "CREATE TABLE hs_nullable(v hstore)"} {
+		hstoreRun(t, p, b, c, fixture.Exec(q, 0))
+	}
+	want := hstoreControlWant()
+	q := "INSERT INTO hs_controls VALUES ($1,$2)"
+	stmt, err := c.PrepareContext(p.Ctx, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	held := fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
+	for i, row := range want {
+		if i == 0 {
+			hstoreRun(t, p, b, c, fixture.Exec("INSERT INTO hs_controls VALUES (1,'a=>1')", 1))
+			continue
+		}
+		hstoreRun(t, p, b, held, fixture.Exec(q, 1, row[0], row[1]))
+	}
+	hstoreRun(t, p, b, c, fixture.Exec("INSERT INTO hs_controls VALUES (7,'a=>1,a=>2')", 1))
+	var chosen string
+	if err := c.QueryRowContext(p.Ctx, "SELECT v FROM hs_controls WHERE id=7").Scan(&chosen); err != nil {
+		t.Fatal(err)
+	}
+	if chosen != `"a"=>"1"` && chosen != `"a"=>"2"` {
+		t.Fatalf("duplicate survivor %q", chosen)
+	}
+	return append(want, []any{int64(7), chosen})
+}
+
+func hstoreControlVerify(t *testing.T, p *fixture.Pair, b fixture.Backend, db fixture.Executor, want [][]any) {
+	t.Helper()
+	checks := []fixture.Step{
+		hstoreSelect(b, "SELECT id,v FROM hs_controls ORDER BY id", []string{"id", "v"}, want, []bool{false, true}),
+		hstoreSelect(b, "SELECT v FROM hs_vacant", []string{"v"}, [][]any{}, []bool{false}),
+		hstoreSelect(b, "SELECT v FROM hs_nullable", []string{"v"}, [][]any{}, []bool{true}),
+	}
+	for _, check := range checks {
+		hstoreRun(t, p, b, db, check)
+		hstoreRun(t, p, b, db, fixture.Prepared(check))
+	}
+	q := "SELECT id,v FROM hs_controls ORDER BY id"
+	stmt, err := db.PrepareContext(p.Ctx, q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	hstoreRun(t, p, b, fixture.HeldStatement{Executor: db, Statement: stmt, SQL: q}, checks[0])
+}
+
+func hstoreRetain(t *testing.T, p *fixture.Pair, db fixture.Executor) (*sql.Rows, []*sql.ColumnType) {
+	t.Helper()
+	rows, err := db.QueryContext(p.Ctx, "SELECT id,v FROM hs_controls ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { rows.Close() })
+	columns, err := rows.ColumnTypes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hstoreColumns(t, false, columns, []string{"id", "v"}, []bool{false, true})
+	return rows, columns
+}
+
+func hstoreConsume(t *testing.T, rows *sql.Rows, columns []*sql.ColumnType, want [][]any) {
+	t.Helper()
+	var got [][]any
+	for rows.Next() {
+		var id int64
+		var value any
+		if err := rows.Scan(&id, &value); err != nil {
+			t.Fatal(err)
+		}
+		if value != nil {
+			if _, ok := value.(string); !ok {
+				t.Fatalf("retained raw %T", value)
+			}
+		}
+		got = append(got, []any{id, value})
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("retained rows %#v want %#v", got, want)
+	}
+	hstoreColumns(t, false, columns, []string{"id", "v"}, []bool{false, true})
+}
+
+func hstoreDump(t *testing.T, p *fixture.Pair, db *sql.DB) []byte {
+	t.Helper()
+	var dump bytes.Buffer
+	if err := stuntgres.Dump(p.Ctx, db, &dump); err != nil {
+		t.Fatal(err)
+	}
+	text := dump.String()
+	ext, table := strings.Index(text, "CREATE EXTENSION"), strings.Index(text, "CREATE TABLE")
+	if ext < 0 || table <= ext || !strings.Contains(text[ext:table], "hstore") || strings.Contains(text, "CREATE TYPE") {
+		t.Fatalf("extension before consumers, no standalone owned type: %s", text)
+	}
+	return dump.Bytes()
+}
+
+func hstoreStagedSQL() (string, fixture.Diagnostic) {
+	prefix := "/*é*/ CREATE EXTENSION hstore; CREATE TABLE hs_staged(v hstore); INSERT INTO hs_staged VALUES ('b=>2'); INSERT INTO hs_staged VALUES ("
+	q := prefix + "'a=b');"
+	want := fixture.ControlsReferenceDiagnostic("42601", `syntax error in hstore, near "b" at position 2`)
+	want.Position = strconv.Itoa(utf8.RuneCountInString(prefix) + 1)
+	return q, want
+}
+
+func hstoreStagedError(t *testing.T) {
+	hstoreScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		q, want := hstoreStagedSQL()
+		if b.PG {
+			hstoreError(t, p, b, c, q, false, false, false, want)
+		} else {
+			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(q)), &want)
+		}
+		hstoreRun(t, p, b, c, fixture.Select("SELECT extname FROM pg_extension WHERE extname='hstore'", []string{"extname"}, []string{"NAME"}, [][]any{}))
+		hstoreRun(t, p, b, c, fixture.Select("SELECT relname FROM pg_class WHERE relname='hs_staged' AND relnamespace='public'::regnamespace", []string{"relname"}, []string{"NAME"}, [][]any{}))
+	})
+}
+
+func hstoreReplay(t *testing.T, p *fixture.Pair, dump []byte, want [][]any) {
+	t.Helper()
+	if p.Postgres == nil {
+		return
+	}
+	c, err := p.Postgres.Conn(p.Ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	clean := "DROP SCHEMA public CASCADE; CREATE SCHEMA public"
+	if _, err := c.ExecContext(p.Ctx, clean); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := c.ExecContext(ctx, clean); err != nil {
+			t.Error(err)
+		}
+	}()
+	if _, err := c.ExecContext(p.Ctx, string(dump)); err != nil {
+		t.Fatalf("actual emitted SQL replay: %v", err)
+	}
+	pg := fixture.Backend{PG: true, DB: p.Postgres, Recorder: p.PostgresRecord}
+	hstoreControlVerify(t, p, pg, c, want)
+	hstoreIdentityCheck(t, p, pg, c, "public")
+}
+
+func hstoreControlPhase(t *testing.T, phase string) {
+	hstoreScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		want := hstoreControlSeed(t, p, b, c)
+		hstoreControlVerify(t, p, b, c, want)
+		hstoreIdentityCheck(t, p, b, c, "public")
+		if b.PG {
+			return
+		} // Reset/Dump/Restore are native public APIs only.
+		hstoreRun(t, p, b, c, fixture.Exec("BEGIN", 0))
+		hstoreRun(t, p, b, c, fixture.Exec("INSERT INTO hs_controls VALUES (99,'private=>sentinel')", 1))
+		dump := hstoreDump(t, p, p.Native)
+		hstoreRun(t, p, b, c, fixture.Exec("ROLLBACK", 0))
+		if strings.Contains(string(dump), "sentinel") {
+			t.Fatal("Dump included uncommitted row")
+		}
+		hstoreControlVerify(t, p, b, c, want)
+		if phase == "same" {
+			old, columns := hstoreRetain(t, p, b.DB)
+			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+				t.Fatal(err)
+			}
+			hstoreRun(t, p, b, c, fixture.Select("SELECT extname FROM pg_extension WHERE extname='hstore'", []string{"extname"}, []string{"NAME"}, [][]any{}))
+			hstoreRun(t, p, b, c, fixture.Select("SELECT relname FROM pg_class WHERE relname IN ('hs_controls','hs_vacant','hs_nullable') AND relnamespace='public'::regnamespace", []string{"relname"}, []string{"NAME"}, [][]any{}))
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
+				t.Fatal(err)
+			}
+			hstoreControlVerify(t, p, b, c, want)
+			hstoreIdentityCheck(t, p, b, c, "public")
+			hstoreConsume(t, old, columns, want)
+			hstoreRun(t, p, b, c, fixture.Exec("INSERT INTO hs_controls VALUES (8,$1)", 1, "after=>restore"))
+			hstoreRun(t, p, b, c, hstoreSelect(b, "SELECT v FROM hs_controls WHERE id=8", []string{"v"}, [][]any{{`"after"=>"restore"`}}, []bool{true}))
+			hstoreReplay(t, p, dump, want)
+			return
+		}
+		// The fixture owns an independent driver and pairs its middleware pool
+		// with its own recorder. Controls still use the unwrapped native pool.
+		destination := fixture.NewFixture(t, false, true)
+		target := destination.Native
+		b = fixture.Backend{DB: destination.Memory, Recorder: destination.MemoryRecord}
+		tc, err := destination.Memory.Conn(p.Ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tc.Close()
+		hstoreRun(t, p, b, tc, fixture.Exec("CREATE TABLE hs_incumbent(v integer)", 0))
+		hstoreRun(t, p, b, tc, fixture.Exec("INSERT INTO hs_incumbent VALUES (42)", 1))
+		hstoreRun(t, p, b, tc, fixture.Exec("CREATE EXTENSION hstore", 0))
+		if err := stuntgres.Restore(p.Ctx, target, bytes.NewReader(dump)); err != nil {
+			t.Fatal(err)
+		}
+		hstoreControlVerify(t, p, b, tc, want)
+		hstoreIdentityCheck(t, p, b, tc, "public")
+		hstoreRun(t, p, b, tc, fixture.Select("SELECT relname FROM pg_class WHERE relname='hs_incumbent' AND relnamespace='public'::regnamespace", []string{"relname"}, []string{"NAME"}, [][]any{}))
+		if phase == "fresh" {
+			return
+		}
+		before := hstoreDump(t, p, target)
+		identity := hstoreIdentityCheck(t, p, b, tc, "public")
+		old, columns := hstoreRetain(t, p, target)
+		if phase == "failed" {
+			q, diagnostic := hstoreStagedSQL()
+			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, target, strings.NewReader(q)), &diagnostic)
+		} else if strings.HasPrefix(phase, "owner_") {
+			err := stuntgres.Restore(p.Ctx, target, strings.NewReader(hstoreInvalidOwnerDump(t, dump, phase)))
+			var state interface{ SQLState() string }
+			if err == nil || !strings.Contains(err.Error(), "invalid extension owner metadata") || errors.As(err, &state) {
+				t.Fatalf("malformed owner metadata must return ordinary control error: %v", err)
+			}
+		} else {
+			ctx, cancel := context.WithCancel(p.Ctx)
+			cancel()
+			if err := stuntgres.Restore(ctx, target, bytes.NewReader(dump)); !errors.Is(err, context.Canceled) {
+				t.Fatalf("pre-canceled Restore %v", err)
+			}
+		}
+		hstoreControlVerify(t, p, b, tc, want)
+		if after := hstoreIdentityCheck(t, p, b, tc, "public"); after != identity {
+			t.Fatalf("failed Restore replaced identity %#v -> %#v", identity, after)
+		}
+		hstoreConsume(t, old, columns, want)
+		if after := hstoreDump(t, p, target); !bytes.Equal(before, after) {
+			t.Fatalf("failed Restore changed deterministic dump\nbefore=%s\nafter=%s", before, after)
+		}
+	})
+}
+
+func TestReferenceHstoreControls(t *testing.T) {
+	t.Run("staged_error_location", hstoreStagedError)
+	for _, phase := range []string{"same", "fresh", "failed", "canceled", "owner_type", "owner_signature", "owner_unknown"} {
+		t.Run(phase, func(t *testing.T) { hstoreControlPhase(t, phase) })
+	}
+}
+
+func hstoreRecreation(t *testing.T) {
+	hstoreScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		want := hstoreControlSeed(t, p, b, c)
+		old := hstoreIdentityCheck(t, p, b, c, "public")
+		hstoreControlVerify(t, p, b, c, want)
+		for _, q := range []string{"DROP TABLE hs_controls", "DROP TABLE hs_vacant", "DROP TABLE hs_nullable", "DROP EXTENSION hstore"} {
+			hstoreRun(t, p, b, c, fixture.Exec(q, 0))
+		}
+		// Explicitly rebuild consumers and independently reinsert logical fixtures.
+		want = hstoreControlSeed(t, p, b, c)
+		fresh := hstoreIdentityCheck(t, p, b, c, "public")
+		if fresh.scalar == old.scalar || fresh.array == old.array {
+			t.Fatalf("retired type identities reused %#v -> %#v", old, fresh)
+		}
+		hstoreControlVerify(t, p, b, c, want)
+	})
+}
+
+func TestReferenceHstoreRecreation(t *testing.T) { hstoreRecreation(t) }
+
+func TestReferenceHstoreFeatureSmoke(t *testing.T) {
+	t.Run("values_metadata_atomicity", func(t *testing.T) {
+		hstoreScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+			want := hstoreControlSeed(t, p, b, c)
+			hstoreControlVerify(t, p, b, c, want)
+			hstoreError(t, p, b, c, "INSERT INTO hs_controls VALUES (8,$1),(9,$2)", true, false, false, hstoreParameterDiagnostic("42601", `syntax error in hstore, near "b" at position 2`, 2), "z=>3", "a=b")
+			hstoreControlVerify(t, p, b, c, want)
+		})
+	})
+	t.Run("same_restore_and_emitted_sql", func(t *testing.T) { hstoreControlPhase(t, "same") })
+	t.Run("fresh_driver_restore", func(t *testing.T) { hstoreControlPhase(t, "fresh") })
+	t.Run("recreation", hstoreRecreation)
+	t.Run("prepared_literals", hstorePreparedLiterals)
+}

@@ -16,12 +16,12 @@ import (
 const OwnersMarker = "stuntgres-extension-owners-v2"
 
 type MemberOwner struct {
-	Slot      int    `json:"slot"`
-	Schema    string `json:"schema"`
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Signature string `json:"signature"`
-	Owner     string `json:"owner"`
+	Slot      int        `json:"slot"`
+	Schema    string     `json:"schema"`
+	Kind      string     `json:"kind"`
+	Name      string     `json:"name"`
+	Signature string     `json:"signature"`
+	Owner     string     `json:"owner"`
 	ACL       *MemberACL `json:"acl,omitempty"`
 }
 type OwnerRecord struct {
@@ -66,6 +66,9 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
+			if HstoreProviderOf(d) != nil && symbol == "hstore_out" {
+				member.Signature = "hstore"
+			}
 			if CubeProviderOf(d) != nil || EarthdistanceProviderOf(d) != nil || CitextProviderOf(d) != nil || IsnProviderOf(d) != nil {
 				var valid bool
 				member.Signature, valid = ownerProcedureSignature(ext.Name(), ext.Version, slot)
@@ -76,7 +79,9 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			principal = d.Owner
 			if d.ACL.Explicit || len(d.ACL.Entries) != 0 || AmcheckProviderOf(d) != nil {
 				member.ACL, err = captureMemberACL(roles, d.ACL)
-				if err != nil { return "", err }
+				if err != nil {
+					return "", err
+				}
 			}
 		case *catalog.Operator:
 			name, signature, known := ownerOperatorIdentity(ext.Name(), slot)
@@ -158,7 +163,9 @@ func extensionOwnerOptionalFields(data []byte, optional []string, keys ...string
 		for _, name := range keys {
 			allowed = allowed || name == key
 		}
-		for _, name := range optional { allowed = allowed || name == key }
+		for _, name := range optional {
+			allowed = allowed || name == key
+		}
 		if !allowed {
 			return invalid()
 		}
@@ -172,7 +179,11 @@ func extensionOwnerOptionalFields(data []byte, optional []string, keys ...string
 	if err != nil || token != json.Delim('}') {
 		return invalid()
 	}
-	for _, key := range keys { if fields[key] == nil { return invalid() } }
+	for _, key := range keys {
+		if fields[key] == nil {
+			return invalid()
+		}
+	}
 	var extra any
 	if decoder.Decode(&extra) != io.EOF {
 		return invalid()
@@ -209,6 +220,8 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 	switch {
 	case record.Name == "unaccent" && record.Version == "1.1":
 		expectedMembers = 5
+	case record.Name == "hstore" && record.Version == "1.8":
+		expectedMembers = 3
 	case record.Name == "intarray" && record.Version == "1.5":
 		expectedMembers = 3
 	case record.Name == "cube" && record.Version == "1.5":
@@ -258,11 +271,17 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 			}
 		}
 		if data, present := fields["acl"]; present {
-			if member.Kind != "procedure" { return invalid() }
+			if member.Kind != "procedure" {
+				return invalid()
+			}
 			member.ACL, err = decodeMemberACL(data)
-			if err != nil { return invalid() }
+			if err != nil {
+				return invalid()
+			}
 		}
-		if record.Name == "amcheck" && member.Kind == "procedure" && member.ACL == nil { return invalid() }
+		if record.Name == "amcheck" && member.Kind == "procedure" && member.ACL == nil {
+			return invalid()
+		}
 		identity := fmt.Sprint(member.Slot)
 		slots := expectedMembers
 		if record.Name == "unaccent" {
@@ -276,7 +295,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 		case "procedure":
 			// Mutable procedure labels are checked against the current installed
 			// slot by ImportOwners, not used as installation identity.
-			if record.Name == "lo" || record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "intarray" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
+			if record.Name == "lo" || record.Name == "earthdistance" && member.Slot < 2 || record.Name == "unaccent" && member.Slot > 3 || (record.Name == "hstore" || record.Name == "intarray" || record.Name == "cube" || record.Name == "citext" || record.Name == "isn") && member.Slot == 0 {
 				return invalid()
 			}
 			if signature, ok := ownerProcedureSignature(record.Name, record.Version, member.Slot); !ok || signature != member.Signature {
@@ -300,15 +319,21 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13" && member.Name != "ismn" && member.Name != "ismn13" && member.Name != "issn" && member.Name != "issn13" && member.Name != "upc") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
+			if (record.Name != "hstore" || member.Name != "hstore") && (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13" && member.Name != "ismn" && member.Name != "ismn13" && member.Name != "issn" && member.Name != "issn13" && member.Name != "upc") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
 				return invalid()
 			}
 			if record.Name == "isn" {
 				valid := false
-				for _, recipe := range isnRecipes { if member.Slot == recipe.slot && member.Name == recipe.name { valid = true } }
-				if !valid { return invalid() }
+				for _, recipe := range isnRecipes {
+					if member.Slot == recipe.slot && member.Name == recipe.name {
+						valid = true
+					}
+				}
+				if !valid {
+					return invalid()
+				}
 			}
-			if record.Name == "citext" && member.Slot != 0 {
+			if (record.Name == "citext" || record.Name == "hstore") && member.Slot != 0 {
 				return invalid()
 			}
 			if record.Name == "lo" && member.Name != [...]string{"lo", "lo[]"}[member.Slot] {
@@ -384,10 +409,14 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		}
 	case "isn":
 		for _, recipe := range isnRecipes {
-			if slot == recipe.slot+1 { return "2275", true }
-			if slot == recipe.slot+2 { return recipe.name, true }
+			if slot == recipe.slot+1 {
+				return "2275", true
+			}
+			if slot == recipe.slot+2 {
+				return recipe.name, true
+			}
 		}
-	case "intarray", "citext":
+	case "hstore", "intarray", "citext":
 		if name == "citext" && slot >= CitextComparisonProcedureStart && slot < CitextComparisonOperatorStart {
 			return "citext,citext", true
 		}
@@ -397,7 +426,7 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 		if name == "citext" && slot >= CitextPatternProcedureStart && slot < CitextPatternOperatorStart {
 			return [2]string{"citext,citext", "citext,25"}[(slot-CitextPatternProcedureStart)%2], true
 		}
-  if name == "citext" && slot >= CitextRegexpProcedureStart && slot < CitextRegexpProcedureEnd {
+		if name == "citext" && slot >= CitextRegexpProcedureStart && slot < CitextRegexpProcedureEnd {
 			m := CitextRegexpMembers[slot-CitextRegexpProcedureStart]
 			signature := "citext,citext"
 			for i := 2; i < m.ArgCount; i++ {
@@ -405,9 +434,9 @@ func ownerProcedureSignature(name, version string, slot int) (string, bool) {
 			}
 			return signature, true
 		}
-  if name=="citext" && slot>=CitextStringProcedureStart && slot<CitextMemberCount {
-   return CitextStringMembers[slot-CitextStringProcedureStart].OwnerSignature(),true
-  }
+		if name == "citext" && slot >= CitextStringProcedureStart && slot < CitextMemberCount {
+			return CitextStringMembers[slot-CitextStringProcedureStart].OwnerSignature(), true
+		}
 		if slot == 1 {
 			return "2275", true
 		}

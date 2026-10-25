@@ -1,8 +1,8 @@
 # internal/engine/extension
 
 The installed-extension layer that does not need the engine: provider records
-and control data for the thirteen bundled extensions (amcheck, citext, cube,
-earthdistance, fuzzystrmatch, intagg, intarray, isn, lo, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
+and control data for the fourteen bundled extensions (amcheck, citext, cube,
+earthdistance, fuzzystrmatch, hstore, intagg, intarray, isn, lo, pgcrypto, pgrowlocks, unaccent, uuid-ossp),
 member validation, membership, the owner metadata codec used by native Dump,
 extension remap, provider staging, and the decisions of the CREATE, ALTER
 EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner import.
@@ -62,6 +62,12 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   not an interchangeable execution capability. `RemapDescriptor` delegates class,
   family and member relocation to the typed catalog remappers, preserving the
   actual owner kind and immutable source descriptors.
+- **hstore** (`hstore_provider.go`, `hstore_stage.go`): trusted, relocatable 1.8
+  installation of the scalar and strict immutable parallel-safe C-language
+  `hstore_in(cstring)`/`hstore_out(hstore)` codecs. The reciprocal associated
+  array is internally dependent and lookup-only. Member identity, ownership and
+  remapping use this bounded manifest; output owner signatures use symbolic
+  `hstore`, never a source OID. Text storage does not install advanced operations.
 - **intagg** (`intagg_identity.go`, `intagg_aggregate.go`):
   `ValidateIntaggIdentity`, `ProcedureSymbol`, `IntaggDefinition` and the
   owned-aggregate checks and remap (`plan.SameIntaggIdentity` compares captured
@@ -209,7 +215,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   that is also a source does not trigger another mapping step.
 
 Type identity is its validated manifest role, not its mutable name or namespace.
-`InstalledTypes`/`MemberTypeRole` resolve cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
+`InstalledTypes`/`MemberTypeRole` resolve hstore/cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo through the
 existing manifest/provider and reciprocal array checks. Member ALTER retains
 installation membership; direct DROP remains protected. The owner metadata codec
 keeps canonical type role keys (including earth[] and lo[]) across rename/move, preserving
@@ -268,7 +274,7 @@ are engine units in `internal/engine/schemacmds`. Public SQL lives in
 [reference/extensions](../../../reference/extensions/README.md#testing) (extension
 DDL and catalogs),
 [reference/extension_types](../../../reference/extension_types/README.md#testing)
-(earth, cube, lo and ISN values),
+(hstore, earth, cube, lo and ISN values),
 [reference/types](../../../reference/types/README.md#testing) (citext) and
 [reference/locking_transactions](../../../reference/locking_transactions/README.md#testing)
 (pgrowlocks). Add `REFERENCE=1` for the oracle.

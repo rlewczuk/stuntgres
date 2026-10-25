@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"strconv"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -22,8 +22,8 @@ func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 		return false
 	}
 	if d.SQLType.IsCatalogVector() {
-		element,ok:=catalog.Type(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(d.SQLType.Element().ID())})
-		return d.SQLType.IsBuiltin() && ok && element.SQLType==d.SQLType.Element() && pgTypeAdmitted(catalog,element)
+		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
+		return d.SQLType.IsBuiltin() && ok && element.SQLType == d.SQLType.Element() && pgTypeAdmitted(catalog, element)
 	}
 	if d.SQLType.IsArray() {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
@@ -46,9 +46,11 @@ func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 
 func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, output sqltype.OutputEnvironment) (sqltype.PGTypeMetadata, error) {
 	if d.SQLType.IsCatalogVector() {
-		if !pgTypeAdmitted(catalog,d) { return sqltype.PGTypeMetadata{},fmt.Errorf("stuntgres: foreign catalog vector authority") }
-		f,_:=d.SQLType.PGTypeMetadata()
-		return f,nil
+		if !pgTypeAdmitted(catalog, d) {
+			return sqltype.PGTypeMetadata{}, fmt.Errorf("stuntgres: foreign catalog vector authority")
+		}
+		f, _ := d.SQLType.PGTypeMetadata()
+		return f, nil
 	}
 	if d.SQLType.IsArray() {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
@@ -87,14 +89,20 @@ func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, outpu
 	if !ok {
 		return f, fmt.Errorf("stuntgres: missing admitted type metadata")
 	}
-	if d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
+	if d.SQLType.IsHstore() || d.SQLType.IsQueryInt() || d.SQLType.IsCube() || d.SQLType.IsCitext() || d.SQLType.IsEan13() || d.SQLType.IsIsbn() || d.SQLType.IsIsbn13() || d.SQLType.IsIsmn() || d.SQLType.IsIsmn13() || d.SQLType.IsIssn() || d.SQLType.IsIssn13() || d.SQLType.IsUpc() {
 		ext, ok := catalog.Extension(d.Extension)
 		if !ok || len(ext.Members) < 3 {
 			return f, fmt.Errorf("stuntgres: missing installed type routines")
 		}
 		slot := -1
-		for i, address := range ext.Members { if address == d.Address() { slot = i } }
-		if slot < 0 || slot+2 >= len(ext.Members) { return f, fmt.Errorf("stuntgres: missing installed scalar role") }
+		for i, address := range ext.Members {
+			if address == d.Address() {
+				slot = i
+			}
+		}
+		if slot < 0 || slot+2 >= len(ext.Members) {
+			return f, fmt.Errorf("stuntgres: missing installed scalar role")
+		}
 		input, exists := catalog.Procedure(ext.Members[slot+1])
 		if !exists || input.Implementation == nil {
 			return f, fmt.Errorf("stuntgres: missing installed type provider")

@@ -408,7 +408,7 @@ func (r EngineCatalogRuntime) OperatorDependencies(view catalog.Read, d *catalog
 	return routine.OperatorDependencyAddresses(view, d)
 }
 func (r EngineCatalogRuntime) TypeProviderProcedure(d *catalog.Procedure) bool {
-	return extension.IntarrayProviderOf(d) != nil || extension.CubeProviderOf(d) != nil && !extension.CubeComparisonName(d.Name()) || extension.CitextProviderOf(d) != nil && (d.Signature == "2275" || d.Result == 2275) || extension.IsnProviderOf(d) != nil
+	return extension.HstoreProviderOf(d) != nil || extension.IntarrayProviderOf(d) != nil || extension.CubeProviderOf(d) != nil && !extension.CubeComparisonName(d.Name()) || extension.CitextProviderOf(d) != nil && (d.Signature == "2275" || d.Result == 2275) || extension.IsnProviderOf(d) != nil
 }
 func CatalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
 	if auth.Session != nil {

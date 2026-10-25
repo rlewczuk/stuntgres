@@ -16,13 +16,13 @@ func (d *StatementDescription) retireAnalysisTypeCasts() {
 	}
 }
 
-// retireAnalysisTypeCastsForRebind keeps eligible nominal ISN occurrences
+// retireAnalysisTypeCastsForRebind keeps eligible nominal installed-scalar occurrences
 // only in this attempt's candidate. Failure cannot revive the retired original.
-func (d *StatementDescription) retireAnalysisTypeCastsForRebind(isnAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
+func (d *StatementDescription) retireAnalysisTypeCastsForRebind(installedScalarAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
 	var captures map[analyze.PreparedTypeKey]analyze.TypeOccurrence
-	if isnAuthorityRebind {
+	if installedScalarAuthorityRebind {
 		for key, captured := range d.types {
-			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && (captured.Base.Type.IsEan13() || captured.Base.Type.IsIsbn() || captured.Base.Type.IsIsbn13() || captured.Base.Type.IsIsmn() || captured.Base.Type.IsIsmn13() || captured.Base.Type.IsIssn() || captured.Base.Type.IsIssn13() || captured.Base.Type.IsUpc()) {
+			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && (captured.Base.Type.IsHstore() || captured.Base.Type.IsEan13() || captured.Base.Type.IsIsbn() || captured.Base.Type.IsIsbn13() || captured.Base.Type.IsIsmn() || captured.Base.Type.IsIsmn13() || captured.Base.Type.IsIssn() || captured.Base.Type.IsIssn13() || captured.Base.Type.IsUpc()) {
 				if captures == nil {
 					captures = make(map[analyze.PreparedTypeKey]analyze.TypeOccurrence)
 				}

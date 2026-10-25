@@ -123,7 +123,7 @@ func temporaryDumpObject(state *catalog.State, d catalog.Descriptor) bool {
 // collect hands one descriptor to the first matching Collect entry.
 // Objects in temporary namespaces are never dumped.
 func (c *dumpCollection) collect(ctx context.Context, a ids.ObjectAddress, d catalog.Descriptor) error {
-	if temporaryDumpObject(c.source.State,d) {
+	if temporaryDumpObject(c.source.State, d) {
 		return nil
 	}
 	for _, collector := range dumpCollectors {
@@ -358,7 +358,7 @@ func collectTypeDump(_ context.Context, c *dumpCollection, _ ids.ObjectAddress, 
 		}
 		return fmt.Errorf("%s", message)
 	}
-	if t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() || t.Extension != (ids.ObjectAddress{}) {
+	if t.SQLType.IsHstore() || t.SQLType.IsQueryInt() || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() || t.Extension != (ids.ObjectAddress{}) {
 		return (stored.TypeProvider{}).Validate(c.CatalogView, t)
 	}
 	if t.SQLType.IsUserDefined() && !t.SQLType.IsComposite() {

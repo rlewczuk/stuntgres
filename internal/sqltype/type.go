@@ -122,46 +122,47 @@ type Codec interface {
 
 // Descriptor has no mutable or execution-local state. Catalogs own generations.
 type Descriptor struct {
-	id                               ID
-	name, sql, database              string
-	base                             Usage
-	ownDomainChecks, domainChecks    bool
-	ownDomainNotNull, domainNotNull  bool
-	element                          *Descriptor
-	associatedArray                  ID
-	delimiter                        byte
-	enum                             *enumDefinition
-	queryInt                         bool
-	cube                             bool
-	citext                           bool
-	ean13                            bool
-	isbn                             bool
-	isbn13                           bool
-	ismn                             bool
-	ismn13                           bool
-	issn                             bool
-	issn13                           bool
-	upc                              bool
-	composite                        *compositeDefinition
-	rangeSubtype                     *Descriptor
-	customRange                      *RangeDefinition
-	rangeBoolean                     *Descriptor
-	multirangeRange                  *Descriptor
-	multirangeCompanion              *Descriptor
-	networkCIDR                      *Descriptor
-	networkMasklen                   *Descriptor
-	networkBoolean                   *Descriptor
-	geometryPoint                    *Descriptor
-	circleBoolean, circleFloat       *Descriptor
-	pointBoolean, pointFloat         *Descriptor
-	polygonBoolean, polygonPoint     *Descriptor
-	polygonInt                       *Descriptor
-	pathInt                          *Descriptor
-	ftsBoolean, ftsDistance, ftsText *Descriptor
+	id                                  ID
+	name, sql, database                 string
+	base                                Usage
+	ownDomainChecks, domainChecks       bool
+	ownDomainNotNull, domainNotNull     bool
+	element                             *Descriptor
+	associatedArray                     ID
+	delimiter                           byte
+	enum                                *enumDefinition
+	queryInt                            bool
+	hstore                              bool
+	cube                                bool
+	citext                              bool
+	ean13                               bool
+	isbn                                bool
+	isbn13                              bool
+	ismn                                bool
+	ismn13                              bool
+	issn                                bool
+	issn13                              bool
+	upc                                 bool
+	composite                           *compositeDefinition
+	rangeSubtype                        *Descriptor
+	customRange                         *RangeDefinition
+	rangeBoolean                        *Descriptor
+	multirangeRange                     *Descriptor
+	multirangeCompanion                 *Descriptor
+	networkCIDR                         *Descriptor
+	networkMasklen                      *Descriptor
+	networkBoolean                      *Descriptor
+	geometryPoint                       *Descriptor
+	circleBoolean, circleFloat          *Descriptor
+	pointBoolean, pointFloat            *Descriptor
+	polygonBoolean, polygonPoint        *Descriptor
+	polygonInt                          *Descriptor
+	pathInt                             *Descriptor
+	ftsBoolean, ftsDistance, ftsText    *Descriptor
 	ftsChar, ftsTextArray, ftsCharArray *Descriptor
-	lookupOnly                       bool
-	catalogNullOwner                 *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
-	namespace                        string
+	lookupOnly                          bool
+	catalogNullOwner                    *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
+	namespace                           string
 }
 
 func (d *Descriptor) ID() ID          { return d.id }
@@ -227,7 +228,9 @@ func (d *Descriptor) DiagnosticName() string {
 	if d.IsUserDefined() {
 		return d.sql
 	}
-	if d.IsCatalogVector() { return d.name }
+	if d.IsCatalogVector() {
+		return d.name
+	}
 	if d.IsArray() {
 		return d.element.DiagnosticName() + "[]"
 	}
@@ -361,8 +364,15 @@ func Builtins() []*Descriptor {
 	for _, d := range types {
 		if d.id == Int2Vector || d.id == OidVector {
 			element := Int2
-			if d.id == OidVector { element = Oid }
-			for _, candidate := range types { if candidate.id == element { d.element = candidate; break } }
+			if d.id == OidVector {
+				element = Oid
+			}
+			for _, candidate := range types {
+				if candidate.id == element {
+					d.element = candidate
+					break
+				}
+			}
 		}
 	}
 	for _, d := range types {
@@ -423,15 +433,23 @@ func Builtins() []*Descriptor {
 	types = completeBuiltinIdentities(types)
 	var vector *Descriptor
 	for _, d := range types {
-		if d.id == TSVector { vector = d; break }
+		if d.id == TSVector {
+			vector = d
+			break
+		}
 	}
 	for _, d := range types {
 		switch d.id {
-		case Int4: vector.ftsDistance = d
-		case Char: vector.ftsChar = d
-		case Text: vector.ftsText = d
-		case 1009: vector.ftsTextArray = d
-		case 1002: vector.ftsCharArray = d
+		case Int4:
+			vector.ftsDistance = d
+		case Char:
+			vector.ftsChar = d
+		case Text:
+			vector.ftsText = d
+		case 1009:
+			vector.ftsTextArray = d
+		case 1002:
+			vector.ftsCharArray = d
 		}
 	}
 	return types
@@ -466,6 +484,7 @@ type Value struct {
 	network         networkDatum
 	aclitem         aclitemDatum
 	queryInt        *queryIntPayload
+	hstore          *hstorePayload
 	ftsVector       *fts.Vector
 	ftsQuery        *fts.Query
 	cube            *cubePayload
@@ -486,6 +505,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 		return Value{}, fmt.Errorf("incompatible scalar type identity")
 	}
 	fromEnum, toEnum := v.typ.BaseType(), d.BaseType()
+	if fromEnum.IsHstore() != toEnum.IsHstore() || fromEnum.IsHstore() && (fromEnum != toEnum || !v.null && !v.validHstore()) {
+		return Value{}, fmt.Errorf("incompatible hstore generation")
+	}
 	if fromEnum.IsCitext() != toEnum.IsCitext() || fromEnum.IsCitext() && fromEnum != toEnum {
 		return Value{}, fmt.Errorf("incompatible citext generation")
 	}
@@ -586,7 +608,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if !v.null && v.typ.BaseType().IsComposite() && !v.validCompositePayload() {
 		return Value{}, fmt.Errorf("invalid composite payload")
 	}
-	if !v.null && d.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() { return Value{},fmt.Errorf("invalid catalog vector payload") }
+	if !v.null && d.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() {
+		return Value{}, fmt.Errorf("invalid catalog vector payload")
+	}
 	if v.typ == d {
 		if !v.null && d.BaseType().IsArray() && v.array == nil {
 			return Value{}, fmt.Errorf("missing array payload")
@@ -784,7 +808,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return plan.Apply(ctx, value, env, OutputEnvironment{})
 	}
 	if d.IsCatalogVector() {
-		if err := ValidateTextInput(text); err != nil { return Value{}, err }
+		if err := ValidateTextInput(text); err != nil {
+			return Value{}, err
+		}
 		return d.catalogVectorInput(ctx, text)
 	}
 	if d.IsArray() {
@@ -811,7 +837,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -820,6 +846,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsEnum() {
 		return d.enumInput(text, env)
+	}
+	if d.IsHstore() {
+		return d.hstoreInput(ctx, text)
 	}
 	if d.IsQueryInt() {
 		return d.queryIntInput(ctx, text)
@@ -842,7 +871,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.IsIssn() || d.IsIssn13() {
 		return d.issnInput(text)
 	}
-	if d.IsUpc() { return d.upcInput(text) }
+	if d.IsUpc() {
+		return d.upcInput(text)
+	}
 	if d.IsRange() {
 		return d.rangeInput(ctx, text, env)
 	}
@@ -1127,7 +1158,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		v.typ = d.BaseType()
 		return v.typ.OutputWithEnvironment(ctx, v, env)
 	}
-	if d.IsCatalogVector() { return d.catalogVectorOutput(ctx,v) }
+	if d.IsCatalogVector() {
+		return d.catalogVectorOutput(ctx, v)
+	}
 	if d.IsArray() {
 		return d.arrayOutput(ctx, v, env)
 	}
@@ -1136,6 +1169,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	}
 	if d.IsEnum() {
 		return d.enumOutput(v)
+	}
+	if d.IsHstore() {
+		return d.hstoreOutput(ctx, v)
 	}
 	if d.IsQueryInt() {
 		return d.queryIntOutput(ctx, v)
@@ -1167,7 +1203,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsIssn13() {
 		return d.issn13Output(v)
 	}
-	if d.IsUpc() { return d.upcOutput(v) }
+	if d.IsUpc() {
+		return d.upcOutput(v)
+	}
 	if d.IsRange() {
 		return v.rangeOutput(ctx, env)
 	}
@@ -1368,9 +1406,11 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
 	}
 	if d.IsCatalogVector() {
-		text,err:=d.catalogVectorOutput(ctx,v)
-		if err!=nil{return "",err}
-		return "'"+text+"'",nil
+		text, err := d.catalogVectorOutput(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
 	}
 	if d.IsArray() || d.IsEnum() {
 		var text string
@@ -1387,6 +1427,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if d.IsRange() || d.IsMultirange() {
 		text, err := d.Output(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	}
+	if d.IsHstore() {
+		text, err := d.hstoreOutput(ctx, v)
 		if err != nil {
 			return "", err
 		}
@@ -1418,17 +1465,23 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if d.IsIsbn() {
 		text, err := d.isbnOutput(v)
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		return "'" + text + "'", nil
 	}
 	if d.IsIsbn13() {
 		text, err := d.isbn13Output(v)
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		return "'" + text + "'", nil
 	}
 	if d.IsIsmn() {
 		text, err := d.ismnOutput(v)
-		if err != nil { return "", err }
+		if err != nil {
+			return "", err
+		}
 		return "'" + text + "'", nil
 	}
 	if d.IsIsmn13() {
@@ -1441,7 +1494,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	if d.IsIssn() || d.IsIssn13() {
 		return d.issnSQLLiteral(v)
 	}
-	if d.IsUpc() { return d.upcSQLLiteral(v) }
+	if d.IsUpc() {
+		return d.upcSQLLiteral(v)
+	}
 	switch d.id {
 	case Path:
 		text, err := formatPath(v, OutputEnvironment{}, true)
@@ -1937,7 +1992,9 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 	}
 	p := CoercionPlan{source: source, target: target, context: context}
 	if source.Type.IsUpc() && target.Type.IsEan13() || source.Type.IsEan13() && target.Type.IsUpc() {
-		if context < Assignment || target.Type.IsUpc() && context != Explicit { return p, failure("42804", "incompatible source and destination types") }
+		if context < Assignment || target.Type.IsUpc() && context != Explicit {
+			return p, failure("42804", "incompatible source and destination types")
+		}
 		p.method = upcEanConversion
 		return p, nil
 	}
@@ -1987,7 +2044,9 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, failure("42804", "incompatible source and destination types")
 	}
 	if source.Type.IsArray() && target.Type.IsArray() {
-		if target.Type.IsCatalogVector() { return p,failure("42846","cannot cast type "+source.Type.DiagnosticName()+" to "+target.Type.DiagnosticName()) }
+		if target.Type.IsCatalogVector() {
+			return p, failure("42846", "cannot cast type "+source.Type.DiagnosticName()+" to "+target.Type.DiagnosticName())
+		}
 		from, to := source.Type.Element().Usage(), target.Type.Element().Usage()
 		from.Typmod, to.Typmod = source.Typmod, target.Typmod
 		from.Collation, to.Collation = source.Collation, target.Collation

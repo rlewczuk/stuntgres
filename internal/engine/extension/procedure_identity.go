@@ -160,17 +160,29 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		count = isnMemberCount
 		found := false
 		for _, recipe := range isnRecipes {
-			if slot != recipe.slot+1 && slot != recipe.slot+2 { continue }
-			if len(ext.Members) != count { return invalid() }
+			if slot != recipe.slot+1 && slot != recipe.slot+2 {
+				continue
+			}
+			if len(ext.Members) != count {
+				return invalid()
+			}
 			base, ok := v.Type(ext.Members[recipe.slot])
-			if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Revision() == 0 { return invalid() }
-			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
+			if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Revision() == 0 {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
+				return invalid()
+			}
 			name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
-			if slot == recipe.slot+2 { name, signature, result = recipe.output, IsnSignature(base.SQLType.ID()), 2275 }
+			if slot == recipe.slot+2 {
+				name, signature, result = recipe.output, IsnSignature(base.SQLType.ID()), 2275
+			}
 			found = true
 		}
-		if !found { return invalid() }
-	case StockIntarray, StockCitext:
+		if !found {
+			return invalid()
+		}
+	case StockHstore, StockIntarray, StockCitext:
 		count = 3
 		if p.Implementation == StockCitext {
 			count = CitextMemberCount
@@ -182,7 +194,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !ok || base.SQLType == nil {
 			return invalid()
 		}
-		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
+		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -190,6 +202,14 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		}
 		signature, result = "2275", ids.OID(base.SQLType.ID())
 		switch p.Implementation {
+		case StockHstore:
+			name = "hstore_in"
+			if slot == 2 {
+				name = "hstore_out"
+			}
+			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+				return invalid()
+			}
 		case StockIntarray:
 			name = "bqarr_in"
 			if slot == 2 {
@@ -221,7 +241,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 				return invalid()
 			}
 		}
-  if p.Implementation == StockCitext && slot >= CitextRegexpProcedureStart && slot < CitextRegexpProcedureEnd {
+		if p.Implementation == StockCitext && slot >= CitextRegexpProcedureStart && slot < CitextRegexpProcedureEnd {
 			m := CitextRegexpMembers[slot-CitextRegexpProcedureStart]
 			name, signature, result = m.Name, m.Signature(base.SQLType.ID()), m.Result
 			if p.Installed != m.Declaration || p.Language != (ids.ObjectAddress{}) || p.Display != (catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}) {
@@ -231,12 +251,16 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 				return invalid()
 			}
 		}
-  if p.Implementation == StockCitext && slot >= CitextStringProcedureStart {
-   m:=CitextStringMembers[slot-CitextStringProcedureStart]
-   name,signature,result=m.Name,m.Signature(base.SQLType.ID()),m.Result
-   if p.Installed!=m.Declaration() || p.Language!=(ids.ObjectAddress{}) || p.Display!=(catalog.RoutineDisplay{Language:catalog.SQLRoutineLanguage}) || p.SQLBody!=nil || p.SQLDefaults!=nil || len(p.Body)!=0 {return invalid()}
-   if err:=ValidateProviderHeader(v,p,ids.ProcedureClassID);err!=nil {return invalid()}
-  }
+		if p.Implementation == StockCitext && slot >= CitextStringProcedureStart {
+			m := CitextStringMembers[slot-CitextStringProcedureStart]
+			name, signature, result = m.Name, m.Signature(base.SQLType.ID()), m.Result
+			if p.Installed != m.Declaration() || p.Language != (ids.ObjectAddress{}) || p.Display != (catalog.RoutineDisplay{Language: catalog.SQLRoutineLanguage}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+				return invalid()
+			}
+			if err := ValidateProviderHeader(v, p, ids.ProcedureClassID); err != nil {
+				return invalid()
+			}
+		}
 	case StockAmcheck:
 		count = 1
 		name, signature, result, volatility, strict = "verify_heapam", VerifyHeapamSignature, 2249, expr.Volatile, false

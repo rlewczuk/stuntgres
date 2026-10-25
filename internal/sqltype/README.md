@@ -39,9 +39,9 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   generation with current naming and base authority.
 - `Value.Retag` remints descriptor ownership without changing the datum. It
   requires the same type ID, domain/base identity and constraints, and rejects
-  foreign citext/ISN generations and enum members even for equal OIDs; only
-  source-authorized catalog import remaps explicitly (`RemapCitext`,
-  `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`, `RemapIssn13`, `RemapUpc`).
+  foreign hstore/citext/ISN generations and enum members even for equal OIDs; only
+  source-authorized catalog reownership/import remaps explicitly (`RemapHstore`,
+  `RemapCitext`, `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`, `RemapIssn13`, `RemapUpc`).
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -62,6 +62,15 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   spelling, compares folded bytes directly for equality without an input
   collation provider, and demands ordering collation only for reached nonnull
   ordering. It grants no generic ordering, hash, grouping or index capability.
+- Hstore owns immutable sorted unique key/value pairs with a separate NULL-value
+  bit. SQL NULL is distinct from an empty nonnull payload. Text input uses ASCII
+  scanner whitespace and byte-offset syntax errors; output quotes/escapes pairs
+  in UTF8 key-byte-length then bytewise order. Duplicate keys retain one original
+  value without a first/last-survivor promise. Representation comparison grants
+  no SQL comparison, grouping, array or binary capability. Authorized generation
+  remapping shares immutable pairs without reparsing stored text. The parser
+  establishes text validity, canonical order and uniqueness once; consumers
+  check the private immutable carrier without rescanning those invariants.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).
@@ -107,7 +116,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
+Installed hstore/cube/query_int/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,

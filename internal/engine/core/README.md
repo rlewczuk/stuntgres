@@ -247,17 +247,21 @@ list cached by its prepared handle. VACUUM is
   authority, with child types in the same dependency cell. Domains retain their
   domain-specific stamps.
   Reanalysis normally retires these casts alongside the existing cast group.
-  An EAN13 owner/ACL-only invalidation in the same resolution environment may
+  An installed hstore/ISN owner/ACL-only invalidation in the same environment may
   carry its nominal cast identity into a single candidate analysis. Executable
   analysis is still invalidated; current lookup, authority and coercion run
   before fresh captures publish. A failed candidate leaves the original casts
   retired. No alias repairs obsolete source spelling.
-  Direct held EAN13 literals use candidate-only datum reownership from the exact
-  captured analysis descriptor to the genuine current installed manifest member,
-  under the same environment and definition gates. A local pointer import
-  preserves packed payloads and NULL framing without changing ordinary Retag or
-  catalog import roots. Identity-only attempts leave original temporals intact;
-  successful reanalysis publishes fresh temporals and source analysis together.
+  Direct held hstore/ISN literals use candidate-only datum reownership from the
+  exact captured analysis descriptor to the genuine current installed manifest
+  member, under the same environment and definition gates. A local pointer
+  import preserves immutable payloads and NULL framing without weakening Retag
+  or catalog import roots. Identity-only attempts leave original temporals
+  intact; successful reanalysis publishes fresh temporals and analysis together.
+  On genuine invalidation after hstore retirement, an authentic capture whose
+  original type address is absent is omitted only from the attempt candidate.
+  Normal binding reads the original SQL literal under the new genuine usage;
+  neither a reused label nor a numeric OID authorizes importing retired data.
 - Full invalidation publishes atomically, after analysis, signature and
   provenance succeed: genuine temporal scalar/array candidates, sequence/regtype
   candidates and identity stamps. It preserves native logical enum, domain and

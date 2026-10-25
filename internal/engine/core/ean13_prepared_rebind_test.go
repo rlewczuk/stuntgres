@@ -139,9 +139,9 @@ func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 	expected := core.NewDescription(core.DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{base.SQLType.Usage()}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: shared, Analysis: &analysis})
 	core.SetDescriptionPlanGeneration(expected, auth.Session.DiscardPlansGeneration)
 	e.Mu.Lock()
-	eligible := core.EnginePreparedIsnAuthorityRebindLocked(e, auth, expected, path)
+	eligible := core.EnginePreparedInstalledScalarAuthorityRebindLocked(e, auth, expected, path)
 	*core.DescriptionPlanGenerationRef(expected)++
-	discarded := core.EnginePreparedIsnAuthorityRebindLocked(e, auth, expected, path)
+	discarded := core.EnginePreparedInstalledScalarAuthorityRebindLocked(e, auth, expected, path)
 	e.Mu.Unlock()
 	if !eligible || discarded {
 		t.Fatal("DISCARD must disallow nominal rebind")
@@ -266,7 +266,7 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 	reown := func(a core.AuthorizationView, d *core.StatementDescription) []analyze.TemporalConstant {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
-		return core.EnginePreparedIsnLiteralTemporalsLocked(e, a, d, path)
+		return core.EnginePreparedInstalledScalarLiteralTemporalsLocked(e, a, d, path)
 	}
 	assertRemapped := func(t *testing.T, got []analyze.TemporalConstant) {
 		t.Helper()

@@ -16,7 +16,7 @@ import (
 // nothing else.
 func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 	e := engine.New()
-	for _, name := range []string{"cube", "unaccent", "intarray", "fuzzystrmatch", "intagg", "pgcrypto", `"uuid-ossp"`} {
+	for _, name := range []string{"cube", "unaccent", "hstore", "intarray", "fuzzystrmatch", "intagg", "pgcrypto", `"uuid-ossp"`} {
 		enginetest.Run(t, e, "CREATE EXTENSION "+name)
 	}
 	enginetest.Run(t, e, "CREATE FUNCTION procedure_provider_unit(integer) RETURNS integer LANGUAGE SQL AS $$SELECT $1$$")

@@ -16,6 +16,17 @@ func SameDatum(a, b Value) bool {
 	if a.null || b.null {
 		return a.null == b.null
 	}
+	if a.typ.BaseType().IsHstore() {
+		if !a.validHstore() || !b.validHstore() || len(a.hstore.pairs) != len(b.hstore.pairs) {
+			return false
+		}
+		for i, pair := range a.hstore.pairs {
+			if pair != b.hstore.pairs[i] {
+				return false
+			}
+		}
+		return true
+	}
 	if a.typ.BaseType().IsCube() {
 		if !a.validCube() || !b.validCube() {
 			return false
@@ -57,7 +68,9 @@ func SameDatum(a, b Value) bool {
 	if a.typ.BaseType().IsIssn13() {
 		return a.validIssn13() && b.validIssn13() && a.integer == b.integer
 	}
-	if a.typ.BaseType().IsUpc() { return a.validUpc() && b.validUpc() && a.integer == b.integer }
+	if a.typ.BaseType().IsUpc() {
+		return a.validUpc() && b.validUpc() && a.integer == b.integer
+	}
 	if a.typ.BaseType().IsEnum() {
 		d := a.typ.BaseType()
 		_, present := d.enum.ranks[a.integer]

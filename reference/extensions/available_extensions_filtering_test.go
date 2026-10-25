@@ -55,6 +55,8 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='unaccent' AND installed=$1", true, [][]any{}, pg, nil))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='lo'", false, [][]any{{"lo", "1.2", nil, "Large Object maintenance"}}, pg))
 			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='lo' AND version='1.2'", true, [][]any{{"lo", "1.2", false, true, true, true, nil, nil, "Large Object maintenance"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name='hstore'", false, [][]any{{"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"}}, pg))
+			availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name='hstore' AND version='1.8'", true, [][]any{{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}}, pg))
 			if !pg {
 				// Native availability is its real embedded registry, not PostgreSQL's
 				// larger system package installation or bootstrap plpgsql descriptor.
@@ -75,9 +77,11 @@ func TestReferenceAvailableExtensionsFiltering(t *testing.T) {
 				wantVersions = append(wantVersions, []any{"uuid-ossp", "1.1", false, true, true, true, nil, nil, "generate universally unique identifiers (UUIDs)"})
 				wantAvailable = append([][]any{{"amcheck", "1.5", nil, "functions for verifying relation integrity"}}, wantAvailable...)
 				wantVersions = append([][]any{{"amcheck", "1.5", false, true, false, true, nil, nil, "functions for verifying relation integrity"}}, wantVersions...)
+				wantAvailable = append(wantAvailable[:5:5], append([][]any{{"hstore", "1.8", nil, "data type for storing sets of (key, value) pairs"}}, wantAvailable[5:]...)...)
+				wantVersions = append(wantVersions[:6:6], append([][]any{{"hstore", "1.8", false, true, true, true, nil, nil, "data type for storing sets of (key, value) pairs"}}, wantVersions[6:]...)...)
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions ORDER BY name", false, wantAvailable, pg))
 				availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions ORDER BY name,version", true, wantVersions, pg))
-				for _, name := range []string{"hstore", "file_fdw", "plpgsql"} {
+				for _, name := range []string{"file_fdw", "plpgsql"} {
 					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extensions WHERE name=$1", false, [][]any{}, pg, name))
 					availableExtensionsBoth(t, p, c, r, availableExtensionsStep("SELECT * FROM pg_available_extension_versions WHERE name=$1", true, [][]any{}, pg, name))
 				}

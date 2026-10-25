@@ -204,6 +204,7 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | `int2vector`, `oidvector` | canonical space-separated `string` |
 | arrays, composites, ranges, multiranges, enums | canonical `string` |
 | installed `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` | canonical `string`, including retained invalid marker |
+| installed `hstore` | canonical key/value-pair `string` |
 | `reg*` types | symbolic `string` |
 
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
@@ -214,6 +215,16 @@ Vector columns report `INT2VECTOR`/`OIDVECTOR` and string scan types. Text or
 non-nil byte arguments may carry empty vectors, distinct from SQL NULL; typed-nil
 byte arguments are NULL. Their canonical values and declared types survive native
 Dump/Reset/Restore through the ordinary type-owned codecs.
+
+After `CREATE EXTENSION hstore`, hstore columns accept literal and bound text or
+non-nil bytes. Empty input is an empty nonnull value; nil and typed-nil bytes are
+SQL NULL. A present NULL-valued key and quoted text `NULL` remain distinct.
+Results report `HSTORE`, string scan types and declaration-based nullability,
+including empty results. Native Dump/Reset/Restore preserves canonical values,
+NULLs and installed type identities through destination-authorized remapping.
+Held literal assignments retain their values across type rename/schema movement.
+Consumer teardown/recreation binds original SQL literals under current types;
+it does not revive retired type authority.
 
 After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13, ISSN, ISSN13 and UPC columns
 accept textual literals and bound strings or bytes, including NULL. Results

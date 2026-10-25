@@ -208,6 +208,31 @@ func TestReferencePGTypeFamilies(t *testing.T) {
 				})
 			}
 		})
+		t.Run("installed_hstore", func(t *testing.T) {
+			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE EXTENSION hstore", 0))
+			defer func() {
+				if _, err := b.DB.ExecContext(p.Ctx, "DROP EXTENSION hstore"); err != nil {
+					t.Error(err)
+				}
+			}()
+			id, array := pgTypeID(t, p, b, "hstore"), pgTypeID(t, p, b, "hstore[]")
+			if id == array {
+				t.Fatal("aliased scalar/companion identities")
+			}
+			var namespace, owner, input, output int64
+			if err := b.DB.QueryRowContext(p.Ctx, "SELECT 'public'::regnamespace::oid,(SELECT oid FROM pg_roles WHERE rolname=current_user),'hstore_in'::regproc::oid,'hstore_out'::regproc::oid").Scan(&namespace, &owner, &input, &output); err != nil {
+				t.Fatal(err)
+			}
+			q := "SELECT typname,typnamespace,typowner,typlen,typbyval,typtype,typcategory,typispreferred,typisdefined,typdelim,typrelid,typelem,typarray,typinput::oid,typoutput::oid,typalign,typstorage,typnotnull,typbasetype,typtypmod,typndims,typcollation FROM pg_type WHERE oid=$1::oid"
+			s := fixture.Select(q, []string{"typname", "typnamespace", "typowner", "typlen", "typbyval", "typtype", "typcategory", "typispreferred", "typisdefined", "typdelim", "typrelid", "typelem", "typarray", "typinput", "typoutput", "typalign", "typstorage", "typnotnull", "typbasetype", "typtypmod", "typndims", "typcollation"}, []string{"NAME", "OID", "OID", "INT2", "BOOL", "CHAR", "CHAR", "BOOL", "BOOL", "CHAR", "OID", "OID", "OID", "OID", "OID", "CHAR", "CHAR", "BOOL", "OID", "INT4", "INT4", "OID"}, [][]any{{"hstore", namespace, owner, int64(-1), false, "b", "U", false, true, ",", int64(0), int64(0), array, input, output, "i", "x", false, int64(0), int64(-1), int64(0), int64(0)}}, id)
+			fixture.PgDescriptionRows(t, p, b, s)
+			fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
+			element := []any{id, "hstore", namespace, owner}
+			// Only namespace/owner/element/collation/alignment enter this array golden.
+			element = append(element, make([]any, 25)...)
+			element[22], element[28] = "i", int64(0)
+			pgTypeFamilyRow(t, p, b, pgTypeDynamicArrayGolden(element, array, "_hstore"))
+		})
 		t.Run("installed_query_int", func(t *testing.T) {
 			fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, fixture.Exec("CREATE EXTENSION intarray", 0))
 			relocatedSchema := false

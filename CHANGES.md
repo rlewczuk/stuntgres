@@ -32,6 +32,13 @@ settings. Physical reuse retains settings; native controls exclude them.
 XML OPTION preserves ordinary XML identifier/type syntax; pq-initialized
 DateStyle and encoding metadata retain their actual client source.
 
+`CREATE EXTENSION hstore` installs scalar hstore columns with canonical text
+input/output, literal and bound values, NULL-aware result metadata and atomic
+malformed-input rejection. Native Dump/Reset/Restore preserves values and
+rebuilds installed type authority, including retained readers and metadata.
+Held literal assignments retain values across type rename/schema movement;
+recreated consumers bind original literals under the new installed authority.
+
 File-location settings now expose deterministic, explicitly simulated startup
 labels through SHOW, current_setting and pg_settings, including exact nullable
 boot/reset metadata. Effective-user read privileges filter aggregate rows and
