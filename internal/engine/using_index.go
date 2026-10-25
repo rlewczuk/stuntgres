@@ -32,5 +32,5 @@ func (e *Engine) stageUsingIndex(op *session.Operation, stage *CatalogStage, par
 	if err != nil {
 		return nil, err
 	}
-	return index.StageUsingIndex(DDLHost{E: e, Op: op, CatalogStage: stage}, parent, prepared)
+	return index.StageUsingIndex(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, prepared)
 }

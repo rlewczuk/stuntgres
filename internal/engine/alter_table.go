@@ -266,7 +266,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				copy.Constraints.Exclusion = slices.Clone(next.Constraints.Exclusion)
 				next = &copy
 				e.Mu.Lock()
-				err = index.StageExclusion(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, scope.Input, next, action.Exclusion, true)
+				err = index.StageExclusion(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, scope.Input, next, action.Exclusion, true)
 				e.Mu.Unlock()
 				if err == nil {
 					addedIndexes = append(addedIndexes, next.Constraints.Exclusion[len(next.Constraints.Exclusion)-1].Index)
@@ -335,7 +335,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 					e.Mu.Lock()
 					err = e.EvolveStageIndexesLocked(stage, ref.Address, transformations)
 					if err == nil {
-						attachments, err = index.CaptureUsingIndexes(DDLHost{E: e, Op: op, CatalogStage: stage}, next, s.Actions, transformations)
+						attachments, err = index.CaptureUsingIndexes(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, next, s.Actions, transformations)
 					}
 					e.Mu.Unlock()
 				}
@@ -420,7 +420,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		e.Mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	h := DDLHost{E: e, Op: op, CatalogStage: stage}
+	h := TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}
 	next, err = index.RebuildAlterUniques(h, next, transformations)
 	if err == nil {
 		next, err = table.RebuildAlterNotNulls(DDLHost{E: e, CatalogStage: stage}, next, transformations)

@@ -60,7 +60,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			e.DiscardCatalogStage(stage)
 			return Result{}, err
 		}
-		h := DDLHost{E: e, Op: scope.Op, CatalogStage: stage}
+		h := TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 		created, err := index.PrepareCreate(h, auth, parent, s, scope.Input, reservedNames)
 		if err != nil {
 			return failStage(err)

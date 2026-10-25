@@ -37,7 +37,7 @@ func domainValueUnitStage(t *testing.T, e *Engine, op *session.Operation, q stri
 	stage.AuthorizeLocked(auth, op.Session)
 	stage.DomainAlterState().Ctx = op.Context()
 	stage.DomainBases = append(stage.DomainBases, d)
-	edit, err := typedef.StageAlterDomainLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, d, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	edit, err := typedef.StageAlterDomainLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, d, raw, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
 		e.DiscardCatalogStage(stage)
 		t.Fatal(err)
@@ -307,7 +307,7 @@ func TestDomainAlterDefaultReplayInternal(t *testing.T) {
 	d := domainUnitType(t, auth.Catalog, "p")
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := DDLHost{E: e, Op: op, CatalogStage: stage}
+	h := TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	record := typedef.DomainDefaultSnapshot{Schema: "public", Domain: "p", Own: true, Usage: &typedef.DomainDefaultUsage{Type: []string{"pg_catalog", "int4"}, Typmod: -1}}
 	u, err := typedef.SnapshotUsage(h, auth, record)
 	if err != nil || u != d.SQLType.DomainBase() {

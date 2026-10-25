@@ -63,7 +63,7 @@ func TestPartitionHostBindKeyExpressionLeavesVolatilityToCaller(t *testing.T) {
 	}
 }
 
-func indexHostFixture(t *testing.T) (engine.DDLHost, engine.AuthorizationView, partialIndexFixture) {
+func indexHostFixture(t *testing.T) (engine.TableHost, engine.AuthorizationView, partialIndexFixture) {
 	t.Helper()
 	f := newPartialIndexFixture(t)
 	op, done := enginetest.RoleOperation(t, f.e, "postgres")
@@ -76,7 +76,7 @@ func indexHostFixture(t *testing.T) (engine.DDLHost, engine.AuthorizationView, p
 	}
 	stage := f.e.BeginCatalogStage(auth.Catalog)
 	t.Cleanup(func() { f.e.DiscardCatalogStage(stage) })
-	return engine.DDLHost{E: f.e, Op: op, CatalogStage: stage}, auth, f
+	return engine.TableHost{DDLHost: engine.DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f
 }
 
 type partialIndexFixture struct {

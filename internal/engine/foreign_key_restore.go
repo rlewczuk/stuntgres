@@ -86,7 +86,7 @@ func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operat
 				e.Mu.Unlock()
 				return err
 			}
-			if err := table.StageForeignKey(DDLHost{E: e, Op: op, CatalogStage: stage}, declaration.Auth, child, definition.Raw, target, definition.Supporting); err != nil {
+			if err := table.StageForeignKey(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, declaration.Auth, child, definition.Raw, target, definition.Supporting); err != nil {
 				e.Mu.Unlock()
 				return err
 			}

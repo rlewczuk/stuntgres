@@ -163,7 +163,7 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 			}
 			defer done()
 			auth := e.bootstrapAuthorization(family.Owner)
-			host := DDLHost{E: e, Op: op, CatalogStage: stage}
+			host := RoutineHost{DDLHost{E: e, Op: op, CatalogStage: stage}}
 			err = index.StageAlterOperatorFamily(host, auth, &parser.AlterOperatorFamily{Action: "drop", Name: parser.ObjectName{Parts: []parser.Identifier{{Text: family.Name()}}}, Method: parser.Identifier{Text: "btree"}, Items: []parser.OperatorFamilyItem{
 				{Function: function, Number: "1", Association: []parser.TypeName{{Name: "integer"}}},
 				{Function: function, Number: "2", Association: []parser.TypeName{{Name: "integer"}}},
@@ -189,7 +189,7 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 		auth := e.bootstrapAuthorization(family.Owner)
 		auth.pathPrefix = family.Namespace()
 		auth.Owner = nil // Actual stale-authority rejection in referencePath/CanUse.
-		err = (DDLHost{E: e, Op: op, CatalogStage: stage}).CheckFamilyMemberDrop(auth, support.Address())
+		err = (RoutineHost{DDLHost{E: e, Op: op, CatalogStage: stage}}).CheckFamilyMemberDrop(auth, support.Address())
 		if err == nil || err.Error() != "stuntgres: foreign or stale authorization object" {
 			t.Fatalf("dependency-path error = %#v", err)
 		}
@@ -212,7 +212,7 @@ func TestOperatorFamilyPreflight(t *testing.T) {
 		}
 		defer done()
 		cancel() // No timer, worker or scheduling-dependent cancellation window.
-		err = (DDLHost{E: e, Op: op, CatalogStage: stage}).CheckFamilyMemberDrop(e.bootstrapAuthorization(family.Owner), support.Address())
+		err = (RoutineHost{DDLHost{E: e, Op: op, CatalogStage: stage}}).CheckFamilyMemberDrop(e.bootstrapAuthorization(family.Owner), support.Address())
 		if err != context.Canceled {
 			t.Fatalf("closure error = %#v, want original context.Canceled", err)
 		}

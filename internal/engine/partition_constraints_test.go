@@ -241,7 +241,7 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	defer done()
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
-	if err := index.StagePartitionIndexAttach(DDLHost{E: f.e, Op: op, CatalogStage: stage}, f.parent, f.child); err != nil {
+	if err := index.StagePartitionIndexAttach(TableHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.parent, f.child); err != nil {
 		t.Fatal(err)
 	}
 	next := f.e.StageRead(stage)
@@ -542,7 +542,7 @@ func TestPartitionConstraintsFutureCloneValidity(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.Mu.Lock()
-	clone, err := index.StagePartitionIndexChild(DDLHost{E: f.e, Op: op, CatalogStage: stage}, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(TableHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -757,7 +757,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	stage := f.e.BeginCatalogStage(f.view)
 	defer f.e.DiscardCatalogStage(stage)
 	f.e.Mu.Lock()
-	clone, err := index.StagePartitionIndexChild(DDLHost{E: f.e, Op: op, CatalogStage: stage}, f.root, f.parent, f.leaf, true)
+	clone, err := index.StagePartitionIndexChild(TableHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, f.root, f.parent, f.leaf, true)
 	f.e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -790,7 +790,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *session.Operati
 	op.Session.Mu.Unlock()
 	e.Mu.Lock()
 	stage.RoleRevision = e.RoleStore.Published.Revision
-	err := index.StagePartitionIndexAttach(DDLHost{E: e, Op: op, CatalogStage: stage}, parent, child)
+	err := index.StagePartitionIndexAttach(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, child)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

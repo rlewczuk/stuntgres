@@ -19,7 +19,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	h := DDLHost{E: e, Op: scope.Op}
+	h := TableHost{DDLHost{E: e, Op: scope.Op}}
 	old, ref, err := fdw.AlterTarget(h, auth, s, scope.LockedRef)
 	if err != nil {
 		e.Mu.Unlock()

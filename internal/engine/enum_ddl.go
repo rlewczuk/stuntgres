@@ -52,7 +52,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 	changes := scope.Owner.Catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	host := DDLHost{E: e, Op: op, CatalogStage: stage}
+	host := TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	var created ids.ObjectRef
 	if create, ok := stmt.(*parser.CreateEnum); ok {
 		if err := typedef.StageCreateEnumLocked(host, auth, create); err != nil {

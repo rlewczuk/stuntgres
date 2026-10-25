@@ -264,7 +264,7 @@ func TestMaterializedViewSnapshotConstructorProviders(t *testing.T) {
 			declaration := statement(t, sample.definition).(*parser.CreateFunction)
 			e.Mu.Lock()
 			stage := e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, declaration, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(RoutineHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal("private callable declaration", err)

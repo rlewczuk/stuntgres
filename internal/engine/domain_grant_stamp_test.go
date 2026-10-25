@@ -25,7 +25,7 @@ func TestDomainIdentityGrantStamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	host := DDLHost{E: e, Op: op}
+	host := RoleHost{DDLHost{E: e, Op: op}}
 	req, err := role.ObjectGrantRequest(host, auth, raw)
 	if err != nil {
 		t.Fatal(err)

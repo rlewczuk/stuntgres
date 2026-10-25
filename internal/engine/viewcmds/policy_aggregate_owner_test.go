@@ -111,5 +111,5 @@ func policyUnitBind(t *testing.T, e *engine.Engine, op *session.Operation, d *ca
 	if err != nil {
 		t.Fatal(err)
 	}
-	return engine.DDLHost{E: e, Op: op}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return engine.ViewHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }

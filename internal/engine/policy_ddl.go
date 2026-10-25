@@ -25,7 +25,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 	if err = view.PolicyPreflight(op, auth.View, stmt, false); err != nil {
 		return fail(err)
 	}
-	change, err := view.PlanPolicy(DDLHost{E: e, Op: op}, auth, stmt, scope.LockedRef, scope.Input)
+	change, err := view.PlanPolicy(ViewHost{TableHost{DDLHost{E: e, Op: op}}}, auth, stmt, scope.LockedRef, scope.Input)
 	if err != nil {
 		return fail(err)
 	}

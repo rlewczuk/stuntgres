@@ -9,31 +9,29 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ddlHost implements ddl.SchemaHost here; see ddl_host.go.
-var _ ddl.SchemaHost = DDLHost{}
+// SchemaHost is the family host of CREATE SCHEMA and DROP SCHEMA: it
+// implements ddl.SchemaHost over the shared DDLHost, which also supplies
+// RemoveObject and RelationDiagnostic.
+type SchemaHost struct {
+	DDLHost
+}
+
+var _ ddl.SchemaHost = SchemaHost{}
 
 // StageSchemaTable analyzes the element as the schema owner with the new
 // namespace first in the explicit path, as PostgreSQL does. Both changes are
 // made on a copy, so the caller's authority is unchanged.
-func (h DDLHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddress, owner authorization.PrincipalRef, table *parser.CreateTable, input sqltype.InputEnvironment) error {
+func (h SchemaHost) StageSchemaTable(a ddl.Authority, namespace ids.ObjectAddress, owner authorization.PrincipalRef, table *parser.CreateTable, input sqltype.InputEnvironment) error {
 	v := DDLAuthorityOf(a)
 	v.State.CurrentUser = owner
 	v.pathPrefix = namespace
 	return h.E.SchemaTableLocked(h.Op, v, h.CatalogStage, table, namespace, owner, input, nil)
 }
 
-func (h DDLHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {
+func (h SchemaHost) StageSchemaDependents(a ddl.Authority, schemas []*catalog.Namespace, relations []*catalog.Relation, others []catalog.Descriptor, cascade bool) error {
 	return h.E.stageSchemaDomainsLocked(h.Op, DDLAuthorityOf(a), h.CatalogStage, schemas, relations, others, cascade)
 }
 
-func (h DDLHost) RemoveObject(ref ids.ObjectRef, namespace bool) error {
-	return h.CatalogStage.RemoveObjectLocked(ref, namespace)
-}
-
-func (h DDLHost) AddCascadeNotice(line string) {
+func (h SchemaHost) AddCascadeNotice(line string) {
 	h.CatalogStage.SchemaCascadeNames = append(h.CatalogStage.SchemaCascadeNames, line)
-}
-
-func (h DDLHost) RelationDiagnostic(a ddl.Authority, relation *catalog.Relation) (kind, name string) {
-	return catalog.RelationDiagnosticKind(relation), relationDiagnosticName(DDLAuthorityOf(a), relation)
 }

@@ -102,7 +102,7 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	create := &parser.CreateConversion{Name: conversionUnitName("public", "first"), Source: "UTF8", Destination: "LATIN1", Function: conversionUnitName("pg_catalog", "utf8_to_iso8859_1"), Default: true}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err := typedef.StageCreateConversionLocked(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	err := typedef.StageCreateConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, create)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +113,7 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	create.Name = conversionUnitName("public", "second")
 	stage = e.BeginCatalogStage(before)
 	e.Mu.Lock()
-	err = typedef.StageCreateConversionLocked(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	err = typedef.StageCreateConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, create)
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != "default conversion for UTF8 to LATIN1 already exists" {
@@ -150,7 +150,7 @@ func TestConversionDescriptorCancellationAndBatchAtomicity(t *testing.T) {
 	before := e.CatalogRead()
 	stage = e.BeginCatalogStage(before)
 	e.Mu.Lock()
-	err := typedef.StageDropConversionLocked(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.DropConversion{Names: []parser.ObjectName{conversionUnitName("public", "keep"), conversionUnitName("public", "missing")}, Mode: parser.DropRestrict})
+	err := typedef.StageDropConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, &parser.DropConversion{Names: []parser.ObjectName{conversionUnitName("public", "keep"), conversionUnitName("public", "missing")}, Mode: parser.DropRestrict})
 	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("late missing batch target succeeded")
@@ -192,7 +192,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	} {
 		stage = e.BeginCatalogStage(before)
 		e.Mu.Lock()
-		err := typedef.StageAlterConversionLocked(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, alteration)
+		err := typedef.StageAlterConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, alteration)
 		e.Mu.Unlock()
 		if err != nil || stage.DescriptorCount() != 0 {
 			t.Fatal("generic no-op permission boundary", alteration, err)
@@ -202,7 +202,7 @@ func TestConversionDescriptorNoopAndPinBoundaries(t *testing.T) {
 	auth.State.CurrentUser = e.RoleStore.Domain.Principal(10)
 	stage = e.BeginCatalogStage(before)
 	e.Mu.Lock()
-	err := typedef.StageAlterConversionLocked(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, &parser.AlterConversion{Name: conversionUnitName("public", "unchanged"), Action: "rename", Target: parser.Identifier{Text: "unchanged"}})
+	err := typedef.StageAlterConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, &parser.AlterConversion{Name: conversionUnitName("public", "unchanged"), Action: "rename", Target: parser.Identifier{Text: "unchanged"}})
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42710" || diagnostic.Message != `conversion "unchanged" already exists in schema "public"` {

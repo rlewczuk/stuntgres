@@ -19,7 +19,7 @@ type DomainDefaultReplayCapture struct {
 // bindRestoredDomainDefault is reached only from the paired CREATE's existing
 // stage host, with Engine.mu held. The capture is operation-local and expires
 // when that statement returns; a SQL comment alone grants no engine authority.
-func (h DDLHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
+func (h TypeHost) bindRestoredDomainDefault(a ddl.Authority, d *catalog.Type, raw parser.Expr, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (bool, error) {
 	if h.Op == nil {
 		return false, nil
 	}

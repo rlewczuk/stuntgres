@@ -14,5 +14,5 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operat
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.RebindAlterTypeChecks(alterHost{DDLHost{E: e, Op: op}, scope}, auth, ref, next, queue)
+	return table.RebindAlterTypeChecks(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, ref, next, queue)
 }

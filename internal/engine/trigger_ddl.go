@@ -27,7 +27,7 @@ func (e *Engine) executeTrigger(scope *StatementScope, stmt parser.Statement, co
 	if err != nil {
 		return fail(err)
 	}
-	change, err := view.PlanTrigger(DDLHost{E: e, Op: scope.Op}, auth, stmt, scope.LockedRef, scope.Input)
+	change, err := view.PlanTrigger(ViewHost{TableHost{DDLHost{E: e, Op: scope.Op}}}, auth, stmt, scope.LockedRef, scope.Input)
 	if err != nil {
 		return fail(err)
 	}

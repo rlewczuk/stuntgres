@@ -117,7 +117,7 @@ func (e *Engine) executeOwnership(scope *StatementScope, s *parser.AlterOwner, c
 	if err != nil {
 		return fail(err)
 	}
-	change, err := role.PlanTypeOwnership(DDLHost{E: e, Op: scope.Op}, auth, s, name, identity)
+	change, err := role.PlanTypeOwnership(RoleHost{DDLHost{E: e, Op: scope.Op}}, auth, s, name, identity)
 	if err != nil {
 		return fail(err)
 	}

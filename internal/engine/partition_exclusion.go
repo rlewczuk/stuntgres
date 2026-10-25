@@ -31,7 +31,7 @@ func (e *Engine) executePartitionExclusionAddLocked(scope *StatementScope, op *s
 	for _, descriptor := range scope.PartitionRelations {
 		stage.DomainBases = append(stage.DomainBases, descriptor)
 	}
-	err = partition.StageExclusions(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, scope.Input, table, raw)
+	err = partition.StageExclusions(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, scope.Input, table, raw)
 	e.Mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err != nil {

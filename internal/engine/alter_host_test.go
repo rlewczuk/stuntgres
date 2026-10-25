@@ -14,7 +14,7 @@ func TestAlterHostInputReflectsCheckSnapshotCapture(t *testing.T) {
 	scope := &StatementScope{Op: op, Owner: op.Session.Transactions}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	var h table.AlterHost = alterHost{DDLHost: DDLHost{E: e, Op: op}, scope: scope}
+	var h table.AlterHost = alterHost{TableHost: TableHost{DDLHost{E: e, Op: op}}, scope: scope}
 	if h.Input().Regcollation != nil {
 		t.Fatal("a fresh scope already resolves regcollation input")
 	}

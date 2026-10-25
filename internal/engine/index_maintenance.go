@@ -57,7 +57,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
 	stage.Indexes().Output = scope.Output
-	if err := index.StageMaintenance(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, g, stmt); err != nil {
+	if err := index.StageMaintenance(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, g, stmt); err != nil {
 		e.Mu.Unlock()
 		e.DiscardCatalogStage(stage)
 		return Result{}, index.DefaultClassDiagnostic(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, err)

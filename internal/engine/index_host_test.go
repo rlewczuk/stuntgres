@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func indexHostFixture(t *testing.T) (DDLHost, AuthorizationView, partialIndexFixture) {
+func indexHostFixture(t *testing.T) (TableHost, AuthorizationView, partialIndexFixture) {
 	t.Helper()
 	f := newPartialIndexFixture(t)
 	op, done := roleOperation(t, f.e, "postgres")
@@ -23,7 +23,7 @@ func indexHostFixture(t *testing.T) (DDLHost, AuthorizationView, partialIndexFix
 	}
 	stage := f.e.BeginCatalogStage(auth.Catalog)
 	t.Cleanup(func() { f.e.DiscardCatalogStage(stage) })
-	return DDLHost{E: f.e, Op: op, CatalogStage: stage}, auth, f
+	return TableHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, f
 }
 
 func TestIndexHostBindPredicateMatchesEngineBinding(t *testing.T) {

@@ -21,7 +21,7 @@ import (
 // rebuildPrimaryKeyTypeLocked rebuilds the unique backings and then the NOT
 // NULL constraints of an ALTER COLUMN TYPE, in the ALTER TABLE order.
 func rebuildPrimaryKeyTypeLocked(e *engine.Engine, stage *engine.CatalogStage, parent *catalog.Relation, transformations []index.ColumnTransformation) (*catalog.Relation, error) {
-	next, err := index.RebuildAlterUniques(engine.DDLHost{E: e, CatalogStage: stage}, parent, transformations)
+	next, err := index.RebuildAlterUniques(engine.TableHost{DDLHost: engine.DDLHost{E: e, CatalogStage: stage}}, parent, transformations)
 	if err != nil {
 		return nil, err
 	}

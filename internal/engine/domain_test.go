@@ -28,7 +28,7 @@ func domainUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) *
 		auth, err = e.AuthorizationLocked(op)
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			err = typedef.StageCreateEnumLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, enum)
+			err = typedef.StageCreateEnumLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, enum)
 		}
 	} else {
 		stage, err = e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
@@ -215,7 +215,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
 		e.Mu.Lock()
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err := typedef.StageCreateDomainLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		err := typedef.StageCreateDomainLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.Mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
 		if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {
@@ -259,7 +259,7 @@ func TestDomainDeclarationClausesAtomicInternal(t *testing.T) {
 	auth := catalogAuthorization(e, e.CatalogRead())
 	var dependencies []access.RoleDependency
 	access.DescriptorRoleDependencies(d, d.Owner, &dependencies)
-	if len(dependencies) == 0 || (DDLHost{E: e}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
+	if len(dependencies) == 0 || (RoleHost{DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of type nullable" {
 		t.Fatal("domain role dependency", dependencies)
 	}
 }

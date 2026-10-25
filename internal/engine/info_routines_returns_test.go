@@ -84,7 +84,7 @@ func TestInfoRoutinesDeclaredReturnGenerations(t *testing.T) {
 			declaration := statement(t, "CREATE FUNCTION public.ir_result() RETURNS "+resultSQL+" LANGUAGE SQL AS 'SELECT NULL::"+resultSQL+"'").(*parser.CreateFunction)
 			f.e.Mu.Lock()
 			stage := f.e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(DDLHost{E: f.e, Op: op, CatalogStage: stage}, auth, declaration, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(RoutineHost{DDLHost{E: f.e, Op: op, CatalogStage: stage}}, auth, declaration, sqltype.InputEnvironment{})
 			f.e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

@@ -326,7 +326,7 @@ func TestObjectGrantIndexOwnershipUsesParentDependency(t *testing.T) {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()
-	if err != nil || (engine.DDLHost{E: e}).DescribeRoleDependency(auth, dependencies[0]) != "owner of table grant_unit" {
+	if err != nil || (engine.RoleHost{DDLHost: engine.DDLHost{E: e}}).DescribeRoleDependency(auth, dependencies[0]) != "owner of table grant_unit" {
 		t.Fatal("parent ownership diagnostic", dependencies, err)
 	}
 }
@@ -484,7 +484,7 @@ func TestObjectGrantPlanWarningsBeforeError(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	req, err := role.ObjectGrantRequest(engine.DDLHost{E: e, Op: op}, v, request)
+	req, err := role.ObjectGrantRequest(engine.RoleHost{DDLHost: engine.DDLHost{E: e, Op: op}}, v, request)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)

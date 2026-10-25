@@ -46,7 +46,7 @@ func TestFDWStageTable(t *testing.T) {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
 		stage.AuthorizeLocked(auth, op.Session)
-		jobs, roots, err := fdw.StageTable(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, enginetest.Statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
+		jobs, roots, err := fdw.StageTable(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, enginetest.Statement(t, sql).(*parser.ForeignDDL), sqltype.InputEnvironment{})
 		return stage, jobs, roots, err
 	}
 

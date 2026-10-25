@@ -37,7 +37,7 @@ func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Upd
 		e.Mu.Unlock()
 		return err
 	}
-	next, commit, err := table.RetiredConstraintCandidate(DDLHost{E: e, Op: op}, auth, auth.Catalog, ref, repair, authority)
+	next, commit, err := table.RetiredConstraintCandidate(TableHost{DDLHost{E: e, Op: op}}, auth, auth.Catalog, ref, repair, authority)
 	if err != nil {
 		e.Mu.Unlock()
 		return err

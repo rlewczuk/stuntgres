@@ -15,7 +15,7 @@ import (
 func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (table.PreparedAddedChecks, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.PrepareAddedChecks(alterHost{DDLHost{E: e, Op: op}, scope}, scope.inheritancePlan(), auth, parent, raw)
+	return table.PrepareAddedChecks(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, scope.inheritancePlan(), auth, parent, raw)
 }
 
 func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
@@ -50,7 +50,7 @@ func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, 
 func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	h := DDLHost{E: e, Op: op, CatalogStage: stage}
+	h := TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}
 	next, err := table.StageAddedUnique(h, op, parent, raw)
 	if err != nil {
 		return nil, index.DefaultClassDiagnostic(h, auth, err)
@@ -61,5 +61,5 @@ func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView,
 func (e *Engine) stageAddedForeignKey(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ForeignKeyConstraint, target, supporting ids.ObjectAddress) (*catalog.Relation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.StageAddedForeignKey(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, parent, raw, target, supporting)
+	return table.StageAddedForeignKey(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, parent, raw, target, supporting)
 }

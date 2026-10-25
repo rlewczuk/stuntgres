@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (h DDLHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectName, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
+func (h RoutineHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectName, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
 	// Support-function identity lookup is an object-address utility, not an
 	// expression. Preserve the AST while using its namespace without a location.
 	if len(name.Parts) == 2 {
@@ -26,7 +26,7 @@ func (h DDLHost) SelectFamilyFunction(a ddl.Authority, name parser.ObjectName, s
 	return identity, count, nil
 }
 
-func (h DDLHost) CheckFamilyMemberDrop(auth ddl.Authority, target ids.ObjectAddress) error {
+func (h RoutineHost) CheckFamilyMemberDrop(auth ddl.Authority, target ids.ObjectAddress) error {
 	if err := h.RecordDependencyPath(auth); err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ func TestRoleHostStageless(t *testing.T) {
 	op, auth := conversionUnitAuth(t, e)
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	var h role.Host = DDLHost{E: e, Op: op}
+	var h role.Host = RoleHost{DDLHost{E: e, Op: op}}
 	for _, name := range []parser.ObjectName{ddlHostName("lower"), ddlHostName("pg_catalog", "lower")} {
 		got, err := h.SearchNamespaces(auth, name, ids.ProcedureClassID)
 		if err != nil {
@@ -60,7 +60,7 @@ func TestRoleHostStageless(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var sh role.StageHost = DDLHost{E: e, Op: op, CatalogStage: stage}
+	var sh role.StageHost = RoleHost{DDLHost{E: e, Op: op, CatalogStage: stage}}
 	if sh.OwnerStage() != role.OwnedCleanupStage(stage) {
 		t.Fatal("OwnerStage is not the wrapped stage")
 	}

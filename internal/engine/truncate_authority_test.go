@@ -51,7 +51,7 @@ func truncateUnitFK(t *testing.T, e *Engine, parent, child ids.ObjectRef) {
 	next.ObjectRevision++
 	raw := parser.ForeignKeyConstraint{Columns: []parser.Identifier{{Text: "id"}}, Referenced: []parser.Identifier{{Text: "id"}}, Target: parser.ObjectName{Parts: []parser.Identifier{{Text: "p"}}}}
 	e.Mu.Lock()
-	err := table.StageForeignKey(DDLHost{E: e, CatalogStage: stage}, catalogAuthorization(e, base), &next, raw, parent.Address, ids.ObjectAddress{})
+	err := table.StageForeignKey(TableHost{DDLHost{E: e, CatalogStage: stage}}, catalogAuthorization(e, base), &next, raw, parent.Address, ids.ObjectAddress{})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

@@ -24,7 +24,7 @@ func TestViewHostSeam(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var h view.Host = engine.DDLHost{E: e, Op: op}
+	var h view.Host = engine.ViewHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op}}}
 	if got := h.TemporaryOwner(auth); got != op.Session.SessionToken || got == (ids.SessionToken{}) {
 		t.Fatalf("TemporaryOwner = %v, want the session token %v", got, op.Session.SessionToken)
 	}
@@ -35,7 +35,7 @@ func TestViewHostSeam(t *testing.T) {
 
 	clean := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(clean)
-	var sh view.StageHost = engine.DDLHost{E: e, Op: op, CatalogStage: clean}
+	var sh view.StageHost = engine.ViewHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: clean}}}
 	if err := sh.ReownDisplacedTypes(); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestViewHostSeam(t *testing.T) {
 
 	displaced := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(displaced)
-	sh = engine.DDLHost{E: e, Op: op, CatalogStage: displaced}
+	sh = engine.ViewHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: displaced}}}
 	available, err := sh.DisplaceAssociatedArray(public, "_displaced")
 	if err != nil || !available {
 		t.Fatalf("DisplaceAssociatedArray = %v, %v; want the array displaced", available, err)

@@ -105,5 +105,5 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation
 
 // cookAlterDefaultLocked cooks SET DEFAULT; the caller holds Engine.mu.
 func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
-	return table.CookAlterDefault(alterHost{DDLHost{E: e, Op: op}, scope}, auth, old, slot, expression)
+	return table.CookAlterDefault(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, old, slot, expression)
 }

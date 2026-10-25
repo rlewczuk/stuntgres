@@ -37,7 +37,7 @@ func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	return DDLHost{E: e, Op: op}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
+	return ViewHost{TableHost{DDLHost{E: e, Op: op}}}.BindPolicyExpression(auth, d, raw.Using, sqltype.InputEnvironment{})
 }
 func TestRLSPolicyFrozenExpression(t *testing.T) {
 	for _, condition := range []string{

@@ -14,5 +14,5 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation
 	scope.RoutineAuth = auth
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.AddColumnCandidate(alterHost{DDLHost{E: e, Op: op}, scope}, auth, old, action, captured)
+	return table.AddColumnCandidate(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, old, action, captured)
 }

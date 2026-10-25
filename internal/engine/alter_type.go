@@ -47,7 +47,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *session.Oper
 // Engine.mu. suppliedUsage is used only by typed propagation of an already
 // resolved type.
 func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, suppliedUsage *sqltype.Usage) (table.AlterTypePreparation, error) {
-	return table.PrepareAlterType(alterHost{DDLHost{E: e, Op: op}, scope}, auth, original, ref, a, suppliedUsage)
+	return table.PrepareAlterType(alterHost{TableHost{DDLHost{E: e, Op: op}}, scope}, auth, original, ref, a, suppliedUsage)
 }
 
 // alterTypeCandidate runs the TYPE candidate under Engine.mu; stage, when
@@ -55,7 +55,7 @@ func (e *Engine) prepareAlterTypeLocked(scope *StatementScope, op *session.Opera
 func (e *Engine) alterTypeCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, original, next *catalog.Relation, ref ids.ObjectRef, a parser.AlterTableAction, prepared table.AlterTypePreparation) (*catalog.Relation, index.ColumnTransformation, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.AlterTypeCandidate(alterHost{DDLHost{E: e, Op: op, CatalogStage: stage}, scope}, auth, original, next, ref, a, prepared)
+	return table.AlterTypeCandidate(alterHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, scope}, auth, original, next, ref, a, prepared)
 }
 
 // alterRowEvaluation is the statement's evaluation template for ALTER row

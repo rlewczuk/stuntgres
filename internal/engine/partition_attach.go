@@ -183,7 +183,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operat
 		return Result{}, err
 	}
 	e.Mu.Lock()
-	err = partition.StageIndexChildren(DDLHost{E: e, Op: op, CatalogStage: stage}, parent, child.Address(), true)
+	err = partition.StageIndexChildren(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, parent, child.Address(), true)
 	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err

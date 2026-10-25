@@ -14,13 +14,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// alterHost implements table.AlterHost: the shared ddlHost bound to one
-// statement scope, whose input, output and inquiry state the ALTER bindings
-// and captures read and write. Callers build one per call because the ALTER
+// alterHost implements table.AlterHost: TableHost bound to one statement
+// scope, whose input, output and inquiry state the ALTER bindings and captures
+// read and write. Callers build one per call because the ALTER
 // loop begins its stage lazily, so stage may be nil. Every method runs under
 // Engine.mu and never waits.
 type alterHost struct {
-	DDLHost
+	TableHost
 	scope *StatementScope
 }
 

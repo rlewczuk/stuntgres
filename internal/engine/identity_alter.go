@@ -18,7 +18,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 	case parser.DropIdentity:
 		return table.DropIdentity(StageDropProvider(scope.Op.Context(), stage, scope, nil, nil), old, action)
 	case parser.AddIdentity:
-		h := DDLHost{E: e, CatalogStage: stage}
+		h := TableHost{DDLHost{E: e, CatalogStage: stage}}
 		if scope != nil {
 			h.Op = scope.Op
 		}
@@ -36,7 +36,7 @@ func (e *Engine) identityCandidate(scope *StatementScope, auth AuthorizationView
 			return old, err
 		}
 		e.Mu.Lock()
-		err := (alterHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
+		err := (alterHost{TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, scope}).StageIdentitySequenceOptions(old, attribute, identity.Sequence, options)
 		e.Mu.Unlock()
 		if err != nil {
 			return old, err

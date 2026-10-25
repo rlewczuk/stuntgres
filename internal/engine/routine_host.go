@@ -6,37 +6,35 @@ import (
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
 	"stuntgres/internal/engine/proc"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// The routine.DDLHost methods of ddlHost beyond the shared ddl.Host.
+// RoutineHost is the family host of the routine, operator, cast and
+// operator-family decisions: the routine.DDLHost methods beyond the shared
+// DDLHost here, and index.FamilyDDLHost with operator_family_host.go.
+type RoutineHost struct {
+	DDLHost
+}
 
-var _ routine.DDLHost = DDLHost{}
+var (
+	_ routine.DDLHost     = RoutineHost{}
+	_ index.FamilyDDLHost = RoutineHost{}
+)
 
-func (h DDLHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
+func (h RoutineHost) DefinitionType(a ddl.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
 	return DDLAuthorityOf(a).definitionType(id)
 }
 
-func (h DDLHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
+func (h RoutineHost) DefinitionLookup(a ddl.Authority, key ids.NameKey) ids.ObjectAddress {
 	return DDLAuthorityOf(a).DefinitionLookup(key)
 }
 
-func (h DDLHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
-	v := DDLAuthorityOf(a)
-	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
-	if err != nil {
-		return catalog.RoutineIdentity{}, 0, err
-	}
-	identity, count := regobj.SelectRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, &signature)
-	return identity, count, nil
-}
-
-func (h DDLHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
+func (h RoutineHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName, inputs []sqltype.Usage) (*catalog.Procedure, []sqltype.Usage, sqltype.Usage, error) {
 	v := DDLAuthorityOf(a)
 	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
 	if err != nil {
@@ -64,7 +62,7 @@ func (h DDLHost) SelectAggregateSupport(a ddl.Authority, name parser.ObjectName,
 	return selected.Procedure, formals, result, err
 }
 
-func (h DDLHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
+func (h RoutineHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, error) {
 	input, err := CaptureRegtypeInput(DDLAuthorityOf(a), h.Op)
 	if err != nil {
 		return 0, err
@@ -75,7 +73,7 @@ func (h DDLHost) ResolveRegtype(a ddl.Authority, raw parser.TypeName) (ids.OID, 
 
 // BindSQLRoutine binds d's body with the stage's definitions in place of the
 // operation's. Restore defers SQL body validation until the import ends.
-func (h DDLHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
+func (h RoutineHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sqltype.InputEnvironment) error {
 	if OperationReplayOrZero(h.Op).SQLBodies && !d.SQL.Standard && d.SQL.Kind != proc.PLpgSQLBody {
 		return nil
 	}
@@ -93,7 +91,7 @@ func (h DDLHost) BindSQLRoutine(a ddl.Authority, d *catalog.Procedure, input sql
 
 // Defaults never share quoted-body replay deferral. Their legitimate stage
 // includes prior staged objects, but not the declaration currently being built.
-func (h DDLHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []parser.RoutineParameter, input sqltype.InputEnvironment) error {
+func (h RoutineHost) BindSQLDefaults(a ddl.Authority, d *catalog.Procedure, raw []parser.RoutineParameter, input sqltype.InputEnvironment) error {
 	if d.SQL.DefaultCount() == 0 {
 		return nil
 	}

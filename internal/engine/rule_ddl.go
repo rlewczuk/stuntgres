@@ -25,7 +25,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	if err != nil {
 		return fail(err)
 	}
-	host := DDLHost{E: e, Op: scope.Op}
+	host := ViewHost{TableHost{DDLHost{E: e, Op: scope.Op}}}
 	definition, err := view.BeginRule(host, auth, stmt, scope.LockedRef)
 	if err != nil {
 		return fail(err)

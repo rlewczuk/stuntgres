@@ -175,7 +175,7 @@ func TestTriggerCoreWhenProvider(t *testing.T) {
 	var query *parser.Select
 	var binding analyze.Binding
 	if err == nil {
-		var h view.Host = DDLHost{E: e, Op: scope.Op}
+		var h view.Host = ViewHost{TableHost{DDLHost{E: e, Op: scope.Op}}}
 		condition, query, binding, err = h.BindTriggerWhen(auth, &analyze.RuleNamespace{Relation: relation, Ref: read.Owner().Domain.Ref(read.Epoch(), relation.Address()), Event: "UPDATE", Trigger: true}, raw, scope.Input)
 	}
 	e.Mu.Unlock()

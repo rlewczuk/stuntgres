@@ -35,7 +35,7 @@ func TestTableHostBindColumnDefaultsMatchesCreateTable(t *testing.T) {
 
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = engine.DDLHost{E: e, Op: op, CatalogStage: stage}
+	var h table.Host = engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}
 	b, err := h.DescribeCreateTable(auth, s, sqltype.InputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
@@ -62,7 +62,7 @@ func TestTableHostStageChangedReportsStagedDescriptor(t *testing.T) {
 	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	var h table.Host = engine.DDLHost{E: e, Op: op, CatalogStage: stage}
+	var h table.Host = engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}
 	if h.StageChanged() {
 		t.Fatal("a new stage reports a change")
 	}

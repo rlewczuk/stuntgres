@@ -16,7 +16,7 @@ import (
 
 // Engine.mu is held. Analysis shares the ordinary Boolean binder and frozen
 // query presentation; no condition is evaluated and no row storage is opened.
-func (h DDLHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*stored.Policy, error) {
+func (h ViewHost) BindPolicyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*stored.Policy, error) {
 	if raw == nil {
 		return nil, nil
 	}

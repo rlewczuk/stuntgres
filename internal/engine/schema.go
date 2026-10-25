@@ -275,7 +275,7 @@ func (e *Engine) prepareCollationCreateLocked(op *session.Operation, stmt *parse
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	plan, err := typedef.PrepareCreateCollationLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, stmt)
+	plan, err := typedef.PrepareCreateCollationLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, stmt)
 	return stage, plan, err
 }
 
@@ -299,7 +299,7 @@ func (e *Engine) completeCollationCreateLocked(op *session.Operation, prepared *
 		e.DiscardCatalogStage(prepared)
 	}
 	stage.AuthorizeLocked(auth, op.Session)
-	host := DDLHost{E: e, Op: op, CatalogStage: stage}
+	host := TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}
 	err = typedef.StagePreparedCollationLocked(host, auth, plan)
 	return stage, err
 }
@@ -329,7 +329,7 @@ func (e *Engine) stageSchemaDropLocked(op *session.Operation, stmt *parser.DropS
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
-	if staged, err := ddl.StageDropSchema(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, stmt, manifest); err != nil || !staged {
+	if staged, err := ddl.StageDropSchema(SchemaHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, stmt, manifest); err != nil || !staged {
 		return nil, err
 	}
 	return stage, nil
@@ -343,127 +343,128 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.AuthorizeLocked(auth, op.Session)
 	host := DDLHost{E: e, Op: op, CatalogStage: stage}
+	typeHost, routineHost, schemaHost := TypeHost{TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
 	case *parser.CreateAccessMethod:
-		if err = index.StageCreateAccessMethod(host, auth, s); err != nil {
+		if err = index.StageCreateAccessMethod(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropAccessMethod:
-		if err = index.StageDropAccessMethod(host, auth, s); err != nil {
+		if err = index.StageDropAccessMethod(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateCast:
-		if err = routine.StageCreateCast(host, auth, s); err != nil {
+		if err = routine.StageCreateCast(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropCast:
-		if err = routine.StageDropCast(host, auth, s); err != nil {
+		if err = routine.StageDropCast(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateComposite:
-		if err = typedef.StageCreateCompositeLocked(host, auth, s); err != nil {
+		if err = typedef.StageCreateCompositeLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateCollation:
-		if err = typedef.StageCreateCollationLocked(host, auth, s); err != nil {
+		if err = typedef.StageCreateCollationLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterCollation:
-		if err = typedef.StageAlterCollationLocked(host, auth, s); err != nil {
+		if err = typedef.StageAlterCollationLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropCollation:
-		if err = typedef.StageDropCollationLocked(host, auth, s); err != nil {
+		if err = typedef.StageDropCollationLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateConversion:
-		if err = typedef.StageCreateConversionLocked(host, auth, s); err != nil {
+		if err = typedef.StageCreateConversionLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterConversion:
-		if err = typedef.StageAlterConversionLocked(host, auth, s); err != nil {
+		if err = typedef.StageAlterConversionLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropConversion:
-		if err = typedef.StageDropConversionLocked(host, auth, s); err != nil {
+		if err = typedef.StageDropConversionLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateAggregate:
-		if err = routine.StageCreateAggregate(host, auth, s, input); err != nil {
+		if err = routine.StageCreateAggregate(routineHost, auth, s, input); err != nil {
 			return nil, err
 		}
 	case *parser.CreateFunction:
-		if err = routine.StageCreateFunction(host, auth, s, input); err != nil {
+		if err = routine.StageCreateFunction(routineHost, auth, s, input); err != nil {
 			return nil, err
 		}
 	case *parser.CreateLanguage:
 		return nil, routine.RejectCreateLanguage(host, auth)
 	case *parser.AlterRoutine:
-		if err = routine.StageAlterRoutine(host, auth, s); err != nil {
+		if err = routine.StageAlterRoutine(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropRoutine:
-		if err = routine.StageDropRoutine(host, auth, s); err != nil {
+		if err = routine.StageDropRoutine(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateOperatorFamily:
-		if err = index.StageCreateOperatorFamily(host, auth, s); err != nil {
+		if err = index.StageCreateOperatorFamily(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterOperatorFamily:
-		if err = index.StageAlterOperatorFamily(host, auth, s); err != nil {
+		if err = index.StageAlterOperatorFamily(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropOperatorFamily:
-		if err = index.StageDropOperatorFamily(host, auth, s); err != nil {
+		if err = index.StageDropOperatorFamily(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateOperatorClass:
-		if err = index.StageCreateOperatorClass(host, auth, s); err != nil {
+		if err = index.StageCreateOperatorClass(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterOperatorClass:
-		if err = index.StageAlterOperatorClass(host, auth, s); err != nil {
+		if err = index.StageAlterOperatorClass(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropOperatorClass:
-		if err = index.StageDropOperatorClass(host, auth, s); err != nil {
+		if err = index.StageDropOperatorClass(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateOperator:
-		if err = routine.StageCreateOperator(host, auth, s); err != nil {
+		if err = routine.StageCreateOperator(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterOperator:
-		if err = routine.StageAlterOperator(host, auth, s); err != nil {
+		if err = routine.StageAlterOperator(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropOperator:
-		if err = routine.StageDropOperator(host, auth, s); err != nil {
+		if err = routine.StageDropOperator(routineHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateDomain:
-		if err = typedef.StageCreateDomainLocked(host, auth, s, input, output); err != nil {
+		if err = typedef.StageCreateDomainLocked(typeHost, auth, s, input, output); err != nil {
 			return nil, err
 		}
 	case *parser.AlterDomain:
-		if err = typedef.StageAlterDomainIdentityLocked(host, auth, s); err != nil {
+		if err = typedef.StageAlterDomainIdentityLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropDomain:
-		if err = typedef.StageDropDomainLocked(host, auth, s); err != nil {
+		if err = typedef.StageDropDomainLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterType:
-		if err = typedef.StageAlterTypeIdentityLocked(host, auth, s); err != nil {
+		if err = typedef.StageAlterTypeIdentityLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropType:
-		if err = typedef.StageDropTypeLocked(host, auth, s); err != nil {
+		if err = typedef.StageDropTypeLocked(typeHost, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateSchema:
-		if staged, err := ddl.StageCreateSchema(host, auth, s, input); err != nil || !staged {
+		if staged, err := ddl.StageCreateSchema(schemaHost, auth, s, input); err != nil || !staged {
 			return nil, err
 		}
 	case *parser.AlterSchema:
@@ -475,7 +476,7 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		if err != nil {
 			return nil, err
 		}
-		if staged, err := ddl.StageDropSchema(host, auth, s, manifest); err != nil || !staged {
+		if staged, err := ddl.StageDropSchema(schemaHost, auth, s, manifest); err != nil || !staged {
 			return nil, err
 		}
 	default:

@@ -348,7 +348,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 				plan, planErr := role.PlanOwned(auth.View, stmt, func(a ids.ObjectAddress) string { return stored.DependencyObject(auth.Catalog, a, path) })
 				err = planErr
 				if err == nil {
-					err = role.StageOwned(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, plan)
+					err = role.StageOwned(RoleHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, plan)
 				}
 			}
 			e.Mu.Unlock()

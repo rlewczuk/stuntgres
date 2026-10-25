@@ -15,12 +15,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ddlHost implements partition.Host for CREATE ... PARTITION OF and
-// PARTITION BY. Like the rest of ddlHost, every method runs under Engine.mu
+// TableHost implements partition.Host for CREATE ... PARTITION OF and
+// PARTITION BY. Like DDLHost, every method runs under Engine.mu
 // and never waits.
-var _ partition.Host = DDLHost{}
+var _ partition.Host = TableHost{}
 
-func (h DDLHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, []int, error) {
+func (h TableHost) BindKeyExpression(a ddl.Authority, d *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, []int, error) {
 	auth := DDLAuthorityOf(a)
 	ref := h.E.Catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	namespace := analyze.RelationNamespace(auth.Catalog, d, ref, 0)

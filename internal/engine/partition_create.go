@@ -46,7 +46,7 @@ func (e *Engine) schemaPartitionTableLocked(scope *StatementScope, auth Authoriz
 			return nil, err
 		}
 	}
-	definition, err := partition.StageCreate(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, scope.foreignKeysOrZero().KeyTargets)
+	definition, err := partition.StageCreate(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, syntax, namespace, parent, auth.State.CurrentUser, scope.Input, scope.foreignKeysOrZero().KeyTargets)
 	if err != nil {
 		return nil, err
 	}
@@ -112,5 +112,5 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	e := scope.Engine()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return partition.StageIndexChildren(DDLHost{E: e, Op: scope.Op, CatalogStage: p.stage}, p.Parent, p.Child.Address(), false)
+	return partition.StageIndexChildren(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: p.stage}}, p.Parent, p.Child.Address(), false)
 }

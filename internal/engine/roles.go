@@ -73,7 +73,7 @@ func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count
 		}
 		return Result{}, e.switchSessionRoleLocked(op, target, false, true)
 	case *parser.DropRole:
-		plan, err := role.PlanDropRoles(DDLHost{E: e, Op: op}, v, s)
+		plan, err := role.PlanDropRoles(RoleHost{DDLHost{E: e, Op: op}}, v, s)
 		if err != nil {
 			return Result{}, err
 		}

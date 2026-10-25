@@ -43,7 +43,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		definition.Constraints.Check = nil
 		syntax := enginetest.Statement(t, "CREATE TABLE leaf(k INT,CONSTRAINT actual CHECK("+test.expression+"))").(*parser.CreateTable)
 		e.Mu.Lock()
-		err := table.BindChecks(engine.DDLHost{E: e, Op: op}, auth, &definition, table.CreateCheckSyntax(syntax), sqltype.InputEnvironment{}, false, nil)
+		err := table.BindChecks(engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op}}, auth, &definition, table.CreateCheckSyntax(syntax), sqltype.InputEnvironment{}, false, nil)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(test, err)

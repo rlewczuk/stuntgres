@@ -126,7 +126,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, createView *parser.Cre
 	stage := e.BeginCatalogStage(base)
 	stage.AuthorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
-	err = view.StageCreate(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, createView, old, ns, b, options, scope.ViewCreationOrZero().Persistence == "temporary")
+	err = view.StageCreate(ViewHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, createView, old, ns, b, options, scope.ViewCreationOrZero().Persistence == "temporary")
 	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err

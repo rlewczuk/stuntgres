@@ -19,7 +19,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	stage.AuthorizeLocked(auth, scope.Op.Session)
-	importer, request, err := fdw.PlanImport(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, s)
+	importer, request, err := fdw.PlanImport(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, s)
 	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err
@@ -51,7 +51,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		}
 		var validations []fdw.Validation
 		if currentErr == nil {
-			validations, _, currentErr = fdw.StageTable(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, table, scope.Input)
+			validations, _, currentErr = fdw.StageTable(TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, table, scope.Input)
 		}
 		e.Mu.Unlock()
 		if currentErr != nil {

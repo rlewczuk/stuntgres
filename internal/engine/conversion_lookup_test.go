@@ -126,7 +126,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		stage = e.BeginCatalogStage(auth.Catalog)
 		before := auth.Catalog.State()
 		e.Mu.Lock()
-		err = typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+		err = typedef.StageCreateConversionLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, create)
 		e.Mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for function pg_catalog.utf8_to_iso8859_1" {
@@ -148,7 +148,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		auth.State.CurrentUser = actor
 		stage = e.BeginCatalogStage(auth.Catalog)
 		e.Mu.Lock()
-		err = typedef.StageCreateConversionLocked(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+		err = typedef.StageCreateConversionLocked(TypeHost{TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, create)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal("restored real handler grant did not recover CREATE", err)

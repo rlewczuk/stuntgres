@@ -24,7 +24,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 		e.Mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: invalid table drop")
 	}
-	refs, notices, err := table.DropTargets(DDLHost{E: e, Op: op}, auth, s)
+	refs, notices, err := table.DropTargets(TableHost{DDLHost{E: e, Op: op}}, auth, s)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err
@@ -67,7 +67,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, a
 			return Result{}, ids.ErrCatalogReplaced
 		}
 	}
-	fresh, freshNotices, err := table.DropTargets(DDLHost{E: e, Op: op}, auth, s)
+	fresh, freshNotices, err := table.DropTargets(TableHost{DDLHost{E: e, Op: op}}, auth, s)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err

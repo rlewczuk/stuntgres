@@ -207,7 +207,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 	}
 	e.Mu.Lock()
-	h := DDLHost{E: e, Op: scope.Op, CatalogStage: stage}
+	h := TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}
 	next, err = index.RebuildAlterUniques(h, next, mutation.transforms)
 	if err == nil {
 		next, err = table.RebuildAlterNotNulls(DDLHost{E: e, CatalogStage: stage}, next, mutation.transforms)

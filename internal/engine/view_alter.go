@@ -95,7 +95,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		e.Mu.Unlock()
 		return Result{}, err
 	}
-	refs, notices, err := view.DropTargets(DDLHost{E: e, Op: scope.Op}, auth, s)
+	refs, notices, err := view.DropTargets(ViewHost{TableHost{DDLHost{E: e, Op: scope.Op}}}, auth, s)
 	if err != nil {
 		e.Mu.Unlock()
 		return Result{}, err

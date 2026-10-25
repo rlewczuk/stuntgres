@@ -27,7 +27,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	auth.Recapture(e.Catalog.Read(candidate))
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err := typedef.StageCreateConversionLocked(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	err := typedef.StageCreateConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, create)
 	e.Mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != "encoding conversion function pg_catalog.utf8_to_iso8859_1 must return type integer" {
@@ -47,7 +47,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	create.Default, create.Destination = true, "LATIN2"
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.Mu.Lock()
-	err = typedef.StageCreateConversionLocked(engine.DDLHost{E: e, Op: op, CatalogStage: stage}, auth, create)
+	err = typedef.StageCreateConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: op, CatalogStage: stage}}}, auth, create)
 	e.Mu.Unlock()
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "XX000" || diagnostic.Message != `expected destination encoding "LATIN1", but got "LATIN2"` {
 		t.Fatal("real empty probe did not precede duplicate checks", err)
@@ -64,7 +64,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	create.Name, create.Default, create.Destination = conversionUnitName("public", "canceled_probe"), false, "LATIN1"
 	stage = e.BeginCatalogStage(before)
 	e.Mu.Lock()
-	err = typedef.StageCreateConversionLocked(engine.DDLHost{E: e, Op: canceled, CatalogStage: stage}, auth, create)
+	err = typedef.StageCreateConversionLocked(engine.TypeHost{TableHost: engine.TableHost{DDLHost: engine.DDLHost{E: e, Op: canceled, CatalogStage: stage}}}, auth, create)
 	e.Mu.Unlock()
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("real empty handler context entry", err)

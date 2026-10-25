@@ -46,7 +46,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return next, step.Added, true, err
 	}
 	if step.Using != nil {
-		next, err := index.StageUsingIndex(DDLHost{E: scope.Engine(), Op: scope.Op, CatalogStage: stage}, old, step.Using)
+		next, err := index.StageUsingIndex(TableHost{DDLHost{E: scope.Engine(), Op: scope.Op, CatalogStage: stage}}, old, step.Using)
 		return next, step.Added, true, err
 	}
 	return step.Next, step.Added, true, nil

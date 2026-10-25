@@ -56,7 +56,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 		}
 	}
 	e.Mu.Lock()
-	err = role.StageOwned(DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, auth, plan)
+	err = role.StageOwned(RoleHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, auth, plan)
 	e.Mu.Unlock()
 	if err != nil {
 		return Result{}, err

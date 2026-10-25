@@ -24,7 +24,7 @@ func TestDDLHostStageSchemaTableKeepsAuthority(t *testing.T) {
 	defer e.Mu.Unlock()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	h := DDLHost{E: e, Op: op, CatalogStage: stage}
+	h := SchemaHost{DDLHost{E: e, Op: op, CatalogStage: stage}}
 	oid, err := h.AllocateOID()
 	if err != nil {
 		t.Fatal(err)

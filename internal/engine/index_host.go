@@ -12,35 +12,33 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// ddlHost implements index.Host for CREATE INDEX, ALTER/DROP INDEX, REINDEX
-// and constraint-index staging. Like the rest of ddlHost, every method runs
-// under Engine.mu and never waits.
-var _ index.Host = DDLHost{}
+// TableHost implements index.Host for CREATE INDEX, ALTER/DROP INDEX, REINDEX
+// and constraint-index staging; table.Host embeds it. Like DDLHost, every
+// method runs under Engine.mu and never waits.
+var _ index.Host = TableHost{}
 
-func (h DDLHost) IndexStage() *index.Stage { return h.CatalogStage.Indexes() }
+func (h TableHost) IndexStage() *index.Stage { return h.CatalogStage.Indexes() }
 
-func (h DDLHost) DescriptorStage() index.DescriptorStage { return h.CatalogStage }
+func (h TableHost) DescriptorStage() index.DescriptorStage { return h.CatalogStage }
 
-func (h DDLHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
+func (h TableHost) ACLOutput(view catalog.Read) regobj.ACLItemOutput {
 	owner := &h.E.Catalog.Owner
 	return regobj.ACLItemOutput{Owner: owner, Roles: h.E.RoleStore.Read(owner, view, h.E.OperationRolesLocked(h.Op))}
 }
 
-func (h DDLHost) DefinitionReader() catalog.DefinitionReader { return StageDefinitions(h.CatalogStage) }
+func (h TableHost) DefinitionReader() catalog.DefinitionReader {
+	return StageDefinitions(h.CatalogStage)
+}
 
-func (h DDLHost) ValidityTarget() index.ValidityTarget {
+func (h TableHost) ValidityTarget() index.ValidityTarget {
 	return StageDropProvider(context.Background(), h.CatalogStage, nil, nil, nil)
 }
 
-func (h DDLHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
-	return h.E.lookupCollation(raw, h.Op)
-}
-
-func (h DDLHost) BindIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error) {
+func (h TableHost) BindIndexExpression(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr, input sqltype.InputEnvironment) (*catalog.DerivedIndexKey, string, error) {
 	return h.E.bindIndexExpression(h.Op, input, DDLAuthorityOf(a), parent, raw, literals)
 }
 
-func (h DDLHost) BindIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error) {
+func (h TableHost) BindIndexPredicate(a ddl.Authority, parent *catalog.Relation, raw parser.Expr, input sqltype.InputEnvironment) (*catalog.IndexPredicate, error) {
 	return h.E.bindIndexPredicate(h.Op, input, DDLAuthorityOf(a), parent, raw)
 }
 

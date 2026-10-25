@@ -417,7 +417,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		var stage *CatalogStage
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			err = routine.StageCreateFunction(DDLHost{E: e, Op: s.Op, CatalogStage: stage}, auth, raw, sqltype.InputEnvironment{})
+			err = routine.StageCreateFunction(RoutineHost{DDLHost{E: e, Op: s.Op, CatalogStage: stage}}, auth, raw, sqltype.InputEnvironment{})
 		}
 		e.Mu.Unlock()
 		if err != nil {

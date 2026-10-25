@@ -170,5 +170,5 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation,
 // SchemaTableLocked stages CREATE TABLE s without a PARTITION clause; see
 // table.StageCreateTable. Called under Engine.mu.
 func (e *Engine) SchemaTableLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
-	return table.StageCreateTable(DDLHost{E: e, Op: op, CatalogStage: stage}, auth, s, ns, owner, input, foreignTargets)
+	return table.StageCreateTable(TableHost{DDLHost{E: e, Op: op, CatalogStage: stage}}, auth, s, ns, owner, input, foreignTargets)
 }

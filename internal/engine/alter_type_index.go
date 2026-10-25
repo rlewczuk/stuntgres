@@ -16,5 +16,5 @@ func captureAlterTypeIndexes(scope *StatementScope, view catalog.Read, original,
 func (e *Engine) rebindAlterTypeIndexes(scope *StatementScope, auth AuthorizationView, parent *catalog.Relation, stage *CatalogStage, queue []table.AlterTypeIndex) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return table.RebindAlterTypeIndexes(alterHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}, scope}, auth, parent, queue)
+	return table.RebindAlterTypeIndexes(alterHost{TableHost{DDLHost{E: e, Op: scope.Op, CatalogStage: stage}}, scope}, auth, parent, queue)
 }

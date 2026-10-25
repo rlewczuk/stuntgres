@@ -22,7 +22,7 @@ func (e *Engine) executeObjectGrant(scope *StatementScope, statement *parser.Obj
 	publishedRoles := e.RoleStore.Published
 	var request role.GrantRequest
 	if err == nil {
-		request, err = role.ObjectGrantRequest(DDLHost{E: e, Op: scope.Op}, auth, statement)
+		request, err = role.ObjectGrantRequest(RoleHost{DDLHost{E: e, Op: scope.Op}}, auth, statement)
 	}
 	e.Mu.Unlock()
 	if err != nil {

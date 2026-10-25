@@ -10,26 +10,39 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/engine/table"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-// DDLHost is the one root staging adapter: it implements ddl.Host here,
-// routine.DDLHost in routine_host.go and typedef.StageHost in
-// typedef_host.go, for one DDL statement. Staging runs under Engine.mu without
-// a StatementScope, so it holds the engine, the operation and the catalog
-// stage, and no authorization view: the handlers pass their authority in.
-// Like extensionHost it wraps the stage and is never a defined type over
-// CatalogStage, so Create and Replace keep the stage's lifecycle checks.
+// DDLHost is the core staging adapter for one DDL statement: ddl.Host, plus
+// what core paths call (LookupCollation for index.KeyHost, NamedType for
+// table.TypedResolver, OtherDatabaseDependencies) and the methods that
+// families with no arrow between them share (AddDomainBase, RemoveObject,
+// RelationDiagnostic, ResolveRelation, SelectFunction). Each family host
+// embeds it, so every host has this {E, Op, CatalogStage} layout:
+// TableHost (table_host.go), TypeHost (typedef_host.go), ViewHost
+// (view_host.go), RoutineHost (routine_host.go), RoleHost (role_host.go)
+// and SchemaHost (schema_host.go). Family code builds its own host.
+// Staging runs under Engine.mu without a StatementScope, so it holds the
+// engine, the operation and the catalog stage, and no authorization view: the
+// handlers pass their authority in. Like extensionHost it wraps the stage and
+// is never a defined type over CatalogStage, so Create and Replace keep the
+// stage's lifecycle checks.
 type DDLHost struct {
 	E            *Engine
 	Op           *session.Operation
 	CatalogStage *CatalogStage
 }
 
-var _ ddl.Host = DDLHost{}
+var (
+	_ ddl.Host            = DDLHost{}
+	_ ddl.Allocator       = DDLHost{}
+	_ table.TypedResolver = DDLHost{}
+)
 
 // DDLAuthority marks AuthorizationView as a ddl.Authority.
 func (AuthorizationView) DDLAuthority() {}
@@ -133,4 +146,63 @@ func (h DDLHost) Context() context.Context { return h.Op.Context() }
 
 func (h DDLHost) EmitNotice(level session.NoticeLevel, diagnostic sqlstate.Error) {
 	h.Op.EmitNotice(level, diagnostic)
+}
+
+func (h DDLHost) LookupCollation(raw parser.ObjectName) (uint32, error) {
+	return h.E.lookupCollation(raw, h.Op)
+}
+
+func (h DDLHost) AddDomainBase(d catalog.Descriptor) {
+	h.CatalogStage.DomainBases = append(h.CatalogStage.DomainBases, d)
+}
+
+func (h DDLHost) NamedType(a ddl.Authority, name parser.ObjectName) (*catalog.Type, error) {
+	return h.E.namedType(DDLAuthorityOf(a), name)
+}
+
+func (h DDLHost) ResolveRelation(a ddl.Authority, name parser.ObjectName) (ids.ObjectRef, error) {
+	return h.E.ResolveRelationReference(DDLAuthorityOf(a), name, true)
+}
+
+func (h DDLHost) OtherDatabaseDependencies(ref authorization.PrincipalRef) []access.RoleDependency {
+	var result []access.RoleDependency
+	for _, target := range h.E.Cluster.Targets {
+		if target == h.E {
+			continue
+		}
+		var dependencies []access.RoleDependency
+		for address, descriptor := range target.Catalog.State.Descriptors() {
+			if address.ClassID != ids.DatabaseClassID {
+				access.DescriptorRoleDependencies(descriptor, ref, &dependencies)
+			}
+		}
+		view := target.Catalog.Current()
+		access.DefaultRoleDependencies(view, target.RoleStore.PublishedRead(&target.Catalog.Owner, view), ref, &dependencies)
+		if len(dependencies) != 0 {
+			kind := "objects"
+			if len(dependencies) == 1 {
+				kind = "object"
+			}
+			result = append(result, access.RoleDependency{Kind: 'a', Description: fmt.Sprintf("%d %s in database %s", len(dependencies), kind, target.DatabaseName)})
+		}
+	}
+	return result
+}
+
+func (h DDLHost) SelectFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int, error) {
+	v := DDLAuthorityOf(a)
+	path, err := h.E.lookupNamespaces(v, name, analyze.FunctionLookup)
+	if err != nil {
+		return catalog.RoutineIdentity{}, 0, err
+	}
+	identity, count := regobj.SelectRoutine(v.Catalog, path, name.Parts[len(name.Parts)-1].Text, &signature)
+	return identity, count, nil
+}
+
+func (h DDLHost) RemoveObject(ref ids.ObjectRef, namespace bool) error {
+	return h.CatalogStage.RemoveObjectLocked(ref, namespace)
+}
+
+func (h DDLHost) RelationDiagnostic(a ddl.Authority, relation *catalog.Relation) (kind, name string) {
+	return catalog.RelationDiagnosticKind(relation), relationDiagnosticName(DDLAuthorityOf(a), relation)
 }
