@@ -9,7 +9,9 @@ import (
 
 // BindDomainNotNull allocates one real domain-owned definition. Generated names
 // share the namespace reservation with CHECKs; explicit names are domain-local.
-func BindDomainNotNull(h StageHost, auth ddl.Authority, d *catalog.Type, name string) error {
+// It needs only the shared DDL host, so the engine's domain-check binding can
+// pass its core host.
+func BindDomainNotNull(h ddl.Host, auth ddl.Authority, d *catalog.Type, name string) error {
 	used := catalog.ConstraintNames(h.AccessView(auth).Catalog, d.Namespace(), nil)
 	for _, check := range d.DomainChecks {
 		if name != "" && name == check.Name {
