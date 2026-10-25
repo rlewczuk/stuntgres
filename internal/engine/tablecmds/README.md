@@ -17,8 +17,9 @@ runtime.
 
 It imports [`core`](../core/README.md) and the decision packages, never the
 root or another family. The root composition (dispatch and Restore hooks),
-[`indexcmds`](../indexcmds/README.md) and the families still in the root
-import it; by rule 6 every later family except `rolecmds` may. Code that tables share with those families lives here:
+[`indexcmds`](../indexcmds/README.md),
+[`partitioncmds`](../partitioncmds/README.md) and the families still in the
+root import it; by rule 6 every later family except `rolecmds` may. Code that tables share with those families lives here:
 renames, SET SCHEMA, typed sources, the IF EXISTS skip, the ALTER column
 candidates and type rebinds, `PrepareAlterTypeLocked`, and the hosts.
 
@@ -46,7 +47,7 @@ TEMP preservation, relation admission and publication.
 - Shared with other families: `SchemaTableLocked` (CREATE TABLE inside CREATE
   SCHEMA), `SkipMissingRelationLocked`, `AcquireTypedSources`,
   `AcquirePartitionValidationViewsLocked`, `PendingPartitionDefinition` and
-  `PartitionBoundBinder` (ATTACH PARTITION).
+  `PartitionBoundBinder` (`partitioncmds`' ATTACH PARTITION).
 
 `Engine` (`inheritance_alter_admission.go`) is a defined type over
 `core.Engine` that carries only `admitInheritanceAlter`, whose

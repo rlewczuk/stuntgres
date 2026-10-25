@@ -209,7 +209,10 @@ admission and the `consumePreparedDrop` replay into the stage, and the lock
 waits and projection of `ExpressionDependencies`); Finish;
 VACUUM's lock loop, `Engine.Mu` windows, retry, install and progress map;
 the binder bodies; and the Restore hook bodies (authorization, the `Engine.Mu`
-window, trust checks, `PublishRestoreRepairLocked`, `restore_replay.go`).
+window, trust checks, `PublishRestoreRepairLocked`, `restore_replay.go`). The
+inheritance Restore repairs (CHECK recipes, generation pairing, retired
+origins, inherited foreign keys and owners) are
+[`partitioncmds`](../partitioncmds/README.md)'s.
 
 Permanent CREATE/DROP and the shipped ALTER forms consume the owner's private
 catalog/storage and the ordinary journal. The engine claims actual destination
@@ -241,7 +244,8 @@ recaptures exact identities after waits before publishing their candidates.
 
 Package units run over a fake host or a small catalog; most table tests build an
 engine and live in `internal/engine/tablecmds` (CREATE, ALTER and DROP TABLE,
-constraints, sequences, identity and VACUUM), `internal/engine/core` (FK
+constraints, sequences, identity and VACUUM), `internal/engine/partitioncmds`
+(inheritance Restore repairs), `internal/engine/core` (FK
 enforcement, check evaluation on writes, lock waits) or, until they move,
 `internal/engine`, naming the code as `table.X`. Run the
 inheritance and NOT NULL admission units with `RACE=1`. Public SQL lives in

@@ -85,10 +85,11 @@ provider, identity, collation or probe contracts keep the branch possible.
 
 Orchestration and everything that holds `Engine`, `StatementScope` or
 `CatalogStage`: `schemaPartitionTableLocked` and `PendingPartitionDefinition`
-(checks in diagnostic order; both in `tablecmds`), `attachPartitionLocked`,
-`detachPartitionLocked`, lock admission (`partition_locks.go`), authorization
-and Restore trust checks (`partition*ReplayAllowed`), the Restore executors,
-storage-read fences and shared DML routing capture. `partition_host.go` in
+(checks in diagnostic order; both in `tablecmds`), ATTACH and DETACH PARTITION
+and the Restore replays ([`partitioncmds`](../partitioncmds/README.md)), and,
+in core, lock admission (`partition_locks.go`), authorization and Restore trust
+checks (`partition*ReplayAllowed`), storage-read fences and shared DML routing
+capture. `partition_host.go` in
 `tablecmds` holds `TableHost.BindKeyExpression` and the `PartitionBoundBinder`
 adapter; `partition_info_runtime.go` holds the
 `statementHost` inquiry methods, which check the retained catalog's owner.
@@ -134,8 +135,8 @@ adapter; `partition_info_runtime.go` holds the
 Package units cover pruning proofs, the shared search budget and the inquiry
 values. Units that
 build an engine live in `internal/engine/partitioncmds` (partition and
-inheritance DDL), `internal/engine/core` (`pg_partition_*` functions) or, until
-they move, `internal/engine`, naming the code as `partition.X`,
+inheritance DDL) or `internal/engine/core` (`pg_partition_*` functions),
+naming the code as `partition.X`,
 and assert branch selection and unlocked provider callbacks without timing
 thresholds. Run attach/detach overlay, lock-fence and LIST cancellation units
 with `RACE=1`. Public SQL lives in
