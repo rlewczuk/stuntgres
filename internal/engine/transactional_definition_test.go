@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -12,26 +11,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// This fixture exercises package stages/publication directly, not the public SQL
-// adapter. Parsing only supplies the existing definition AST to its actual owner.
+// This fixture runs each definition through Engine.Execute in the owner's
+// transaction, not through the public SQL adapter.
 func definitionUnitStage(t *testing.T, e *Engine, owner *session.Session, q string) {
 	t.Helper()
 	op := transactionOperation(t, owner)
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer op.Done()
-	ast := statement(t, q)
-	if err = scope.Gate(ast); err != nil {
-		t.Fatal(err)
-	}
-	defer scope.Finish(errors.New("discard definition unit scope"))
-	_, err = executeSchema(e, scope, op, ast, 0, sqltype.InputEnvironment{})
-	if err == nil {
-		err = scope.Finish(nil)
-	}
-	if err != nil {
+	if _, err := e.Execute(op, statement(t, q), 0, nil); err != nil {
 		t.Fatal(err)
 	}
 }

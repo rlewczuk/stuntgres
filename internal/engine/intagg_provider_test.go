@@ -16,7 +16,7 @@ func intaggUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intagg", ""))
+	roleExecute(t, e, op, "CREATE EXTENSION intagg")
 	return e, e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
 }
 

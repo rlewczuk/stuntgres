@@ -41,7 +41,7 @@ func intarrayUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "intarray", ""))
+	roleExecute(t, e, op, "CREATE EXTENSION intarray")
 	ext := e.Catalog.State.MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}))
 	return e, ext, e.Catalog.State.MustType(ext.Members[0])
 }

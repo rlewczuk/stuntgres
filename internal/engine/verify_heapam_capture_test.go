@@ -23,7 +23,7 @@ func heapUnitInstalled(t *testing.T, e *Engine) *catalog.Extension {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "amcheck", ""))
+	roleExecute(t, e, op, "CREATE EXTENSION amcheck")
 	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "amcheck"}))
 }
 func heapUnitExpression(t *testing.T, e *Engine) plan.InstalledVerifyHeapamExpr {

@@ -49,8 +49,7 @@ func extensionUnitInstalled(t *testing.T) (*Engine, *session.Operation, *catalog
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
-	stage := extensionUnitStage(t, e, op)
-	extensionUnitPublish(t, e, op, stage)
+	roleExecute(t, e, op, "CREATE EXTENSION unaccent")
 	a := e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"})
 	return e, op, e.Catalog.State.MustExtension(a)
 }

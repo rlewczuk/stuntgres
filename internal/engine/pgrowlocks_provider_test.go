@@ -19,7 +19,7 @@ func pgrowlocksUnitInstalled(t *testing.T, e *Engine) *catalog.Extension {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "pgrowlocks", ""))
+	roleExecute(t, e, op, "CREATE EXTENSION pgrowlocks")
 	return e.CatalogRead().MustExtension(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "pgrowlocks"}))
 }
 func pgrowlocksUnitExpression(t *testing.T, e *Engine) plan.InstalledPgrowlocksExpr {

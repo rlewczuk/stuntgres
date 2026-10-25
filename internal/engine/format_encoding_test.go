@@ -83,14 +83,7 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope, err := e.StartStatement(op)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = executeRoleAttributes(e, scope, &parser.CreateRole{Name: parser.Identifier{Text: "fe_unit_reader"}, Options: parser.RoleOptions{Present: parser.RoleLogin, Login: true}}, 0)
-	if err := scope.Finish(err); err != nil {
-		t.Fatal(err)
-	}
+	roleExecute(t, e, op, "CREATE ROLE fe_unit_reader LOGIN")
 	messages, _ := e.Settings.Lookup("lc_messages")
 	stats, _ := e.Settings.Lookup("log_statement_stats")
 	if err := SettingAccess(messages, op); err != nil {

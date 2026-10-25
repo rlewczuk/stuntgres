@@ -82,7 +82,7 @@ func TestRoutineAlterProviderOverrideIndex(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	reader := &sqlRoutineLookupReader{StageDefinitionReader: StageDefinitions(stage)}
+	reader := &sqlRoutineLookupReader{sqlRoutineLookupSource: StageDefinitions(stage)}
 	renamed := *original
 	renamed.ObjectName = "routine_alter_abs"
 	renamed.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}

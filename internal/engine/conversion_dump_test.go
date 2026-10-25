@@ -226,7 +226,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	}
 	// Publish a genuine successor principal under the reused name. Captured
 	// import authority must not retarget the old identity to that successor.
-	if _, err := executeRole(target, targetOp, &parser.DropRole{Names: []string{"conversion_import_owner"}}, 0, true); err != nil {
+	if _, err := target.Execute(targetOp, &parser.DropRole{Names: []string{"conversion_import_owner"}}, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := target.Execute(targetOp, creation, 0, nil); err != nil {
