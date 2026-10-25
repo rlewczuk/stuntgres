@@ -60,7 +60,7 @@ func TestAccessMethodDropClosure(t *testing.T) {
 	if edge := got[idx.Address()]; edge.Automatic || edge.Target != class.Address() || edge.Label != "index am_closure_i" {
 		t.Fatal("normal index consumer", edge)
 	}
-	if err := domainRestrictError(stage, []ids.ObjectAddress{method.Address()}, edges, 1, method.Address()); err == nil {
+	if err := DomainRestrictError(stage, []ids.ObjectAddress{method.Address()}, edges, 1, method.Address()); err == nil {
 		t.Fatal("index RESTRICT accepted")
 	}
 	if e.CatalogRead().State() != base.State() || base.Get(method.Address()) != method {

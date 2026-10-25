@@ -84,14 +84,14 @@ func TestTriggerCorePartitionPath(t *testing.T) {
 				t.Fatal(err)
 			}
 			scope.Statement = syntax
-			if err := scope.acquireRelationTarget(syntax, syntax, true, false); err != nil {
+			if err := ScopeAcquireRelationTarget(scope, syntax, syntax, true, false); err != nil {
 				t.Fatal(err)
 			}
 			e.Mu.Lock()
 			auth, err := e.AuthorizationLocked(scope.Op)
 			if err == nil {
 				scope.RoutineAuth = auth
-				err = scope.capturePartitionInsertLocked(e, auth, root)
+				err = ScopeCapturePartitionInsertLocked(scope, e, auth, root)
 			}
 			e.Mu.Unlock()
 			if err != nil {

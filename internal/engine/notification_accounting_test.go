@@ -26,102 +26,102 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 		notificationUnitListen(t, local)
 		notificationUnitListen(t, remote)
 		e.Mu.Lock()
-		PayloadOf(local).notifications.Busy = true
-		PayloadOf(remote).notifications.Busy = true
+		PayloadNotificationsRef(PayloadOf(local)).Busy = true
+		PayloadNotificationsRef(PayloadOf(remote)).Busy = true
 		e.Mu.Unlock()
 		events := notificationAccountingBatch()
 		for _, change := range []string{"head", "target", "remote-state", "remote-busy", "remote-ended", "remote-registry"} {
-			p := e.prepareNotificationPublication(sender, nil, events)
+			p := EnginePrepareNotificationPublication(e, sender, nil, events)
 			e.Mu.Lock()
-			oldHead := e.Cluster.notificationHead
-			oldState := PayloadOf(remote).notifications.State
+			oldHead := DatabaseClusterNotificationHead(e.Cluster)
+			oldState := PayloadNotifications(PayloadOf(remote)).State
 			switch change {
 			case "head":
-				e.Cluster.notificationHead = &session.NotificationQueuePosition{}
+				SetDatabaseClusterNotificationHead(e.Cluster, &session.NotificationQueuePosition{})
 			case "target":
 				e.Cluster.Targets["queue_foreign"] = e
 			case "remote-state":
 				next := *oldState
-				PayloadOf(remote).notifications.State = &next
+				PayloadNotificationsRef(PayloadOf(remote)).State = &next
 			case "remote-busy":
-				PayloadOf(remote).notifications.Busy = false
+				PayloadNotificationsRef(PayloadOf(remote)).Busy = false
 			case "remote-ended":
-				PayloadOf(remote).notifications.Ended = true
+				PayloadNotificationsRef(PayloadOf(remote)).Ended = true
 			case "remote-registry":
-				delete(foreign.notifications, remote.SessionToken)
+				delete(EngineNotifications(foreign), remote.SessionToken)
 			}
-			unchanged := e.notificationPublicationUnchangedLocked(p)
-			e.Cluster.notificationHead = oldHead
+			unchanged := EngineNotificationPublicationUnchangedLocked(e, p)
+			SetDatabaseClusterNotificationHead(e.Cluster, oldHead)
 			e.Cluster.Targets["queue_foreign"] = foreign
-			PayloadOf(remote).notifications.State = oldState
-			PayloadOf(remote).notifications.Busy = true
-			PayloadOf(remote).notifications.Ended = false
-			foreign.notifications[remote.SessionToken] = &PayloadOf(remote).notifications
+			PayloadNotificationsRef(PayloadOf(remote)).State = oldState
+			PayloadNotificationsRef(PayloadOf(remote)).Busy = true
+			PayloadNotificationsRef(PayloadOf(remote)).Ended = false
+			EngineNotifications(foreign)[remote.SessionToken] = PayloadNotificationsRef(PayloadOf(remote))
 			e.Mu.Unlock()
 			if unchanged {
 				t.Fatal("accepted stale cluster root", change)
 			}
 		}
-		p := e.prepareNotificationPublication(sender, nil, events)
+		p := EnginePrepareNotificationPublication(e, sender, nil, events)
 		e.Mu.Lock()
-		if !e.notificationPublicationUnchangedLocked(p) || notificationPublicationError(p) != nil {
+		if !EngineNotificationPublicationUnchangedLocked(e, p) || NotificationPublicationError(p) != nil {
 			e.Mu.Unlock()
 			t.Fatal("fresh candidate invalid")
 		}
-		e.installNotificationPublicationLocked(p)
+		EngineInstallNotificationPublicationLocked(e, p)
 		allocations := testing.AllocsPerRun(100, func() {
-			e.installNotificationPublicationLocked(p)
-			_ = e.notificationQueueUsageLocked()
+			EngineInstallNotificationPublicationLocked(e, p)
+			_ = EngineNotificationQueueUsageLocked(e)
 		})
 		if allocations != 0 {
 			e.Mu.Unlock()
 			t.Fatal("installation/usage allocated", allocations)
 		}
 		wantHead := session.NotificationQueuePosition{Page: 1, Offset: 7924}
-		if e.Cluster.notificationHead == nil || *e.Cluster.notificationHead != wantHead {
+		if DatabaseClusterNotificationHead(e.Cluster) == nil || *DatabaseClusterNotificationHead(e.Cluster) != wantHead {
 			e.Mu.Unlock()
-			t.Fatal("batch multiplied by recipients", e.Cluster.notificationHead)
+			t.Fatal("batch multiplied by recipients", DatabaseClusterNotificationHead(e.Cluster))
 		}
-		if got := e.notificationQueueUsageLocked(); got != 1.0/1048576 {
+		if got := EngineNotificationQueueUsageLocked(e); got != 1.0/1048576 {
 			e.Mu.Unlock()
 			t.Fatal("page fraction", got)
 		}
-		localState, remoteState := PayloadOf(local).notifications.State, PayloadOf(remote).notifications.State
-		if localState.Pending == nil || remoteState.Pending != nil || remoteState.Ready.Back != nil || !remoteState.Unread || !PayloadOf(remote).notifications.Used.Load() {
+		localState, remoteState := PayloadNotifications(PayloadOf(local)).State, PayloadNotifications(PayloadOf(remote)).State
+		if localState.Pending == nil || remoteState.Pending != nil || remoteState.Ready.Back != nil || !remoteState.Unread || !PayloadNotificationsRef(PayloadOf(remote)).Used.Load() {
 			e.Mu.Unlock()
 			t.Fatal("foreign payload or missing cursor")
 		}
 		e.Mu.Unlock()
 		// Cursor-only outer rollback releases a foreign hold even without Pending.
-		finishNotificationBoundary(remote.Transactions)
+		FinishNotificationBoundary(remote.Transactions)
 		e.Mu.Lock()
-		if PayloadOf(remote).notifications.State.Unread || e.notificationQueueUsageLocked() != 1.0/1048576 {
+		if PayloadNotifications(PayloadOf(remote)).State.Unread || EngineNotificationQueueUsageLocked(e) != 1.0/1048576 {
 			e.Mu.Unlock()
 			t.Fatal("one release cleared another hold")
 		}
 		e.Mu.Unlock()
-		finishNotificationBoundary(local.Transactions)
+		FinishNotificationBoundary(local.Transactions)
 		e.Mu.Lock()
-		if e.notificationQueueUsageLocked() != 0 || PayloadOf(local).notifications.State.Ready.Back == nil {
+		if EngineNotificationQueueUsageLocked(e) != 0 || PayloadNotifications(PayloadOf(local)).State.Ready.Back == nil {
 			e.Mu.Unlock()
 			t.Fatal("Ready counted as backend pending")
 		}
 		e.Mu.Unlock()
 		// Polling Ready while a later transaction is busy preserves its new hold.
 		e.Mu.Lock()
-		PayloadOf(local).notifications.Busy = true
+		PayloadNotificationsRef(PayloadOf(local)).Busy = true
 		e.Mu.Unlock()
-		p = e.prepareNotificationPublication(sender, nil, events)
+		p = EnginePrepareNotificationPublication(e, sender, nil, events)
 		e.Mu.Lock()
-		e.installNotificationPublicationLocked(p)
-		held := PayloadOf(local).notifications.State.Position
-		usage := e.notificationQueueUsageLocked()
+		EngineInstallNotificationPublicationLocked(e, p)
+		held := PayloadNotifications(PayloadOf(local)).State.Position
+		usage := EngineNotificationQueueUsageLocked(e)
 		e.Mu.Unlock()
-		if _, ok, _, err := e.pollNotification(local, nil); err != nil || !ok {
+		if _, ok, _, err := EnginePollNotification(e, local, nil); err != nil || !ok {
 			t.Fatal(ok, err)
 		}
 		e.Mu.Lock()
-		if !PayloadOf(local).notifications.State.Unread || PayloadOf(local).notifications.State.Position != held || e.notificationQueueUsageLocked() != usage {
+		if !PayloadNotifications(PayloadOf(local)).State.Unread || PayloadNotifications(PayloadOf(local)).State.Position != held || EngineNotificationQueueUsageLocked(e) != usage {
 			e.Mu.Unlock()
 			t.Fatal("Ready dequeue changed hold")
 		}
@@ -135,8 +135,8 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 			notificationUnitListen(t, receiver)
 			e.Mu.Lock()
 			head := &session.NotificationQueuePosition{Page: session.NotificationQueuePages - 1, Offset: 7924}
-			e.Cluster.notificationHead = head
-			n := &PayloadOf(receiver).notifications
+			SetDatabaseClusterNotificationHead(e.Cluster, head)
+			n := PayloadNotificationsRef(PayloadOf(receiver))
 			next := *n.State
 			next.Unread = true
 			next.Position = session.NotificationQueuePosition{}
@@ -150,30 +150,30 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 			if catalog {
 				changes = session.NewJournal()
 			}
-			err := e.publishRowsPrepared(op, ref, nil, nil, changes, nil, nil, nil)
+			err := EnginePublishRowsPrepared(e, op, ref, nil, nil, changes, nil, nil, nil)
 			var sqlerr *sqlstate.Error
 			if !errors.As(err, &sqlerr) || sqlerr.Code != "54000" || sqlerr.Message != "too many notifications in the NOTIFY queue" {
 				t.Fatal("capacity diagnostic", err)
 			}
-			if e.Cluster.notificationHead != head || n.State != root || e.Catalog.State != state || e.Visibility.CommitSeq() != frontier {
+			if DatabaseClusterNotificationHead(e.Cluster) != head || n.State != root || e.Catalog.State != state || e.Visibility.CommitSeq() != frontier {
 				t.Fatal("capacity published partial effects")
 			}
 			// The same capacity decision becomes stale when a hold is released.
-			p := e.prepareNotificationPublication(sender, nil, notificationAccountingBatch()[:1])
-			if notificationPublicationError(p) == nil {
+			p := EnginePrepareNotificationPublication(e, sender, nil, notificationAccountingBatch()[:1])
+			if NotificationPublicationError(p) == nil {
 				t.Fatal("missing prepared capacity error")
 			}
 			e.Mu.Lock()
 			released := *n.State
 			released.Unread = false
 			n.State = &released
-			unchanged := e.notificationPublicationUnchangedLocked(p)
+			unchanged := EngineNotificationPublicationUnchangedLocked(e, p)
 			e.Mu.Unlock()
 			if unchanged {
 				t.Fatal("stale capacity veto accepted")
 			}
-			fresh := e.prepareNotificationPublication(sender, nil, notificationAccountingBatch()[:1])
-			if err := notificationPublicationError(fresh); err != nil {
+			fresh := EnginePrepareNotificationPublication(e, sender, nil, notificationAccountingBatch()[:1])
+			if err := NotificationPublicationError(fresh); err != nil {
 				t.Fatal("fresh head cursor inherited stale full decision", err)
 			}
 		})
@@ -182,29 +182,29 @@ func TestNotificationQueueAccountingPublication(t *testing.T) {
 
 func TestNotificationQueueAccountingControls(t *testing.T) {
 	e := New()
-	if e.Cluster.notificationHead != nil || e.notificationQueueUsageLocked() != 0 {
+	if DatabaseClusterNotificationHead(e.Cluster) != nil || EngineNotificationQueueUsageLocked(e) != 0 {
 		t.Fatal("fresh accounting allocated or retained state")
 	}
 	receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	notificationUnitListen(t, receiver)
 	e.Mu.Lock()
-	PayloadOf(receiver).notifications.Busy = true
+	PayloadNotificationsRef(PayloadOf(receiver)).Busy = true
 	e.Mu.Unlock()
 	ref := transactionBegin(t, sender)
 	sender.Transactions.NotificationEvents = notificationAccountingBatch()
 	transactionEnd(t, sender, ref, true)
-	head, root := e.Cluster.notificationHead, PayloadOf(receiver).notifications.State
+	head, root := DatabaseClusterNotificationHead(e.Cluster), PayloadNotifications(PayloadOf(receiver)).State
 	if head == nil || root == nil || !root.Unread {
 		t.Fatal("missing committed roots")
 	}
 	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if e.Cluster.notificationHead != head || PayloadOf(receiver).notifications.State != root || e.notificationQueueUsageLocked() != 1.0/1048576 {
+	if DatabaseClusterNotificationHead(e.Cluster) != head || PayloadNotifications(PayloadOf(receiver)).State != root || EngineNotificationQueueUsageLocked(e) != 1.0/1048576 {
 		t.Fatal("catalog replacement changed live ephemeral roots")
 	}
 	fresh := New()
-	if fresh.Cluster.notificationHead != nil || fresh.notificationQueueUsageLocked() != 0 || len(fresh.notifications) != 0 {
+	if DatabaseClusterNotificationHead(fresh.Cluster) != nil || EngineNotificationQueueUsageLocked(fresh) != 0 || len(EngineNotifications(fresh)) != 0 {
 		t.Fatal("independent cluster imported queue")
 	}
 }

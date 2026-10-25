@@ -51,7 +51,7 @@ func TestRoleTransactionalIdentityRestoration(t *testing.T) {
 			roleTransactionalAST(t, e, s, &parser.SessionAuthorization{Name: "identity_unit_a"})
 			// The failed-statement restoration path consumes a cloned settings mark
 			// and exact refs; it neither resolves names nor repeats SET eligibility.
-			restoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
+			RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
 			e.Locks.Restore(s.Transactions.Ticket, mark.Locks)
 			if s.Authorization.State != selected || s.Settings.RoleAction != mark.Settings.RoleAction || peer.Authorization.State != peerEntry {
 				t.Fatal("cached restoration changed peer/physical identity or role action")

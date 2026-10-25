@@ -47,28 +47,28 @@ func TestRLSPolicySourcePreparation(t *testing.T) {
 	refs := []ids.ObjectRef{roleTableRef(t, e, "t"), roleTableRef(t, e, "helper"), roleTableRef(t, e, "leaf")}
 	unrelated := roleTableRef(t, e, "unrelated")
 	e.Mu.Lock()
-	scope.rlsAdmissionDepth++
-	prepared, err := e.prepareQuerySourcesLocked(scope, scope.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{})
-	err = e.endRowSecurityAdmissionLocked(scope, err)
+	*ScopeRLSAdmissionDepthRef(scope)++
+	prepared, err := EnginePrepareQuerySourcesLocked(e, scope, scope.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{})
+	err = EngineEndRowSecurityAdmissionLocked(e, scope, err)
 	earlySnapshot := scope.View != nil
 	earlyInputs := false
-	for _, p := range scope.rlsPrograms {
-		for _, pending := range p.sources {
-			earlyInputs = earlyInputs || pending.clause.State.Source != nil
+	for _, p := range ScopeRLSPrograms(scope) {
+		for _, pending := range RowSecurityProgramSources(p) {
+			earlyInputs = earlyInputs || PolicySourcePreparationClause(&pending).State.Source != nil
 		}
 	}
-	programs := len(scope.rlsPrograms)
+	programs := len(ScopeRLSPrograms(scope))
 	if err == nil {
-		err = e.materializePolicySourcesLocked(scope)
+		err = EngineMaterializePolicySourcesLocked(e, scope)
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = e.capturePreparedQuerySourcesLocked(scope, prepared, scope.QueryLockContext)
+		source, err = EngineCapturePreparedQuerySourcesLocked(e, scope, prepared, scope.QueryLockContext)
 	}
 	first := scope.View
 	secondErr := error(nil)
 	if err == nil {
-		_, secondErr = e.capturePreparedQuerySourcesLocked(scope, prepared, scope.QueryLockContext)
+		_, secondErr = EngineCapturePreparedQuerySourcesLocked(e, scope, prepared, scope.QueryLockContext)
 	}
 	e.Mu.Unlock()
 	if source != nil {
@@ -95,14 +95,14 @@ func TestRLSPolicySourcePreparation(t *testing.T) {
 	if _, ok := data.Committed[unrelated.Address]; ok || data.DynamicRoots != nil {
 		t.Fatal("blanket dynamic/all-catalog snapshot introduced")
 	}
-	if len(scope.rlsPrograms) != programs || !prepared.consumed {
+	if len(ScopeRLSPrograms(scope)) != programs || !QuerySourcePreparationConsumed(prepared) {
 		t.Fatal("materialization reselected or failed to consume occurrence programs")
 	}
 	if secondErr != ids.ErrCatalogReplaced {
 		t.Fatal("prepared occurrence reused", secondErr)
 	}
-	for _, p := range scope.rlsPrograms {
-		if len(p.sources) != 0 {
+	for _, p := range ScopeRLSPrograms(scope) {
+		if len(RowSecurityProgramSources(p)) != 0 {
 			t.Fatal("realized record retained a second pending-source owner")
 		}
 	}
@@ -137,7 +137,7 @@ func TestRLSPolicyMutationSourcePreparation(t *testing.T) {
 			t.Fatal("mutation source became first narrow snapshot", ref)
 		}
 	}
-	if scope.rlsAdmissionDepth != 0 || scope.rlsCommand != nil {
+	if ScopeRLSAdmissionDepth(scope) != 0 || ScopeRLSCommand(scope) != nil {
 		t.Fatal("preparation activation leaked")
 	}
 	err = scope.Finish(nil)

@@ -41,13 +41,13 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	}
 	collationUnitPublish(t, e, stage)
 	view = e.CatalogRead()
-	scope := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}}}
-	procedure, err := scope.conversionProcedure(6, 8)
-	if err != nil || procedure == nil || procedure.Address() != low.Handler || scope.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != first {
+	scope := &StatementScope{Inquiry: NewInquiry(InquiryFields{VisibilityCatalog: view, VisibilityOtherPath: []ids.ObjectAddress{earlier.Address(), low.Namespace()}})}
+	procedure, err := ScopeConversionProcedure(scope, 6, 8)
+	if err != nil || procedure == nil || procedure.Address() != low.Handler || ConversionDefaultConversion(PresentationCachesConversionDefaults(ScopePresentationOrZero(scope))[[2]int{6, 8}]) != first {
 		t.Fatal("namespace priority", procedure, err)
 	}
-	reversed := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}}}
-	if _, err = reversed.conversionProcedure(6, 8); err != nil || reversed.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != low {
+	reversed := &StatementScope{Inquiry: NewInquiry(InquiryFields{VisibilityCatalog: view, VisibilityOtherPath: []ids.ObjectAddress{low.Namespace(), earlier.Address()}})}
+	if _, err = ScopeConversionProcedure(reversed, 6, 8); err != nil || ConversionDefaultConversion(PresentationCachesConversionDefaults(ScopePresentationOrZero(reversed))[[2]int{6, 8}]) != low {
 		t.Fatal("default index OID order, not name order", err)
 	}
 	removedDefault := *first
@@ -57,11 +57,11 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	fresh := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: e.CatalogRead(), visibilityOtherPath: scope.Inquiry.visibilityOtherPath}}
-	if _, err = fresh.conversionProcedure(6, 8); err != nil || fresh.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != low {
+	fresh := &StatementScope{Inquiry: NewInquiry(InquiryFields{VisibilityCatalog: e.CatalogRead(), VisibilityOtherPath: InquiryVisibilityOtherPath(&scope.Inquiry)})}
+	if _, err = ScopeConversionProcedure(fresh, 6, 8); err != nil || ConversionDefaultConversion(PresentationCachesConversionDefaults(ScopePresentationOrZero(fresh))[[2]int{6, 8}]) != low {
 		t.Fatal("nondefault repaired lookup", err)
 	}
-	if _, err = scope.conversionProcedure(6, 8); err != nil || scope.presentationOrZero().conversionDefaults[[2]int{6, 8}].conversion != first {
+	if _, err = ScopeConversionProcedure(scope, 6, 8); err != nil || ConversionDefaultConversion(PresentationCachesConversionDefaults(ScopePresentationOrZero(scope))[[2]int{6, 8}]) != first {
 		t.Fatal("old execution snapshot changed", err)
 	}
 	text, _ := view.LookupType(sqltype.Text)
@@ -83,7 +83,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if err != nil || raw != "\xe9" {
 		t.Fatal("actual selected handler output", raw, err)
 	}
-	missing := &StatementScope{Inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}}
+	missing := &StatementScope{Inquiry: NewInquiry(InquiryFields{VisibilityCatalog: view, VisibilityOtherPath: []ids.ObjectAddress{}})}
 	if _, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(missing)}}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
@@ -267,13 +267,13 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err := regobj.CaptureProcOutputValue(rows, view, path, procedureValue); err != nil {
 		t.Fatal(err)
 	}
-	heldDescription := &StatementDescription{regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
+	heldDescription := NewDescription(DescriptionFields{Regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}})
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Remove(e.Catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	binder := &analyze.Binder{Ctx: context.Background(), Expected: expectedOf(heldDescription)}
+	binder := &analyze.Binder{Ctx: context.Background(), Expected: ExpectedOf(heldDescription)}
 	heldValue, err := binder.RoutineConstant("pg_catalog.unaccent(text)", procedureType.Usage(), parser.Position{Offset: 7, Character: 8})
 	if err != nil {
 		t.Fatal("retained literal after referent removal", err)
@@ -319,7 +319,7 @@ func TestRoutineAliasStorageAdmission(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"regproc", "regprocedure"} {
-		usage, err := e.resolveTableColumnType(parser.TypeName{Name: name}, op)
+		usage, err := EngineResolveTableColumnType(e, parser.TypeName{Name: name}, op)
 		if err != nil || !usage.Type.ContainsRegproc() {
 			t.Fatal("routine alias declaration rejected", usage, err)
 		}

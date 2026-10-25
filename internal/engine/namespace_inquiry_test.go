@@ -42,12 +42,12 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				carried = &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 999999}, ObjectName: "private_carried", Owner: e.RoleStore.Domain.Principal(10), ObjectRevision: 1}
 				e.CatalogChangeLocked(scope.Catalog, carried.Address(), carried)
 			}
-			auth, path, err := scope.schemaInquiryPathLocked(e)
+			auth, path, err := ScopeSchemaInquiryPathLocked(scope, e)
 			if err != nil {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			id := temporaryNamespace(auth)
+			id := TemporaryNamespace(auth)
 			candidate := scope.Catalog
 			if id == (ids.ObjectAddress{}) || len(path) != 2 || path[0] != id || candidate == nil || e.Catalog.State != base || s.TemporaryNamespace != (ids.ObjectAddress{}) {
 				e.Mu.Unlock()
@@ -58,8 +58,8 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 				t.Fatal("lost prior candidate")
 			}
 			before := len(candidate.Descriptors)
-			auth2, path2, err := scope.schemaInquiryPathLocked(e)
-			if err != nil || temporaryNamespace(auth2) != id || len(path2) != len(path) || len(candidate.Descriptors) != before || candidate != scope.Catalog {
+			auth2, path2, err := ScopeSchemaInquiryPathLocked(scope, e)
+			if err != nil || TemporaryNamespace(auth2) != id || len(path2) != len(path) || len(candidate.Descriptors) != before || candidate != scope.Catalog {
 				e.Mu.Unlock()
 				t.Fatal("repeated inquiry allocated or lost overlay", err)
 			}
@@ -120,7 +120,7 @@ func TestNamespaceIdentityNoPendingFastPath(t *testing.T) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	base, next := e.Catalog.State, e.Catalog.NextOID()
-	_, path, err := scope.schemaInquiryPathLocked(e)
+	_, path, err := ScopeSchemaInquiryPathLocked(scope, e)
 	if err != nil || len(path) != 1 || scope.Catalog != nil || e.Catalog.State != base || e.Catalog.NextOID() != next {
 		t.Fatal("no-pending path introduced catalog work", path, err)
 	}

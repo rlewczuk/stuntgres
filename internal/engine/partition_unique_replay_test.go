@@ -96,7 +96,7 @@ func TestPartitionDetachUniqueReplayAuthority(t *testing.T) {
 	}
 	e.Catalog.State.SetDescriptor(leaf.Address(), leaf)
 	OperationReplay(op).PartitionUnique = nil
-	if partition.ConsumerBoundary(raw, mid, partitionReplayAllowed(op, auth)) == nil {
+	if partition.ConsumerBoundary(raw, mid, PartitionReplayAllowed(op, auth)) == nil {
 		t.Fatal("public hierarchy ADD widened")
 	}
 }

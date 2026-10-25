@@ -33,7 +33,7 @@ func TestDropReaderSeam(t *testing.T) {
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	stage.DependencyPath = path
 	var staged view.DropReader = StageDropProvider(context.Background(), stage, nil, nil, nil)
-	if input, ok := staged.DefinitionInput().(stageDefinitionReader); !ok || input.stage != stage {
+	if input, ok := staged.DefinitionInput().(StageDefinitionReader); !ok || StageDefinitionReaderStage(&input) != stage {
 		t.Fatalf("staged DefinitionInput = %T, want the stage reader", staged.DefinitionInput())
 	}
 	if !slices.Equal(staged.Path(), path) {

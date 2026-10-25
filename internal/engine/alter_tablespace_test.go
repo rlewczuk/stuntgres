@@ -101,7 +101,7 @@ func TestAlterTablespaceNoop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope.worked = true
+	SetScopeWorked(scope, true)
 	cancel()
 	if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("no-op bypassed cancellation", err)

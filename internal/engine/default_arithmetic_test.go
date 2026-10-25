@@ -19,7 +19,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	old := view.MustRelation(ref.Address)
-	if err := (relationProvider).Validate(view, old); err != nil {
+	if err := (RelationProvider()).Validate(view, old); err != nil {
 		t.Fatal("validation must not evaluate division", err)
 	}
 	foreign := New()
@@ -64,7 +64,7 @@ func TestDefaultDescriptorProviderClosedArithmetic(t *testing.T) {
 			bad := next.ColumnMeta.Defaults[tc.attribute]
 			bad.Expression = tc.mutate(bad.Expression.(plan.ArithmeticExpr))
 			next.ColumnMeta.Defaults[tc.attribute] = bad
-			if err := (relationProvider).Validate(view, &next); err == nil {
+			if err := (RelationProvider()).Validate(view, &next); err == nil {
 				t.Fatal("invalid arithmetic accepted")
 			}
 		})
@@ -101,7 +101,7 @@ func TestDefaultSmallintArithmeticWidths(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	desc := view.MustRelation(ref.Address)
-	if err := (relationProvider).Validate(view, desc); err != nil {
+	if err := (RelationProvider()).Validate(view, desc); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {

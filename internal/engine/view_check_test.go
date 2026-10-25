@@ -277,7 +277,7 @@ func TestViewCheckFinish(t *testing.T) {
 	}
 	w := &view.Write{BaseRelation: f.base, Ref: f.baseRef, Layers: []view.WriteLayer{{Relation: f.view, Ref: f.viewRef, Source: f.base, SourceRef: f.baseRef}}}
 	scope.LockedRef, scope.LockedDescriptor = f.viewRef, f.view
-	if err := scope.acquireViewWriteTarget(w); err != nil {
+	if err := ScopeAcquireViewWriteTarget(scope, w); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {

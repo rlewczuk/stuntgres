@@ -43,7 +43,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			stage, d, skipped, err := e.prepareQueryTableLocked(op, auth, s, b)
+			stage, d, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, s, b)
 			e.Mu.Unlock()
 			if err != nil || skipped {
 				t.Fatalf("freeze stage: %v skipped=%v", err, skipped)
@@ -54,7 +54,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 			if len(b.QuerySources) != 0 && (len(stored.ViewOf(d).Columns()) == 0 || len(stored.ViewOf(d).Namespaces()) == 0) {
 				t.Fatal("missing source column/frame analysis")
 			}
-			if err := (relationProvider).Validate(e.StageRead(stage), d); err != nil {
+			if err := (RelationProvider()).Validate(e.StageRead(stage), d); err != nil {
 				t.Fatal("captured definition is invalid:", err)
 			}
 		})

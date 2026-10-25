@@ -71,7 +71,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if !row[14].IsNull() || !row[15].IsNull() {
 					t.Fatal("invented file provenance")
 				}
-				scope := newStatementScope(&session.Operation{Session: sess}, &session.TransactionOwner{}, time.Time{})
+				scope := NewStatementScope(&session.Operation{Session: sess}, &session.TransactionOwner{}, time.Time{})
 				err = access.RowSecuritySettingGuard(scope.RowSecurity, roles, protected, reader)
 				var want error
 				if value == "off" {
@@ -97,7 +97,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				if _, err := e.applySetting(op, s.Settings, e.Settings.Definitions()["row_security"], input, local); err != nil {
+				if _, err := EngineApplySetting(e, op, s.Settings, e.Settings.Definitions()["row_security"], input, local); err != nil {
 					t.Fatal(err)
 				}
 			}

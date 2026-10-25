@@ -103,9 +103,9 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			session := sessionStart(t, New(), nil)
 			op := transactionOperation(t, session)
 			defer op.Done()
-			s := newStatementScope(op, session.Transactions, op.StatementStart())
+			s := NewStatementScope(op, session.Transactions, op.StatementStart())
 			m := &fdw.Modification{Source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
-			count, err := m.InsertRows(context.Background(), s.foreignWrites(), make([][]sqltype.Value, 5), false, nil)
+			count, err := m.InsertRows(context.Background(), ScopeForeignWrites(s), make([][]sqltype.Value, 5), false, nil)
 			if (err != nil) != tc.bad || count != tc.count {
 				t.Fatalf("count=%d err=%v", count, err)
 			}
@@ -218,16 +218,16 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		} else {
 			p.endError = failure
 		}
-		s.foreignUnlocked()
+		ScopeForeignUnlocked(s)
 		m, err := fdw.PlanModification(op.Context(), &exec.ForeignQuerySource{Wrapper: p}, catalog.ForeignInsert, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = m.Begin(op.Context(), s.foreignWrites())
+		err = m.Begin(op.Context(), ScopeForeignWrites(s))
 		if partial && !errors.Is(err, failure) {
 			t.Fatal(err)
 		}
-		err = s.finishForeignModifications(err)
+		err = ScopeFinishForeignModifications(s, err)
 		if !errors.Is(err, failure) || p.begins != 1 || p.ends != 1 {
 			t.Fatal(err, p.begins, p.ends)
 		}
@@ -270,7 +270,7 @@ func fdwUnitCopyVeto(t *testing.T) {
 	defer scope.Finish(failure)
 	syntax := &parser.Copy{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unit_copy_target"}}}, From: true, Endpoint: parser.CopyStdin}
 	count, err := scope.CopyProtocol(syntax, strings.NewReader("1\n"), nil, CopyProtocolHooks{FinishInput: func() error { return failure }})
-	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || ownerHasForeign(scope.Owner) {
+	if !errors.Is(err, failure) || count != 0 || provider.calls != 0 || provider.begins != 0 || OwnerHasForeign(scope.Owner) {
 		t.Fatal("input veto admitted remote work", count, err, provider.calls, provider.begins)
 	}
 	if err := scope.Finish(err); !errors.Is(err, failure) {

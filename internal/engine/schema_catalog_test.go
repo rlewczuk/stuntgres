@@ -19,7 +19,7 @@ func TestSchemaCatalogPublicationPreconditions(t *testing.T) {
 	ns := schemaRef(t, e, "s")
 	table := roleTableRef(t, e, "s.t")
 	stage := e.BeginCatalogStage(base)
-	if err := stage.removeObject(ns, true); err != nil {
+	if err := StageRemoveObject(stage, ns, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := stage.Remove(table); err != nil {

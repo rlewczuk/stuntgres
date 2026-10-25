@@ -272,13 +272,13 @@ func TestConstraintRenameDeferredIdentity(t *testing.T) {
 	sessionSQL(t, s, "SET CONSTRAINTS old DEFERRED")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, s, "SAVEPOINT saved")
-	modes := ownerExtensionOrZero(s.Transactions).exclusionModes
+	modes := OwnerExtensionExclusionModes(OwnerExtensionOrZero(s.Transactions))
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	if !ownerExtensionOrZero(s.Transactions).exclusionModes.ByConstraint[oid] || len(ownerExtensionOrZero(s.Transactions).exclusionModes.Events) != 1 || ownerExtensionOrZero(s.Transactions).exclusionModes.Events[0].Constraint != oid {
+	if !OwnerExtensionExclusionModes(OwnerExtensionOrZero(s.Transactions)).ByConstraint[oid] || len(OwnerExtensionExclusionModes(OwnerExtensionOrZero(s.Transactions)).Events) != 1 || OwnerExtensionExclusionModes(OwnerExtensionOrZero(s.Transactions)).Events[0].Constraint != oid {
 		t.Fatal("rename reset selected mode/event")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")
-	if !reflect.DeepEqual(ownerExtensionOrZero(s.Transactions).exclusionModes, modes) {
+	if !reflect.DeepEqual(OwnerExtensionExclusionModes(OwnerExtensionOrZero(s.Transactions)), modes) {
 		t.Fatal("rollback lost deferred obligation")
 	}
 	sessionSQL(t, s, "ROLLBACK")

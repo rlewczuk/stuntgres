@@ -61,7 +61,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		Info:      expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}},
 		Signature: functions.DeparseSerialSequence, Args: []expr.Expr{literal(`"Mixed.Schema"."Owned"`), literal("ID")},
 	}
-	scope := &StatementScope{Inquiry: inquirySnapshot{CommentCatalog: view, deparseAuth: catalogAuthorization(e, view)}}
+	scope := &StatementScope{Inquiry: NewInquiry(InquiryFields{CommentCatalog: view, DeparseAuth: catalogAuthorization(e, view)})}
 	return serialSequenceUnit{e, view, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(scope)}}, table, sequence, node}
 }
 
@@ -123,8 +123,8 @@ func TestSerialSequenceOwnership(t *testing.T) {
 	}
 	fresh := *ScopeOf(f.context.Host)
 	fresh.Inquiry.CommentCatalog = f.engine.Catalog.Current()
-	fresh.Inquiry.deparseAuth.Catalog = fresh.Inquiry.CommentCatalog
-	fresh.Inquiry.deparseAuth.PairedCatalog = fresh.Inquiry.deparseAuth.Catalog
+	InquiryDeparseAuthRef(&fresh.Inquiry).Catalog = fresh.Inquiry.CommentCatalog
+	InquiryDeparseAuthRef(&fresh.Inquiry).PairedCatalog = InquiryDeparseAuth(&fresh.Inquiry).Catalog
 	value, err = f.node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: HostOf(&fresh)}})
 	if err != nil || !value.IsNull() {
 		t.Fatal("fresh snapshot ignored NONE", value, err)

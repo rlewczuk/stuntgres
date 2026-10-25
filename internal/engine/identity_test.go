@@ -27,7 +27,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	if len(old.ColumnMeta.Identities) != 2 || old.ColumnMeta.Identities[1].Sequence == old.ColumnMeta.Identities[2].Sequence {
 		t.Fatal(old.ColumnMeta.Identities)
 	}
-	if err := (relationProvider).Validate(read, old); err != nil {
+	if err := (RelationProvider()).Validate(read, old); err != nil {
 		t.Fatal(err)
 	}
 	for _, mutate := range []func(*catalog.Relation){
@@ -51,7 +51,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 		next := *old
 		next.ColumnMeta.Identities = maps.Clone(old.ColumnMeta.Identities)
 		mutate(&next)
-		if err := (relationProvider).Validate(read, &next); err == nil {
+		if err := (RelationProvider()).Validate(read, &next); err == nil {
 			t.Fatal("invalid identity admitted")
 		}
 	}
@@ -60,7 +60,7 @@ func TestIdentityCatalogReciprocalDefinitions(t *testing.T) {
 	options := *sequence.Sequence
 	options.Owned = ids.ObjectAddress{}
 	next.Sequence = &options
-	if err := (relationProvider).Validate(read, &next); err == nil {
+	if err := (RelationProvider()).Validate(read, &next); err == nil {
 		t.Fatal("unowned internal sequence admitted")
 	}
 }

@@ -87,7 +87,7 @@ func TestDomainCheckIndexSnapshotTransport(t *testing.T) {
 func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	f := newPartialIndexFixture(t)
 	ctx := context.Background()
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.Storage.Relations, nil, f.e.Visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := EngineCaptureIndexSnapshot(f.e, ctx, f.e.CatalogRead(), f.e.Storage.Relations, nil, f.e.Visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing root accepted", err)
 	}
 	original := f.e.Storage.IndexRoots[f.index.Address()]
@@ -99,7 +99,7 @@ func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	f.e.Mu.Lock()
 	f.e.Storage.ReplaceIndexRootsLocked(roots)
 	f.e.Mu.Unlock()
-	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.Storage.Relations, roots, f.e.Visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := EngineCaptureIndexSnapshot(f.e, ctx, f.e.CatalogRead(), f.e.Storage.Relations, roots, f.e.Visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("malformed source provenance accepted", err)
 	}
 	f.e.Mu.Lock()
@@ -110,7 +110,7 @@ func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := f.e.captureIndexSnapshot(canceled, f.e.CatalogRead(), f.e.Storage.Relations, f.e.Storage.IndexRoots, f.e.Visibility.CommitSeq()); !errors.Is(err, context.Canceled) {
+	if _, err := EngineCaptureIndexSnapshot(f.e, canceled, f.e.CatalogRead(), f.e.Storage.Relations, f.e.Storage.IndexRoots, f.e.Visibility.CommitSeq()); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost", err)
 	}
 }

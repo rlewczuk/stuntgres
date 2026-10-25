@@ -31,7 +31,7 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	out, err = d.Output(ctx, fresh)
 	if err != nil || out != "[2001-01-01,2001-01-02)" || sqltype.SameDatum(v, fresh) { t.Fatal("fresh bound environment", out, err) }
 	if !analyze.RefreshableTemporal(b.Prepared.Temporals[0]) { t.Fatal("builtin daterange not refreshable") }
-	description.refreshTemporals = true
+	SetDescriptionRefreshTemporals(description, true)
 	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.InputConstant("[today,tomorrow)", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.Prepared.Temporals) != 1 { t.Fatal("valid invalidation did not refresh", err) }

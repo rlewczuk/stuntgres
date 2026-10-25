@@ -75,7 +75,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	joined := false
 	result := make(chan error, 1)
-	go func() { result <- scope.acquireInheritanceSources(nil) }()
+	go func() { result <- ScopeAcquireInheritanceSources(scope, nil) }()
 	defer func() {
 		cancel()
 		holder.Finish(nil)
@@ -143,14 +143,14 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err = e.Locks.Acquire(freshOp.Context(), fresh.LockTicket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
-	if err = fresh.acquireInheritanceSources(nil); err != nil {
+	if err = ScopeAcquireInheritanceSources(fresh, nil); err != nil {
 		t.Fatal(err)
 	}
 	collectAuth, err := OperationAuthorization(freshOp)
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(fresh.Inheritance.catalog)
+	collectAuth.Recapture(InheritanceScopeCatalog(&fresh.Inheritance))
 	e.Mu.Lock()
 	refs, err := e.QueryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, fresh.QuerySources, nil, freshOp.Session.SessionToken, plan.RowMark{})
 	var view *visibility.View
@@ -159,7 +159,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = table.CaptureInheritanceQueryPrefix(fresh.Inheritance.catalog, view, parent, freshOp.Session.SessionToken)
+		source, err = table.CaptureInheritanceQueryPrefix(InheritanceScopeCatalog(&fresh.Inheritance), view, parent, freshOp.Session.SessionToken)
 	}
 	e.Mu.Unlock()
 	if err != nil {

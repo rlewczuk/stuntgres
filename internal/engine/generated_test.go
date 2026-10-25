@@ -175,7 +175,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	op := &session.Operation{Ctx: context.Background()}
 	declarations := []analyze.ColumnDeclaration{{}, {Generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
-	if err := bindCreateGenerations(e, op, AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
+	if err := BindCreateGenerations(e, op, AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
@@ -192,7 +192,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	candidate.SetDescriptor(d.Address(), d)
 	candidate.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: d.Namespace(), Name: d.Name()}, d.Address())
 	read := e.Catalog.Read(candidate)
-	if err := (relationProvider).Validate(read, d); err != nil {
+	if err := (RelationProvider()).Validate(read, d); err != nil {
 		t.Fatal(err)
 	}
 	if !catalog.DefinitionOIDUsed(d, definition.OID) {
@@ -209,7 +209,7 @@ func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 		replacement := definition
 		mutate(&replacement)
 		bad.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: replacement}
-		if err := (relationProvider).Validate(read, &bad); err == nil {
+		if err := (RelationProvider()).Validate(read, &bad); err == nil {
 			t.Fatal("invalid generated definition accepted")
 		}
 	}

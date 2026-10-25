@@ -7,6 +7,8 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -83,4 +85,19 @@ func ScopeReserveCopy(x *StatementScope) error {
 // ScopeTruncateOrZero calls x.truncateOrZero.
 func ScopeTruncateOrZero(x *StatementScope) dml.TruncateScope {
 	return x.truncateOrZero()
+}
+
+// EngineRowDiagnosticDetail calls x.rowDiagnosticDetail.
+func EngineRowDiagnosticDetail(x *Engine, s *StatementScope, b *analyze.Binding, row []sqltype.Value, suppressEmpty bool) (string, error) {
+	return x.rowDiagnosticDetail(s, b, row, suppressEmpty)
+}
+
+// ScopeAcquireInheritedMutationTargets calls x.acquireInheritedMutationTargets.
+func ScopeAcquireInheritedMutationTargets(x *StatementScope, statement parser.Statement) error {
+	return x.acquireInheritedMutationTargets(statement)
+}
+
+// ScopeMutationStorage calls x.mutationStorage.
+func ScopeMutationStorage(x *StatementScope, ref ids.ObjectRef) *storage.Relation {
+	return x.mutationStorage(ref)
 }

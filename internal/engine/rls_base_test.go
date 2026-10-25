@@ -112,7 +112,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		borrowQueryAuthority(source, scope)
+		BorrowQueryAuthority(source, scope)
 		defer source.Close()
 		if source.View == nil || !source.RlsDenied || len(source.Committed) != 0 || len(source.Own) != 0 || source.HashIndexes != nil || source.PartialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")
@@ -261,7 +261,7 @@ func TestRLSBaseCancellationAndLocks(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	prepared.ctx = ctx
+	SetPreparedCatalogPublicationCtx(prepared, ctx)
 	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled flags published")
 	}

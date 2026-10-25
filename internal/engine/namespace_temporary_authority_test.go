@@ -36,7 +36,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 				defaultUnitDiagnostic(t, err, "42501", "permission denied for schema "+name)
 			}
 		}
-		if temporaryNamespace(auth) != (ids.ObjectAddress{}) || access.OwnTemporaryNamespace(temporaryNamespace(auth), auth.Catalog.MustNamespace(namespace)) {
+		if TemporaryNamespace(auth) != (ids.ObjectAddress{}) || access.OwnTemporaryNamespace(TemporaryNamespace(auth), auth.Catalog.MustNamespace(namespace)) {
 			t.Fatal("qualified usage granted physical namespace adoption")
 		}
 	}

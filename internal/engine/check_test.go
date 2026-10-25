@@ -107,7 +107,7 @@ func TestCheckCancellationBeforePublication(t *testing.T) {
 		}
 		return sqltype.Integer(c.Row[0].Type(), 9)
 	})
-	r, err := executeUpdate(ctx, scope, b, source, nil, nil, "public")
+	r, err := ExecuteUpdate(ctx, scope, b, source, nil, nil, "public")
 	if !errors.Is(err, context.Canceled) || r.Count != 0 || r.Rows != nil || calls != 2 {
 		scope.Finish(err)
 		op.Done()

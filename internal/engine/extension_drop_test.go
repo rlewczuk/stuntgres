@@ -233,7 +233,7 @@ func extensionDropUnitRetirement(t *testing.T, e *Engine, ext *catalog.Extension
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	roots := extension.RemovalRoots(stage.Base, []ids.ObjectAddress{ext.Address()})
 	for _, address := range roots {
-		if err := stage.removeObject(e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
+		if err := StageRemoveObject(stage, e.Catalog.Domain.Ref(stage.Base.Epoch(), address), false); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -453,7 +453,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 					extensionDropUnitRejected(t, e, before, ext, before.Get(owner.Address()), err)
 					return
 				}
-				err = catalogDependencyPreflight(current.State(), candidate, stage.Sequence.IdentityDependencyList(), nil)
+				err = CatalogDependencyPreflight(current.State(), candidate, stage.Sequence.IdentityDependencyList(), nil)
 				var conflict catalog.Conflict
 				if control == "still_dependent" {
 					if !errors.As(err, &conflict) {

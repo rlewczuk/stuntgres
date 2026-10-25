@@ -44,7 +44,7 @@ func TestDomainIdentityStage(t *testing.T) {
 	checkOID := old.DomainChecks[0].OID
 	for _, q := range []string{"ALTER DOMAIN public.d RENAME TO renamed", "ALTER DOMAIN public.renamed SET SCHEMA moved"} {
 		stage := domainUnitStage(t, e, op, q)
-		if stage.domainAlter.AlterContext() != nil {
+		if StageDomainAlter(stage).AlterContext() != nil {
 			t.Fatal("identity edit used executable CHECK alteration")
 		}
 		domainUnitPublish(t, e, stage)

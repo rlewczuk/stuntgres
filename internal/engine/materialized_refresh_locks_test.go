@@ -63,7 +63,7 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			scope := refreshUnitScope(t, e, ctx)
 			stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: tc.noData}
 			done := make(chan error, 1)
-			go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
+			go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
 			joined := false
 			defer func() {
 				cancel()
@@ -116,14 +116,14 @@ func TestMaterializedRefreshQueuedReplacement(t *testing.T) {
 			first := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, NoData: noData}
 			second := &parser.RefreshMaterializedView{Name: first.Name}
 			a := refreshUnitScope(t, e, context.Background())
-			if err := a.acquireMaterializedRefresh(first); err != nil {
+			if err := ScopeAcquireMaterializedRefresh(a, first); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			b := refreshUnitScope(t, e, ctx)
 			done := make(chan error, 1)
-			go func() { done <- b.acquireMaterializedRefresh(second) }()
+			go func() { done <- ScopeAcquireMaterializedRefresh(b, second) }()
 			joined := false
 			defer func() {
 				cancel()

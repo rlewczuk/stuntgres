@@ -77,7 +77,7 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 					if fence.Kind() == session.FenceStorageRead {
 						t.Fatal("metadata operation retained a heap read barrier")
 					}
-					if fence.Kind() == fenceCatalogRoleRead {
+					if fence.Kind() == FenceCatalogRoleRead {
 						t.Fatal("metadata operation retained pending producer role authority")
 					}
 				}
@@ -242,7 +242,7 @@ func TestTransactionalIndexMaintenanceAtomicPublication(t *testing.T) {
 				if fence.Kind() == session.FenceStorageRead {
 					t.Fatal("metadata-only utility retained a heap read barrier")
 				}
-				if fence.Kind() == fenceCatalogRoleRead {
+				if fence.Kind() == FenceCatalogRoleRead {
 					t.Fatal("metadata-only utility retained pending producer role authority")
 				}
 			}

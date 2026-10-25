@@ -202,7 +202,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e, _ := roleSwitchUnitSession(t)
 			login, _ := e.Roles().Lookup("switch_login")
-			before := len(e.sessions)
+			before := len(EngineSessions(e))
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			provider := roleSwitchDefaultProvider{value: tc.value, err: tc.providerErr, hook: func(context.Context, settings.Definition) {
@@ -211,7 +211,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 				}
 			}}
 			s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
-			if s != nil || err == nil || len(e.sessions) != before {
+			if s != nil || err == nil || len(EngineSessions(e)) != before {
 				t.Fatal("failed startup published", s, err)
 			}
 			if tc.code != "" {

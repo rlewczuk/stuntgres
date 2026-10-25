@@ -183,7 +183,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 				parent.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{one}}},
 				child.Address():  {{Row: 2, Version: 2, Values: []sqltype.Value{two}}},
 			}
-			nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, changes)
+			nextWrites, _, next, err := EnginePrepareTemporaryCommit(e, op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, changes)
 			if err != nil {
 				t.Fatal(err)
 			}

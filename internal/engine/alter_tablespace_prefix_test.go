@@ -112,7 +112,7 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 		t.Fatal("private AS published catalog/storage/generator state")
 	}
 	e.DiscardCatalogStage(stage)
-	if stage.Lifecycle != catalogDiscarded {
+	if stage.Lifecycle != CatalogDiscarded {
 		t.Fatal("ordinary stage owner failed to discard")
 	}
 	if err := scope.Finish(completionErr); err == nil {
@@ -218,7 +218,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					t.Fatal("failed controller published a prefix or visited later TYPE")
 				}
 				if shared {
-					if stage.Lifecycle == catalogDiscarded || stage.Lifecycle == catalogPublished {
+					if stage.Lifecycle == CatalogDiscarded || stage.Lifecycle == CatalogPublished {
 						t.Fatal("inner failure took shared cleanup ownership", stage.Lifecycle)
 					}
 					if !invalidAS && (stage.Sequence.Generator(a) == nil || stage.Get(a).(*catalog.Relation).Sequence.SQLType != sqltype.Int2) {
@@ -228,7 +228,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 					// descendant, owns this private stage's transition.
 					scope.Inheritance.Alter = nil
 					e.DiscardCatalogStage(stage)
-					if stage.Lifecycle != catalogDiscarded {
+					if stage.Lifecycle != CatalogDiscarded {
 						t.Fatal("shared owner failed to dispose")
 					}
 				}

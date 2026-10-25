@@ -64,7 +64,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			view := auth.Catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "phase_child"})
 			child := view.MustRelation(childRef[0])
-			ownerAuth := auth.actingAs(child.Owner)
+			ownerAuth := AuthorizationActingAs(auth, child.Owner)
 			e.Mu.Unlock()
 			domain := domainUnitType(t, view, "phase_checked")
 			value, err := sqltype.Integer(domain.SQLType.DomainBase().Type, 1)
@@ -111,7 +111,7 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
-			nullCountUnitDiagnostic(t, scope.readmitPreparedPrograms(current), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
+			nullCountUnitDiagnostic(t, ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function int4gt"})
 			e.Mu.Lock()
 			last = e.Storage.Sequences[sequence.Address].Last
 			e.Mu.Unlock()
@@ -169,7 +169,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			view := auth.Catalog
 			childRef := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "inquiry_phase_child"})
 			child := view.MustRelation(childRef[0])
-			ownerAuth := auth.actingAs(child.Owner)
+			ownerAuth := AuthorizationActingAs(auth, child.Owner)
 			binder := NewExpressionBinder(context.Background(), e, scope.Input, caller, nil)
 			binder.Query.Auth, binder.Query.Namespace = &auth, &analyze.QueryNamespace{}
 			node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
@@ -192,7 +192,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 				if err := exec.AdmitRoutineCall(evaluation, node, true, false); err != nil {
 					return err
 				}
-				return admitInquiryBody(evaluation, inquiry.Info)
+				return AdmitInquiryBody(evaluation, inquiry.Info)
 			}
 			first, second := &invoker, &local
 			if firstRI {
@@ -212,7 +212,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
-			nullCountUnitDiagnostic(t, scope.readmitPreparedPrograms(current), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
+			nullCountUnitDiagnostic(t, ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function oideq", Context: `SQL function "obj_description" statement 1`})
 			// Both are now denied. The actually consumed outer call must win
 			// with its original caller diagnostic, not the body's SQL Context.
 			roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.obj_description(oid,name) FROM PUBLIC")
@@ -222,7 +222,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
-			nullCountUnitDiagnostic(t, scope.readmitPreparedPrograms(current), sqlstate.Error{Code: "42501", Message: "permission denied for function obj_description"})
+			nullCountUnitDiagnostic(t, ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function obj_description"})
 		})
 	}
 }

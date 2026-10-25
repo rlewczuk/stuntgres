@@ -110,10 +110,10 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.SQLType.ID()), 23)
 	sessionSQL(t, s, "SET ROLE routine_operand_a")
 	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
-	if d.regtypes == nil || len(d.regtypes.Constants) != 3 {
-		t.Fatal("mixed datum did not enter shared analysis", d.regtypes)
+	if DescriptionRegtypes(&d) == nil || len(DescriptionRegtypes(&d).Constants) != 3 {
+		t.Fatal("mixed datum did not enter shared analysis", DescriptionRegtypes(&d))
 	}
-	saved := regoperatorPreparedSnapshot(d.regtypes.Constants)
+	saved := regoperatorPreparedSnapshot(DescriptionRegtypes(&d).Constants)
 	c := saved[0]
 	if c.TypeID == 0 || c.Operator != 0 || c.Value.Type() == nil || !c.Value.Type().ContainsRegproc() || !c.Value.Type().ContainsOperatorAlias() {
 		t.Fatal("mixed datum lost routine-owner classification", c)
@@ -143,7 +143,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 			}
 		}
 	}
-	assertDependencies(d.analysis.dependencies)
+	assertDependencies(PreparedAnalysisDependencies(DescriptionAnalysis(&d)))
 	// Rebind actual captured datums at one occurrence. Invalid text ensures
 	// that each target selects its retained cell rather than reparsing.
 	func() {
@@ -162,7 +162,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		for i := range cells {
 			cells[i].Offset = 7
 		}
-		expected := StatementDescription{regtypes: &regobj.Analysis{Constants: cells}}
+		expected := *NewDescription(DescriptionFields{Regtypes: &regobj.Analysis{Constants: cells}})
 		b := NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &expected)
 		b.Query.Auth = &auth
 		pos := parser.Position{Offset: 7, Character: 8}
@@ -196,13 +196,13 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 			t.Fatal("standalone REGTYPE cross-selected mixed cell", id, err, idErr)
 		}
 	}()
-	if !regoperatorPreparedCellValid(t, e, s, d.regtypes) {
+	if !regoperatorPreparedCellValid(t, e, s, DescriptionRegtypes(&d)) {
 		t.Fatal("fresh mixed cell invalid")
 	}
 	signature := slices.Clone(d.Results)
-	before := d.analysis
+	before := DescriptionAnalysis(&d)
 	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_b")
-	if regoperatorPreparedCellValid(t, e, s, d.regtypes) {
+	if regoperatorPreparedCellValid(t, e, s, DescriptionRegtypes(&d)) {
 		t.Fatal("qualified operand authority change retained mixed cell")
 	}
 	result, failure := sequencePreparedExecute(e, s, ast, &d)
@@ -213,7 +213,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		}
 		t.Fatal("mixed authority denial did not fail without rows", failure)
 	}
-	if d.analysis != before || !reflect.DeepEqual(d.regtypes.Constants, saved) || !reflect.DeepEqual(d.Results, signature) {
+	if DescriptionAnalysis(&d) != before || !reflect.DeepEqual(DescriptionRegtypes(&d).Constants, saved) || !reflect.DeepEqual(d.Results, signature) {
 		t.Fatal("failed mixed reanalysis published partial capture or signature")
 	}
 	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_a")
@@ -227,7 +227,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) {
 		t.Fatal("recovered mixed datum changed identity", values, err)
 	}
-	assertDependencies(d.analysis.dependencies)
+	assertDependencies(PreparedAnalysisDependencies(DescriptionAnalysis(&d)))
 	if !reflect.DeepEqual(d.Results, signature) {
 		t.Fatal("recovered mixed statement changed signature")
 	}
@@ -240,25 +240,25 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if regoperatorPreparedCellValid(t, e, s, d.regtypes) {
+	if regoperatorPreparedCellValid(t, e, s, DescriptionRegtypes(&d)) {
 		t.Fatal("mixed capture accepted stale operand revision")
 	}
-	priorAnalysis := d.analysis
+	priorAnalysis := DescriptionAnalysis(&d)
 	revised, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal("mixed revision recapture failed", err)
 	}
 	defer revised.Rows.Close()
 	present, err = revised.Rows.Next(context.Background(), values)
-	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) || d.analysis == priorAnalysis {
+	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) || DescriptionAnalysis(&d) == priorAnalysis {
 		t.Fatal("mixed revision did not recapture unchanged actual identities", values, err)
 	}
 	want[0].Revision = changed.Revision()
-	if !reflect.DeepEqual(d.regtypes.Constants[0].Operands, want) {
-		t.Fatal("mixed recapture retained stale operand stamps", d.regtypes.Constants[0].Operands, want)
+	if !reflect.DeepEqual(DescriptionRegtypes(&d).Constants[0].Operands, want) {
+		t.Fatal("mixed recapture retained stale operand stamps", DescriptionRegtypes(&d).Constants[0].Operands, want)
 	}
-	assertDependencies(d.analysis.dependencies)
-	if !reflect.DeepEqual(d.Results, signature) || !regoperatorPreparedCellValid(t, e, s, d.regtypes) {
+	assertDependencies(PreparedAnalysisDependencies(DescriptionAnalysis(&d)))
+	if !reflect.DeepEqual(d.Results, signature) || !regoperatorPreparedCellValid(t, e, s, DescriptionRegtypes(&d)) {
 		t.Fatal("revised mixed capture changed signature or remained invalid")
 	}
 }

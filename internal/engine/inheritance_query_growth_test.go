@@ -73,7 +73,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	joined := false
 	result := make(chan error, 1)
-	go func() { result <- scope.acquireInheritanceSources(nil) }()
+	go func() { result <- ScopeAcquireInheritanceSources(scope, nil) }()
 	defer func() {
 		cancel()
 		holder.Finish(nil)
@@ -116,7 +116,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 		t.Fatal(err)
 	}
 	admitted := map[ids.ObjectRef]bool{}
-	for _, leaf := range scope.Inheritance.relations {
+	for _, leaf := range InheritanceScopeRelations(&scope.Inheritance) {
 		admitted[leaf.Ref] = true
 	}
 	if len(admitted) != 2 || !admitted[originalRef] || !admitted[lateRef] {
@@ -133,7 +133,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(scope.Inheritance.catalog)
+	collectAuth.Recapture(InheritanceScopeCatalog(&scope.Inheritance))
 	e.Mu.Lock()
 	refs, err := e.QueryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.QuerySources, nil, op.Session.SessionToken, plan.RowMark{})
 	var view *visibility.View
@@ -142,7 +142,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = table.CaptureInheritanceQueryPrefix(scope.Inheritance.catalog, view, parent, op.Session.SessionToken)
+		source, err = table.CaptureInheritanceQueryPrefix(InheritanceScopeCatalog(&scope.Inheritance), view, parent, op.Session.SessionToken)
 	}
 	e.Mu.Unlock()
 	if err != nil {

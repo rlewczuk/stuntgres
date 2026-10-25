@@ -137,7 +137,7 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 			if mode == "cancel_after" {
 				barrier.late = cancel
 			}
-			prepared.ctx = barrier
+			SetPreparedCatalogPublicationCtx(prepared, barrier)
 			before, store := e.Catalog.State, e.Storage.Relations[table.Address()]
 			finished := make(chan error, 1)
 			joined := false

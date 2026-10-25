@@ -61,7 +61,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 				if change == "horizon" {
 					e.Mu.Lock()
 					e.DatabaseFrozenXID = oldDatabase.FrozenXID + 1
-					e.publishDatabaseFrozenXIDLocked()
+					EnginePublishDatabaseFrozenXIDLocked(e)
 					e.Mu.Unlock()
 					expected := *oldDatabase
 					expected.FrozenXID++

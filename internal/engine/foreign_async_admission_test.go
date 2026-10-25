@@ -10,14 +10,14 @@ import (
 func TestFDWAsyncAdmissionOwnership(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		host *statementHost
+		host *StatementHost
 		want bool
 	}{
 		{name: "detached"},
-		{name: "internal_scope", host: &statementHost{}},
-		{name: "unadmitted_operation", host: &statementHost{Op: &session.Operation{AsyncAppend: true}}},
-		{name: "admitted_disabled", host: &statementHost{Op: &session.Operation{CommandAdmission: true}}},
-		{name: "admitted_enabled", host: &statementHost{Op: &session.Operation{CommandAdmission: true, AsyncAppend: true}}, want: true},
+		{name: "internal_scope", host: NewStatementHost(StatementHostFields{})},
+		{name: "unadmitted_operation", host: NewStatementHost(StatementHostFields{Op: &session.Operation{AsyncAppend: true}})},
+		{name: "admitted_disabled", host: NewStatementHost(StatementHostFields{Op: &session.Operation{CommandAdmission: true}})},
+		{name: "admitted_enabled", host: NewStatementHost(StatementHostFields{Op: &session.Operation{CommandAdmission: true, AsyncAppend: true}}), want: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := exec.State{Source: &exec.Source{Host: tc.host}}

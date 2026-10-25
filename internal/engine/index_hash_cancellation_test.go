@@ -210,7 +210,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	defer op.Done()
 	during := &hashMergeCancellationContext{cancelAtErrCheck: &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: polls - 1}}
 	op.Ctx = during
-	err = e.publishRows(op, ref, writes, deletes, nil, nil, nil)
+	err = EnginePublishRows(e, op, ref, writes, deletes, nil, nil, nil)
 	op.Done()
 	if !errors.Is(err, context.Canceled) || during.checks.Load() != during.at {
 		t.Fatal("owner did not cancel inside real hash merge", err, during.checks.Load(), during.at)

@@ -233,7 +233,7 @@ func TestTriggerDDLAutoExtensions(t *testing.T) {
 	if err := low.Triggers.Validate(read, low); err != nil {
 		t.Fatal(err)
 	}
-	if err := catalogDependencyPreflight(read.State(), read.State(), []session.DependencyObservation{{Base: before.State(), Targets: []ids.ObjectAddress{ext.Address()}}}, nil); err == nil {
+	if err := CatalogDependencyPreflight(read.State(), read.State(), []session.DependencyObservation{{Base: before.State(), Targets: []ids.ObjectAddress{ext.Address()}}}, nil); err == nil {
 		t.Fatal("late automatic dependency was not fenced")
 	}
 	missing := p

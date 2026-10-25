@@ -226,7 +226,7 @@ func TestPartitionConstraintsVirtualPublication(t *testing.T) {
 			next.SetDescriptor(a, d)
 		}
 	}
-	roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, catalog.NewState(0), &next, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+	roots, err := EnginePrepareIndexRoots(f.e, &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, catalog.NewState(0), &next, nil, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 	if err != nil || roots[f.parent.Address()] != nil {
 		t.Fatal("virtual root required physical storage", roots, err)
 	}
@@ -255,7 +255,7 @@ func TestPartitionConstraintsAttachPublication(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.view.State(), next.State(), map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil); !errors.Is(err, context.Canceled) {
+	if _, err := EnginePrepareIndexRoots(f.e, &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, f.view.State(), next.State(), map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}, nil, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled candidate accepted", err)
 	}
 	if f.child.SQLIndex.PartitionParent != (ids.ObjectAddress{}) || f.parent.SQLIndex.Valid {
@@ -387,7 +387,7 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 		next := catalog.CloneState(source.Catalog.State)
 		relations := map[ids.ObjectAddress]*storage.Relation{parent.Address(): {}, child.Address(): {}, manual.Address(): {}}
 		e.Mu.Lock()
-		err := e.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
+		err := EnginePreserveTemporaryLocked(e, context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, e), &catalog.OIDReservation{Base: e.Catalog.NextOID(), Next: e.Catalog.NextOID()})
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -510,7 +510,7 @@ func TestPartitionConstraintsDumpCollisionDefinitionReservation(t *testing.T) {
 	next := catalog.CloneState(f.view.State())
 	relations := map[ids.ObjectAddress]*storage.Relation{f.leaf.Address(): {}}
 	destination.Mu.Lock()
-	err := destination.preserveTemporaryLocked(context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination), &catalog.OIDReservation{Base: destination.Catalog.NextOID(), Next: destination.Catalog.NextOID()})
+	err := EnginePreserveTemporaryLocked(destination, context.Background(), next, relations, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(f.e, destination), &catalog.OIDReservation{Base: destination.Catalog.NextOID(), Next: destination.Catalog.NextOID()})
 	destination.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -965,11 +965,11 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 		return out
 	}
 	before := indexMaintenanceCapture(e)
-	snapshot, err := e.captureIndexSnapshot(context.Background(), e.CatalogRead(), e.Storage.Relations, e.Storage.IndexRoots, e.Visibility.CommitSeq())
+	snapshot, err := EngineCaptureIndexSnapshot(e, context.Background(), e.CatalogRead(), e.Storage.Relations, e.Storage.IndexRoots, e.Visibility.CommitSeq())
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, _, _, err := e.prepareRemintedStorage(context.Background(), e.Catalog.State, copiedStorage(), snapshot, true)
+	roots, _, _, err := EnginePrepareRemintedStorage(e, context.Background(), e.Catalog.State, copiedStorage(), snapshot, true)
 	if err != nil {
 		t.Fatal("representable nested incomplete topology rejected", err)
 	}
@@ -1001,7 +1001,7 @@ func TestPartitionConstraintsIncompleteReplacementAdmission(t *testing.T) {
 				definition.Live = false
 			}
 			next.SetDescriptor(address, &copy)
-			if _, _, _, err := e.prepareRemintedStorage(context.Background(), &next, copiedStorage(), snapshot, true); err == nil {
+			if _, _, _, err := EnginePrepareRemintedStorage(e, context.Background(), &next, copiedStorage(), snapshot, true); err == nil {
 				t.Fatal("unrepresentable publication state imported", flag)
 			}
 			indexMaintenanceUnchanged(t, e, before)

@@ -35,7 +35,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 				t.Fatal(i, c)
 			}
 		}
-		if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
+		if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
 		if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -43,7 +43,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 		}
 		invalid := *d
 		invalid.RelationKind = catalog.TableRelation
-		if err := (relationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
+		if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
 			t.Fatal("virtual table accepted")
 		}
 		invalid = *d
@@ -53,7 +53,7 @@ func TestTimezoneSourceDescriptors(t *testing.T) {
 			t.Fatal("foreign type missing")
 		}
 		invalid.Columns[0].Usage.Type = foreign
-		if err := (relationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
+		if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
 			t.Fatal("foreign owner type accepted")
 		}
 	}
@@ -73,7 +73,7 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 		{boundary, -14400000000, true},
 	} {
 		input := sqltype.InputEnvironment{TransactionStart: tc.instant}
-		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{input: input}}, captureTimezoneSource)
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Input: input})}, captureTimezoneSource)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +105,7 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: EngineCatalogRuntime{input: sqltype.InputEnvironment{}}}, captureTimezoneSource); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Input: sqltype.InputEnvironment{}})}, captureTimezoneSource); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(source, err)
 	}
 }
@@ -141,7 +141,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 			d := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
 			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 			e.Mu.Lock()
-			rows, err := e.openRelationSourceLocked(scope, ref, d.Owner, plan.RowMark{}, nil, nil)
+			rows, err := EngineOpenRelationSourceLocked(e, scope, ref, d.Owner, plan.RowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

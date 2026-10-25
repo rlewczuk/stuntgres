@@ -51,12 +51,12 @@ func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	path, err := e.sequenceEnvironmentLocked(auth)
+	path, err := EngineSequenceEnvironmentLocked(e, auth)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	analysis := preparedAnalysis{domain: e.Catalog.Domain, epoch: auth.Catalog.Epoch(), session: auth.Session.SessionToken, private: auth.Session.Transactions.Catalog, path: path, namespace: auth.Catalog.State().NamespaceGeneration(), types: map[ids.ObjectAddress]*catalog.Type{base.Address(): base}, dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}}}
+	analysis := *NewPreparedAnalysis(PreparedAnalysisFields{Domain: e.Catalog.Domain, Epoch: auth.Catalog.Epoch(), Session: auth.Session.SessionToken, Private: auth.Session.Transactions.Catalog, Path: path, Namespace: auth.Catalog.State().NamespaceGeneration(), Types: map[ids.ObjectAddress]*catalog.Type{base.Address(): base}, Dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}}})
 	changed := *current
 	changed.ObjectRevision++
 	changed.Owner = authorization.PrincipalRef{}
@@ -67,33 +67,33 @@ func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 		t.Fatal(err)
 	}
 	auth.Catalog = e.StageRead(stage)
-	valid := func(a *preparedAnalysis, rebind bool) bool {
+	valid := func(a *PreparedAnalysis, rebind bool) bool {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
-		return e.preparedAnalysisDefinitionsValidLocked(auth, a, path, rebind)
+		return EnginePreparedAnalysisDefinitionsValidLocked(e, auth, a, path, rebind)
 	}
 	if valid(&analysis, false) || !valid(&analysis, true) {
 		t.Fatal("owner/ACL changes must invalidate executable analysis but permit nominal rebind")
 	}
 	for _, tc := range []struct {
 		name   string
-		change func(*preparedAnalysis)
+		change func(*PreparedAnalysis)
 	}{
-		{"epoch", func(a *preparedAnalysis) { a.epoch++ }},
-		{"domain", func(a *preparedAnalysis) { a.domain = new(ids.Domain) }},
-		{"session", func(a *preparedAnalysis) { a.session = ids.SessionToken{} }},
-		{"private", func(a *preparedAnalysis) { a.private = new(session.Journal) }},
-		{"namespace", func(a *preparedAnalysis) { a.namespace++ }},
-		{"retired", func(a *preparedAnalysis) { a.needsReanalysis = true }},
-		{"cast", func(a *preparedAnalysis) {
-			a.casts = map[catalog.CastPair]*catalog.Cast{{Source: sqltype.Text, Target: sqltype.Int4}: new(catalog.Cast)}
+		{"epoch", func(a *PreparedAnalysis) { *PreparedAnalysisEpochRef(a)++ }},
+		{"domain", func(a *PreparedAnalysis) { SetPreparedAnalysisDomain(a, new(ids.Domain)) }},
+		{"session", func(a *PreparedAnalysis) { SetPreparedAnalysisSession(a, ids.SessionToken{}) }},
+		{"private", func(a *PreparedAnalysis) { SetPreparedAnalysisPrivate(a, new(session.Journal)) }},
+		{"namespace", func(a *PreparedAnalysis) { *PreparedAnalysisNamespaceRef(a)++ }},
+		{"retired", func(a *PreparedAnalysis) { SetPreparedAnalysisNeedsReanalysis(a, true) }},
+		{"cast", func(a *PreparedAnalysis) {
+			SetPreparedAnalysisCasts(a, map[catalog.CastPair]*catalog.Cast{{Source: sqltype.Text, Target: sqltype.Int4}: new(catalog.Cast)})
 		}},
-		{"path", func(a *preparedAnalysis) { a.path.ImplicitCatalog = !a.path.ImplicitCatalog }},
-		{"missing dependency", func(a *preparedAnalysis) {
-			a.dependencies = []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID})}}
+		{"path", func(a *PreparedAnalysis) { PreparedAnalysisPathRef(a).ImplicitCatalog = !PreparedAnalysisPath(a).ImplicitCatalog }},
+		{"missing dependency", func(a *PreparedAnalysis) {
+			SetPreparedAnalysisDependencies(a, []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID})}})
 		}},
-		{"unrelated dependency", func(a *preparedAnalysis) {
-			a.dependencies = append(append([]catalog.ExpressionDependency(nil), a.dependencies...), catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), current.Namespace())})
+		{"unrelated dependency", func(a *PreparedAnalysis) {
+			SetPreparedAnalysisDependencies(a, append(append([]catalog.ExpressionDependency(nil), PreparedAnalysisDependencies(a)...), catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), current.Namespace())}))
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -123,32 +123,32 @@ func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 			old := *base
 			tc.change(&old)
 			other := analysis
-			other.types = map[ids.ObjectAddress]*catalog.Type{base.Address(): &old}
+			SetPreparedAnalysisTypes(&other, map[ids.ObjectAddress]*catalog.Type{base.Address(): &old})
 			if valid(&other, true) {
 				t.Fatal("changed executable or provider definition rescued nominal identity")
 			}
 		})
 	}
-	expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{base.SQLType.Usage()}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: shared, analysis: &analysis}
-	expected.planGeneration = auth.Session.DiscardPlansGeneration
+	expected := NewDescription(DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{base.SQLType.Usage()}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: shared, Analysis: &analysis})
+	SetDescriptionPlanGeneration(expected, auth.Session.DiscardPlansGeneration)
 	e.Mu.Lock()
-	eligible := e.preparedIsnAuthorityRebindLocked(auth, expected, path)
-	expected.planGeneration++
-	discarded := e.preparedIsnAuthorityRebindLocked(auth, expected, path)
+	eligible := EnginePreparedIsnAuthorityRebindLocked(e, auth, expected, path)
+	*DescriptionPlanGenerationRef(expected)++
+	discarded := EnginePreparedIsnAuthorityRebindLocked(e, auth, expected, path)
 	e.Mu.Unlock()
 	if !eligible || discarded {
 		t.Fatal("DISCARD must disallow nominal rebind")
 	}
-	expected.planGeneration = auth.Session.DiscardPlansGeneration
+	SetDescriptionPlanGeneration(expected, auth.Session.DiscardPlansGeneration)
 	withoutCarry := *expected
 	isolatedAnalysis := analysis
-	withoutCarry.analysis = &isolatedAnalysis
-	if _, ok := withoutCarry.retireAnalysisTypeCastsForRebind(false)[key]; ok {
+	SetDescriptionAnalysis(&withoutCarry, &isolatedAnalysis)
+	if _, ok := DescriptionRetireAnalysisTypeCastsForRebind(&withoutCarry, false)[key]; ok {
 		t.Fatal("ineligible candidate retained nominal identity")
 	}
 	candidate := *expected
-	candidate.types = expected.retireAnalysisTypeCastsForRebind(true)
-	if _, ok := expected.types[key]; ok || !expected.analysis.needsReanalysis || shared[key].Base.Type != base.SQLType {
+	SetDescriptionTypes(&candidate, DescriptionRetireAnalysisTypeCastsForRebind(expected, true))
+	if _, ok := DescriptionTypes(expected)[key]; ok || !PreparedAnalysisNeedsReanalysis(DescriptionAnalysis(expected)) || shared[key].Base.Type != base.SQLType {
 		t.Fatal("candidate mutated shared captures or failed sticky retirement")
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &candidate)
@@ -163,8 +163,8 @@ func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 	}
 	for _, carry := range []bool{false, true} {
 		retired := *expected
-		retired.types = expected.types
-		if _, ok := retired.retireAnalysisTypeCastsForRebind(carry)[key]; ok {
+		SetDescriptionTypes(&retired, DescriptionTypes(expected))
+		if _, ok := DescriptionRetireAnalysisTypeCastsForRebind(&retired, carry)[key]; ok {
 			t.Fatal("explicit retirement or DISCARD revived old captures")
 		}
 	}
@@ -242,24 +242,24 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	path, err := e.sequenceEnvironmentLocked(auth)
+	path, err := EngineSequenceEnvironmentLocked(e, auth)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	analysis := preparedAnalysis{
-		domain: e.Catalog.Domain, epoch: auth.Catalog.Epoch(), session: auth.Session.SessionToken,
-		private: auth.Session.Transactions.Catalog, path: path, namespace: auth.Catalog.State().NamespaceGeneration(),
-		types:        map[ids.ObjectAddress]*catalog.Type{base.Address(): base},
-		dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}},
-	}
+	analysis := *NewPreparedAnalysis(PreparedAnalysisFields{
+		Domain: e.Catalog.Domain, Epoch: auth.Catalog.Epoch(), Session: auth.Session.SessionToken,
+		Private: auth.Session.Transactions.Catalog, Path: path, Namespace: auth.Catalog.State().NamespaceGeneration(),
+		Types:        map[ids.ObjectAddress]*catalog.Type{base.Address(): base},
+		Dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}},
+	})
 	key := analyze.PreparedTypeKey{Offset: 7, Kind: analyze.IdentityCast}
 	shared := map[analyze.PreparedTypeKey]analyze.TypeOccurrence{key: {Kind: analyze.IdentityCast, Base: base.SQLType.Usage()}}
-	expected := StatementDescription{Temporals: original, types: shared, analysis: &analysis, planGeneration: auth.Session.DiscardPlansGeneration}
+	expected := *NewDescription(DescriptionFields{Temporals: original, Types: shared, Analysis: &analysis, PlanGeneration: auth.Session.DiscardPlansGeneration})
 	reown := func(a AuthorizationView, d *StatementDescription) []analyze.TemporalConstant {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
-		return e.preparedIsnLiteralTemporalsLocked(a, d, path)
+		return EnginePreparedIsnLiteralTemporalsLocked(e, a, d, path)
 	}
 	assertRemapped := func(t *testing.T, got []analyze.TemporalConstant) {
 		t.Helper()
@@ -288,10 +288,10 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 	}
 	assertRemapped(t, reown(auth, &expected))
 	sameAnalysis := analysis
-	sameAnalysis.types = map[ids.ObjectAddress]*catalog.Type{base.Address(): current}
-	sameAnalysis.dependencies = []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: current.Revision()}}
+	SetPreparedAnalysisTypes(&sameAnalysis, map[ids.ObjectAddress]*catalog.Type{base.Address(): current})
+	SetPreparedAnalysisDependencies(&sameAnalysis, []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: current.Revision()}})
 	same := expected
-	same.analysis = &sameAnalysis
+	SetDescriptionAnalysis(&same, &sameAnalysis)
 	same.Temporals = append([]analyze.TemporalConstant(nil), original...)
 	for i := range 3 {
 		if i == 2 {
@@ -309,41 +309,41 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 	}
 	for _, tc := range []struct {
 		name   string
-		change func(*testing.T, *StatementDescription, *preparedAnalysis)
+		change func(*testing.T, *StatementDescription, *PreparedAnalysis)
 	}{
-		{"missing source", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.types = nil }},
-		{"missing dependency", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.dependencies = nil }},
-		{"foreign dependency domain", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) {
-			a.dependencies = []catalog.ExpressionDependency{{Ref: new(ids.Domain).Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}}
+		{"missing source", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { SetPreparedAnalysisTypes(a, nil) }},
+		{"missing dependency", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { SetPreparedAnalysisDependencies(a, nil) }},
+		{"foreign dependency domain", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) {
+			SetPreparedAnalysisDependencies(a, []catalog.ExpressionDependency{{Ref: new(ids.Domain).Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}})
 		}},
-		{"foreign dependency epoch", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) {
-			a.dependencies = []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch()+1, base.Address()), Revision: base.Revision()}}
+		{"foreign dependency epoch", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) {
+			SetPreparedAnalysisDependencies(a, []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch()+1, base.Address()), Revision: base.Revision()}})
 		}},
-		{"alien source pointer", func(t *testing.T, d *StatementDescription, _ *preparedAnalysis) {
+		{"alien source pointer", func(t *testing.T, d *StatementDescription, _ *PreparedAnalysis) {
 			d.Temporals[0].Value = makeValue(t, foreign, inputs[0])
 		}},
-		{"wrong type id", func(_ *testing.T, d *StatementDescription, _ *preparedAnalysis) { d.Temporals[0].TypeID++ }},
-		{"discard", func(_ *testing.T, d *StatementDescription, _ *preparedAnalysis) { d.planGeneration++ }},
-		{"absent analysis", func(_ *testing.T, d *StatementDescription, _ *preparedAnalysis) { d.analysis = nil }},
-		{"retired", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.needsReanalysis = true }},
-		{"domain", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.domain = new(ids.Domain) }},
-		{"epoch", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.epoch++ }},
-		{"session", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.session = ids.SessionToken{} }},
-		{"private", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.private = new(session.Journal) }},
-		{"namespace", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) { a.namespace++ }},
-		{"path", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) {
-			a.path.ImplicitCatalog = !a.path.ImplicitCatalog
+		{"wrong type id", func(_ *testing.T, d *StatementDescription, _ *PreparedAnalysis) { d.Temporals[0].TypeID++ }},
+		{"discard", func(_ *testing.T, d *StatementDescription, _ *PreparedAnalysis) { *DescriptionPlanGenerationRef(d)++ }},
+		{"absent analysis", func(_ *testing.T, d *StatementDescription, _ *PreparedAnalysis) { SetDescriptionAnalysis(d, nil) }},
+		{"retired", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { SetPreparedAnalysisNeedsReanalysis(a, true) }},
+		{"domain", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { SetPreparedAnalysisDomain(a, new(ids.Domain)) }},
+		{"epoch", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { *PreparedAnalysisEpochRef(a)++ }},
+		{"session", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { SetPreparedAnalysisSession(a, ids.SessionToken{}) }},
+		{"private", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { SetPreparedAnalysisPrivate(a, new(session.Journal)) }},
+		{"namespace", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) { *PreparedAnalysisNamespaceRef(a)++ }},
+		{"path", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) {
+			PreparedAnalysisPathRef(a).ImplicitCatalog = !PreparedAnalysisPath(a).ImplicitCatalog
 		}},
-		{"cast", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) {
-			a.casts = map[catalog.CastPair]*catalog.Cast{{Source: sqltype.Text, Target: sqltype.Int4}: new(catalog.Cast)}
+		{"cast", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) {
+			SetPreparedAnalysisCasts(a, map[catalog.CastPair]*catalog.Cast{{Source: sqltype.Text, Target: sqltype.Int4}: new(catalog.Cast)})
 		}},
-		{"unrelated definition", func(_ *testing.T, _ *StatementDescription, a *preparedAnalysis) {
-			a.dependencies = append(append([]catalog.ExpressionDependency(nil), a.dependencies...), catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), current.Namespace())})
+		{"unrelated definition", func(_ *testing.T, _ *StatementDescription, a *PreparedAnalysis) {
+			SetPreparedAnalysisDependencies(a, append(append([]catalog.ExpressionDependency(nil), PreparedAnalysisDependencies(a)...), catalog.ExpressionDependency{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), current.Namespace())}))
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, d := analysis, expected
-			d.analysis = &a
+			SetDescriptionAnalysis(&d, &a)
 			d.Temporals = append([]analyze.TemporalConstant(nil), original...)
 			tc.change(t, &d, &a)
 			snapshot := append([]analyze.TemporalConstant(nil), d.Temporals...)
@@ -421,7 +421,7 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 			a := auth
 			a.Catalog = e.StageRead(stage)
 			localAnalysis, description := analysis, expected
-			description.analysis = &localAnalysis
+			SetDescriptionAnalysis(&description, &localAnalysis)
 			description.Temporals = append([]analyze.TemporalConstant(nil), original...)
 			got := reown(a, &description)
 			if name == "owner/ACL" {
@@ -433,7 +433,7 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 					t.Fatal("owner stage must change owner and ACL")
 				}
 				e.Mu.Lock()
-				valid := e.preparedAnalysisValidLocked(a, &localAnalysis, path)
+				valid := EnginePreparedAnalysisValidLocked(e, a, &localAnalysis, path)
 				e.Mu.Unlock()
 				if valid {
 					t.Fatal("owner/ACL delta reused executable analysis")
@@ -446,14 +446,14 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 	}
 	t.Run("retirement", func(t *testing.T) {
 		localAnalysis, description := analysis, expected
-		description.analysis = &localAnalysis
+		SetDescriptionAnalysis(&description, &localAnalysis)
 		candidate := description
 		candidate.Temporals = reown(auth, &description)
-		candidate.types = description.retireAnalysisTypeCastsForRebind(true)
-		if !description.analysis.needsReanalysis || &candidate.Temporals[0] == &original[0] {
+		SetDescriptionTypes(&candidate, DescriptionRetireAnalysisTypeCastsForRebind(&description, true))
+		if !PreparedAnalysisNeedsReanalysis(DescriptionAnalysis(&description)) || &candidate.Temporals[0] == &original[0] {
 			t.Fatal("retirement failed to isolate candidate")
 		}
-		if _, ok := description.types[key]; ok || candidate.types[key].Base.Type != base.SQLType || shared[key].Base.Type != base.SQLType {
+		if _, ok := DescriptionTypes(&description)[key]; ok || DescriptionTypes(&candidate)[key].Base.Type != base.SQLType || shared[key].Base.Type != base.SQLType {
 			t.Fatal("retirement mutated shared captures or lost candidate identity")
 		}
 		// A failed attempt never publishes its slice or revives the old source cell.
@@ -461,7 +461,7 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 			t.Fatal("failed rebind revived retired datum authority")
 		}
 	})
-	if analysis.needsReanalysis || expected.types[key].Base.Type != base.SQLType {
+	if PreparedAnalysisNeedsReanalysis(&analysis) || DescriptionTypes(&expected)[key].Base.Type != base.SQLType {
 		t.Fatal("subtest retirement contaminated original analysis")
 	}
 	if before.MustType(base.Address()) != base || base.SQLType == current.SQLType || !reflect.DeepEqual(original, saved) {

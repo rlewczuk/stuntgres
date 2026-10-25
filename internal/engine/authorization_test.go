@@ -434,10 +434,10 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("initialization did not finish")
 	}
-	e.sessionMu.Lock()
-	defer e.sessionMu.Unlock()
-	if len(e.sessions) != 1 {
-		t.Fatal("failed authorization initialization entered live registry", len(e.sessions))
+	EngineSessionMuRef(e).Lock()
+	defer EngineSessionMuRef(e).Unlock()
+	if len(EngineSessions(e)) != 1 {
+		t.Fatal("failed authorization initialization entered live registry", len(EngineSessions(e)))
 	}
 }
 

@@ -33,7 +33,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		before := e.Catalog.State
 		for _, raw := range []parser.TypeName{{Name: "char", Quoted: true}, {Name: "regclass"}, {Name: "regclass", ArrayBounds: []int32{0}}, {Name: "xid"}, {Name: "xid", Schema: &parser.Identifier{Text: "pg_catalog"}}, {Name: "cid"}, {Name: "xid8"}} {
 			e.Mu.Lock()
-			usage, err := e.resolveTableColumnType(raw, op)
+			usage, err := EngineResolveTableColumnType(e, raw, op)
 			e.Mu.Unlock()
 			if mode == "forged" {
 				if err == nil || usage.Type != nil || e.Catalog.State != before {
@@ -67,13 +67,13 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		}
 		// The private caller never changes ordinary cast or domain-base admission.
 		e.Mu.Lock()
-		_, castErr := e.resolveAnnotationType(parser.TypeName{Name: "char", Quoted: true}, op, false)
-		_, domainErr := e.resolveAnnotationTypeMode(parser.TypeName{Name: "char", Quoted: true}, op, false, true)
-		arrayUsage, arrayErr := e.resolveTableColumnType(parser.TypeName{Name: "char", Quoted: true, ArrayBounds: []int32{0}}, op)
-		_, xidCastErr := e.resolveAnnotationType(parser.TypeName{Name: "xid"}, op, false)
-		_, xidDomainErr := e.resolveAnnotationTypeMode(parser.TypeName{Name: "xid"}, op, false, true)
-		_, xidArrayErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
-		_, xidModifierErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", Modifiers: []parser.TypeModifier{{Integer: new(int32)}}}, op)
+		_, castErr := EngineResolveAnnotationType(e, parser.TypeName{Name: "char", Quoted: true}, op, false)
+		_, domainErr := EngineResolveAnnotationTypeMode(e, parser.TypeName{Name: "char", Quoted: true}, op, false, true)
+		arrayUsage, arrayErr := EngineResolveTableColumnType(e, parser.TypeName{Name: "char", Quoted: true, ArrayBounds: []int32{0}}, op)
+		_, xidCastErr := EngineResolveAnnotationType(e, parser.TypeName{Name: "xid"}, op, false)
+		_, xidDomainErr := EngineResolveAnnotationTypeMode(e, parser.TypeName{Name: "xid"}, op, false, true)
+		_, xidArrayErr := EngineResolveTableColumnType(e, parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
+		_, xidModifierErr := EngineResolveTableColumnType(e, parser.TypeName{Name: "xid", Modifiers: []parser.TypeModifier{{Integer: new(int32)}}}, op)
 		e.Mu.Unlock()
 		if mode == "forged" {
 			for _, err := range []error{castErr, domainErr, arrayErr, xidCastErr, xidDomainErr, xidArrayErr, xidModifierErr} {

@@ -41,7 +41,7 @@ func concurrentUnitRelation(t *testing.T, e *Engine) *catalog.Relation {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, d, skipped, err := e.prepareQueryTableLocked(op, auth, stmt, b)
+	stage, d, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, stmt, b)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal("materialized stage", err, skipped)
@@ -108,7 +108,7 @@ func materializedConcurrentUnitIndex(t *testing.T, e *Engine, parent *catalog.Re
 		t.Fatal(err)
 	}
 	definition.Unique, definition.NullsNotDistinct = true, stmt.NullsNotDistinct
-	definition.Predicate, err = bindIndexPredicate(e, op, input, auth, parent, stmt.Predicate)
+	definition.Predicate, err = BindIndexPredicate(e, op, input, auth, parent, stmt.Predicate)
 	if err != nil {
 		e.Mu.Unlock()
 		t.Fatal(err)
@@ -503,23 +503,23 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	if len(stage.IndexesOrZero().Rebuilds) != 0 {
 		t.Fatal("replacement forged REINDEX intent")
 	}
-	if err := stage.validateIndexMaintenance(e.Catalog.State); err != nil {
+	if err := StageValidateIndexMaintenance(stage, e.Catalog.State); err != nil {
 		t.Fatal("exact replacement membership rejected", err)
 	}
 	maintenance := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(maintenance)
 	maintenance.Indexes().Sets = map[ids.ObjectAddress]int{d.Address(): 1}
-	if err := maintenance.validateIndexMaintenance(e.Catalog.State); !errors.As(err, new(catalog.Conflict)) {
+	if err := StageValidateIndexMaintenance(maintenance, e.Catalog.State); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}
 	current := catalog.CloneState(e.Catalog.State)
 	changed := *index
 	changed.ObjectRevision++
 	current.SetDescriptor(index.Address(), &changed)
-	if err := stage.validateIndexMaintenance(current); !errors.As(err, new(catalog.Conflict)) {
+	if err := StageValidateIndexMaintenance(stage, current); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("same-count replacement accepted changed index identity", err)
 	}
-	if err := stage.materializedReplacementCurrent(current, e.Storage.Relations[d.Address()]); !errors.As(err, new(catalog.Conflict)) {
+	if err := StageMaterializedReplacementCurrent(stage, current, e.Storage.Relations[d.Address()]); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("replacement lost final exact index identity fence", err)
 	}
 }

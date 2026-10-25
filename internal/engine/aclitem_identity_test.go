@@ -86,7 +86,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if original, ok := oldRoles.Lookup("acl_unit_a"); !ok || original.Ref != a.Ref {
 		t.Fatal("rename mutated old role root")
 	}
-	expected := &StatementDescription{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), catalogOwner: &e.Catalog.Owner, catalogEpoch: e.CatalogRead().Epoch()}
+	expected := NewDescription(DescriptionFields{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()})
 	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	captured, err := reused.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(value, captured) {

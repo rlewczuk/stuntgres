@@ -21,7 +21,7 @@ func TestRuleAuthorityAsUserAndRecovery(t *testing.T) {
 	caller, owner := domain.Principal(10), domain.Principal(20)
 	var original AuthorizationView
 	original.State.CurrentUser = caller
-	original.pathPrefix = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99}
+	SetAuthorizationPathPrefix(&original, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 99})
 
 	switched := original.AsUser(owner)
 	if got := switched.Access().State.CurrentUser; got != owner {
@@ -31,7 +31,7 @@ func TestRuleAuthorityAsUserAndRecovery(t *testing.T) {
 		t.Fatal("AsUser changed the caller's authority")
 	}
 	recovered := RuleAuthorizationOf(switched)
-	if recovered.State.CurrentUser != owner || recovered.pathPrefix != original.pathPrefix {
+	if recovered.State.CurrentUser != owner || AuthorizationPathPrefix(&recovered) != AuthorizationPathPrefix(&original) {
 		t.Fatal("ruleAuthorizationOf lost authorization view fields")
 	}
 

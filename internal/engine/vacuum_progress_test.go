@@ -40,7 +40,7 @@ func vacuumProgressCapture(t *testing.T, e *Engine, observer *session.Session) [
 		e.Mu.Unlock()
 		t.Fatal("unregistered progress producer")
 	}
-	rows, err := producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.Catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: EngineCatalogRuntime{engine: e, Auth: auth}})
+	rows, err := producer(pgcatalog.Input{Context: context.Background(), Catalog: auth.Catalog, Roles: auth.Roles, Owner: &e.Catalog.Owner, Ref: auth.Ref(address), Source: source, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e, Auth: auth})})
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

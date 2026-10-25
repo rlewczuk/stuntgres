@@ -94,7 +94,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			original.Ends = &storage.DeletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.Owner.Isolation = session.RepeatableRead
-			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
+			if err := ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			root := scope.Owner.Roots[d.Address()]
@@ -133,7 +133,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			d = e.Catalog.State.MustRelation(d.Address())
 			scope := refreshUnitScope(t, e, context.Background())
 			scope.Owner.Isolation = session.RepeatableRead
-			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
+			if err := ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			originalEpoch := e.Catalog.State.Epoch()
@@ -193,7 +193,7 @@ func TestMaterializedRefreshConcurrentLateCancellation(t *testing.T) {
 	defer cancel()
 	scope := refreshUnitScope(t, e, ctx)
 	stmt := &parser.RefreshMaterializedView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Concurrent: parser.Position{Character: 27}}
-	if err := scope.acquireMaterializedRefresh(stmt); err != nil {
+	if err := ScopeAcquireMaterializedRefresh(scope, stmt); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()

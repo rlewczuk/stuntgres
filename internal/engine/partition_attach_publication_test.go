@@ -92,7 +92,7 @@ func partitionAttachUnitScope(t *testing.T, e *Engine, session *session.Session)
 	if err := scope.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := scope.snapshotPhase(&parser.Select{}); err != nil {
+	if err := ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
 	return scope, op

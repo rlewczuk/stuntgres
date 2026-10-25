@@ -118,7 +118,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 		}
 	}
 	row := []sqltype.Value{triggerUnitInt(t, integer, 1), triggerUnitInt(t, integer, 5)}
-	rel, err := plTriggerRelation(read, relation)
+	rel, err := PLTriggerRelation(read, relation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestTriggerCoreFrame(t *testing.T) {
 		if program.SearchCount != 1 || conditional.SearchName != "__Case__Variable_13__" || conditional.SearchSlot < 0 || conditional.SearchSlot >= program.SearchCount {
 			t.Fatal("trigger diagnostic count displaced native CASE search ownership")
 		}
-		rel, err := plTriggerRelation(read, relation)
+		rel, err := PLTriggerRelation(read, relation)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -264,7 +264,7 @@ func TestTriggerCoreReturn(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tc.name == "width" {
-				ordinary, err := s.convertPLValue(value, shape.Usage())
+				ordinary, err := ScopeConvertPLValue(s, value, shape.Usage())
 				if err != nil || ordinary.CompositeLen() != 2 || !ordinary.CompositeField(1).IsNull() {
 					t.Fatal("ordinary row assignment no longer NULL-fills", err)
 				}
@@ -309,7 +309,7 @@ func TestTriggerCoreRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := result.Row[1].Integer()
-	if err != nil || got != 6 || s.activeSQLRoutineDepth != 0 {
+	if err != nil || got != 6 || ScopeActiveSQLRoutineDepth(s) != 0 {
 		t.Fatal("unlocked invocation/depth", got, err)
 	}
 	if len(s.BeforeCaptures) != 1 {
@@ -331,7 +331,7 @@ func TestTriggerCoreRuntime(t *testing.T) {
 	e.Mu.Unlock()
 	input := proc.NewFrame(nil)
 	defer input.Close()
-	if _, err := s.invokeSQLRoutine(d, input, d.SQL.Result, nil, sqltype.CollationRef{}, false); err == nil {
+	if _, err := ScopeInvokeSQLRoutine(s, d, input, d.SQL.Result, nil, sqltype.CollationRef{}, false); err == nil {
 		t.Fatal("ordinary call acquired trigger entry")
 	}
 }

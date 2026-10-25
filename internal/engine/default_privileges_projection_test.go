@@ -20,7 +20,7 @@ func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth Authorizatio
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: EngineCatalogRuntime{Auth: auth, temporary: catalogSourceTemporaryOwner(auth), Database: "unit_database"}}, captureTablePrivileges)
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Auth: auth, Temporary: CatalogSourceTemporaryOwner(auth), Database: "unit_database"})}, captureTablePrivileges)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	ref := f.e.Catalog.Domain.Ref(view.Epoch(), source.Address())
-	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: EngineCatalogRuntime{Auth: AuthorizationView{}, temporary: catalogSourceTemporaryOwner(AuthorizationView{}), Database: "unit_database"}}, captureTablePrivileges)
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Auth: AuthorizationView{}, Temporary: CatalogSourceTemporaryOwner(AuthorizationView{}), Database: "unit_database"})}, captureTablePrivileges)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)
 	}

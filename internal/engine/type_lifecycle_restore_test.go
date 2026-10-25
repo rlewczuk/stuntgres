@@ -53,7 +53,7 @@ func TestTypeLifecycleRestoreLookupAuthority(t *testing.T) {
 		t.Helper()
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
-		usage, err := e.resolveAnnotationType(raw, op, false)
+		usage, err := EngineResolveAnnotationType(e, raw, op, false)
 		if err == nil && usage.Type != provider.SQLType {
 			t.Fatal("lookup substituted a provider")
 		}

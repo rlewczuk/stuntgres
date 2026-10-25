@@ -101,7 +101,7 @@ func TestVacuumF2OlderPublisherHorizon(t *testing.T) {
 							sessionSQL(t, older, "PREPARE TRANSACTION 'review_birth'")
 							defer func() {
 								e.Mu.Lock()
-								pending := e.prepared.Lookup("review_birth") != nil
+								pending := EnginePreparedRef(e).Lookup("review_birth") != nil
 								e.Mu.Unlock()
 								if pending {
 									sessionSQL(t, creator, "ROLLBACK PREPARED 'review_birth'")

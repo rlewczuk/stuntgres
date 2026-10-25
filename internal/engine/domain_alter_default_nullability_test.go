@@ -256,7 +256,7 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 				case "cancel":
 					ctx, cancel := context.WithCancel(context.Background())
 					cancel()
-					prepared.ctx = ctx
+					SetPreparedCatalogPublicationCtx(prepared, ctx)
 				case "root", "length", "generation", "ends":
 					copy := *e.Storage.Relations[table.Address()]
 					switch kind {
@@ -326,7 +326,7 @@ func TestDomainAlterDefaultReplayInternal(t *testing.T) {
 	OperationReplay(op).DomainDefault = &DomainDefaultReplayCapture{Statement: raw, Record: record}
 	defer func() { OperationReplay(op).DomainDefault = nil }()
 	copy := *d
-	handled, err := h.bindRestoredDomainDefault(auth, &copy, raw.Constraints[0].Default, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	handled, err := TypeHostBindRestoredDomainDefault(h, auth, &copy, raw.Constraints[0].Default, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if !handled || err == nil || copy.DomainDefault != d.DomainDefault || e.Catalog.State != auth.Catalog.State() {
 		t.Fatal("ordinary engine gained snapshot import authority", handled, err)
 	}

@@ -215,7 +215,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	candidate := catalog.CloneState(source.CatalogRead().State())
 	before := target.CatalogRead()
 	target.Mu.Lock()
-	remapped, _, err := target.remapPreparedCatalog(candidate, sourceRoles, captured, expected)
+	remapped, _, err := EngineRemapPreparedCatalog(target, candidate, sourceRoles, captured, expected)
 	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -234,7 +234,7 @@ func TestConversionRemapCapturedPrincipalFence(t *testing.T) {
 	}
 	candidate = catalog.CloneState(source.CatalogRead().State())
 	target.Mu.Lock()
-	_, _, err = target.remapPreparedCatalog(candidate, sourceRoles, captured, expected)
+	_, _, err = EngineRemapPreparedCatalog(target, candidate, sourceRoles, captured, expected)
 	target.Mu.Unlock()
 	if err == nil {
 		t.Fatal("dropped/recreated conversion owner adopted by name")

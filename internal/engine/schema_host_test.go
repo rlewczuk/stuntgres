@@ -41,7 +41,7 @@ func TestDDLHostStageSchemaTableKeepsAuthority(t *testing.T) {
 	if err := h.StageSchemaTable(auth, ns.Address(), owner, table, sqltype.InputEnvironment{}); err != nil {
 		t.Fatal(err)
 	}
-	if auth.State.CurrentUser != user || auth.pathPrefix != (ids.ObjectAddress{}) {
+	if auth.State.CurrentUser != user || AuthorizationPathPrefix(&auth) != (ids.ObjectAddress{}) {
 		t.Fatal("the caller's authority was changed")
 	}
 	address, ok := stage.NameBinding(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address(), Name: "element"})

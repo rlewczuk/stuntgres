@@ -109,7 +109,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_late FROM pg_catalog."POSIX"`)
 	current := e.CatalogRead()
 	private := collationPrivateSession(t, e)
-	if _, err := e.removeTemporaryNamespaceCandidate(private, base, []*catalog.Namespace{ns}, children, owner.SessionToken); err == nil {
+	if _, err := EngineRemoveTemporaryNamespaceCandidate(e, private, base, []*catalog.Namespace{ns}, children, owner.SessionToken); err == nil {
 		t.Fatal("late owned child was blind-deleted")
 	}
 	if e.CatalogRead().State() != current.State() {

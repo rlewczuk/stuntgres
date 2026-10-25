@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/sqltype"
@@ -47,16 +48,6 @@ func RoutineAnalysisPLDiagnostic(x *sqlRoutineAnalysis) string { return x.plDiag
 // RoutineAnalysisPLProcedure returns x.plProcedure.
 func RoutineAnalysisPLProcedure(x *sqlRoutineAnalysis) *catalog.Procedure { return x.plProcedure }
 
-// RoutineDemandFields holds the sqlRoutineDemand fields tests set.
-type RoutineDemandFields struct {
-	Result sqltype.Usage
-}
-
-// NewRoutineDemand builds a sqlRoutineDemand from f.
-func NewRoutineDemand(f RoutineDemandFields) sqlRoutineDemand {
-	return sqlRoutineDemand{result: f.Result}
-}
-
 // RoutineDemandLexical returns x.lexical.
 func RoutineDemandLexical(x *sqlRoutineDemand) *proc.PLFrame { return x.lexical }
 
@@ -80,3 +71,42 @@ func SetRoutineDemandPLDiagnostic(x *sqlRoutineDemand, v string) { x.plDiagnosti
 
 // SetRoutineDemandResult sets x.result.
 func SetRoutineDemandResult(x *sqlRoutineDemand, v sqltype.Usage) { x.result = v }
+
+// AdmitInquiryBody calls admitInquiryBody.
+func AdmitInquiryBody(c *exec.Context, node expr.Info) error {
+	return admitInquiryBody(c, node)
+}
+
+// ProcedureReturnsSet calls procedureReturnsSet.
+func ProcedureReturnsSet(d *catalog.Procedure) bool {
+	return procedureReturnsSet(d)
+}
+
+// ScopeInstallSQLRoutineScratch calls x.installSQLRoutineScratch.
+func ScopeInstallSQLRoutineScratch(x *StatementScope, c sqlRoutineScratch) {
+	x.installSQLRoutineScratch(c)
+}
+
+// ScopeInvokeSQLRoutine calls x.invokeSQLRoutine.
+func ScopeInvokeSQLRoutine(x *StatementScope, d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage, supportOwner *catalog.Procedure, inputCollation sqltype.CollationRef, assignmentPlanning bool) (sqltype.Value, error) {
+	return x.invokeSQLRoutine(d, frame, resultUsage, supportOwner, inputCollation, assignmentPlanning)
+}
+
+// ScopeSQLRoutineScratch calls x.sqlRoutineScratch.
+func ScopeSQLRoutineScratch(x *StatementScope) sqlRoutineScratch {
+	return x.sqlRoutineScratch()
+}
+
+// CommandRoutineProgramRi returns x.ri.
+func CommandRoutineProgramRi(x *commandRoutineProgram) bool { return x.ri }
+
+// RoutineDemandFields holds the sqlRoutineDemand fields tests set.
+type RoutineDemandFields struct {
+	Lexical *proc.PLFrame
+	Result  sqltype.Usage
+}
+
+// NewRoutineDemand builds a sqlRoutineDemand from f.
+func NewRoutineDemand(f RoutineDemandFields) sqlRoutineDemand {
+	return sqlRoutineDemand{lexical: f.Lexical, result: f.Result}
+}

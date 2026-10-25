@@ -59,7 +59,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	seen := map[ids.ObjectAddress]bool{}
 	// extension.TestRegisterAddsOnlyValidImplementations covers the checks.
-	if err := e.registerExtension("other", extension.StockUnaccent); err == nil {
+	if err := EngineRegisterExtension(e, "other", extension.StockUnaccent); err == nil {
 		t.Fatal("initialized registry mutated")
 	}
 	for i, signature := range []catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature} {

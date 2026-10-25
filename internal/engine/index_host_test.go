@@ -36,7 +36,7 @@ func TestIndexHostBindPredicateMatchesEngineBinding(t *testing.T) {
 	predicate := raw[0].(*parser.CreateIndex).Predicate
 	f.e.Mu.Lock()
 	defer f.e.Mu.Unlock()
-	want, err := bindIndexPredicate(f.e, h.Op, sqltype.InputEnvironment{}, auth, f.parent, predicate)
+	want, err := BindIndexPredicate(f.e, h.Op, sqltype.InputEnvironment{}, auth, f.parent, predicate)
 	if err != nil {
 		t.Fatal(err)
 	}

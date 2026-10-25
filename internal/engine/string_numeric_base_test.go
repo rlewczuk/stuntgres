@@ -221,7 +221,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		if err != nil || direct.ResultUsage().Type != b.Type(sqltype.Char) {
 			t.Fatal("direct literal CHAR cast", direct, err)
 		}
-		_, err = e.resolveType(cast.TypeName, binderOperation(b))
+		_, err = EngineResolveType(e, cast.TypeName, binderOperation(b))
 		state(t, err, "0A000")
 	}
 	for _, established := range []bool{false, true} {

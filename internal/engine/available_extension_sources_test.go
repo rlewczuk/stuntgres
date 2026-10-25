@@ -50,7 +50,7 @@ func TestAvailableExtensionsShapeAndOwnership(t *testing.T) {
 				t.Fatal("foreign generation accepted", i, source, err)
 			}
 		}
-		if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
+		if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
 			t.Fatal(err)
 		}
 		row := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: spec.row})
@@ -215,7 +215,7 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	// metadata is read as a detached copy, so readers cannot mutate registered
 	// storage.
 	registry := &Engine{}
-	if err := registry.registerExtension("unaccent", extension.StockUnaccent); err != nil {
+	if err := EngineRegisterExtension(registry, "unaccent", extension.StockUnaccent); err != nil {
 		t.Fatal(err)
 	}
 	read := registry.Catalog.Extensions["unaccent"].Control()

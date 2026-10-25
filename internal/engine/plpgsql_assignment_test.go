@@ -90,7 +90,7 @@ func plUnitAssignQueryValue(t *testing.T, s *StatementScope, f *proc.PLFrame, pa
 		t.Fatal(err)
 	}
 	query := &parser.Select{Targets: []parser.Expr{statement.Expression}, Pos: statement.Expression.SourcePosition()}
-	return s.assignPLTarget(f, target, statement.Target, query, s.Engine().CatalogRead(), plNoticeOrigin{})
+	return ScopeAssignPLTarget(s, f, target, statement.Target, query, s.Engine().CatalogRead(), NewPLNoticeOrigin(PLNoticeOriginFields{}))
 }
 
 func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
@@ -182,7 +182,7 @@ func TestPLpgSQLAssignmentAtomicity(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			initial, err := s.convertPLValue(source, typ.Usage())
+			initial, err := ScopeConvertPLValue(s, source, typ.Usage())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -460,7 +460,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 	integer, _ := read.LookupType(sqltype.Int4)
 	frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 	defer frame.Close()
-	previous, depth := s.sqlRoutine, s.activeSQLRoutineDepth
+	previous, depth := ScopeSQLRoutine(s), ScopeActiveSQLRoutineDepth(s)
 	for _, tc := range []struct {
 		query    string
 		planning bool
@@ -473,21 +473,21 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 		{"SELECT 1::pa_origin_domain", false},
 	} {
 		raw := statement(t, tc.query).(*parser.Select)
-		_, _, _, err := s.evaluatePLExpression(frame, raw, read, &analyze.PLAssignment{Usage: integer.Usage()}, plNoticeOrigin{})
+		_, _, _, err := ScopeEvaluatePLExpression(s, frame, raw, read, &analyze.PLAssignment{Usage: integer.Usage()}, NewPLNoticeOrigin(PLNoticeOriginFields{}))
 		var planning *plan.PLAssignmentPlanningError
 		if err == nil || errors.As(err, &planning) != tc.planning {
 			t.Fatal("reached query lost planning/runtime origin", tc.query, err)
 		}
-		if s.sqlRoutine != previous || s.activeSQLRoutineDepth != depth {
+		if ScopeSQLRoutine(s) != previous || ScopeActiveSQLRoutineDepth(s) != depth {
 			t.Fatal("failed assignment query leaked borrowed demand/depth", tc.query)
 		}
 	}
-	value, _, present, err := s.evaluatePLExpression(frame, statement(t, "SELECT pa_origin_dynamic('7'::text)").(*parser.Select), read, &analyze.PLAssignment{Usage: integer.Usage()}, plNoticeOrigin{})
+	value, _, present, err := ScopeEvaluatePLExpression(s, frame, statement(t, "SELECT pa_origin_dynamic('7'::text)").(*parser.Select), read, &analyze.PLAssignment{Usage: integer.Usage()}, NewPLNoticeOrigin(PLNoticeOriginFields{}))
 	if err != nil || !present {
 		t.Fatal("recovery after planning/runtime failures", err)
 	}
 	n, err := value.Integer()
-	if err != nil || n != 7 || s.sqlRoutine != previous || s.activeSQLRoutineDepth != depth {
+	if err != nil || n != 7 || ScopeSQLRoutine(s) != previous || ScopeActiveSQLRoutineDepth(s) != depth {
 		t.Fatal("successful assignment query leaked state", value, err)
 	}
 
@@ -522,7 +522,7 @@ func plUnitAssignmentQueryOrigins(t *testing.T) {
 			t.Fatal("host origin propagation/domain suppression/restore", domain, err)
 		}
 	}
-	if s.sqlRoutine != previous || s.activeSQLRoutineDepth != depth {
+	if ScopeSQLRoutine(s) != previous || ScopeActiveSQLRoutineDepth(s) != depth {
 		t.Fatal("nested host invocation leaked caller demand")
 	}
 	t.Run("domain_preflight_barrier", func(t *testing.T) {
@@ -591,7 +591,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 		}
 		statement := raw.Statements[0]
 		query := &parser.Select{Targets: []parser.Expr{statement.Expression}, Pos: statement.Expression.SourcePosition()}
-		return s.assignPLTarget(frame, plUnitAssignmentTarget(t, path), statement.Target, query, read, plNoticeOrigin{})
+		return ScopeAssignPLTarget(s, frame, plUnitAssignmentTarget(t, path), statement.Target, query, read, NewPLNoticeOrigin(PLNoticeOriginFields{}))
 	}
 	_, err = run(f, "a[1]", "generate_series(1,0)")
 	domainUnitDiagnostic(t, err, "22004", `null value cannot be assigned to variable "a" declared NOT NULL`)
@@ -667,7 +667,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 	}
 	read = e.CatalogRead()
 	rootDomain := domainUnitType(t, read, "pa_unit_card_root").SQLType
-	domainInitial, err := s.convertPLValue(initial, rootDomain.Usage())
+	domainInitial, err := ScopeConvertPLValue(s, initial, rootDomain.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,7 +678,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 		t.Fatal("empty result re-input exact domain NULL", value, err)
 	}
 	elementArray := domainUnitType(t, read, "_pa_unit_card_element").SQLType
-	elementInitial, err := s.convertPLValue(initial, elementArray.Usage())
+	elementInitial, err := ScopeConvertPLValue(s, initial, elementArray.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -696,7 +696,7 @@ func plUnitAssignmentCardinality(t *testing.T) {
 
 	query := statement(t, "SELECT generate_series(1,0)").(*parser.Select)
 	target := plUnitAssignmentTarget(t, "a[1]")
-	value, usage, present, err := s.evaluatePLExpression(f, query, read, &analyze.PLAssignment{Usage: array.Usage(), Current: initial, Steps: target.Steps, Name: "a"}, plNoticeOrigin{})
+	value, usage, present, err := ScopeEvaluatePLExpression(s, f, query, read, &analyze.PLAssignment{Usage: array.Usage(), Current: initial, Steps: target.Steps, Name: "a"}, NewPLNoticeOrigin(PLNoticeOriginFields{}))
 	if err != nil || present || usage != array.Usage() || !value.IsNull() || value.Type() != array {
 		t.Fatal("query outcome lost cardinality/root Usage", value, usage, present, err)
 	}

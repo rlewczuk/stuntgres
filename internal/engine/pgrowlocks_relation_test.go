@@ -23,9 +23,9 @@ func pgrowlocksUnitScope(t *testing.T, e *Engine, s *session.Session) *Statement
 		t.Fatal(err)
 	}
 	scope.Owner.Mu.Lock()
-	scope.attachTransactionLocked()
+	ScopeAttachTransactionLocked(scope)
 	scope.Owner.Mu.Unlock()
-	scope.worked = true
+	SetScopeWorked(scope, true)
 	t.Cleanup(func() { scope.Finish(context.Canceled); op.Done() })
 	return scope
 }
@@ -93,9 +93,9 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		name := parser.ObjectName{Parts: []parser.Identifier{{Text: "typed"}}}
 		stored := e.Storage.Relations[d.Address()]
 		e.Mu.Lock()
-		auth, err := scope.writeAuthorizationLocked(e)
+		auth, err := ScopeWriteAuthorizationLocked(scope, e)
 		if err == nil {
-			err = scope.pgrowlocksReadmitLocked(e, auth, name, ref, d, stored)
+			err = ScopePgrowlocksReadmitLocked(scope, e, auth, name, ref, d, stored)
 		}
 		e.Mu.Unlock()
 		if err != nil {
@@ -110,9 +110,9 @@ func TestPgrowlocksRelationIdentity(t *testing.T) {
 		}
 		domainUnitPublish(t, e, stage)
 		e.Mu.Lock()
-		auth, err = scope.writeAuthorizationLocked(e)
+		auth, err = ScopeWriteAuthorizationLocked(scope, e)
 		if err == nil {
-			err = scope.pgrowlocksReadmitLocked(e, auth, name, ref, d, stored)
+			err = ScopePgrowlocksReadmitLocked(scope, e, auth, name, ref, d, stored)
 		}
 		e.Mu.Unlock()
 		if !errors.Is(err, ids.ErrCatalogReplaced) {

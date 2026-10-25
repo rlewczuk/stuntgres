@@ -206,7 +206,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	idx.SQLIndex = &def
 	f.e.Catalog.State.SetDescriptor(idx.Address(), &idx)
 	scope.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): {f.store.Versions[1], f.store.Versions[2]}}
-	if err := scope.validatePrivateIndexExpressions(nil, nil); err != nil || calls != 0 {
+	if err := ScopeValidatePrivateIndexExpressions(scope, nil, nil); err != nil || calls != 0 {
 		t.Fatal("excluded keys evaluated", calls, err)
 	}
 	excluded := &storage.Relation{Versions: scope.Stage.Rows[f.parent.Address()]}
@@ -219,7 +219,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 		t.Fatal("excluded writes changed root or evaluated keys", merged, calls, err)
 	}
 	scope.Stage.Rows[f.parent.Address()] = []storage.RowVersion{f.store.Versions[0]}
-	if err := scope.validatePrivateIndexExpressions(nil, nil); !errors.Is(err, failure) || calls != 1 {
+	if err := ScopeValidatePrivateIndexExpressions(scope, nil, nil); !errors.Is(err, failure) || calls != 1 {
 		t.Fatal("qualifying key not vetoed", calls, err)
 	}
 	// Simple keys still preflight predicate failures, rather than waiting for COMMIT.
@@ -227,7 +227,7 @@ func TestPartialIndexPrivatePreflight(t *testing.T) {
 	predicate := partialEvaluationWitness{Info: f.predicate.Info, calls: &calls, failure: failure}
 	def.Keys = f.index.SQLIndex.Keys
 	def.Predicate = &catalog.IndexPredicate{Definition: predicate, Execution: predicate}
-	if err := scope.validatePrivateIndexExpressions(nil, nil); !errors.Is(err, failure) || calls != 1 {
+	if err := ScopeValidatePrivateIndexExpressions(scope, nil, nil); !errors.Is(err, failure) || calls != 1 {
 		t.Fatal("simple-key predicate not preflighted", calls, err)
 	}
 	calls = 0
@@ -379,7 +379,7 @@ func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, exe
 func TestPartialIndexCandidateMask(t *testing.T) {
 	f, scope, leaf, view := partialMaskFixture(t)
 	f.e.Mu.Lock()
-	mask := f.e.capturePartialMaskLocked(scope, leaf, view, plan.RowMark{})
+	mask := EngineCapturePartialMaskLocked(f.e, scope, leaf, view, plan.RowMark{})
 	f.e.Mu.Unlock()
 	if mask == nil {
 		t.Fatal("coherent committed root did not attach")
@@ -480,7 +480,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 				leaf.PartialCandidate = nil
 			}
 			f.e.Mu.Lock()
-			mask := f.e.capturePartialMaskLocked(scope, leaf, view, exec.MergeQueryRowMark(inherited, leaf.Mark))
+			mask := EngineCapturePartialMaskLocked(f.e, scope, leaf, view, exec.MergeQueryRowMark(inherited, leaf.Mark))
 			f.e.Mu.Unlock()
 			if mask != nil {
 				t.Fatal("unsafe mask attached")
@@ -541,11 +541,11 @@ func TestPartialIndexPredicateReplacement(t *testing.T) {
 	old := f.e.Storage.IndexRoots[f.index.Address()]
 	destination := &storage.Relation{Versions: append([]storage.RowVersion(nil), f.store.Versions...)}
 	f.e.Storage.SetFrontierLocked(100, 200)
-	snapshot, err := f.e.captureIndexSnapshot(context.Background(), f.e.CatalogRead(), f.e.Storage.Relations, f.e.Storage.IndexRoots, f.e.Visibility.CommitSeq())
+	snapshot, err := EngineCaptureIndexSnapshot(f.e, context.Background(), f.e.CatalogRead(), f.e.Storage.Relations, f.e.Storage.IndexRoots, f.e.Visibility.CommitSeq())
 	if err != nil {
 		t.Fatal(err)
 	}
-	roots, rows, versions, err := f.e.prepareRemintedStorage(context.Background(), f.e.Catalog.State, map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): destination}, snapshot, true)
+	roots, rows, versions, err := EnginePrepareRemintedStorage(f.e, context.Background(), f.e.Catalog.State, map[ids.ObjectAddress]*storage.Relation{f.parent.Address(): destination}, snapshot, true)
 	if err != nil || rows != 105 || versions != 205 {
 		t.Fatal(rows, versions, err)
 	}

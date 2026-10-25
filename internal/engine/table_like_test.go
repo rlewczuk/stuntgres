@@ -238,15 +238,15 @@ func TestTableLikeInlineSourceProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer e.DiscardCatalogStage(stage)
-	if len(stage.tableOrZero().LikeSources) < 2 {
+	if len(StageTableOrZero(stage).LikeSources) < 2 {
 		t.Fatal("private source/provider provenance absent")
 	}
-	for _, source := range stage.tableOrZero().LikeSources {
+	for _, source := range StageTableOrZero(stage).LikeSources {
 		if stage.Base.Get(source.Address()) != nil || stage.Get(source.Address()) != source {
 			t.Fatal("private input mistaken for incumbent", source)
 		}
 	}
-	if err := stage.validateLikeSources(e.CatalogRead()); err != nil {
+	if err := StageValidateLikeSources(stage, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, stage)

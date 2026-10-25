@@ -46,7 +46,7 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				stmt.Concurrent = parser.Position{Character: 27}
 			}
 			done := make(chan error, 1)
-			go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
+			go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
 			joined := false
 			defer func() {
 				cancel()

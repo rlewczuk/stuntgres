@@ -138,10 +138,10 @@ func TestBuiltinSeedNamesMatchUnsharedSeed(t *testing.T) {
 		{nil, strings.Repeat("n", 80), false},
 	} {
 		shared := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).Catalog.State.Names())
-		saved := builtinSeed
-		builtinSeed = &catalog.SeedShare{}
+		saved := BuiltinSeed()
+		*BuiltinSeedRef() = &catalog.SeedShare{}
 		own := maps.Collect(NewWithSettings(config.definitions, config.database, config.commitTimes).Catalog.State.Names())
-		builtinSeed = saved
+		*BuiltinSeedRef() = saved
 		if !maps.Equal(shared, own) {
 			t.Fatalf("database %q: shared seed has %d names, own seed %d", config.database, len(shared), len(own))
 		}

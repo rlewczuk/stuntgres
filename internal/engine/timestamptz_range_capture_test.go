@@ -46,7 +46,7 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if !analyze.RefreshableTemporal(b.Prepared.Temporals[0]) {
 		t.Fatal("builtin not refreshable")
 	}
-	description.refreshTemporals = true
+	SetDescriptionRefreshTemporals(description, true)
 	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.InputConstant("(now,tomorrow]", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.Prepared.Temporals) != 1 {

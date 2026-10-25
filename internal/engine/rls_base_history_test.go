@@ -98,7 +98,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		pin := source.View
 		func() {
 			defer source.Close()
-			borrowQueryAuthority(source, scope)
+			BorrowQueryAuthority(source, scope)
 			if !source.RlsDenied || source.Ref != leaf.Ref || source.View == nil || source.View.Data() != data || source.View.Data().GenerationAt(address) != generation {
 				t.Fatal("denied target lost retained identity/ownership/generation")
 			}

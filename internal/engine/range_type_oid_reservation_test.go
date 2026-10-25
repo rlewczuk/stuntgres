@@ -95,7 +95,7 @@ func TestRangeTypeReplacementOIDPublicationFence(t *testing.T) {
 			candidate := catalog.CloneState(before)
 			relations := map[ids.ObjectAddress]*storage.Relation{}
 			sequences := map[ids.ObjectAddress]*storage.SequenceGenerator{}
-			prepared, err := target.prepareForeignIndexStorage(context.Background(), candidate, relations, &index.Snapshot{})
+			prepared, err := EnginePrepareForeignIndexStorage(target, context.Background(), candidate, relations, &index.Snapshot{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -111,7 +111,7 @@ func TestRangeTypeReplacementOIDPublicationFence(t *testing.T) {
 				}
 				expected = target.Catalog.NextOID()
 			}
-			err = target.installForeignCatalogLocked(ctx, candidate, relations, sequences, target.Catalog.NextRevision(), prepared, reservation)
+			err = EngineInstallForeignCatalogLocked(target, ctx, candidate, relations, sequences, target.Catalog.NextRevision(), prepared, reservation)
 			if mode == "commit" {
 				if err != nil || target.Catalog.State == before || target.Catalog.State.Epoch() != before.Epoch()+1 || target.Catalog.NextOID() != reservation.Next {
 					t.Fatal("catalog and reserved frontier did not publish together", err)

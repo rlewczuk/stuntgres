@@ -159,7 +159,7 @@ func TestRLSPolicyPublicationCanceled(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	prepared.ctx = ctx
+	SetPreparedCatalogPublicationCtx(prepared, ctx)
 	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled stage published")
 	}

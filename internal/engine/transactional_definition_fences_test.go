@@ -81,11 +81,11 @@ func TestTransactionalDefinitionDependencyFences(t *testing.T) {
 				candidate.RemoveDescriptor(tc.target)
 				observations := []session.DependencyObservation{{Base: &original, Targets: []ids.ObjectAddress{tc.target}}}
 				var conflict catalog.Conflict
-				if err := catalogDependencyPreflight(&current, &candidate, observations, nil); !errors.As(err, &conflict) {
+				if err := CatalogDependencyPreflight(&current, &candidate, observations, nil); !errors.As(err, &conflict) {
 					t.Fatal("retirement admitted new dangling incoming edge", err)
 				}
 				candidate.RemoveDescriptor(tc.descriptor.Address())
-				if err := catalogDependencyPreflight(&current, &candidate, observations, nil); err != nil {
+				if err := CatalogDependencyPreflight(&current, &candidate, observations, nil); err != nil {
 					t.Fatal("removed candidate edge impersonated survivor", err)
 				}
 			})
@@ -107,7 +107,7 @@ func TestTransactionalDefinitionReplacementFences(t *testing.T) {
 	if err := Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.preparePrivateCatalog(context.Background(), owner.Transactions.Catalog, ref.Epoch())
+	_, err = EnginePreparePrivateCatalog(e, context.Background(), owner.Transactions.Catalog, ref.Epoch())
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("replacement accepted private old-epoch graph", err)
 	}

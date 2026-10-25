@@ -38,7 +38,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			sess := sessionStart(t, e, nil)
 			op := transactionOperation(t, sess)
 			isolation := "serializable"
-			if _, err := e.applySetting(op, sess.Settings, e.Settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
+			if _, err := EngineApplySetting(e, op, sess.Settings, e.Settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
 				t.Fatal(err)
 			}
 			scope, err := e.StartStatement(op)
@@ -52,7 +52,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			if err = scope.snapshotPhase(statement); err != nil {
+			if err = ScopeSnapshotPhase(scope, statement); err != nil {
 				outcome = err
 				t.Fatal(err)
 			}
@@ -126,7 +126,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			outcome = e.publishQueryTable(scope, stage)
+			outcome = EnginePublishQueryTable(e, scope, stage)
 			if tc.doomed {
 				serializableUnitDiagnostic(t, outcome, "Canceled on identification as a pivot, during commit attempt.")
 				queryCreateAssertAbsent(t, e, d)

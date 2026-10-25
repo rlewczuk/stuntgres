@@ -156,7 +156,7 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 		}
 		ref := e.Catalog.Domain.Ref(catalog.Epoch(), address)
 		e.Mu.Lock()
-		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGTablespace)
+		rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: source, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGTablespace)
 		e.Mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -182,7 +182,7 @@ func TestObjectGrantParameterSettingAccess(t *testing.T) {
 	readerOp, done := roleOperation(t, e, "grant_reader")
 	defer done()
 	d := e.Settings.Definitions()["lc_messages"]
-	if err := settingAccess(d, readerOp); err == nil {
+	if err := SettingAccess(d, readerOp); err == nil {
 		t.Fatal("unprivileged lc_messages setter admitted")
 	}
 	request := parameterSpaceRequest("parameter", "lc_messages")
@@ -190,21 +190,21 @@ func TestObjectGrantParameterSettingAccess(t *testing.T) {
 	if err := applyObjectGrantUnit(e, ownerOp, request); err != nil {
 		t.Fatal(err)
 	}
-	if err := settingAccess(d, readerOp); err == nil {
+	if err := SettingAccess(d, readerOp); err == nil {
 		t.Fatal("ALTER SYSTEM metadata conferred SET")
 	}
 	request.Privileges = []parser.GrantPrivilege{{Name: "set"}}
 	if err := applyObjectGrantUnit(e, ownerOp, request); err != nil {
 		t.Fatal(err)
 	}
-	if err := settingAccess(d, readerOp); err != nil {
+	if err := SettingAccess(d, readerOp); err != nil {
 		t.Fatal("actual lc_messages setter ignored SET ACL", err)
 	}
-	if err := settingAccess(e.Settings.Definitions()["application_name"], readerOp); err != nil {
+	if err := SettingAccess(e.Settings.Definitions()["application_name"], readerOp); err != nil {
 		t.Fatal("USERSET unexpectedly depends on ACL", err)
 	}
 	for _, definition := range []settings.Definition{e.Settings.Definitions()["server_encoding"], {Name: "private.protected", Access: settings.Privileged}} {
-		if err := settingAccess(definition, readerOp); err == nil {
+		if err := SettingAccess(definition, readerOp); err == nil {
 			t.Fatal("read-only or deny-only custom setter admitted")
 		}
 	}
@@ -212,7 +212,7 @@ func TestObjectGrantParameterSettingAccess(t *testing.T) {
 	if err := applyObjectGrantUnit(e, ownerOp, request); err != nil {
 		t.Fatal(err)
 	}
-	if err := settingAccess(d, readerOp); err == nil {
+	if err := SettingAccess(d, readerOp); err == nil {
 		t.Fatal("held operation cached old parameter permission")
 	}
 }

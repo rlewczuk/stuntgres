@@ -57,7 +57,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	e.Mu.Lock()
 	e.Storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{leaf.Address(): store})
 	e.Mu.Unlock()
-	snapshot, err := e.captureIndexSnapshot(context.Background(), view, e.Storage.Relations, nil, 3)
+	snapshot, err := EngineCaptureIndexSnapshot(e, context.Background(), view, e.Storage.Relations, nil, 3)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,7 +35,7 @@ func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *exec
 	t.Helper()
 	d, ref := pgAttributeUnitSource(t, e, catalog)
 	e.Mu.Lock()
-	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGAttribute)
+	rows, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGAttribute)
 	e.Mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal(rows, err)
@@ -80,7 +80,7 @@ func TestPGAttributeShape(t *testing.T) {
 			t.Fatal("column", i, c)
 		}
 	}
-	if err := (relationProvider).Validate(view, d); err != nil {
+	if err := (RelationProvider()).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 270})
@@ -90,7 +90,7 @@ func TestPGAttributeShape(t *testing.T) {
 	bad := *d
 	bad.Columns = append([]catalog.Column(nil), d.Columns...)
 	bad.Columns[23].Usage = d.Columns[24].Usage
-	if err := (relationProvider).Validate(view, &bad); err == nil {
+	if err := (RelationProvider()).Validate(view, &bad); err == nil {
 		t.Fatal("pseudo carrier escaped attribute25")
 	}
 }
@@ -184,15 +184,15 @@ func TestPGAttributeCapture(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: view, Roles: e.Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled publication", got, err)
 	}
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("foreign roles", got, err)
 	}
 	wrong := ref
 	wrong.Epoch++
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: wrong, Source: d, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Ref: wrong, Source: d, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("stale source", got, err)
 	}
 	privateColumn := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, Columns: []catalog.Column{{Name: "a", Usage: testUsage(e, sqltype.Int4), Nullable: true}}, Attributes: []int32{1}, Security: catalog.RelationSecurity{ColumnACL: map[int32]authorization.ACLValue{1: {Explicit: true}}}}
@@ -205,7 +205,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	modified.Columns[24].Usage.Typmod = 0
 	privateState := catalog.CloneState(view.State())
 	privateState.SetDescriptor(d.Address(), &modified)
-	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(privateState), Roles: e.Roles(), Ref: ref, Source: &modified, Owner: &e.Catalog.Owner, Runtime: EngineCatalogRuntime{engine: e}}, capturePGAttribute); got != nil || err == nil {
+	if got, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.Catalog.Read(privateState), Roles: e.Roles(), Ref: ref, Source: &modified, Owner: &e.Catalog.Owner, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}, capturePGAttribute); got != nil || err == nil {
 		t.Fatal("modified pseudo usage admitted", got, err)
 	}
 	if e.Catalog.State != before || !maps.Equal(descriptors, maps.Collect(e.Catalog.State.Descriptors())) {
@@ -347,7 +347,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	if err := exec.ValidateProducedValue(value, u); err != nil {
 		t.Fatal("produced canonical NULL rejected", err)
 	}
-	result, err := anonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{value}}, 1)
+	result, err := AnonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{value}}, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,12 +365,12 @@ func TestPGAttributeCarrier(t *testing.T) {
 	if err := exec.ValidateProducedValue(foreign, u); err == nil {
 		t.Fatal("foreign produced NULL admitted")
 	}
-	if _, err := anonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{foreign}}, 1); err == nil {
+	if _, err := AnonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{foreign}}, 1); err == nil {
 		t.Fatal("foreign carrier descriptor admitted")
 	}
 	// Ordinary storage validation must not admit this pseudo type elsewhere.
 	ordinary := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 200000}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "bad", Owner: e.RoleStore.Domain.Principal(10), Columns: []catalog.Column{{Name: "a", Usage: u}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"a": 0}}
-	if err := (relationProvider).Validate(view, ordinary); err == nil {
+	if err := (RelationProvider()).Validate(view, ordinary); err == nil {
 		t.Fatal("ANYARRAY stored column admitted")
 	}
 	_, err = pgcatalog.ClassACL(&e.Catalog.Owner, New().Roles(), d.Columns[21].Usage.Type, authorization.ACLValue{Explicit: true})

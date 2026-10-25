@@ -581,7 +581,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	derived, _, err := bindIndexExpression(e, bindOp, sqltype.InputEnvironment{}, auth, parentInput, parser.ColumnExpr{Name: primaryKeyUnitName("a")}, nil)
+	derived, _, err := BindIndexExpression(e, bindOp, sqltype.InputEnvironment{}, auth, parentInput, parser.ColumnExpr{Name: primaryKeyUnitName("a")}, nil)
 	e.Mu.Unlock()
 	bindOp.Done()
 	if err != nil {

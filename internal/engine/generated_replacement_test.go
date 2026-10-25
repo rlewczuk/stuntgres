@@ -149,13 +149,13 @@ func (f *generatedRepairFixture) run(ctx context.Context) <-chan error {
 		oids := f.target.Catalog.OIDReservationLocked()
 		_, err := f.target.Catalog.AllocateOIDFromLocked(&oids.Next, 0)
 		if err == nil {
-			_, err = f.target.repairRemappedGenerationsLocked(ctx, f.next, f.storage, f.sequences, f.mapping, f.op, nil)
+			_, err = EngineRepairRemappedGenerationsLocked(f.target, ctx, f.next, f.storage, f.sequences, f.mapping, f.op, nil)
 		}
 		if err == nil {
 			var prepared index.RemintedIndexStorage
-			prepared, err = f.target.prepareForeignIndexStorage(ctx, f.next, f.storage, &index.Snapshot{})
+			prepared, err = EnginePrepareForeignIndexStorage(f.target, ctx, f.next, f.storage, &index.Snapshot{})
 			if err == nil {
-				err = f.target.installForeignCatalogLocked(ctx, f.next, f.storage, f.sequences, f.target.Catalog.NextRevision(), prepared, oids)
+				err = EngineInstallForeignCatalogLocked(f.target, ctx, f.next, f.storage, f.sequences, f.target.Catalog.NextRevision(), prepared, oids)
 			}
 		}
 		result <- err

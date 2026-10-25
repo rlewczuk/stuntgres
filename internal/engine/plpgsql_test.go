@@ -60,7 +60,7 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 			}
 			input := proc.NewFrame(nil)
 			defer input.Close()
-			value, err := s.invokePLRoutine(d, input, read, sqltype.CollationRef{})
+			value, err := ScopeInvokePLRoutine(s, d, input, read, sqltype.CollationRef{})
 			if err != nil || value.Type() != nil {
 				t.Fatal("procedure returned a fake function scalar", value, err)
 			}
@@ -108,7 +108,7 @@ func TestPLpgSQLRowAssignment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := s.convertPLValue(source, pair.Usage())
+	result, err := ScopeConvertPLValue(s, source, pair.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,14 +116,14 @@ func TestPLpgSQLRowAssignment(t *testing.T) {
 	if err != nil || number != 42 || !result.CompositeField(1).IsNull() || result.CompositeField(1).Type() != text || source.CompositeField(0) != sqltype.String(text, "42") {
 		t.Fatal("ordinal/null-fill/IO/source ownership", result, err)
 	}
-	small, err := s.convertPLValue(result, single.Usage())
+	small, err := ScopeConvertPLValue(s, result, single.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if small.CompositeLen() != 1 {
 		t.Fatal("surplus source fields retained")
 	}
-	nullRow, err := s.convertPLValue(sqltype.Null(integer), pair.Usage())
+	nullRow, err := ScopeConvertPLValue(s, sqltype.Null(integer), pair.Usage())
 	if err != nil || !nullRow.IsNull() || nullRow.Type() != pair {
 		t.Fatal("whole NULL lost its known shape", nullRow, err)
 	}
@@ -137,13 +137,13 @@ func TestPLpgSQLRowAssignment(t *testing.T) {
 	if f.Values[0].Type() != nil {
 		t.Fatal("record was preassigned a shape")
 	}
-	if _, err = s.newPLRun(nil, f, read).AssignVariable(0, source, proc.PLOrigin{}); err != nil {
+	if _, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, source, proc.PLOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	if f.Values[0].Type() != single {
 		t.Fatal("first record shape lost")
 	}
-	if _, err = s.newPLRun(nil, f, read).AssignVariable(0, result, proc.PLOrigin{}); err != nil {
+	if _, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, result, proc.PLOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	if f.Values[0].Type() != pair {
@@ -159,21 +159,21 @@ func TestPLpgSQLRowAssignment(t *testing.T) {
 	}
 	retained := f.Values[0]
 	f.Program.Variables[0].NotNull = true
-	_, err = s.newPLRun(nil, f, read).AssignVariable(0, sqltype.Null(integer), proc.PLOrigin{})
+	_, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, sqltype.Null(integer), proc.PLOrigin{})
 	domainUnitDiagnostic(t, err, "22004", `null value cannot be assigned to variable "r" declared NOT NULL`)
 	if f.Values[0] != retained {
 		t.Fatal("failed RECORD clear changed the slot")
 	}
 	f.Program.Variables[0].NotNull = false
-	if _, err = s.newPLRun(nil, f, read).AssignVariable(0, sqltype.Null(text), proc.PLOrigin{}); err != nil || f.Values[0] != (sqltype.Value{}) {
+	if _, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, sqltype.Null(text), proc.PLOrigin{}); err != nil || f.Values[0] != (sqltype.Value{}) {
 		t.Fatal("RECORD NULL retained shape", f.Values[0], err)
 	}
-	_, err = s.newPLRun(nil, f, read).AssignVariable(0, materialized.CompositeField(0), proc.PLOrigin{})
+	_, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, materialized.CompositeField(0), proc.PLOrigin{})
 	domainUnitDiagnostic(t, err, "0A000", "input of anonymous composite types is not implemented")
 	if f.Values[0] != (sqltype.Value{}) || retained.Type() != pair {
 		t.Fatal("failed scalar assignment changed cleared/retained record")
 	}
-	if _, err = s.newPLRun(nil, f, read).AssignVariable(0, source, proc.PLOrigin{}); err != nil || f.Values[0].Type() != single {
+	if _, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, source, proc.PLOrigin{}); err != nil || f.Values[0].Type() != single {
 		t.Fatal("record did not adopt fresh shape", err)
 	}
 	f.Close()
@@ -233,7 +233,7 @@ func TestPLpgSQLCompositeAssignmentAtomicity(t *testing.T) {
 	}
 	f := &proc.PLFrame{Program: &proc.PLProgram{Variables: []proc.PLVariable{{Name: "r", Usage: domain.Usage()}}}, Values: make([]sqltype.Value, 1)}
 	defer f.Close()
-	if _, err = s.newPLRun(nil, f, read).AssignVariable(0, good, proc.PLOrigin{}); err != nil {
+	if _, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, good, proc.PLOrigin{}); err != nil {
 		t.Fatal(err)
 	}
 	retained := f.Values[0]
@@ -246,7 +246,7 @@ func TestPLpgSQLCompositeAssignmentAtomicity(t *testing.T) {
 		{"r.a", negative},
 	} {
 		if assignment.path == "" {
-			_, err = s.newPLRun(nil, f, read).AssignVariable(0, assignment.value, proc.PLOrigin{})
+			_, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, assignment.value, proc.PLOrigin{})
 		} else {
 			_, err = plUnitAssignQueryValue(t, s, f, assignment.path, assignment.value)
 		}
@@ -273,7 +273,7 @@ func TestPLpgSQLCompositeAssignmentAtomicity(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23514" || nested.Values[0] != outer || outer.CompositeField(0) != retained {
 		t.Fatal("nested domain failure changed ancestor slots/payloads", err)
 	}
-	if _, err = s.newPLRun(nil, f, read).AssignVariable(0, sqltype.Null(integer), proc.PLOrigin{}); err != nil || !f.Values[0].IsNull() || f.Values[0].Type() != domain {
+	if _, err = ScopeNewPLRun(s, nil, f, read).AssignVariable(0, sqltype.Null(integer), proc.PLOrigin{}); err != nil || !f.Values[0].IsNull() || f.Values[0].Type() != domain {
 		t.Fatal("nullable composite-domain NULL lost its tag/nullness", err)
 	}
 }
@@ -419,20 +419,20 @@ func TestPLpgSQLDepthUnwind(t *testing.T) {
 		t.Fatal(err)
 	}
 	outer := &proc.PLFrame{Program: &proc.PLProgram{}, InputCollation: unicode}
-	s := &StatementScope{sqlRoutine: sqlRoutineDemand{lexical: outer}, activeSQLRoutineDepth: 3}
+	s := NewScope(ScopeFields{SQLRoutine: NewRoutineDemand(RoutineDemandFields{Lexical: outer}), ActiveSQLRoutineDepth: 3})
 	for _, primary := range []error{nil, context.Canceled, errors.New("reached expression failure")} {
-		restore := s.activateSQLRoutine(nil, e.CatalogRead())
-		s.sqlRoutine.lexical = &proc.PLFrame{InputCollation: c}
-		if err := s.enterSQLRoutine(); err != nil {
+		restore := ScopeActivateSQLRoutine(s, nil, e.CatalogRead())
+		SetRoutineDemandLexical(ScopeSQLRoutineRef(s), &proc.PLFrame{InputCollation: c})
+		if err := ScopeEnterSQLRoutine(s); err != nil {
 			t.Fatal(err)
 		}
-		s.leaveSQLRoutine()
-		if got := restore(primary); !errors.Is(got, primary) || s.sqlRoutine.lexical != outer || s.sqlRoutine.lexical.InputCollation != unicode || s.activeSQLRoutineDepth != 3 {
+		ScopeLeaveSQLRoutine(s)
+		if got := restore(primary); !errors.Is(got, primary) || RoutineDemandLexical(ScopeSQLRoutineRef(s)) != outer || RoutineDemandLexical(ScopeSQLRoutineRef(s)).InputCollation != unicode || ScopeActiveSQLRoutineDepth(s) != 3 {
 			t.Fatal("PL lexical/root unwind", got)
 		}
 	}
-	s.activeSQLRoutineDepth = maxSQLRoutineDepth
-	if err := s.enterSQLRoutine(); err == nil || s.activeSQLRoutineDepth != maxSQLRoutineDepth {
+	SetScopeActiveSQLRoutineDepth(s, MaxSQLRoutineDepth)
+	if err := ScopeEnterSQLRoutine(s); err == nil || ScopeActiveSQLRoutineDepth(s) != MaxSQLRoutineDepth {
 		t.Fatal("PL acquired an independent depth guard")
 	}
 }
@@ -450,11 +450,11 @@ func TestPLpgSQLDiagnosticIdentity(t *testing.T) {
 		{"Mixed Name", "23,25", `"Mixed Name"(integer,text)`},
 	} {
 		d := &catalog.Procedure{ObjectName: tc.name, Signature: tc.signature}
-		if got := scope.plRoutineDiagnosticIdentity(read, d); got != tc.want {
+		if got := ScopePLRoutineDiagnosticIdentity(scope, read, d); got != tc.want {
 			t.Fatalf("identity %q, want %q", got, tc.want)
 		}
 		d.SQL = &proc.Definition{Source: "BEGIN RETURN; END"}
-		err := scope.plRuntimeError(SQLError("22012", "division by zero"), read, d, parser.Position{}, parser.Position{}, parser.Position{}, "at assignment", false)
+		err := ScopePLRuntimeError(scope, SQLError("22012", "division by zero"), read, d, parser.Position{}, parser.Position{}, parser.Position{}, "at assignment", false)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Context != "PL/pgSQL function "+tc.want+" line 1 at assignment" {
 			t.Fatal("runtime context lost canonical identity", err)
@@ -483,7 +483,7 @@ func TestPLpgSQLDiagnosticIdentity(t *testing.T) {
 			{[]ids.ObjectAddress{public, namespace.Address()}, `"Mixed Schema"."Mixed Name"(integer,special)`},
 			{[]ids.ObjectAddress{public}, `"Mixed Schema"."Mixed Name"(integer,"Mixed Schema".special)`},
 		} {
-			if got := formatPLDiagnosticIdentity(read, reader, tc.path, routine); got != tc.want {
+			if got := FormatPLDiagnosticIdentity(read, reader, tc.path, routine); got != tc.want {
 				t.Fatalf("definition-aware identity got %q want %q", got, tc.want)
 			}
 		}

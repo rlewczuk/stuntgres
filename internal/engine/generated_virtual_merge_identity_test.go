@@ -29,7 +29,7 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	authority := inputs.Authority
-	rows, err := dml.AssembleMergeRows(scope.WriteHost(), scope.mergeInput(op.Ctx, b, target, nil, nil, "public"), &cursor, state, false)
+	rows, err := dml.AssembleMergeRows(scope.WriteHost(), ScopeMergeInput(scope, op.Ctx, b, target, nil, nil, "public"), &cursor, state, false)
 	if err != nil || !cursor.Closed || rows == nil || len(rows.Values) != 3 || len(scope.Stage.Rows) != 0 {
 		t.Fatal("saved source phase or publication fence", rows, err, cursor.Closed, scope.Stage.Rows)
 	}

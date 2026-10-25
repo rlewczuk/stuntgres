@@ -86,7 +86,7 @@ func partitionRoutingUnitScope(t *testing.T, e *Engine, target *catalog.Relation
 			t.Fatal(err)
 		}
 	}
-	if err := scope.acquireInheritedMutationTargets(syntax); err != nil {
+	if err := ScopeAcquireInheritedMutationTargets(scope, syntax); err != nil {
 		t.Fatal(err)
 	}
 	auth, err := OperationAuthorization(op)
@@ -95,7 +95,7 @@ func partitionRoutingUnitScope(t *testing.T, e *Engine, target *catalog.Relation
 	}
 	scope.RoutineAuth = auth
 	e.Mu.Lock()
-	err = scope.capturePartitionInsertLocked(e, auth, target)
+	err = ScopeCapturePartitionInsertLocked(scope, e, auth, target)
 	var source *exec.Source
 	b := analyze.Binding{Ref: ref, Relation: target, Storage: scope.LockedStorage}
 	if err == nil {

@@ -179,10 +179,10 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				e.Catalog.Providers[ids.RelationClassID] = queryCreateProbeProvider{Provider: e.Catalog.Providers[ids.RelationClassID], e: e, t: t, check: func() error { return sentinel }}
 			}
 			if phase == "invalid_width" {
-				stage.initialTables[d.Address()].Versions[0].Values = nil
+				StageInitialTables(stage)[d.Address()].Versions[0].Values = nil
 			}
 			if phase == "invalid_type" {
-				stage.initialTables[d.Address()].Versions[0].Values = []sqltype.Value{sqltype.Null(testUsage(e, sqltype.Text).Type)}
+				StageInitialTables(stage)[d.Address()].Versions[0].Values = []sqltype.Value{sqltype.Null(testUsage(e, sqltype.Text).Type)}
 			}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if phase == "provider" || phase == "invalid_width" || phase == "invalid_type" {
@@ -288,7 +288,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 			if phase != "epoch" {
 				queryCreateAssertTypes(t, e, registry)
 			}
-			if e.Visibility.CommitSeq() != before || stage.initialTables[d.Address()].Versions[0].Born != 0 {
+			if e.Visibility.CommitSeq() != before || StageInitialTables(stage)[d.Address()].Versions[0].Born != 0 {
 				t.Fatal("failed birth/frontier", e.Visibility.CommitSeq())
 			}
 		})
@@ -343,7 +343,7 @@ func TestQueryTableCreateSharedRowIdentities(t *testing.T) {
 	if err := e.StageQueryTableRows(context.Background(), discarded, d, [][]sqltype.Value{{value}}, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	reserved := discarded.initialTables[d.Address()].Versions[0]
+	reserved := StageInitialTables(discarded)[d.Address()].Versions[0]
 	e.DiscardCatalogStage(discarded)
 	queryCreateAssertAbsent(t, e, d)
 	session := sessionStart(t, e, nil)

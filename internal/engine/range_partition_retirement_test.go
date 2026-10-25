@@ -94,7 +94,7 @@ func TestRangePartitionRetirementNilScopeStage(t *testing.T) {
 	if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := StageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"rp_retire_provider", "rp_retire_root", "rp_retire_mid", "rp_retire_leaf", "rp_retire_other", "rp_retire_leaf_v_key", "rp_retire_other_v_key", "rp_retire_index", "rp_retire_other_index", "rp_retire_seq", "rp_retire_leaf_seq", "rp_retire_other_seq", "rp_retire_view"} {
@@ -174,7 +174,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	if leafWrites != 2 {
 		t.Fatalf("fixture has %d private routed leaf write roots, want two", leafWrites)
 	}
-	nextWrites, nextDeletes, next, err := e.prepareTemporaryCommit(op, ref, writes, deletes, changes)
+	nextWrites, nextDeletes, next, err := EnginePrepareTemporaryCommit(e, op, ref, writes, deletes, changes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := StageOwnedExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	peerDescriptors := make(map[ids.ObjectAddress]catalog.Descriptor)

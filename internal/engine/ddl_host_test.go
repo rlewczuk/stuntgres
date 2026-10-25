@@ -82,7 +82,7 @@ func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := e.lookupNamespaces(auth, name, kind)
+		want, err := EngineLookupNamespaces(e, auth, name, kind)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +96,7 @@ func TestDDLHostSearchNamespacesMapsClasses(t *testing.T) {
 		}
 		results[class] = got
 	}
-	temporary := temporaryNamespace(auth)
+	temporary := TemporaryNamespace(auth)
 	if temporary == (ids.ObjectAddress{}) || !slices.Contains(results[ids.TypeClassID], temporary) || slices.Contains(results[ids.ConversionClassID], temporary) {
 		t.Fatal("type and conversion searches share a lookup kind", results)
 	}

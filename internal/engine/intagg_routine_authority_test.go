@@ -86,7 +86,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				captured, ref = enum.Procedure, enum.Ref
 				carrier, err := exec.ExpressionRoutineDescriptor(node)
-				if err != nil || carrier != captured || !procedureReturnsSet(captured) || exec.StrictScalarRoutine(captured) {
+				if err != nil || carrier != captured || !ProcedureReturnsSet(captured) || exec.StrictScalarRoutine(captured) {
 					t.Fatal("enum selected declaration/set classification", err)
 				}
 				if tc.name == "enum_parameter" {

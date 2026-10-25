@@ -93,7 +93,7 @@ func TestRLSPolicyFreshness(t *testing.T) {
 			}()
 			go func() {
 				e.Mu.Lock()
-				p, err := e.captureRowSecurityLocked(scope, descriptor, actor, catalog.PolicySelect, false, false)
+				p, err := EngineCaptureRowSecurityLocked(e, scope, descriptor, actor, catalog.PolicySelect, false, false)
 				e.Mu.Unlock()
 				results <- outcome{p, err}
 			}()
@@ -300,8 +300,8 @@ func TestRLSPolicyDependencyFreshness(t *testing.T) {
 			if !errors.Is(out.err, expected) || out.source != nil {
 				t.Fatal("earlier stale selection reached the executor", kind, out.err, out.source)
 			}
-			if scope.rlsAdmissionDepth != 0 || len(scope.rlsActive) != 0 {
-				t.Fatal("nested admission leaked depth/active state", scope.rlsAdmissionDepth, scope.rlsActive)
+			if ScopeRLSAdmissionDepth(scope) != 0 || len(ScopeRLSActive(scope)) != 0 {
+				t.Fatal("nested admission leaked depth/active state", ScopeRLSAdmissionDepth(scope), ScopeRLSActive(scope))
 			}
 			if len(scope.Stage.Rows) != 0 || len(scope.Stage.Deletes) != 0 {
 				t.Fatal("failed final fence published row work")
@@ -445,8 +445,8 @@ func TestRLSPolicyOriginalAuthority(t *testing.T) {
 					t.Fatal("revoked original grant published rows")
 				}
 			}
-			if scope.rlsImportWaits == 0 || scope.rlsAdmissionDepth != 0 || scope.rlsCommand != nil {
-				t.Fatal("policy wait or lexical command authority leaked", scope.rlsImportWaits, scope.rlsAdmissionDepth)
+			if ScopeRLSImportWaits(scope) == 0 || ScopeRLSAdmissionDepth(scope) != 0 || ScopeRLSCommand(scope) != nil {
+				t.Fatal("policy wait or lexical command authority leaked", ScopeRLSImportWaits(scope), ScopeRLSAdmissionDepth(scope))
 			}
 		})
 	}
@@ -460,25 +460,25 @@ func TestRLSAuthorityFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	outer := &preparedCommandExecution{policyWaits: 1}
-	inner := &preparedCommandExecution{policyWaits: 2}
-	scope.rlsCommand, scope.rlsImportWaits = outer, 1
+	outer := NewPreparedCommandExecution(PreparedCommandExecutionFields{PolicyWaits: 1})
+	inner := NewPreparedCommandExecution(PreparedCommandExecutionFields{PolicyWaits: 2})
+	*ScopeRLSCommandRef(scope), *ScopeRLSImportWaitsRef(scope) = outer, 1
 	rule := scope.RuleScratch()
-	scope.rlsCommand = inner
-	scope.rlsImportWaits++
+	SetScopeRLSCommand(scope, inner)
+	*ScopeRLSImportWaitsRef(scope)++
 	scope.InstallRuleScratch(rule)
-	if scope.rlsCommand != outer || scope.rlsImportWaits != 2 || outer.policyWaits != 1 {
+	if ScopeRLSCommand(scope) != outer || ScopeRLSImportWaits(scope) != 2 || PreparedCommandExecutionPolicyWaits(outer) != 1 {
 		t.Fatal("rule frame lost pending original authority")
 	}
 	targetRef := roleTableRef(t, e, "t")
-	scope.rlsDataRefs = []ids.ObjectRef{targetRef}
-	routine := scope.sqlRoutineScratch()
-	scope.rlsCommand = inner
-	scope.rlsImportWaits++
-	scope.rlsDataRefs = nil
-	scope.installSQLRoutineScratch(routine)
-	if scope.rlsCommand != outer || scope.rlsImportWaits != 3 || outer.policyWaits != 1 || len(scope.rlsDataRefs) != 1 || scope.rlsDataRefs[0] != targetRef {
+	SetScopeRLSDataRefs(scope, []ids.ObjectRef{targetRef})
+	routine := ScopeSQLRoutineScratch(scope)
+	SetScopeRLSCommand(scope, inner)
+	*ScopeRLSImportWaitsRef(scope)++
+	SetScopeRLSDataRefs(scope, nil)
+	ScopeInstallSQLRoutineScratch(scope, routine)
+	if ScopeRLSCommand(scope) != outer || ScopeRLSImportWaits(scope) != 3 || PreparedCommandExecutionPolicyWaits(outer) != 1 || len(ScopeRLSDataRefs(scope)) != 1 || ScopeRLSDataRefs(scope)[0] != targetRef {
 		t.Fatal("routine frame lost pending original authority")
 	}
-	scope.rlsCommand = nil
+	SetScopeRLSCommand(scope, nil)
 }

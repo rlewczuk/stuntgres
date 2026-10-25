@@ -69,7 +69,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			}
 			defer scope.Finish(context.Canceled)
 			e.Mu.Lock()
-			err = e.captureVisibilitySnapshotLocked(scope)
+			err = EngineCaptureVisibilitySnapshotLocked(e, scope)
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

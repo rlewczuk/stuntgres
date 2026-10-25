@@ -78,7 +78,7 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		reader, ticket := blockingUnitOwner(t, e)
 		scope := pgrowlocksUnitScope(t, e, reader)
 		scope.RoutineDependencies = []catalog.ExpressionDependency{{Ref: n.Ref, Revision: n.Procedure.Revision()}}
-		if err := scope.snapshotDataPhase(); err != nil { t.Fatal(err) }
+		if err := ScopeSnapshotDataPhase(scope); err != nil { t.Fatal(err) }
 		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 		resource := lock.Resource{ObjectRef: ref}
 		want := [][]any{{nil, nil, int64(7), "logical row 11 version 101: attribute 7 has an invalid typed value"}, {nil, nil, nil, "logical row 12 version 102: row has 1 values but relation has 2 columns"}}
@@ -118,20 +118,20 @@ func TestVerifyHeapamCapture(t *testing.T) {
 		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 		store := e.Storage.Relations[d.Address()]
 		e.Mu.Lock()
-		auth, err := scope.writeAuthorizationLocked(e)
-		if err == nil { err = scope.verifyHeapamReadmitLocked(e, auth, ref, d, store, nil) }
+		auth, err := ScopeWriteAuthorizationLocked(scope, e)
+		if err == nil { err = ScopeVerifyHeapamReadmitLocked(scope, e, auth, ref, d, store, nil) }
 		e.Mu.Unlock()
 		if err != nil { t.Fatal(err) }
 		e.Mu.Lock()
 		e.Storage.Relations[d.Address()] = &storage.Relation{}
-		err = scope.verifyHeapamReadmitLocked(e, auth, ref, d, store, nil)
+		err = ScopeVerifyHeapamReadmitLocked(scope, e, auth, ref, d, store, nil)
 		e.Storage.Relations[d.Address()] = store
 		bad := *d
 		bad.ObjectRevision++
-		errDescriptor := scope.verifyHeapamReadmitLocked(e, auth, ref, &bad, store, nil)
+		errDescriptor := ScopeVerifyHeapamReadmitLocked(scope, e, auth, ref, &bad, store, nil)
 		foreign := ref
 		foreign.Epoch++
-		errEpoch := scope.verifyHeapamReadmitLocked(e, auth, foreign, d, store, nil)
+		errEpoch := ScopeVerifyHeapamReadmitLocked(scope, e, auth, foreign, d, store, nil)
 		e.Mu.Unlock()
 		for _, err := range []error{err, errDescriptor, errEpoch} { if !errors.Is(err, ids.ErrCatalogReplaced) { t.Fatal("readmission accepted replaced authority", err) } }
 	})

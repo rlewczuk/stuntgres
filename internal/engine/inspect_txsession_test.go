@@ -207,23 +207,6 @@ func EngineTransactionAgeLocked(x *Engine, ref ids.TxRef, xid uint32) (int32, er
 	return x.transactionAgeLocked(ref, xid)
 }
 
-// ScopeFields holds the StatementScope fields tests set.
-type ScopeFields struct {
-	Owner                 *session.TransactionOwner
-	Op                    *session.Operation
-	NotificationActions   []session.NotificationAction
-	NotificationEvents    []session.Notification
-	StatementStart        time.Time
-	TransactionStart      time.Time
-	ActiveSQLRoutineDepth int
-	SQLRoutine            sqlRoutineDemand
-}
-
-// NewScope builds a StatementScope from f.
-func NewScope(f ScopeFields) *StatementScope {
-	return &StatementScope{Owner: f.Owner, Op: f.Op, notificationActions: f.NotificationActions, notificationEvents: f.NotificationEvents, statementStart: f.StatementStart, transactionStart: f.TransactionStart, activeSQLRoutineDepth: f.ActiveSQLRoutineDepth, sqlRoutine: f.SQLRoutine}
-}
-
 // ScopeAcquireAdvisory calls x.acquireAdvisory.
 func ScopeAcquireAdvisory(x *StatementScope, ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime functions.AdvisoryLifetime, try bool) (bool, error) {
 	return x.acquireAdvisory(ctx, ref, mode, lifetime, try)
@@ -407,3 +390,147 @@ func TemporarySessionIndexesPrevious(x *temporarySessionIndexes) map[ids.ObjectA
 func TemporarySessionIndexesRoots(x *temporarySessionIndexes) map[ids.ObjectAddress]*storage.IndexRoot {
 	return x.roots
 }
+
+// FinishNotificationBoundary calls finishNotificationBoundary.
+func FinishNotificationBoundary(t *session.TransactionOwner) {
+	finishNotificationBoundary(t)
+}
+
+// NewStatementScope calls newStatementScope.
+func NewStatementScope(op *session.Operation, owner *session.TransactionOwner, start time.Time) *StatementScope {
+	return newStatementScope(op, owner, start)
+}
+
+// NotificationPublicationError calls notificationPublicationError.
+func NotificationPublicationError(p *notificationPublication) error {
+	return notificationPublicationError(p)
+}
+
+// OwnerHasForeign calls ownerHasForeign.
+func OwnerHasForeign(t *session.TransactionOwner) bool {
+	return ownerHasForeign(t)
+}
+
+// PublicationNeedsXID calls publicationNeedsXID.
+func PublicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, phase *session.PreparedPublication) bool {
+	return publicationNeedsXID(writes, deletes, c, phase)
+}
+
+// EngineBeginLocked calls x.beginLocked.
+func EngineBeginLocked(x *Engine, op *session.Operation, t *session.TransactionOwner, state session.TxState, start time.Time) error {
+	return x.beginLocked(op, t, state, start)
+}
+
+// EngineInstallNotificationPublicationLocked calls x.installNotificationPublicationLocked.
+func EngineInstallNotificationPublicationLocked(x *Engine, p *notificationPublication) {
+	x.installNotificationPublicationLocked(p)
+}
+
+// EngineNotificationQueueUsageLocked calls x.notificationQueueUsageLocked.
+func EngineNotificationQueueUsageLocked(x *Engine) float64 {
+	return x.notificationQueueUsageLocked()
+}
+
+// EnginePinUniqueKey calls x.pinUniqueKey.
+func EnginePinUniqueKey(x *Engine, ctx context.Context, ticket *lock.Ticket, ref ids.ObjectRef, ordering index.Ordering, grouping []sqltype.Grouping, values []sqltype.Value) (lock.Resource, func(), error) {
+	return x.pinUniqueKey(ctx, ticket, ref, ordering, grouping, values)
+}
+
+// EnginePollNotification calls x.pollNotification.
+func EnginePollNotification(x *Engine, s *session.Session, check func() error) (session.Notification, bool, <-chan struct{}, error) {
+	return x.pollNotification(s, check)
+}
+
+// ScopeFields holds the StatementScope fields tests set.
+type ScopeFields struct {
+	Owner                 *session.TransactionOwner
+	Op                    *session.Operation
+	NotificationActions   []session.NotificationAction
+	NotificationEvents    []session.Notification
+	Expected              *StatementDescription
+	StatementStart        time.Time
+	TransactionStart      time.Time
+	ActiveSQLRoutineDepth int
+	Catalog               *session.Journal
+	LargeObjectRead       catalog.Read
+	SQLRoutine            sqlRoutineDemand
+}
+
+// NewScope builds a StatementScope from f.
+func NewScope(f ScopeFields) *StatementScope {
+	return &StatementScope{Owner: f.Owner, Op: f.Op, notificationActions: f.NotificationActions, notificationEvents: f.NotificationEvents, Expected: f.Expected, statementStart: f.StatementStart, transactionStart: f.TransactionStart, activeSQLRoutineDepth: f.ActiveSQLRoutineDepth, Catalog: f.Catalog, largeObjectRead: f.LargeObjectRead, sqlRoutine: f.SQLRoutine}
+}
+
+// ScopeExecuteSavepoint calls x.executeSavepoint.
+func ScopeExecuteSavepoint(x *StatementScope, control *parser.SavepointControl, count int) (Result, error) {
+	return x.executeSavepoint(control, count)
+}
+
+// ScopeLargeObjectRead returns x.largeObjectRead.
+func ScopeLargeObjectRead(x *StatementScope) catalog.Read { return x.largeObjectRead }
+
+// ScopeQuoteCaptures returns x.quoteCaptures.
+func ScopeQuoteCaptures(x *StatementScope) *exec.QuoteCaptureCandidate { return x.quoteCaptures }
+
+// ScopeRLSActive returns x.rlsActive.
+func ScopeRLSActive(x *StatementScope) []ids.ObjectAddress { return x.rlsActive }
+
+// ScopeRLSAdmissionDepth returns x.rlsAdmissionDepth.
+func ScopeRLSAdmissionDepth(x *StatementScope) int { return x.rlsAdmissionDepth }
+
+// ScopeRLSAdmissionDepthRef returns &x.rlsAdmissionDepth.
+func ScopeRLSAdmissionDepthRef(x *StatementScope) *int { return &x.rlsAdmissionDepth }
+
+// ScopeRLSCommand returns x.rlsCommand.
+func ScopeRLSCommand(x *StatementScope) *preparedCommandExecution { return x.rlsCommand }
+
+// ScopeRLSCommandRef returns &x.rlsCommand.
+func ScopeRLSCommandRef(x *StatementScope) **preparedCommandExecution { return &x.rlsCommand }
+
+// ScopeRLSDataRefs returns x.rlsDataRefs.
+func ScopeRLSDataRefs(x *StatementScope) []ids.ObjectRef { return x.rlsDataRefs }
+
+// ScopeRLSImportWaits returns x.rlsImportWaits.
+func ScopeRLSImportWaits(x *StatementScope) uint64 { return x.rlsImportWaits }
+
+// ScopeRLSImportWaitsRef returns &x.rlsImportWaits.
+func ScopeRLSImportWaitsRef(x *StatementScope) *uint64 { return &x.rlsImportWaits }
+
+// ScopeRLSPrograms returns x.rlsPrograms.
+func ScopeRLSPrograms(x *StatementScope) []*rowSecurityProgram { return x.rlsPrograms }
+
+// SetScopeActiveSQLRoutineDepth sets x.activeSQLRoutineDepth.
+func SetScopeActiveSQLRoutineDepth(x *StatementScope, v int) { x.activeSQLRoutineDepth = v }
+
+// SetScopeRLSCommand sets x.rlsCommand.
+func SetScopeRLSCommand(x *StatementScope, v *preparedCommandExecution) { x.rlsCommand = v }
+
+// SetScopeRLSDataRefs sets x.rlsDataRefs.
+func SetScopeRLSDataRefs(x *StatementScope, v []ids.ObjectRef) { x.rlsDataRefs = v }
+
+// SetScopeRLSPrograms sets x.rlsPrograms.
+func SetScopeRLSPrograms(x *StatementScope, v []*rowSecurityProgram) { x.rlsPrograms = v }
+
+// SetWriteStageScope sets x.scope.
+func SetWriteStageScope(x *WriteStage, v *StatementScope) { x.scope = v }
+
+// SetWriteStageSelf sets x.self.
+func SetWriteStageSelf(x *WriteStage, v *WriteStage) { x.self = v }
+
+// WriteStageScope returns x.scope.
+func WriteStageScope(x *WriteStage) *StatementScope { return x.scope }
+
+// WriteStageSelf returns x.self.
+func WriteStageSelf(x *WriteStage) *WriteStage { return x.self }
+
+// OwnerExtensionExclusionModes returns x.exclusionModes.
+func OwnerExtensionExclusionModes(x ownerExtension) index.ExclusionModes { return x.exclusionModes }
+
+// OwnerExtensionForeign returns x.foreign.
+func OwnerExtensionForeign(x ownerExtension) fdw.Transaction { return x.foreign }
+
+// OwnerExtensionValueCursorCleanup returns x.cursorCleanup.
+func OwnerExtensionValueCursorCleanup(x ownerExtension) []*sqlCursor { return x.cursorCleanup }
+
+// SetOwnerExtensionCursorCleanup sets x.cursorCleanup.
+func SetOwnerExtensionCursorCleanup(x *ownerExtension, v []*sqlCursor) { x.cursorCleanup = v }

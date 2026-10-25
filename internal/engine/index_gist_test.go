@@ -158,7 +158,7 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			candidateBefore := uniquePublicationStore(candidate)
 			// Explicit parent rebuild intent, no supplied candidate root and no
 			// row delta: validation must inspect rebuilt A/empty/C membership.
-			roots, err := e.prepareIndexRoots(
+			roots, err := EnginePrepareIndexRoots(e,
 				&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}},
 				e.Catalog.State, e.Catalog.State, captured, e.Storage.IndexRoots,
 				map[ids.ObjectAddress]bool{parent.Address(): true}, nil, nil,

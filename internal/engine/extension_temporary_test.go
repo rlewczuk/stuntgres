@@ -86,7 +86,7 @@ func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *session.Operat
 	}
 	return e.Catalog.State.MustRelation(e.Catalog.State.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "ext_survivor"}))
 }
-func extensionTemporaryStage(t *testing.T, e *Engine, ext *catalog.Extension) (*CatalogStage, *temporarySessionIndexes) {
+func extensionTemporaryStage(t *testing.T, e *Engine, ext *catalog.Extension) (*CatalogStage, *TemporarySessionIndexes) {
 	t.Helper()
 	base := e.CatalogRead()
 	targets, err := catalog.NamespaceChildren(base, map[ids.ObjectAddress]bool{ext.TargetNamespace: true})
@@ -94,7 +94,7 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *catalog.Extension) (*
 		t.Fatal(err)
 	}
 	stage := e.BeginCatalogStage(base)
-	stage.terminalCleanup = true
+	SetStageTerminalCleanup(stage, true)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	for _, target := range targets {
 		if err := stage.Remove(e.Catalog.Domain.Ref(base.Epoch(), target)); err != nil {
@@ -104,10 +104,10 @@ func extensionTemporaryStage(t *testing.T, e *Engine, ext *catalog.Extension) (*
 	if err := StageExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil); err != nil {
+	if err := StageOwnedExpressionDependencies(context.Background(), stage, targets, parser.DropCascade, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	indexes, err := e.prepareTemporarySessionIndexes(stage)
+	indexes, err := EnginePrepareTemporarySessionIndexes(e, stage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	roleExecute(t, e, installer, "CREATE VIEW public.ext_late AS SELECT v FROM public.ext_chain")
 	e.Mu.Lock()
-	installed, err := e.installTemporarySessionStageLocked(owner.Session, stage, []ids.ObjectAddress{ext.TargetNamespace}, indexes)
+	installed, err := EngineInstallTemporarySessionStageLocked(e, owner.Session, stage, []ids.ObjectAddress{ext.TargetNamespace}, indexes)
 	e.Mu.Unlock()
 	if err != nil || installed {
 		t.Fatal("late dependent bypassed whole-root fence", installed, err)
@@ -179,7 +179,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	if e.Catalog.State.Get(survivor.Address()) != survivor || e.Catalog.State.Get(ext.Address()) != ext {
 		t.Fatal("failed candidate published partially")
 	}
-	if err := e.endTemporarySession(owner.Session); err != nil {
+	if err := EngineEndTemporarySession(e, owner.Session); err != nil {
 		t.Fatal(err)
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
@@ -217,7 +217,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 	})
 	t.Run("private_authority", func(t *testing.T) {
 		e, _, _, ext, _ := extensionTemporaryInstalled(t)
-		private, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
+		private, err := EngineStartSession(e, context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -246,7 +246,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		if err == nil || e.Catalog.State != before {
 			t.Fatal("private maintenance acquired public TEMP authority", err)
 		}
-		if err := e.endTemporarySession(private); err != nil || e.Catalog.State != before || e.Catalog.State.Get(ext.Address()) != ext {
+		if err := EngineEndTemporarySession(e, private); err != nil || e.Catalog.State != before || e.Catalog.State.Get(ext.Address()) != ext {
 			t.Fatal("private retirement borrowed a public token", err)
 		}
 		closePrivate()
@@ -294,7 +294,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		e.Mu.Unlock()
 		t.Cleanup(func() { e.Mu.Lock(); e.Catalog.PublishLocked(original); e.Mu.Unlock() })
 		result := make(chan error, 1)
-		go func() { result <- e.endTemporarySession(owner.Session) }()
+		go func() { result <- EngineEndTemporarySession(e, owner.Session) }()
 		select {
 		case err := <-result:
 			if err == nil || !strings.Contains(err.Error(), "extension") {
@@ -329,12 +329,12 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	if err != nil || !slices.Contains(path, namespace.Address()) {
 		t.Fatal("authorized foreign installed path omitted", path, err)
 	}
-	selected, err := e.lookupNamespaces(foreignAuth, qualified, analyze.InstalledFunctionLookup)
+	selected, err := EngineLookupNamespaces(e, foreignAuth, qualified, analyze.InstalledFunctionLookup)
 	if err != nil || analyze.ProcedureInNamespaces(foreignAuth.Catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
 		t.Fatal("real foreign member lookup", selected, err)
 	}
 	for _, kind := range []analyze.LookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
-		selected, err := e.lookupNamespaces(foreignAuth, qualified, kind)
+		selected, err := EngineLookupNamespaces(e, foreignAuth, qualified, kind)
 		if err != nil || selected.Qualified != namespace.Address() {
 			t.Fatal("captured superuser namespace USAGE denied", kind, selected, err)
 		}
@@ -355,7 +355,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, kind := range []analyze.LookupKind{analyze.InstalledFunctionLookup, analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
-		_, err := e.lookupNamespaces(denied, qualified, kind)
+		_, err := EngineLookupNamespaces(e, denied, qualified, kind)
 		extensionUnitError(t, err, "42501")
 	}
 	path, err = LookupPath(denied, analyze.InstalledFunctionLookup)
@@ -455,7 +455,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if target.RoleStore.Published != before {
 			t.Fatal("retained owner dependency changed roles")
 		}
-		if err := target.endTemporarySession(owner.Session); err != nil {
+		if err := EngineEndTemporarySession(target, owner.Session); err != nil {
 			t.Fatal(err)
 		}
 		roleExecute(t, target, admin, "DROP ROLE "+actor.Name)
@@ -602,7 +602,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if err != nil || text != "Hotel" {
 		t.Fatal("retained provider execution", text, err)
 	}
-	if err := e.endTemporarySession(owner.Session); err != nil {
+	if err := EngineEndTemporarySession(e, owner.Session); err != nil {
 		t.Fatal(err)
 	}
 	extensionTemporaryGoneUnit(t, e, ext)

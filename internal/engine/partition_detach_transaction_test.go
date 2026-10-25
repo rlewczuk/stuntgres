@@ -30,7 +30,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			mark, markOp := partitionAttachUnitScope(t, f.e, owner)
 			partitionAttachUnitGrant(t, mark, parentRef, lock.AccessShare)
 			control := &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before_detach"}}
-			if _, err := mark.executeSavepoint(control, 0); err != nil {
+			if _, err := ScopeExecuteSavepoint(mark, control, 0); err != nil {
 				t.Fatal(err)
 			}
 			if err := mark.Finish(nil); err != nil {
@@ -64,7 +64,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			if end == "savepoint" {
 				rollback, rollbackOp := partitionAttachUnitScope(t, f.e, owner)
 				control.Kind = parser.RollbackSavepoint
-				if _, err := rollback.executeSavepoint(control, 0); err != nil {
+				if _, err := ScopeExecuteSavepoint(rollback, control, 0); err != nil {
 					t.Fatal(err)
 				}
 				if err := rollback.Finish(nil); err != nil {
@@ -168,7 +168,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				if err := worker.Gate(raw); err != nil {
 					t.Fatal(err)
 				}
-				if err := worker.snapshotPhase(raw); err != nil {
+				if err := ScopeSnapshotPhase(worker, raw); err != nil {
 					t.Fatal(err)
 				}
 				before := f.e.Catalog.State

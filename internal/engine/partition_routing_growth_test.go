@@ -62,10 +62,10 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			candidateRef := e.Catalog.Domain.Ref(oldRef.Epoch, candidate.Address())
 			partitionAttachUnitGrant(t, holder, oldRef, lock.AccessExclusive)
 			join := partitionAttachUnitWorker(t, reader, func() error {
-				if err := reader.acquireRelationTarget(syntax, syntax, true, false); err != nil {
+				if err := ScopeAcquireRelationTarget(reader, syntax, syntax, true, false); err != nil {
 					return err
 				}
-				return reader.acquireInheritedMutationTargets(syntax)
+				return ScopeAcquireInheritedMutationTargets(reader, syntax)
 			})
 			partitionAttachUnitQueued(t, e, oldRef, reader.LockTicket, lock.RowExclusive)
 			if !e.Locks.Holds(reader.LockTicket, lock.Resource{ObjectRef: parentRef}, lock.RowExclusive) {
@@ -119,7 +119,7 @@ func partitionRoutingCaptureTopologyGrowth(t *testing.T) {
 			reader.RoutineAuth = auth
 			binding := analyze.Binding{Ref: parentRef, Relation: current}
 			e.Mu.Lock()
-			err = reader.capturePartitionInsertLocked(e, auth, current)
+			err = ScopeCapturePartitionInsertLocked(reader, e, auth, current)
 			refs := reader.Command.TargetRefs(parentRef)
 			var source *exec.Source
 			if err == nil {

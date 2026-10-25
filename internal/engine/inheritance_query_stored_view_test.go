@@ -93,7 +93,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 				var definition *stored.View
 				if bindErr == nil {
-					definition, bindErr = view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, 0, catalog.ViewRelation, false)
+					definition, bindErr = view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), raw.Query, b, false, false, 0, catalog.ViewRelation, false)
 				}
 				var oid ids.OID
 				if bindErr == nil {
@@ -153,10 +153,10 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				}
 			}
 			if tc.weak {
-				if err = scope.acquireBoundViewRelationModes([]ids.ObjectRef{parentRef}, nil); err != nil {
+				if err = ScopeAcquireBoundViewRelationModes(scope, []ids.ObjectRef{parentRef}, nil); err != nil {
 					t.Fatal(err)
 				}
-				err = scope.acquireInheritanceSources(map[ids.ObjectRef]lock.Mode{parentRef: 0})
+				err = ScopeAcquireInheritanceSources(scope, map[ids.ObjectRef]lock.Mode{parentRef: 0})
 			} else if tc.wait {
 				holderOp, holderDone, holdErr := testOperation(e, context.Background())
 				if holdErr != nil {
@@ -248,7 +248,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if scope.QuerySources[0].Ref != viewRef || scope.QuerySources[0].Relation != view {
 				t.Fatal("physical expansion replaced logical view authority")
 			}
-			for _, physical := range scope.Inheritance.relations {
+			for _, physical := range InheritanceScopeRelations(&scope.Inheritance) {
 				if !tc.weak && physical.Ref == parentRef {
 					t.Fatal("already admitted base gained duplicate physical manifest ownership")
 				}
@@ -258,7 +258,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.Mu.Lock()
-			catalog := scope.inheritanceRead(e.PrivateCatalogLocked(scope.Owner.Catalog))
+			catalog := ScopeInheritanceRead(scope, e.PrivateCatalogLocked(scope.Owner.Catalog))
 			collectAuth.Recapture(catalog)
 			refs, captureErr := e.QueryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.QuerySources, nil, op.Session.SessionToken, plan.RowMark{})
 			var snapshot *visibility.View

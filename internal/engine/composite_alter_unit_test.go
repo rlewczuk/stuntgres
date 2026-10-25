@@ -95,7 +95,7 @@ func TestCompositeArrayStorageAdmission(t *testing.T) {
 	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	usage, err := e.resolveType(parser.TypeName{Name: "pair", ArrayBounds: []int32{-1}}, op)
+	usage, err := EngineResolveType(e, parser.TypeName{Name: "pair", ArrayBounds: []int32{-1}}, op)
 	if err != nil || usage.Type != array || !usage.Valid() {
 		t.Fatal("real column Usage rejected concrete composite array", usage, err)
 	}

@@ -43,7 +43,7 @@ func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, nam
 		if err != nil {
 			return nil, nil, err
 		}
-		definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), raw.Query, b, false, false, rule, catalog.ViewRelation, true)
+		definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), raw.Query, b, false, false, rule, catalog.ViewRelation, true)
 		if err != nil {
 			return nil, nil, err
 		}

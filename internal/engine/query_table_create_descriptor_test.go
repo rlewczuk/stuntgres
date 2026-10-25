@@ -64,7 +64,7 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	var d *catalog.Relation
 	var skipped bool
 	if err == nil {
-		stage, d, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: query})
+		stage, d, skipped, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: query})
 	}
 	e.Mu.Unlock()
 	if err != nil || skipped {
@@ -125,7 +125,7 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 			auth, authErr := e.AuthorizationLocked(op)
 			var stage *CatalogStage
 			if authErr == nil {
-				stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+				stage, _, _, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 			} else {
 				err = authErr
 			}
@@ -270,7 +270,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		auth, err := e.AuthorizationLocked(op)
 		var stage *CatalogStage
 		if err == nil {
-			stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+			stage, _, _, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
 		e.Mu.Unlock()
 		var got *sqlstate.Error
@@ -291,7 +291,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		auth, err = e.AuthorizationLocked(op)
 		var skipped bool
 		if err == nil {
-			stage, _, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
+			stage, _, skipped, err = EnginePrepareQueryTableLocked(e, op, auth, syntax, analyze.Binding{Query: &plan.Query{Root: project}})
 		}
 		e.Mu.Unlock()
 		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.Address()) != d {

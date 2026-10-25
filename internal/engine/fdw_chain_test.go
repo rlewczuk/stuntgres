@@ -45,7 +45,7 @@ func fdwChainReadmission(t *testing.T) {
 		}
 		return nil
 	}
-	ownerExtensionOf(owner).foreign.Enlist(&fdw.Participant{Tx: remote})
+	OwnerExtensionForeignRef(OwnerExtensionOf(owner)).Enlist(&fdw.Participant{Tx: remote})
 	op := transactionOperation(t, sess)
 	if err := owner.AcquireAdmission(op.Context(), op); err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func fdwChainReadmission(t *testing.T) {
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		result, err := e.endAdmitted(op, owner, ref, true, true, true, time.Now(), nil)
+		result, err := EngineEndAdmitted(e, op, owner, ref, true, true, true, time.Now(), nil)
 		owner.Admission.Unlock()
 		op.Done()
 		done <- outcome{result, err}
@@ -119,7 +119,7 @@ func fdwChainReadmission(t *testing.T) {
 	if len(remote.calls) != 1 || remote.calls[0] != "commit" {
 		t.Fatal("remote commit retried/compensated", remote.calls)
 	}
-	if PayloadOf(sess).Cursors.Entries["chain_hold"] != promoted || promoted == nil || !promoted.promoted || promoted.count != 1 {
+	if PayloadOf(sess).Cursors.Entries["chain_hold"] != promoted || promoted == nil || !CursorPromoted(promoted) || CursorCount(promoted) != 1 {
 		t.Fatal("CHAIN readmission failure discarded a committed HOLD promotion")
 	}
 	sess.Settings.Mu.Lock()

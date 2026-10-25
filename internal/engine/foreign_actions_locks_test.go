@@ -183,7 +183,7 @@ func TestForeignActionsDiagnostics(t *testing.T) {
 	if !errors.As(err, &d) || *d != want {
 		t.Fatal(d, err, want)
 	}
-	admission := scope.foreignActionsOrZero().Admissions[ref.Address]
+	admission := ScopeForeignActionsOrZero(scope).Admissions[ref.Address]
 	if admission == nil || admission.Ref != ref || admission.Tx != scope.TxRef || scope.LockedRef != named || len(scope.Stage.Rows[ref.Address]) != 0 || e.Storage.Relations[ref.Address].Versions[0].Row != row {
 		t.Fatal("local report bypassed captured child authority")
 	}
@@ -198,8 +198,8 @@ func TestForeignActionsPrepared(t *testing.T) {
 	probe := &defaultOrdinal{}
 	defaultProbe(t, e, probe)
 	ast, description := sequencePreparedDescription(t, e, s, "DELETE FROM p WHERE id=10")
-	if probe.ordinal != 0 || description.analysis == nil {
-		t.Fatal("Prepare demanded an action/default", probe.ordinal, description.analysis)
+	if probe.ordinal != 0 || DescriptionAnalysis(&description) == nil {
+		t.Fatal("Prepare demanded an action/default", probe.ordinal, DescriptionAnalysis(&description))
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "d")
 	originals := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)
@@ -230,7 +230,7 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
 			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
 			sessionSQL(t, a, "PREPARE TRANSACTION 'action_unit'")
-			prepared := e.prepared.Lookup("action_unit")
+			prepared := EnginePreparedRef(e).Lookup("action_unit")
 			if prepared == nil || prepared.Ref != origin || prepared.Ticket != ticket || a.Transactions.Ticket != nil || prepared.Deletes[ref.Address] == nil {
 				t.Fatal("action deletion/grants did not transfer to prepared owner")
 			}
@@ -263,7 +263,7 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 			joined = true
 			transactionEnd(t, b, waiter, true)
 			waiterEnded = true
-			if e.prepared.Len() != 0 {
+			if EnginePreparedRef(e).Len() != 0 {
 				t.Fatal("completed action prepared owner retained")
 			}
 			storage := e.Storage.Relations[ref.Address]
@@ -333,12 +333,12 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 				// distinguish the private admitted RI context from an arbitrary
 				// acting-authority marker without changing initiating identity.
 				e.Mu.Lock()
-				auth, authErr := scope.writeAuthorizationLocked(e)
+				auth, authErr := ScopeWriteAuthorizationLocked(scope, e)
 				e.Mu.Unlock()
 				if authErr != nil {
 					t.Fatal(authErr)
 				}
-				admission := scope.foreignActionsOrZero().Admissions[childRef.Address]
+				admission := ScopeForeignActionsOrZero(scope).Admissions[childRef.Address]
 				if admission == nil || !admission.Writable {
 					t.Fatal("missing actual writable child admission")
 				}
@@ -357,18 +357,18 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 					t.Run(tc.name, func(t *testing.T) {
 						acting := &auth
 						if tc.owner {
-							acting = foreignAuthorizationOf(auth.ActingAs(admission.Relation.Owner))
+							acting = ForeignAuthorizationOf(auth.ActingAs(admission.Relation.Owner))
 						}
 						previous := scope.WriteHost().SwapForeignActionAuthority(acting)
 						wasWritable := admission.Writable
 						admission.Writable = tc.writable
-						scope.foreignActions().Settling = tc.settling
+						ScopeForeignActions(scope).Settling = tc.settling
 						defer func() {
 							scope.WriteHost().SwapForeignActionAuthority(previous)
-							scope.foreignActions().Settling = false
+							ScopeForeignActions(scope).Settling = false
 							admission.Writable = wasWritable
 						}()
-						detail, err := e.rowDiagnosticDetail(scope, &binding, row, tc.viewCheck)
+						detail, err := EngineRowDiagnosticDetail(e, scope, &binding, row, tc.viewCheck)
 						if err != nil || (detail != "") != tc.detail {
 							t.Fatal("RI reporting authority", detail, err)
 						}

@@ -116,21 +116,21 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, releaseFirst, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one})
+	first, releaseFirst, err := EnginePinUniqueKey(e, context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.Key() == collision.Key() {
 		t.Fatal("hash collision established equality")
 	}
-	equal, releaseEqual, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{scaled})
+	equal, releaseEqual, err := EnginePinUniqueKey(e, context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{scaled})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if equal.Key() != first.Key() {
 		t.Fatal("normalized numeric equality split claims")
 	}
-	again, releaseAgain, err := e.pinUniqueKey(context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one})
+	again, releaseAgain, err := EnginePinUniqueKey(e, context.Background(), scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestUniqueClaimInterningAndRetirement(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, release, err := e.pinUniqueKey(canceled, scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one}); !errors.Is(err, context.Canceled) || release != nil {
+	if _, release, err := EnginePinUniqueKey(e, canceled, scope.LockTicket, ref, ordering, grouping, []sqltype.Value{one}); !errors.Is(err, context.Canceled) || release != nil {
 		t.Fatal(err)
 	}
 }

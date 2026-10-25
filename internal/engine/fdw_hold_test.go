@@ -23,21 +23,21 @@ func fdwHoldSettlement(t *testing.T) {
 	}
 	defer s.Finish(errors.New("unit cleanup"))
 	s.Owner.Mu.Lock()
-	s.attachTransactionLocked()
+	ScopeAttachTransactionLocked(s)
 	s.Owner.Mu.Unlock()
 	remote := &fdwUnitTransaction{}
 	participant := &fdw.Participant{Tx: remote}
-	ownerExtensionOf(s.Owner).foreign.Enlist(participant)
+	OwnerExtensionForeignRef(OwnerExtensionOf(s.Owner)).Enlist(participant)
 	marks := []*fdw.Participant{participant}
-	s.foreignTables().statements = marks
+	SetForeignTableScopeStatements(ScopeForeignTables(s), marks)
 	frontier := e.Visibility.CommitSeq()
-	if err := e.holdPrecommit(op, s.Owner, time.Now(), s); err != nil {
+	if err := EngineHoldPrecommit(e, op, s.Owner, time.Now(), s); err != nil {
 		t.Fatal(err)
 	}
-	if s.Finished || len(s.foreignTablesOrZero().statements) != 1 || &s.foreignTables().statements[0] != &marks[0] || s.foreignTablesOrZero().statements[0] != participant || len(remote.calls) != 0 || e.Visibility.CommitSeq() != frontier {
+	if s.Finished || len(ForeignTableScopeValueStatements(ScopeForeignTablesOrZero(s))) != 1 || &ForeignTableScopeStatements(ScopeForeignTables(s))[0] != &marks[0] || ForeignTableScopeValueStatements(ScopeForeignTablesOrZero(s))[0] != participant || len(remote.calls) != 0 || e.Visibility.CommitSeq() != frontier {
 		t.Fatal("borrowed HOLD scope settled, copied, or lost the current statement marks", remote.calls)
 	}
-	if len(s.foreignTablesOrZero().holdPromotions) != 1 || s.foreignTablesOrZero().holdPromotions[0] != PayloadOf(session).Cursors.Entries["hold_owned"] || !s.foreignTablesOrZero().holdPromotions[0].promoted {
+	if len(ForeignTableScopeHoldPromotions(ScopeForeignTablesOrZero(s))) != 1 || ForeignTableScopeHoldPromotions(ScopeForeignTablesOrZero(s))[0] != PayloadOf(session).Cursors.Entries["hold_owned"] || !CursorPromoted(ForeignTableScopeHoldPromotions(ScopeForeignTablesOrZero(s))[0]) {
 		t.Fatal("completion did not retain exact tentative promotion ownership")
 	}
 	remote.check = func() {
@@ -57,16 +57,16 @@ func fdwHoldSettlement(t *testing.T) {
 			e.ReplacementMu.Unlock()
 		}
 	}
-	if err := s.finishForeignStatements(nil); err != nil {
+	if err := ScopeFinishForeignStatements(s, nil); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.foreignTablesOrZero().statements) != 0 || !reflect.DeepEqual(remote.calls, []string{"statement-success"}) {
+	if len(ForeignTableScopeValueStatements(ScopeForeignTablesOrZero(s))) != 0 || !reflect.DeepEqual(remote.calls, []string{"statement-success"}) {
 		t.Fatal("current completion did not settle transferred marks exactly once", remote.calls)
 	}
-	if err := s.discardForeignHoldPromotions(nil); err != nil {
+	if err := ScopeDiscardForeignHoldPromotions(s, nil); err != nil {
 		t.Fatal(err)
 	}
-	if PayloadOf(session).Cursors.Entries["hold_owned"] != nil || len(s.foreignTablesOrZero().holdPromotions) != 0 {
+	if PayloadOf(session).Cursors.Entries["hold_owned"] != nil || len(ForeignTableScopeHoldPromotions(ScopeForeignTablesOrZero(s))) != 0 {
 		t.Fatal("unpublished completion retained a fresh HOLD promotion")
 	}
 }

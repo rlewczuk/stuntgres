@@ -30,9 +30,9 @@ func TestSerialDefaultPublicationReplacementCancellation(t *testing.T) {
 						go func(){ reset <- Reset(context.Background(), e) }()
 						deadline := time.Now().Add(5*time.Second)
 						for {
-							e.ReplacementMu.mu.Lock()
-							waiting := e.ReplacementMu.writers==1 && e.ReplacementMu.readers==1 && !e.ReplacementMu.writing
-							e.ReplacementMu.mu.Unlock()
+							ReplacementAdmissionMuRef(&e.ReplacementMu).Lock()
+							waiting := ReplacementAdmissionWriters(&e.ReplacementMu)==1 && ReplacementAdmissionReaders(&e.ReplacementMu)==1 && !ReplacementAdmissionWriting(&e.ReplacementMu)
+							ReplacementAdmissionMuRef(&e.ReplacementMu).Unlock()
 							if waiting { break }
 							if time.Now().After(deadline) {
 								cancel()

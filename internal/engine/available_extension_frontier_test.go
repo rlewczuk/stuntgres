@@ -39,7 +39,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				t.Helper()
 				d, ref := availableUnitSource(e, oid)
 				e.Mu.Lock()
-				source, err := e.openRelationSourceLocked(s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+				source, err := EngineOpenRelationSourceLocked(e, s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

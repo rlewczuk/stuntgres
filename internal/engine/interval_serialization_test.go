@@ -32,7 +32,7 @@ func TestIntervalGenericStoredLiteralSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := statements[0].(*parser.CreateTable).Elements[0].Column.TypeName
-	recovered, err := e.resolveType(raw, binderOperation(b))
+	recovered, err := EngineResolveType(e, raw, binderOperation(b))
 	if err != nil || recovered.Typmod != 262146 {
 		t.Fatal(recovered, err)
 	}

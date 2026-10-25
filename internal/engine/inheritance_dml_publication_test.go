@@ -23,7 +23,7 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 			e, p, c := inheritanceDMLPublishedGraph(t)
 			s, done := inheritanceDMLScope(t, e, p, context.Background())
 			defer done()
-			if err := s.acquireInheritedMutationTargets(&parser.Update{}); err != nil {
+			if err := ScopeAcquireInheritedMutationTargets(s, &parser.Update{}); err != nil {
 				t.Fatal(err)
 			}
 			refs := s.Command.TargetRefs(s.LockedRef)
@@ -41,10 +41,10 @@ func TestInheritanceDMLAtomicPublication(t *testing.T) {
 			before := make(map[ids.ObjectAddress][]storage.RowVersion)
 			frontier := e.Visibility.CommitSeq()
 			for _, ref := range refs {
-				store := s.mutationStorage(ref)
+				store := ScopeMutationStorage(s, ref)
 				before[ref.Address] = append([]storage.RowVersion(nil), store.Versions...)
 				old := store.Versions[0]
-				if err = s.acquireRow(visibility.DeleteCandidate{Ref: ref, Storage: store, Row: old.Row, Version: old.Version, Base: old.Base, Ordinal: 0}); err != nil {
+				if err = ScopeAcquireRow(s, visibility.DeleteCandidate{Ref: ref, Storage: store, Row: old.Row, Version: old.Version, Base: old.Base, Ordinal: 0}); err != nil {
 					t.Fatal(err)
 				}
 				if err = dml.ReplaceRows(s.WriteHost(), ref, []storage.RowVersion{old}, index.WriteBatch{Values: [][]sqltype.Value{{inheritanceQueryInt(e, 30)}}}, dml.ReplaceMerge); err != nil {

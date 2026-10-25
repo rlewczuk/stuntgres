@@ -84,7 +84,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		}
 		ref := view.Owner().Domain.Ref(view.Epoch(), d.Address())
 		e.Mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, ref, d.Owner, plan.RowMark{}, nil, nil)
+		source, err := EngineOpenRelationSourceLocked(e, scope, ref, d.Owner, plan.RowMark{}, nil, nil)
 		if err != nil || source == nil {
 			t.Fatal(d.Name(), err)
 		}
@@ -192,7 +192,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		e.Mu.Lock()
 		e.Catalog.State.SetDescriptor(unknown.Address(), &unknown)
 		ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), unknown.Address())
-		source, err := e.openRelationSourceLocked(scope, ref, unknown.Owner, plan.RowMark{}, nil, nil)
+		source, err := EngineOpenRelationSourceLocked(e, scope, ref, unknown.Owner, plan.RowMark{}, nil, nil)
 		want := "stuntgres: unknown catalog source"
 		if virtual {
 			want = "stuntgres: unknown virtual catalog view"
@@ -211,7 +211,7 @@ func TestCatalogSourceEmptyMaterializedRows(t *testing.T) {
 	if !ok {
 		t.Fatal("missing materialized catalog producer")
 	}
-	in := pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: e.Roles(), Owner: &e.Catalog.Owner, Ref: e.Catalog.Domain.Ref(read.Epoch(), d.Address()), Source: d, Runtime: EngineCatalogRuntime{engine: e}}
+	in := pgcatalog.Input{Context: t.Context(), Catalog: read, Roles: e.Roles(), Owner: &e.Catalog.Owner, Ref: e.Catalog.Domain.Ref(read.Epoch(), d.Address()), Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}
 	source, err := CaptureCatalogSourceRows(in, produce)
 	if err != nil {
 		t.Fatal(err)
@@ -316,7 +316,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		view := scope.Inquiry.CommentCatalog
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.InfoUserMappingsOID})
 		f.e.Mu.Lock()
-		source, err := f.e.openRelationSourceLocked(scope, view.Owner().Domain.Ref(view.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
+		source, err := EngineOpenRelationSourceLocked(f.e, scope, view.Owner().Domain.Ref(view.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
 		if err != nil || source == nil {
 			t.Fatal("coherent mapping source", err)
 		}
@@ -351,13 +351,13 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		for _, oid := range []ids.OID{pgcatalog.CursorsOID, pgcatalog.SettingsOID} {
 			d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 			e.Mu.Lock()
-			source, err := e.openRelationSourceLocked(scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
+			source, err := EngineOpenRelationSourceLocked(e, scope, e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if oid == pgcatalog.CursorsOID {
 				name, _ := source.Anonymous[0][0].Text()
-				if name != "producer_runtime" || cursor.Place != exec.CursorBefore || cursor.stage != nil {
+				if name != "producer_runtime" || cursor.Place != exec.CursorBefore || CursorStage(cursor) != nil {
 					t.Fatal("metadata dispatch demanded or replaced cursor")
 				}
 			} else {
@@ -427,9 +427,9 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		}
 		view := e.CatalogRead()
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12001})
-		in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: retained, Owner: &e.Catalog.Owner, Source: d, Runtime: EngineCatalogRuntime{engine: e}}
+		in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: retained, Owner: &e.Catalog.Owner, Source: d, Runtime: NewCatalogRuntime(CatalogRuntimeFields{Engine: e})}
 		e.Mu.Lock()
-		expectedXID := e.Visibility.AssignedXIDLocked(e.prepared.Lookup("producer_runtime_gid").Ref)
+		expectedXID := e.Visibility.AssignedXIDLocked(EnginePreparedRef(e).Lookup("producer_runtime_gid").Ref)
 		rows, err := capturePreparedSource(in)
 		e.Mu.Unlock()
 		if err != nil || len(rows) != 1 {

@@ -91,15 +91,15 @@ func TestExtensionVersionGraph(t *testing.T) {
 	good := extension.StockFuzzystrmatch.Updates()[0]
 	for _, actions := range [][]extension.UpdateAction{nil, {good, good}, {{Edge: good.Edge}}, {{Edge: catalog.ExtensionVersionEdge{From: "1.2", To: "1.1"}, Stage: good.Stage}}} {
 		p := &extensionVersionRegistration{extension.StockFuzzystrmatch, extension.StockFuzzystrmatch.Versions(), "1.2", actions}
-		if (&Engine{}).registerExtension("fuzzystrmatch", p) == nil {
+		if EngineRegisterExtension((&Engine{}), "fuzzystrmatch", p) == nil {
 			t.Fatal("invalid executable coverage admitted", actions)
 		}
 	}
 	p := &extensionVersionRegistration{extension.StockFuzzystrmatch, extension.StockFuzzystrmatch.Versions(), "1.0", []extension.UpdateAction{good}}
-	if (&Engine{}).registerExtension("fuzzystrmatch", p) == nil {
+	if EngineRegisterExtension((&Engine{}), "fuzzystrmatch", p) == nil {
 		t.Fatal("graph-only default admitted")
 	}
-	if err := (&Engine{}).registerExtension("fuzzystrmatch", extension.StockFuzzystrmatch); err != nil {
+	if err := EngineRegisterExtension((&Engine{}), "fuzzystrmatch", extension.StockFuzzystrmatch); err != nil {
 		t.Fatal("unreachable metadata edge incorrectly requires action", err)
 	}
 }

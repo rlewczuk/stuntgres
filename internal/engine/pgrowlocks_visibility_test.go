@@ -137,7 +137,7 @@ func pgrowlocksDynamicSnapshotUnits(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.snapshotDataPhase(); err != nil {
+			if err := ScopeSnapshotDataPhase(scope); err != nil {
 				t.Fatal(err)
 			}
 			scope.Owner.Mu.Lock()

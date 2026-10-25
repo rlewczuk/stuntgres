@@ -159,9 +159,9 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	if err := inspection.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	e.sessionMu.Lock()
-	live := len(e.sessions)
-	e.sessionMu.Unlock()
+	EngineSessionMuRef(e).Lock()
+	live := len(EngineSessions(e))
+	EngineSessionMuRef(e).Unlock()
 	if live != 1 {
 		t.Fatal("private cleanup leaked genuine session", live)
 	}

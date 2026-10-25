@@ -76,18 +76,18 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 		if a == table {
 			want = authorization.UsagePrivilege | authorization.CreatePrivilege
 		}
-		if err != nil || rights != want || access.OwnTemporaryNamespace(temporaryNamespace(auth), ns) != (a == table) {
+		if err != nil || rights != want || access.OwnTemporaryNamespace(TemporaryNamespace(auth), ns) != (a == table) {
 			op.Done()
 			t.Fatal("table versus toast authority", a, rights, err)
 		}
 	}
 	auth.StagedTemporary = toast
-	if temporaryNamespace(auth) != table {
+	if TemporaryNamespace(auth) != table {
 		op.Done()
 		t.Fatal("toast impersonated active table namespace")
 	}
 	s.TemporaryNamespace = ids.ObjectAddress{}
-	if temporaryNamespace(auth) != (ids.ObjectAddress{}) {
+	if TemporaryNamespace(auth) != (ids.ObjectAddress{}) {
 		op.Done()
 		t.Fatal("abandoned pointer regained table authority")
 	}
@@ -169,7 +169,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.endTemporaryCollations(s); err != nil {
+	if err := EngineEndTemporaryCollations(e, s); err != nil {
 		t.Fatal(err)
 	}
 	assertTemporaryNamespacePair(t, e, s.SessionToken, table)

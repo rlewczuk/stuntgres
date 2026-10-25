@@ -81,7 +81,7 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 			beforeEntries := slices.Clone(oldRoot.Entries)
 			beforeCatalog, beforeRoots := f.e.Catalog.State, maps.Clone(f.e.Storage.IndexRoots)
 			captured := index.CaptureIndexStores(f.e.Storage.Relations, next)
-			roots, err := f.e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, next, captured, f.e.Storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := EnginePrepareIndexRoots(f.e, &exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, current, next, captured, f.e.Storage.IndexRoots, nil, nil, nil, true, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if f.e.Catalog.State != beforeCatalog || !maps.Equal(f.e.Storage.IndexRoots, beforeRoots) || !reflect.DeepEqual(*store, beforeStore) || !reflect.DeepEqual(oldRoot.Entries, beforeEntries) {
 				t.Fatal("private index build mutated original catalog/store/backing")
 			}

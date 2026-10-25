@@ -36,20 +36,20 @@ func TestRLSPolicyRowMarks(t *testing.T) {
 	// semantic marks. The ordinary initializer must promote, not replace it.
 	locks := &exec.LockContext{IdentityOnly: true}
 	scope.QueryLockContext = locks
-	portal := &protocolPortal{}
-	scope.protocol().bind = portal
+	portal := NewPortal(PortalFields{})
+	SetProtocolScopeBind(ScopeProtocol(scope), portal)
 	_, err = scope.Execute(statement(t, "SELECT id FROM t WHERE id=1 FOR UPDATE"), 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	producer := portal.producer
+	producer := PortalProducer(portal)
 	if producer == nil {
 		t.Fatal("missing retained marked query")
 	}
-	defer producer.dispose(context.Background())
-	if scope.QueryLockContext != locks || producer.locks != locks || locks.IdentityOnly {
+	defer CursorDispose(producer, context.Background())
+	if scope.QueryLockContext != locks || CursorLocks(producer) != locks || locks.IdentityOnly {
 		t.Fatal("mark initialization replaced or failed to promote the shared owner")
 	}
 	if len(locks.Leaves) != 5 {
@@ -60,11 +60,11 @@ func TestRLSPolicyRowMarks(t *testing.T) {
 			t.Fatal("physical occurrence lost its shared identity", i, leaf)
 		}
 	}
-	if len(producer.rlsPrograms) != 1 || len(producer.rlsPrograms[0].Groups) != 2 {
+	if len(CursorRLSPrograms(producer)) != 1 || len(CursorRLSPrograms(producer)[0].Groups) != 2 {
 		t.Fatal("missing distinct UPDATE and SELECT command groups")
 	}
 	physical := 0
-	for _, group := range producer.rlsPrograms[0].Groups {
+	for _, group := range CursorRLSPrograms(producer)[0].Groups {
 		for _, clauses := range [][]exec.RLSRuntimeClause{group.Permissive, group.Restrictive} {
 			for _, clause := range clauses {
 				if clause.State.Source == nil || !clause.State.Locking || clause.State.Source.Locks != locks || clause.State.Source.Occurrence != physical {
@@ -118,7 +118,7 @@ func TestRLSPolicyRowMarks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(producer.rlsPrograms) != 1 {
+	if len(CursorRLSPrograms(producer)) != 1 {
 		t.Fatal("statement finish released producer-owned marked clauses")
 	}
 }
@@ -140,19 +140,19 @@ func TestRLSFirstPolicyMark(t *testing.T) {
 			_ = scope.Finish(context.Canceled)
 		}
 	}()
-	portal := &protocolPortal{}
-	scope.protocol().bind = portal
+	portal := NewPortal(PortalFields{})
+	SetProtocolScopeBind(ScopeProtocol(scope), portal)
 	_, err = scope.Execute(statement(t, "SELECT t.id FROM helper AS outer_helper JOIN t ON outer_helper.id=t.id"), 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	producer := portal.producer
+	producer := PortalProducer(portal)
 	if producer == nil {
 		t.Fatal("missing retained source bundle")
 	}
-	defer producer.dispose(context.Background())
+	defer CursorDispose(producer, context.Background())
 	locks := scope.QueryLockContext
 	if locks == nil || locks.IdentityOnly || len(locks.Leaves) != 3 {
 		t.Fatal("later policy source did not establish the shared physical manifest")

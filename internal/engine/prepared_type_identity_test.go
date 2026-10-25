@@ -70,7 +70,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.selectPreparedAnalysis(&parser.Select{}); err != nil {
+			if err := ScopeSelectPreparedAnalysis(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			e.Mu.Lock()
@@ -79,7 +79,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			analysis, err := e.preparedAnalysisLocked(scope, auth, analyze.Binding{Prepared: first.Prepared})
+			analysis, err := EnginePreparedAnalysisLocked(e, scope, auth, analyze.Binding{Prepared: first.Prepared})
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -90,14 +90,14 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			if family.name == "pair" {
 				leaf := domainUnitType(t, e.CatalogRead(), "leaf")
 				memberSeen := false
-				for _, dependency := range analysis.dependencies {
+				for _, dependency := range PreparedAnalysisDependencies(analysis) {
 					memberSeen = memberSeen || dependency.Ref.Address == leaf.Address()
 				}
 				if !memberSeen {
 					t.Fatal("held composite lost executable member dependency")
 				}
 			}
-			expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: first.Prepared.Types, analysis: analysis}
+			expected := NewDescription(DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: analysis})
 			roleExecute(t, e, op, "ALTER TYPE public."+family.name+" RENAME TO renamed")
 			roleExecute(t, e, op, "ALTER TYPE public.renamed SET SCHEMA identity_dst")
 			current := e.CatalogRead().MustType(old.Address())
@@ -112,7 +112,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			valid := e.preparedAnalysisValidLocked(auth, analysis, analysis.path)
+			valid := EnginePreparedAnalysisValidLocked(e, auth, analysis, PreparedAnalysisPath(analysis))
 			e.Mu.Unlock()
 			if !valid || !catalog.SamePreparedTypeDefinition(old, current) {
 				t.Fatal("identity-only edit retired held analysis")
@@ -154,7 +154,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 					t.Fatal("enum definition change concealed")
 				}
 			}
-			expected.retireAnalysisTypeCasts()
+			DescriptionRetireAnalysisTypeCasts(expected)
 			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("retired occurrence rescued old spelling")

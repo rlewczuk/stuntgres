@@ -140,9 +140,9 @@ func TestRoleTransactionalPublication(t *testing.T) {
 					// Carry an existing producer obligation through later metadata.
 					// The actual producer-routing matrix is covered independently
 					// by TestDriverBatchProducerRoleAuthorityLifetime/Savepoint.
-					authorityOnly.AddFence(catalogRoleReadFence{roles: base})
+					authorityOnly.AddFence(NewCatalogRoleReadFence(CatalogRoleReadFenceFields{Roles: base}))
 				}
-				if err := e.captureCatalogStageLocked(stage, authorityOnly, e.Catalog.State, auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)); err != nil {
+				if err := EngineCaptureCatalogStageLocked(e, stage, authorityOnly, e.Catalog.State, auth.CatalogAuthorityLocked(ids.ObjectRef{}, nil)); err != nil {
 					t.Fatal(err)
 				}
 				if authorityOnly.RolesBase != nil || authorityOnly.Roles != nil {
@@ -274,12 +274,12 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 		}
 	}
 	drop(a)
-	mark := captureSavepoint(s.Transactions, "retirement")
+	mark := CaptureSavepoint(s.Transactions, "retirement")
 	drop(b)
 	if len(mark.Catalog.RetiredRoles) != 1 || len(s.Transactions.Catalog.RetiredRoles) != 2 {
 		t.Fatal("retirement set shared across candidates")
 	}
-	restoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
+	RestoreSavepoint(s.Transactions, mark, mark.Settings.Clone())
 	e.Locks.Restore(s.Transactions.Ticket, mark.Locks)
 	if len(s.Transactions.Catalog.RetiredRoles) != 1 || s.Transactions.Catalog.Roles.Root.Read(authorization.PrincipalRef{}).LookupRef(b.Name) != b.Ref {
 		t.Fatal("savepoint lost retirement obligation or surviving exact principal")
@@ -300,7 +300,7 @@ func TestRoleTransactionalRetirement(t *testing.T) {
 	peerRoot.BindName(catalog.DescriptorNameKey(dependency), dependency.Address())
 	target.Catalog.PublishLocked(peerRoot)
 	localRoot, frontier := e.Catalog.State, e.Visibility.CommitSeq()
-	err := e.roleRetirementPreflightLocked(mark.Catalog, e.PrivateCatalogLocked(mark.Catalog).State())
+	err := EngineRoleRetirementPreflightLocked(e, mark.Catalog, e.PrivateCatalogLocked(mark.Catalog).State())
 	unchanged := e.Catalog.State == localRoot && target.Catalog.State == peerRoot && e.RoleStore.Published == published && e.Visibility.CommitSeq() == frontier
 	e.Mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) || !unchanged {

@@ -87,7 +87,7 @@ func TestRegTSProviderResolution(t *testing.T) {
 	if len(path) != 3 || path[1] != namespaces[1] {
 		t.Fatal("TEMP text-search path isolation", path)
 	}
-	capture := inputCapture(auth, path)
+	capture := InputCapture(auth, path)
 	input := regobj.NewTextSearchInput(capture)
 	id, err := input.ResolveRegdictionary(context.Background(), "UNACCENT")
 	if err != nil || id != 91001 {
@@ -286,7 +286,7 @@ func TestRegTSPreparedCapture(t *testing.T) {
 		t.Fatal("alias/occurrence/dependency capture", b.Prepared.RegtypeConstants)
 	}
 	cell := &regobj.Analysis{Constants: append([]analyze.RegtypeConstant(nil), b.Prepared.RegtypeConstants...)}
-	expected := StatementDescription{regtypes: cell}
+	expected := *NewDescription(DescriptionFields{Regtypes: cell})
 	held := NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &expected)
 	held.Query.Auth = &auth
 	v, err := held.RegTSConstant("reg_ts_missing", dictionary.Usage(), parser.Position{Offset: 7, Character: 8})

@@ -97,13 +97,13 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 	if got := host.DefinitionOf(overlay); got != opReader {
 		t.Fatalf("DefinitionOf(overlay) = %v, want the operation's reader", got)
 	}
-	if got := host.view(overlay).Definition; got != opReader {
+	if got := BindingHostView(host, overlay).Definition; got != opReader {
 		t.Fatalf("overlay view reader = %v, want the operation's reader", got)
 	}
 	if got := host.DefinitionOf(raw); got != own {
 		t.Fatalf("DefinitionOf(raw) = %v, want the stored reader", got)
 	}
-	if got := host.view(raw).Definition; got != own {
+	if got := BindingHostView(host, raw).Definition; got != own {
 		t.Fatalf("raw view reader = %v, want the stored reader", got)
 	}
 	if got := host.BindingDefinition(raw); got != opReader {
@@ -113,7 +113,7 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 		t.Fatal("binding changed the stored authority")
 	}
 
-	mustPanic(t, "view of a foreign authority", func() { host.view(foreignAuthority{}) })
+	mustPanic(t, "view of a foreign authority", func() { BindingHostView(host, foreignAuthority{}) })
 	mustPanic(t, "authorizationOf an overlay", func() { authorizationOf(overlay) })
 	if authorizationOf(nil) != nil || authorizationOf(raw) != &base {
 		t.Fatal("authorizationOf does not recover the stored view")

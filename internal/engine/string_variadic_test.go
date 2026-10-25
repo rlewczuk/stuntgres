@@ -30,7 +30,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if len(description.Quotes) != 1 || description.quoteGeneration != s.DiscardPlansGeneration || description.planOwner != s.SessionToken {
+	if len(description.Quotes) != 1 || DescriptionQuoteGeneration(&description) != s.DiscardPlansGeneration || DescriptionPlanOwner(&description) != s.SessionToken {
 		t.Fatal("missing owner-qualified capture")
 	}
 	original := description
@@ -43,7 +43,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("stable hit copied private group")
 	}
 	discardUnitApply(t, s, parser.DiscardPlans)
-	if &original.Quotes[0] != &description.Quotes[0] || description.quoteGeneration != original.quoteGeneration {
+	if &original.Quotes[0] != &description.Quotes[0] || DescriptionQuoteGeneration(&description) != DescriptionQuoteGeneration(&original) {
 		t.Fatal("eager discard mutation")
 	}
 	result, err = sequencePreparedExecute(e, s, ast, &description)
@@ -51,7 +51,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if &original.Quotes[0] == &description.Quotes[0] || description.quoteGeneration != s.DiscardPlansGeneration {
+	if &original.Quotes[0] == &description.Quotes[0] || DescriptionQuoteGeneration(&description) != s.DiscardPlansGeneration {
 		t.Fatal("discard did not recollect quotes")
 	}
 	if original.Quotes[0] != description.Quotes[0] {
@@ -69,7 +69,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	description.Results = nil
 	_, err = sequencePreparedExecute(e, s, ast, &description)
 	description.Results = savedResults
-	if err == nil || description.quoteGeneration != before.quoteGeneration || &description.Quotes[0] != &before.Quotes[0] {
+	if err == nil || DescriptionQuoteGeneration(&description) != DescriptionQuoteGeneration(&before) || &description.Quotes[0] != &before.Quotes[0] {
 		t.Fatal("signature failure published private group", err)
 	}
 
@@ -298,7 +298,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			t.Fatal("initial capture execution", result.Count, err)
 		}
 		before := description
-		if len(before.Quotes) != 3 || len(before.Temporals) == 0 || before.analysis == nil {
+		if len(before.Quotes) != 3 || len(before.Temporals) == 0 || DescriptionAnalysis(&before) == nil {
 			t.Fatal("missing initial quote/temporal/analysis publication")
 		}
 		source := append([]exec.QuoteConstant(nil), before.Quotes...)
@@ -321,10 +321,10 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}) || result.Rows != nil {
 			t.Fatal("demanded fold failure", result, err)
 		}
-		if description.planOwner != session.SessionToken || description.planGeneration != session.DiscardPlansGeneration || description.planGeneration == before.planGeneration || description.analysis == before.analysis || len(description.Temporals) == 0 || &description.Temporals[0] == &before.Temporals[0] {
+		if DescriptionPlanOwner(&description) != session.SessionToken || DescriptionPlanGeneration(&description) != session.DiscardPlansGeneration || DescriptionPlanGeneration(&description) == DescriptionPlanGeneration(&before) || DescriptionAnalysis(&description) == DescriptionAnalysis(&before) || len(description.Temporals) == 0 || &description.Temporals[0] == &before.Temporals[0] {
 			t.Fatal("failure did not occur after temporal/analysis generation advance")
 		}
-		if description.quoteGeneration != before.quoteGeneration || len(description.Quotes) != len(source) || &description.Quotes[0] != &before.Quotes[0] {
+		if DescriptionQuoteGeneration(&description) != DescriptionQuoteGeneration(&before) || len(description.Quotes) != len(source) || &description.Quotes[0] != &before.Quotes[0] {
 			t.Fatal("failed private quote refresh replaced publication")
 		}
 		for i, capture := range source {
@@ -345,7 +345,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if err != nil || result.Count != 1 {
 			t.Fatal("successful stale retry", result.Count, err)
 		}
-		if description.quoteGeneration != session.DiscardPlansGeneration || description.planGeneration != session.DiscardPlansGeneration || description.planOwner != session.SessionToken || len(description.Quotes) != 3 || &description.Quotes[0] == &before.Quotes[0] {
+		if DescriptionQuoteGeneration(&description) != session.DiscardPlansGeneration || DescriptionPlanGeneration(&description) != session.DiscardPlansGeneration || DescriptionPlanOwner(&description) != session.SessionToken || len(description.Quotes) != 3 || &description.Quotes[0] == &before.Quotes[0] {
 			t.Fatal("retry did not publish fresh owner-qualified group and stamps")
 		}
 		relation := primaryKeyUnitRelation(t, engine, "sv_retry")
@@ -440,7 +440,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		sessionSQL(t, session, "CREATE TABLE sv_local_merge(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
 		ast, description := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
 		peerAST, peerDescription := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
-		stamp := description.quoteGeneration
+		stamp := DescriptionQuoteGeneration(&description)
 		var previous []exec.QuoteConstant
 		for id := int64(1); id <= 12; id++ {
 			on := id%2 == 1
@@ -491,8 +491,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					scope.Finish(err)
 					t.Fatal(err)
 				}
-				group := scope.quoteCaptures
-				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 3 || description.Quotes != nil || peerDescription.Quotes != nil || description.quoteGeneration != stamp || peerDescription.quoteGeneration != stamp {
+				group := ScopeQuoteCaptures(scope)
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 3 || description.Quotes != nil || peerDescription.Quotes != nil || DescriptionQuoteGeneration(&description) != stamp || DescriptionQuoteGeneration(&peerDescription) != stamp {
 					scope.Finish(errors.New("unexpected quote publication"))
 					t.Fatal("parameterized MERGE retained/shared quotes", result.Count, group, description.Quotes)
 				}
@@ -548,7 +548,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		sessionSQL(t, session, "CREATE TABLE sv_local_view_base(id integer,r text)")
 		sessionSQL(t, session, "CREATE VIEW sv_local_view AS SELECT id,r FROM sv_local_view_base WHERE r<>quote_ident('blocked') WITH LOCAL CHECK OPTION")
 		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO sv_local_view VALUES($1::integer,quote_ident('root'))")
-		stamp := description.quoteGeneration
+		stamp := DescriptionQuoteGeneration(&description)
 		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
 		catalog := engine.CatalogRead()
 		origin := exec.QuoteOrigin{Owner: engine.Catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: stored.ViewOf(view).RuleOID(), Revision: stored.ViewOf(view).QuoteRevision()}
@@ -579,8 +579,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					scope.Finish(err)
 					t.Fatal(err)
 				}
-				group := scope.quoteCaptures
-				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 2 || description.Quotes != nil || description.quoteGeneration != stamp {
+				group := ScopeQuoteCaptures(scope)
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 2 || description.Quotes != nil || DescriptionQuoteGeneration(&description) != stamp {
 					scope.Finish(errors.New("unexpected view quote publication"))
 					t.Fatal("parameterized view retained quote group", group)
 				}

@@ -403,14 +403,14 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	owner := &exec.ForeignScanOwner{}
 	source := &exec.ForeignQuerySource{Executions: []*exec.ForeignExecution{{Scan: scan}}}
 	owner.Add(source)
-	cursor := &sqlCursor{ordinal: 1, foreignOwner: owner}
-	PayloadOf(s).Cursors.Entries = map[string]*sqlCursor{"child": cursor}
+	cursor := NewCursor(CursorFields{Ordinal: 1, ForeignOwner: owner})
+	PayloadOf(s).Cursors.Entries = map[string]*SQLCursor{"child": cursor}
 	e.ReplacementMu.RLock()
 	e.Mu.Lock()
 	s.Settings.Mu.Lock()
 	s.Mu.Lock()
 	txn.Mu.Lock()
-	ownerExtensionOf(txn).cursorCleanup = append(ownerExtensionOrZero(txn).cursorCleanup, PayloadOf(s).Cursors.rollback(0)...)
+	SetOwnerExtensionCursorCleanup(OwnerExtensionOf(txn), append(OwnerExtensionValueCursorCleanup(OwnerExtensionOrZero(txn)), CursorsRollback(PayloadOf(s).Cursors, 0)...))
 	premature := scan.ends
 	txn.Mu.Unlock()
 	s.Mu.Unlock()
@@ -420,13 +420,13 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	if premature != 0 {
 		t.Fatal("locked registry detach ran application cleanup")
 	}
-	if err := drainCursorCleanup(txn, context.Background(), nil); !errors.Is(err, failure) {
+	if err := DrainCursorCleanup(txn, context.Background(), nil); !errors.Is(err, failure) {
 		t.Fatal("cleanup outcome was swallowed", err)
 	}
-	if len(blocked) != 0 || scan.ends != 1 || len(PayloadOf(s).Cursors.Entries) != 0 || len(ownerExtensionOrZero(txn).cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
+	if len(blocked) != 0 || scan.ends != 1 || len(PayloadOf(s).Cursors.Entries) != 0 || len(OwnerExtensionValueCursorCleanup(OwnerExtensionOrZero(txn))) != 0 || !source.LifetimeClosed || CursorForeignOwner(cursor) != nil {
 		t.Fatal("owner/lock boundary", blocked, scan.ends)
 	}
-	if err := cursor.dispose(context.Background()); !errors.Is(err, failure) || scan.ends != 1 {
+	if err := CursorDispose(cursor, context.Background()); !errors.Is(err, failure) || scan.ends != 1 {
 		t.Fatal("idempotent cursor disposal lost outcome", err, scan.ends)
 	}
 }

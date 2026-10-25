@@ -268,7 +268,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if rebuild {
 				intents = map[ids.ObjectAddress]*catalog.Relation{idx.Address(): idx}
 			}
-			roots, err := e.prepareIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, e.Catalog.State, index.CaptureIndexStores(e.Storage.Relations, e.Catalog.State), e.Storage.IndexRoots, nil, intents, []index.RowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := EnginePrepareIndexRoots(e, &exec.Context{EvalStatement: exec.EvalStatement{Catalog: operatorFamilyTestRead(), Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, e.Catalog.State, e.Catalog.State, index.CaptureIndexStores(e.Storage.Relations, e.Catalog.State), e.Storage.IndexRoots, nil, intents, []index.RowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}

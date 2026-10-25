@@ -139,7 +139,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				preparedStorage[address] = &storage.Relation{Versions: append([]storage.RowVersion(nil), relation.Versions...)}
 			}
 			preparedSequences, sequenceErr := sequence.CopyGenerators(replacement, source.Storage.Sequences)
-			indexes, indexErr := source.captureIndexSnapshot(context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
+			indexes, indexErr := EngineCaptureIndexSnapshot(source, context.Background(), replacement, source.Storage.Relations, source.Storage.IndexRoots, source.Visibility.CommitSeq())
 			source.Mu.Unlock()
 			if sequenceErr != nil {
 				t.Fatal(sequenceErr)
@@ -157,7 +157,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					return err
 				}
 				reservedNext = oids.Next
-				next, _, err := target.remapPreparedCatalog(catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
+				next, _, err := EngineRemapPreparedCatalog(target, catalog.CloneState(replacement.State()), sourceRoles, targetRoles, nil)
 				if err != nil {
 					return err
 				}
@@ -168,11 +168,11 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					}
 					nextRevision, _ = catalog.AdvanceRevisionFrontier(nextRevision, descriptor)
 				}
-				prepared, err := target.prepareForeignIndexStorage(ctx, next, preparedStorage, indexes)
+				prepared, err := EnginePrepareForeignIndexStorage(target, ctx, next, preparedStorage, indexes)
 				if err != nil {
 					return err
 				}
-				return target.installForeignCatalogLocked(boundary, next, preparedStorage, preparedSequences, nextRevision, prepared, oids)
+				return EngineInstallForeignCatalogLocked(target, boundary, next, preparedStorage, preparedSequences, nextRevision, prepared, oids)
 			}()
 			if err == nil {
 				target.Locks.Fence(target.Catalog.Domain, target.CatalogRead().Epoch())

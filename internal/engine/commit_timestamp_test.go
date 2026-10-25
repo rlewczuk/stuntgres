@@ -90,10 +90,10 @@ func TestCommitTimeAssignment(t *testing.T) {
 		t.Fatal("assigned-only prepared ownership was discarded")
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384}
-	if publicationNeedsXID(map[ids.ObjectAddress][]storage.RowVersion{address: nil}, map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {}}, session.NewJournal(), nil) {
+	if PublicationNeedsXID(map[ids.ObjectAddress][]storage.RowVersion{address: nil}, map[ids.ObjectAddress]*visibility.PrivateDeletes{address: {}}, session.NewJournal(), nil) {
 		t.Fatal("empty reserved publication containers fabricated assignment")
 	}
-	if !publicationNeedsXID(nil, nil, nil, &session.PreparedPublication{Preparing: true}) {
+	if !PublicationNeedsXID(nil, nil, nil, &session.PreparedPublication{Preparing: true}) {
 		t.Fatal("empty PREPARE lost explicit assignment")
 	}
 	disabled := New()
@@ -103,7 +103,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	}
 	// Enrollment can follow assignment (for example a later captured snapshot).
 	publicXID := disabled.Visibility.Entries[ref].AssignedXID
-	disabled.enrollSerializableLocked(ref, session.Serializable)
+	EngineEnrollSerializableLocked(disabled, ref, session.Serializable)
 	node := disabled.Visibility.Serializable.Nodes[ref]
 	if node.AssignedXID != publicXID {
 		t.Fatal("late SSI enrollment lost the assigned public identity")
@@ -129,7 +129,7 @@ func TestCommitTimePublication(t *testing.T) {
 				defer op.Done()
 				tx := sess.Transactions
 				tx.Mu.Lock()
-				err = e.beginLocked(op, tx, session.TxImplicit, time.Now())
+				err = EngineBeginLocked(e, op, tx, session.TxImplicit, time.Now())
 				tx.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
@@ -176,7 +176,7 @@ func TestCommitTimePublication(t *testing.T) {
 				barrier := &transactionBarrierContext{Context: ctx, entered: make(chan struct{}), release: make(chan struct{})}
 				if route == "catalog" {
 					// Two existing final p.ctx checks surround authority validation.
-					prepared.ctx = barrier
+					SetPreparedCatalogPublicationCtx(prepared, barrier)
 					barrier.checks.Store(1)
 				} else {
 					// With no indexes, both row paths have one final operation preflight.
@@ -209,7 +209,7 @@ func TestCommitTimePublication(t *testing.T) {
 						_, failure := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: old.Epoch()})
 						done <- failure
 					} else {
-						done <- e.publishRowsPrepared(op, ref, writes, nil, nil, nil, nil, nil)
+						done <- EnginePublishRowsPrepared(e, op, ref, writes, nil, nil, nil, nil, nil)
 					}
 				}()
 				select {

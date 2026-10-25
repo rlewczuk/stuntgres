@@ -17,7 +17,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	old := view.MustRelation(ref.Address)
-	if err := (relationProvider).Validate(view, old); err != nil {
+	if err := (RelationProvider()).Validate(view, old); err != nil {
 		t.Fatal("validation evaluated narrowing", err)
 	}
 	names := []string{"missing-attribute", "wrong-destination", "missing-dependencies", "parameter-dependent-valid-oid", "nonnull-literal-type-mismatch-valid-oid", "missing-oid"}
@@ -57,7 +57,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 			bad := old.ColumnMeta.Defaults[1]
 			bad.OID = 0
 			d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad}
-			if err := (relationProvider).Validate(view, d); err == nil || err.Error() != "stuntgres: invalid column default destination" {
+			if err := (RelationProvider()).Validate(view, d); err == nil || err.Error() != "stuntgres: invalid column default destination" {
 				t.Fatal("missing identity invariant not reached", err)
 			}
 		},
@@ -69,7 +69,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 			if i < 2 || i == 5 {
 				want = "stuntgres: invalid column default destination"
 			}
-			if err := (relationProvider).Validate(view, &next); err == nil || err.Error() != want {
+			if err := (RelationProvider()).Validate(view, &next); err == nil || err.Error() != want {
 				t.Fatal("wrong invariant failure", next.ColumnMeta.Defaults, err, want)
 			}
 		})
@@ -82,7 +82,7 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	old := view.MustRelation(ref.Address)
-	if err := (relationProvider).Validate(view, old); err != nil {
+	if err := (RelationProvider()).Validate(view, old); err != nil {
 		t.Fatal(err)
 	}
 	foreign := New()
@@ -139,7 +139,7 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 			bad := next.ColumnMeta.Defaults[tc.attribute]
 			bad.Expression = tc.mutate(bad.Expression)
 			next.ColumnMeta.Defaults[tc.attribute] = bad
-			if err := (relationProvider).Validate(view, &next); err == nil {
+			if err := (RelationProvider()).Validate(view, &next); err == nil {
 				t.Fatal("invalid predicate definition accepted", tc.name)
 			}
 		})
@@ -152,7 +152,7 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	old := view.MustRelation(ref.Address)
-	if err := (relationProvider).Validate(view, old); err != nil {
+	if err := (RelationProvider()).Validate(view, old); err != nil {
 		t.Fatal("definition validation evaluated an explicit cast", err)
 	}
 	text, err := stored.DefaultSQL(context.Background(), view, old.ColumnMeta.Defaults[2].Expression)
@@ -170,7 +170,7 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 		bad := old.ColumnMeta.Defaults[1]
 		bad.Expression = mutate(bad.Expression.(plan.CoercionExpr))
 		next.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad, 2: old.ColumnMeta.Defaults[2]}
-		if err := (relationProvider).Validate(view, &next); err == nil {
+		if err := (RelationProvider()).Validate(view, &next); err == nil {
 			t.Fatal("invalid cast definition accepted", bad)
 		}
 	}
@@ -182,7 +182,7 @@ func TestDefaultDescriptorProviderUnfoldedDecisiveBranches(t *testing.T) {
 	view := e.CatalogRead()
 	ref := roleTableRef(t, e, "d")
 	d := view.MustRelation(ref.Address)
-	if err := (relationProvider).Validate(view, d); err != nil {
+	if err := (RelationProvider()).Validate(view, d); err != nil {
 		t.Fatal("provider evaluated a discarded conversion", err)
 	}
 	for _, definition := range d.ColumnMeta.Defaults {

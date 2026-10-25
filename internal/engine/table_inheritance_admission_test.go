@@ -48,7 +48,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	}
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	stage.UpdateDescriptor(child)
-	tableStage(stage).CaptureLikeSource(parent)
+	TableStage(stage).CaptureLikeSource(parent)
 	completed := make(chan error, 1)
 	go func() { completed <- scope.AcquireDefinitionProviders(stage) }()
 	lockPending(t, e, 1)
@@ -60,7 +60,7 @@ func TestInheritanceAdmissionParentShareUpdateExclusive(t *testing.T) {
 	if !exact {
 		t.Fatal("parent admission did not queue exact SUE")
 	}
-	if e.Catalog.State.Get(child.Address()) != nil || stage.tableOrZero().LikeSources[0] != parent {
+	if e.Catalog.State.Get(child.Address()) != nil || StageTableOrZero(stage).LikeSources[0] != parent {
 		t.Fatal("canceled admission published or changed parent capture")
 	}
 }
@@ -69,14 +69,14 @@ func TestInheritanceAdmissionCapturedParentFence(t *testing.T) {
 	parent := inheritanceUnitRelation(e, "p", 22000, "a")
 	base := inheritanceUnitView(e, parent)
 	stage := e.BeginCatalogStage(base)
-	tableStage(stage).CaptureLikeSource(parent)
-	if err := stage.validateLikeSources(base); err != nil {
+	TableStage(stage).CaptureLikeSource(parent)
+	if err := StageValidateLikeSources(stage, base); err != nil {
 		t.Fatal(err)
 	}
 	replacement := *parent
 	replacement.ObjectRevision++
 	for _, current := range []catalog.Read{inheritanceUnitView(e, &replacement), inheritanceUnitView(e)} {
-		if err := stage.validateLikeSources(current); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if err := StageValidateLikeSources(stage, current); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("stale parent capture accepted", err)
 		}
 	}

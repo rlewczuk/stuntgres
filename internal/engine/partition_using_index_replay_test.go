@@ -38,32 +38,32 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || OperationReplayOrZero(op).PartitionUsingIndex.Index != index {
+	if !PartitionUsingIndexReplayAllowed(op, auth, raw, child) || OperationReplayOrZero(op).PartitionUsingIndex.Index != index {
 		t.Fatal("exact private physical/index origin not captured")
 	}
-	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err != nil {
+	if err := partition.ConsumerBoundary(raw, child, PartitionReplayAllowed(op, auth)); err != nil {
 		t.Fatal(err)
 	}
 	lookalike := *child
-	if partitionUsingIndexReplayAllowed(op, auth, raw, &lookalike) {
+	if PartitionUsingIndexReplayAllowed(op, auth, raw, &lookalike) {
 		t.Fatal("copied target granted")
 	}
 	copied := *op
-	if partitionUsingIndexReplayAllowed(&copied, auth, raw, child) {
+	if PartitionUsingIndexReplayAllowed(&copied, auth, raw, child) {
 		t.Fatal("copied lease granted")
 	}
 	foreign := auth
 	foreign.Catalog = source.CatalogRead()
-	if partitionUsingIndexReplayAllowed(op, foreign, raw, child) {
+	if PartitionUsingIndexReplayAllowed(op, foreign, raw, child) {
 		t.Fatal("foreign catalog granted")
 	}
 	other := *raw
-	if partitionUsingIndexReplayAllowed(op, auth, &other, child) {
+	if PartitionUsingIndexReplayAllowed(op, auth, &other, child) {
 		t.Fatal("different syntax granted")
 	}
 	origin := OperationReplayOrZero(op).PartitionUsingIndex
 	OperationReplay(op).PartitionUsingIndex = nil
-	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err == nil {
+	if err := partition.ConsumerBoundary(raw, child, PartitionReplayAllowed(op, auth)); err == nil {
 		t.Fatal("public hierarchy ADD USING INDEX admitted")
 	}
 	OperationReplay(op).PartitionUsingIndex = origin
@@ -76,7 +76,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if partitionUsingIndexReplayAllowed(op, fresh, raw, child) {
+	if PartitionUsingIndexReplayAllowed(op, fresh, raw, child) {
 		t.Fatal("changed index generation granted")
 	}
 	publicOp, publicDone := roleOperation(t, source, "postgres")
@@ -85,7 +85,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 		t.Fatal("public bootstrap forged import origin")
 	}
 	done()
-	if partitionUsingIndexReplayAllowed(op, fresh, raw, child) {
+	if PartitionUsingIndexReplayAllowed(op, fresh, raw, child) {
 		t.Fatal("ended lease granted")
 	}
 }

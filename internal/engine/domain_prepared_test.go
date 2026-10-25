@@ -24,7 +24,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	if first.Prepared.Types[key].Base.Type != old.SQLType {
 		t.Fatal("cast source identity not captured")
 	}
-	expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{old.SQLType.Usage()}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: first.Prepared.Types, analysis: &preparedAnalysis{}}
+	expected := NewDescription(DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{old.SQLType.Usage()}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: NewPreparedAnalysis(PreparedAnalysisFields{})})
 	roleExecute(t, e, op, "ALTER DOMAIN public.d RENAME TO renamed")
 	current := e.CatalogRead().MustType(old.Address())
 	next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
@@ -45,8 +45,8 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	if err != nil || annotation.Name != "d" {
 		t.Fatal("foreign catalog reused old ID", annotation, err)
 	}
-	expected.retireAnalysisTypeCasts()
-	if !expected.analysis.needsReanalysis {
+	DescriptionRetireAnalysisTypeCasts(expected)
+	if !PreparedAnalysisNeedsReanalysis(DescriptionAnalysis(expected)) {
 		t.Fatal("failed reanalysis could revive captures when path restored")
 	}
 	next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
@@ -86,7 +86,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.selectPreparedAnalysis(&parser.Select{}); err != nil {
+			if err := ScopeSelectPreparedAnalysis(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			e.Mu.Lock()
@@ -95,13 +95,13 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			analysis, err := e.preparedAnalysisLocked(scope, auth, analyze.Binding{Prepared: first.Prepared})
+			analysis, err := EnginePreparedAnalysisLocked(e, scope, auth, analyze.Binding{Prepared: first.Prepared})
 			e.Mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
 			arraySeen, elementSeen := false, false
-			for _, dep := range analysis.dependencies {
+			for _, dep := range PreparedAnalysisDependencies(analysis) {
 				arraySeen = arraySeen || sqltype.ID(dep.Ref.Address.ObjectID) == oldArray
 				elementSeen = elementSeen || dep.Ref.Address == old.Address()
 			}
@@ -119,9 +119,9 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				return e.preparedAnalysisValidLocked(auth, analysis, analysis.path)
+				return EnginePreparedAnalysisValidLocked(e, auth, analysis, PreparedAnalysisPath(analysis))
 			}
-			expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, catalogOwner: e.CatalogRead().Owner(), catalogEpoch: e.CatalogRead().Epoch(), types: first.Prepared.Types, analysis: analysis}
+			expected := NewDescription(DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: analysis})
 			roleExecute(t, e, op, `ALTER DOMAIN public.d RENAME TO "renamed array domain"`)
 			roleExecute(t, e, op, `ALTER DOMAIN public."renamed array domain" SET SCHEMA identity_dst`)
 			current := e.CatalogRead().MustType(old.Address())
@@ -157,7 +157,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if err != nil || annotation.Name != raw.TypeName.Name {
 				t.Fatal("foreign owner reused array occurrence", annotation, err)
 			}
-			expected.retireAnalysisTypeCasts()
+			DescriptionRetireAnalysisTypeCasts(expected)
 			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("retired array occurrence rescued old spelling")

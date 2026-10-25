@@ -78,7 +78,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				}
 			}()
 			go func() {
-				result <- StageDropProvider(nil, stage, scope, nil, nil).lockInheritanceClosure([]ids.ObjectAddress{parent.Address()})
+				result <- DropProviderLockInheritanceClosure(StageDropProvider(nil, stage, scope, nil, nil), []ids.ObjectAddress{parent.Address()})
 			}()
 			lockPending(t, e, 1)
 			if cancelWait {
@@ -173,7 +173,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := StageDropProvider(nil, stage, scope, nil, nil).lockInheritanceClosure([]ids.ObjectAddress{table.Address()}); err != nil {
+	if err := DropProviderLockInheritanceClosure(StageDropProvider(nil, stage, scope, nil, nil), []ids.ObjectAddress{table.Address()}); err != nil {
 		t.Fatal("standalone DROP attempted an extra root grant", err)
 	}
 	lockState := e.Locks.Inspect(scope.LockTicket)

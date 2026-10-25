@@ -178,7 +178,7 @@ func TestTransactionalPrivilegesPublication(t *testing.T) {
 	peer := roles.Advance()
 	f.e.RoleStore.PublishLocked(peer)
 	f.e.Mu.Lock()
-	published, err := f.e.journalRolePublicationLocked(changes, true)
+	published, err := EngineJournalRolePublicationLocked(f.e, changes, true)
 	f.e.Mu.Unlock()
 	if err != nil || published == nil || published.Revision != peer.Revision+changes.Roles.Revision-roles.Revision || !published.SameAuthority(peer) || f.e.RoleStore.Published != peer {
 		t.Fatal("independent revision-only publication lost a peer stamp or installed early", published, err)
@@ -207,7 +207,7 @@ func TestTransactionalPrivilegesPublication(t *testing.T) {
 		}
 		before := f.e.RoleStore.Published
 		f.e.Mu.Lock()
-		_, err := f.e.journalRolePublicationLocked(candidate, true)
+		_, err := EngineJournalRolePublicationLocked(f.e, candidate, true)
 		f.e.Mu.Unlock()
 		if err == nil || f.e.RoleStore.Published != before || f.e.Catalog.State != committed {
 			t.Fatal("malformed or foreign authority was published", malformed, err)

@@ -137,9 +137,9 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 	roleAttributeApply(t, e, identity, &parser.RoleSelection{Reset: true})
 	roleAttributeApply(t, e, identity, &parser.SessionAuthorization{Default: true})
 	identity.Done()
-	e.sessionMu.Lock()
-	count := e.roleSessionCountLocked(other.Ref)
-	e.sessionMu.Unlock()
+	EngineSessionMuRef(e).Lock()
+	count := EngineRoleSessionCountLocked(e, other.Ref)
+	EngineSessionMuRef(e).Unlock()
 	if count != 1 || physical.CountedAuthenticated != e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("identity switch changed accounting", count)
 	}
@@ -200,8 +200,8 @@ type roleLimitFenceContext struct {
 }
 
 func (c *roleLimitFenceContext) Err() error {
-	if c.e.sessionMu.TryLock() {
-		c.e.sessionMu.Unlock()
+	if EngineSessionMuRef(c.e).TryLock() {
+		EngineSessionMuRef(c.e).Unlock()
 	} else {
 		c.observed = true
 		c.cancel()
@@ -277,9 +277,9 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 				t.Fatal("init gate", ctx.Err())
 			}
 			// No initialized callback consumes a physical slot.
-			e.sessionMu.Lock()
-			count := e.roleSessionCountLocked(d.Ref)
-			e.sessionMu.Unlock()
+			EngineSessionMuRef(e).Lock()
+			count := EngineRoleSessionCountLocked(e, d.Ref)
+			EngineSessionMuRef(e).Unlock()
 			if count != 0 {
 				t.Fatal("initialization consumed slot", count)
 			}
@@ -317,9 +317,9 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 					t.Fatalf("final NOLOGIN fence: %#v want %#v", r.err, want)
 				}
 			}
-			e.sessionMu.Lock()
-			count = e.roleSessionCountLocked(d.Ref)
-			e.sessionMu.Unlock()
+			EngineSessionMuRef(e).Lock()
+			count = EngineRoleSessionCountLocked(e, d.Ref)
+			EngineSessionMuRef(e).Unlock()
 			want := 0
 			if change == "duplicate ID" {
 				want = 1

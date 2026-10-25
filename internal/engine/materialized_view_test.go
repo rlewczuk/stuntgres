@@ -57,24 +57,24 @@ func TestMaterializedViewDescriptor(t *testing.T) {
 	if !d.RelationKind.Stored() || d.Populated || d.View == nil || stored.ViewOf(d).RuleOID() == 0 {
 		t.Fatal("missing independent storage/definition/population identity")
 	}
-	if err := (relationProvider).Validate(view, d); err != nil {
+	if err := (RelationProvider()).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	populated := *d
 	populated.Populated = true
-	if err := (relationProvider).Validate(view, &populated); err != nil {
+	if err := (RelationProvider()).Validate(view, &populated); err != nil {
 		t.Fatal("empty populated descriptor:", err)
 	}
 	for _, kind := range []catalog.RelationKind{catalog.TableRelation, catalog.ViewRelation, catalog.CatalogRelation} {
 		invalid := populated
 		invalid.RelationKind = kind
-		if err := (relationProvider).Validate(view, &invalid); err == nil {
+		if err := (RelationProvider()).Validate(view, &invalid); err == nil {
 			t.Fatalf("accepted populated non-materialization %v", kind)
 		}
 	}
 	invalid := *d
 	invalid.View = nil
-	if err := (relationProvider).Validate(view, &invalid); err == nil {
+	if err := (RelationProvider()).Validate(view, &invalid); err == nil {
 		t.Fatal("accepted missing definition")
 	}
 }
@@ -92,19 +92,19 @@ func TestMaterializedViewInitialStore(t *testing.T) {
 	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); err != nil {
 		t.Fatal(err)
 	}
-	store := stage.initialTables[d.Address()]
+	store := StageInitialTables(stage)[d.Address()]
 	if &store.Versions[0].Values[0] != &rows[0][0] {
 		t.Fatal("finalized row buffer copied")
 	}
-	if err := table.ValidateInitialTables(stage.initialTables, stage.Get, stage.Base); err != nil {
+	if err := table.ValidateInitialTables(StageInitialTables(stage), stage.Get, stage.Base); err != nil {
 		t.Fatal(err)
 	}
 	d.Populated = false
-	if err := table.ValidateInitialTables(stage.initialTables, stage.Get, stage.Base); err == nil {
+	if err := table.ValidateInitialTables(StageInitialTables(stage), stage.Get, stage.Base); err == nil {
 		t.Fatal("unpopulated store accepted rows")
 	}
 	d.Populated, d.RelationKind = false, catalog.ViewRelation
-	if err := table.ValidateInitialTables(stage.initialTables, stage.Get, stage.Base); err == nil {
+	if err := table.ValidateInitialTables(StageInitialTables(stage), stage.Get, stage.Base); err == nil {
 		t.Fatal("dynamic view accepted physical rows")
 	}
 }
@@ -122,7 +122,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, catalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
+	definition, err := view.FreezeDefinition(DDLHost{E: e}, auth.Catalog, CatalogSourceTemporaryOwner(auth), stored.ViewOf(d).Syntax(), b, false, false, 0, catalog.MaterializedViewRelation, false)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -235,7 +235,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 	if err := e.StageQueryTableRows(ctx, stage, d, rows, ids.TxRef{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if stage.initialTables != nil || e.Catalog.State != before {
+	if StageInitialTables(stage) != nil || e.Catalog.State != before {
 		t.Fatal("canceled stage published rows/catalog")
 	}
 	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
@@ -243,7 +243,7 @@ func TestMaterializedViewPublication(t *testing.T) {
 	if err := e.StageQueryTableRows(context.Background(), stage, d, rows, ids.TxRef{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
-	if stage.initialTables != nil {
+	if StageInitialTables(stage) != nil {
 		t.Fatal("stale stage retained rows")
 	}
 }

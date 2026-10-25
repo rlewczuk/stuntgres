@@ -82,7 +82,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		if err := scope.Gate(stmt); err != nil {
 			t.Fatal(err)
 		}
-		if err := scope.snapshotPhase(stmt); err != nil {
+		if err := ScopeSnapshotPhase(scope, stmt); err != nil {
 			t.Fatal(err)
 		}
 		e.Mu.Lock()
@@ -117,7 +117,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			if auth.State.CurrentUser != owner || auth.State.SessionUser != caller || !auth.materializedPopulation {
+			if auth.State.CurrentUser != owner || auth.State.SessionUser != caller || !AuthorizationMaterializedPopulation(&auth) {
 				t.Fatal("producer did not run as owner", auth.State)
 			}
 			current, _ := scope.Identity.Current.Text()
@@ -135,7 +135,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			}
 			captured, ok := c.Input.Regtype.(regobj.TypeInput)
 			env, _ := captured.Authority().Environment.(AuthorizationView)
-			if !ok || captured.Authority().View.State.CurrentUser != owner || captured.Authority().View.State.SessionUser != caller || !env.materializedPopulation ||
+			if !ok || captured.Authority().View.State.CurrentUser != owner || captured.Authority().View.State.SessionUser != caller || !AuthorizationMaterializedPopulation(&env) ||
 				!slices.Equal(captured.Path(), []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}) ||
 				c.Input.Regclass == nil || c.Input.Regrole == nil || c.Input.Operator == nil || c.Input.Regproc == nil ||
 				c.Input.TypeDiagnosticName != nil || !c.Input.ExactSnapshot {

@@ -30,7 +30,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 			open := func(s *StatementScope, oid ids.OID) *exec.Source {
 				_, ref := availableUnitSource(e, oid)
 				e.Mu.Lock()
-				source, err := e.openRelationSourceLocked(s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
+				source, err := EngineOpenRelationSourceLocked(e, s, ref, e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

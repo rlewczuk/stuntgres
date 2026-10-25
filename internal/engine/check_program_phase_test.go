@@ -66,7 +66,7 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 					view := auth.Catalog
 					ref := catalogRef(t, e, view, "check_phase_child")
 					child := view.MustRelation(ref.Address)
-					ownerAuth := auth.actingAs(child.Owner)
+					ownerAuth := AuthorizationActingAs(auth, child.Owner)
 					value, err := child.Columns[0].Usage.Type.Input(context.Background(), "[1,2]", -1)
 					if err != nil {
 						t.Fatal(err)
@@ -100,10 +100,10 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 							t.Fatal(err)
 						}
 						seen := [2]bool{}
-						for _, programme := range scope.routinePrograms {
-							for _, call := range programme.admission.Calls {
+						for _, programme := range ScopeRoutinePrograms(scope) {
+							for _, call := range CommandRoutineProgramAdmission(&programme).Calls {
 								if call.Consumer == child && call.Actor == auth.State.CurrentUser {
-									if programme.ri {
+									if CommandRoutineProgramRi(&programme) {
 										seen[1] = true
 									} else {
 										seen[0] = true
@@ -138,7 +138,7 @@ func TestCheckProgramInvokerAndRIOwnerPhases(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					nullCountUnitDiagnostic(t, scope.readmitPreparedPrograms(current), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
+					nullCountUnitDiagnostic(t, ScopeReadmitPreparedPrograms(scope, current), sqlstate.Error{Code: "42501", Message: "permission denied for function json_array_length"})
 					e.Mu.Lock()
 					after := *e.Storage.Sequences[sequence.Address]
 					e.Mu.Unlock()
@@ -212,7 +212,7 @@ func TestCheckProgramOriginalManifestRetention(t *testing.T) {
 				if _, ok := evaluation.PreparedChecks[d]; ok {
 					t.Fatal("failed preflight cached a partial CHECK set")
 				}
-				if len(scope.routinePrograms) != 0 {
+				if len(ScopeRoutinePrograms(scope)) != 0 {
 					t.Fatal("failed preflight registered a partial consumed graph")
 				}
 			}
@@ -226,8 +226,8 @@ func TestCheckProgramOriginalManifestRetention(t *testing.T) {
 			evaluation.RoutineAuthority = &current
 			calls := func() int {
 				count := 0
-				for _, programme := range scope.routinePrograms {
-					count += len(programme.admission.Calls)
+				for _, programme := range ScopeRoutinePrograms(scope) {
+					count += len(CommandRoutineProgramAdmission(&programme).Calls)
 				}
 				return count
 			}
@@ -255,8 +255,8 @@ func TestCheckProgramOriginalManifestRetention(t *testing.T) {
 				t.Fatal("original references became invalid", err)
 			}
 			seenJSON, seenSequence := false, false
-			for _, programme := range scope.routinePrograms {
-				for _, call := range programme.admission.Calls {
+			for _, programme := range ScopeRoutinePrograms(scope) {
+				for _, call := range CommandRoutineProgramAdmission(&programme).Calls {
 					if call.Consumer != d || call.Actor != current.State.CurrentUser {
 						t.Fatal("lost genuine CHECK consumer/actor", call)
 					}

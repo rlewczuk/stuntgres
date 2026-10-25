@@ -26,7 +26,7 @@ func TestVerifyHeapamAuthority(t *testing.T) {
 	n := heapUnitExpression(t, e)
 	control := extension.StockAmcheck.Control()
 	if control.Version != "1.5" || control.Trusted || !control.Superuser || !control.Relocatable || control.Comment == nil || *control.Comment != "functions for verifying relation integrity" { t.Fatal("control", control) }
-	if p.Signature != extension.VerifyHeapamSignature || p.Result != 2249 || p.Strict || p.Volatility != expr.Volatile || !procedureReturnsSet(p) || p.Installed.Defaults != 5 || p.Installed.Parallel != 'u' || len(ext.Members) != 1 { t.Fatal("installed declaration", p) }
+	if p.Signature != extension.VerifyHeapamSignature || p.Result != 2249 || p.Strict || p.Volatility != expr.Volatile || !ProcedureReturnsSet(p) || p.Installed.Defaults != 5 || p.Installed.Parallel != 'u' || len(ext.Members) != 1 { t.Fatal("installed declaration", p) }
 	if !p.ACL.Explicit || len(p.ACL.Entries) != 1 || p.ACL.Entries[0].Grantee.Public || p.ACL.Entries[0].Grantee.Role != p.Owner || p.ACL.Entries[0].Privileges != authorization.ExecutePrivilege { t.Fatal("initial owner-only ACL", p.ACL) }
 	if err := stored.ValidateInstalledVerifyHeapam(n, view); err != nil { t.Fatal(err) }
 	for _, mutate := range []func(*catalog.Procedure){

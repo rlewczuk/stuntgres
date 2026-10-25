@@ -22,7 +22,7 @@ func rangeTypeUnitRemappedConstructor(t *testing.T) (*Engine,*catalog.Procedure,
  roles:=authorization.Seed(source.Owner().Principals)
  sourceRoles:=roles.Read(source.Owner().Principals.Principal(authorization.BootstrapPrincipalID))
  targetRoles:=target.RoleStore.PublishedRead(&target.Catalog.Owner,target.CatalogRead())
- next,principal,err:=func()(*catalog.State,catalog.ProcedureRemapper,error){target.Mu.Lock();defer target.Mu.Unlock();return target.remapPreparedCatalog(next,sourceRoles,targetRoles,nil)}()
+ next,principal,err:=func()(*catalog.State,catalog.ProcedureRemapper,error){target.Mu.Lock();defer target.Mu.Unlock();return EngineRemapPreparedCatalog(target, next,sourceRoles,targetRoles,nil)}()
  if err!=nil {t.Fatal(err)}
  if _,err:=typedef.ReownDomainTypes(next,nil,true,routine.RangeTypeRebinder(next,nil));err!=nil {t.Fatal(err)}
  view:=target.Catalog.Read(next)

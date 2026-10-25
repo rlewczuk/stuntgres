@@ -149,7 +149,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 					// not merely before preparation of the retirement candidate.
 					sessionSQL(t, b, create)
 					before := e.Catalog.State
-					_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch})
+					_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
 					fdwLateUnitConflict(t, err, e, before)
 				case "active":
 					sessionSQL(t, a, "BEGIN")
@@ -184,7 +184,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 						err := message.scope.Gate(statement(t, "SELECT 1"))
 						if err == nil {
 							prepared := fdwPrepareLateUnitDrop(t, e, message.scope, drop)
-							_, err = e.PublishCatalogOperation(message.op, message.scope, prepared, PublicationToken{Epoch: prepared.epoch})
+							_, err = e.PublishCatalogOperation(message.op, message.scope, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
 						}
 						if finish := message.scope.Finish(err); err == nil {
 							err = finish
@@ -218,7 +218,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				}
 				defer scope.Finish(context.Canceled)
 				prepared := fdwPrepareLateUnitDrop(t, e, scope, drop)
-				if _, err := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch}); err != nil {
+				if _, err := e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)}); err != nil {
 					t.Fatal(err)
 				}
 			case "active":
@@ -346,7 +346,7 @@ func TestFDWLateDependencyPublication(t *testing.T) {
 				defer scope.Finish(context.Canceled)
 				prepared := fdwPrepareLateUnitDrop(t, e, scope, drop)
 				sessionSQL(t, b, "ALTER SERVER fdw_unrelated_server OPTIONS(tag 'changed')")
-				_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: prepared.epoch})
+				_, err = e.PublishCatalogOperation(op, nil, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
 			case "active":
 				sessionSQL(t, a, "BEGIN")
 				sessionSQL(t, a, drop)
@@ -427,10 +427,10 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, pr
 	}
 	prepared, err := prepare(scope)
 	if prepared != nil {
-		defer e.DiscardCatalogStage(prepared.stage)
+		defer e.DiscardCatalogStage(PreparedCatalogPublicationStage(prepared))
 	}
 	if err == nil {
-		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: prepared.epoch})
+		_, err = e.PublishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: PreparedCatalogPublicationEpoch(prepared)})
 	}
 	if finish := scope.Finish(err); err == nil {
 		err = finish

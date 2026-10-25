@@ -93,15 +93,15 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	ar, br := transactionBegin(t, a), transactionBegin(t, b)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	at := a.Transactions.Ticket
-	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.Events) != 0 {
+	if len(OwnerExtensionExclusionModes(OwnerExtensionOrZero(a.Transactions)).Events) != 0 {
 		t.Fatal("uncontested first admission invented a deferred obligation")
 	}
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	bt := b.Transactions.Ticket
-	if len(ownerExtensionOrZero(b.Transactions).exclusionModes.Events) != 1 {
+	if len(OwnerExtensionExclusionModes(OwnerExtensionOrZero(b.Transactions)).Events) != 1 {
 		t.Fatal("peer admission did not enlist its actual row/version")
 	}
-	event := ownerExtensionOrZero(b.Transactions).exclusionModes.Events[0]
+	event := OwnerExtensionExclusionModes(OwnerExtensionOrZero(b.Transactions)).Events[0]
 	projection := e.Exclusions.OwnLocked(bt)
 	entries := projection.Entries[event.Index.Address]
 	if len(entries) != 1 || event.Row != entries[0].Row.Row || event.Version != entries[0].Row.Version {
@@ -132,11 +132,11 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 		t.Fatal("dirty projection was mutated rather than replaced")
 	}
 	sessionSQL(t, a, "ROLLBACK TO m")
-	if e.Exclusions.OwnLocked(at) != before || len(ownerExtensionOrZero(a.Transactions).exclusionModes.ByConstraint) != 0 {
+	if e.Exclusions.OwnLocked(at) != before || len(OwnerExtensionExclusionModes(OwnerExtensionOrZero(a.Transactions)).ByConstraint) != 0 {
 		t.Fatal("savepoint did not restore projection and constraint modes")
 	}
 	sessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")
-	prepared := e.prepared.Lookup("exclusion_unit")
+	prepared := EnginePreparedRef(e).Lookup("exclusion_unit")
 	if prepared == nil || prepared.Ticket != at || a.Transactions.Ticket != nil || e.Exclusions.OwnLocked(at) != before {
 		t.Fatal("PREPARE did not retain the detached dirty owner")
 	}
@@ -147,7 +147,7 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	exclusionCompletionQueued(t, e, at, bt, done)
 	sessionSQL(t, a, "ROLLBACK PREPARED 'exclusion_unit'")
 	exclusionCommitAwait(t, done)
-	if e.Exclusions.CountLocked() != 0 || e.prepared.Len() != 0 {
+	if e.Exclusions.CountLocked() != 0 || EnginePreparedRef(e).Len() != 0 {
 		t.Fatal("prepared completion retained exclusion ownership")
 	}
 	uniqueClaimsEmpty(t, e)

@@ -100,7 +100,7 @@ func (f viewWriteFixture) scope(t *testing.T, explicit ...bool) (*StatementScope
 	})
 	w := &view.Write{BaseRelation: f.base, Ref: f.baseRef, Layers: []view.WriteLayer{{Relation: f.view, Ref: f.viewRef, Source: f.base, SourceRef: f.baseRef}}}
 	scope.LockedRef, scope.LockedDescriptor = f.viewRef, f.view
-	if err := scope.acquireViewWriteTarget(w); err != nil {
+	if err := ScopeAcquireViewWriteTarget(scope, w); err != nil {
 		t.Fatal(err)
 	}
 	return scope, op
@@ -268,7 +268,7 @@ func TestViewWriteDemand(t *testing.T) {
 		if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 			t.Fatal(err)
 		}
-		source = view.FreezeWriteSources(source, leaves, scope.authority, HostOf(scope))
+		source = view.FreezeWriteSources(source, leaves, ScopeAuthority(scope), HostOf(scope))
 		if source.Input == nil || source.Count() != 1 {
 			source.Close()
 			t.Fatal("frozen bridge exposed a deleted version")

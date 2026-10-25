@@ -52,9 +52,9 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		e.CatalogChangeLocked(candidate, address, &bodyObject)
 		bodyRead := e.PrivateCatalogLocked(candidate)
 		e.Mu.Unlock()
-		scope := &StatementScope{Owner: owner, Catalog: candidate, largeObjectRead: outerRead}
-		restoreOuter := scope.activateSQLRoutine(nil, bodyRead)
-		if got := bytesIn(scope.largeObjectRead); got != "bb" {
+		scope := NewScope(ScopeFields{Owner: owner, Catalog: candidate, LargeObjectRead: outerRead})
+		restoreOuter := ScopeActivateSQLRoutine(scope, nil, bodyRead)
+		if got := bytesIn(ScopeLargeObjectRead(scope)); got != "bb" {
 			t.Fatalf("body read %q, want calling-command bytes bb", got)
 		}
 
@@ -69,23 +69,23 @@ func TestLargeObjectSQLRoutineScratch(t *testing.T) {
 		e.CatalogChangeLocked(candidate, address, &nestedObject)
 		nestedRead := e.PrivateCatalogLocked(candidate)
 		e.Mu.Unlock()
-		if got := bytesIn(scope.largeObjectRead); got != "bb" {
+		if got := bytesIn(ScopeLargeObjectRead(scope)); got != "bb" {
 			t.Fatalf("active body saw later effect %q", got)
 		}
-		restoreBody := scope.activateSQLRoutine(nil, nestedRead)
-		if got := bytesIn(scope.largeObjectRead); got != "cc" {
+		restoreBody := ScopeActivateSQLRoutine(scope, nil, nestedRead)
+		if got := bytesIn(ScopeLargeObjectRead(scope)); got != "cc" {
 			t.Fatalf("nested query read %q, want cc", got)
 		}
 		if err := restoreBody(primary); !errors.Is(err, primary) {
 			t.Fatal("nested unwind changed primary error", err)
 		}
-		if got := bytesIn(scope.largeObjectRead); got != "bb" {
+		if got := bytesIn(ScopeLargeObjectRead(scope)); got != "bb" {
 			t.Fatalf("nested unwind restored %q, want body bytes bb", got)
 		}
 		if err := restoreOuter(primary); !errors.Is(err, primary) {
 			t.Fatal("outer unwind changed primary error", err)
 		}
-		if got := bytesIn(scope.largeObjectRead); got != "aa" {
+		if got := bytesIn(ScopeLargeObjectRead(scope)); got != "aa" {
 			t.Fatalf("outer unwind restored %q, want original bytes aa", got)
 		}
 		if scope.Owner != owner || owner.Catalog != ownerJournal || scope.Catalog != candidate || len(ownerJournal.Descriptors) != 0 {

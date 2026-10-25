@@ -199,7 +199,7 @@ func TestTransactionalDefinitionSavepoints(t *testing.T) {
 	original := definitionUnitRead(e, owner)
 	class, bound := definitionUnitClass(t, original)
 	owner.Transactions.Mu.Lock()
-	mark := captureSavepoint(owner.Transactions, "graph")
+	mark := CaptureSavepoint(owner.Transactions, "graph")
 	owner.Transactions.Mu.Unlock()
 	definitionUnitStage(t, e, owner, `ALTER OPERATOR FAMILY public.unit_definition_family USING unit_definition_am ADD FUNCTION 2 (integer,integer) pg_catalog.btint4sortsupport(internal)`)
 	definitionUnitStage(t, e, owner, `DROP OPERATOR CLASS public.unit_definition_class USING unit_definition_am`)
@@ -208,7 +208,7 @@ func TestTransactionalDefinitionSavepoints(t *testing.T) {
 	}
 	for range 2 {
 		owner.Transactions.Mu.Lock()
-		restoreSavepoint(owner.Transactions, mark, mark.Settings.Clone())
+		RestoreSavepoint(owner.Transactions, mark, mark.Settings.Clone())
 		owner.Transactions.Mu.Unlock()
 		current := definitionUnitRead(e, owner)
 		restored, adapted := definitionUnitClass(t, current)

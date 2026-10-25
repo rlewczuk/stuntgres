@@ -23,7 +23,7 @@ func TestRoleHostStageless(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want, err := e.lookupNamespaces(auth, name, analyze.FunctionLookup)
+		want, err := EngineLookupNamespaces(e, auth, name, analyze.FunctionLookup)
 		if err != nil {
 			t.Fatal(err)
 		}

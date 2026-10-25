@@ -65,7 +65,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 		t.Fatal("source authority copied", destination)
 	}
 	captured := false
-	for _, descriptor := range stage.tableOrZero().LikeSources {
+	for _, descriptor := range StageTableOrZero(stage).LikeSources {
 		captured = captured || descriptor == e.CatalogRead().Get(source.Address)
 	}
 	if !captured {

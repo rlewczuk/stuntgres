@@ -118,7 +118,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		store := e.Storage.Relations[ref.Address]
 		row := store.Versions[0]
 		candidate := visibility.DeleteCandidate{Ref: ref, Storage: store, Row: row.Row, Version: row.Version, Ordinal: 0}
-		if err := deleting.acquireRow(candidate); err != nil {
+		if err := ScopeAcquireRow(deleting, candidate); err != nil {
 			t.Fatal(err)
 		}
 		deleted, err := deleting.Writes().Delete(candidate)
@@ -184,7 +184,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			beforeOp.Done()
 			control := &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before_attach"}}
 			mark, markOp := partitionAttachUnitScope(t, e, owner)
-			if _, err := mark.executeSavepoint(control, 0); err != nil {
+			if _, err := ScopeExecuteSavepoint(mark, control, 0); err != nil {
 				t.Fatal(err)
 			}
 			if err := mark.Finish(nil); err != nil {
@@ -210,7 +210,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			if end == "savepoint" {
 				rollback, rollbackOp := partitionAttachUnitScope(t, e, owner)
 				control.Kind = parser.RollbackSavepoint
-				if _, err := rollback.executeSavepoint(control, 0); err != nil {
+				if _, err := ScopeExecuteSavepoint(rollback, control, 0); err != nil {
 					t.Fatal(err)
 				}
 				if err := rollback.Finish(nil); err != nil {

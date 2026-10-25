@@ -21,18 +21,18 @@ func TestRowSecuritySettingsCapture(t *testing.T) {
 	}
 	sess := &session.Session{Settings: settings}
 	op := &session.Operation{Session: sess}
-	first := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
+	first := NewStatementScope(op, &session.TransactionOwner{}, time.Time{})
 	settings.Mu.Lock()
 	settings.Values["row_security"] = "off"
 	settings.Mu.Unlock()
-	second := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
+	second := NewStatementScope(op, &session.TransactionOwner{}, time.Time{})
 	if !first.RowSecurity || second.RowSecurity {
 		t.Fatal("statement did not retain/recapture setting", first.RowSecurity, second.RowSecurity)
 	}
 	settings.Mu.Lock()
 	delete(settings.Values, "row_security")
 	settings.Mu.Unlock()
-	third := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
+	third := NewStatementScope(op, &session.TransactionOwner{}, time.Time{})
 	if !third.RowSecurity || second.RowSecurity {
 		t.Fatal("restored default changed prior scope")
 	}

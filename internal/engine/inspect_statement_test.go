@@ -3,11 +3,14 @@ package engine
 import (
 	"context"
 	"sync"
+	"time"
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
@@ -75,21 +78,6 @@ func DescriptionPlanOwner(x *StatementDescription) ids.SessionToken { return x.p
 
 // DescriptionRegtypes returns x.regtypes.
 func DescriptionRegtypes(x *StatementDescription) *regobj.Analysis { return x.regtypes }
-
-// DescriptionFields holds the StatementDescription fields tests set.
-type DescriptionFields struct {
-	Parameters   analyze.ParameterInfo
-	Results      []catalog.Column
-	CatalogOwner *catalog.Owner
-	CatalogEpoch ids.CatalogEpoch
-	Temporals    []analyze.TemporalConstant
-	Regtypes     *regobj.Analysis
-}
-
-// NewDescription builds a StatementDescription from f.
-func NewDescription(f DescriptionFields) *StatementDescription {
-	return &StatementDescription{Parameters: f.Parameters, Results: f.Results, catalogOwner: f.CatalogOwner, catalogEpoch: f.CatalogEpoch, Temporals: f.Temporals, regtypes: f.Regtypes}
-}
 
 // SetDescriptionCatalogOwner sets x.catalogOwner.
 func SetDescriptionCatalogOwner(x *StatementDescription, v *catalog.Owner) { x.catalogOwner = v }
@@ -397,29 +385,6 @@ func CursorTx(x *sqlCursor) ids.TxRef { return x.tx }
 // CursorValues returns x.values.
 func CursorValues(x *sqlCursor) []sqltype.Value { return x.values }
 
-// CursorFields holds the sqlCursor fields tests set.
-type CursorFields struct {
-	Tx        ids.TxRef
-	Epoch     ids.CatalogEpoch
-	Hold      bool
-	Promoted  bool
-	Pinned    bool
-	Values    []sqltype.Value
-	Count     int
-	Root      *plan.ProjectNode
-	Schema    []catalog.Column
-	Source    *exec.Source
-	State     exec.State
-	Stage     *exec.Stage
-	Authority *exec.Authority
-	Scroll    bool
-}
-
-// NewCursor builds a sqlCursor from f.
-func NewCursor(f CursorFields) *sqlCursor {
-	return &sqlCursor{tx: f.Tx, epoch: f.Epoch, hold: f.Hold, promoted: f.Promoted, pinned: f.Pinned, values: f.Values, count: f.Count, root: f.Root, schema: f.Schema, Source: f.Source, state: f.State, stage: f.Stage, authority: f.Authority, scroll: f.Scroll}
-}
-
 // SetCursorPinned sets x.pinned.
 func SetCursorPinned(x *sqlCursor, v bool) { x.pinned = v }
 
@@ -461,3 +426,246 @@ func NewPreparedStatement(f PreparedStatementFields) *sqlPreparedStatement {
 
 // PreparedStatementBody returns x.body.
 func PreparedStatementBody(x *sqlPreparedStatement) parser.Statement { return x.body }
+
+// PartitionCheckReplayAllowed calls partitionCheckReplayAllowed.
+func PartitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
+	return partitionCheckReplayAllowed(op, auth, raw, d)
+}
+
+// PartitionUsingIndexReplayAllowed calls partitionUsingIndexReplayAllowed.
+func PartitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
+	return partitionUsingIndexReplayAllowed(op, auth, raw, table)
+}
+
+// BindingHostView calls x.view.
+func BindingHostView(x *BindingHost, a analyze.Authority) AuthorizationView {
+	return x.view(a)
+}
+
+// StageValidateIndexMaintenance calls x.validateIndexMaintenance.
+func StageValidateIndexMaintenance(x *CatalogStage, current *catalog.State) error {
+	return x.validateIndexMaintenance(current)
+}
+
+// EngineHoldPrecommit calls x.holdPrecommit.
+func EngineHoldPrecommit(x *Engine, op *session.Operation, owner *session.TransactionOwner, start time.Time, settlement *StatementScope) error {
+	return x.holdPrecommit(op, owner, start, settlement)
+}
+
+// EnginePreparedAnalysisDefinitionsValidLocked calls x.preparedAnalysisDefinitionsValidLocked.
+func EnginePreparedAnalysisDefinitionsValidLocked(x *Engine, auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, isnAuthorityRebind bool) bool {
+	return x.preparedAnalysisDefinitionsValidLocked(auth, analysis, path, isnAuthorityRebind)
+}
+
+// EnginePreparedAnalysisLocked calls x.preparedAnalysisLocked.
+func EnginePreparedAnalysisLocked(x *Engine, s *StatementScope, auth AuthorizationView, b analyze.Binding) (*preparedAnalysis, error) {
+	return x.preparedAnalysisLocked(s, auth, b)
+}
+
+// EnginePreparedIsnAuthorityRebindLocked calls x.preparedIsnAuthorityRebindLocked.
+func EnginePreparedIsnAuthorityRebindLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
+	return x.preparedIsnAuthorityRebindLocked(auth, expected, path)
+}
+
+// EnginePreparedIsnLiteralTemporalsLocked calls x.preparedIsnLiteralTemporalsLocked.
+func EnginePreparedIsnLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
+	return x.preparedIsnLiteralTemporalsLocked(auth, expected, path)
+}
+
+// EngineRegisterExtension calls x.registerExtension.
+func EngineRegisterExtension(x *Engine, name string, implementation extension.Installer) error {
+	return x.registerExtension(name, implementation)
+}
+
+// DescriptionCatalogEpochRef returns &x.catalogEpoch.
+func DescriptionCatalogEpochRef(x *StatementDescription) *ids.CatalogEpoch { return &x.catalogEpoch }
+
+// DescriptionPlanGenerationRef returns &x.planGeneration.
+func DescriptionPlanGenerationRef(x *StatementDescription) *uint64 { return &x.planGeneration }
+
+// DescriptionQuoteGeneration returns x.quoteGeneration.
+func DescriptionQuoteGeneration(x *StatementDescription) uint64 { return x.quoteGeneration }
+
+// DescriptionRetireAnalysisTypeCasts calls x.retireAnalysisTypeCasts.
+func DescriptionRetireAnalysisTypeCasts(x *StatementDescription) {
+	x.retireAnalysisTypeCasts()
+}
+
+// DescriptionRetireAnalysisTypeCastsForRebind calls x.retireAnalysisTypeCastsForRebind.
+func DescriptionRetireAnalysisTypeCastsForRebind(x *StatementDescription, isnAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
+	return x.retireAnalysisTypeCastsForRebind(isnAuthorityRebind)
+}
+
+// DescriptionTypes returns x.types.
+func DescriptionTypes(x *StatementDescription) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
+	return x.types
+}
+
+// DescriptionFields holds the StatementDescription fields tests set.
+type DescriptionFields struct {
+	Parameters     analyze.ParameterInfo
+	Results        []catalog.Column
+	CatalogOwner   *catalog.Owner
+	CatalogEpoch   ids.CatalogEpoch
+	Temporals      []analyze.TemporalConstant
+	Types          map[analyze.PreparedTypeKey]analyze.TypeOccurrence
+	Regtypes       *regobj.Analysis
+	Analysis       *preparedAnalysis
+	PlanGeneration uint64
+}
+
+// NewDescription builds a StatementDescription from f.
+func NewDescription(f DescriptionFields) *StatementDescription {
+	return &StatementDescription{Parameters: f.Parameters, Results: f.Results, catalogOwner: f.CatalogOwner, catalogEpoch: f.CatalogEpoch, Temporals: f.Temporals, types: f.Types, regtypes: f.Regtypes, analysis: f.Analysis, planGeneration: f.PlanGeneration}
+}
+
+// SetDescriptionAnalysis sets x.analysis.
+func SetDescriptionAnalysis(x *StatementDescription, v *preparedAnalysis) { x.analysis = v }
+
+// SetDescriptionPlanGeneration sets x.planGeneration.
+func SetDescriptionPlanGeneration(x *StatementDescription, v uint64) { x.planGeneration = v }
+
+// SetDescriptionTypes sets x.types.
+func SetDescriptionTypes(x *StatementDescription, v map[analyze.PreparedTypeKey]analyze.TypeOccurrence) {
+	x.types = v
+}
+
+// ScopeForeignWrites calls x.foreignWrites.
+func ScopeForeignWrites(x *StatementScope) fdw.WriteRuntime {
+	return x.foreignWrites()
+}
+
+// ScopeInstallSQLCursor calls x.installSQLCursor.
+func ScopeInstallSQLCursor(x *StatementScope, declaration *parser.DeclareCursor, root plan.Node, source *exec.Source, parameters []sqltype.Value) (Result, error) {
+	return x.installSQLCursor(declaration, root, source, parameters)
+}
+
+// ScopePresentationOrZero calls x.presentationOrZero.
+func ScopePresentationOrZero(x *StatementScope) presentationCaches {
+	return x.presentationOrZero()
+}
+
+// ScopeSelectPreparedAnalysis calls x.selectPreparedAnalysis.
+func ScopeSelectPreparedAnalysis(x *StatementScope, stmt parser.Statement) error {
+	return x.selectPreparedAnalysis(stmt)
+}
+
+// CursorsRollback calls x.rollback.
+func CursorsRollback(x *cursorRegistry, mark uint64) []*sqlCursor {
+	return x.rollback(mark)
+}
+
+// PreparedAnalysisFields holds the preparedAnalysis fields tests set.
+type PreparedAnalysisFields struct {
+	Domain       *ids.Domain
+	Epoch        ids.CatalogEpoch
+	Session      ids.SessionToken
+	Private      *session.Journal
+	Path         sequence.Environment
+	Namespace    uint64
+	Dependencies []catalog.ExpressionDependency
+	Types        map[ids.ObjectAddress]*catalog.Type
+}
+
+// NewPreparedAnalysis builds a preparedAnalysis from f.
+func NewPreparedAnalysis(f PreparedAnalysisFields) *preparedAnalysis {
+	return &preparedAnalysis{domain: f.Domain, epoch: f.Epoch, session: f.Session, private: f.Private, path: f.Path, namespace: f.Namespace, dependencies: f.Dependencies, types: f.Types}
+}
+
+// PreparedAnalysisEpochRef returns &x.epoch.
+func PreparedAnalysisEpochRef(x *preparedAnalysis) *ids.CatalogEpoch { return &x.epoch }
+
+// PreparedAnalysisNamespaceRef returns &x.namespace.
+func PreparedAnalysisNamespaceRef(x *preparedAnalysis) *uint64 { return &x.namespace }
+
+// PreparedAnalysisPath returns x.path.
+func PreparedAnalysisPath(x *preparedAnalysis) sequence.Environment { return x.path }
+
+// PreparedAnalysisPathRef returns &x.path.
+func PreparedAnalysisPathRef(x *preparedAnalysis) *sequence.Environment { return &x.path }
+
+// SetPreparedAnalysisCasts sets x.casts.
+func SetPreparedAnalysisCasts(x *preparedAnalysis, v map[catalog.CastPair]*catalog.Cast) { x.casts = v }
+
+// SetPreparedAnalysisDependencies sets x.dependencies.
+func SetPreparedAnalysisDependencies(x *preparedAnalysis, v []catalog.ExpressionDependency) {
+	x.dependencies = v
+}
+
+// SetPreparedAnalysisNeedsReanalysis sets x.needsReanalysis.
+func SetPreparedAnalysisNeedsReanalysis(x *preparedAnalysis, v bool) { x.needsReanalysis = v }
+
+// SetPreparedAnalysisSession sets x.session.
+func SetPreparedAnalysisSession(x *preparedAnalysis, v ids.SessionToken) { x.session = v }
+
+// SetPreparedAnalysisTypes sets x.types.
+func SetPreparedAnalysisTypes(x *preparedAnalysis, v map[ids.ObjectAddress]*catalog.Type) {
+	x.types = v
+}
+
+// PreparedCommandExecutionFields holds the preparedCommandExecution fields tests set.
+type PreparedCommandExecutionFields struct {
+	PolicyWaits uint64
+}
+
+// NewPreparedCommandExecution builds a preparedCommandExecution from f.
+func NewPreparedCommandExecution(f PreparedCommandExecutionFields) *preparedCommandExecution {
+	return &preparedCommandExecution{policyWaits: f.PolicyWaits}
+}
+
+// PreparedCommandExecutionPolicyWaits returns x.policyWaits.
+func PreparedCommandExecutionPolicyWaits(x *preparedCommandExecution) uint64 { return x.policyWaits }
+
+// PresentationCachesConversionDefaults returns x.conversionDefaults.
+func PresentationCachesConversionDefaults(x presentationCaches) map[[2]int]conversionDefault {
+	return x.conversionDefaults
+}
+
+// SetProtocolScopeBind sets x.bind.
+func SetProtocolScopeBind(x *protocolScope, v *protocolPortal) { x.bind = v }
+
+// CursorForeignOwner returns x.foreignOwner.
+func CursorForeignOwner(x *sqlCursor) *exec.ForeignScanOwner { return x.foreignOwner }
+
+// CursorRLSPrograms returns x.rlsPrograms.
+func CursorRLSPrograms(x *sqlCursor) []*rowSecurityProgram { return x.rlsPrograms }
+
+// CursorReleaseProducer calls x.releaseProducer.
+func CursorReleaseProducer(x *sqlCursor, ctx context.Context) error {
+	return x.releaseProducer(ctx)
+}
+
+// CursorFields holds the sqlCursor fields tests set.
+type CursorFields struct {
+	Tx           ids.TxRef
+	Ordinal      uint64
+	Epoch        ids.CatalogEpoch
+	Hold         bool
+	Promoted     bool
+	Pinned       bool
+	Values       []sqltype.Value
+	Count        int
+	Root         *plan.ProjectNode
+	Schema       []catalog.Column
+	Source       *exec.Source
+	State        exec.State
+	Stage        *exec.Stage
+	Authority    *exec.Authority
+	ForeignOwner *exec.ForeignScanOwner
+	Scroll       bool
+}
+
+// NewCursor builds a sqlCursor from f.
+func NewCursor(f CursorFields) *sqlCursor {
+	return &sqlCursor{tx: f.Tx, ordinal: f.Ordinal, epoch: f.Epoch, hold: f.Hold, promoted: f.Promoted, pinned: f.Pinned, values: f.Values, count: f.Count, root: f.Root, schema: f.Schema, Source: f.Source, state: f.State, stage: f.Stage, authority: f.Authority, foreignOwner: f.ForeignOwner, scroll: f.Scroll}
+}
+
+// StatementHostFields holds the statementHost fields tests set.
+type StatementHostFields struct {
+	Op *session.Operation
+}
+
+// NewStatementHost builds a statementHost from f.
+func NewStatementHost(f StatementHostFields) *statementHost {
+	return &statementHost{Op: f.Op}
+}

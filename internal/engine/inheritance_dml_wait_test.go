@@ -61,7 +61,7 @@ func inheritanceDMLQueued(t *testing.T, replace bool) {
 	defer done()
 	result := make(chan error, 1)
 	joined := false
-	go func() { result <- s.acquireInheritedMutationTargets(&parser.Update{}) }()
+	go func() { result <- ScopeAcquireInheritedMutationTargets(s, &parser.Update{}) }()
 	defer func() {
 		cancel()
 		holder.Finish(nil)

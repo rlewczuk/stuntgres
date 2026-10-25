@@ -128,7 +128,7 @@ func TestArrayDomainDependencyClosureAndLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	diagnostic := domainRestrictError(stage, stage.DomainTargets, edges, len(stage.DomainTargets), ids.ObjectAddress{}).(*sqlstate.Error)
+	diagnostic := DomainRestrictError(stage, stage.DomainTargets, edges, len(stage.DomainTargets), ids.ObjectAddress{}).(*sqlstate.Error)
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop type di because other objects depend on it", Detail: "column a of table array_depend depends on type di[]\ntype whole depends on type di[]\ntype nested depends on type whole[]", Hint: "Use DROP ... CASCADE to drop the dependent objects too."}
 	if !reflect.DeepEqual(*diagnostic, want) {
 		t.Fatalf("dependency=%#v want %#v", *diagnostic, want)

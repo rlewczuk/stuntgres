@@ -154,35 +154,35 @@ func TestForeignActionsAdmission(t *testing.T) {
 	value, _ := sqltype.Integer(job.Child.Columns[0].Usage.Type, 2)
 	replacement := [1][]sqltype.Value{{value}}
 	predecessor := [1]storage.RowVersion{old}
-	before := len(scope.foreignActionsOrZero().Transitions)
+	before := len(ScopeForeignActionsOrZero(scope).Transitions)
 	if err = dml.ReplaceRows(scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err == nil {
 		t.Fatal("FK address alone authorized a child replacement")
 	}
-	if len(scope.foreignActionsOrZero().Transitions) != before {
+	if len(ScopeForeignActionsOrZero(scope).Transitions) != before {
 		t.Fatal("rejected child replacement recorded an accepted transition")
 	}
-	if err = scope.admitForeignAction(ref, job, false); err != nil {
+	if err = ScopeAdmitForeignAction(scope, ref, job, false); err != nil {
 		t.Fatal(err)
 	}
 	if err = scope.ForeignKeyGrant(ref, old.Row, lock.ForUpdate, children.Storage); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.Stage.deleteForeignAction(ref, old); err == nil {
+	if err = WriteStageDeleteForeignAction(&scope.Stage, ref, old); err == nil {
 		t.Fatal("read-only action authority admitted deletion")
 	}
-	if err = scope.admitForeignAction(ref, job, true); err != nil {
+	if err = ScopeAdmitForeignAction(scope, ref, job, true); err != nil {
 		t.Fatal(err)
 	}
 	scope.WriteHost().SwapForeignActionAuthority(auth.ActingAs(job.Child.Owner))
-	scope.foreignActions().Settling = true
+	ScopeForeignActions(scope).Settling = true
 	if err = dml.ReplaceRows(scope.WriteHost(), ref, predecessor[:], index.WriteBatch{Values: replacement[:]}, dml.ReplaceMerge); err != nil {
 		t.Fatal(err)
 	}
 	scope.ForeignActionAuth = nil
-	scope.foreignActions().Settling = false
+	ScopeForeignActions(scope).Settling = false
 	next := scope.Stage.Rows[ref.Address][0]
 	var childEvents []dml.ForeignActionTransition
-	for _, event := range scope.foreignActionsOrZero().Transitions {
+	for _, event := range ScopeForeignActionsOrZero(scope).Transitions {
 		if event.Relation == ref.Address {
 			childEvents = append(childEvents, event)
 		}
@@ -193,14 +193,14 @@ func TestForeignActionsAdmission(t *testing.T) {
 	if scope.LockedRef != named || scope.LockedStorage != stored || scope.LockedDescriptor != descriptor {
 		t.Fatal("child action spoofed initiating admission")
 	}
-	admission := scope.foreignActionsOrZero().Admissions[ref.Address]
+	admission := ScopeForeignActionsOrZero(scope).Admissions[ref.Address]
 	if !admission.Mutated || admission.Tx != scope.TxRef || admission.Storage != children.Storage {
 		t.Fatal("missing captured physical child authority", admission)
 	}
 	foreign := ref
 	foreign.Address = catalogRef(t, e, e.CatalogRead(), "unrelated").Address
 	e.Mu.Lock()
-	err = scope.validateForeignActionLocked(e, foreign)
+	err = ScopeValidateForeignActionLocked(scope, e, foreign)
 	e.Mu.Unlock()
 	if err == nil {
 		t.Fatal("unrelated child was authorized")
@@ -208,7 +208,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	originalJob := admission.Jobs[0]
 	admission.Jobs[0].Definition.DeleteAction = parser.ForeignKeyRestrict
 	e.Mu.Lock()
-	err = scope.validateForeignActionLocked(e, ref)
+	err = ScopeValidateForeignActionLocked(scope, e, ref)
 	e.Mu.Unlock()
 	admission.Jobs[0] = originalJob
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -217,7 +217,7 @@ func TestForeignActionsAdmission(t *testing.T) {
 	originalStorage := admission.Storage
 	admission.Storage = &storage.Relation{}
 	e.Mu.Lock()
-	err = scope.validateForeignActionLocked(e, ref)
+	err = ScopeValidateForeignActionLocked(scope, e, ref)
 	e.Mu.Unlock()
 	admission.Storage = originalStorage
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -241,7 +241,7 @@ func TestForeignActionsClosure(t *testing.T) {
 		t.Fatal(rows)
 	}
 	var events []dml.ForeignActionTransition
-	for _, event := range scope.foreignActionsOrZero().Transitions {
+	for _, event := range ScopeForeignActionsOrZero(scope).Transitions {
 		if event.Relation == ref.Address {
 			events = append(events, event)
 		}

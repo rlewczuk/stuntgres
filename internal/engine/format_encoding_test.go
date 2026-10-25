@@ -93,16 +93,16 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	}
 	messages, _ := e.Settings.Lookup("lc_messages")
 	stats, _ := e.Settings.Lookup("log_statement_stats")
-	if err := settingAccess(messages, op); err != nil {
+	if err := SettingAccess(messages, op); err != nil {
 		t.Fatal("real bootstrap superuser denied", err)
 	}
 	for _, definition := range []settings.Definition{stats, {Name: "demo.privileged", Access: settings.Privileged}} {
 		var d *sqlstate.Error
-		if err := settingAccess(definition, op); !errors.As(err, &d) || d.Code != "42501" {
+		if err := SettingAccess(definition, op); !errors.As(err, &d) || d.Code != "42501" {
 			t.Fatal("unrelated privileged setting relaxed", definition, err)
 		}
 	}
-	if _, err := e.executeSetting(op, &parser.Set{Name: parser.Identifier{Text: "lc_messages"}, Values: []string{"POSIX"}}, 0, false); err != nil {
+	if _, err := EngineExecuteSetting(e, op, &parser.Set{Name: parser.Identifier{Text: "lc_messages"}, Values: []string{"POSIX"}}, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	reader, ok := e.Roles().Lookup("fe_unit_reader")
@@ -116,13 +116,13 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 		t.Fatal("fixture lost superuser session identity")
 	}
 	var diagnostic *sqlstate.Error
-	if err := settingAccess(messages, op); !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != `permission denied to set parameter "lc_messages"` {
+	if err := SettingAccess(messages, op); !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != `permission denied to set parameter "lc_messages"` {
 		t.Fatal("current ordinary role admitted", err)
 	}
 	if op.Session.Settings.Value("lc_messages") != "POSIX" {
 		t.Fatal("access check mutated setting")
 	}
-	if _, err := e.executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
+	if _, err := EngineExecuteSetting(e, op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal("all-reset incorrectly reused individual permission", err)
 	}
 	if op.Session.Settings.Value("lc_messages") != "C" {
@@ -180,7 +180,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 	defer done()
 	for _, threshold := range []session.NoticeLevel{session.LevelWarning, session.LevelError} {
 		op.NoticeThreshold = threshold
-		_, err := e.executeSetting(op, &parser.Set{Name: parser.Identifier{Text: "lc_time"}, Local: true, Values: []string{"é🙂"}}, 0, true)
+		_, err := EngineExecuteSetting(e, op, &parser.Set{Name: parser.Identifier{Text: "lc_time"}, Local: true, Values: []string{"é🙂"}}, 0, true)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" {
 			t.Fatal(err)

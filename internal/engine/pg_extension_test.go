@@ -42,7 +42,7 @@ func pgExtensionUnitShape(t *testing.T, e *Engine) *catalog.Relation {
 			t.Fatal("column", i, c)
 		}
 	}
-	if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Explicit || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Grantor != owner || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -68,7 +68,7 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type = foreign
-	if err := (relationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
+	if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
 		t.Fatal("foreign generation accepted")
 	}
 	class := e.Catalog.State.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})

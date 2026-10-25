@@ -36,7 +36,7 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	stage, d, skipped, err := e.prepareQueryTableLocked(op, auth, stmt, bound)
+	stage, d, skipped, err := EnginePrepareQueryTableLocked(e, op, auth, stmt, bound)
 	e.Mu.Unlock()
 	if err != nil || skipped {
 		t.Fatal("source outer stage", skipped, err)
@@ -95,7 +95,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	}()
 	// This calls the actual target admission and acquireViewSources, not a
 	// manually assembled visibility.Data or materializedSourceFence.
-	go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
+	go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
 	lockPending(t, e, 1)
 	assertSourceWait := func() {
 		t.Helper()
@@ -183,15 +183,15 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	changes := session.NewJournal()
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if err := e.captureCatalogStageLocked(stage, changes, e.Catalog.State, nil); err != nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil); err != nil {
 		t.Fatal("actual retained capture", err)
 	}
-	sources := catalogFencesOf[materializedSourceFence](changes)
+	sources := catalogFencesOf[MaterializedSourceFence](changes)
 	if len(sources) != 1 {
 		t.Fatal("dedicated source fence not generated", sources)
 	}
 	fence := sources[0]
-	if fence.ref.Address != inner.Address() || fence.relation != snapshot.Catalog.Get(inner.Address()) || fence.storage != innerStorage {
+	if MaterializedSourceFenceRef(&fence).Address != inner.Address() || MaterializedSourceFenceRelation(&fence) != snapshot.Catalog.Get(inner.Address()) || MaterializedSourceFenceStorage(&fence) != innerStorage {
 		t.Fatal("generated source fence retargeted", fence)
 	}
 	if _, strict := changes.Originals[inner.Address()]; strict {
@@ -209,7 +209,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	// Even when the same MV has a source fence, an actual provider observation
 	// must retain strict predecessor authority; compatibility cannot replace it.
 	stage.DomainBases = []catalog.Descriptor{provider, inner}
-	if err := e.captureCatalogStageLocked(stage, changes, e.Catalog.State, nil); err != nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, changes, e.Catalog.State, nil); err != nil {
 		t.Fatal(err)
 	}
 	if changes.Originals[inner.Address()] != inner {

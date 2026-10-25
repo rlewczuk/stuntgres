@@ -29,23 +29,23 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if OperationReplayOrZero(op).PartitionCheck != child || !partitionCheckReplayAllowed(op, auth, raw, child) {
+	if OperationReplayOrZero(op).PartitionCheck != child || !PartitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("genuine leased physical replay rejected")
 	}
-	if err := partition.ConsumerBoundary(raw, child, partitionReplayAllowed(op, auth)); err != nil {
+	if err := partition.ConsumerBoundary(raw, child, PartitionReplayAllowed(op, auth)); err != nil {
 		t.Fatal(err)
 	}
 	copyChild := *child
-	if partitionCheckReplayAllowed(op, auth, raw, &copyChild) {
+	if PartitionCheckReplayAllowed(op, auth, raw, &copyChild) {
 		t.Fatal("lookalike descriptor granted")
 	}
 	copyOp := *op
-	if partitionCheckReplayAllowed(&copyOp, auth, raw, child) {
+	if PartitionCheckReplayAllowed(&copyOp, auth, raw, child) {
 		t.Fatal("copied operation granted")
 	}
 	foreign := auth
 	foreign.Catalog = source.CatalogRead()
-	if partitionCheckReplayAllowed(op, foreign, raw, child) {
+	if PartitionCheckReplayAllowed(op, foreign, raw, child) {
 		t.Fatal("foreign catalog granted")
 	}
 	valid := *raw
@@ -54,13 +54,13 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	check.NotValid = false
 	action.Check = &check
 	valid.Actions = []parser.AlterTableAction{action}
-	if partitionCheckReplayAllowed(op, auth, &valid, child) {
+	if PartitionCheckReplayAllowed(op, auth, &valid, child) {
 		t.Fatal("valid CHECK granted")
 	}
 	virtual := *child
 	virtual.Partition = parent.Partition
 	OperationReplay(op).PartitionCheck = &virtual
-	if partitionCheckReplayAllowed(op, auth, raw, &virtual) {
+	if PartitionCheckReplayAllowed(op, auth, raw, &virtual) {
 		t.Fatal("virtual CHECK granted")
 	}
 	OperationReplay(op).PartitionCheck = nil
@@ -71,7 +71,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	}
 	OperationReplay(op).PartitionCheck = child
 	done()
-	if partitionCheckReplayAllowed(op, auth, raw, child) {
+	if PartitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("ended lease retained capability")
 	}
 }

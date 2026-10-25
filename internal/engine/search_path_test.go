@@ -33,7 +33,7 @@ func TestSearchPathLookupKinds(t *testing.T) {
 		}
 		return result
 	}
-	temp := auth.Catalog.Get(temporaryNamespace(auth)).Name()
+	temp := auth.Catalog.Get(TemporaryNamespace(auth)).Name()
 	for _, tc := range []struct {
 		kind analyze.LookupKind
 		want []string
@@ -131,7 +131,7 @@ func TestSearchPathCurrentSchemasDescriptorAndACL(t *testing.T) {
 		t.Fatal("creation fell back from first usable namespace", target, err)
 	}
 	domainUnitDiagnostic(t, auth.CheckCreate(target), "42501", "permission denied for schema visible")
-	_, err = e.lookupNamespaces(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "hidden"}, {Text: "int4"}}}, analyze.TypeLookup)
+	_, err = EngineLookupNamespaces(e, auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "hidden"}, {Text: "int4"}}}, analyze.TypeLookup)
 	state(t, err, "42501")
 }
 
@@ -147,10 +147,10 @@ func TestSearchPathMissingQualifiedNamespace(t *testing.T) {
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "missing_path_ns", Pos: parser.Position{Character: 8}}, {Text: "int4"}}}
 	for _, kind := range []analyze.LookupKind{analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup} {
-		_, err := e.lookupNamespaces(auth, name, kind)
+		_, err := EngineLookupNamespaces(e, auth, name, kind)
 		state(t, err, "3F000")
 	}
-	path, err := e.lookupNamespaces(auth, name, analyze.RelationLookup)
+	path, err := EngineLookupNamespaces(e, auth, name, analyze.RelationLookup)
 	if err != nil || path.Count() != 0 {
 		t.Fatal(path, err)
 	}
@@ -185,8 +185,8 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	temp := auth.Catalog.Get(temporaryNamespace(auth)).Name()
-	foreign := other.Catalog.Get(temporaryNamespace(other)).Name()
+	temp := auth.Catalog.Get(TemporaryNamespace(auth)).Name()
+	foreign := other.Catalog.Get(TemporaryNamespace(other)).Name()
 	e.Mu.Unlock()
 	roleExecute(t, e, op, "SET search_path TO b,pg_catalog,pg_temp,"+temp+","+foreign+",a")
 	e.Mu.Lock()

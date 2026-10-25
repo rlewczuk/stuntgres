@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/table"
+	"stuntgres/internal/engine/typedef"
 )
 
 // CatalogDependencyPreflight calls catalogDependencyPreflight.
@@ -72,3 +73,35 @@ func EngineStageCatalogChangesLocked(x *Engine, stage *CatalogStage, changes *se
 
 // CatalogRoleReadFenceRoles returns x.roles.
 func CatalogRoleReadFenceRoles(x *catalogRoleReadFence) *access.RoleRecord { return x.roles }
+
+// StageDomainAlter returns x.domainAlter.
+func StageDomainAlter(x *CatalogStage) *typedef.DomainAlterStage { return x.domainAlter }
+
+// StageInitialTables returns x.initialTables.
+func StageInitialTables(x *CatalogStage) map[ids.ObjectAddress]*storage.Relation {
+	return x.initialTables
+}
+
+// EnginePreparePrivateCatalog calls x.preparePrivateCatalog.
+func EnginePreparePrivateCatalog(x *Engine, ctx context.Context, c *session.Journal, epoch ids.CatalogEpoch) (*catalog.State, error) {
+	return x.preparePrivateCatalog(ctx, c, epoch)
+}
+
+// PreparedCatalogPublicationEpoch returns x.epoch.
+func PreparedCatalogPublicationEpoch(x *PreparedCatalogPublication) ids.CatalogEpoch { return x.epoch }
+
+// PreparedCatalogPublicationStage returns x.stage.
+func PreparedCatalogPublicationStage(x *PreparedCatalogPublication) *CatalogStage { return x.stage }
+
+// SetPreparedCatalogPublicationCtx sets x.ctx.
+func SetPreparedCatalogPublicationCtx(x *PreparedCatalogPublication, v context.Context) { x.ctx = v }
+
+// CatalogRoleReadFenceFields holds the catalogRoleReadFence fields tests set.
+type CatalogRoleReadFenceFields struct {
+	Roles *access.RoleRecord
+}
+
+// NewCatalogRoleReadFence builds a catalogRoleReadFence from f.
+func NewCatalogRoleReadFence(f CatalogRoleReadFenceFields) catalogRoleReadFence {
+	return catalogRoleReadFence{roles: f.Roles}
+}

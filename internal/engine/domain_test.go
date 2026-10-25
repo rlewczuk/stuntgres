@@ -139,7 +139,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
 	drop.DomainTargets = []ids.ObjectAddress{a.Address()}
-	if err = drop.removeObject(e.Catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
+	if err = StageRemoveObject(drop, e.Catalog.Domain.Ref(drop.Base.Epoch(), a.Address()), false); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err = e.ValidateCatalogStage(context.Background(), drop)

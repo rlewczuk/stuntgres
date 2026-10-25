@@ -170,14 +170,14 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = e.Locks.Acquire(op.Context(), scope.LockTicket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
-	if err = scope.acquireInheritanceSources(nil); err != nil {
+	if err = ScopeAcquireInheritanceSources(scope, nil); err != nil {
 		t.Fatal(err)
 	}
 	collectAuth, err := OperationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
-	collectAuth.Recapture(scope.Inheritance.catalog)
+	collectAuth.Recapture(InheritanceScopeCatalog(&scope.Inheritance))
 	e.Mu.Lock()
 	refs, err := e.QueryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.QuerySources, nil, op.Session.SessionToken, plan.RowMark{})
 	var view *visibility.View
@@ -186,7 +186,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = table.CaptureInheritanceQueryPrefix(scope.Inheritance.catalog, view, leaf, op.Session.SessionToken)
+		source, err = table.CaptureInheritanceQueryPrefix(InheritanceScopeCatalog(&scope.Inheritance), view, leaf, op.Session.SessionToken)
 	}
 	e.Mu.Unlock()
 	if err != nil {

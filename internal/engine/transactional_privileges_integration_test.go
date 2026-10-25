@@ -218,8 +218,8 @@ func TestTransactionalPrivilegesAllocatorRefresh(t *testing.T) {
 	}
 	f.e.Mu.Lock()
 	before := f.e.RoleStore.NextRevision()
-	err = f.e.refreshOperationRolesLocked(f.op)
-	prepared, prepareErr := f.e.publicationRolesLocked(context.Background(), journal)
+	err = EngineRefreshOperationRolesLocked(f.e, f.op)
+	prepared, prepareErr := EnginePublicationRolesLocked(f.e, context.Background(), journal)
 	unchanged := f.op.Session.Transactions.Catalog == journal && prepared == journal && f.e.RoleStore.NextRevision() == before
 	f.e.Mu.Unlock()
 	if err != nil || prepareErr != nil || !unchanged {
@@ -229,8 +229,8 @@ func TestTransactionalPrivilegesAllocatorRefresh(t *testing.T) {
 		f.e.Mu.Lock()
 		f.e.RoleStore.InstallRevisionFrontierLocked(frontier)
 		state, roles := f.e.Catalog.State, f.e.RoleStore.Published
-		_, validationErr := f.e.journalRolePublicationLocked(journal, false)
-		publication, materializeErr := f.e.journalRolePublicationLocked(journal, true)
+		_, validationErr := EngineJournalRolePublicationLocked(f.e, journal, false)
+		publication, materializeErr := EngineJournalRolePublicationLocked(f.e, journal, true)
 		unpublished := f.e.Catalog.State == state && f.e.RoleStore.Published == roles && f.e.RoleStore.NextRevision() == frontier
 		f.e.Mu.Unlock()
 		if !unpublished {

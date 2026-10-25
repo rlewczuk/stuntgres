@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -95,3 +96,33 @@ func PLQueryRowsResultRef(x *plQueryRows) *Result { return &x.result }
 
 // PLQueryRowsSchemaRef returns &x.schema.
 func PLQueryRowsSchemaRef(x *plQueryRows) *[]catalog.Column { return &x.schema }
+
+// FormatPLDiagnosticIdentity calls formatPLDiagnosticIdentity.
+func FormatPLDiagnosticIdentity(read catalog.Read, reader catalog.DefinitionReader, path []ids.ObjectAddress, d *catalog.Procedure) string {
+	return formatPLDiagnosticIdentity(read, reader, path, d)
+}
+
+// PLTriggerRelation calls plTriggerRelation.
+func PLTriggerRelation(read catalog.Read, relation *catalog.Relation) (proc.PLTriggerRelation, error) {
+	return plTriggerRelation(read, relation)
+}
+
+// ScopeAssignPLTarget calls x.assignPLTarget.
+func ScopeAssignPLTarget(x *StatementScope, f *proc.PLFrame, checked proc.PLTarget, raw parser.Expr, query *parser.Select, read catalog.Read, origin plNoticeOrigin) (sqltype.Value, error) {
+	return x.assignPLTarget(f, checked, raw, query, read, origin)
+}
+
+// ScopeConvertPLValue calls x.convertPLValue.
+func ScopeConvertPLValue(x *StatementScope, value sqltype.Value, target sqltype.Usage) (sqltype.Value, error) {
+	return x.convertPLValue(value, target)
+}
+
+// ScopePLRoutineDiagnosticIdentity calls x.plRoutineDiagnosticIdentity.
+func ScopePLRoutineDiagnosticIdentity(x *StatementScope, read catalog.Read, d *catalog.Procedure) string {
+	return x.plRoutineDiagnosticIdentity(read, d)
+}
+
+// ScopePLRuntimeError calls x.plRuntimeError.
+func ScopePLRuntimeError(x *StatementScope, err error, read catalog.Read, d *catalog.Procedure, start parser.Position, end parser.Position, origin parser.Position, action string, expression bool) error {
+	return x.plRuntimeError(err, read, d, start, end, origin, action, expression)
+}

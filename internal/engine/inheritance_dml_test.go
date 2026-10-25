@@ -53,10 +53,10 @@ func TestInheritanceDMLAdmission(t *testing.T) {
 	inheritanceLifecycleInstall(e, p, l, r, d)
 	s, done := inheritanceDMLScope(t, e, p, context.Background())
 	defer done()
-	if err := s.acquireInheritedMutationTargets(&parser.Update{Only: true}); err != nil || len(s.InheritedTargets) != 0 {
+	if err := ScopeAcquireInheritedMutationTargets(s, &parser.Update{Only: true}); err != nil || len(s.InheritedTargets) != 0 {
 		t.Fatal("ONLY acquired descendants", err)
 	}
-	if err := s.acquireInheritedMutationTargets(&parser.Update{}); err != nil {
+	if err := ScopeAcquireInheritedMutationTargets(s, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
 	refs := s.Command.TargetRefs(s.LockedRef)
@@ -75,7 +75,7 @@ func TestInheritanceDMLAdmission(t *testing.T) {
 			t.Fatal("missing physical RX grant", ref)
 		}
 	}
-	if err := s.acquireInheritedMutationTargets(&parser.Delete{}); err != nil || len(s.InheritedTargets) != 3 {
+	if err := ScopeAcquireInheritedMutationTargets(s, &parser.Delete{}); err != nil || len(s.InheritedTargets) != 3 {
 		t.Fatal("readmission duplicated targets", err)
 	}
 }
@@ -125,21 +125,21 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 	inheritanceLifecycleInstall(e, p, c, outsider)
 	s, done := inheritanceDMLScope(t, e, p, context.Background())
 	defer done()
-	if err := s.acquireInheritedMutationTargets(&parser.Delete{}); err != nil {
+	if err := ScopeAcquireInheritedMutationTargets(s, &parser.Delete{}); err != nil {
 		t.Fatal(err)
 	}
 	child := s.InheritedTargets[0]
-	if s.mutationStorage(child.Ref) != e.Storage.Relations[c.Address()] || s.mutationStorage(s.LockedRef) != e.Storage.Relations[p.Address()] {
+	if ScopeMutationStorage(s, child.Ref) != e.Storage.Relations[c.Address()] || ScopeMutationStorage(s, s.LockedRef) != e.Storage.Relations[p.Address()] {
 		t.Fatal("manifest lost stores")
 	}
 	foreign := child.Ref
 	foreign.Address = outsider.Address()
-	if s.mutationStorage(foreign) != nil {
+	if ScopeMutationStorage(s, foreign) != nil {
 		t.Fatal("unrelated live table gained mutation authority")
 	}
 	foreign = child.Ref
 	foreign.Epoch++
-	if s.mutationStorage(foreign) != nil {
+	if ScopeMutationStorage(s, foreign) != nil {
 		t.Fatal("wrong epoch gained mutation authority")
 	}
 	before := s.InheritedTargets[0]
@@ -148,7 +148,7 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 	next.ObjectName = "renamed"
 	e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
 	e.Catalog.State.SetDescriptor(c.Address(), &next)
-	if err := s.acquireInheritedMutationTargets(&parser.Update{}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := ScopeAcquireInheritedMutationTargets(s, &parser.Update{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed descendant silently rebound", err)
 	}
 	if s.InheritedTargets[0].Ref != before.Ref || s.InheritedTargets[0].Relation != before.Relation || s.InheritedTargets[0].Storage != before.Storage {

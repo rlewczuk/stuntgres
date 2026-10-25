@@ -81,7 +81,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 					t.Fatal("fresh captured CONNECT denial", err, want)
 				}
 			}
-			if len(e.sessions) != 0 || e.roleSessionCountLocked(login) != 0 {
+			if len(EngineSessions(e)) != 0 || EngineRoleSessionCountLocked(e, login) != 0 {
 				t.Fatal("failed initialization consumed registry/count resources")
 			}
 			e.Mu.Lock()
@@ -97,7 +97,7 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 			if err := live.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if len(e.sessions) != 0 || e.roleSessionCountLocked(login) != 0 {
+			if len(EngineSessions(e)) != 0 || EngineRoleSessionCountLocked(e, login) != 0 {
 				t.Fatal("physical close leaked authenticated count")
 			}
 		})
@@ -124,7 +124,7 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 		t.Fatal("CONNECT revoke terminated admitted session", err)
 	}
 	op.Done()
-	if !live.IsLive() || live.CountedAuthenticated != login || e.roleSessionCountLocked(login) != 1 {
+	if !live.IsLive() || live.CountedAuthenticated != login || EngineRoleSessionCountLocked(e, login) != 1 {
 		t.Fatal("revocation changed physical lifetime or authenticated count")
 	}
 	fresh, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
@@ -137,7 +137,7 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Detail != "User does not have CONNECT privilege." {
 		t.Fatal("CONNECT denial must precede exhausted role connection count", err)
 	}
-	if e.roleSessionCountLocked(login) != 1 {
+	if EngineRoleSessionCountLocked(e, login) != 1 {
 		t.Fatal("denied session consumed connection count")
 	}
 }

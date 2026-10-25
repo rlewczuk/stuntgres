@@ -51,9 +51,9 @@ func TestTypedPublicationDefinitionProviderReservation(t *testing.T) {
 				go func() { reset <- Reset(context.Background(), e) }()
 				deadline := time.Now().Add(3 * time.Second)
 				for {
-					e.ReplacementMu.mu.Lock()
-					queued := e.ReplacementMu.readers == 1 && e.ReplacementMu.writers == 1 && !e.ReplacementMu.writing
-					e.ReplacementMu.mu.Unlock()
+					ReplacementAdmissionMuRef(&e.ReplacementMu).Lock()
+					queued := ReplacementAdmissionReaders(&e.ReplacementMu) == 1 && ReplacementAdmissionWriters(&e.ReplacementMu) == 1 && !ReplacementAdmissionWriting(&e.ReplacementMu)
+					ReplacementAdmissionMuRef(&e.ReplacementMu).Unlock()
 					if queued {
 						break
 					}

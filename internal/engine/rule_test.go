@@ -440,16 +440,16 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	e, _, src, sink := ruleUnitCatalog(t)
 	start := time.Unix(10, 0)
 	expected := &StatementDescription{}
-	s := &StatementScope{Op: &session.Operation{}, statementStart: start, Expected: expected}
+	s := NewScope(ScopeFields{Op: &session.Operation{}, StatementStart: start, Expected: expected})
 	s.LockedRef, s.LockedDescriptor = ruleUnitRef(e, src), src
-	s.self = s
-	s.Stage.self = &s.Stage
-	s.Stage.scope = s
+	SetScopeSelf(s, s)
+	SetWriteStageSelf(&s.Stage, &s.Stage)
+	SetWriteStageScope(&s.Stage, s)
 	s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{src.Address(): {{Row: 1, Version: 1}}}
 	before := s.RuleScratch()
 	stageRows := s.Stage.Rows
 	s.InstallRuleScratch(RuleCommandScratch{Ref: ruleUnitRef(e, sink), Descriptor: sink})
-	if s.Stage.self != &s.Stage || s.Stage.scope != s || len(s.Stage.Rows[src.Address()]) != 1 || s.Expected != expected || s.statementStart != start {
+	if WriteStageSelf(&s.Stage) != &s.Stage || WriteStageScope(&s.Stage) != s || len(s.Stage.Rows[src.Address()]) != 1 || s.Expected != expected || ScopeStatementStart(s) != start {
 		t.Fatal("action scratch changed original envelope/stage")
 	}
 	s.InstallRuleScratch(before)

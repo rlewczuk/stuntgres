@@ -251,7 +251,7 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 				rows.Selection = []int{1}
 				rows.Slots = []int{0}
 			}
-			if err := e.captureRegclassOutput(op, rows); err != nil {
+			if err := EngineCaptureRegclassOutput(e, op, rows); err != nil {
 				t.Fatal(err)
 			}
 			text, err := rows.RegclassText(base)

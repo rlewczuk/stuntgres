@@ -66,7 +66,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 					}
 				}
 			}()
-			go func() { done <- scope.acquireMaterializedRefresh(stmt) }()
+			go func() { done <- ScopeAcquireMaterializedRefresh(scope, stmt) }()
 			if tc.blocked {
 				lockPending(t, e, 1)
 				if !tc.target {

@@ -39,7 +39,7 @@ func TestSerialIncomingDefaultDependencyFence(t *testing.T) {
 		}
 	}
 	bad.ColumnMeta.Defaults[1] = definition
-	if err := (relationProvider).Validate(view, &bad); err == nil {
+	if err := (RelationProvider()).Validate(view, &bad); err == nil {
 		t.Fatal("untracked default edge admitted")
 	}
 	if _, err := stored.DefaultSQL(context.Background(), view, d.ColumnMeta.Defaults[1].Expression); err != nil {

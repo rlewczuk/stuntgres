@@ -116,13 +116,13 @@ func TestSequencePreparedAuthority(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		if valid, err := e.sequenceAnalysisValidLocked(auth, d.Sequences); err != nil || !valid {
+		if valid, err := EngineSequenceAnalysisValidLocked(e, auth, d.Sequences); err != nil || !valid {
 			e.Mu.Unlock()
 			op.Done()
 			t.Fatal(valid, err)
 		}
 		allocations := testing.AllocsPerRun(100, func() {
-			if valid, err := e.sequenceAnalysisValidLocked(auth, d.Sequences); err != nil || !valid {
+			if valid, err := EngineSequenceAnalysisValidLocked(e, auth, d.Sequences); err != nil || !valid {
 				panic("unchanged analysis became invalid")
 			}
 		})

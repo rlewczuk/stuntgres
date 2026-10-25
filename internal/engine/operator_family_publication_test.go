@@ -35,7 +35,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	setup.initialTables = map[ids.ObjectAddress]*storage.Relation{parent.Address(): store}
+	SetStageInitialTables(setup, map[ids.ObjectAddress]*storage.Relation{parent.Address(): store})
 	preparedSetup, err := e.ValidateCatalogStage(context.Background(), setup)
 	if err != nil {
 		t.Fatal(err)

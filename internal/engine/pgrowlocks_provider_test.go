@@ -46,7 +46,7 @@ func TestPgrowlocksProviderIdentity(t *testing.T) {
 	if err := extension.StockPgrowlocks.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
-	if p.Name() != "pgrowlocks" || p.Signature != "25" || p.Result != 2249 || p.Volatility != expr.Volatile || !p.Strict || !procedureReturnsSet(p) || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace {
+	if p.Name() != "pgrowlocks" || p.Signature != "25" || p.Result != 2249 || p.Volatility != expr.Volatile || !p.Strict || !ProcedureReturnsSet(p) || p.Owner != ext.Owner || p.Namespace() != ext.TargetNamespace {
 		t.Fatal("release declaration", p)
 	}
 	n := pgrowlocksUnitExpression(t, e)

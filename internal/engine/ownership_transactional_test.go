@@ -19,9 +19,9 @@ import (
 func ownershipUnitCapture(t *testing.T, e *Engine, stage *CatalogStage, journal *session.Journal) {
 	t.Helper()
 	e.Mu.Lock()
-	err := e.captureCatalogStageLocked(stage, journal, e.PrivateCatalogLocked(journal).State(), nil)
+	err := EngineCaptureCatalogStageLocked(e, stage, journal, e.PrivateCatalogLocked(journal).State(), nil)
 	if err == nil {
-		e.stageCatalogChangesLocked(stage, journal)
+		EngineStageCatalogChangesLocked(e, stage, journal)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -114,10 +114,10 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 		next.Revision++
 		second.RoleCandidateRecord = &next
 	}
-	if err := second.validateRoleCandidate(auth.RoleRecord); err != nil {
+	if err := StageValidateRoleCandidate(second, auth.RoleRecord); err != nil {
 		t.Fatal("private predecessor rejected", err)
 	}
-	if err := second.validateRoleCandidate(base); err == nil {
+	if err := StageValidateRoleCandidate(second, base); err == nil {
 		t.Fatal("committed root incorrectly accepted as private predecessor")
 	}
 	if _, err := e.ValidateCatalogStage(context.Background(), second); err != nil {
@@ -143,20 +143,20 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	setFixtureEdges(&nondeletion, survivors)
 	nondeletion.Revision++
 	second.RoleCandidateRecord = &nondeletion
-	if err := second.validateRoleCandidate(auth.RoleRecord); err == nil {
+	if err := StageValidateRoleCandidate(second, auth.RoleRecord); err == nil {
 		t.Fatal("nondeletion membership candidate accepted")
 	}
 	second.RoleCandidateRecord = child.Roles
 	bad := *second.RoleCandidateRecord
 	bad.Revision++
 	second.RoleCandidateRecord = &bad
-	if err := second.validateRoleCandidate(auth.RoleRecord); err == nil {
+	if err := StageValidateRoleCandidate(second, auth.RoleRecord); err == nil {
 		t.Fatal("invalid candidate revision accepted")
 	}
 	exhausted := *auth.RoleRecord
 	exhausted.Revision = ^uint64(0)
 	second.RoleRevision = exhausted.Revision
-	if err := second.validateRoleCandidate(&exhausted); err == nil {
+	if err := StageValidateRoleCandidate(second, &exhausted); err == nil {
 		t.Fatal("revision exhaustion accepted")
 	}
 	if e.RoleStore.Published != base || e.Catalog.State != state {
@@ -170,7 +170,7 @@ func TestRoleOwnershipTransactionalRoleOverlay(t *testing.T) {
 	peerRoles := e.RoleStore.Published
 	e.Mu.Lock()
 	op.Session.Mu.Lock()
-	err = e.refreshOperationRolesLocked(op)
+	err = EngineRefreshOperationRolesLocked(e, op)
 	refreshed := op.Session.Transactions.Catalog
 	op.Session.Mu.Unlock()
 	e.Mu.Unlock()
@@ -236,10 +236,10 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			state, roles := e.Catalog.State, e.RoleStore.Published
 			if veto == "invalid-member" {
 				e.Mu.Lock()
-				err = e.captureCatalogStageLocked(stage, journal.Clone(), e.PrivateCatalogLocked(journal).State(), nil)
+				err = EngineCaptureCatalogStageLocked(e, stage, journal.Clone(), e.PrivateCatalogLocked(journal).State(), nil)
 				e.Mu.Unlock()
 			} else {
-				_, err = e.preparePrivateCatalog(ctx, journal, stage.Base.Epoch())
+				_, err = EnginePreparePrivateCatalog(e, ctx, journal, stage.Base.Epoch())
 				if err == nil {
 					e.Mu.Lock()
 					err = e.CatalogPreflightLocked(journal)
@@ -402,7 +402,7 @@ func TestRoleOwnershipTransactionalUnrelatedCommit(t *testing.T) {
 	}
 	ownershipUnitPublish(t, e, other)
 	committed, roles := e.Catalog.State, e.RoleStore.Published
-	prepared, err := e.preparePrivateCatalog(context.Background(), journal, stage.Base.Epoch())
+	prepared, err := EnginePreparePrivateCatalog(e, context.Background(), journal, stage.Base.Epoch())
 	if err != nil {
 		t.Fatal("unrelated commit invalidated ownership journal", err)
 	}

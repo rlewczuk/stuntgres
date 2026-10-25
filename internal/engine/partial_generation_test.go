@@ -20,7 +20,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f, scope, leaf, view := partialMaskFixture(t)
 			f.e.Mu.Lock()
-			mask := f.e.capturePartialMaskLocked(scope, leaf, view, plan.RowMark{})
+			mask := EngineCapturePartialMaskLocked(f.e, scope, leaf, view, plan.RowMark{})
 			f.e.Mu.Unlock()
 			if mask == nil {
 				t.Fatal("admitted partial index did not retain a membership mask")
