@@ -281,13 +281,7 @@ func background(options serveOptions) error {
 		return err
 	}
 	defer null.Close()
-	environment := make([]string, 0, len(os.Environ())+1)
-	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "STUNTGRES_READY_FD=") {
-			environment = append(environment, entry)
-		}
-	}
-	environment = append(environment, "STUNTGRES_READY_FD=3")
+	environment := append(childEnvironment(os.Environ()), "STUNTGRES_READY_FD=3")
 	process, err := os.StartProcess(executable, append([]string{executable}, serveArguments(options)...), &os.ProcAttr{
 		Env:   environment,
 		Files: []*os.File{null, os.Stdout, os.Stderr, writer},

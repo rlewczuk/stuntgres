@@ -1,3 +1,9 @@
+The `stuntgres` server's command line now uses cobra and viper. Every option
+can also be set with a `STUNTGRES_<OPTION>` environment variable or a
+`--config` YAML/TOML/JSON file (flag, then environment, then file, then default),
+and `--help` is generated per command. Long options require two dashes
+(`--listen`); the single-dash long forms are no longer accepted.
+
 The `stuntgres` server's new `-q`/`--querylog` option (requires `-L`) writes
 `query.log`: one JSONL record per command cycle with the query, parameters,
 frontend steps and every backend message as exact base64 bytes plus a readable

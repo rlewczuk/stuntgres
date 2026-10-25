@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -10,6 +9,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 type serveOptions struct {
@@ -24,133 +26,207 @@ type cliCommand struct {
 	grantsSet bool
 }
 
-const usage = `Usage:
-  stuntgres serve|start [-l ADDR] [-d DUMPDIR] [-L LOGDIR] -u USERFILE [-p PIDFILE] [-r] [-v] [-b] [-q]
-  stuntgres dump|stop [-p PIDFILE]
-  stuntgres passwd -u USERFILE [--databases DB1,DB2] USER
+// errHelp reports that help was printed and no command should run.
+var errHelp = errors.New("help requested")
 
-serve runs in the foreground; start (or serve -b) reexecutes in the background.
+const rootDescription = `stuntgres serves the embedded SQL engine over the PostgreSQL wire protocol:
+protocol 3.0/3.2 simple and extended queries, prepared statements, portals and
+streaming COPY over the bounded in-memory engine, with native SQL dumps.
+
+Options resolve in this order: command-line flag, STUNTGRES_<OPTION>
+environment variable (for example STUNTGRES_LISTEN or STUNTGRES_USERFILE),
+--config FILE (YAML, TOML or JSON keyed by long option names), default.
+Filesystem paths resolve before daemonizing.
+
+WARNING: cleartext password authentication without TLS. Use loopback or a
+trusted protected network; non-loopback listening exposes passwords and data.`
+
+const serveDescription = `serve runs in the foreground; start (or serve -b) reexecutes in the background.
 Listen defaults to 127.0.0.1:5434; a bare port binds loopback. -L selects logs.
 -r restores the newest native SQL dump per database and requires -d.
--q writes every command cycle with its exact responses to query.log; requires -L.
-USR1/dump triggers asynchronous dumps; stop waits for shutdown and final dumps.
-passwd prompts twice; existing grants are preserved unless --databases is given.
-All long aliases: --listen, --dumpdir, --logdir, --userfile, --pidfile,
---restore, --verbose, --background, --querylog. Filesystem paths resolve before daemonizing.
+-q writes every command cycle with its exact responses to query.log; requires -L.`
 
-PostgreSQL protocol 3.0/3.2 simple and extended queries, prepared statements,
-portals and streaming COPY over the bounded in-memory SQL engine; native dumps.
-WARNING: cleartext password authentication without TLS. Use loopback or a
-trusted protected network; non-loopback listening exposes passwords and data.
-`
-
+// parseCLI resolves args, environment and the optional config file into a
+// command without running it. Help output returns errHelp.
 func parseCLI(args []string, out io.Writer) (cliCommand, error) {
 	var command cliCommand
-	if len(args) == 0 {
-		_, _ = io.WriteString(out, usage)
-		return command, errors.New("a command is required")
-	}
-	if args[0] == "--help" || args[0] == "-h" {
-		_, err := io.WriteString(out, usage)
-		if err != nil {
-			return command, err
-		}
-		return command, flag.ErrHelp
-	}
-	command.command = args[0]
-	flags := flag.NewFlagSet(command.command, flag.ContinueOnError)
-	flags.SetOutput(out)
-	flags.Usage = func() { _, _ = io.WriteString(out, usage) }
-	options := &command.options
 	cwd, err := os.Getwd()
 	if err != nil {
 		return command, err
 	}
-	options.pidfile = filepath.Join(cwd, "stuntgres.pid")
-	pathFlag := func(short, long string, target *string, initial, description string) {
-		flags.StringVar(target, short, initial, description)
-		flags.StringVar(target, long, initial, description)
+	root := newRootCommand(&command, filepath.Join(cwd, "stuntgres.pid"))
+	root.SetArgs(args)
+	root.SetOut(out)
+	root.SetErr(out)
+	if len(args) == 0 {
+		_ = root.Help()
+		return command, errors.New("a command is required")
 	}
-	boolFlag := func(short, long string, target *bool, description string) {
-		flags.BoolVar(target, short, false, description)
-		flags.BoolVar(target, long, false, description)
-	}
-	switch command.command {
-	case "serve", "start":
-		pathFlag("l", "listen", &options.listen, "127.0.0.1:5434", "listen address")
-		pathFlag("d", "dumpdir", &options.dumpdir, "", "native SQL dump directory")
-		pathFlag("L", "logdir", &options.logdir, "", "JSONL log directory")
-		pathFlag("u", "userfile", &options.userfile, "", "password and database grant file")
-		pathFlag("p", "pidfile", &options.pidfile, options.pidfile, "PID ownership file")
-		boolFlag("r", "restore", &options.restore, "restore newest dumps")
-		boolFlag("v", "verbose", &options.verbose, "enable DEBUG logs")
-		boolFlag("b", "background", &options.background, "run in background")
-		boolFlag("q", "querylog", &options.querylog, "log queries with exact responses")
-	case "dump", "stop":
-		pathFlag("p", "pidfile", &options.pidfile, options.pidfile, "PID ownership file")
-	case "passwd":
-		pathFlag("u", "userfile", &options.userfile, "", "password and database grant file")
-		var databaseList string
-		flags.StringVar(&databaseList, "databases", "", "exact comma-separated database grants")
-		if err := flags.Parse(args[1:]); err != nil {
-			return command, err
-		}
-		flags.Visit(func(f *flag.Flag) {
-			if f.Name == "databases" {
-				command.grantsSet = true
-			}
-		})
-		if options.userfile == "" || flags.NArg() != 1 {
-			return command, errors.New("passwd requires -u USERFILE and exactly one USER")
-		}
-		command.username = flags.Arg(0)
-		if err := validName(command.username, false); err != nil {
-			return command, err
-		}
-		if command.grantsSet {
-			command.databases = strings.Split(databaseList, ",")
-			if err := validateGrants(command.databases); err != nil {
-				return command, err
-			}
-		}
-		options.userfile, err = filepath.Abs(options.userfile)
-		return command, err
-	default:
-		_, _ = io.WriteString(out, usage)
-		return command, fmt.Errorf("unknown command %q", command.command)
-	}
-	if err := flags.Parse(args[1:]); err != nil {
+	if err := root.Execute(); err != nil {
 		return command, err
 	}
-	if flags.NArg() != 0 {
-		return command, errors.New("unexpected positional arguments")
-	}
-	if command.command == "serve" || command.command == "start" {
-		if options.userfile == "" {
-			return command, errors.New("serve/start requires -u USERFILE")
-		}
-		if options.restore && options.dumpdir == "" {
-			return command, errors.New("restore requires a dump directory")
-		}
-		if options.querylog && options.logdir == "" {
-			return command, errors.New("querylog requires a log directory")
-		}
-		options.listen, err = normalizeListen(options.listen)
-		if err != nil {
-			return command, err
-		}
-		options.background = options.background || command.command == "start"
-	}
-	for _, path := range []*string{&options.dumpdir, &options.logdir, &options.userfile, &options.pidfile} {
-		if *path != "" {
-			*path, err = filepath.Abs(*path)
-			if err != nil {
-				return command, err
-			}
-		}
+	if command.command == "" {
+		return command, errHelp
 	}
 	return command, nil
 }
+
+func newRootCommand(command *cliCommand, pidfile string) *cobra.Command {
+	root := &cobra.Command{
+		Use:           "stuntgres",
+		Short:         "PostgreSQL wire-protocol server for the stuntgres engine",
+		Long:          rootDescription,
+		SilenceErrors: true,
+		SilenceUsage:  true,
+	}
+	root.CompletionOptions.DisableDefaultCmd = true
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return fmt.Errorf("%w (see %q)", err, cmd.CommandPath()+" --help")
+	})
+	for _, name := range []string{"serve", "start"} {
+		root.AddCommand(newServeCommand(name, command, pidfile))
+	}
+	root.AddCommand(newControlCommand("dump", "Request an asynchronous dump from the running server (SIGUSR1)", command, pidfile))
+	root.AddCommand(newControlCommand("stop", "Stop the running server; waits for shutdown and final dumps", command, pidfile))
+	root.AddCommand(newPasswdCommand(command))
+	return root
+}
+
+func newServeCommand(name string, command *cliCommand, pidfile string) *cobra.Command {
+	short := "Serve in the foreground"
+	if name == "start" {
+		short = "Serve in the background and wait for readiness"
+	}
+	cmd := &cobra.Command{
+		Use:   name + " -u USERFILE",
+		Short: short,
+		Long:  serveDescription,
+		Args:  cobra.NoArgs,
+	}
+	flags := cmd.Flags()
+	flags.StringP(keyListen, "l", "127.0.0.1:5434", "listen address")
+	flags.StringP(keyDumpdir, "d", "", "native SQL dump directory")
+	flags.StringP(keyLogdir, "L", "", "JSONL log directory")
+	flags.StringP(keyUserfile, "u", "", "password and database grant file")
+	flags.StringP(keyPidfile, "p", pidfile, "PID ownership file")
+	flags.BoolP(keyRestore, "r", false, "restore newest dumps")
+	flags.BoolP(keyVerbose, "v", false, "enable DEBUG logs")
+	flags.BoolP(keyBackground, "b", false, "run in background")
+	flags.BoolP(keyQuerylog, "q", false, "log queries with exact responses")
+	addConfigFlag(flags)
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		options, err := resolveServeOptions(cmd.Flags())
+		if err != nil {
+			return err
+		}
+		options.background = options.background || name == "start"
+		command.command, command.options = name, options
+		return nil
+	}
+	return cmd
+}
+
+func newControlCommand(name, short string, command *cliCommand, pidfile string) *cobra.Command {
+	cmd := &cobra.Command{Use: name, Short: short, Args: cobra.NoArgs}
+	cmd.Flags().StringP(keyPidfile, "p", pidfile, "PID ownership file")
+	addConfigFlag(cmd.Flags())
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		config, err := newConfig(cmd.Flags(), keyPidfile)
+		if err != nil {
+			return err
+		}
+		path, err := config.path(keyPidfile)
+		if err != nil {
+			return err
+		}
+		command.command, command.options.pidfile = name, path
+		return nil
+	}
+	return cmd
+}
+
+func newPasswdCommand(command *cliCommand) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "passwd -u USERFILE [--databases DB1,DB2] USER",
+		Short: "Set an account password and database grants",
+		Long: `passwd prompts twice; existing grants are preserved unless --databases is given.
+New accounts require --databases.`,
+		Args: cobra.ExactArgs(1),
+	}
+	cmd.Flags().StringP(keyUserfile, "u", "", "password and database grant file")
+	cmd.Flags().String("databases", "", "exact comma-separated database grants")
+	addConfigFlag(cmd.Flags())
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		config, err := newConfig(cmd.Flags(), keyUserfile)
+		if err != nil {
+			return err
+		}
+		userfile, err := config.path(keyUserfile)
+		if err != nil {
+			return err
+		}
+		if userfile == "" {
+			return errors.New("passwd requires -u USERFILE")
+		}
+		if err := validName(args[0], false); err != nil {
+			return err
+		}
+		command.grantsSet = cmd.Flags().Changed("databases")
+		if command.grantsSet {
+			list, _ := cmd.Flags().GetString("databases")
+			command.databases = strings.Split(list, ",")
+			if err := validateGrants(command.databases); err != nil {
+				return err
+			}
+		}
+		command.command, command.username, command.options.userfile = "passwd", args[0], userfile
+		return nil
+	}
+	return cmd
+}
+
+func addConfigFlag(flags *pflag.FlagSet) {
+	flags.String(configFlag, "", "configuration file (YAML, TOML or JSON)")
+}
+
+func resolveServeOptions(flags *pflag.FlagSet) (serveOptions, error) {
+	var options serveOptions
+	config, err := newConfig(flags, serveKeys...)
+	if err != nil {
+		return options, err
+	}
+	for _, field := range []struct {
+		key    string
+		target *bool
+	}{{keyRestore, &options.restore}, {keyVerbose, &options.verbose}, {keyBackground, &options.background}, {keyQuerylog, &options.querylog}} {
+		if *field.target, err = config.boolean(field.key); err != nil {
+			return options, err
+		}
+	}
+	if options.listen, err = config.text(keyListen); err != nil {
+		return options, err
+	}
+	for _, field := range []struct {
+		key    string
+		target *string
+	}{{keyDumpdir, &options.dumpdir}, {keyLogdir, &options.logdir}, {keyUserfile, &options.userfile}, {keyPidfile, &options.pidfile}} {
+		if *field.target, err = config.path(field.key); err != nil {
+			return options, err
+		}
+	}
+	if options.userfile == "" {
+		return options, errors.New("serve/start requires -u USERFILE")
+	}
+	if options.restore && options.dumpdir == "" {
+		return options, errors.New("restore requires a dump directory")
+	}
+	if options.querylog && options.logdir == "" {
+		return options, errors.New("querylog requires a log directory")
+	}
+	options.listen, err = normalizeListen(options.listen)
+	return options, err
+}
+
 func normalizeListen(address string) (string, error) {
 	if !strings.Contains(address, ":") {
 		address = net.JoinHostPort("127.0.0.1", address)
@@ -173,6 +249,9 @@ func normalizeListen(address string) (string, error) {
 	}
 	return address, nil
 }
+
+// serveArguments is the daemon child's complete configuration; the child
+// environment carries no configuration variables (see childEnvironment).
 func serveArguments(options serveOptions) []string {
 	args := []string{"serve", "--listen", options.listen, "--userfile", options.userfile, "--pidfile", options.pidfile}
 	if options.dumpdir != "" {
@@ -192,9 +271,10 @@ func serveArguments(options serveOptions) []string {
 	}
 	return args
 }
+
 func runCLI(args []string) error {
 	command, err := parseCLI(args, os.Stderr)
-	if errors.Is(err, flag.ErrHelp) {
+	if errors.Is(err, errHelp) {
 		return nil
 	}
 	if err != nil {
