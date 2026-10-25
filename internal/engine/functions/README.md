@@ -443,10 +443,12 @@ publication and lock-manager tickets stay in the engine.
 
 ## Testing
 
-Leaf units of nodes, kernels, providers and the registry live here; units that
-bind through the real analyzer, descriptors, publication, grouping/windows or
-resource cleanup stay with their engine owner (root, `analyze`, `exec`). Public
-SQL behavior is tested only in `reference/`
+Leaf units of nodes, kernels, providers and the registry live here. Tests of
+builtin functions and aggregates that bind through the real analyzer or run on
+a composed engine (binding, retag and remap, routine authority, grouping sets,
+series, cancellation and publication) live in `enginetests/`; units of other
+engine mechanisms stay with their owner (`analyze`, `exec`). Public SQL
+behavior is tested only in `reference/`
 ([docs/TESTING.md](../../../docs/TESTING.md)).
 
 - Unit fakes embed `expr.Info` (arguments) or the nil `unitCapabilities`
@@ -455,7 +457,11 @@ SQL behavior is tested only in `reference/`
 - Allocation checks construct caller-owned scratch before measuring.
 - Frame names matched by tests: `datetimeSleepWaitRemaining`
   (`reference/datetime` sleep cancellation). Renaming or moving it makes that
-  observer wait on a runaway query; update the probe with it.
+  observer wait on a runaway query; update the probe with it. The aggregate
+  cancellation tests in `enginetests/` match `IntegralBitwiseAggregateProvider`,
+  `BitStringAggregateProvider.fold` and `(*HypotheticalSet).PrepareOrdered` and
+  `FinalizeOrdered` here, plus `exec` and `sqltype` frames; grep them before
+  renaming.
 
 ```sh
 make check RUN='^Test(LookupClaimsRegisteredNames|DefinitionsAreWellFormed|AggregateDefinitionsAreWellFormed|Lookup(Aggregate|WindowFunction)ClaimsRegisteredNames)$'  # registries

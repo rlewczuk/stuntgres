@@ -416,14 +416,19 @@ array, codec or index authority.
 Units here call codec, value and plan functions directly; public SQL and wire
 behavior belong in `reference/` (mostly `types`, `operators`,
 `binary_json_arrays`, `patterns_encoding`, `catalogs` and `sessions`). Follow
-[docs/TESTING.md](../../docs/TESTING.md).
+[docs/TESTING.md](../../docs/TESTING.md). Tests of types, operators, casts,
+comparisons, collation derivation, subscripts, SQL/JSON and jsonpath that run
+on a composed engine live in `enginetests/`.
 
 - **Frames matched by tests.** `TestSimilarActualMatcherCancellation` and
   `TestRegexpSubstrCancellation` cancel only when specific frames are on the
   stack: `matchPGRegexStates`, `pgRegexWork.step`, `regexpFlags`,
   `RegexpPlan.evaluate` and `matchPGRegexTagged`. Renaming them breaks the tests.
-  Other cancellation units match frame suffixes too; grep tests for
-  `frame.Function` before renaming a function.
+  Other cancellation units match frame suffixes too, among them the engine
+  aggregate tests in `internal/engine/functions/enginetests` (`Comparison.Compare`,
+  `Grouping.PrepareKey`, `Hash` and `Equal`, `RangeAggregate.Advance`,
+  `(*Descriptor).normalizeRangeMembers`); grep tests for `frame.Function` and
+  `runtime.Stack` before renaming a function.
 - **Allocation budgets.** `TestBinaryHashAllocations` and the pgcrypto
   BF/bcrypt allocation tests fix per-call allocation counts and bytes; build
   inputs and plans outside measurement.
