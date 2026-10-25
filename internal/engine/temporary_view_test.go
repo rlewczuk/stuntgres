@@ -67,9 +67,9 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	}
 	candidate := changes.Clone()
 	e.Mu.Lock()
-	err := e.captureCatalogStageLocked(stage, candidate, e.PrivateCatalogLocked(changes).State(), nil)
+	err := EngineCaptureCatalogStageLocked(e, stage, candidate, e.PrivateCatalogLocked(changes).State(), nil)
 	if err == nil {
-		e.stageCatalogChangesLocked(stage, candidate)
+		EngineStageCatalogChangesLocked(e, stage, candidate)
 	}
 	catalog := e.PrivateCatalogLocked(candidate)
 	e.Mu.Unlock()
@@ -106,16 +106,16 @@ func TestTemporaryViewTerminalClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
+	err := EngineCaptureCatalogStageLocked(e, stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
 	if err == nil {
-		e.stageCatalogChangesLocked(stage, changes)
+		EngineStageCatalogChangesLocked(e, stage, changes)
 	}
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
-	_, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, changes)
+	_, _, next, err := EnginePrepareTemporaryCommit(e, op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, changes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,9 +144,9 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
-	err = e.captureCatalogStageLocked(stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
+	err = EngineCaptureCatalogStageLocked(e, stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
 	if err == nil {
-		e.stageCatalogChangesLocked(stage, changes)
+		EngineStageCatalogChangesLocked(e, stage, changes)
 	}
 	e.Mu.Unlock()
 	if err != nil {
@@ -157,7 +157,7 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 	ctx, cancel := context.WithCancel(op.Context())
 	cancel()
 	op.Ctx = ctx
-	err = e.publishRows(op, scope.TxRef, nil, nil, changes, nil, nil)
+	err = EnginePublishRows(e, op, scope.TxRef, nil, nil, changes, nil, nil)
 	scope.Finish(err)
 	if !errors.Is(err, context.Canceled) || e.Catalog.State != before || e.Catalog.State.Get(view.Address()) != nil || op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || e.Storage.Relations[view.Address()] != nil {
 		t.Fatal("canceled publication leaked TEMP artifacts", err)
@@ -167,9 +167,9 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 func TestTemporaryViewReplacementProvenance(t *testing.T) {
 	e, _, changes, table, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT v FROM pg_temp.candidate WHERE v>0")
 	e.Mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
+	err := EngineCaptureCatalogStageLocked(e, stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
 	if err == nil {
-		e.stageCatalogChangesLocked(stage, changes)
+		EngineStageCatalogChangesLocked(e, stage, changes)
 	}
 	before := e.PrivateCatalogLocked(changes)
 	e.Mu.Unlock()
@@ -212,9 +212,9 @@ func TestTemporaryViewReplacementProvenance(t *testing.T) {
 func TestTemporaryViewCatalogProviderProvenance(t *testing.T) {
 	e, _, changes, _, stage, view := temporaryViewCandidate(t, parser.OnCommitPreserve, "CREATE VIEW candidate_view AS SELECT 11 AS v FROM pg_catalog.pg_class WHERE relname='candidate_view'")
 	e.Mu.Lock()
-	err := e.captureCatalogStageLocked(stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
+	err := EngineCaptureCatalogStageLocked(e, stage, changes, e.PrivateCatalogLocked(changes).State(), nil)
 	if err == nil {
-		e.stageCatalogChangesLocked(stage, changes)
+		EngineStageCatalogChangesLocked(e, stage, changes)
 	}
 	before := e.PrivateCatalogLocked(changes)
 	e.Mu.Unlock()
@@ -255,7 +255,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 	}
 	before := e.Catalog.State
 	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: stored.ViewOf(view).Syntax()}
-	description, err := e.describeOperation(scope, raw)
+	description, err := EngineDescribeOperation(e, scope, raw)
 	scope.Finish(err)
 	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.Catalog.State != before || op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.Base.Get(view.Address()) != nil {
 		t.Fatal("utility Describe analyzed/published TEMP", description, err)

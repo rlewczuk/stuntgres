@@ -40,7 +40,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if err := preparedUnitControl(t, e, origin, parser.KindPrepareTransaction, "move"); err != nil {
 		t.Fatal(err)
 	}
-	entry := e.prepared.Lookup("move")
+	entry := EnginePreparedRef(e).Lookup("move")
 	if entry == nil || entry.Ticket != ticket || entry.Ref != ref || origin.Transactions.Ticket != nil || origin.TransactionState() != session.TxIdle {
 		t.Fatal("ownership was not transferred once")
 	}
@@ -50,7 +50,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	entry.Claimed = true
 	err = preparedUnitControl(t, e, peer, parser.KindRollbackPrepared, "move")
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "55000" || e.prepared.Lookup("move") != entry {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "55000" || EnginePreparedRef(e).Lookup("move") != entry {
 		t.Fatal(err, "claim consumed resources")
 	}
 	entry.Claimed = false
@@ -60,16 +60,16 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	err = e.completePrepared(canceled, "move", true)
+	err = EngineCompletePrepared(e, canceled, "move", true)
 	canceled.Done()
-	if !errors.Is(err, context.Canceled) || entry.Claimed || e.prepared.Lookup("move") != entry || e.Locks.TransactionTicket(ref) != ticket {
+	if !errors.Is(err, context.Canceled) || entry.Claimed || EnginePreparedRef(e).Lookup("move") != entry || e.Locks.TransactionTicket(ref) != ticket {
 		t.Fatal(err, "cancellation consumed entry or ticket")
 	}
 	origin.RequestEnd(session.CleanClose)
 	if err := origin.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if e.prepared.Lookup("move") != entry || entry.Ticket != ticket {
+	if EnginePreparedRef(e).Lookup("move") != entry || entry.Ticket != ticket {
 		t.Fatal("origin exit consumed registry")
 	}
 	if e.Locks.TransactionTicket(ref) != ticket {
@@ -78,7 +78,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if err := preparedUnitControl(t, e, peer, parser.KindCommitPrepared, "move"); err != nil {
 		t.Fatal(err)
 	}
-	if e.prepared.Len() != 0 {
+	if EnginePreparedRef(e).Len() != 0 {
 		t.Fatal("completed entry retained")
 	}
 	if e.Locks.TransactionTicket(ref) != nil {
@@ -98,7 +98,7 @@ func TestPreparedTransactionFailureEndsStickyFootprint(t *testing.T) {
 	s.Transactions.AccessedTemporary = true
 	err = preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "temp")
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != session.TxIdle || s.Transactions.AccessedTemporary || s.Transactions.Ticket != nil || e.prepared.Len() != 0 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != session.TxIdle || s.Transactions.AccessedTemporary || s.Transactions.Ticket != nil || EnginePreparedRef(e).Len() != 0 {
 		t.Fatal(err, "failed prepare did not dispose entire owner")
 	}
 }

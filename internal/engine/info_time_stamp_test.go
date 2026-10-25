@@ -63,7 +63,7 @@ func TestInfoTimeStampCatalogIdentity(t *testing.T) {
 		t.Fatal(declaration, err)
 	}
 	remove := e.BeginCatalogStage(current)
-	if err := remove.removeObject(e.Catalog.Domain.Ref(current.Epoch(), d.Address()), false); err == nil {
+	if err := StageRemoveObject(remove, e.Catalog.Domain.Ref(current.Epoch(), d.Address()), false); err == nil {
 		t.Fatal("builtin removal admitted")
 	}
 	if !analyze.StatementCatalogType(d.SQLType) {

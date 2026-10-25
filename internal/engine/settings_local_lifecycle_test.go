@@ -89,7 +89,7 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				}
 				transactionEnd(t, s, ref, false)
 			case "cleanup":
-				if err := endTransactionSession(s.Transactions, s.Token()); err != nil {
+				if err := EndTransactionSession(s.Transactions, s.Token()); err != nil {
 					t.Fatal(err)
 				}
 			}

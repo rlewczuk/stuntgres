@@ -98,7 +98,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		}
 		defer scope.Finish(context.Canceled)
 		result, err := scope.Execute(statement(t, "DECLARE implicit_h CURSOR WITH HOLD FOR SELECT i FROM unit_rows"), 0, nil)
-		if err != nil || result.Rows != nil || scope.Completed || !scope.sessionCompleted {
+		if err != nil || result.Rows != nil || scope.Completed || !ScopeSessionCompleted(scope) {
 			t.Fatal("installation classified as external completion", result, err)
 		}
 		c := PayloadOf(s).Cursors.Entries["implicit_h"]

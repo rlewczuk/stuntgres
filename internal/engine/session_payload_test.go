@@ -16,10 +16,10 @@ func TestSessionPayloadHoldsRootResources(t *testing.T) {
 	if p.Cursors == nil || p.Cursors.token != s.SessionToken {
 		t.Fatalf("payload cursors = %+v, want a registry for %v", p.Cursors, s.SessionToken)
 	}
-	if p.preparedSQL == nil || p.preparedSQL.token != s.SessionToken {
-		t.Fatalf("payload prepared registry = %+v, want a registry for %v", p.preparedSQL, s.SessionToken)
+	if PayloadPreparedSQL(p) == nil || PayloadPreparedSQL(p).token != s.SessionToken {
+		t.Fatalf("payload prepared registry = %+v, want a registry for %v", PayloadPreparedSQL(p), s.SessionToken)
 	}
-	if p.notifications.Session != s || EngineOf(p.notifications.Session) != e {
+	if PayloadNotifications(p).Session != s || EngineOf(PayloadNotifications(p).Session) != e {
 		t.Fatal("payload listener is not bound to its session and the session's engine")
 	}
 	s.RequestEnd(session.CleanClose)
@@ -29,7 +29,7 @@ func TestSessionPayloadHoldsRootResources(t *testing.T) {
 	if PayloadOf(s) != p {
 		t.Fatal("session end replaced the payload")
 	}
-	if !p.notifications.Ended {
+	if !PayloadNotifications(p).Ended {
 		t.Fatal("session end did not end the payload listener")
 	}
 }

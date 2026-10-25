@@ -143,9 +143,9 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 	if s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
 		t.Fatalf("init %v %v", s, err)
 	}
-	e.sessionMu.Lock()
-	n := len(e.sessions)
-	e.sessionMu.Unlock()
+	EngineSessionMuRef(e).Lock()
+	n := len(EngineSessions(e))
+	EngineSessionMuRef(e).Unlock()
 	if n != 2 {
 		t.Fatalf("live registry %d", n)
 	}
@@ -401,7 +401,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 
 func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	e := New()
-	s := &session.Session{Host: (*sessionHost)(e), SessionToken: e.Catalog.Domain.Session(1), State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}
+	s := &session.Session{Host: (*SessionHost)(e), SessionToken: e.Catalog.Domain.Session(1), State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(context.Background(), true)
 	calls := 0
@@ -427,9 +427,9 @@ func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	if err := s.WaitEnd(context.Background()); err != nil || calls != 2 {
 		t.Fatal(err, calls)
 	}
-	e.sessionMu.Lock()
-	defer e.sessionMu.Unlock()
-	if len(e.sessions) != 0 {
+	EngineSessionMuRef(e).Lock()
+	defer EngineSessionMuRef(e).Unlock()
+	if len(EngineSessions(e)) != 0 {
 		t.Fatal("failed initialization published")
 	}
 }

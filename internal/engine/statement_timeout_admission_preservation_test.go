@@ -109,11 +109,11 @@ func TestStatementTimeoutAdmissionReplacement(t *testing.T) {
 			replace := func(admitted bool) {
 				control := transactionOperation(t, sess)
 				if admitted {
-					if _, err := e.endAdmitted(control, sess.Transactions, old, false, false, false, time.Time{}, nil); err != nil {
+					if _, err := EngineEndAdmitted(e, control, sess.Transactions, old, false, false, false, time.Time{}, nil); err != nil {
 						t.Fatal(err)
 					}
 					var err error
-					fresh, err = e.beginAdmitted(control, sess.Transactions, time.Now())
+					fresh, err = EngineBeginAdmitted(e, control, sess.Transactions, time.Now())
 					if err != nil {
 						t.Fatal(err)
 					}

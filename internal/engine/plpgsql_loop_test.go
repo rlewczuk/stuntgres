@@ -56,7 +56,7 @@ func TestPLpgSQLLoopFrame(t *testing.T) {
 			if err != nil || flow.Kind != proc.PLReturn {
 				t.Fatal("loop flow failed", flow, err)
 			}
-			if len(f.Scopes) != 0 || f.HandledError() != nil || s.sqlRoutine.lexical != nil || s.activeSQLRoutineDepth != 0 {
+			if len(f.Scopes) != 0 || f.HandledError() != nil || ScopeSQLRoutineRef(s).lexical != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
 				t.Fatal("loop transfer retained scope/handler/query authority")
 			}
 			for slot, v := range f.Values {
@@ -103,7 +103,7 @@ func TestPLpgSQLLoopCancellation(t *testing.T) {
 		if errors.As(err, &state) {
 			t.Fatal("ordinary cancellation acquired SQLSTATE", err)
 		}
-		if len(f.Scopes) != 0 || f.HandledError() != nil || s.sqlRoutine.lexical != nil || s.activeSQLRoutineDepth != 0 {
+		if len(f.Scopes) != 0 || f.HandledError() != nil || ScopeSQLRoutineRef(s).lexical != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
 			t.Fatal("canceled loop leaked private/root state")
 		}
 	}

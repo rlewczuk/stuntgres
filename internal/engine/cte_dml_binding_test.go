@@ -28,12 +28,12 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 			t.Fatal(usage)
 		}
 	}
-	if len(scope.mutations) != 3 || description.analysis == nil || len(description.analysis.targets) != 3 {
-		t.Fatal("occurrences were conflated", len(scope.mutations))
+	if len(ScopeMutations(scope)) != 3 || description.analysis == nil || len(description.analysis.targets) != 3 {
+		t.Fatal("occurrences were conflated", len(ScopeMutations(scope)))
 	}
 	seen := make(map[parser.Statement]bool)
-	for i := range scope.mutations {
-		mutation := scope.mutations[i]
+	for i := range ScopeMutations(scope) {
+		mutation := ScopeMutations(scope)[i]
 		if i == scope.ActiveMutation {
 			mutation = scope.StatementMutation
 		}
@@ -45,7 +45,7 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 			t.Fatal("Prepare retained executable target state")
 		}
 	}
-	if scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.View != nil || scope.cteInvocation != nil {
+	if scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.View != nil || ScopeCTEInvocation(scope) != nil {
 		t.Fatal("Prepare executed a modifier or captured data")
 	}
 	if err := scope.Finish(nil); err != nil {

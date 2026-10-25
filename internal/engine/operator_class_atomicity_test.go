@@ -65,7 +65,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &storage.Relation{Versions: []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{one}}}}
-	setup.initialTables = map[ids.ObjectAddress]*storage.Relation{parent.Address(): store}
+	SetStageInitialTables(setup, map[ids.ObjectAddress]*storage.Relation{parent.Address(): store})
 	prepared, err := e.ValidateCatalogStage(ctx, setup)
 	if err != nil {
 		t.Fatal(err)

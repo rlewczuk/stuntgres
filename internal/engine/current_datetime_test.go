@@ -148,8 +148,8 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 		t.Fatal("driver birth did not refresh", first, outer)
 	}
 	owner.Mu.Lock()
-	mark := captureSavepoint(owner, "clock")
-	restoreSavepoint(owner, mark, mark.Settings.Clone())
+	mark := CaptureSavepoint(owner, "clock")
+	RestoreSavepoint(owner, mark, mark.Settings.Clone())
 	restored := owner.Start
 	owner.Mu.Unlock()
 	if !restored.Equal(outer) {
@@ -158,7 +158,7 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	transactionEnd(t, session, ref, false)
 	advance(outer)
 	start := scopeFor()
-	_, err := start.executeControl(&parser.TransactionControl{Kind: parser.KindStart}, 0)
+	_, err := ScopeExecuteControl(start, &parser.TransactionControl{Kind: parser.KindStart}, 0)
 	finish(start, err)
 	sqlClock := owner.Start
 	assertClock(sqlClock)
@@ -167,7 +167,7 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	}
 	advance(sqlClock)
 	chain := scopeFor()
-	_, err = chain.executeControl(&parser.TransactionControl{Kind: parser.KindCommit, Chain: true}, 0)
+	_, err = ScopeExecuteControl(chain, &parser.TransactionControl{Kind: parser.KindCommit, Chain: true}, 0)
 	finish(chain, err)
 	assertClock(owner.Start)
 	if !owner.Start.After(sqlClock) {

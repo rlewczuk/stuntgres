@@ -20,7 +20,7 @@ func snapshotUnitRows(t *testing.T, scope *StatementScope, ref ids.ObjectRef, wa
 	if err != nil {
 		t.Fatal(err)
 	}
-	if captured.Frontier() != scope.snapshotFrontier {
+	if captured.Frontier() != ScopeSnapshotFrontier(scope) {
 		t.Fatal("physical source advanced the active frontier")
 	}
 	source, err := exec.CaptureSource(scope.Op.Context(), captured, ref)
@@ -55,10 +55,10 @@ func TestSnapshotAuthoritativeCapture(t *testing.T) {
 			e.Mu.Unlock()
 			observer, _ := blockingUnitOwner(t, e)
 			scope, _, _ := concurrentUnitSnapshotScope(t, e, observer)
-			if err := scope.snapshotExecutionAdmission(&parser.Select{}); err != nil {
+			if err := ScopeSnapshotExecutionAdmission(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			if scope.currentSnapshot != nil {
+			if ScopeCurrentSnapshot(scope) != nil {
 				t.Fatal("RC dispatch selected a pre-admission snapshot")
 			}
 			e.Mu.Lock()
@@ -78,7 +78,7 @@ func TestSnapshotAuthoritativeCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer source.Close()
-			if scope.currentSnapshot == nil || !scope.currentSnapshot.Visible(uint64(peer.AssignedFullXID())) || scope.snapshotFrontier != 11 {
+			if ScopeCurrentSnapshot(scope) == nil || !ScopeCurrentSnapshot(scope).Visible(uint64(peer.AssignedFullXID())) || ScopeSnapshotFrontier(scope) != 11 {
 				t.Fatal("source admission did not select one current pair")
 			}
 			if !singleton {
@@ -139,7 +139,7 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 	lockAwait(t, done, nil)
 	joined = true
 	id := uint64(holderRef.AssignedFullXID())
-	if scope.currentSnapshot == nil || scope.currentSnapshot.Visible(id) || scope.snapshotFrontier != 10 {
+	if ScopeCurrentSnapshot(scope) == nil || ScopeCurrentSnapshot(scope).Visible(id) || ScopeSnapshotFrontier(scope) != 10 {
 		t.Fatal("utility pair refreshed across target wait")
 	}
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), relation.Address())
@@ -151,7 +151,7 @@ func TestSnapshotRefreshCapture(t *testing.T) {
 	observer, _ := blockingUnitOwner(t, e)
 	next, _, _ := concurrentUnitSnapshotScope(t, e, observer)
 	snapshotUnitRows(t, next, ref, []ids.RowID{1, 3})
-	if next.snapshotFrontier != 11 || !next.currentSnapshot.Visible(id) || next.View.Data().NeedsBirthFilterAt(ref.Address) {
+	if ScopeSnapshotFrontier(next) != 11 || !ScopeCurrentSnapshot(next).Visible(id) || next.View.Data().NeedsBirthFilterAt(ref.Address) {
 		t.Fatal("fresh RC capture did not use the completed publication")
 	}
 }
@@ -192,7 +192,7 @@ func TestSnapshotPartitionUtilityCapture(t *testing.T) {
 			e.Visibility.AdvanceCommitSeqLocked()
 			e.Visibility.EndTransactionIdentityLocked(peer.Ref(), true)
 			e.Mu.Unlock()
-			if scope.currentSnapshot == nil || scope.currentSnapshot != scope.Owner.CurrentSnapshot || scope.currentSnapshot.Visible(uint64(peer.AssignedFullXID())) || scope.snapshotFrontier != 10 {
+			if ScopeCurrentSnapshot(scope) == nil || ScopeCurrentSnapshot(scope) != scope.Owner.CurrentSnapshot || ScopeCurrentSnapshot(scope).Visible(uint64(peer.AssignedFullXID())) || ScopeSnapshotFrontier(scope) != 10 {
 				t.Fatal("partition utility did not retain its first stable pair")
 			}
 			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), relation.Address())

@@ -56,7 +56,7 @@ func TestPGSettingsProviderCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		if _, err := e.applySetting(op, a.Settings, e.Settings.Definitions()["application_name"], value, false); err != nil {
+		if _, err := EngineApplySetting(e, op, a.Settings, e.Settings.Definitions()["application_name"], value, false); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -149,7 +149,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				}
 			case "terminal_before":
 				a.RequestEnd(session.Terminated)
-				err = e.publishWrites(op, old, a.Transactions.Writes, a.Transactions.Deletes, nil)
+				err = EnginePublishWrites(e, op, old, a.Transactions.Writes, a.Transactions.Deletes, nil)
 			case "epoch_before":
 				e.Mu.Lock()
 				next := *e.Catalog.State
@@ -166,7 +166,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			case "ref_before":
 				bad := old
 				bad = withTxID(bad, bad.ID()+1)
-				_, err = e.endAdmitted(op, a.Transactions, bad, true, true, true, scope.statementStart, scope)
+				_, err = EngineEndAdmitted(e, op, a.Transactions, bad, true, true, true, ScopeStatementStart(scope), scope)
 			default:
 				_, err = scope.Execute(query, 0, nil)
 			}

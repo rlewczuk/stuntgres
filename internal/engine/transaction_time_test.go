@@ -70,7 +70,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 	binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	transaction := time.Date(2000, 1, 1, 12, 0, 0, 123456789, time.UTC)
 	statement := time.Date(2000, 1, 1, 12, 0, 1, 654321987, time.UTC)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, Host: HostOf(&StatementScope{statementStart: statement})}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: transaction}, Host: HostOf(NewScope(ScopeFields{StatementStart: statement}))}}
 	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeTransaction, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, binder, kind)
 		if leaf.Usage.Type.ID() != kind.Type() || leaf.Usage.Typmod != -1 || leaf.Properties() != expr.IntrinsicProperties(kind.IntrinsicRule()) || exec.PlannedVolatility(leaf) != leaf.Property.Volatility || plan.GenerationImmutable(leaf) {
@@ -193,7 +193,7 @@ func TestTransactionTimeWallDemand(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	stamp := time.Now().UTC().Truncate(time.Microsecond)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}, Host: HostOf(&StatementScope{statementStart: stamp})}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Input: sqltype.InputEnvironment{TransactionStart: stamp}, Host: HostOf(NewScope(ScopeFields{StatementStart: stamp}))}}
 	for _, kind := range []functions.TransactionTimeKind{functions.TransactionTimeNow, functions.TransactionTimeStatement, functions.TransactionTimeClock, functions.TransactionTimeOfDay} {
 		leaf := transactionTimeUnitLeaf(t, b, kind)
 		first, err := leaf.Eval(c)
@@ -240,8 +240,8 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	if !scope.statementStart.Equal(fixed) || !scope.Input.TransactionStart.Equal(fixed) {
-		t.Fatal("implicit birth did not reuse command", scope.statementStart, scope.Input.TransactionStart)
+	if !ScopeStatementStart(scope).Equal(fixed) || !scope.Input.TransactionStart.Equal(fixed) {
+		t.Fatal("implicit birth did not reuse command", ScopeStatementStart(scope), scope.Input.TransactionStart)
 	}
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first := scope.statementStart
+	first := ScopeStatementStart(scope)
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +263,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := scope.statementStart
+	second := ScopeStatementStart(scope)
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = scope.executeControl(&parser.TransactionControl{Kind: parser.KindStart}, 0)
+	_, err = ScopeExecuteControl(scope, &parser.TransactionControl{Kind: parser.KindStart}, 0)
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +291,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	if !scope.Input.TransactionStart.Equal(fixed) || !scope.statementStart.Equal(fixed.Add(time.Second)) {
+	if !scope.Input.TransactionStart.Equal(fixed) || !ScopeStatementStart(scope).Equal(fixed.Add(time.Second)) {
 		t.Error("existing transaction overwritten")
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -301,7 +301,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = scope.executeControl(&parser.TransactionControl{Kind: parser.KindCommit, Chain: true}, 0)
+	_, err = ScopeExecuteControl(scope, &parser.TransactionControl{Kind: parser.KindCommit, Chain: true}, 0)
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}
@@ -370,7 +370,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	if !scope.Input.TransactionStart.Equal(result.op.CommandStart) || !scope.statementStart.Equal(result.op.CommandStart) {
+	if !scope.Input.TransactionStart.Equal(result.op.CommandStart) || !ScopeStatementStart(scope).Equal(result.op.CommandStart) {
 		t.Error("sample not transferred to implicit birth")
 	}
 	if err := scope.Finish(nil); err != nil {

@@ -70,7 +70,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 		}
 		return rows.Close()
 	}}
-	PayloadOf(sess).preparedSQL.portals = map[string]*protocolPortal{"p": p}
+	PayloadPreparedSQL(PayloadOf(sess)).portals = map[string]*protocolPortal{"p": p}
 	e.ReplacementMu.RLock()
 	scope.ReplacementRead = true
 	_, err = scope.ExecuteProtocolPortal("p", 0, func(fields []session.ProtocolField) error {
@@ -83,7 +83,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if !errors.Is(err, primary) || disposals != 1 || !rows.Closed {
 		t.Fatal("failed executor lost primary or retained resources", err, disposals)
 	}
-	if p.retired || PayloadOf(sess).preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
+	if p.retired || PayloadPreparedSQL(PayloadOf(sess)).portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
 		t.Fatal("failed resource release removed identity or retained executor buffers")
 	}
 	// Restoring a frontier that includes this owner keeps its identity, without
@@ -91,13 +91,13 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	scope.Owner.Mu.Lock()
 	retireProtocolPortalsAfter(scope.Owner, 1)
 	scope.Owner.Mu.Unlock()
-	if err := drainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadOf(sess).preparedSQL.portals["p"] != p || disposals != 1 {
+	if err := DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadPreparedSQL(PayloadOf(sess)).portals["p"] != p || disposals != 1 {
 		t.Fatal("older failed identity did not survive frontier", err, disposals)
 	}
 	scope.Owner.Mu.Lock()
 	retireProtocolPortalsAfter(scope.Owner, 0)
 	scope.Owner.Mu.Unlock()
-	if err := drainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadOf(sess).preparedSQL.portals["p"] != nil || disposals != 1 {
+	if err := DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || PayloadPreparedSQL(PayloadOf(sess)).portals["p"] != nil || disposals != 1 {
 		t.Fatal("retirement leaked identity or repeated executor disposal", err, disposals)
 	}
 }

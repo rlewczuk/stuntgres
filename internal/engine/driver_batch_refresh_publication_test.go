@@ -152,7 +152,7 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 			case "ref":
 				stale := s.Transactions.Ref
 				stale = withTxID(stale, stale.ID()+1)
-				err = e.publishWrites(m.op, stale, s.Transactions.Writes, s.Transactions.Deletes, nil)
+				err = EnginePublishWrites(e, m.op, stale, s.Transactions.Writes, s.Transactions.Deletes, nil)
 				if err == nil {
 					t.Fatal("foreign incarnation admitted materialized replacement")
 				}
@@ -273,9 +273,9 @@ func TestDriverBatchProducerRoleAuthorityLifetime(t *testing.T) {
 				}
 				fenced := false
 				for _, fence := range journal.Fences {
-					if read, ok := fence.(catalogRoleReadFence); ok {
+					if read, ok := fence.(CatalogRoleReadFence); ok {
 						fenced = true
-						if read.roles != roles {
+						if CatalogRoleReadFenceRoles(&read) != roles {
 							t.Fatal("producer recaptured its role predecessor")
 						}
 					}
@@ -354,7 +354,7 @@ func TestDriverBatchProducerRoleAuthoritySavepoint(t *testing.T) {
 	// neither leak into restored metadata nor be cleared by rollback.
 	found := false
 	for _, fence := range producer.Fences {
-		if fence.Kind() == fenceCatalogRoleRead {
+		if fence.Kind() == FenceCatalogRoleRead {
 			found = true
 		}
 	}
@@ -362,7 +362,7 @@ func TestDriverBatchProducerRoleAuthoritySavepoint(t *testing.T) {
 		t.Fatal("discarded producer lost read authority or acquired a role write")
 	}
 	for _, fence := range metadata.Fences {
-		if fence.Kind() == fenceCatalogRoleRead {
+		if fence.Kind() == FenceCatalogRoleRead {
 			t.Fatal("producer read escaped its savepoint lifetime")
 		}
 	}

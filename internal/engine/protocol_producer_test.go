@@ -43,14 +43,14 @@ func TestProtocolPortalProducer(t *testing.T) {
 	newPortal := &protocolPortal{tx: owner.Ref, born: 2, rows: newRows}
 	foreign := &protocolPortal{tx: owner.Ref, born: 3, rows: foreignRows}
 	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)
-	PayloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
+	PayloadPreparedSQL(PayloadOf(session)).portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
 	owner.Mu.Lock()
 	retireProtocolPortalsAfter(owner, 1)
 	owner.Mu.Unlock()
 	if p.retired || !newPortal.retired || foreign.retired || cursor.OrdinalPosition != 4 {
 		t.Fatal("savepoint frontier changed older position or foreign ownership")
 	}
-	if err := drainCursorCleanup(owner, context.Background(), nil); err != nil {
+	if err := DrainCursorCleanup(owner, context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if !newRows.Closed || foreignRows.Closed || p.producer == nil || stage.Closed || calls != 4 {

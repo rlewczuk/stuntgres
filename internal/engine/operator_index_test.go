@@ -337,7 +337,7 @@ func TestUserOperatorIndexTemporaryCollisionReplacement(t *testing.T) {
 	next := catalog.CloneState(source.Catalog.State)
 	target.Catalog.InstallOIDFrontierLocked(100000)
 	target.Mu.Lock()
-	err = target.preserveTemporaryLocked(context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.Catalog.NextOID(), Next: target.Catalog.NextOID()})
+	err = EnginePreserveTemporaryLocked(target, context.Background(), next, map[ids.ObjectAddress]*storage.Relation{}, map[ids.ObjectAddress]*storage.SequenceGenerator{}, nil, nil, replacementProcedurePolicyFixture(source, target), &catalog.OIDReservation{Base: target.Catalog.NextOID(), Next: target.Catalog.NextOID()})
 	target.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

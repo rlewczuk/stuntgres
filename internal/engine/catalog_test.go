@@ -881,7 +881,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			for range 2 {
 				e.DiscardCatalogStage(stage)
-				if published && stage.Lifecycle != catalogPublished || !published && stage.Lifecycle != catalogDiscarded {
+				if published && stage.Lifecycle != CatalogPublished || !published && stage.Lifecycle != CatalogDiscarded {
 					t.Fatalf("discard lifecycle = %v", stage.Lifecycle)
 				}
 				assertUnchanged()

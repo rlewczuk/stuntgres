@@ -1,0 +1,409 @@
+package engine
+
+import (
+	"context"
+	"time"
+
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/dml"
+	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/fdw"
+	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/index"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/settings"
+	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/visibility"
+	"stuntgres/internal/parser"
+	"stuntgres/internal/sqltype"
+)
+
+// AppendBlockingPid calls appendBlockingPid.
+func AppendBlockingPid(values []sqltype.Value, typ *sqltype.Descriptor, token ids.SessionToken, prepared bool, domain *ids.Domain) ([]sqltype.Value, error) {
+	return appendBlockingPid(values, typ, token, prepared, domain)
+}
+
+// CaptureSavepoint calls captureSavepoint.
+func CaptureSavepoint(t *session.TransactionOwner, name string) session.SavepointMark {
+	return captureSavepoint(t, name)
+}
+
+// DrainCursorCleanup calls drainCursorCleanup.
+func DrainCursorCleanup(t *session.TransactionOwner, ctx context.Context, scope *StatementScope) error {
+	return drainCursorCleanup(t, ctx, scope)
+}
+
+// EndTransactionSession calls endTransactionSession.
+func EndTransactionSession(t *session.TransactionOwner, token ids.SessionToken) error {
+	return endTransactionSession(t, token)
+}
+
+// NotificationEffects calls notificationEffects.
+func NotificationEffects(op *session.Operation, ref ids.TxRef, phase *session.PreparedPublication, scope *StatementScope) ([]session.NotificationAction, []session.Notification, error) {
+	return notificationEffects(op, ref, phase, scope)
+}
+
+// NotificationSessionEnd names notificationSessionEnd.
+type NotificationSessionEnd = notificationSessionEnd
+
+// OwnerExtension names ownerExtension.
+type OwnerExtension = ownerExtension
+
+// OwnerExtensionOf calls ownerExtensionOf.
+func OwnerExtensionOf(t *session.TransactionOwner) *ownerExtension {
+	return ownerExtensionOf(t)
+}
+
+// OwnerExtensionOrZero calls ownerExtensionOrZero.
+func OwnerExtensionOrZero(t *session.TransactionOwner) ownerExtension {
+	return ownerExtensionOrZero(t)
+}
+
+// RestoreSavepoint calls restoreSavepoint.
+func RestoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
+	restoreSavepoint(t, mark, settings)
+}
+
+// SessionHost names sessionHost.
+type SessionHost = sessionHost
+
+// TemporaryNamespace calls temporaryNamespace.
+func TemporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
+	return temporaryNamespace(auth)
+}
+
+// TemporarySessionIndexes names temporarySessionIndexes.
+type TemporarySessionIndexes = temporarySessionIndexes
+
+// EngineApplySetting calls x.applySetting.
+func EngineApplySetting(x *Engine, op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool) (string, error) {
+	return x.applySetting(op, owner, d, input, local)
+}
+
+// EngineBeginAdmitted calls x.beginAdmitted.
+func EngineBeginAdmitted(x *Engine, op *session.Operation, t *session.TransactionOwner, start time.Time) (ids.TxRef, error) {
+	return x.beginAdmitted(op, t, start)
+}
+
+// EngineBlockingPidValues calls x.blockingPidValues.
+func EngineBlockingPidValues(x *Engine, pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
+	return x.blockingPidValues(pid, typ)
+}
+
+// EngineCaptureVisibilitySnapshotLocked calls x.captureVisibilitySnapshotLocked.
+func EngineCaptureVisibilitySnapshotLocked(x *Engine, scope *StatementScope) error {
+	return x.captureVisibilitySnapshotLocked(scope)
+}
+
+// EngineCompletePrepared calls x.completePrepared.
+func EngineCompletePrepared(x *Engine, op *session.Operation, gid string, commit bool) error {
+	return x.completePrepared(op, gid, commit)
+}
+
+// EngineEndAdmitted calls x.endAdmitted.
+func EngineEndAdmitted(x *Engine, op *session.Operation, t *session.TransactionOwner, ref ids.TxRef, commit bool, chain bool, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
+	return x.endAdmitted(op, t, ref, commit, chain, sqlEnd, nextStart, scope)
+}
+
+// EngineEndSerializable calls x.endSerializable.
+func EngineEndSerializable(x *Engine, ref ids.TxRef, committed bool) {
+	x.endSerializable(ref, committed)
+}
+
+// EngineEndSerializableLocked calls x.endSerializableLocked.
+func EngineEndSerializableLocked(x *Engine, ref ids.TxRef, committed bool) {
+	x.endSerializableLocked(ref, committed)
+}
+
+// EngineEndTemporarySession calls x.endTemporarySession.
+func EngineEndTemporarySession(x *Engine, s *session.Session) error {
+	return x.endTemporarySession(s)
+}
+
+// EngineEnrollSerializableLocked calls x.enrollSerializableLocked.
+func EngineEnrollSerializableLocked(x *Engine, ref ids.TxRef, isolation session.Isolation) {
+	x.enrollSerializableLocked(ref, isolation)
+}
+
+// EngineExecuteSetting calls x.executeSetting.
+func EngineExecuteSetting(x *Engine, op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
+	return x.executeSetting(op, stmt, count, implicit)
+}
+
+// EngineFenceSerializableLocked calls x.fenceSerializableLocked.
+func EngineFenceSerializableLocked(x *Engine) {
+	x.fenceSerializableLocked()
+}
+
+// EngineInstallTemporarySessionStageLocked calls x.installTemporarySessionStageLocked.
+func EngineInstallTemporarySessionStageLocked(x *Engine, s *session.Session, stage *CatalogStage, namespaces []ids.ObjectAddress, indexes *temporarySessionIndexes) (bool, error) {
+	return x.installTemporarySessionStageLocked(s, stage, namespaces, indexes)
+}
+
+// EngineNotificationPublicationUnchangedLocked calls x.notificationPublicationUnchangedLocked.
+func EngineNotificationPublicationUnchangedLocked(x *Engine, p *notificationPublication) bool {
+	return x.notificationPublicationUnchangedLocked(p)
+}
+
+// EnginePrepareNotificationPublication calls x.prepareNotificationPublication.
+func EnginePrepareNotificationPublication(x *Engine, sender *session.Session, actions []session.NotificationAction, events []session.Notification) *notificationPublication {
+	return x.prepareNotificationPublication(sender, actions, events)
+}
+
+// EnginePrepareTemporaryCommit calls x.prepareTemporaryCommit.
+func EnginePrepareTemporaryCommit(x *Engine, op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes, *session.Journal, error) {
+	return x.prepareTemporaryCommit(op, ref, writes, deletes, c)
+}
+
+// EnginePrepareTemporarySessionIndexes calls x.prepareTemporarySessionIndexes.
+func EnginePrepareTemporarySessionIndexes(x *Engine, stage *CatalogStage) (*temporarySessionIndexes, error) {
+	return x.prepareTemporarySessionIndexes(stage)
+}
+
+// EnginePreserveTemporaryLocked calls x.preserveTemporaryLocked.
+func EnginePreserveTemporaryLocked(x *Engine, ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, restoreOp *session.Operation, indexes *index.Snapshot, principal catalog.ProcedureRemapper, oids *catalog.OIDReservation) error {
+	return x.preserveTemporaryLocked(ctx, next, relations, sequences, restoreOp, indexes, principal, oids)
+}
+
+// EnginePublishRows calls x.publishRows.
+func EnginePublishRows(x *Engine, op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *session.CatalogAuthority, scope *StatementScope) error {
+	return x.publishRows(op, ref, writes, deletes, c, authority, scope)
+}
+
+// EnginePublishRowsPrepared calls x.publishRowsPrepared.
+func EnginePublishRowsPrepared(x *Engine, op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *session.CatalogAuthority, phase *session.PreparedPublication, scope *StatementScope) error {
+	return x.publishRowsPrepared(op, ref, writes, deletes, c, authority, phase, scope)
+}
+
+// EnginePublishWrites calls x.publishWrites.
+func EnginePublishWrites(x *Engine, op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
+	return x.publishWrites(op, ref, writes, deletes, scope)
+}
+
+// EngineReconcileSerializableWritesLocked calls x.reconcileSerializableWritesLocked.
+func EngineReconcileSerializableWritesLocked(x *Engine, t *session.TransactionOwner) {
+	x.reconcileSerializableWritesLocked(t)
+}
+
+// EngineSafeSnapshotBlockingPidsLocked calls x.safeSnapshotBlockingPidsLocked.
+func EngineSafeSnapshotBlockingPidsLocked(x *Engine, pid ids.SessionID, typ *sqltype.Descriptor) ([]sqltype.Value, error) {
+	return x.safeSnapshotBlockingPidsLocked(pid, typ)
+}
+
+// EngineSerializableEligibleLocked calls x.serializableEligibleLocked.
+func EngineSerializableEligibleLocked(x *Engine, ref ids.ObjectRef, changes *session.Journal) bool {
+	return x.serializableEligibleLocked(ref, changes)
+}
+
+// EngineStartSession calls x.startSession.
+func EngineStartSession(x *Engine, ctx context.Context, start session.SessionStart, private bool) (*session.Session, error) {
+	return x.startSession(ctx, start, private)
+}
+
+// EngineTransactionAgeLocked calls x.transactionAgeLocked.
+func EngineTransactionAgeLocked(x *Engine, ref ids.TxRef, xid uint32) (int32, error) {
+	return x.transactionAgeLocked(ref, xid)
+}
+
+// ScopeFields holds the StatementScope fields tests set.
+type ScopeFields struct {
+	Owner                 *session.TransactionOwner
+	Op                    *session.Operation
+	NotificationActions   []session.NotificationAction
+	NotificationEvents    []session.Notification
+	StatementStart        time.Time
+	TransactionStart      time.Time
+	ActiveSQLRoutineDepth int
+	SQLRoutine            sqlRoutineDemand
+}
+
+// NewScope builds a StatementScope from f.
+func NewScope(f ScopeFields) *StatementScope {
+	return &StatementScope{Owner: f.Owner, Op: f.Op, notificationActions: f.NotificationActions, notificationEvents: f.NotificationEvents, statementStart: f.StatementStart, transactionStart: f.TransactionStart, activeSQLRoutineDepth: f.ActiveSQLRoutineDepth, sqlRoutine: f.SQLRoutine}
+}
+
+// ScopeAcquireAdvisory calls x.acquireAdvisory.
+func ScopeAcquireAdvisory(x *StatementScope, ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime functions.AdvisoryLifetime, try bool) (bool, error) {
+	return x.acquireAdvisory(ctx, ref, mode, lifetime, try)
+}
+
+// ScopeActiveSQLRoutineDepth returns x.activeSQLRoutineDepth.
+func ScopeActiveSQLRoutineDepth(x *StatementScope) int { return x.activeSQLRoutineDepth }
+
+// ScopeAttachTransactionLocked calls x.attachTransactionLocked.
+func ScopeAttachTransactionLocked(x *StatementScope) {
+	x.attachTransactionLocked()
+}
+
+// ScopeAuthority returns x.authority.
+func ScopeAuthority(x *StatementScope) *exec.Authority { return x.authority }
+
+// ScopeCTEInvocation returns x.cteInvocation.
+func ScopeCTEInvocation(x *StatementScope) *exec.CTEInvocation { return x.cteInvocation }
+
+// ScopeCurrentSnapshot returns x.currentSnapshot.
+func ScopeCurrentSnapshot(x *StatementScope) *sqltype.Snapshot { return x.currentSnapshot }
+
+// ScopeEffectCommand returns x.effectCommand.
+func ScopeEffectCommand(x *StatementScope) uint64 { return x.effectCommand }
+
+// ScopeEffectSerial returns x.effectSerial.
+func ScopeEffectSerial(x *StatementScope) uint64 { return x.effectSerial }
+
+// ScopeExecuteControl calls x.executeControl.
+func ScopeExecuteControl(x *StatementScope, control *parser.TransactionControl, count int) (Result, error) {
+	return x.executeControl(control, count)
+}
+
+// ScopeForeignActionsSlot returns x.foreignActionsSlot.
+func ScopeForeignActionsSlot(x *StatementScope) *dml.ForeignActionScope { return x.foreignActionsSlot }
+
+// ScopeImplicit returns x.implicit.
+func ScopeImplicit(x *StatementScope) bool { return x.implicit }
+
+// ScopeIndexesSlot returns x.indexesSlot.
+func ScopeIndexesSlot(x *StatementScope) *index.Scope { return x.indexesSlot }
+
+// ScopeLease returns x.lease.
+func ScopeLease(x *StatementScope) session.StatementLease { return x.lease }
+
+// ScopeLeaseRef returns &x.lease.
+func ScopeLeaseRef(x *StatementScope) *session.StatementLease { return &x.lease }
+
+// ScopeMessage returns x.message.
+func ScopeMessage(x *StatementScope) bool { return x.message }
+
+// ScopeMultiEvents returns x.multiEvents.
+func ScopeMultiEvents(x *StatementScope) []lock.MultiEvent { return x.multiEvents }
+
+// ScopeMutations returns x.mutations.
+func ScopeMutations(x *StatementScope) []StatementMutation { return x.mutations }
+
+// ScopeNotificationEvents returns x.notificationEvents.
+func ScopeNotificationEvents(x *StatementScope) []session.Notification { return x.notificationEvents }
+
+// ScopeProjectedRoots returns x.projectedRoots.
+func ScopeProjectedRoots(x *StatementScope) bool { return x.projectedRoots }
+
+// ScopeRoutinePrograms returns x.routinePrograms.
+func ScopeRoutinePrograms(x *StatementScope) []commandRoutineProgram { return x.routinePrograms }
+
+// ScopeSQLRoutine returns x.sqlRoutine.
+func ScopeSQLRoutine(x *StatementScope) sqlRoutineDemand { return x.sqlRoutine }
+
+// ScopeSQLRoutineRef returns &x.sqlRoutine.
+func ScopeSQLRoutineRef(x *StatementScope) *sqlRoutineDemand { return &x.sqlRoutine }
+
+// ScopeSessionCompleted returns x.sessionCompleted.
+func ScopeSessionCompleted(x *StatementScope) bool { return x.sessionCompleted }
+
+// ScopeSessionCompletedRef returns &x.sessionCompleted.
+func ScopeSessionCompletedRef(x *StatementScope) *bool { return &x.sessionCompleted }
+
+// ScopeSnapshotAnalysisPhase calls x.snapshotAnalysisPhase.
+func ScopeSnapshotAnalysisPhase(x *StatementScope, stmt parser.Statement) error {
+	return x.snapshotAnalysisPhase(stmt)
+}
+
+// ScopeSnapshotDataPhase calls x.snapshotDataPhase.
+func ScopeSnapshotDataPhase(x *StatementScope) error {
+	return x.snapshotDataPhase()
+}
+
+// ScopeSnapshotExecutionAdmission calls x.snapshotExecutionAdmission.
+func ScopeSnapshotExecutionAdmission(x *StatementScope, stmt parser.Statement) error {
+	return x.snapshotExecutionAdmission(stmt)
+}
+
+// ScopeSnapshotFrontier returns x.snapshotFrontier.
+func ScopeSnapshotFrontier(x *StatementScope) ids.CommitSeq { return x.snapshotFrontier }
+
+// ScopeSnapshotPhase calls x.snapshotPhase.
+func ScopeSnapshotPhase(x *StatementScope, stmt parser.Statement) error {
+	return x.snapshotPhase(stmt)
+}
+
+// ScopeStatementStart returns x.statementStart.
+func ScopeStatementStart(x *StatementScope) time.Time { return x.statementStart }
+
+// ScopeTransactionStart returns x.transactionStart.
+func ScopeTransactionStart(x *StatementScope) time.Time { return x.transactionStart }
+
+// SetScopeAuthority sets x.authority.
+func SetScopeAuthority(x *StatementScope, v *exec.Authority) { x.authority = v }
+
+// SetScopeEffectCommand sets x.effectCommand.
+func SetScopeEffectCommand(x *StatementScope, v uint64) { x.effectCommand = v }
+
+// SetScopeEffectSerial sets x.effectSerial.
+func SetScopeEffectSerial(x *StatementScope, v uint64) { x.effectSerial = v }
+
+// SetScopeForeignActionsSlot sets x.foreignActionsSlot.
+func SetScopeForeignActionsSlot(x *StatementScope, v *dml.ForeignActionScope) {
+	x.foreignActionsSlot = v
+}
+
+// SetScopeIndexesSlot sets x.indexesSlot.
+func SetScopeIndexesSlot(x *StatementScope, v *index.Scope) { x.indexesSlot = v }
+
+// SetScopeLargeObjectRead sets x.largeObjectRead.
+func SetScopeLargeObjectRead(x *StatementScope, v catalog.Read) { x.largeObjectRead = v }
+
+// SetScopeMultiEvents sets x.multiEvents.
+func SetScopeMultiEvents(x *StatementScope, v []lock.MultiEvent) { x.multiEvents = v }
+
+// SetScopeNotificationEvents sets x.notificationEvents.
+func SetScopeNotificationEvents(x *StatementScope, v []session.Notification) {
+	x.notificationEvents = v
+}
+
+// SetScopeSelf sets x.self.
+func SetScopeSelf(x *StatementScope, v *StatementScope) { x.self = v }
+
+// SetScopeWorked sets x.worked.
+func SetScopeWorked(x *StatementScope, v bool) { x.worked = v }
+
+// SetWriteStageReplacing sets x.replacing.
+func SetWriteStageReplacing(x *WriteStage, v bool) { x.replacing = v }
+
+// WriteStageReplacing returns x.replacing.
+func WriteStageReplacing(x *WriteStage) bool { return x.replacing }
+
+// OwnerExtensionCursorCleanup returns x.cursorCleanup.
+func OwnerExtensionCursorCleanup(x *ownerExtension) []*sqlCursor { return x.cursorCleanup }
+
+// OwnerExtensionForeignRef returns &x.foreign.
+func OwnerExtensionForeignRef(x *ownerExtension) *fdw.Transaction { return &x.foreign }
+
+// OwnerExtensionRetireForeign calls x.retireForeign.
+func OwnerExtensionRetireForeign(x *ownerExtension) {
+	x.retireForeign()
+}
+
+// PayloadNotifications returns x.notifications.
+func PayloadNotifications(x *sessionPayload) session.NotificationListener { return x.notifications }
+
+// PayloadNotificationsRef returns &x.notifications.
+func PayloadNotificationsRef(x *sessionPayload) *session.NotificationListener {
+	return &x.notifications
+}
+
+// PayloadPreparedSQL returns x.preparedSQL.
+func PayloadPreparedSQL(x *sessionPayload) *sqlPreparedRegistry { return x.preparedSQL }
+
+// PayloadSQLRoutines returns x.sqlRoutines.
+func PayloadSQLRoutines(x *sessionPayload) map[ids.ObjectAddress]sqlRoutineAnalysis {
+	return x.sqlRoutines
+}
+
+// TemporarySessionIndexesPrevious returns x.previous.
+func TemporarySessionIndexesPrevious(x *temporarySessionIndexes) map[ids.ObjectAddress]*storage.IndexRoot {
+	return x.previous
+}
+
+// TemporarySessionIndexesRoots returns x.roots.
+func TemporarySessionIndexesRoots(x *temporarySessionIndexes) map[ids.ObjectAddress]*storage.IndexRoot {
+	return x.roots
+}

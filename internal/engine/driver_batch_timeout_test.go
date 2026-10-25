@@ -19,7 +19,7 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 	source := context.WithValue(context.Background(), batchContextKey{}, "caller")
 	m := batchUnitStart(t, s, source)
 	defer m.end(context.Canceled)
-	oldDeadline, oldCancel, command, stamp := m.op.StatementDeadline, m.op.TimerCancel, m.op.CommandContext, m.scope.statementStart
+	oldDeadline, oldCancel, command, stamp := m.op.StatementDeadline, m.op.TimerCancel, m.op.CommandContext, ScopeStatementStart(m.scope)
 	if oldCancel == nil || oldDeadline.IsZero() {
 		t.Fatal("missing selected initial statement budget")
 	}
@@ -35,7 +35,7 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 		t.Fatal("old timer leaked into suffix", err)
 	}
 	m.scope = next
-	if m.op.CommandContext != command || m.op.SourceContext != source || m.op.Ctx.Value(batchContextKey{}) != "caller" || !m.op.StatementDeadline.After(oldDeadline) || m.scope.statementStart != stamp || m.op.Ctx.Err() != nil || m.op.LockTimeout != 2*time.Hour {
+	if m.op.CommandContext != command || m.op.SourceContext != source || m.op.Ctx.Value(batchContextKey{}) != "caller" || !m.op.StatementDeadline.After(oldDeadline) || ScopeStatementStart(m.scope) != stamp || m.op.Ctx.Err() != nil || m.op.LockTimeout != 2*time.Hour {
 		t.Fatal("suffix budget/source/timestamp not refreshed")
 	}
 	if _, err = m.step(statement(t, "SET lock_timeout='3h'")); err != nil {
@@ -77,7 +77,7 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = result.Rows.Close()
-	ref, start, stamp := s.Transactions.Ref, s.Transactions.Start, m.scope.statementStart
+	ref, start, stamp := s.Transactions.Ref, s.Transactions.Start, ScopeStatementStart(m.scope)
 	s.Mu.Lock()
 	deadline := s.Timeouts.Transaction.Deadline
 	idle := !s.Timeouts.Idle.Deadline.IsZero()
@@ -97,7 +97,7 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 	later := s.Timeouts.Transaction.Deadline
 	idle = !s.Timeouts.Idle.Deadline.IsZero()
 	s.Mu.Unlock()
-	if s.Transactions.Ref == ref || !s.Transactions.Start.After(start) || !later.After(deadline) || m.scope.statementStart != stamp || m.scope.transactionStart != s.Transactions.Start || idle || m.op.SQLFinished {
+	if s.Transactions.Ref == ref || !s.Transactions.Start.After(start) || !later.After(deadline) || ScopeStatementStart(m.scope) != stamp || ScopeTransactionStart(m.scope) != s.Transactions.Start || idle || m.op.SQLFinished {
 		t.Fatal("fresh segment reused prior birth/budget or message admission ended")
 	}
 	if err = m.end(nil); err != nil {

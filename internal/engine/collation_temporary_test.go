@@ -16,7 +16,7 @@ import (
 
 func collationPrivateSession(t *testing.T, e *Engine) *session.Session {
 	t.Helper()
-	s, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
+	s, err := EngineStartSession(e, context.Background(), session.SessionStart{Authenticated: e.RoleStore.Domain.Principal(10)}, true)
 	if err != nil {
 		t.Fatal(err)
 	}

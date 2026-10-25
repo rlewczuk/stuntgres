@@ -64,8 +64,8 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	defer op.Done()
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
-	scope := &StatementScope{statementStart: now, transactionStart: now}
-	s.StartProvisionalTimeout(&scope.lease, scope.Op, scope.transactionStart)
+	scope := NewScope(ScopeFields{StatementStart: now, TransactionStart: now})
+	s.StartProvisionalTimeout(ScopeLeaseRef(scope), scope.Op, ScopeTransactionStart(scope))
 	s.Transactions.Mu.Lock()
 	if s.Transactions.Next != 0 || s.Transactions.State != session.TxIdle {
 		t.Error("provisional budget minted transaction state")
@@ -276,15 +276,15 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			defer op.Done()
 			now := time.Now()
 			timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
-			scope := &StatementScope{Op: op, statementStart: now, transactionStart: now}
-			s.StartProvisionalTimeout(&scope.lease, scope.Op, scope.transactionStart)
+			scope := NewScope(ScopeFields{Op: op, StatementStart: now, TransactionStart: now})
+			s.StartProvisionalTimeout(ScopeLeaseRef(scope), scope.Op, ScopeTransactionStart(scope))
 			timed, expireStatement := context.WithCancelCause(op.Ctx)
 			s.Mu.Lock()
 			op.Ctx = timed
 			s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
 			s.Mu.Unlock()
 			if completed {
-				s.FinishScopeTimeout(&scope.lease, scope.Op, scope.message, scope.TxRef, false)
+				s.FinishScopeTimeout(ScopeLeaseRef(scope), scope.Op, ScopeMessage(scope), scope.TxRef, false)
 			}
 			expireStatement(session.StatementTimeoutCause)
 			s.Mu.Lock()
@@ -362,7 +362,7 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 			}
 			s.Mu.Lock()
 			generation, deadline := s.Timeouts.Transaction.Generation, s.Timeouts.Transaction.Deadline
-			if s.Timeouts.Transaction.Lease != &scope.lease || deadline.IsZero() {
+			if s.Timeouts.Transaction.Lease != ScopeLeaseRef(scope) || deadline.IsZero() {
 				t.Error("missing preparse scope budget")
 			}
 			s.Mu.Unlock()
@@ -478,7 +478,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 	s.Mu.Unlock()
 
 	// Invoke the existing batch mutation seam, not a SQL parser/response test.
-	if _, err := EngineOf(s).executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
+	if _, err := EngineExecuteSetting(EngineOf(s), op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	s.Mu.Lock()

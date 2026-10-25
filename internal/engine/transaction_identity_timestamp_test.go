@@ -58,7 +58,7 @@ func identityUnitTimestampWrap(t *testing.T) {
 		if _, retained := e.Visibility.CommitTimestamps[3]; retained || len(e.Visibility.CommitTimestamps) != 1 {
 			t.Fatal("reused low32 retained incompatible timestamp")
 		}
-		e.endSerializableLocked(b.Ref(), false)
+		EngineEndSerializableLocked(e, b.Ref(), false)
 		if e.Visibility.LookupCommitTimestampLocked(3).Present {
 			t.Fatal("aborted newest identity fell back to old-epoch completion")
 		}

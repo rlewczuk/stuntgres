@@ -46,7 +46,7 @@ func TestPLpgSQLCursorSourceDiagnostics(t *testing.T) {
 			if !reflect.DeepEqual(before, d.SQL.PLSyntax) {
 				t.Fatal("execution mutated original source metadata")
 			}
-			if s.Completed || s.sessionCompleted {
+			if s.Completed || ScopeSessionCompleted(s) {
 				t.Fatal("PL failure completed the containing command")
 			}
 		})
@@ -114,7 +114,7 @@ func TestPLpgSQLCursorLookupBeforeCount(t *testing.T) {
 				if !errors.As(err, &got) || *got != want {
 					t.Fatalf("missing portal evaluated/bound count: %+v (%v)", got, err)
 				}
-				if len(PayloadOf(s.Op.Session).Cursors.Entries) != 0 || s.Completed || s.sessionCompleted {
+				if len(PayloadOf(s.Op.Session).Cursors.Entries) != 0 || s.Completed || ScopeSessionCompleted(s) {
 					t.Fatal("lookup failure changed root or registry")
 				}
 			})
@@ -150,7 +150,7 @@ func TestPLpgSQLCursorInstallationNames(t *testing.T) {
 	declaration := &parser.DeclareCursor{Name: parser.Identifier{Text: "immutable_request"}}
 	install := func(name *string, closed *int) (*sqlCursor, string, error) {
 		restore := s.activateSQLRoutine(nil, read)
-		s.authority = &exec.Authority{Host: HostOf(s)}
+		SetScopeAuthority(s, &exec.Authority{Host: HostOf(s)})
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}, NestedStage: &exec.Stage{Finish: func() error { (*closed)++; return nil }}}
 		cursor, actual, err := s.installCursor(declaration, name, root, source, nil, true)
@@ -180,7 +180,7 @@ func TestPLpgSQLCursorInstallationNames(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if closed != 3 || len(registry.Entries) != 0 || s.Completed || s.sessionCompleted {
+	if closed != 3 || len(registry.Entries) != 0 || s.Completed || ScopeSessionCompleted(s) {
 		t.Fatal(fmt.Sprintf("name ownership cleanup: %d", closed))
 	}
 }

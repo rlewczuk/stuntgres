@@ -48,7 +48,7 @@ func cursorUnitScope(t *testing.T) (*Engine, *StatementScope) {
 	if err := s.Gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	s.worked = true
+	SetScopeWorked(s, true)
 	return e, s
 }
 
@@ -61,10 +61,10 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		column := catalog.Column{Name: "i", Usage: integer.Usage()}
 		root := &plan.ProjectNode{QuerySchema: []catalog.Column{column}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: seven}}}
 		outer := &proc.PLFrame{}
-		s.sqlRoutine.lexical = outer
-		parentAuthority := s.authority
+		ScopeSQLRoutineRef(s).lexical = outer
+		parentAuthority := ScopeAuthority(s)
 		restore := s.activateSQLRoutine(nil, read)
-		s.authority = &exec.Authority{Host: HostOf(s)}
+		SetScopeAuthority(s, &exec.Authority{Host: HostOf(s)})
 		s.Inquiry.CommentCatalog = read
 		source := &exec.Source{Singleton: true, Locks: &exec.LockContext{}}
 		declaration := &parser.DeclareCursor{Name: parser.Identifier{Text: "unit_owned"}}
@@ -73,7 +73,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.Completed || s.sessionCompleted || s.sqlRoutine.lexical != outer || s.authority != parentAuthority || cursor.stage != nil || cursor.authority.Host != nil {
+		if s.Completed || ScopeSessionCompleted(s) || ScopeSQLRoutineRef(s).lexical != outer || ScopeAuthority(s) != parentAuthority || cursor.stage != nil || cursor.authority.Host != nil {
 			t.Fatal("PL installation changed root flags/scratch or eagerly opened producer")
 		}
 		frame := &proc.PLFrame{Values: []sqltype.Value{seven}}
@@ -110,7 +110,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		if err = cursor.dispose(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if calls != 1 || s.Completed || s.sessionCompleted || cursor.Source != nil || cursor.authority.Host != nil {
+		if calls != 1 || s.Completed || ScopeSessionCompleted(s) || cursor.Source != nil || cursor.authority.Host != nil {
 			t.Fatal("lower close completion/once-only disposal", calls)
 		}
 	})
@@ -122,7 +122,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e, s := cursorUnitScope(t)
 			s.Inquiry.CommentCatalog = e.CatalogRead()
-			s.authority = &exec.Authority{Host: HostOf(s)}
+			SetScopeAuthority(s, &exec.Authority{Host: HostOf(s)})
 			calls := 0
 			source := &exec.Source{NestedStage: &exec.Stage{Finish: func() error {
 				calls++
@@ -148,7 +148,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 				t.Fatal("missing primary open failure", err)
 			}
 			source.Close()
-			if calls != 1 || PayloadOf(s.Op.Session).Cursors.Entries["failed_owner"] != nil || s.Completed || s.sessionCompleted {
+			if calls != 1 || PayloadOf(s.Op.Session).Cursors.Entries["failed_owner"] != nil || s.Completed || ScopeSessionCompleted(s) {
 				t.Fatal("partial open ownership", calls)
 			}
 		})
@@ -177,7 +177,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 				t.Fatal(err)
 			}
 			registry := PayloadOf(s.Op.Session).Cursors
-			if registry.Entries["unit_loop"] != nil || registry.ordinal != before+1 || s.Completed || s.sessionCompleted {
+			if registry.Entries["unit_loop"] != nil || registry.ordinal != before+1 || s.Completed || ScopeSessionCompleted(s) {
 				t.Fatal("loop ownership did not unwind before transaction finish")
 			}
 		})
@@ -225,7 +225,7 @@ func TestPLpgSQLCursorOwnership(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("admitted cancellation did not finish")
 		}
-		if active.pinned || PayloadOf(s.Op.Session).Cursors.Entries["unit_cancel_loop"] != nil || s.Completed || s.sessionCompleted {
+		if active.pinned || PayloadOf(s.Op.Session).Cursors.Entries["unit_cancel_loop"] != nil || s.Completed || ScopeSessionCompleted(s) {
 			t.Fatal("canceled loop retained portal/root completion")
 		}
 	})

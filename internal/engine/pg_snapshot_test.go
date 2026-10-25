@@ -86,16 +86,16 @@ func TestSnapshotStatementRetention(t *testing.T) {
 			observer.Transactions.Isolation = isolation
 			observer.Transactions.Mu.Unlock()
 			scope, op, cancel := concurrentUnitSnapshotScope(t, e, observer)
-			if err := scope.snapshotAnalysisPhase(&parser.Select{}); err != nil {
+			if err := ScopeSnapshotAnalysisPhase(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			id := uint64(peer.AssignedFullXID())
 			analysis := observer.Transactions.CurrentSnapshot
 			if isolation.Stable() {
-				if analysis == nil || analysis.Visible(id) || scope.snapshotFrontier != 10 || observer.Transactions.Frontier != 10 || len(observer.Transactions.Roots[relation.Address()].Versions) != 1 {
+				if analysis == nil || analysis.Visible(id) || ScopeSnapshotFrontier(scope) != 10 || observer.Transactions.Frontier != 10 || len(observer.Transactions.Roots[relation.Address()].Versions) != 1 {
 					t.Fatal("analysis did not retain one public/tuple pair")
 				}
-			} else if analysis != nil || scope.currentSnapshot != nil || observer.Transactions.SnapshotSet {
+			} else if analysis != nil || ScopeCurrentSnapshot(scope) != nil || observer.Transactions.SnapshotSet {
 				t.Fatal("RC analysis retained execution authority")
 			}
 			e.Mu.Lock()
@@ -103,10 +103,10 @@ func TestSnapshotStatementRetention(t *testing.T) {
 			e.Visibility.AdvanceCommitSeqLocked()
 			e.Visibility.EndTransactionIdentityLocked(peer.Ref(), true)
 			e.Mu.Unlock()
-			if err := scope.snapshotDataPhase(); err != nil {
+			if err := ScopeSnapshotDataPhase(scope); err != nil {
 				t.Fatal(err)
 			}
-			saved := scope.currentSnapshot
+			saved := ScopeCurrentSnapshot(scope)
 			wantRows := []ids.RowID{1, 2}
 			wantFrontier := ids.CommitSeq(11)
 			if isolation.Stable() {
@@ -115,12 +115,12 @@ func TestSnapshotStatementRetention(t *testing.T) {
 					t.Fatal("execution replaced stable analysis snapshot")
 				}
 			}
-			if saved == nil || saved.Visible(id) == isolation.Stable() || scope.snapshotFrontier != wantFrontier {
-				t.Fatal("execution public/tuple frontier mismatch", saved, scope.snapshotFrontier)
+			if saved == nil || saved.Visible(id) == isolation.Stable() || ScopeSnapshotFrontier(scope) != wantFrontier {
+				t.Fatal("execution public/tuple frontier mismatch", saved, ScopeSnapshotFrontier(scope))
 			}
 			ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), relation.Address())
 			snapshotUnitRows(t, scope, ref, wantRows)
-			if err := scope.snapshotDataPhase(); err != nil || scope.currentSnapshot != saved || scope.snapshotFrontier != wantFrontier {
+			if err := ScopeSnapshotDataPhase(scope); err != nil || ScopeCurrentSnapshot(scope) != saved || ScopeSnapshotFrontier(scope) != wantFrontier {
 				t.Fatal("command snapshot refreshed", err)
 			}
 			if err := scope.Finish(nil); err != nil {
@@ -129,14 +129,14 @@ func TestSnapshotStatementRetention(t *testing.T) {
 			op.Done()
 			cancel()
 			next, nextOp, nextCancel := concurrentUnitSnapshotScope(t, e, observer)
-			if err := next.snapshotDataPhase(); err != nil {
+			if err := ScopeSnapshotDataPhase(next); err != nil {
 				t.Fatal(err)
 			}
 			if isolation.Stable() {
-				if next.currentSnapshot != saved || next.currentSnapshot.Visible(id) {
+				if ScopeCurrentSnapshot(next) != saved || ScopeCurrentSnapshot(next).Visible(id) {
 					t.Fatal("stable snapshot lost")
 				}
-			} else if !next.currentSnapshot.Visible(id) || next.currentSnapshot == saved {
+			} else if !ScopeCurrentSnapshot(next).Visible(id) || ScopeCurrentSnapshot(next) == saved {
 				t.Fatal("read committed did not refresh")
 			}
 			if err := next.Finish(nil); err != nil {

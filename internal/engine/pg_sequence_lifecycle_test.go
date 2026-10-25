@@ -22,7 +22,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 			}
 			owner := op.Session.Transactions
 			scope := &StatementScope{Op: op, Owner: owner, TxRef: ref}
-			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
+			if err := ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			if owner.SequenceCatalog == nil {
@@ -34,7 +34,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "abort":
-				scope.self = scope
+				SetScopeSelf(scope, scope)
 				owner.Admission.Lock()
 				failure := SQLError("22023", "unit admitted failure")
 				if err := scope.Finish(failure); err != failure {

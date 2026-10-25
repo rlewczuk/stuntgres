@@ -117,7 +117,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 	if result.Rows != nil {
 		defer result.Rows.Close()
 	}
-	if err != nil || result.Count != 1 || scope.sessionCompleted || len(scope.Stage.Deletes) == 0 {
+	if err != nil || result.Count != 1 || ScopeSessionCompleted(scope) || len(scope.Stage.Deletes) == 0 {
 		scope.Finish(context.Canceled)
 		op.Done()
 		t.Fatal("positioned DELETE bypasses ordinary write staging", result, err)

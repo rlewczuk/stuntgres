@@ -55,7 +55,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			PayloadOf(a).Sequences.RecordLastLocked(address)
 			PayloadOf(b).Sequences.RecordLastLocked(address)
 			entry := &sqlPreparedStatement{body: &parser.Select{}}
-			PayloadOf(a).preparedSQL.entries["p"], PayloadOf(b).preparedSQL.entries["p"] = entry, entry
+			PayloadPreparedSQL(PayloadOf(a)).entries["p"], PayloadPreparedSQL(PayloadOf(b)).entries["p"] = entry, entry
 			var tx ids.TxRef
 			if category != parser.DiscardAll {
 				tx = transactionBegin(t, a)
@@ -68,14 +68,14 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			if a.Resources != resources || a.Serial != serial || a.Advisory.Ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
-			if e.Catalog.State != catalog || e.RoleStore.Published != roles || PayloadOf(b).preparedSQL.entries["p"] != entry || !currvalIs(PayloadOf(b).Sequences.Memory(address), 8) || PayloadOf(b).Sequences.Last() != address || b.DiscardPlansGeneration != 0 {
+			if e.Catalog.State != catalog || e.RoleStore.Published != roles || PayloadPreparedSQL(PayloadOf(b)).entries["p"] != entry || !currvalIs(PayloadOf(b).Sequences.Memory(address), 8) || PayloadOf(b).Sequences.Last() != address || b.DiscardPlansGeneration != 0 {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {
-				if len(PayloadOf(a).preparedSQL.entries) != 0 || len(PayloadOf(a).Cursors.Entries) != 0 || cursor.root != nil || cursor.authority.Host != nil {
+				if len(PayloadPreparedSQL(PayloadOf(a)).entries) != 0 || len(PayloadOf(a).Cursors.Entries) != 0 || cursor.root != nil || cursor.authority.Host != nil {
 					t.Fatal("ALL did not dispose actual registries")
 				}
-			} else if PayloadOf(a).preparedSQL.entries["p"] != entry || PayloadOf(a).Cursors.Entries["c"] != cursor || cursor.root == nil {
+			} else if PayloadPreparedSQL(PayloadOf(a)).entries["p"] != entry || PayloadOf(a).Cursors.Entries["c"] != cursor || cursor.root == nil {
 				t.Fatal("subset deallocated definitions/cursors")
 			}
 			if category == parser.DiscardPlans {
@@ -115,7 +115,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 						t.Fatal(err)
 					}
 				} else {
-					if err != nil || result.Count != 0 || result.Rows != nil || !scope.Completed || !scope.sessionCompleted {
+					if err != nil || result.Count != 0 || result.Rows != nil || !scope.Completed || !ScopeSessionCompleted(scope) {
 						t.Fatal(result, err)
 					}
 					cancel()
@@ -277,10 +277,10 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		t.Fatal("failed group published captures", err)
 	}
 	s.DiscardPlansGeneration = ^uint64(0)
-	PayloadOf(s).preparedSQL.entries["p"] = &sqlPreparedStatement{body: ast, description: d}
+	PayloadPreparedSQL(PayloadOf(s)).entries["p"] = &sqlPreparedStatement{body: ast, description: d}
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
 	_, err = scope.executeDiscard(&parser.Discard{Category: parser.DiscardAll}, 0)
-	if err == nil || PayloadOf(s).preparedSQL.entries["p"] == nil || scope.Completed {
+	if err == nil || PayloadPreparedSQL(PayloadOf(s)).entries["p"] == nil || scope.Completed {
 		t.Fatal("generation exhaustion installed effects", err)
 	}
 	scope.Finish(err)
@@ -319,7 +319,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	if scope.Completed || scope.sessionCompleted || scope.Catalog == nil || !scope.projectedRoots {
+	if scope.Completed || ScopeSessionCompleted(scope) || scope.Catalog == nil || !ScopeProjectedRoots(scope) {
 		t.Fatal("TEMP bypasses private publication")
 	}
 	if scope.Catalog.Originals[relation.Address()] != relation || scope.Catalog.Descriptors[relation.Address()] != nil || e.Storage.Relations[relation.Address()] != storage {
@@ -412,7 +412,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 					op.Done()
 					t.Fatal(err)
 				}
-				if scope.Completed || scope.sessionCompleted || !scope.projectedRoots || scope.Catalog.Originals[survivor.Address()] != survivor || scope.Catalog.Originals[providerAddress] != provider || scope.Catalog.Originals[indexAddress] != index {
+				if scope.Completed || ScopeSessionCompleted(scope) || !ScopeProjectedRoots(scope) || scope.Catalog.Originals[survivor.Address()] != survivor || scope.Catalog.Originals[providerAddress] != provider || scope.Catalog.Originals[indexAddress] != index {
 					scope.Finish(errors.New("invalid projection"))
 					op.Done()
 					t.Fatal("private projection lost original descriptor fences")
@@ -468,7 +468,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 			catalog, namespace := e.Catalog.State, s.TemporaryNamespace
 			op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardTemp)
 			_, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardTemp}, 0)
-			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.Catalog != nil || scope.projectedRoots || e.Catalog.State != catalog || s.TemporaryNamespace != namespace || cursor.root == nil {
+			if err == nil || err.Error() != `stuntgres: cannot DROP TABLE "discard_guard" because it is being used by active queries in this session` || scope.Catalog != nil || ScopeProjectedRoots(scope) || e.Catalog.State != catalog || s.TemporaryNamespace != namespace || cursor.root == nil {
 				scope.Finish(err)
 				op.Done()
 				t.Fatal("live cursor preflight installed effects or lost source", err)

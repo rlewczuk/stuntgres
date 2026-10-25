@@ -92,8 +92,8 @@ func TestSQLRoutineDepthUnwind(t *testing.T) {
 				t.Fatal(err)
 			}
 		}()
-		if s.activeSQLRoutineDepth != 0 {
-			t.Fatal("unbalanced body exit", s.activeSQLRoutineDepth)
+		if ScopeActiveSQLRoutineDepth(s) != 0 {
+			t.Fatal("unbalanced body exit", ScopeActiveSQLRoutineDepth(s))
 		}
 	}
 	for range maxSQLRoutineDepth {
@@ -105,7 +105,7 @@ func TestSQLRoutineDepthUnwind(t *testing.T) {
 	if err := s.enterSQLRoutine(); !errors.As(err, &d) || d.Code != "54001" || d.Hint != "" {
 		t.Fatal(err)
 	}
-	if s.activeSQLRoutineDepth != maxSQLRoutineDepth {
+	if ScopeActiveSQLRoutineDepth(s) != maxSQLRoutineDepth {
 		t.Fatal("rejected entry changed depth")
 	}
 	for range maxSQLRoutineDepth {
@@ -119,18 +119,18 @@ func TestSQLRoutineDepthUnwind(t *testing.T) {
 
 func TestSQLRoutineResultScratchUnwind(t *testing.T) {
 	e := New()
-	s := &StatementScope{sqlRoutine: sqlRoutineDemand{result: testUsage(e, sqltype.Int8)}, activeSQLRoutineDepth: 7}
-	outer := s.sqlRoutine.result
+	s := NewScope(ScopeFields{SQLRoutine: sqlRoutineDemand{result: testUsage(e, sqltype.Int8)}, ActiveSQLRoutineDepth: 7})
+	outer := ScopeSQLRoutineRef(s).result
 	for _, primary := range []error{nil, errors.New("body failure"), context.Canceled} {
 		restore := s.activateSQLRoutine(nil, catalog.Read{})
-		if s.activeSQLRoutineDepth != 7 || !s.sqlRoutine.scalar || s.sqlRoutine.result.Type != nil {
+		if ScopeActiveSQLRoutineDepth(s) != 7 || !ScopeSQLRoutineRef(s).scalar || ScopeSQLRoutineRef(s).result.Type != nil {
 			t.Fatal("activation leaked owner or result")
 		}
-		s.sqlRoutine.result = testUsage(e, sqltype.Int4)
+		ScopeSQLRoutineRef(s).result = testUsage(e, sqltype.Int4)
 		if err := restore(primary); !errors.Is(err, primary) {
 			t.Fatal(err)
 		}
-		if s.sqlRoutine.result != outer || s.activeSQLRoutineDepth != 7 || s.sqlRoutine.scalar {
+		if ScopeSQLRoutineRef(s).result != outer || ScopeActiveSQLRoutineDepth(s) != 7 || ScopeSQLRoutineRef(s).scalar {
 			t.Fatal("result/depth scratch unwind failed")
 		}
 	}

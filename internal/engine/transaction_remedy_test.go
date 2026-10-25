@@ -47,7 +47,7 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 				if before {
 					// Exercise the settings installation seam itself, after the
 					// scope's admission preflight but before installation.
-					result, execErr = e.executeSetting(op, statement(t, query), 0, scope.implicit)
+					result, execErr = EngineExecuteSetting(e, op, statement(t, query), 0, ScopeImplicit(scope))
 				} else {
 					result, execErr = scope.Execute(statement(t, query), 0, nil)
 				}

@@ -66,7 +66,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			oldRoot := e.Storage.IndexRoots[idx.Address()]
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			defer e.DiscardCatalogStage(stage)
-			stage.terminalCleanup = mode == "TerminalMaximum"
+			SetStageTerminalCleanup(stage, mode == "TerminalMaximum")
 			changes := session.NewJournal()
 			project := func(old, next *catalog.Relation) error {
 				_, _, _, err := stagePrivateColumnShape(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: stage.Base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, stage, changes, old, next, nil, nil, visibility.Root{}, false, false)
@@ -162,7 +162,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			e.Mu.Lock()
 			err = e.EvolveStageIndexesLocked(stage, ids.ObjectAddress{}, nil)
 			if err == nil {
-				e.stageCatalogChangesLocked(stage, changes)
+				EngineStageCatalogChangesLocked(e, stage, changes)
 			}
 			e.Mu.Unlock()
 			if err == nil {
@@ -177,7 +177,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 				}
 				err = scope.Gate(statement(t, "SELECT 1"))
 				if err == nil {
-					err = e.prepareCatalogOverlayIndexes(scope, stage, changes)
+					err = EnginePrepareCatalogOverlayIndexes(e, scope, stage, changes)
 				}
 				_ = scope.Finish(context.Canceled)
 				op.Done()

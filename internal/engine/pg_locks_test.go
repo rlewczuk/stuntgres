@@ -59,7 +59,7 @@ func TestPGLocksProjectionModes(t *testing.T) {
 	if !d.VirtualView || d.RelationKind != catalog.CatalogRelation || d.RowType != 12075 {
 		t.Fatal("view identity", d)
 	}
-	if err := (relationProvider).Validate(view, d); err != nil {
+	if err := (RelationProvider()).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
@@ -307,9 +307,9 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 	}
 	defer scope.Finish(context.Canceled)
 	scope.Owner.Mu.Lock()
-	scope.attachTransactionLocked()
+	ScopeAttachTransactionLocked(scope)
 	scope.Owner.Mu.Unlock()
-	scope.worked = true
+	SetScopeWorked(scope, true)
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), d.Address())
 	store := e.Storage.Relations[d.Address()]
 	scope.LockedRef, scope.LockedStorage, scope.LockedDescriptor = ref, store, d
@@ -333,9 +333,9 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 			}
 		}
 	case "prepare":
-		e.prepared.ReserveLocked()
+		EnginePreparedRef(e).ReserveLocked()
 		entry := &session.PreparedTransaction{Ref: ticket.Ref(), Ticket: ticket, GID: "pg_locks_unit_prepare"}
-		err = e.publishRowsPrepared(op, ticket.Ref(), nil, nil, nil, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: scope.Owner}, scope)
+		err = EnginePublishRowsPrepared(e, op, ticket.Ref(), nil, nil, nil, nil, &session.PreparedPublication{Entry: entry, Preparing: true, Origin: scope.Owner}, scope)
 		if err == nil {
 			e.Locks.DetachPrepared(ticket)
 		}
@@ -350,7 +350,7 @@ func pgLocksUnitAssignmentRoute(t *testing.T, route string) {
 		t.Fatal("actual assignment lacks completion ownership", route)
 	}
 	if route == "prepare" {
-		e.prepared.RemoveLocked("pg_locks_unit_prepare")
+		EnginePreparedRef(e).RemoveLocked("pg_locks_unit_prepare")
 		e.EndLockOwner(ticket)
 	}
 }
@@ -361,8 +361,8 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 	_, b := blockingUnitOwner(t, e)
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	e.enrollSerializableLocked(a.Ref(), session.Serializable)
-	e.enrollSerializableLocked(b.Ref(), session.Serializable)
+	EngineEnrollSerializableLocked(e, a.Ref(), session.Serializable)
+	EngineEnrollSerializableLocked(e, b.Ref(), session.Serializable)
 	first, overlap := e.Visibility.Serializable.Nodes[a.Ref()], e.Visibility.Serializable.Nodes[b.Ref()]
 	first.Captured, overlap.Captured = true, true
 	first.Reads[d.Address()] = struct{}{}
@@ -371,7 +371,7 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 		t.Fatal("real SSI read", before, err)
 	}
 	first.Committed = true
-	e.endSerializableLocked(a.Ref(), true)
+	EngineEndSerializableLocked(e, a.Ref(), true)
 	after, err := e.capturePGPredicateLocksLocked()
 	if err != nil || !reflect.DeepEqual(before, after) {
 		t.Fatal("committed overlap changed original owner", before, after, err)
@@ -386,9 +386,9 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 	if err != nil || len(aborted) != 0 {
 		t.Fatal("aborted predicate leaked", aborted, err)
 	}
-	e.endSerializableLocked(b.Ref(), false)
+	EngineEndSerializableLocked(e, b.Ref(), false)
 	if records, err := e.capturePGPredicateLocksLocked(); err != nil || len(records) != 0 {
 		t.Fatal("overlap cleanup", records, err)
 	}
-	e.fenceSerializableLocked()
+	EngineFenceSerializableLocked(e)
 }

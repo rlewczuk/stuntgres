@@ -26,9 +26,9 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 					scope := foreignActionUnitScope(t, e, sess, "INSERT INTO ex_log VALUES(1)")
 					ref := catalogRef(t, e, e.CatalogRead(), "ex_log")
 					prefix := scope.Stage.Rows[ref.Address][0]
-					scope.Completed, scope.sessionCompleted = completed, sessionCompleted
+					scope.Completed, *ScopeSessionCompletedRef(scope) = completed, sessionCompleted
 					restore := scope.activateSQLRoutine(nil, e.CatalogRead())
-					if scope.Completed || scope.sessionCompleted {
+					if scope.Completed || ScopeSessionCompleted(scope) {
 						t.Fatal("child inherited parent's completion outcomes")
 					}
 					boolean, ok := e.CatalogRead().LookupType(sqltype.Bool)
@@ -49,13 +49,13 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					nestedRestore := scope.activateSQLRoutine(nil, e.CatalogRead())
-					if scope.Completed || scope.sessionCompleted {
+					if scope.Completed || ScopeSessionCompleted(scope) {
 						t.Fatal("nested child did not start with reset completion flags")
 					}
 					if _, err := e.executeStatement(scope, statement(t, "SET application_name TO 'child'"), 0, nil); err != nil || !scope.Completed {
 						t.Fatal("actual child utility failed to install completion", err)
 					}
-					if err := nestedRestore(nil); err != nil || scope.Completed || scope.sessionCompleted {
+					if err := nestedRestore(nil); err != nil || scope.Completed || ScopeSessionCompleted(scope) {
 						t.Fatal("nested utility outcome leaked into its parent", err)
 					}
 					if errors.Is(outcome.err, context.Canceled) {
@@ -63,8 +63,8 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 						scope.Op.Ctx = ctx
 						cancel()
 					}
-					if err := restore(outcome.err); !errors.Is(err, outcome.err) || scope.Completed != completed || scope.sessionCompleted != sessionCompleted {
-						t.Fatal("activation unwind changed saved parent outcomes", err, scope.Completed, scope.sessionCompleted)
+					if err := restore(outcome.err); !errors.Is(err, outcome.err) || scope.Completed != completed || ScopeSessionCompleted(scope) != sessionCompleted {
+						t.Fatal("activation unwind changed saved parent outcomes", err, scope.Completed, ScopeSessionCompleted(scope))
 					}
 					rows := scope.Stage.Rows[ref.Address]
 					if len(rows) != 2 || rows[0].Version != prefix.Version || rows[0].Row != prefix.Row {
@@ -86,17 +86,17 @@ func TestPLExceptionUtilityPublication(t *testing.T) {
 		op, scope := discardUnitScope(t, sess, ctx, parser.DiscardPlans)
 		defer op.Done()
 		defer scope.Finish(context.Canceled)
-		if _, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardPlans}, 0); err != nil || !scope.Completed || !scope.sessionCompleted || sess.DiscardPlansGeneration != 1 {
+		if _, err := scope.executeDiscard(&parser.Discard{Category: parser.DiscardPlans}, 0); err != nil || !scope.Completed || !ScopeSessionCompleted(scope) || sess.DiscardPlansGeneration != 1 {
 			t.Fatal("root utility did not actually install its outcome", err)
 		}
 		restore := scope.activateSQLRoutine(nil, e.CatalogRead())
-		if scope.Completed || scope.sessionCompleted {
+		if scope.Completed || ScopeSessionCompleted(scope) {
 			t.Fatal("completed root outcome leaked into child")
 		}
 		if _, err := e.executeStatement(scope, statement(t, "SET application_name TO 'child'"), 0, nil); err != nil {
 			t.Fatal(err)
 		}
-		if err := restore(nil); err != nil || !scope.Completed || !scope.sessionCompleted {
+		if err := restore(nil); err != nil || !scope.Completed || !ScopeSessionCompleted(scope) {
 			t.Fatal("child unwind removed genuine root installation fence", err)
 		}
 		cancel()

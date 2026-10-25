@@ -86,7 +86,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC read", d.Security.ACL)
 	}
-	if err := (relationProvider).Validate(view, d); err != nil {
+	if err := (RelationProvider()).Validate(view, d); err != nil {
 		t.Fatal(err)
 	}
 	descriptors, names := maps.Collect(e.Catalog.State.Descriptors()), maps.Collect(e.Catalog.State.Names())

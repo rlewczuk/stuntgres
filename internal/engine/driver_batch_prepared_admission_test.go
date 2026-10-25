@@ -39,10 +39,10 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				tx := s.Transactions
-				if tx.State != session.TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.TxRef || tx.Ticket == nil || tx.Ticket != m.scope.LockTicket || tx.Ref.Epoch() != e.Catalog.State.Epoch() || !m.scope.implicit {
+				if tx.State != session.TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.TxRef || tx.Ticket == nil || tx.Ticket != m.scope.LockTicket || tx.Ref.Epoch() != e.Catalog.State.Epoch() || !ScopeImplicit(m.scope) {
 					t.Fatal("reached prepared control bypassed ordinary segment authority")
 				}
-				if e.prepared.Len() != 0 || e.Visibility.CommitSeq() != 0 {
+				if EnginePreparedRef(e).Len() != 0 || e.Visibility.CommitSeq() != 0 {
 					t.Fatal("admission touched prepared registry or committed data")
 				}
 			})

@@ -69,19 +69,19 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 func TestTemporaryTableProviderAction(t *testing.T) {
 	e, _, c, table := temporaryCatalogCandidate(t, parser.OnCommitDelete)
 	view := e.PrivateCatalogLocked(c)
-	if err := (relationProvider).Validate(view, table); err != nil {
+	if err := (RelationProvider()).Validate(view, table); err != nil {
 		t.Fatal(err)
 	}
 	invalid := *table
 	invalid.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 	c2 := c.Clone()
 	e.CatalogChangeLocked(c2, table.Address(), &invalid)
-	if err := (relationProvider).Validate(e.PrivateCatalogLocked(c2), &invalid); err == nil {
+	if err := (RelationProvider()).Validate(e.PrivateCatalogLocked(c2), &invalid); err == nil {
 		t.Fatal("persistent action descriptor accepted")
 	}
 	invalid = *table
 	invalid.OnCommit = parser.OnCommitAction(255)
-	if err := (relationProvider).Validate(view, &invalid); err == nil {
+	if err := (RelationProvider()).Validate(view, &invalid); err == nil {
 		t.Fatal("unknown action accepted")
 	}
 }
@@ -91,7 +91,7 @@ func TestTemporaryTableCommitCandidate(t *testing.T) {
 		e, op, c, table := temporaryCatalogCandidate(t, action)
 		writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 		mark := c.Clone()
-		nextWrites, _, next, err := e.prepareTemporaryCommit(op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, c)
+		nextWrites, _, next, err := EnginePrepareTemporaryCommit(e, op, (*ids.Domain)(nil).Tx(ids.SessionToken{}, 0, e.Catalog.State.Epoch(), nil, 0), writes, nil, c)
 		if err != nil {
 			t.Fatal(action, err)
 		}
@@ -172,7 +172,7 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	op.Ctx = ctx
 	original := e.Catalog.State
 	writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
-	err = e.publishRows(op, scope.TxRef, writes, nil, c, nil, nil)
+	err = EnginePublishRows(e, op, scope.TxRef, writes, nil, c, nil, nil)
 	scope.Finish(err)
 	if !errors.Is(err, context.Canceled) || e.Catalog.State != original || e.Storage.Relations[table.Address()] != nil || c.Descriptors[table.Address()] != table || len(writes[table.Address()]) != 1 {
 		t.Fatal("canceled final commit changed catalog/action/write roots", err)
@@ -193,14 +193,14 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 	}
 	auth.StagedTemporary = table.Namespace()
 	ref, err := e.CreationNamespace(auth, name)
-	if err != nil || ref.Address != table.Namespace() || temporaryNamespace(auth) != table.Namespace() {
+	if err != nil || ref.Address != table.Namespace() || TemporaryNamespace(auth) != table.Namespace() {
 		t.Fatal("owned stage namespace unresolved", err)
 	}
 	if op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || op.Session.Transactions.Catalog != nil {
 		t.Fatal("stage namespace published before CREATE success")
 	}
 	auth.StagedTemporary = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-	if _, err := e.CreationNamespace(auth, name); err == nil || temporaryNamespace(auth) != (ids.ObjectAddress{}) {
+	if _, err := e.CreationNamespace(auth, name); err == nil || TemporaryNamespace(auth) != (ids.ObjectAddress{}) {
 		t.Fatal("persistent namespace impersonated owner TEMP")
 	}
 }

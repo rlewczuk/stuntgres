@@ -88,7 +88,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		failure := errors.New("savepoint acquisition failure")
 		tx := &plExceptionFaultTx{saveError: failure}
 		tx.check = plExceptionUnlocked(t, e, s)
-		ownerExtensionOf(s.Owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
+		OwnerExtensionForeignRef(OwnerExtensionOf(s.Owner)).Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		frame := &proc.PLFrame{Program: &proc.PLProgram{}}
 		block := &proc.PLBlock{Statements: []proc.PLInstruction{{Syntax: &parser.PLStatement{Return: true}}}, Handlers: []proc.PLHandler{{Conditions: []proc.PLCondition{{Others: true}}}}}
 		_, flow, err := s.newPLRun(nil, frame, e.CatalogRead()).Block(block)
@@ -101,7 +101,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		failure := errors.New("provider rollback failure")
 		tx := &plExceptionFaultTx{rollbackError: failure}
 		tx.check = plExceptionUnlocked(t, e, s)
-		ownerExtensionOf(s.Owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
+		OwnerExtensionForeignRef(OwnerExtensionOf(s.Owner)).Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
 		boolean, ok := e.CatalogRead().LookupType(sqltype.Bool)
 		if !ok {
@@ -130,7 +130,7 @@ func TestPLExceptionParticipants(t *testing.T) {
 		e, s := plExceptionUnitScope(t)
 		tx := &plExceptionFaultTx{}
 		tx.check = plExceptionUnlocked(t, e, s)
-		ownerExtensionOf(s.Owner).foreign.Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
+		OwnerExtensionForeignRef(OwnerExtensionOf(s.Owner)).Enlist(&fdw.Participant{Tx: tx, Capabilities: catalog.ForeignTransactionCapabilities{Savepoints: true}})
 		mark, err := s.beginPLException()
 		if err != nil {
 			t.Fatal(err)

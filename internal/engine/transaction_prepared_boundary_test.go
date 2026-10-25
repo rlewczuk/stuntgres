@@ -116,7 +116,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *session.Session, *session.
 	if err := preparedUnitControl(t, e, origin, parser.KindPrepareTransaction, "boundary"); err != nil {
 		t.Fatal(err)
 	}
-	entry := e.prepared.Lookup("boundary")
+	entry := EnginePreparedRef(e).Lookup("boundary")
 	if entry == nil || len(entry.Writes) == 0 || len(entry.Deletes) == 0 || entry.Catalog == nil || len(entry.Catalog.Storage) == 0 || len(entry.Catalog.Generators) == 0 || e.Visibility.Serializable.Nodes[entry.Ref] == nil || len(e.Locks.Inspect(entry.Ticket).Journals[entry.Ticket]) == 0 {
 		t.Fatal("fixture did not retain populated row/delete/catalog/generator/SSI/lock roots")
 	}
@@ -174,7 +174,7 @@ func preparedBoundaryCapture(e *Engine, entry *session.PreparedTransaction) prep
 		storagePointers: maps.Clone(e.Storage.Relations), storage: map[ids.ObjectAddress]storage.Relation{},
 		generators: maps.Clone(e.Storage.Sequences), generatorValues: map[ids.ObjectAddress]storage.SequenceGenerator{},
 		indexes: maps.Clone(e.Storage.IndexRoots), indexValues: map[ids.ObjectAddress][]storage.IndexEntry{},
-		registry: maps.Collect(e.prepared.All()), entries: map[string]session.PreparedTransaction{},
+		registry: maps.Collect(EnginePreparedRef(e).All()), entries: map[string]session.PreparedTransaction{},
 		ssi: map[ids.TxRef]visibility.SerializableTx{}, creators: maps.Clone(e.Visibility.Serializable.Creators),
 		owners: lockState.Owners, resources: lockState.Journals[entry.Ticket], locks: map[lock.Resource]lock.ResourceState{},
 	}
@@ -196,7 +196,7 @@ func preparedBoundaryCapture(e *Engine, entry *session.PreparedTransaction) prep
 		}
 		s.indexValues[address] = values
 	}
-	for gid, prepared := range e.prepared.All() {
+	for gid, prepared := range EnginePreparedRef(e).All() {
 		value := *prepared
 		value.Writes = maps.Clone(prepared.Writes)
 		for address, writes := range value.Writes {
@@ -365,7 +365,7 @@ func TestPreparedPopulatedCompetingCompletionAndRetry(t *testing.T) {
 					}
 				}
 			})
-			go func() { outcome := e.completePrepared(op, "boundary", true); op.Done(); result <- outcome }()
+			go func() { outcome := EngineCompletePrepared(e, op, "boundary", true); op.Done(); result <- outcome }()
 			preparedBoundaryReceive(t, arrived, "outside-metadata completion barrier")
 			busy := preparedUnitControl(t, e, competitor, parser.KindRollbackPrepared, "boundary")
 			var diagnostic *sqlstate.Error
@@ -409,7 +409,7 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *session.PreparedT
 	heap := accessMethodHeapOperationsUnit(t, e.CatalogRead())
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	if e.prepared.Lookup(entry.GID) != nil || e.Visibility.CommitSeq() != entry.Frontier+1 {
+	if EnginePreparedRef(e).Lookup(entry.GID) != nil || e.Visibility.CommitSeq() != entry.Frontier+1 {
 		t.Fatal("completion did not publish exactly once")
 	}
 	relation := e.Catalog.State.MustRelation(parent)
@@ -547,8 +547,8 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	if winner.err != nil || !errors.As(loser.err, &diagnostic) || diagnostic.Code != "42710" {
 		t.Fatal("genuine competing PREPARE outcomes", first.err, second.err)
 	}
-	entry := e.prepared.Lookup("race")
-	if e.prepared.Len() != 1 || entry.Ref != refs[winner.owner] || entry.Ticket != tickets[winner.owner] || len(entry.Writes) == 0 || entry.Catalog == nil {
+	entry := EnginePreparedRef(e).Lookup("race")
+	if EnginePreparedRef(e).Len() != 1 || entry.Ref != refs[winner.owner] || entry.Ticket != tickets[winner.owner] || len(entry.Writes) == 0 || entry.Catalog == nil {
 		t.Fatal("wrong registry winner")
 	}
 	for i, owner := range owners {
@@ -671,7 +671,7 @@ func TestPreparedLateCancellationAndWaiterObservePublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	completionLaunched = true
-	go func() { outcome := e.completePrepared(op, "boundary", true); op.Done(); result <- outcome }()
+	go func() { outcome := EngineCompletePrepared(e, op, "boundary", true); op.Done(); result <- outcome }()
 	outcome := preparedBoundaryReceive(t, result, "late-cancellation completion outcome")
 	completionJoined = true
 	preparedBoundaryReceive(t, observed, "published-state resource observer")

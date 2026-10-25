@@ -112,9 +112,9 @@ func TestPLpgSQLSelectIntoRuntime(t *testing.T) {
 	}
 	t.Run("close_and_activation_unwind", func(t *testing.T) {
 		s, _, f, read := loopUnitFrame(t, `BEGIN RETURN 7; END`)
-		previous := s.sqlRoutine.lexical
+		previous := ScopeSQLRoutineRef(s).lexical
 		restore := s.activateSQLRoutine(nil, read)
-		s.sqlRoutine.lexical = f
+		ScopeSQLRoutineRef(s).lexical = f
 		fatal := errors.New("fatal close")
 		main := &captureCloseRows{failure: fatal}
 		auxiliary := &captureCloseRows{}
@@ -122,7 +122,7 @@ func TestPLpgSQLSelectIntoRuntime(t *testing.T) {
 		err := closePLCapture(Result{Rows: main, RowSets: []exec.RowResult{auxiliary}}, primary, func(err error) error { return err })
 		err = restore(err)
 		var diagnostic *sqlstate.Error
-		if !errors.Is(err, fatal) || !errors.Is(err, primary) || !errors.As(err, &diagnostic) || diagnostic.Code != "P0003" || !main.closed || !auxiliary.closed || s.sqlRoutine.lexical != previous {
+		if !errors.Is(err, fatal) || !errors.Is(err, primary) || !errors.As(err, &diagnostic) || diagnostic.Code != "P0003" || !main.closed || !auxiliary.closed || ScopeSQLRoutineRef(s).lexical != previous {
 			t.Fatal("lost primary/cleanup/activation", err)
 		}
 	})

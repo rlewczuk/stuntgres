@@ -40,14 +40,14 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 				t.Run(fmt.Sprintf("promoted_flags/%t/%t/%t", completed, sessionCompleted, move), func(t *testing.T) {
 					_, s := cursorUnitScope(t)
 					c := cursorPromotedUnit(t, s, "held", "i", 7)
-					s.Completed, s.sessionCompleted = completed, sessionCompleted
+					s.Completed, *ScopeSessionCompletedRef(s) = completed, sessionCompleted
 					motion := &parser.FetchCursor{Name: parser.Identifier{Text: "held"}, Count: 1, Move: move}
 					result, err := s.fetchCursor(motion)
 					if err != nil {
 						t.Fatal(err)
 					}
-					if result.Count != 1 || c.OrdinalPosition != 1 || s.Completed != completed || s.sessionCompleted != sessionCompleted {
-						t.Fatal("lower held motion completed its parent", result.Count, c.OrdinalPosition, s.Completed, s.sessionCompleted)
+					if result.Count != 1 || c.OrdinalPosition != 1 || s.Completed != completed || ScopeSessionCompleted(s) != sessionCompleted {
+						t.Fatal("lower held motion completed its parent", result.Count, c.OrdinalPosition, s.Completed, ScopeSessionCompleted(s))
 					}
 					if move {
 						if result.Rows != nil {
@@ -72,7 +72,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 					if result.Rows != nil {
 						defer result.Rows.Close()
 					}
-					if result.Count != 1 || !s.Completed || !s.sessionCompleted {
+					if result.Count != 1 || !s.Completed || !ScopeSessionCompleted(s) {
 						t.Fatal("SQL held wrapper lost completion", result.Count)
 					}
 				})
@@ -191,7 +191,7 @@ func TestPLpgSQLCursorPortalOwnership(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "24000" {
 			t.Fatal(err)
 		}
-		if PayloadOf(s.Op.Session).Cursors.Entries["owned_pin"] != nil || s.Completed || s.sessionCompleted {
+		if PayloadOf(s.Op.Session).Cursors.Entries["owned_pin"] != nil || s.Completed || ScopeSessionCompleted(s) {
 			t.Fatal("pinned loop error retained portal/completed parent")
 		}
 	})

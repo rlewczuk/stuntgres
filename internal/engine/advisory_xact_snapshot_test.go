@@ -38,7 +38,7 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		lockState := e.Locks.Inspect(old)
-		if e.prepared.Lookup("advisory_xact_unit").Ticket != old || !lockState.Detached[old] || lockState.Participant(old) == lockState.Participant(a.Advisory.Ticket) {
+		if EnginePreparedRef(e).Lookup("advisory_xact_unit").Ticket != old || !lockState.Detached[old] || lockState.Participant(old) == lockState.Participant(a.Advisory.Ticket) {
 			t.Fatal("prepared owner did not detach")
 		}
 		transactionBegin(t, a)

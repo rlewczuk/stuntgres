@@ -94,7 +94,7 @@ func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget
 		t.Fatal(err)
 	}
 	parent := "parent"
-	if _, err := e.applySetting(begin, s.Settings, e.Settings.Definitions()["application_name"], &parent, false); err != nil {
+	if _, err := EngineApplySetting(e, begin, s.Settings, e.Settings.Definitions()["application_name"], &parent, false); err != nil {
 		t.Fatal(err)
 	}
 	begin.Done()
@@ -235,7 +235,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 				scope := timeoutPendingScope(t, op)
 				if child {
 					value := "child"
-					if _, err := EngineOf(s).applySetting(op, s.Settings, EngineOf(s).Settings.Definitions()["application_name"], &value, false); err != nil {
+					if _, err := EngineApplySetting(EngineOf(s), op, s.Settings, EngineOf(s).Settings.Definitions()["application_name"], &value, false); err != nil {
 						scope.Finish(err)
 						t.Fatal(err)
 					}
@@ -267,7 +267,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					}
 					s.Mu.Lock()
 					slot := &s.Timeouts.Transaction
-					if op.Lease != &scope.lease || op.SQLFinished || scope.lease.TimeoutRef != ref || slot.Ref != ref {
+					if op.Lease != ScopeLeaseRef(scope) || op.SQLFinished || ScopeLease(scope).TimeoutRef != ref || slot.Ref != ref {
 						t.Error("statement callback lacks exact unfinished operation/scope/incarnation authority")
 					}
 					s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", observed)
@@ -313,7 +313,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					}
 					s.Mu.Lock()
 					slot := &s.Timeouts.Transaction
-					if op.Lease != &scope.lease || op.SQLFinished || scope.lease.TimeoutRef != ref || slot.Ref != ref {
+					if op.Lease != ScopeLeaseRef(scope) || op.SQLFinished || ScopeLease(scope).TimeoutRef != ref || slot.Ref != ref {
 						t.Error("lock callback lacks exact unfinished operation/scope/incarnation authority")
 					}
 					s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", observed)
@@ -506,7 +506,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 			op.LockWait.Request() != request {
 			t.Fatalf("active mutation lost exact queue/owner/mode: %#v", state)
 		}
-		if scope.lease.TimeoutRef != ref || scope.TxRef != ref {
+		if ScopeLease(scope).TimeoutRef != ref || scope.TxRef != ref {
 			t.Fatal("queued mutation lost original transaction incarnation")
 		}
 		time.Sleep(199 * time.Millisecond)
@@ -587,7 +587,7 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 		assignment := timeoutPendingOperation(t, s)
 		idle := "375ms"
-		_, err := e.applySetting(assignment, s.Settings, e.Settings.Definitions()["idle_in_transaction_session_timeout"], &idle, false)
+		_, err := EngineApplySetting(e, assignment, s.Settings, e.Settings.Definitions()["idle_in_transaction_session_timeout"], &idle, false)
 		assignment.Done() // The actual ready boundary arms the idle timer.
 		if err != nil {
 			t.Fatal("assigning residual idle budget", err)

@@ -92,7 +92,7 @@ func TestNotificationInfoSource(t *testing.T) {
 	if err != nil || present || !v.IsNull() || v.Type() != text || empty.Values != nil {
 		t.Fatal("typed empty EOF", v, present, err)
 	}
-	listener := &PayloadOf(scope.Op.Session).notifications
+	listener := PayloadNotificationsRef(PayloadOf(scope.Op.Session))
 	e.Mu.Lock()
 	listener.State = &session.NotificationState{Channels: map[string]struct{}{"committed": {}}, History: true}
 	e.Mu.Unlock()

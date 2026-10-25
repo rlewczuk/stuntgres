@@ -36,7 +36,7 @@ func blockingUnitType(e *Engine) *sqltype.Descriptor {
 
 func blockingUnitWant(t *testing.T, e *Engine, target ids.SessionID, want ...int64) []sqltype.Value {
 	t.Helper()
-	values, err := e.blockingPidValues(target, blockingUnitType(e))
+	values, err := EngineBlockingPidValues(e, target, blockingUnitType(e))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,16 +126,16 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	if value, err := planned.Eval(evaluation); err != nil || value.IsNull() || value.ArrayLen() != 0 {
 		t.Fatal("undemanded branch evaluated", value, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), New().Catalog.Domain.Session(7), false, e.Catalog.Domain); err != nil || len(values) != 0 {
+	if values, err := AppendBlockingPid(nil, blockingUnitType(e), New().Catalog.Domain.Session(7), false, e.Catalog.Domain); err != nil || len(values) != 0 {
 		t.Fatal("foreign owner exposed", values, err)
 	}
-	if values, err := appendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.PrivateSession(s), false, e.Catalog.Domain); err != nil || len(values) != 0 {
+	if values, err := AppendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.PrivateSession(s), false, e.Catalog.Domain); err != nil || len(values) != 0 {
 		t.Fatal("private owner exposed", values, err)
 	}
-	if _, err := appendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.Session(math.MaxInt32+1), false, e.Catalog.Domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+	if _, err := AppendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.Session(math.MaxInt32+1), false, e.Catalog.Domain); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 		t.Fatal("unchecked PID projection", err)
 	}
-	zeros, err := appendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.Session(math.MaxInt32+1), true, e.Catalog.Domain)
+	zeros, err := AppendBlockingPid(nil, blockingUnitType(e), e.Catalog.Domain.Session(math.MaxInt32+1), true, e.Catalog.Domain)
 	if err != nil || len(zeros) != 1 {
 		t.Fatal("prepared projection used physical ID", zeros, err)
 	}
@@ -266,7 +266,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if request == nil {
 			t.Fatal("high holder did not block")
 		}
-		if _, err := e.blockingPidValues(next.Session().ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
+		if _, err := EngineBlockingPidValues(e, next.Session().ID(), blockingUnitType(e)); err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 			t.Fatal("high live blocker", err)
 		}
 		e.EndLockOwner(ht)

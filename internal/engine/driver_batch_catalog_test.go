@@ -170,7 +170,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	// Projection can already replace descriptors in the proposed changes.
 	// Those replacements are not the statement's entry authority.
 	e.CatalogChangeLocked(candidate, ref.Address, &next)
-	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, candidate, before, nil); err != nil {
 		t.Fatal("proposed replacement mistaken for entry predecessor", err)
 	}
 	if candidate.Originals[ref.Address] != old || e.Catalog.State != before || e.Catalog.State.Get(ref.Address) != old {
@@ -180,7 +180,7 @@ func TestDriverBatchOverlayCaptureEntryAuthority(t *testing.T) {
 	changed := *old
 	changed.ObjectRevision += 2
 	peer.SetDescriptor(ref.Address, &changed)
-	if err := e.captureCatalogStageLocked(stage, candidate.Clone(), peer, nil); err == nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, candidate.Clone(), peer, nil); err == nil {
 		t.Fatal("changed entry predecessor accepted")
 	}
 }
@@ -211,7 +211,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	if err := SchemaTableLocked(e, m.op, auth, stage, definition, ns.Address, auth.State.CurrentUser, m.scope.Input, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.captureCatalogStageLocked(stage, candidate, before, nil); err != nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, candidate, before, nil); err != nil {
 		t.Fatal("authentic pre-stage namespace creation rejected", err)
 	}
 	namespace := candidate.Descriptors[ns.Address].(*catalog.Namespace)
@@ -230,24 +230,24 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	}
 	missing := candidate.Clone()
 	delete(missing.Originals, ns.Address)
-	if err := e.captureCatalogStageLocked(stage, missing, before, nil); err == nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, missing, before, nil); err == nil {
 		t.Fatal("namespace without creation intent admitted")
 	}
 	missingName := candidate.Clone()
 	delete(missingName.Names, key)
-	if err := e.captureCatalogStageLocked(stage, missingName, before, nil); err == nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, missingName, before, nil); err == nil {
 		t.Fatal("namespace without creation-name fence admitted")
 	}
 	changed := *namespace
 	changed.ObjectRevision++
 	replaced := candidate.Clone()
 	replaced.Descriptors[ns.Address] = &changed
-	if err := e.captureCatalogStageLocked(stage, replaced, before, nil); err == nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, replaced, before, nil); err == nil {
 		t.Fatal("changed namespace intent admitted")
 	}
 	current := catalog.CloneState(before)
 	current.SetDescriptor(ns.Address, &changed)
-	if err := e.captureCatalogStageLocked(stage, candidate.Clone(), current, nil); err == nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, candidate.Clone(), current, nil); err == nil {
 		t.Fatal("different current namespace admitted")
 	}
 	claimed := catalog.CloneState(before)
@@ -259,7 +259,7 @@ func TestDriverBatchOverlayCaptureNamespaceIntent(t *testing.T) {
 	claim.ObjectAddress.ObjectID = oid
 	claimed.SetDescriptor(claim.Address(), &claim)
 	claimed.BindName(key, claim.Address())
-	if err := e.captureCatalogStageLocked(stage, candidate.Clone(), claimed, nil); err == nil {
+	if err := EngineCaptureCatalogStageLocked(e, stage, candidate.Clone(), claimed, nil); err == nil {
 		t.Fatal("already claimed entry namespace name admitted")
 	}
 	// Even the exact same namespace appearing in the committed root conflicts

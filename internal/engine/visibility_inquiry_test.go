@@ -111,7 +111,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	}
 	defer scope.Finish(context.Canceled)
 	e.Mu.Lock()
-	err = e.captureVisibilitySnapshotLocked(scope)
+	err = EngineCaptureVisibilitySnapshotLocked(e, scope)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 		e.Mu.Unlock()
 		t.Fatal(err)
 	}
-	temp := temporaryNamespace(auth)
+	temp := TemporaryNamespace(auth)
 	for _, kind := range []analyze.LookupKind{analyze.CollationLookup, analyze.ConversionLookup} {
 		path, err := LookupPath(auth, kind)
 		if err != nil {

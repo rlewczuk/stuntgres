@@ -71,7 +71,7 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 			}()
 			before := e.CatalogRead()
 			scope.Owner.Mu.Lock()
-			mark := captureSavepoint(scope.Owner, "private_stage")
+			mark := CaptureSavepoint(scope.Owner, "private_stage")
 			scope.Owner.Mu.Unlock()
 			oldRoot := mark.Catalog
 			stage, d := transactionalSchemaUnitStage(t, e, op, "publication_private", ref, 7)
@@ -150,7 +150,7 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 			if phase == "savepoint" {
 				for range 2 {
 					scope.Owner.Mu.Lock()
-					restoreSavepoint(scope.Owner, mark, mark.Settings.Clone())
+					RestoreSavepoint(scope.Owner, mark, mark.Settings.Clone())
 					scope.Owner.Mu.Unlock()
 					e.Locks.Restore(scope.LockTicket, mark.Locks)
 				}

@@ -53,7 +53,7 @@ func (r *protocolUnitInput) End() error {
 func TestProtocolPreparedRegistry(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	r := PayloadOf(a).preparedSQL
+	r := PayloadPreparedSQL(PayloadOf(a))
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
 	p := &protocolPortal{entry: *entry, context: session.ProtocolContext{Source: "original"}}
 	r.entries["s"] = entry
@@ -167,7 +167,7 @@ func TestProtocolCycleRetention(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	if scope.message || !s.Transactions.RetainsTransaction() {
+	if ScopeMessage(scope) || !s.Transactions.RetainsTransaction() {
 		t.Fatal("cycle borrowed simple-message admission")
 	}
 	if err = scope.Finish(nil); err != nil {
@@ -221,8 +221,8 @@ func TestProtocolNotificationPoll(t *testing.T) {
 		t.Fatal("idle poll acquired SQL activity lease")
 	}
 	e.Mu.Lock()
-	PayloadOf(s).notifications.State = &session.NotificationState{Ready: session.NotificationFIFO{}.Append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
-	PayloadOf(s).notifications.SignalLocked()
+	PayloadNotificationsRef(PayloadOf(s)).State = &session.NotificationState{Ready: session.NotificationFIFO{}.Append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
+	PayloadNotificationsRef(PayloadOf(s)).SignalLocked()
 	e.Mu.Unlock()
 	select {
 	case <-wake:
@@ -239,7 +239,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	if err != nil || available || wake == nil {
 		t.Fatal("drained queue lacked new wake", err)
 	}
-	if err = (*notificationSessionEnd)(&PayloadOf(s).notifications).EndSession(s.SessionToken, session.CleanClose); err != nil {
+	if err = (*NotificationSessionEnd)(PayloadNotificationsRef(PayloadOf(s))).EndSession(s.SessionToken, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	select {

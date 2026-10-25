@@ -136,7 +136,7 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	e.Mu.Unlock()
 	validatedBefore := validations.Load()
 	op := transactionOperation(t, a)
-	err := e.publishRows(op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, a.Transactions.Catalog, nil, nil)
+	err := EnginePublishRows(e, op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, a.Transactions.Catalog, nil, nil)
 	serializableUnitDiagnostic(t, err, "Canceled on identification as a pivot, during commit attempt.")
 	if validations.Load() <= validatedBefore {
 		t.Fatal("real provider did not validate nonempty private catalog preparation")
@@ -168,7 +168,7 @@ func TestSerializablePublicationNonemptyLateOrdinaryFailureCannotDoomPeer(t *tes
 	before := serializableSnapshotPublication(e)
 	e.Mu.Unlock()
 	op := transactionOperation(t, a)
-	err := e.publishRows(op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, a.Transactions.Catalog, nil, nil)
+	err := EnginePublishRows(e, op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, a.Transactions.Catalog, nil, nil)
 	if err == nil || err.Error() != "stuntgres: storage generation exhausted" {
 		t.Fatal("nonempty final ordinary veto", err)
 	}
@@ -260,7 +260,7 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 			op.Ctx = barrier
 			done := make(chan error, 1)
 			go func() {
-				done <- e.publishRows(op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, nil, nil, nil)
+				done <- EnginePublishRows(e, op, node.Ref, a.Transactions.Writes, a.Transactions.Deletes, nil, nil, nil)
 			}()
 			released, joined := false, false
 			t.Cleanup(func() {

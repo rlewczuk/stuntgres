@@ -140,7 +140,7 @@ func TestSerializableEvidenceRollbackKeepsReadsEdgesDoomAndStickyWrite(t *testin
 		t.Fatal(err)
 	}
 	b.Doomed = true
-	e.reconcileSerializableWritesLocked(session.TxOwnerOf(b.Ref))
+	EngineReconcileSerializableWritesLocked(e, session.TxOwnerOf(b.Ref))
 	if len(b.Writes) != 0 || len(e.Visibility.Serializable.Creators) != 0 || !b.DidWrite || !b.Doomed || len(b.Reads) != 1 || len(b.Incoming) != 1 {
 		t.Fatal("rollback erased top-level state or retained discarded payload identity")
 	}
@@ -195,13 +195,13 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner.Deletes = map[ids.ObjectAddress]*visibility.PrivateDeletes{relation.Address: {Rows: map[ids.RowID]visibility.DeleteCandidate{41: {Row: 41, Version: 73, Own: true}}}}
-	e.reconcileSerializableWritesLocked(owner)
+	EngineReconcileSerializableWritesLocked(e, owner)
 	if len(writer.Writes[relation.Address]) != 2 {
 		t.Fatal("ending overwrote same-version creator")
 	}
 	// Restore the saved owner overlays: insertion remains, ending is discarded.
 	owner.Deletes = nil
-	e.reconcileSerializableWritesLocked(owner)
+	EngineReconcileSerializableWritesLocked(e, owner)
 	event, ok := writer.Writes[relation.Address][visibility.WriteKey{Version: 73}]
 	if !ok || event.Row != 41 || event.Version != 73 || event.Deletion || len(writer.Writes[relation.Address]) != 1 || e.Visibility.Serializable.Creators[73] != writer.Ref || !writer.DidWrite {
 		t.Fatal("rollback lost surviving exact creator identity")
@@ -214,7 +214,7 @@ func TestSerializableEvidenceOwnCreatorSurvivesEndingRollback(t *testing.T) {
 		t.Fatal("old-view read omitted surviving creator dependency")
 	}
 	owner.Writes = nil
-	e.reconcileSerializableWritesLocked(owner)
+	EngineReconcileSerializableWritesLocked(e, owner)
 	if len(writer.Writes) != 0 || len(e.Visibility.Serializable.Creators) != 0 || !writer.DidWrite || len(reader.Outgoing) != 1 {
 		t.Fatal("full overlay discard lost sticky graph or retained creator")
 	}
@@ -259,7 +259,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
 	scope := &StatementScope{Owner: session.Transactions, TxRef: session.Transactions.Ref}
-	if e.serializableEligibleLocked(relation, nil) {
+	if EngineSerializableEligibleLocked(e, relation, nil) {
 		t.Fatal("temporary stored relation enrolled")
 	}
 	if err := e.SerializableReadLocked(scope, relation); err != nil {

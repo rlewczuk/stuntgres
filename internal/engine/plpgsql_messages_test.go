@@ -32,24 +32,40 @@ func TestPLpgSQLAssertRuntime(t *testing.T) {
 			defer input.Close()
 			read := e.CatalogRead()
 			setting, err := e.Settings.Lookup("plpgsql.check_asserts")
-			if err != nil { t.Fatal("assert setting not registered", err) }
-			originalRoutine, originalDepth := s.sqlRoutine, s.activeSQLRoutineDepth
-			for _, enabled := range []bool{false,true,false,true} {
+			if err != nil {
+				t.Fatal("assert setting not registered", err)
+			}
+			originalRoutine, originalDepth := ScopeSQLRoutine(s), ScopeActiveSQLRoutineDepth(s)
+			for _, enabled := range []bool{false, true, false, true} {
 				var inputSetting *string
 				off := "off"
-				if !enabled { inputSetting = &off }
-				if _, err := e.applySetting(s.Op, s.Op.Session.Settings, setting, inputSetting, false); err != nil { t.Fatal(err) }
+				if !enabled {
+					inputSetting = &off
+				}
+				if _, err := EngineApplySetting(e, s.Op, s.Op.Session.Settings, setting, inputSetting, false); err != nil {
+					t.Fatal(err)
+				}
 				value, err := s.invokePLRoutine(d, input, read, sqltype.CollationRef{})
 				want := tc.code
-				if !enabled { want = "" }
+				if !enabled {
+					want = ""
+				}
 				if want == "" {
-					if err != nil { t.Fatal(err) }
-					if n, err := value.Integer(); err != nil || n != 7 { t.Fatal("assert changed return", n, err) }
+					if err != nil {
+						t.Fatal(err)
+					}
+					if n, err := value.Integer(); err != nil || n != 7 {
+						t.Fatal("assert changed return", n, err)
+					}
 				} else {
 					var diagnostic *sqlstate.Error
-					if !errors.As(err, &diagnostic) || diagnostic.Code != want { t.Fatal("reached assertion diagnostic", want, err) }
+					if !errors.As(err, &diagnostic) || diagnostic.Code != want {
+						t.Fatal("reached assertion diagnostic", want, err)
+					}
 				}
-				if s.activeSQLRoutineDepth != originalDepth || s.sqlRoutine.lexical != originalRoutine.lexical { t.Fatal("assert leaked lexical activation or depth") }
+				if ScopeActiveSQLRoutineDepth(s) != originalDepth || ScopeSQLRoutineRef(s).lexical != originalRoutine.lexical {
+					t.Fatal("assert leaked lexical activation or depth")
+				}
 			}
 		})
 	}
@@ -61,8 +77,8 @@ func TestPLpgSQLRaiseAssertProvider(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			e, s := plUnitScope(t)
 			source := cursorOwnerRoutine(t, e, s, "BEGIN RAISE NOTICE '%',7 USING DETAIL='d',HINT='h'; ASSERT true,'m'; RETURN 7; END")
-			source.ObjectAddress = ids.ObjectAddress{ClassID:ids.ProcedureClassID,ObjectID:900003}
-			source.ObjectNamespace = ids.ObjectAddress{ClassID:ids.NamespaceClassID,ObjectID:ids.PublicNamespaceOID}
+			source.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 900003}
+			source.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 			source.ObjectRevision = 1
 			source.RoutineKind, source.Volatility = catalog.FunctionRoutine, expr.Volatile
 			source.Result = ids.OID(source.SQL.Result.Type.ID())
@@ -72,7 +88,9 @@ func TestPLpgSQLRaiseAssertProvider(t *testing.T) {
 			state.BindName(catalog.DescriptorNameKey(source), source.Address())
 			view := catalog.NewRead(read.Owner(), state)
 			provider := stored.ProcedureProvider{}
-			if err := provider.Validate(view, source); err != nil { t.Fatal("canonical messages rejected", err) }
+			if err := provider.Validate(view, source); err != nil {
+				t.Fatal("canonical messages rejected", err)
+			}
 			candidate, definition, program := *source, *source.SQL, *source.SQL.PL
 			root := *program.Root
 			root.Statements = slices.Clone(root.Statements)
@@ -85,15 +103,28 @@ func TestPLpgSQLRaiseAssertProvider(t *testing.T) {
 			root.Statements[0].Block = &body
 			program.Root, definition.PL, candidate.SQL = &root, &program, &definition
 			switch name {
-			case "raise_query": q:=*raise.Arguments[0]; q.Where=q.Targets[0]; raise.Arguments[0]=&q
-			case "option_order": raise.Options[0],raise.Options[1]=raise.Options[1],raise.Options[0]
-			case "severity": raise.Level=parser.PLRaiseException
-			case "assert_query": assertion.Condition=raise.Arguments[0]
-			case "old_payload": body.Statements[2].Assert=&assertion
+			case "raise_query":
+				q := *raise.Arguments[0]
+				q.Where = q.Targets[0]
+				raise.Arguments[0] = &q
+			case "option_order":
+				raise.Options[0], raise.Options[1] = raise.Options[1], raise.Options[0]
+			case "severity":
+				raise.Level = parser.PLRaiseException
+			case "assert_query":
+				assertion.Condition = raise.Arguments[0]
+			case "old_payload":
+				body.Statements[2].Assert = &assertion
 			}
-			if err := provider.Validate(view, &candidate); err == nil { t.Fatal("provider admitted forged messages", name) }
-			if !reflect.DeepEqual(program.Variables, source.SQL.PL.Variables) || source.SQL.PL.SameLayout(&program) { t.Fatal("forged semantic layout compared equal or changed usages") }
-			if err := provider.Validate(view, source); err != nil { t.Fatal("candidate changed published source", err) }
+			if err := provider.Validate(view, &candidate); err == nil {
+				t.Fatal("provider admitted forged messages", name)
+			}
+			if !reflect.DeepEqual(program.Variables, source.SQL.PL.Variables) || source.SQL.PL.SameLayout(&program) {
+				t.Fatal("forged semantic layout compared equal or changed usages")
+			}
+			if err := provider.Validate(view, source); err != nil {
+				t.Fatal("candidate changed published source", err)
+			}
 		})
 	}
 }

@@ -60,7 +60,7 @@ func TestPLExceptionExpressionProvenance(t *testing.T) {
 		if errors.As(err, &planning) != tc.planning {
 			t.Fatalf("expression %s planning provenance got %t want %t", tc.expression, planning != nil, tc.planning)
 		}
-		if s.sqlRoutine.lexical != nil || s.sqlRoutine.plPlanning {
+		if ScopeSQLRoutineRef(s).lexical != nil || ScopeSQLRoutineRef(s).plPlanning {
 			t.Fatal("expression provenance escaped lexical activation")
 		}
 	}

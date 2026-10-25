@@ -84,12 +84,12 @@ func TestPGSequenceShape(t *testing.T) {
 			t.Fatal("invented state column", name)
 		}
 	}
-	if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	physical := *d
 	physical.RelationKind = catalog.TableRelation
-	if err := (relationProvider).Validate(e.CatalogRead(), &physical); err == nil {
+	if err := (RelationProvider()).Validate(e.CatalogRead(), &physical); err == nil {
 		t.Fatal("physical NOT NULL requires constraint identities")
 	}
 	foreignType, _ := New().CatalogRead().LookupType(sqltype.Oid)
@@ -107,7 +107,7 @@ func TestPGSequenceShape(t *testing.T) {
 			invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 			invalid.Attributes = append([]int32(nil), d.Attributes...)
 			tc.invalidate(&invalid)
-			if err := (relationProvider).Validate(e.CatalogRead(), &invalid); err == nil {
+			if err := (RelationProvider()).Validate(e.CatalogRead(), &invalid); err == nil {
 				t.Fatal("virtual-source exemption bypassed validation")
 			}
 		})
@@ -258,22 +258,22 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			owner := op.Session.Transactions
 			scope := &StatementScope{Op: op, Owner: owner, TxRef: ref}
 			base := e.Catalog.State
-			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
+			if err := ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			if isolation.Stable() && owner.SequenceCatalog != base || !isolation.Stable() && owner.SequenceCatalog != nil {
 				t.Fatal("snapshot pointer policy")
 			}
-			mark := captureSavepoint(owner, "s")
+			mark := CaptureSavepoint(owner, "s")
 			owner.Catalog = session.NewJournal()
-			restoreSavepoint(owner, mark, mark.Settings.Clone())
+			RestoreSavepoint(owner, mark, mark.Settings.Clone())
 			if isolation.Stable() && owner.SequenceCatalog != base {
 				t.Fatal("savepoint discarded transaction snapshot")
 			}
 			e.Mu.Lock()
 			e.Catalog.PublishLocked(catalog.CloneState(e.Catalog.State))
 			e.Mu.Unlock()
-			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
+			if err := ScopeSnapshotPhase(scope, &parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
 			if isolation.Stable() && owner.SequenceCatalog != base {
@@ -320,7 +320,7 @@ func TestPGSequenceSerializableCandidateLifecycle(t *testing.T) {
 				next := e.Catalog.State
 				e.Visibility.AdvanceCommitSeqLocked()
 				e.Visibility.SerializableCommittedLocked(writer.Ref, e.Visibility.CommitSeq())
-				e.endSerializableLocked(writer.Ref, true)
+				EngineEndSerializableLocked(e, writer.Ref, true)
 				e.Mu.Unlock()
 				if err := join(); err != nil {
 					t.Fatal(err)

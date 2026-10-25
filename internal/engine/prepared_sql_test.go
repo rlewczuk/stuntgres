@@ -65,7 +65,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 func TestPreparedSQLSessionOwner(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	r := PayloadOf(a).preparedSQL
+	r := PayloadPreparedSQL(PayloadOf(a))
 	if r == nil || a.Resources[session.PreparedSQL] == nil || a.Resources[session.PreparedSQL].Owner != r || r.token != a.SessionToken {
 		t.Fatal("missing attached session owner")
 	}
@@ -85,7 +85,7 @@ func TestPreparedSQLSessionOwner(t *testing.T) {
 	if err := a.WaitEnd(context.Background()); err != nil || len(r.entries) != 0 {
 		t.Fatal("physical cleanup retained definition", err)
 	}
-	if PayloadOf(b).preparedSQL == r {
+	if PayloadPreparedSQL(PayloadOf(b)) == r {
 		t.Fatal("peer session shared owner")
 	}
 }
@@ -108,10 +108,10 @@ func TestPreparedSQLCanceledPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
-	PayloadOf(session).preparedSQL.entries["p"] = entry
+	PayloadPreparedSQL(PayloadOf(session)).entries["p"] = entry
 	cancel()
 	_, err = scope.executeDeallocateSQL(raw, 0)
-	if !errors.Is(err, context.Canceled) || PayloadOf(session).preparedSQL.entries["p"] != entry || scope.Completed {
+	if !errors.Is(err, context.Canceled) || PayloadPreparedSQL(PayloadOf(session)).entries["p"] != entry || scope.Completed {
 		t.Fatal("canceled publication mutated owner", err)
 	}
 	if finish := scope.Finish(err); !errors.Is(finish, context.Canceled) {

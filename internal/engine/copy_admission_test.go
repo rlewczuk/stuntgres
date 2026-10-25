@@ -326,7 +326,7 @@ func TestCopyTextCopiedReservation(t *testing.T) {
 	}
 	copied := *scope
 	copied.releaseCopyReservation()
-	if scope.Owner.CopyLease != &scope.lease {
+	if scope.Owner.CopyLease != ScopeLeaseRef(scope) {
 		t.Fatal("copied scope released reservation")
 	}
 	if _, err := copied.copyIO(func() (int, error) { t.Fatal("copied scope invoked I/O"); return 0, nil }); err == nil {

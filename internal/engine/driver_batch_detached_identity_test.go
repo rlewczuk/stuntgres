@@ -32,7 +32,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			defer m.end(context.Canceled)
 			t.Cleanup(func() {
 				e.Mu.Lock()
-				pending := e.prepared.Lookup("batch_detached") != nil
+				pending := EnginePreparedRef(e).Lookup("batch_detached") != nil
 				e.Mu.Unlock()
 				if pending {
 					if err := controlsExecute(t, peer, "ROLLBACK PREPARED 'batch_detached'"); err != nil {
@@ -48,7 +48,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			if err := m.end(nil); err != nil {
 				t.Fatal(err)
 			}
-			entry := e.prepared.Lookup("batch_detached")
+			entry := EnginePreparedRef(e).Lookup("batch_detached")
 			if entry == nil || entry.Catalog == nil || entry.Catalog.Roles == nil || owner.Authorization.State.CurrentUser != entry.Owner || owner.Authorization.State.SessionUser != original.SessionUser || owner.Transactions.Catalog != nil {
 				t.Fatal("prepared role authority was lost or retained by session")
 			}
@@ -83,7 +83,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT v FROM t"), "42501", "permission denied for table t")
 			transactionRows(t, owner, "SELECT 1", 1)
 			controlsRequire(t, peer, finish+" PREPARED 'batch_detached'")
-			if e.prepared.Lookup("batch_detached") != nil {
+			if EnginePreparedRef(e).Lookup("batch_detached") != nil {
 				t.Fatal("prepared completion retained registry")
 			}
 			if finish == "COMMIT" {

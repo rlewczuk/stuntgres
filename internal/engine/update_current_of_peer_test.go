@@ -111,10 +111,10 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 			if err := scope.AcquireRelation(update, true); err != nil {
 				t.Fatal(err)
 			}
-			if err := scope.snapshotPhase(update); err != nil {
+			if err := ScopeSnapshotPhase(scope, update); err != nil {
 				t.Fatal(err)
 			}
-			snapshot, frontier := scope.currentSnapshot, scope.snapshotFrontier
+			snapshot, frontier := ScopeCurrentSnapshot(scope), ScopeSnapshotFrontier(scope)
 			if snapshot == nil {
 				t.Fatal("missing command snapshot")
 			}
@@ -171,7 +171,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 				if captured.Count() != 3 {
 					t.Fatal("retained source lost unrelated rows", captured.Count())
 				}
-				if scope.currentSnapshot != snapshot || scope.snapshotFrontier != frontier {
+				if ScopeCurrentSnapshot(scope) != snapshot || ScopeSnapshotFrontier(scope) != frontier {
 					t.Fatal("target capture refreshed snapshot")
 				}
 				execute()
@@ -202,13 +202,13 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 					}
 				}
 			}
-			if !scope.Stage.replacing || staged != 1 {
+			if !WriteStageReplacing(&scope.Stage) || staged != 1 {
 				t.Fatal("missing single real private replacement", staged)
 			}
 			if got := committed(); got.Version != successor.Version || testExport(got.Values[1]) != "owner" {
 				t.Fatal("peer Execute prematurely published", got)
 			}
-			if scope.currentSnapshot != snapshot || scope.snapshotFrontier != frontier {
+			if ScopeCurrentSnapshot(scope) != snapshot || ScopeSnapshotFrontier(scope) != frontier {
 				t.Fatal("arbitration refreshed command snapshot")
 			}
 			err = scope.Finish(nil)

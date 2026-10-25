@@ -112,7 +112,7 @@ func TestPGGroupDescriptor(t *testing.T) {
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner || d.Owner != e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("PUBLIC SELECT/owner")
 	}
-	if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	row := e.Catalog.State.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 12012})

@@ -114,7 +114,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			case "ref_before":
 				stale := s.Transactions.Ref
 				stale = withTxID(stale, stale.ID()+1)
-				err = e.publishWrites(m.op, stale, s.Transactions.Writes, s.Transactions.Deletes, nil)
+				err = EnginePublishWrites(e, m.op, stale, s.Transactions.Writes, s.Transactions.Deletes, nil)
 				if err == nil {
 					t.Fatal("stale publication ref admitted")
 				}

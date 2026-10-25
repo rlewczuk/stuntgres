@@ -386,7 +386,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
-				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
+				err = EngineInstallForeignCatalogLocked(e, context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
 			}
 		}
 	}

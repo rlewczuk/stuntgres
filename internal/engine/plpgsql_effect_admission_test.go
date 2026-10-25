@@ -19,7 +19,7 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	}
 	scope := foreignActionUnitScope(t, e, sess, "INSERT INTO routed VALUES(0),(1),(0),(1) RETURNING v")
 	state := scope.PartitionInsert
-	if state == nil || len(state.Order) != 2 || scope.foreignActionsSlot != nil || scope.effectAdmission.catalog != nil {
+	if state == nil || len(state.Order) != 2 || ScopeForeignActionsSlot(scope) != nil || scope.effectAdmission.catalog != nil {
 		t.Fatal("alternating accepted rows did not retain allocation-free per-destination admission")
 	}
 	view := e.CatalogRead()
@@ -81,7 +81,7 @@ func TestPLExceptionRoutedEffectAdmission(t *testing.T) {
 	if scope.foreignEffectRelevant(first.Ref, current) || scope.effectAdmission.ref != first.Ref || scope.effectAdmission.catalog != current.State() {
 		t.Fatal("relevance reused a different physical reference")
 	}
-	if scope.foreignActionsSlot != nil {
+	if ScopeForeignActionsSlot(scope) != nil {
 		t.Fatal("unrelated routed writes allocated transition bookkeeping")
 	}
 }

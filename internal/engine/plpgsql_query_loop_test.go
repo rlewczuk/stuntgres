@@ -88,7 +88,7 @@ func TestPLpgSQLQueryLoopLifetime(t *testing.T) {
 				t.Fatal(err)
 			}
 			found, _ := f.Values[f.Program.FoundSlot].Boolean()
-			if found != (body != "r.i:=1/0;") || f.Values[in.QueryLoop.Target.Slot].Type() == nil || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
+			if found != (body != "r.i:=1/0;") || f.Values[in.QueryLoop.Target.Slot].Type() == nil || !owner.Closed || !rows.closed || ScopeSQLRoutineRef(s).lexical != nil {
 				t.Fatal("producer/lexical lifetime", found, flow, err)
 			}
 			if err := owned.Close(); err != nil {
@@ -160,13 +160,13 @@ func TestPLpgSQLQueryLoopCancellation(t *testing.T) {
 	owned := &exec.CTEOwnedRows{RowResult: rows, Owner: owner, Source: source}
 	_, flow, err := plQueryLoopTestRun(s, d, f, read, owned).Statements(outer.Statements[:1])
 	s.Op.Ctx = originalContext
-	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || s.sqlRoutine.lexical != nil {
+	if f.Values[in.QueryLoop.Target.Slot].Type() == nil || !errors.Is(err, context.Canceled) || flow.Kind != proc.PLNormal || !owner.Closed || !rows.closed || ScopeSQLRoutineRef(s).lexical != nil {
 		t.Fatal("empty-body cancellation retained producer authority", flow, err)
 	}
 	// The same scope/frame can acquire fresh lexical demand after cancellation.
 	restore := s.activateSQLRoutine(nil, read)
-	s.sqlRoutine.lexical = f
-	if err := restore(nil); err != nil || s.sqlRoutine.lexical != nil {
+	ScopeSQLRoutineRef(s).lexical = f
+	if err := restore(nil); err != nil || ScopeSQLRoutineRef(s).lexical != nil {
 		t.Fatal("caller scratch did not recover", err)
 	}
 }

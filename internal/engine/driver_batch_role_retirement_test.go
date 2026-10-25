@@ -59,7 +59,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 						t.Fatal(err)
 					}
 					if carrier == "prepared" {
-						prepared = e.prepared.Lookup("retirement_guard")
+						prepared = EnginePreparedRef(e).Lookup("retirement_guard")
 						if prepared == nil || prepared.Catalog == nil || prepared.Catalog.Roles == nil {
 							t.Fatal("detach lost the private role candidate")
 						}
@@ -124,7 +124,7 @@ func TestDriverBatchRoleRetirementPublicationGuard(t *testing.T) {
 					t.Fatal("rejected retirement orphaned the canonical peer principal")
 				}
 				if carrier == "prepared" {
-					if e.prepared.Lookup("retirement_guard") != prepared || prepared.Claimed {
+					if EnginePreparedRef(e).Lookup("retirement_guard") != prepared || prepared.Claimed {
 						t.Fatal("failed final completion consumed or claimed detached authority")
 					}
 					sessionSQL(t, a, "ROLLBACK PREPARED 'retirement_guard'")

@@ -39,7 +39,7 @@ func TestTransactionIdentityAgeArithmetic(t *testing.T) {
 	_, b := blockingUnitOwner(t, e)
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	anchor, err := e.transactionAgeLocked(a.Ref(), 3)
+	anchor, err := EngineTransactionAgeLocked(e, a.Ref(), 3)
 	if err != nil || anchor != 0 || e.Visibility.LastAssignedXID() != 2 || e.Visibility.Entries[a.Ref()].AssignedXID != 0 {
 		t.Fatal("inquiry allocation", anchor, err)
 	}
@@ -49,7 +49,7 @@ func TestTransactionIdentityAgeArithmetic(t *testing.T) {
 	if err := e.AssignTransactionXIDLocked(a.Ref()); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := e.transactionAgeLocked(a.Ref(), 3); err != nil || got != 0 {
+	if got, err := EngineTransactionAgeLocked(e, a.Ref(), 3); err != nil || got != 0 {
 		t.Fatal("changed first-demand anchor", got, err)
 	}
 }
@@ -160,19 +160,19 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	id := uint64(pgLocksUnitAssign(t, e, a))
 	e.Mu.Lock()
 	e.Visibility.RecordCommitTimestampLocked(a.Ref())
-	e.endSerializableLocked(a.Ref(), false)
+	EngineEndSerializableLocked(e, a.Ref(), false)
 	e.Mu.Unlock()
 	identityUnitStatus(t, e, id, "in progress", true)
 	e.EndLockOwner(a)
 	identityUnitStatus(t, e, id, "committed", true)
 	e.Mu.Lock()
-	e.endSerializableLocked(a.Ref(), false)
+	EngineEndSerializableLocked(e, a.Ref(), false)
 	e.Mu.Unlock()
 	identityUnitStatus(t, e, id, "committed", true)
 	_, aborting := blockingUnitOwner(t, e)
 	aborted := uint64(pgLocksUnitAssign(t, e, aborting))
 	e.Mu.Lock()
-	e.endSerializableLocked(aborting.Ref(), false)
+	EngineEndSerializableLocked(e, aborting.Ref(), false)
 	e.Mu.Unlock()
 	identityUnitStatus(t, e, aborted, "in progress", true)
 	e.EndLockOwner(aborting)
@@ -184,18 +184,18 @@ func TestTransactionIdentityCompletion(t *testing.T) {
 	defer op.Done()
 	entry := &session.PreparedTransaction{GID: "identity_claimed", Ref: owner.Ref(), Ticket: owner, Owner: finisher.Authorization.State.CurrentUser, Claimed: true}
 	e.Mu.Lock()
-	e.prepared.ReserveLocked()
-	e.prepared.InstallLocked(entry)
+	EnginePreparedRef(e).ReserveLocked()
+	EnginePreparedRef(e).InstallLocked(entry)
 	before := e.Visibility.Entries[owner.Ref()]
 	e.Mu.Unlock()
-	err := e.completePrepared(op, entry.GID, true)
+	err := EngineCompletePrepared(e, op, entry.GID, true)
 	var state *sqlstate.Error
 	if !errors.As(err, &state) || state.Code != "55000" || state.Message != `prepared transaction with identifier "identity_claimed" is busy` {
 		t.Fatal("busy claim", err)
 	}
 	e.Mu.Lock()
-	same := e.prepared.Lookup(entry.GID) == entry && entry.Claimed && e.Visibility.Entries[owner.Ref()] == before
-	e.prepared.RemoveLocked(entry.GID)
+	same := EnginePreparedRef(e).Lookup(entry.GID) == entry && entry.Claimed && e.Visibility.Entries[owner.Ref()] == before
+	EnginePreparedRef(e).RemoveLocked(entry.GID)
 	e.Mu.Unlock()
 	if !same {
 		t.Fatal("busy completion changed actual owner")

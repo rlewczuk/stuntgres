@@ -44,10 +44,10 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	if err := writer.AcquireRelation(update, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := writer.snapshotPhase(update); err != nil {
+	if err := ScopeSnapshotPhase(writer, update); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, frontier := writer.currentSnapshot, writer.snapshotFrontier
+	snapshot, frontier := ScopeCurrentSnapshot(writer), ScopeSnapshotFrontier(writer)
 	if snapshot == nil {
 		t.Fatal("admitted writer has no command snapshot")
 	}
@@ -83,7 +83,7 @@ func TestSnapshotStatementRootConsistency(t *testing.T) {
 	if captured.Row != predecessor.Row || captured.Version != predecessor.Version || !sqltype.SameDatum(captured.Values[1], values[1]) {
 		t.Fatal("captured candidate is not the original snapshot version")
 	}
-	if writer.currentSnapshot != snapshot || writer.snapshotFrontier != frontier {
+	if ScopeCurrentSnapshot(writer) != snapshot || ScopeSnapshotFrontier(writer) != frontier {
 		t.Fatal("root capture refreshed the command snapshot instead of retaining its roots")
 	}
 

@@ -201,7 +201,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 			t.Fatal(err)
 		}
 		result, err := scope.Execute(statement(t, "INSERT INTO t VALUES(2,20),(1,11),(3,31) ON CONFLICT(k) DO UPDATE SET v=excluded.v WHERE t.k<>3"), 0, nil)
-		if err != nil || result.Count != 2 || result.Rows != nil || len(scope.Stage.Rows[ref.Address]) != 2 || !scope.Stage.replacing || scope.InsertConflict.Affected != 2 {
+		if err != nil || result.Count != 2 || result.Rows != nil || len(scope.Stage.Rows[ref.Address]) != 2 || !WriteStageReplacing(&scope.Stage) || scope.InsertConflict.Affected != 2 {
 			scope.Finish(errors.New("bad mixed stage"))
 			cancel()
 			op.Done()

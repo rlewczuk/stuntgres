@@ -157,10 +157,10 @@ func TestStatementHostStageReplacement(t *testing.T) {
 	}
 	scope.UniqueBinding = nil
 
-	scope.multiEvents = []lock.MultiEvent{{}}
+	SetScopeMultiEvents(scope, []lock.MultiEvent{{}})
 	_, err = h.StageReplacement(b.Ref, old, index.WriteBatch{ActionMode: lock.MultiNoKeyAction}, nil, dml.ReplaceMerge)
 	wantErrorText(t, err, "stuntgres: invalid update stage")
-	if scope.multiEvents != nil {
+	if ScopeMultiEvents(scope) != nil {
 		t.Fatal("failed window kept its physical events")
 	}
 
@@ -172,7 +172,7 @@ func TestStatementHostStageReplacement(t *testing.T) {
 	if err != nil || stale || len(staged) != 1 || staged[0].Row != old[0].Row || staged[0].Version == old[0].Version {
 		t.Fatal("replacement not staged", stale, err, staged)
 	}
-	if len(scope.multiEvents) != 0 {
+	if len(ScopeMultiEvents(scope)) != 0 {
 		t.Fatal("physical events not flushed")
 	}
 	_ = scope.Finish(errors.New("rollback"))

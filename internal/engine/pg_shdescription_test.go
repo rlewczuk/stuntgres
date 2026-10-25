@@ -173,7 +173,7 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 	if !d.Security.ACL.Explicit || len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege || d.Security.ACL.Entries[0].Grantor != d.Owner {
 		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
-	if err := (relationProvider).Validate(e.CatalogRead(), d); err != nil {
+	if err := (RelationProvider()).Validate(e.CatalogRead(), d); err != nil {
 		t.Fatal(err)
 	}
 	captured, err := CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Roles: e.Roles(), Ref: ref, Source: d, Runtime: EngineCatalogRuntime{}}, capturePGShDescription)

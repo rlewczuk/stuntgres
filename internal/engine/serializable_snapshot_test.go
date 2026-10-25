@@ -105,7 +105,7 @@ func TestSerializableSafeSnapshotWriterAbortOrNoWriteCommitWakes(t *testing.T) {
 			if commit {
 				e.Visibility.SerializableCommittedLocked(writer.Ref, e.Visibility.CommitSeq())
 			}
-			e.endSerializableLocked(writer.Ref, commit)
+			EngineEndSerializableLocked(e, writer.Ref, commit)
 			e.Mu.Unlock()
 			if err := join(); err != nil {
 				t.Fatal(err)
@@ -155,7 +155,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 	e.Visibility.AdvanceCommitSeqLocked()
 	e.Visibility.SerializableCommittedLocked(writer.Ref, e.Visibility.CommitSeq())
 	e.Visibility.EndTransactionIdentityLocked(writer.Ref, true)
-	e.endSerializableLocked(writer.Ref, true)
+	EngineEndSerializableLocked(e, writer.Ref, true)
 	e.Mu.Unlock()
 	if err := join(); err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ func TestSerializableSafeSnapshotLateOutgoingCommitIsSafe(t *testing.T) {
 	out.Incoming[writer] = struct{}{}
 	e.Visibility.SerializableCommittedLocked(out.Ref, e.Visibility.CommitSeq())
 	e.Visibility.SerializableCommittedLocked(writer.Ref, e.Visibility.CommitSeq())
-	e.endSerializableLocked(writer.Ref, true)
+	EngineEndSerializableLocked(e, writer.Ref, true)
 	e.Mu.Unlock()
 	if err := join(); err != nil {
 		t.Fatal(err)
@@ -287,7 +287,7 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 			func() {
 				e.Mu.Lock()
 				defer e.Mu.Unlock()
-				if scope.Owner.Roots != nil || scope.Owner.Frontier != 0 || scope.Owner.CurrentSnapshot != nil || scope.currentSnapshot != nil || scope.Owner.SnapshotSet || len(node.Possible) != 0 || !node.Resolved {
+				if scope.Owner.Roots != nil || scope.Owner.Frontier != 0 || scope.Owner.CurrentSnapshot != nil || ScopeCurrentSnapshot(scope) != nil || scope.Owner.SnapshotSet || len(node.Possible) != 0 || !node.Resolved {
 					t.Fatal("candidate roots/wait not released")
 				}
 				if writer.Ended || writer.Committed {
@@ -315,10 +315,10 @@ func TestSerializableSafeSnapshotCancelAndEpochFence(t *testing.T) {
 				if freshScope.Owner.Roots[freshRelation.Address].Storage == oldRoot.Storage {
 					t.Fatal("new epoch reused replaced storage root")
 				}
-				e.endSerializable(fresh.Ref, false)
+				EngineEndSerializable(e, fresh.Ref, false)
 			}
-			e.endSerializable(writer.Ref, false)
-			e.endSerializable(node.Ref, false)
+			EngineEndSerializable(e, writer.Ref, false)
+			EngineEndSerializable(e, node.Ref, false)
 		})
 	}
 }
@@ -339,7 +339,7 @@ func TestSerializableSafeSnapshotTerminalSessionDrain(t *testing.T) {
 	if err := sess.WaitEnd(ctx); err != nil {
 		t.Fatal(err)
 	}
-	e.endSerializable(writer.Ref, false)
+	EngineEndSerializable(e, writer.Ref, false)
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if len(e.Visibility.Serializable.Nodes) != 0 {
@@ -353,7 +353,7 @@ func TestSerializableSafeSnapshotResolutionBeforeSleepCannotLoseWake(t *testing.
 	e.Mu.Lock()
 	reader.Possible = map[*visibility.SerializableTx]struct{}{writer: {}}
 	reader.Ready = make(chan struct{})
-	e.endSerializableLocked(writer.Ref, false)
+	EngineEndSerializableLocked(e, writer.Ref, false)
 	ready := reader.Ready
 	e.Mu.Unlock()
 	select {
@@ -381,7 +381,7 @@ func TestSerializablePublicationOrdinaryFailureCannotDoomPeers(t *testing.T) {
 	}
 	defer op.Done()
 	cancel()
-	err = e.publishRows(op, a.Ref, nil, nil, nil, nil, nil)
+	err = EnginePublishRows(e, op, a.Ref, nil, nil, nil, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("wrong precondition cause", err)
 	}
@@ -404,7 +404,7 @@ func TestSerializableSafeSnapshotAttemptedWriterRemainsCandidate(t *testing.T) {
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, reader)
 	e.Mu.Lock()
-	e.endSerializableLocked(writer.Ref, false)
+	EngineEndSerializableLocked(e, writer.Ref, false)
 	e.Mu.Unlock()
 	if err := join(); err != nil {
 		t.Fatal(err)

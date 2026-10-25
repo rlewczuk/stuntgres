@@ -44,10 +44,10 @@ func temporaryProjectionFixture(t *testing.T) (*Engine, *session.Session, *catal
 	return e, owner, provider, survivor, index
 }
 
-func temporaryProjectionStage(t *testing.T, e *Engine, provider *catalog.Relation) (*CatalogStage, *temporarySessionIndexes) {
+func temporaryProjectionStage(t *testing.T, e *Engine, provider *catalog.Relation) (*CatalogStage, *TemporarySessionIndexes) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.terminalCleanup = true
+	SetStageTerminalCleanup(stage, true)
 	ref := e.Catalog.Domain.Ref(stage.Base.Epoch(), provider.Address())
 	if err := stage.Remove(ref); err != nil {
 		t.Fatal(err)
@@ -55,17 +55,17 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *catalog.Relatio
 	if err := StageExpressionDependencies(context.Background(), stage, []ids.ObjectAddress{provider.Address()}, parser.DropCascade, nil, nil, nil, ids.ObjectAddress{}); err != nil {
 		t.Fatal(err)
 	}
-	indexes, err := e.prepareTemporarySessionIndexes(stage)
+	indexes, err := EnginePrepareTemporarySessionIndexes(e, stage)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return stage, indexes
 }
 
-func temporaryProjectionInstall(e *Engine, owner *session.Session, provider *catalog.Relation, stage *CatalogStage, indexes *temporarySessionIndexes) (bool, error) {
+func temporaryProjectionInstall(e *Engine, owner *session.Session, provider *catalog.Relation, stage *CatalogStage, indexes *TemporarySessionIndexes) (bool, error) {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
-	return e.installTemporarySessionStageLocked(owner, stage, []ids.ObjectAddress{provider.Namespace()}, indexes)
+	return EngineInstallTemporarySessionStageLocked(e, owner, stage, []ids.ObjectAddress{provider.Namespace()}, indexes)
 }
 
 func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
@@ -139,7 +139,7 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 			if mode == "UnrelatedRoot" && e.Storage.IndexRoots[unrelated] != unrelatedRoot {
 				t.Fatal("unrelated row/index publication overwritten")
 			}
-			if e.Storage.IndexRoots[idx.Address()] == indexes.previous[idx.Address()] {
+			if e.Storage.IndexRoots[idx.Address()] == TemporarySessionIndexesPrevious(indexes)[idx.Address()] {
 				t.Fatal("affected dense-slot index root reused")
 			}
 			e.DiscardCatalogStage(stage)
@@ -179,8 +179,8 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	if next == &maximum || next.Revision() != maximum.Revision() || nextIndex == &maximumIndex || nextIndex.Revision() != maximumIndex.Revision() || projected == &maximumStore || projected.Generation != maximumStore.Generation || projected.Ends != maximumStore.Ends || storage.SameVersionRoot(projected.Versions, retained) {
 		t.Fatal("terminal maxima require fresh descriptor/store/vector and unchanged history")
 	}
-	oldRoot := indexes.previous[idx.Address()]
-	if indexes.roots[idx.Address()] == oldRoot {
+	oldRoot := TemporarySessionIndexesPrevious(indexes)[idx.Address()]
+	if TemporarySessionIndexesRoots(indexes)[idx.Address()] == oldRoot {
 		t.Fatal("maximum index root reused")
 	}
 	// A real changed root invalidates the prepared attempt even at equal maxima.

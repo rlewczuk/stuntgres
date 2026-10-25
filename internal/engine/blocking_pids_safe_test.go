@@ -14,7 +14,7 @@ func blockingUnitSafeWant(t *testing.T, e *Engine, pid ids.SessionID, want ...in
 	t.Helper()
 	typ := blockingUnitType(e)
 	e.Mu.Lock()
-	values, err := e.safeSnapshotBlockingPidsLocked(pid, typ)
+	values, err := EngineSafeSnapshotBlockingPidsLocked(e, pid, typ)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -69,11 +69,11 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	e.Mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), 0, 0)
 	e.Mu.Lock()
-	e.endSerializableLocked(w.Ref, false)
+	EngineEndSerializableLocked(e, w.Ref, false)
 	e.Mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), 0)
 	e.Mu.Lock()
-	e.endSerializableLocked(w2.Ref, false)
+	EngineEndSerializableLocked(e, w2.Ref, false)
 	e.Mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
 	select {
@@ -106,13 +106,13 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	r.Ref = withTxSession(r.Ref, reader.SessionToken)
 	e.Visibility.Serializable.Nodes[r.Ref] = r
 	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}}
-	_, err := e.safeSnapshotBlockingPidsLocked(reader.SessionToken.ID(), typ)
+	_, err := EngineSafeSnapshotBlockingPidsLocked(e, reader.SessionToken.ID(), typ)
 	e.Mu.Unlock()
 	if err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 		t.Fatal("safe PID overflow", err)
 	}
 	e.Mu.Lock()
-	e.fenceSerializableLocked()
+	EngineFenceSerializableLocked(e)
 	e.Mu.Unlock()
 	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
 }

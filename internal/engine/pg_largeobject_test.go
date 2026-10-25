@@ -88,10 +88,10 @@ func TestPGLargeobjectCapturedRoots(t *testing.T) {
 	}
 	frozen := open()
 	pglUnitPage(t, frozen, "\x00\x00\x80\xff")
-	scope.largeObjectRead = next
+	SetScopeLargeObjectRead(scope, next)
 	body := open()
 	pglUnitPage(t, body, "\x00\xaa\xbb\xcc")
-	scope.largeObjectRead = catalog.Read{}
+	SetScopeLargeObjectRead(scope, catalog.Read{})
 	// Later publication/removal cannot change either retained source or fallback.
 	latest := catalog.CloneState(next.State())
 	latest.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.LargeObjectClassID, ObjectID: 920101})

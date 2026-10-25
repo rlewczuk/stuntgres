@@ -99,10 +99,10 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 			t.Fatal(commandErr)
 		}
 		clear(frame)
-		if len(scope.routinePrograms) != 1 || len(scope.routinePrograms[0].admission.Calls) == 0 {
+		if len(ScopeRoutinePrograms(scope)) != 1 || len(ScopeRoutinePrograms(scope)[0].admission.Calls) == 0 {
 			t.Fatal("actual invocations did not retain one consumed authority graph")
 		}
-		calls := scope.routinePrograms[0].admission.Calls
+		calls := ScopeRoutinePrograms(scope)[0].admission.Calls
 		if i == 0 {
 			original = append([]exec.RoutineCall(nil), calls...)
 		}
@@ -126,7 +126,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 	if authErr != nil {
 		t.Fatal(authErr)
 	}
-	if err := scope.routinePrograms[0].admission.Readmit(RoutineAccessOf(auth)); err == nil {
+	if err := ScopeRoutinePrograms(scope)[0].admission.Readmit(RoutineAccessOf(auth)); err == nil {
 		t.Fatal("coalesced consumed calls accepted a foreign authority")
 	}
 }

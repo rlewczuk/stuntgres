@@ -79,7 +79,7 @@ func TestTransactionalPrivilegesFinishAuthority(t *testing.T) {
 				}
 				e.Mu.Lock()
 				op.Session.Mu.Lock()
-				err = e.catalogAuthorityPreflightLocked(general, nil)
+				err = EngineCatalogAuthorityPreflightLocked(e, general, nil)
 				op.Session.Mu.Unlock()
 				e.Mu.Unlock()
 				var conflict catalog.Conflict

@@ -43,7 +43,7 @@ func advisoryUnitScopeWait(t *testing.T, s *session.Session, key lock.Resource, 
 	done := make(chan advisoryScopeOutcome, 1)
 	joined := make(chan struct{})
 	go func() {
-		_, err := scope.acquireAdvisory(op.Context(), key, lock.AdvisoryExclusive, lifetime, false)
+		_, err := ScopeAcquireAdvisory(scope, op.Context(), key, lock.AdvisoryExclusive, lifetime, false)
 		finish := scope.Finish(err)
 		op.Done()
 		done <- advisoryScopeOutcome{err, finish}
@@ -107,7 +107,7 @@ func advisoryUnitReplaceReserved(t *testing.T, e *Engine) {
 			var prepared index.RemintedIndexStorage
 			prepared, err = e.prepareForeignIndexStorage(context.Background(), next, relations, indexes)
 			if err == nil {
-				err = e.installForeignCatalogLocked(context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
+				err = EngineInstallForeignCatalogLocked(e, context.Background(), next, relations, sequences, nextRevision, prepared, e.Catalog.OIDReservationLocked())
 			}
 		}
 	}

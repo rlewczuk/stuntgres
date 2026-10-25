@@ -26,13 +26,13 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 				sessionSQL(t, sess, "CREATE TABLE parent(id integer PRIMARY KEY)")
 				sessionSQL(t, sess, "CREATE TABLE child(id integer REFERENCES parent(id))")
 				scope := foreignActionUnitScope(t, e, sess, query)
-				if scope.foreignActionsSlot != nil {
+				if ScopeForeignActionsSlot(scope) != nil {
 					t.Fatal("unconstrained DML allocated exception/FK effect bookkeeping")
 				}
 				if err := scope.completeCommandEffects(false, false); err != nil {
 					t.Fatal(err)
 				}
-				if scope.foreignActionsSlot != nil {
+				if ScopeForeignActionsSlot(scope) != nil {
 					t.Fatal("completion allocated bookkeeping for unrelated DML")
 				}
 			})
@@ -50,7 +50,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			t.Fatal("relevant accepted insert events missing", events, rows)
 		}
 		for i, event := range events {
-			if event.Relation != ref.Address || event.Command != scope.effectCommand || event.Old.Version != 0 || event.Next.Version != rows[i].Version || event.Next.Row != rows[i].Row {
+			if event.Relation != ref.Address || event.Command != ScopeEffectCommand(scope) || event.Old.Version != 0 || event.Next.Version != rows[i].Version || event.Next.Row != rows[i].Row {
 				t.Fatal("accepted event lost exact version/command ownership", event, rows[i])
 			}
 		}
@@ -85,7 +85,7 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		sessionSQL(t, sess, "INSERT INTO guarded VALUES(1)")
 		scope := foreignActionUnitScope(t, e, sess, "INSERT INTO guarded VALUES(1)")
 		events := scope.foreignActionsOrZero().Transitions
-		if len(events) != 1 || events[0].Command != scope.effectCommand {
+		if len(events) != 1 || events[0].Command != ScopeEffectCommand(scope) {
 			t.Fatal("exclusion-only accepted row lost command ownership", events)
 		}
 		var diagnostic *sqlstate.Error
@@ -99,18 +99,18 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90003}
 		stale := view.Domain().Ref(view.Epoch()+1, a)
 		current := view.Domain().Ref(view.Epoch(), a)
-		s.effectCommand = 2
-		s.indexesSlot = &index.Scope{ExclusionStarted: true, ExclusionModes: index.ExclusionModes{Events: []index.ExclusionEvent{
+		SetScopeEffectCommand(s, 2)
+		SetScopeIndexesSlot(s, &index.Scope{ExclusionStarted: true, ExclusionModes: index.ExclusionModes{Events: []index.ExclusionEvent{
 			{Parent: stale, Row: 1, Version: 1},
 			{Parent: current, Row: 2, Version: 2},
-		}}}
-		s.foreignActionsSlot = &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: storage.RowVersion{Row: 2, Version: 2}, Command: 2}}}
+		}}})
+		SetScopeForeignActionsSlot(s, &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: storage.RowVersion{Row: 2, Version: 2}, Command: 2}}})
 		// Missing current descriptors retire an owned event; an unowned stale
 		// event must not even be probed while its outer producer is suspended.
 		if err := s.checkExclusionCommandEvents(false, nil, true); err != nil {
 			t.Fatal(err)
 		}
-		if len(s.indexesSlot.ExclusionModes.Events) != 1 || s.indexesSlot.ExclusionModes.Events[0].Row != 1 {
+		if len(ScopeIndexesSlot(s).ExclusionModes.Events) != 1 || ScopeIndexesSlot(s).ExclusionModes.Events[0].Row != 1 {
 			t.Fatal("unowned exclusion event consumed")
 		}
 		if err := s.checkExclusionEvents(true, nil); !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -123,20 +123,20 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		root := storage.RowVersion{Row: 1, Version: 1}
 		child := storage.RowVersion{Row: 1, Version: 2}
 		s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{a: {child}}
-		s.foreignActionsSlot = &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: root, Command: 0}, {Relation: a, Old: root, Next: child, Command: 2}}}
-		s.effectCommand = 2
+		SetScopeForeignActionsSlot(s, &dml.ForeignActionScope{Transitions: []dml.ForeignActionTransition{{Relation: a, Next: root, Command: 0}, {Relation: a, Old: root, Next: child, Command: 2}}})
+		SetScopeEffectCommand(s, 2)
 		if err := s.completeCommandEffects(false, true); err != nil {
 			t.Fatal(err)
 		}
-		events := s.foreignActionsSlot.Transitions
+		events := ScopeForeignActionsSlot(s).Transitions
 		if events[0].Checked || events[0].ActionsDone || !events[1].Checked || !events[1].ActionsDone || s.Stage.Rows[a][0].Version != 2 {
 			t.Fatal("command ownership was a global suffix/RowID filter", events)
 		}
-		s.effectCommand = 0
+		SetScopeEffectCommand(s, 0)
 		if err := s.completeCommandEffects(false, false); err != nil {
 			t.Fatal(err)
 		}
-		if !s.foreignActionsSlot.Transitions[0].Checked {
+		if !ScopeForeignActionsSlot(s).Transitions[0].Checked {
 			t.Fatal("root obligation lost")
 		}
 	})
@@ -174,14 +174,14 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 			child := storage.RowVersion{Row: 90002, Version: 90002, Values: values}
 			scope.Stage.Rows[relation] = append(scope.Stage.Rows[relation], child)
 			scope.foreignActions().Transitions = append(scope.foreignActionsOrZero().Transitions, dml.ForeignActionTransition{Relation: relation, Next: child, Command: 2})
-			scope.effectCommand = 2
+			SetScopeEffectCommand(scope, 2)
 			if err := scope.completeCommandEffects(false, true); err != nil {
 				t.Fatal("child checked incomplete outer producer", err)
 			}
-			if scope.foreignActionsSlot.Transitions[0].Checked || len(scope.WriteHost().PrivateRows(ref.Address).Staged) < 1 {
+			if ScopeForeignActionsSlot(scope).Transitions[0].Checked || len(scope.WriteHost().PrivateRows(ref.Address).Staged) < 1 {
 				t.Fatal("child hid/consumed outer visibility or obligation")
 			}
-			scope.effectCommand = 0
+			SetScopeEffectCommand(scope, 0)
 			err = scope.completeCommandEffects(false, false)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "23503" {
@@ -208,17 +208,17 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		}
 		previous := scope.WriteHost().SwapForeignActionAuthority(auth)
 		defer scope.WriteHost().SwapForeignActionAuthority(previous)
-		scope.foreignActionsSlot.Settling = true
+		ScopeForeignActionsSlot(scope).Settling = true
 		if err := scope.completeCommandEffects(false, false); err != nil {
 			t.Fatal(err)
 		}
-		if !scope.foreignActionsSlot.Settling || scope.ForeignActionAuth != foreignAuthorizationOf(auth) {
+		if !ScopeForeignActionsSlot(scope).Settling || scope.ForeignActionAuth != foreignAuthorizationOf(auth) {
 			t.Fatal("reentrant settlement lost authority/Settling")
 		}
-		scope.foreignActionsSlot.Settling = false
+		ScopeForeignActionsSlot(scope).Settling = false
 		ref := catalogRef(t, e, e.CatalogRead(), "g")
 		var diamond []dml.ForeignActionTransition
-		for _, event := range scope.foreignActionsSlot.Transitions {
+		for _, event := range ScopeForeignActionsSlot(scope).Transitions {
 			if !event.ActionsDone || !event.Checked {
 				t.Fatal("causal queue not exhausted", event)
 			}
@@ -229,23 +229,23 @@ func TestPLExceptionCommandCompletion(t *testing.T) {
 		if len(diamond) != 2 || diamond[0].Next.Version != diamond[1].Old.Version || diamond[0].Old.Row != diamond[1].Old.Row {
 			t.Fatal("same-row causal transitions collapsed", diamond)
 		}
-		count, frontier := len(scope.foreignActionsSlot.Transitions), e.Storage.VersionFrontier()
+		count, frontier := len(ScopeForeignActionsSlot(scope).Transitions), e.Storage.VersionFrontier()
 		if err := scope.completeCommandEffects(false, false); err != nil {
 			t.Fatal(err)
 		}
-		if len(scope.foreignActionsSlot.Transitions) != count || e.Storage.VersionFrontier() != frontier {
+		if len(ScopeForeignActionsSlot(scope).Transitions) != count || e.Storage.VersionFrontier() != frontier {
 			t.Fatal("root replayed completed cascade")
 		}
 		mark, err := scope.beginPLException()
 		if err != nil {
 			t.Fatal(err)
 		}
-		scope.foreignActionsSlot.Transitions[0].Checked = false
-		scope.foreignActionsSlot.Transitions[0].ActionsDone = false
+		ScopeForeignActionsSlot(scope).Transitions[0].Checked = false
+		ScopeForeignActionsSlot(scope).Transitions[0].ActionsDone = false
 		if err := scope.endPLException(mark, true, errors.New("body")); err != nil {
 			t.Fatal(err)
 		}
-		if !scope.foreignActionsSlot.Transitions[0].Checked || !scope.foreignActionsSlot.Transitions[0].ActionsDone {
+		if !ScopeForeignActionsSlot(scope).Transitions[0].Checked || !ScopeForeignActionsSlot(scope).Transitions[0].ActionsDone {
 			t.Fatal("exception rollback did not restore command progress")
 		}
 	})

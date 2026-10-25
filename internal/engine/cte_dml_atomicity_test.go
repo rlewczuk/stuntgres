@@ -55,7 +55,7 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 				t.Fatal(result, err)
 			}
 			defer result.Rows.Close()
-			if scope.Completed || len(scope.Stage.Rows[b.Address]) != 2 || scope.Stage.Deletes[a.Address] == nil || len(scope.Stage.Deletes[a.Address].Rows) != 2 || scope.cteInvocation != nil {
+			if scope.Completed || len(scope.Stage.Rows[b.Address]) != 2 || scope.Stage.Deletes[a.Address] == nil || len(scope.Stage.Deletes[a.Address].Rows) != 2 || ScopeCTEInvocation(scope) != nil {
 				t.Fatal("not one unpublished complete stage")
 			}
 			view := scope.View.Load()
@@ -70,7 +70,7 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 			}
 			result.Rows.Close()
 			op.Done()
-			if scope.View != nil || scope.LockTicket != nil || scope.Stage.Rows != nil || scope.Stage.Deletes != nil || scope.mutations != nil || scope.cteInvocation != nil {
+			if scope.View != nil || scope.LockTicket != nil || scope.Stage.Rows != nil || scope.Stage.Deletes != nil || ScopeMutations(scope) != nil || ScopeCTEInvocation(scope) != nil {
 				t.Fatal("cancel retained statement roots")
 			}
 			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
@@ -117,7 +117,7 @@ func TestCTEDMLAtomicPublication(t *testing.T) {
 	}
 	transactionRows(t, observer, "SELECT id FROM a")
 	transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 1, 2)
-	if scope.View != nil || scope.LockTicket != nil || scope.mutations != nil {
+	if scope.View != nil || scope.LockTicket != nil || ScopeMutations(scope) != nil {
 		t.Fatal("successful Finish retained owner")
 	}
 	lockEmpty(t, e)
@@ -169,7 +169,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 				}
 				if phase == "close_veto" || phase == "close_veto_exec" || phase == "primary_error_before_close" {
 					producer := &exec.CTEProducer{Opened: true, Inner: exec.Stage{Finish: func() error { closes++; return closeFailure }}}
-					scope.cteInvocation.Order = append(scope.cteInvocation.Order, producer)
+					ScopeCTEInvocation(scope).Order = append(ScopeCTEInvocation(scope).Order, producer)
 				}
 				if phase == "output_cancel" {
 					cancel()

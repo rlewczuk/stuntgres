@@ -91,7 +91,7 @@ func TestPLpgSQLConditionalFrame(t *testing.T) {
 					t.Fatal("nested RETURN did not propagate", value, flow, err)
 				}
 			}
-			if len(f.Scopes) != 0 || s.sqlRoutine.lexical != nil || s.activeSQLRoutineDepth != 0 {
+			if len(f.Scopes) != 0 || ScopeSQLRoutineRef(s).lexical != nil || ScopeActiveSQLRoutineDepth(s) != 0 {
 				t.Fatal("conditional leaked lexical/query/root state")
 			}
 			for _, search := range f.Searches {
