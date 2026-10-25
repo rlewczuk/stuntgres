@@ -374,7 +374,7 @@ inspection accessors were added.
   `partitionConstraintUnit`, `retiredRaw`, `retiredRepairSQL`, `retiredRow` and
   `serialLeaf`. The non-free group files (about 1 MB, 65 reach core internals)
   wait for items 193–194.
-- 187: - 187: done (`9c2d30c27`, `e01a0f1a9`). Group measured with `group.py`
+- 187: done (`9c2d30c27`, `e01a0f1a9`). Group measured with `group.py`
   (`.cswd/tmp/PG18-ENGINE-SPLIT-187-TYPE-VIEW-ROLE-SCHEMA-OBJECT-DDL-TESTS/`) at
   `13ad970b9`: 321 root files, 129 transitively free (0.90 MB). Moved 116 (290
   tests) with that directory's `mvtest`, replayed on item 186, by statement
@@ -442,4 +442,43 @@ inspection accessors were added.
   accessor with the same name and signature first. For item 195: the inspect
   files become core's `export_test.go` (one file or `export_<area>_test.go`),
   and the aliases and constructors go with them.
-- 194: not started.
+- 194: done (`6ce917539`, `1a9fec6ef`, `e41fd307d`, `61639bb51`). Measured with
+  `closure` (192's `areas.json`), `group.py` and the new per-function `need`
+  tool
+  (`.cswd/tmp/PG18-ENGINE-SPLIT-194-TEST-ACCESSORS-II-DDL-AREAS-FAMILY-TESTS/`)
+  at `a8dba82b3`: 129 DDL-area files reached only core internals; 102 files
+  (1.31 MB) reached family code and core names, but only 131 test functions
+  reached both (118 names), mostly through setup helpers (`*UnitStage`,
+  `*UnitInstalled`, `domainUnitStage`, database creation). Rewrites first (item
+  order 1): 71 functions now set up through SQL (`roleExecute`: `CREATE
+  EXTENSION`, `CREATE DOMAIN`/`TYPE`, `ALTER TYPE`, `CREATE ROLE`, `CREATE
+  DATABASE` + `SelectDatabase`; `Engine.Execute` for `definitionUnitStage`), the
+  exported typedef stagers, or exported twins
+  (`RelationCreationNamespaceLocked`, `scope.WriteHost()`); deviation:
+  `TestUpcCoercion`'s prepared subtests became `TestUpcPreparedAuthorityRebind`
+  and `TestUpcPreparedLiteralReown` beside their ean13 siblings. T2: one dead
+  helper (`catalogFencesOf`) and no test deleted (the item estimated 0.1 MB);
+  the 21 `refcover` candidates at full SQL overlap assert bound nodes, binder
+  diagnostics, internal state or locks. Then `acc` (item 193's, now with a
+  core-only filter from `assign.tsv`, reuse of same-name same-signature
+  accessors, constructor Fields widening, `…Ref()` for written package variables
+  and appends to existing files) routed every remaining site of all root tests:
+  319 accessors, 121 reused, 198 new; deviation: the item 183 (`subpkg`) and
+  control-area leftovers were routed too, since item 193 took only the runtime
+  areas. Last resort (order 3): `mvacc` moved the 51 accessors the other 60
+  functions reach into production `inspect.go`, plus `MaterializedSourceFences`
+  by hand: 52 exported inspection declarations, listed in the root README
+  (becomes the core README). Check: `census` finds no unexported core member
+  named outside the accessor files except in `replacement_admission`,
+  `catalog_fence`, `expected_inputs` and `fts_query_runtime`; `need` finds no
+  test function reaching both. For item 195: 19 root test files still mix
+  core-only and family test functions (`aggregate_identity`,
+  `alter_add_constraint`, `available_extension_sources`, `composite_alter_unit`,
+  `conditional`, `create_aggregate`, `extension_provider`,
+  `extension_temporary`, `index_clauses`, `jsonb_record_expression`,
+  `materialized_alter`, `materialized_view`, `partition_constraints`,
+  `pg_attribute`, `pg_depend`, `regproc_retained`, `rls_base`, `role_switch`,
+  `transactional_privileges_integration`), so the move splits them by function;
+  four root test files declare methods on `Engine` (`SetObjectACL`,
+  `captureCatalogSourceLocked`, `ValidateObjectRef`, `PublishCatalog`), which
+  external tests cannot.

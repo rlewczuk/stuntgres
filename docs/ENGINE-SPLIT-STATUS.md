@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `58bb1fc13` (item 193 rebased on it).
+Last verified against `master` at `a8dba82b3` (item 194 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 194.
+- 195.
 
 ## Linear plan
 
@@ -190,9 +190,21 @@ ENGINE-SPLIT.md §4.
      files and 6.25 MB (+69 KB: 63 KB accessors); quickcheck passed;
      `REFERENCE=1` and bench skipped (no production change), racecheck and
      finalcheck skipped at user request
-194. [ ] Test accessors II: DDL areas and family tests —
+194. [x] Test accessors II: DDL areas and family tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-194--test-accessors-ii-ddl-areas-and-family-tests)
-     · needs 193 · P
+     · needs 193 · P (`6ce917539`, `1a9fec6ef`, `e41fd307d`, `61639bb51`, docs
+     commit) · every root test outside the accessor files, the `engine_test.go`
+     fixture and the four core unit files now names no unexported core member
+     (the DDL-area files of items 186–187, the item 183 and control-area
+     leftovers and the family tests; `acc`: 319 accessors, 121 reused, 198 new
+     in 22 `inspect_<area>_test.go` files); no test function reaches both a
+     test-only core member and unexported family code: 71 of the 131 that did
+     now set up through SQL or the exported API, the other 60 use 52 exported
+     inspection accessors in the new production `inspect.go` (47 functions, two
+     constants, three constructor Fields types); T2 deleted one dead helper and
+     no test; root tests 778 files and 6.28 MB (+40 KB), production +12 KB
+     (`inspect.go`); quickcheck passed; `REFERENCE=1` and bench skipped (no
+     behavior change), racecheck and finalcheck skipped at user request
 195. [ ] Core move — [core](ENGINE-SPLIT-core.md#item-195--core-move) · needs
      194 · S, bench · 3.7 MB
 196. [ ] `tablecmds`: tables —

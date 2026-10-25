@@ -766,20 +766,50 @@ Routine-metadata units use the same real capture fixture and staged extension
 constructors for declaration completeness, independent source bags, redaction,
 empty/canceled results and generation fences: `RUN='^TestInfoRoutines'`.
 
-Root runtime tests that build an engine (statement, query, DML, transaction,
-session, catalog, procedural and producer areas) name no unexported core member.
-They use the exported accessors in `inspect_<area>_test.go`, filed by the area
-of the member's declaring file, which become core's `export_test.go` when core
-moves. `<Prefix><Field>(x)` reads a field, `Set<Prefix><Field>(x, v)` writes it
-and `<Prefix><Field>Ref(x)` returns its address. `<Prefix><Method>(x, …)` and
-`<Func>(…)` wrap unexported methods and functions,
-`New<Prefix>(<Prefix>Fields{…})` builds a struct with unexported fields, and an
-exported alias names an unexported type. Prefixes shorten common owners: `Scope`
-(`StatementScope`), `Stage` (`CatalogStage`), `CatalogRuntime`, `Description`,
-`Cursor`, `Portal` and `Payload`. Tests call exported methods of unexported
-types directly. Pure units that build no engine (`replacement_admission`,
-`catalog_fence`, `expected_inputs`, `fts_query_runtime`) keep direct access:
-they become core's internal tests.
+Root tests name no unexported core member outside the accessor files. A test
+that reaches only core uses the exported accessors in `inspect_<area>_test.go`,
+filed by the area of the member's declaring file, which become core's
+`export_test.go` when core moves. `<Prefix><Field>(x)` reads a field,
+`Set<Prefix><Field>(x, v)` writes it and `<Prefix><Field>Ref(x)` returns its
+address. `<Prefix><Method>(x, …)` and `<Func>(…)` wrap unexported methods and
+functions, `New<Prefix>(<Prefix>Fields{…})` builds a struct with unexported
+fields, and an exported alias names an unexported type. Prefixes shorten common
+owners: `Scope` (`StatementScope`), `Stage` (`CatalogStage`), `CatalogRuntime`,
+`Description`, `Cursor`, `Portal` and `Payload`. Tests call exported methods of
+unexported types directly. Pure units that build no engine
+(`replacement_admission`, `catalog_fence`, `expected_inputs`,
+`fts_query_runtime`) keep direct access: they become core's internal tests.
+
+No test function reaches both a test-only core member and unexported family
+code: such a test stays beside the family and cannot see core's
+`export_test.go`. It asserts through the exported API or SQL, or, as a last
+resort, through the exported inspection accessors in production `inspect.go`
+(core's `inspect.go` after the move); remove one once no test uses it:
+- catalog stages and publication: `CatalogDependencyPreflight`,
+  `CatalogDiscarded`, `CatalogPublished`, `EngineCaptureCatalogStageLocked`,
+  `EnginePreparePrivateCatalog`, `EngineStageCatalogChangesLocked`,
+  `NewCatalogRoleReadFence`, `PreparedCatalogPublicationEpoch`,
+  `PreparedCatalogPublicationStage`, `SetPreparedCatalogPublicationCtx`,
+  `StageDomainAlter`, `StageMaterializedReplacementCurrent`,
+  `StageRemoveObject`, `StageTableOrZero`, `StageValidateIndexMaintenance`,
+  `StageValidateLikeSources`, `StageValidateRoleCandidate`;
+- statement scope, transactions and roles: `CaptureSavepoint`,
+  `RestoreSavepoint`, `ScopeAcquireMaterializedRefresh`, `ScopeAcquireRow`,
+  `ScopeExecuteSavepoint`, `ScopeSnapshotPhase`, `SetScopeWorked`,
+  `CursorStage`, `EnginePreparedRef`, `EnginePublishDatabaseFrozenXIDLocked`,
+  `EngineRefreshOperationRolesLocked`, `EngineRoleRetirementPreflightLocked`;
+- binding, query tables and catalog sources:
+  `AuthorizationMaterializedPopulation`, `BindCreateGenerations`,
+  `BindIndexPredicate`, `BindingHostView`, `CatalogSourceTemporaryOwner`,
+  `DomainRestrictError`, `EngineOpenRelationSourceLocked`,
+  `EnginePrepareQueryTableLocked`, `NewCatalogRuntime`, `ProcedureReturnsSet`,
+  `TypeHostBindRestoredDomainDefault`;
+- materialized-view source fences: `EngineMaterializedSourceFenceCurrent`,
+  `MaterializedSourceFences`, `MaterializedSourceFenceRef`,
+  `MaterializedSourceFenceRelation`, `MaterializedSourceFenceStorage`,
+  `NewMaterializedSourceFence`;
+- partition replay: `PartitionCheckReplayAllowed`, `PartitionReplayAllowed`,
+  `PartitionUsingIndexReplayAllowed`.
 
 ### Advisory timer scheduling and shared result waits
 
