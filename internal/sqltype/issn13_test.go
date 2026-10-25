@@ -1,0 +1,106 @@
+package sqltype
+
+import (
+	"context"
+	"strings"
+	"testing"
+)
+
+func TestIssn13Codec(t *testing.T) {
+	d, err := Issn13(60000, "issn13", "public.issn13")
+	if err != nil { t.Fatal(err) }
+	ctx := context.Background()
+	for _, tc := range []struct{ input string; packed int64; output, literal string }{
+		{"12345679", 19542469134006, "977-1234-567-00-3", "'9771234567003'"},
+		{"12345670!", 19542469134007, "977-1234-567-00-3!", "'9771234567003!'"},
+		{"9771234567898", 19542469135796, "977-1234-567-89-8", "'9771234567898'"},
+		{"9771234567898!", 19542469135797, "977-1234-567-89-8!", "'9771234567898!'"},
+		{"1234567?!", 19542469134006, "977-1234-567-00-3", "'9771234567003'"},
+	} {
+		v, err := d.Input(ctx, tc.input, -1)
+		if err != nil || v.integer != tc.packed || v.IsNull() || !v.ValidResult(d.Usage()) { t.Fatal(tc.input, v, err) }
+		if output, err := d.Output(ctx, v); err != nil || output != tc.output { t.Fatal(output, err) }
+		literal, err := d.SQLLiteral(ctx, v)
+		if err != nil || literal != tc.literal { t.Fatal(literal, err) }
+		for _, text := range []string{tc.output, strings.Trim(literal, "'")} {
+			again, err := d.Input(ctx, text, -1)
+			if err != nil || !SameDatum(v, again) { t.Fatal("lossy roundtrip", tc.input, text, err) }
+		}
+	}
+	for _, input := range []string{"", "1234567", "123456789", "12345670", "11448750", "9771234567000", "9780123456786", "9790123456785", "0123456789012", "1234567890128", "12345678901234", "123\t45679", "123\n45679", "12345679!!", "123456?9", "1144875X ", "1144875? "} {
+		if _, err := d.Input(ctx, input, -1); err == nil { t.Fatal("invalid input admitted", input) }
+	}
+	if !Null(d).ValidResult(d.Usage()) { t.Fatal("typed NULL rejected") }
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := d.Input(cancelled, "12345679", -1); err != context.Canceled { t.Fatal(err) }
+	facts, ok := d.PGTypeMetadata()
+	if !ok || facts.Kind != "b" || facts.Category != "U" || facts.Length != 8 || !facts.ByValue || facts.Alignment != "d" || facts.Storage != "p" || facts.Modifier != -1 || facts.Collation != 0 { t.Fatal("scalar metadata", facts, ok) }
+}
+
+func TestIssn13Formatting(t *testing.T) {
+	d, err := Issn13(60000, "issn13", "public.issn13")
+	if err != nil { t.Fatal(err) }
+	for _, tc := range []struct{ input, output string }{
+		{"12345679", "977-1234-567-00-3"}, {"1234-5679", "977-1234-567-00-3"}, {"9771234567003", "977-1234-567-00-3"},
+		{"1436-4522", "977-1436-452-00-8"}, {"1144875x", "977-1144-875-00-7"}, {"1144875X", "977-1144-875-00-7"},
+		{"1144875?", "977-1144-875-00-7"}, {"3251231?", "977-3251-231-00-4"}, {"00000000", "977-0000-000-00-3"}, {"99999994", "977-9999-999-00-8"},
+		{"12345679 ", "977-1234-567-00-3"}, {"12345679-", "977-1234-567-00-3"}, {"12345670!", "977-1234-567-00-3!"},
+		{"12345679!", "977-1234-567-00-3!"}, {"9771234567000!", "977-1234-567-00-3!"}, {"1234567?!", "977-1234-567-00-3"},
+		{"9771234567898", "977-1234-567-89-8"}, {"9771234567898!", "977-1234-567-89-8!"},
+	} {
+		v, err := d.Input(context.Background(), tc.input, -1)
+		if err != nil { t.Fatal(tc.input, err) }
+		if output, err := d.Output(context.Background(), v); err != nil || output != tc.output { t.Fatal(tc.input, output, err) }
+	}
+}
+
+func TestIssn13Identity(t *testing.T) {
+	d, err := Issn13(60000, "issn13", "public.issn13")
+	if err != nil { t.Fatal(err) }
+	foreign, err := Issn13(d.ID(), "renamed", "other.renamed")
+	if err != nil { t.Fatal(err) }
+	if !d.IsIssn13() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || !d.IsUserDefined() || d.DatabaseName() != "ISSN13" { t.Fatal("distinct scalar role") }
+	v, err := d.Input(context.Background(), "9771234567898", -1)
+	if err != nil { t.Fatal(err) }
+	marked, err := d.Input(context.Background(), "9771234567898!", -1)
+	if err != nil { t.Fatal(err) }
+	if SameDatum(v, marked) || !SameDatum(v, v) { t.Fatal("invalid marker identity") }
+	for _, source := range []Value{v, marked, Null(d)} {
+		if _, err := source.Retag(foreign); err == nil { t.Fatal("foreign generation retagged") }
+		for _, construct := range []func(ID, string, string) (*Descriptor, error){Ean13, Isbn, Isbn13, Ismn, Ismn13, Issn} {
+			sibling, err := construct(d.ID(), "issn13", "public.issn13")
+			if err != nil { t.Fatal(err) }
+			if _, err := source.Retag(sibling); err == nil { t.Fatal("sibling retagged") }
+			if _, err := source.RemapIssn13(sibling); err == nil { t.Fatal("sibling imported") }
+			if source.ValidResult(sibling.Usage()) { t.Fatal("sibling result admitted") }
+		}
+		mapped, err := source.RemapIssn13(foreign)
+		if err != nil || mapped.Type() != foreign || mapped.IsNull() != source.IsNull() || mapped.integer != source.integer || SameDatum(source, mapped) { t.Fatal("import changed payload or granted identity", mapped, err) }
+	}
+	for _, packed := range []int64{-1, 0, 19999999999999, 19560246913572, 19542469134000, 20000000000000} {
+		bad := Value{typ: d, integer: packed}
+		if bad.ValidResult(d.Usage()) || SameDatum(bad, bad) { t.Fatal("invalid payload admitted", packed) }
+		if _, err := d.Output(context.Background(), bad); err == nil { t.Fatal("invalid output admitted") }
+		if _, err := d.SQLLiteral(context.Background(), bad); err == nil { t.Fatal("invalid serialization admitted") }
+		if _, err := bad.RemapIssn13(foreign); err == nil { t.Fatal("invalid import admitted") }
+	}
+}
+
+func TestIssn13Capabilities(t *testing.T) {
+	for _, tc := range []struct{ id ID; name, declaration string }{{0,"issn13","issn13"}, {Unknown,"issn13","issn13"}, {60000,"","issn13"}, {60000,"issn13",""}} {
+		if _, err := Issn13(tc.id, tc.name, tc.declaration); err == nil { t.Fatal("invalid descriptor admitted", tc) }
+	}
+	d, err := Issn13(60000, "issn13", "public.issn13")
+	if err != nil { t.Fatal(err) }
+	array := LookupArray(60001, "_issn13", d)
+	if array.Concrete() || array.Element() != d { t.Fatal("companion gained execution") }
+	if _, err := array.Input(context.Background(), "{12345679}", -1); err == nil { t.Fatal("lookup-only array input admitted") }
+	if d.CheckBinaryInput() == nil || d.CheckBinaryOutput() == nil { t.Fatal("ISSN13 gained binary codecs") }
+	if equality, ordering := ComparisonCapabilities(d); equality || ordering { t.Fatal("ISSN13 gained comparison capability") }
+	for _, construct := range []func(ID, string, string) (*Descriptor, error){Ean13, Isbn, Isbn13, Ismn, Ismn13, Issn} {
+		sibling, err := construct(60002, "sibling", "public.sibling")
+		if err != nil { t.Fatal(err) }
+		if _, err := PlanCoercion(d.Usage(), sibling.Usage(), Explicit); err == nil { t.Fatal("sibling cast admitted") }
+	}
+}

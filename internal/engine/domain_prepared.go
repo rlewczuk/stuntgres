@@ -22,7 +22,7 @@ func (d *StatementDescription) retireAnalysisTypeCastsForRebind(isnAuthorityRebi
 	var captures map[analyze.PreparedTypeKey]analyze.TypeOccurrence
 	if isnAuthorityRebind {
 		for key, captured := range d.types {
-			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && (captured.Base.Type.IsEan13() || captured.Base.Type.IsIsbn() || captured.Base.Type.IsIsbn13() || captured.Base.Type.IsIsmn() || captured.Base.Type.IsIsmn13() || captured.Base.Type.IsIssn()) {
+			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && (captured.Base.Type.IsEan13() || captured.Base.Type.IsIsbn() || captured.Base.Type.IsIsbn13() || captured.Base.Type.IsIsmn() || captured.Base.Type.IsIsmn13() || captured.Base.Type.IsIssn() || captured.Base.Type.IsIssn13()) {
 				if captures == nil {
 					captures = make(map[analyze.PreparedTypeKey]analyze.TypeOccurrence)
 				}

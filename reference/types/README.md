@@ -124,8 +124,9 @@ these are shared across families:
 - `ean13_helpers_test.go`: shared installed-ISN scenario, raw string/byte
   transport, exact diagnostics and metadata checks for installed ISN scalar roles.
   ISBN helpers share relational manifest identity and owner-record mutation
-  checks across all six roles. ISSN expectations preserve invalid markers and
+  checks across all seven roles. ISSN and ISSN13 expectations preserve invalid markers and
   nonzero issue digits, including full-number serialization in native controls.
+  ISSN13 always displays the long form, independently of ISSN short output.
   The reusable family selector is
   `RUN='^TestReference(Ean13|Isbn|Ismn|Issn)'`; controls retain readers across replacement,
   validate whole-script diagnostic positions and rollback with identical failing

@@ -22,6 +22,7 @@ func TestIsbnPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityReb
 func TestIsmnPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "ismn", 9) }
 func TestIsmn13PreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "ismn13", 12) }
 func TestIssnPreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "issn", 15) }
+func TestIssn13PreparedAuthorityRebind(t *testing.T) { testIsnPreparedAuthorityRebind(t, "issn13", 18) }
 
 func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 	e, ext, _ := isnUnitInstalled(t)
@@ -163,6 +164,7 @@ func TestIsbnPreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t,
 func TestIsmnPreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "ismn", 9) }
 func TestIsmn13PreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "ismn13", 12) }
 func TestIssnPreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "issn", 15) }
+func TestIssn13PreparedLiteralReown(t *testing.T) { testIsnPreparedLiteralReown(t, "issn13", 18) }
 
 func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 	e, ext, _ := isnUnitInstalled(t)
@@ -189,6 +191,11 @@ func testIsnPreparedLiteralReown(t *testing.T, family string, slot int) {
 		inputs = []string{"9771234567898!", "12345679"}
 		outputs = []string{"977-1234-567-89-8!", "1234-5679", ""}
 		constructor = sqltype.Issn
+	}
+	if family == "issn13" {
+		inputs = []string{"9771234567898!", "12345679"}
+		outputs = []string{"977-1234-567-89-8!", "977-1234-567-00-3", ""}
+		constructor = sqltype.Issn13
 	}
 	op, done := roleOperation(t, e, "postgres")
 	defer done()

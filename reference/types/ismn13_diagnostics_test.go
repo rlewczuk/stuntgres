@@ -81,7 +81,7 @@ func TestReferenceIsmn13Atomicity(t *testing.T) {
 		held := ean13Held(t, p, c, q)
 		seed := ean13Select(b, "SELECT id,v FROM ismn13_atomic ORDER BY id", []string{"id", "v"}, []string{"INT4", "ISMN13"}, [][]any{{int64(1), "979-0-1234-5678-5"}}, []bool{false, false})
 		stamps := map[string][4]int64{}
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
 			stamps[typ] = isbnIdentityStamp(t, p, c, typ)
 		}
 		var extension int64

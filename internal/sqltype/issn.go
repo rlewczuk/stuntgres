@@ -13,10 +13,12 @@ func Issn(id ID, name, declaration string) (*Descriptor, error) {
 func (d *Descriptor) IsIssn() bool { return d != nil && d.issn }
 
 func (v Value) validIssn() bool {
-	if v.typ == nil || !v.typ.BaseType().IsIssn() || v.integer < 0 {
-		return false
-	}
-	n := v.integer >> 1
+	return v.typ != nil && v.typ.BaseType().IsIssn() && validIssnNumber(v.integer)
+}
+
+func validIssnNumber(packed int64) bool {
+	if packed < 0 { return false }
+	n := packed >> 1
 	if n < 9770000000000 || n > 9779999999999 {
 		return false
 	}
@@ -112,7 +114,7 @@ func (d *Descriptor) issnOutput(v Value) (string, error) {
 
 // Serialization never relies on short display, even for zero issue digits.
 func (d *Descriptor) issnSQLLiteral(v Value) (string, error) {
-	if !v.validIssn() { return "", fmt.Errorf("invalid issn payload") }
+	if !v.validIssn() && !v.validIssn13() { return "", fmt.Errorf("invalid issn payload") }
 	var out [16]byte
 	out[0] = '\''
 	number := v.integer >> 1

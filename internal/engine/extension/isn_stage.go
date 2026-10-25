@@ -51,6 +51,7 @@ func (p *IsnProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 			if recipe.name == "ismn" { e.Context = "SQL statement \"CREATE TYPE ismn (\n\tINPUT = ismn_in,\n\tOUTPUT = isn_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 132" }
 			if recipe.name == "ismn13" { e.Context = "SQL statement \"CREATE TYPE ismn13 (\n\tINPUT = ismn13_in,\n\tOUTPUT = ean13_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 70" }
 			if recipe.name == "issn" { e.Context = "SQL statement \"CREATE TYPE issn (\n\tINPUT = issn_in,\n\tOUTPUT = isn_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 152" }
+			if recipe.name == "issn13" { e.Context = "SQL statement \"CREATE TYPE issn13 (\n\tINPUT = issn13_in,\n\tOUTPUT = ean13_out,\n\tLIKE = pg_catalog.int8\n)\"\nextension script file \"isn--1.1.sql\", near line 90" }
 			return e
 		}
 		typ, err := recipe.construct(sqltype.ID(ext.Members[recipe.slot].ObjectID), recipe.name, catalog.DependencyIdentifier(ns)+"."+recipe.name)
@@ -64,6 +65,7 @@ func (p *IsnProvider) Stage(stage Stage, ext *catalog.Extension, owner authoriza
 		if recipe.name == "ismn" { comment = "International Standard Music Number (ISMN)" }
 		if recipe.name == "ismn13" { comment = "International Standard Music Number 13 (ISMN13)" }
 		if recipe.name == "issn" { comment = "International Standard Serial Number (ISSN)" }
+		if recipe.name == "issn13" { comment = "International Standard Serial Number 13 (ISSN13)" }
 		if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, Owner: owner, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID(), Comment: comment}); err != nil { return err }
 		if err := stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ext.TargetNamespace, ObjectRevision: revision, Owner: owner, ACL: authorization.DefaultBaseline(owner, authorization.DefaultTypes, false), ACLSyntheticDefault: true}); err != nil { return err }
 		for i := range 2 {
@@ -97,6 +99,11 @@ func isnCodecConflict(recipe isnRecipe, codec int) error {
 		if codec == 1 {
 			argument, result, source, line = recipe.name, "cstring", "'$libdir/isn'", 64
 		}
+		e.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS %s\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line %d", name, argument, result, source, line)
+	}
+	if recipe.name == "issn13" {
+		argument, result, source, line := "cstring", recipe.name, "'$libdir/isn', 'issn_in'", 78
+		if codec == 1 { argument, result, source, line = recipe.name, "cstring", "'$libdir/isn'", 84 }
 		e.Context = fmt.Sprintf("SQL statement \"CREATE FUNCTION %s(%s)\n\tRETURNS %s\n\tAS %s\n\tLANGUAGE C\n\tIMMUTABLE STRICT\n\tPARALLEL SAFE\"\nextension script file \"isn--1.1.sql\", near line %d", name, argument, result, source, line)
 	}
 	return e

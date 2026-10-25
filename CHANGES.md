@@ -1,3 +1,8 @@
+Installed isn now provides independently identified issn13 columns with short
+or long textual input and always-long canonical output. Literal and bound
+values retain check-digit validity, invalid markers, issue digits and NULLs
+through prepared execution, extension recreation and native Reset/Dump/Restore.
+
 Installed isn now provides independently identified issn columns with literal
 and bound string/byte input, canonical short or lossless long output, and ISSN
 result metadata. Check digits, invalid markers, nonzero issue digits and NULLs

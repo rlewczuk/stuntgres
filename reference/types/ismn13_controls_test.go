@@ -106,7 +106,7 @@ func TestReferenceIsmn13FeatureSmoke(t *testing.T) {
 		verify(p, b, c)
 		held := ean13Held(t, p, c, "INSERT INTO ismn13_smoke VALUES(4,$1),(5,$2)")
 		stamps := map[string][4]int64{}
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
 			stamps[typ] = isbnIdentityStamp(t, p, c, typ)
 		}
 		want := isbnBoundDiagnostic("22P02", `invalid check digit for ISMN number: "M123456780", should be 5`, "M123456780", "$2")
@@ -150,7 +150,7 @@ func TestReferenceIsmn13FeatureSmoke(t *testing.T) {
 		tb := fixture.Backend{Recorder: target.MemoryRecord, DB: target.Memory}
 		fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE TABLE ismn13_smoke_spacer(v integer)", 0))
 		fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE EXTENSION isn", 0))
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
 			source, destination := isbnIdentityStamp(t, p, c, typ), isbnIdentityStamp(t, target, conn, typ)
 			for i := range source {
 				if source[i] == destination[i] {

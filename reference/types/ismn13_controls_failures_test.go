@@ -33,9 +33,9 @@ func ismn13ControlTarget(t *testing.T, p *fixture.Pair, c *sql.Conn, script []by
 	tb := fixture.Backend{Recorder: target.MemoryRecord, DB: target.Memory}
 	fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE TABLE isbn_allocation_spacer(v integer)", 0))
 	fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE EXTENSION isn", 0))
-	// Displace and prove all six scalar, six companion and twelve codec
+	// Displace and prove all seven scalar, seven companion and fourteen codec
 	// identities before Restore, not just the old manifest's member zero.
-	for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
+	for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
 		var source, dest [4]int64
 		q := "SELECT oid,typarray,typinput::oid,typoutput::oid FROM pg_type WHERE oid=" + ean13Literal(typ) + "::regtype::oid"
 		if err := c.QueryRowContext(p.Ctx, q).Scan(&source[0], &source[1], &source[2], &source[3]); err != nil {
@@ -74,7 +74,7 @@ func ismn13FailedReplacement(t *testing.T, kind string) {
 		}
 		target, tb, conn := ismn13ControlTarget(t, p, c, dump.Bytes())
 		retainedIdentities := map[string][4]int64{}
-		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn"} {
+		for _, typ := range []string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"} {
 			retainedIdentities[typ] = isbnIdentityStamp(t, target, conn, typ)
 		}
 		bad, want := ismn13ControlBadStream()

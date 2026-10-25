@@ -14,6 +14,7 @@ func TestIsbnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "is
 func TestIsmnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ismn", 9) }
 func TestIsmn13RestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "ismn13", 12) }
 func TestIssnRestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "issn", 15) }
+func TestIssn13RestoreOwnerReplay(t *testing.T) { testIsnRestoreOwnerReplay(t, "issn13", 18) }
 
 func testIsnRestoreOwnerReplay(t *testing.T, family string, slot int) {
 	e, ext, _ := isnUnitInstalled(t)

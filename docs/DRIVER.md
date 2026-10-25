@@ -202,17 +202,17 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | `json` | `string` (exact input text) |
 | `jsonb`, `uuid`, network, geometric, bit strings, text search | canonical `string` |
 | arrays, composites, ranges, multiranges, enums | canonical `string` |
-| installed `ean13`, `isbn`, `isbn13`, `ismn` | canonical `string`, including retained invalid marker |
+| installed `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13` | canonical `string`, including retained invalid marker |
 | `reg*` types | symbolic `string` |
 
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
 
-After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13 and ISSN columns
+After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13, ISSN and ISSN13 columns
 accept textual literals and bound strings or bytes, including NULL. Results
 expose the corresponding uppercase database type name and string scan type.
-ISBN13 and ISMN13 format the long thirteen-digit value, including expanded
+ISBN13, ISMN13 and ISSN13 format the long thirteen-digit value, including expanded
 short input and any retained `!` marker. ISBN retains its short-output convention;
 ISMN accepts M-prefixed or modern 9790 input and returns hyphenated M notation.
 ISSN accepts short or 977-prefixed input, keeps its invalid marker in short output,

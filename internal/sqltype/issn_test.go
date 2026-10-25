@@ -68,7 +68,7 @@ func TestIssnIdentity(t *testing.T) {
 	if SameDatum(v, marked) || !SameDatum(v, v) { t.Fatal("invalid marker identity") }
 	for _, source := range []Value{v, marked, Null(d)} {
 		if _, err := source.Retag(foreign); err == nil { t.Fatal("foreign generation retagged") }
-		for _, construct := range []func(ID, string, string) (*Descriptor, error){Ean13, Isbn, Isbn13, Ismn, Ismn13} {
+		for _, construct := range []func(ID, string, string) (*Descriptor, error){Ean13, Isbn, Isbn13, Ismn, Ismn13, Issn13} {
 			sibling, err := construct(d.ID(), "issn", "public.issn")
 			if err != nil { t.Fatal(err) }
 			if _, err := source.Retag(sibling); err == nil { t.Fatal("sibling retagged") }
@@ -98,7 +98,7 @@ func TestIssnCapabilities(t *testing.T) {
 	if _, err := array.Input(context.Background(), "{12345679}", -1); err == nil { t.Fatal("lookup-only array input admitted") }
 	if d.CheckBinaryInput() == nil || d.CheckBinaryOutput() == nil { t.Fatal("ISSN gained binary codecs") }
 	if equality, ordering := ComparisonCapabilities(d); equality || ordering { t.Fatal("ISSN gained comparison capability") }
-	for _, construct := range []func(ID, string, string) (*Descriptor, error){Ean13, Isbn, Isbn13, Ismn, Ismn13} {
+	for _, construct := range []func(ID, string, string) (*Descriptor, error){Ean13, Isbn, Isbn13, Ismn, Ismn13, Issn13} {
 		sibling, err := construct(60002, "sibling", "public.sibling")
 		if err != nil { t.Fatal(err) }
 		if _, err := PlanCoercion(d.Usage(), sibling.Usage(), Explicit); err == nil { t.Fatal("sibling cast admitted") }

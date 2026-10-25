@@ -65,7 +65,7 @@ func (s *dumpScript) renderExtensionTypes(ctx context.Context, order []ids.OID) 
 		if err != nil { return nil, err }
 		for _, role := range roles {
 			name, typ := role.Name, role.Type
-			if typ.SQLType.IsEan13() || typ.SQLType.IsIsbn() || typ.SQLType.IsIsbn13() || typ.SQLType.IsIsmn() || typ.SQLType.IsIsmn13() || typ.SQLType.IsIssn() { isnTypes = append(isnTypes, typ) }
+			if typ.SQLType.IsEan13() || typ.SQLType.IsIsbn() || typ.SQLType.IsIsbn13() || typ.SQLType.IsIsmn() || typ.SQLType.IsIsmn13() || typ.SQLType.IsIssn() || typ.SQLType.IsIssn13() { isnTypes = append(isnTypes, typ) }
 			key := ids.NameKey{ClassID: ids.TypeClassID, Namespace: ext.TargetNamespace, Name: name}
 			if err := replay.ReserveIdentity(typ.SQLType.ID(), key); err != nil { return nil, err }
 			replay.AssociateIdentity(typ.SQLType.ID(), typ.Array)
