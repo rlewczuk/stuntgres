@@ -190,7 +190,7 @@ func TestQueryWindowColumnAuthority(t *testing.T) {
 	column := ref
 	column.Address.SubID = 1
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
-	if err := e.SetObjectACL(context.Background(), column, grant); err != nil {
+	if err := setObjectACL(e, context.Background(), column, grant); err != nil {
 		t.Fatal(err)
 	}
 	for _, q := range []string{"SELECT row_number() OVER() FROM window_secret", "SELECT count(*) OVER(PARTITION BY v) FROM window_secret WHERE FALSE"} {
@@ -204,7 +204,7 @@ func TestQueryWindowColumnAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	roleError(t, e, op, "SELECT count(*) OVER() FROM window_secret", "42501", "permission denied for table window_secret", "")

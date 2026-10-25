@@ -143,7 +143,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			case "SequenceRevision":
 				truncateUnitReplace(t, e, ps, func(d *catalog.Relation) { d.SequencePlanStamp++ })
 			case "SequenceACL":
-				if err := e.SetObjectACL(context.Background(), ps, authorization.ACLValue{Explicit: true}); err != nil {
+				if err := setObjectACL(e, context.Background(), ps, authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}
 			case "GeneratorBinding":

@@ -57,7 +57,7 @@ func TestEnumCatalogStagingAndAuthority(t *testing.T) {
 	}
 	cancel()
 	previous := e.CatalogRead().State()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != previous {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != previous {
 		t.Fatal("canceled publication", err)
 	}
 	e.Mu.Lock()

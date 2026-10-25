@@ -56,7 +56,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		original := d.Sequences.Constants[0].Ref
 		oldStamp := e.Catalog.State.MustRelation(original.Address).SequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
-		if err := e.SetObjectACL(context.Background(), original, authorization.ACLValue{}); err != nil {
+		if err := setObjectACL(e, context.Background(), original, authorization.ACLValue{}); err != nil {
 			t.Fatal(err)
 		}
 		if e.Catalog.State.MustRelation(original.Address).SequencePlanStamp == oldStamp {
@@ -245,7 +245,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 			ref = roleTableRef(t, e, name)
 		}
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: rights}}}
-		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -358,7 +358,7 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 	grant := func(rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
-		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -444,14 +444,14 @@ func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 	frontier := e.Catalog.NextRevision()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := e.SetObjectACL(ctx, ref, authorization.ACLValue{}); !errors.Is(err, context.Canceled) {
+	if err := setObjectACL(e, ctx, ref, authorization.ACLValue{}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.Catalog.State != original || e.RoleStore.Published != roles || e.Catalog.NextRevision() != frontier {
 		t.Fatal("canceled ACL update published authority")
 	}
 	e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err == nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{}); err == nil {
 		t.Fatal("exhausted stamp allocator accepted ACL publication")
 	}
 	if e.Catalog.State != original || e.RoleStore.Published != roles {
@@ -467,7 +467,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		ref := schemaRef(t, e, "a")
 		// Namespace ACLs do not need a new descriptor definition token.
 		e.Catalog.InstallRevisionFrontierLocked(ids.DefinitionRevision(^uint64(0)))
-		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal("descriptor exhaustion rejected namespace ACL", err)
 		}
 		// Fail the independent namespace authority without publishing ACL/roles.
@@ -477,10 +477,10 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 		roles := e.RoleStore.Published
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		if err := e.SetObjectACL(ctx, ref, authorization.ACLValue{}); !errors.Is(err, context.Canceled) {
+		if err := setObjectACL(e, ctx, ref, authorization.ACLValue{}); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{})
+		err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{})
 		if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 			t.Fatal("namespace exhaustion accepted ACL publication", err)
 		}

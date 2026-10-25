@@ -171,7 +171,7 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 				stage.UpdateDescriptor(&copy)
 			}
 			beforeCatalog, beforeStore, beforeFrontier := e.Catalog.State, e.Storage.Relations[d.Address()], e.Visibility.CommitSeq()
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || e.Catalog.State != beforeCatalog || e.Storage.Relations[d.Address()] != beforeStore || e.Visibility.CommitSeq() != beforeFrontier {
 				t.Fatal("failed fence published", err)
 			}
@@ -239,7 +239,7 @@ func TestMaterializedRefreshProviderFences(t *testing.T) {
 			}}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if err == nil {
-				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			}
 			if err == nil || e.Catalog.State.Get(d.Address()) != d || e.Storage.Relations[d.Address()] != old || len(old.Versions) != 3 {
 				t.Fatal("provider fence installed a candidate", err)

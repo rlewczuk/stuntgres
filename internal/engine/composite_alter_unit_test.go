@@ -67,7 +67,7 @@ func TestCompositeAlterCancellationAndReplacement(t *testing.T) {
 			}}
 			prepared, err := e.ValidateCatalogStage(ctx, stage)
 			if err == nil {
-				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
+				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
 			}
 			if calls == 0 || err == nil {
 				t.Fatal("provider phase did not reject publication", calls, err)

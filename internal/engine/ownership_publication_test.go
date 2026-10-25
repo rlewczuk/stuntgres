@@ -125,7 +125,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				stage.RoleCandidateRecord = &next
 			}
 			state, roles := e.Catalog.State, e.RoleStore.Published
-			if _, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+			if _, err = publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("stale/exhausted publication succeeded")
 			}
 			if e.Catalog.State != state || e.RoleStore.Published != roles {
@@ -174,7 +174,7 @@ func TestRoleOwnershipPublicationFinalInstallCancellation(t *testing.T) {
 	state, roles := e.Catalog.State, e.RoleStore.Published
 	ctx.armed = true
 	result := make(chan error, 1)
-	go func() { _, err := e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); result <- err }()
+	go func() { _, err := publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()}); result <- err }()
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 	select {
@@ -247,7 +247,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 	go func() {
 		close(ready)
 		<-release
-		_, err := e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err := publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()})
 		result <- err
 	}()
 	<-ready

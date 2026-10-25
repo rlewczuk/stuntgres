@@ -39,7 +39,7 @@ func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
 	}
 	domainUnitPublish(t, e, late)
 	before := e.CatalogRead()
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("late attachment was missed", changes, err)
@@ -70,7 +70,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	e.Storage.InstallRelationLocked(table.Address(), &concurrent)
 	e.Mu.Unlock()
 	before := e.CatalogRead()
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
+	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() || e.Storage.Relations[table.Address()] != &concurrent {
 		t.Fatal("storage conflict was not atomic", changes, err)
@@ -165,7 +165,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 				e.Mu.Unlock()
 			}
 			before := e.CatalogRead()
-			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
+			changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
 			if err == nil || err.Error() != "stuntgres: authorization changed before publication" || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale authority published typed closure", changes, err)
 			}
@@ -198,7 +198,7 @@ func TestTypedPublicationSourceRevisionAndReplacementFence(t *testing.T) {
 				domainUnitPublish(t, e, late)
 			}
 			before := e.CatalogRead()
-			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 				t.Fatal("stale source/replacement publication was not atomic", changes, err)
 			}

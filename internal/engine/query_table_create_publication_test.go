@@ -72,7 +72,7 @@ func queryCreatePublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	t.Helper()
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			queryCreateAssertAbsent(t, e, d)
-			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+			if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			descriptor, ok := e.CatalogRead().Descriptor(d.Address())
@@ -133,7 +133,7 @@ func TestQueryTableCreateInitialPublication(t *testing.T) {
 				}
 			}
 			queryCreateAssertTypes(t, e, registry)
-			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil || e.Visibility.CommitSeq() != wantFrontier {
+			if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil || e.Visibility.CommitSeq() != wantFrontier {
 				t.Fatal("replayed publication", err)
 			}
 		})
@@ -251,7 +251,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				queryCreatePublish(t, e, peer)
 			}
 			before = e.Visibility.CommitSeq()
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("invalid stage published", phase)
 			}
@@ -326,7 +326,7 @@ func TestQueryTableCreateUnrelatedRefresh(t *testing.T) {
 	}
 	peer, _ := queryCreateStage(t, e, "unrelated", 1)
 	queryCreatePublish(t, e, peer)
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if e.Storage.RowFrontier() != 1 || e.Storage.VersionFrontier() != 1 || e.Visibility.CommitSeq() != 1 || len(e.Storage.Relations[d.Address()].Versions) != 1 || !sqltype.SameDatum(e.Storage.Relations[d.Address()].Versions[0].Values[0], value) {

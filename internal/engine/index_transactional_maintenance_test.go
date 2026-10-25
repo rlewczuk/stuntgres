@@ -41,7 +41,7 @@ func TestTransactionalIndexMaintenanceRootIdentity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+				if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 					t.Fatal(err)
 				}
 				old, root = btreeRoot(t, e, "ix")
@@ -417,7 +417,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 			ns := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 			user, _ := e.Roles().Lookup("actor")
 			root, _ := e.Roles().Lookup("postgres")
-			if err := e.SetObjectACL(context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: root.Ref, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
+			if err := setObjectACL(e, context.Background(), ns, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: root.Ref, Grantee: authorization.ACLGrantee{Role: user.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}); err != nil {
 				t.Fatal(err)
 			}
 			at := transactionBegin(t, admin)
@@ -460,7 +460,7 @@ func TestTransactionalIndexMaintenanceGrantFences(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+			if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			before := indexMaintenanceCapture(e)

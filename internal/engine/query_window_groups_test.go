@@ -382,7 +382,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 	grant := func(object ids.ObjectRef, rights authorization.Privileges) {
 		t.Helper()
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: table.Owner, Grantee: authorization.ACLGrantee{Role: reader}, Privileges: rights}}}
-		if err := e.SetObjectACL(context.Background(), object, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), object, acl); err != nil {
 			t.Fatal(err)
 		}
 	}

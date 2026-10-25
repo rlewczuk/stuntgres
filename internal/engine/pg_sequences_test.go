@@ -114,7 +114,7 @@ func TestPGSequencesACL(t *testing.T) {
 		if mask != 0 {
 			acl.Entries = []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: mask}}
 		}
-		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 		var value driver.Value
@@ -130,7 +130,7 @@ func TestPGSequencesACL(t *testing.T) {
 		if mask != 0 {
 			acl.Entries = []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: mask}}
 		}
-		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 		pgSequencesRows(t, a, "SELECT last_value FROM pg_sequences", [][]driver.Value{{value}})

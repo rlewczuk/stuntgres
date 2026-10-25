@@ -29,7 +29,7 @@ func accessMethodPublish(t *testing.T, e *Engine, definitions ...catalog.Descrip
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	return e.CatalogRead()

@@ -70,7 +70,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
@@ -104,7 +104,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(pending, PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err = publishCatalog(e, pending, PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("missing publication cancellation", err)
 	}
 	unchanged()
@@ -136,7 +136,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancelDuplicate()
-	if _, err = e.PublishCatalog(duplicateReady, PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err = publishCatalog(e, duplicateReady, PublicationToken{Epoch: current.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("duplicate-default publication cancellation", err)
 	}
 	unchanged()
@@ -163,7 +163,7 @@ func TestOperatorClassCatalogAtomicity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(removed, PublicationToken{Epoch: current.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, removed, PublicationToken{Epoch: current.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	after := e.CatalogRead()

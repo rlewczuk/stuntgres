@@ -102,7 +102,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	if err := auth.Check(access.Requirement{Object: ref, Privileges: authorization.ExecutePrivilege}); err != nil {
 		t.Fatal("real PUBLIC EXECUTE default", err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()
@@ -136,7 +136,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		if e.CatalogRead().State() != before {
 			t.Fatal("denied EXECUTE published conversion")
 		}
-		if err = e.SetObjectACL(context.Background(), ref, authorization.ACLValue{}); err != nil {
+		if err = setObjectACL(e, context.Background(), ref, authorization.ACLValue{}); err != nil {
 			t.Fatal(err)
 		}
 		e.Mu.Lock()
@@ -194,7 +194,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 	if err = auth.CanUse(e.Catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address())); err == nil {
 		t.Fatal("private schema supplied implicit USAGE")
 	}
-	if err = e.SetObjectACL(context.Background(), e.Catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address()), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
+	if err = setObjectACL(e, context.Background(), e.Catalog.Domain.Ref(auth.Catalog.Epoch(), private.Address()), authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: private.Owner, Grantee: authorization.ACLGrantee{Role: actor}, Privileges: authorization.UsagePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	e.Mu.Lock()

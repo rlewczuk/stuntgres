@@ -288,7 +288,7 @@ func TestDefaultPrivilegesCreationFence(t *testing.T) {
 			if r.err != nil {
 				t.Fatal(r.err)
 			}
-			_, err := f.e.PublishCatalog(r.p, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err := publishCatalog(f.e, r.p, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err != (catalog.Conflict{}) || f.e.Catalog.State.Get(table.Address()) != nil {
 				t.Fatal("stale creation default published", err)
 			}

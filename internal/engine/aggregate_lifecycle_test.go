@@ -58,7 +58,7 @@ func TestAggregateLifecycleDescriptor(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: after.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: after.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if e.CatalogRead().State() != after.State() || e.CatalogRead().MustProcedure(original.Address()) != current {

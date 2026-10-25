@@ -136,7 +136,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	for _, index := range copied {

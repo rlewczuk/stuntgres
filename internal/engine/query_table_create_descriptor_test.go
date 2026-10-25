@@ -162,7 +162,7 @@ func TestQueryTableCreateTypeGenerationFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	queryCreatePublish(t, e, peer)
-	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal(err)

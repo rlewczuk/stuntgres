@@ -211,7 +211,7 @@ func TestMaterializedAlterExtensionRetirement(t *testing.T) {
 		if _, conflict := err.(catalog.Conflict); !conflict {
 			t.Fatal("retained-message retirement missed late x authority", err)
 		}
-		if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+		if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 			t.Fatal("late x edge allowed stale retirement")
 		}
 		if e.Catalog.State != state || e.Catalog.State.Get(d.Address()) != current || e.Catalog.State.Get(ext.Address()) != ext || e.Storage.Relations[d.Address()] != store {
@@ -334,7 +334,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "authorization":
 				op.Session.Authorization.Revision++
 			}
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("unfenced publication")
 			}
@@ -382,7 +382,7 @@ func TestMaterializedAlterIndexRefreshPublication(t *testing.T) {
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err == nil {
-		_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+		_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	}
 	extensionUnitError(t, err, "23505")
 	if e.Catalog.State != state || e.Storage.Relations[d.Address()] != old || e.Storage.IndexRoots[index.Address()] != root {

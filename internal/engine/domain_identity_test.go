@@ -91,7 +91,7 @@ func TestDomainIdentityDropStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER DOMAIN public.d RENAME TO winner"))
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err == nil {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil {
 		t.Fatal("stale stage published")
 	}
 	if current := e.CatalogRead().MustType(old.Address()); current.Name() != "winner" || current.Array != old.Array {

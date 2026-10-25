@@ -112,7 +112,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := retainedAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("PUBLIC catalog ACL", err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	currentAuth, err := OperationAuthorization(readerOp)
@@ -123,7 +123,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := retainedAuth.Check(access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}); err != nil {
 		t.Fatal("ACL update mutated retained authorization", err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, d.Security.ACL); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
 	restoredAuth, err := OperationAuthorization(readerOp)
@@ -138,7 +138,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		roleExecute(t, e, op, q)
 	}
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
-	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.RoleStore.PublishedRead(&e.Catalog.Owner, e.CatalogRead()), ref, d)
+	captured, err = captureCatalogSourceLocked(e, context.Background(), e.CatalogRead(), e.RoleStore.PublishedRead(&e.Catalog.Owner, e.CatalogRead()), ref, d)
 	if err != nil || len(captured.Anonymous) != 2 {
 		t.Fatal("enum-only capture", captured, err)
 	}

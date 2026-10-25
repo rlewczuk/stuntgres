@@ -15,7 +15,7 @@ import (
 
 // restoreObjectACL runs only in Restore's isolated engine. The public UPDATE
 // command cannot reach this literal-only catalog repair capability.
-func (e *Engine) restoreObjectACL(op *session.Operation, raw *parser.Update) error {
+func restoreObjectACL(e *Engine, op *session.Operation, raw *parser.Update) error {
 	repair, ok := control.ParseObjectACLRepair(raw)
 	if !ok { return SQLError("0A000", "restore accepts only generated object ACL repairs") }
 	e.Mu.Lock()

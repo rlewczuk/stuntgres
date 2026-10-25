@@ -126,6 +126,6 @@ func defaultUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) error {
 	if err != nil {
 		return err
 	}
-	_, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()})
 	return err
 }

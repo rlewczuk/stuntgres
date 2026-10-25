@@ -29,7 +29,7 @@ func partitionAttachUnitInstall(t *testing.T, e *Engine, relations ...*catalog.R
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -143,7 +143,7 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			}
 			before := e.Catalog.State
 			stores, roots := maps.Clone(e.Storage.Relations), maps.Clone(e.Storage.IndexRoots)
-			changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
 				t.Fatal("stale validation published an attachment")
 			}

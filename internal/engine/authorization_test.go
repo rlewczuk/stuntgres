@@ -53,7 +53,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	view, err := OperationAuthorization(op)
@@ -77,7 +77,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	entry := authorization.ACLEntry{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}
 	column := ref
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
+	if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
@@ -105,7 +105,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	}
 	entry.Grantee = authorization.ACLGrantee{Public: true}
 	entry.Privileges = authorization.SelectPrivilege | authorization.InsertPrivilege
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SELECT a,b,c FROM secret")
@@ -122,7 +122,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	namespace := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege
 	entry.Grantor = e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	if err := e.SetObjectACL(context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
+	if err := setObjectACL(e, context.Background(), namespace, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION future")
@@ -148,7 +148,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	ref := roleTableRef(t, source, "secret")
 	owner := a.RoleState().CurrentUser
 	reader, _ := source.Roles().Lookup("reader")
-	if err := source.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := setObjectACL(source, context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
@@ -455,7 +455,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.UsagePrivilege},
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 	}}
-	if err := e.SetObjectACL(context.Background(), namespace, equivalent); err != nil {
+	if err := setObjectACL(e, context.Background(), namespace, equivalent); err != nil {
 		t.Fatal(err)
 	}
 	var dump bytes.Buffer
@@ -480,7 +480,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Role: namespaceOwner}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege, GrantOptions: authorization.UsagePrivilege | authorization.CreatePrivilege},
 		{Grantor: namespaceOwner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.UsagePrivilege},
 	}}
-	if err := e.SetObjectACL(context.Background(), namespace, changed); err != nil {
+	if err := setObjectACL(e, context.Background(), namespace, changed); err != nil {
 		t.Fatal(err)
 	}
 	before := e.Catalog.State
@@ -491,7 +491,7 @@ func TestAuthorizationDumpRejectsChangedNamespaceState(t *testing.T) {
 	if e.Catalog.State != before {
 		t.Fatal("dump mutated namespace")
 	}
-	if err := e.SetObjectACL(context.Background(), namespace, original); err != nil {
+	if err := setObjectACL(e, context.Background(), namespace, original); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "CREATE ROLE namespace_owner")
@@ -545,7 +545,7 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 		{Grantor: owner, Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege, GrantOptions: authorization.InsertPrivilege},
 	} {
 		before := e.Catalog.State
-		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{invalid}}); err == nil {
+		if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{invalid}}); err == nil {
 			t.Fatal("invalid ACL published", invalid)
 		}
 		if e.Catalog.State != before {
@@ -553,7 +553,7 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 		}
 	}
 	before := e.Catalog.State
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Entries: []authorization.ACLEntry{valid}}); err == nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Entries: []authorization.ACLEntry{valid}}); err == nil {
 		t.Fatal("absent ACL carried entries")
 	}
 	if e.Catalog.State != before {
@@ -587,7 +587,7 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	ref := roleTableRef(t, e, "wide")
 	column := ref
 	column.Address.SubID = 65
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
+	if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{
 		{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege},
 	}}); err != nil {
 		t.Fatal(err)
@@ -607,17 +607,17 @@ func TestAuthorizationLargeColumnManifestAndRepeatedUses(t *testing.T) {
 	for _, subID := range []int32{-1, 66} {
 		invalid := column
 		invalid.Address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), invalid, authorization.ACLValue{}); err == nil {
+		if err := setObjectACL(e, context.Background(), invalid, authorization.ACLValue{}); err == nil {
 			t.Fatal("invalid absent column ACL", subID)
 		}
 	}
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}); err == nil {
+	if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{Entries: []authorization.ACLEntry{{Grantee: authorization.ACLGrantee{Public: true}, Privileges: authorization.SelectPrivilege}}}); err == nil {
 		t.Fatal("entries in absent column ACL")
 	}
 	if e.Catalog.State != before {
 		t.Fatal("invalid ACL publication")
 	}
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{}); err != nil {
+	if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{}); err != nil {
 		t.Fatal(err)
 	}
 	roleError(t, e, op, "SELECT c64 FROM wide", "42501", "permission denied for table wide", "")
@@ -648,7 +648,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 		t.Fatal("role-only publication changed held stamp/root")
 	}
 	ref := roleTableRef(t, e, "stamp_retained")
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	newest, err := OperationAuthorization(op)

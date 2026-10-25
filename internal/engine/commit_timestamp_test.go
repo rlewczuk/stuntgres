@@ -157,7 +157,7 @@ func TestCommitTimePublication(t *testing.T) {
 						t.Fatal(err)
 					}
 					if route == "rows" {
-						if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: old.Epoch()}); err != nil {
+						if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: old.Epoch()}); err != nil {
 							t.Fatal(err)
 						}
 						old = e.Catalog.State

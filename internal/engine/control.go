@@ -36,7 +36,7 @@ func Dump(ctx context.Context, e *Engine, dst io.Writer) error {
 		return err
 	}
 	e.Mu.Lock()
-	capture, err := e.captureDumpLocked(ctx)
+	capture, err := captureDumpLocked(e, ctx)
 	e.Mu.Unlock()
 	if err != nil {
 		return err

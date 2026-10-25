@@ -40,7 +40,7 @@ func ownershipUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, p, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }

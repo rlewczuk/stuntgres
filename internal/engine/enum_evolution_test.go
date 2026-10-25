@@ -107,7 +107,7 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.Catalog.State != oldCatalog || e.Storage.Relations[ref.Address] != oldStore {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.Catalog.State != oldCatalog || e.Storage.Relations[ref.Address] != oldStore {
 		t.Fatal("canceled partial generation publication", err)
 	}
 	if text, err := mood.SQLType.Output(context.Background(), oldStore.Versions[0].Values[0]); err != nil || text != "q" {

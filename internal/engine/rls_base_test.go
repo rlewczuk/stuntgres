@@ -194,7 +194,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	imported := New()
@@ -262,7 +262,7 @@ func TestRLSBaseCancellationAndLocks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	SetPreparedCatalogPublicationCtx(prepared, ctx)
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err == nil {
 		t.Fatal("canceled flags published")
 	}
 	if e.CatalogRead().State() != base.State() || d.Security.RLSEnabled || d.Security.RLSForced {

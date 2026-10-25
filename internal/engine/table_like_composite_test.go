@@ -64,15 +64,15 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	assertDenied("CREATE TABLE clone (LIKE source_type INCLUDING ALL)", want)
 	column := sourceRef
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, grant(authorization.SelectPrivilege)); err != nil {
+	if err := setObjectACL(e, context.Background(), column, grant(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SetObjectACL(context.Background(), sourceRef, grant(authorization.SelectPrivilege)); err != nil {
+	if err := setObjectACL(e, context.Background(), sourceRef, grant(authorization.SelectPrivilege)); err != nil {
 		t.Fatal(err)
 	}
 	assertDenied("CREATE TABLE clone (LIKE source_type INCLUDING ALL)", want)
 	assertDenied("CREATE TABLE clone (LIKE private_composite.source_type INCLUDING ALL)", sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42501", Message: "permission denied for schema private_composite", Position: "26"})
-	if err := e.SetObjectACL(context.Background(), sourceRef, denied); err != nil {
+	if err := setObjectACL(e, context.Background(), sourceRef, denied); err != nil {
 		t.Fatal(err)
 	}
 	setTypeACL(grant(authorization.UsagePrivilege))
@@ -113,7 +113,7 @@ func TestTableLikeCompositeSourceACL(t *testing.T) {
 	if e.CatalogRead().Get(source.Address()) != source {
 		t.Fatal("type-only replacement changed backing source fixture")
 	}
-	_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+	_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatal("changed reciprocal type authority was not fenced", err)

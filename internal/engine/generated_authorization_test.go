@@ -54,7 +54,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: view.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, publication, PublicationToken{Epoch: view.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	ref := e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
@@ -73,7 +73,7 @@ func generatedAuthorizationGrant(t *testing.T, e *Engine, admin, actor *session.
 		Grantee:    authorization.ACLGrantee{Role: actor.RoleState().CurrentUser},
 		Privileges: privileges,
 	}}}
-	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -127,7 +127,7 @@ func TestAlterAddColumnNativeImportPreservesCeilingAndSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := source.PublishCatalog(prepared, PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
+	if _, err := publishCatalog(source, prepared, PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	before := source.CatalogRead()

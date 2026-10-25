@@ -198,7 +198,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			if veto == "cancel" {
 				cancel()
 			}
-			_, err = f.e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(f.e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if veto == "complete_then_cancel" {
 				if err != nil {
 					t.Fatal(err)

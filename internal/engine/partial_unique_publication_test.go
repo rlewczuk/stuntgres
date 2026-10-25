@@ -52,7 +52,7 @@ func newPartialUniquePublication(t *testing.T, composite, nnd bool, disclosure s
 	grant := func(attr int32, rights authorization.Privileges) {
 		r := ref
 		r.Address.SubID = attr
-		err := e.SetObjectACL(context.Background(), r, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}})
+		err := setObjectACL(e, context.Background(), r, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}})
 		if err != nil {
 			t.Fatal(err)
 		}

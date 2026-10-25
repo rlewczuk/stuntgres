@@ -141,7 +141,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		early, late := schemaRef(t, engine, "a"), schemaRef(t, engine, "b")
 		set := func(ref ids.ObjectRef, acl authorization.ACLValue) {
 			t.Helper()
-			if err := engine.SetObjectACL(context.Background(), ref, acl); err != nil {
+			if err := setObjectACL(engine, context.Background(), ref, acl); err != nil {
 				t.Fatal(err)
 			}
 		}

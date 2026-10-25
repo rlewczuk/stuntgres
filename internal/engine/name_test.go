@@ -55,13 +55,13 @@ func TestNameDescriptors(t *testing.T) {
 	old := run(t, e, "SELECT * FROM names")
 	ref := e.Catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 19})
 	other := New()
-	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
+	if err = validateObjectRef(other, other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign NAME reference")
 	}
 	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.ValidateObjectRef(view, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err = validateObjectRef(e, view, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().LookupType(19)

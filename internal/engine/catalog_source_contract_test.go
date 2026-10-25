@@ -553,7 +553,7 @@ func validateCatalogSourceProducers(entries []pgcatalog.Registration) error {
 
 // captureCatalogSourceLocked runs source's registered producer over view and
 // roles, without the per-source policy of openCatalogSourceLocked.
-func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
+func captureCatalogSourceLocked(e *Engine, ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*exec.Source, error) {
 	produce, ok := pgcatalog.ProducerFor(source.Address().ObjectID)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")

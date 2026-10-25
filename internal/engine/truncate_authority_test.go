@@ -26,7 +26,7 @@ func truncateUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -358,7 +358,7 @@ func TestTruncateAuthority(t *testing.T) {
 	sessionSQL(t, holder, "CREATE USER reader")
 	reader, _ := e.Roles().Lookup("reader")
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.TruncatePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), p, acl); err != nil {
+	if err := setObjectACL(e, context.Background(), p, acl); err != nil {
 		t.Fatal(err)
 	}
 	waiter := sessionStart(t, e, nil)
@@ -368,7 +368,7 @@ func TestTruncateAuthority(t *testing.T) {
 	original := e.Storage.Relations[p.Address]
 	done, _ := truncateUnitAsync(t, e, waiter, truncateUnitAST("p"))
 	lockPending(t, e, 1)
-	if err := e.SetObjectACL(context.Background(), p, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), p, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	transactionEnd(t, holder, tx, false)

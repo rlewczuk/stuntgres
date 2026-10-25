@@ -34,7 +34,7 @@ func TestTransactionalDefinitionDependencyFences(t *testing.T) {
 		}
 		prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 		if err == nil {
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: committed.Epoch()})
+			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: committed.Epoch()})
 		}
 		if err != nil {
 			t.Fatal(err)

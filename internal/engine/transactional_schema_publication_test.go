@@ -89,7 +89,7 @@ func TestTransactionalSchemaPublication(t *testing.T) {
 				winner, w := transactionalSchemaUnitStage(t, e, peer, name, ids.TxRef{}, 19)
 				publication, err := e.ValidateCatalogStage(peer.Context(), winner)
 				if err == nil {
-					_, err = e.PublishCatalog(publication, PublicationToken{Epoch: winner.Base.Epoch()})
+					_, err = publishCatalog(e, publication, PublicationToken{Epoch: winner.Base.Epoch()})
 				}
 				done()
 				if err != nil {

@@ -158,7 +158,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 						t.Fatal(err)
 					}
 				case "acl":
-					if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: actor.RoleState().CurrentUser}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+					if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: admin.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: actor.RoleState().CurrentUser}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 						t.Fatal(err)
 					}
 				case "principal":
@@ -181,7 +181,7 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := e.PublishCatalog(validated, PublicationToken{Epoch: ref.Epoch}); err != nil {
+					if _, err := publishCatalog(e, validated, PublicationToken{Epoch: ref.Epoch}); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -250,7 +250,7 @@ func TestAlterGeneratedExpressionRevisionExhaustion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(validated, PublicationToken{Epoch: ref.Epoch}); err != nil {
+	if _, err := publishCatalog(e, validated, PublicationToken{Epoch: ref.Epoch}); err != nil {
 		t.Fatal(err)
 	}
 	catalog, store, oid := e.Catalog.State, e.Storage.Relations[ref.Address], e.Catalog.NextOID()

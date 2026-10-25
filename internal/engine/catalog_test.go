@@ -69,7 +69,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	if _, err = testExecute(e, context.Background(), q[0], nil); err != nil {
 		t.Fatal(err)
 	}
-	if err = e.ValidateObjectRef(view, ref); err != nil {
+	if err = validateObjectRef(e, view, ref); err != nil {
 		t.Fatal(err)
 	}
 	current, _ := e.CatalogRead().Descriptor(ref.Address)
@@ -77,7 +77,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 		t.Fatalf("INSERT changed definition revision from %d to %d", revision, current.Revision())
 	}
 	other := New()
-	if err = other.ValidateObjectRef(other.CatalogRead(), ref); err == nil {
+	if err = validateObjectRef(other, other.CatalogRead(), ref); err == nil {
 		t.Fatal("foreign reference accepted")
 	}
 	old := view
@@ -87,7 +87,7 @@ func TestCatalogIdentityAndReplacement(t *testing.T) {
 	if e.CatalogRead().Epoch() != old.Epoch()+1 {
 		t.Fatal("replacement did not advance epoch once")
 	}
-	if err = e.ValidateObjectRef(old, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err = validateObjectRef(e, old, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("old ref error: %v", err)
 	}
 	if _, ok := old.Descriptor(ref.Address); !ok {
@@ -113,14 +113,14 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, p, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	p, err = e.ValidateCatalogStage(context.Background(), second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, p, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatalf("unrelated-key stage conflicted: %v", err)
 	}
 	conflictA, conflictB := e.BeginCatalogStage(e.CatalogRead()), e.BeginCatalogStage(e.CatalogRead())
@@ -134,14 +134,14 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: e.CatalogRead().Epoch()}); err != nil {
+	if _, err = publishCatalog(e, p, PublicationToken{Epoch: e.CatalogRead().Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	p, err = e.ValidateCatalogStage(context.Background(), conflictB)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(p, PublicationToken{Epoch: e.CatalogRead().Epoch()}); err == nil {
+	if _, err = publishCatalog(e, p, PublicationToken{Epoch: e.CatalogRead().Epoch()}); err == nil {
 		t.Fatal("same-key stage conflict was not detected")
 	}
 	foreign := New().CatalogRead()
@@ -151,7 +151,7 @@ func TestCatalogStageConflictsAndForeignViews(t *testing.T) {
 	}
 	ref := catalogRef(t, e, e.CatalogRead(), "first")
 	ref.Address.SubID = 1
-	if err = e.ValidateObjectRef(foreign, ref); err == nil {
+	if err = validateObjectRef(e, foreign, ref); err == nil {
 		t.Fatal("foreign read accepted")
 	}
 }
@@ -207,12 +207,12 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "p")
 	ref.Address.SubID = 1
-	if err := e.ValidateObjectRef(view, ref); err != nil {
+	if err := validateObjectRef(e, view, ref); err != nil {
 		t.Fatal(err)
 	}
 	invalid := ref
 	invalid.Address.SubID = 2
-	if err := e.ValidateObjectRef(view, invalid); err == nil {
+	if err := validateObjectRef(e, view, invalid); err == nil {
 		t.Fatal("invalid attribute number accepted")
 	}
 	stage := e.BeginCatalogStage(view)
@@ -247,7 +247,7 @@ func TestCatalogEpochFailureAndSubobjectValidation(t *testing.T) {
 	if err = Reset(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: view.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: view.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("old stage after Reset: %v", err)
 	}
 }
@@ -272,12 +272,12 @@ func TestCatalogStageAddressCollision(t *testing.T) {
 		return p
 	}
 	first, second := prepare("first"), prepare("second")
-	if _, err := e.PublishCatalog(first, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, first, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	run(t, e, "INSERT INTO public.first VALUES (77)")
 	before := e.CatalogRead()
-	changes, err := e.PublishCatalog(second, PublicationToken{Epoch: base.Epoch()})
+	changes, err := publishCatalog(e, second, PublicationToken{Epoch: base.Epoch()})
 	var conflict catalog.Conflict
 	if !errors.As(err, &conflict) {
 		t.Fatalf("address collision: changes=%+v error=%v", changes, err)
@@ -553,17 +553,17 @@ func TestCatalogReferenceProvenance(t *testing.T) {
 		own, foreign ids.ObjectRef
 		want         int64
 	}{{a, va, ra, rb, 11}, {b, vb, rb, ra, 22}} {
-		if err := tc.engine.ValidateObjectRef(tc.view, tc.own); err != nil {
+		if err := validateObjectRef(tc.engine, tc.view, tc.own); err != nil {
 			t.Fatal(err)
 		}
 		ownerless := tc.own
 		ownerless = ids.ObjectRef{Epoch: ownerless.Epoch, Address: ownerless.Address}
 		for _, ref := range []ids.ObjectRef{tc.foreign, ownerless} {
-			if err := tc.engine.ValidateObjectRef(tc.view, ref); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
+			if err := validateObjectRef(tc.engine, tc.view, ref); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
 				t.Fatalf("foreign reference: %v", err)
 			}
 		}
-		if err := tc.engine.ValidateObjectRef(va, tc.own); tc.engine == b && (err == nil || err.Error() != "stuntgres: foreign catalog view") {
+		if err := validateObjectRef(tc.engine, va, tc.own); tc.engine == b && (err == nil || err.Error() != "stuntgres: foreign catalog view") {
 			t.Fatalf("foreign view: %v", err)
 		}
 		if tc.engine.CatalogRead().State() != tc.view.State() || catalogRef(t, tc.engine, tc.view, "t") != tc.own {
@@ -582,7 +582,7 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	run(t, e, "CREATE TABLE public.committed (id INTEGER)")
 	current := e.CatalogRead()
 	ref := catalogRef(t, e, current, "committed")
-	if err := e.ValidateObjectRef(base, ref); err == nil || err.Error() != "stuntgres: catalog object is missing" {
+	if err := validateObjectRef(e, base, ref); err == nil || err.Error() != "stuntgres: catalog object is missing" {
 		t.Fatalf("old same-epoch view adopted later object: %v", err)
 	}
 	e.Mu.Lock()
@@ -603,21 +603,21 @@ func TestCatalogReferencesUseCoherentView(t *testing.T) {
 	private := catalogRef(t, e, view, "private")
 	column := private
 	column.Address.SubID = 1
-	if err := e.ValidateObjectRef(view, column); err != nil {
+	if err := validateObjectRef(e, view, column); err != nil {
 		t.Fatalf("private-stage column: %v", err)
 	}
-	if err := e.ValidateObjectRef(current, private); err == nil {
+	if err := validateObjectRef(e, current, private); err == nil {
 		t.Fatal("private-stage ref escaped to committed view")
 	}
 	column.Address.SubID = 2
-	if err := e.ValidateObjectRef(view, column); err == nil {
+	if err := validateObjectRef(e, view, column); err == nil {
 		t.Fatal("invalid private column accepted")
 	}
 	prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()})
 	if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != private.Address {
 		t.Fatalf("private publication: %#v, %v", changes, err)
 	}
@@ -643,13 +643,13 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if newRef.Domain() != owner || newRef.Address != sourceRef.Address {
 		t.Fatalf("replacement ref: %#v", newRef)
 	}
-	if err := target.ValidateObjectRef(target.CatalogRead(), oldRef); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if err := validateObjectRef(target, target.CatalogRead(), oldRef); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatalf("old target ref: %v", err)
 	}
-	if err := target.ValidateObjectRef(target.CatalogRead(), sourceRef); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
+	if err := validateObjectRef(target, target.CatalogRead(), sourceRef); err == nil || err.Error() != "stuntgres: foreign catalog reference" {
 		t.Fatalf("source adopted by target: %v", err)
 	}
-	if err := source.ValidateObjectRef(sourceView, sourceRef); err != nil {
+	if err := validateObjectRef(source, sourceView, sourceRef); err != nil {
 		t.Fatal(err)
 	}
 	before := target.CatalogRead()
@@ -665,14 +665,14 @@ func TestCatalogReplacementPreservesOwner(t *testing.T) {
 	if target.Catalog.Domain != owner || target.CatalogRead().State() != before.State() {
 		t.Fatal("failed restore changed authority")
 	}
-	if err := target.ValidateObjectRef(before, newRef); err != nil {
+	if err := validateObjectRef(target, before, newRef); err != nil {
 		t.Fatal(err)
 	}
 	prepared, err := target.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+	if _, err := publishCatalog(target, prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatalf("failed restore fenced eligible stage: %v", err)
 	}
 	if err := Reset(context.Background(), target); err != nil || target.Catalog.Domain != owner {
@@ -713,7 +713,7 @@ func TestCatalogCanceledPreparedPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()})
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || changes.Replacement || e.CatalogRead().State() != base.State() {
 		t.Fatalf("canceled publication changed authority: %#v, %v", changes, err)
 	}
@@ -796,7 +796,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	if e.Catalog.Domain != owner || e.CatalogRead().State() != before.State() || e.CatalogRead().Epoch() != before.Epoch() || e.Storage.Relations[ref.Address] != storage {
 		t.Fatal("canceled self-replacement changed owner/state/epoch/storage")
 	}
-	if err := e.ValidateObjectRef(before, ref); err != nil {
+	if err := validateObjectRef(e, before, ref); err != nil {
 		t.Fatal(err)
 	}
 	rows := tuples(run(t, e, "SELECT id FROM public.t"))
@@ -807,7 +807,7 @@ func TestCatalogSelfReplacementCanceledDuringPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatalf("canceled replacement fenced eligible stage: %v", err)
 	}
 }
@@ -830,7 +830,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 				t.Fatal(err)
 			}
 			if published {
-				changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+				changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()})
 				if err != nil || len(changes.Definitions) != 1 || changes.Definitions[0] != d.Address() {
 					t.Fatalf("initial publication = %#v, %v", changes, err)
 				}
@@ -869,7 +869,7 @@ func TestCatalogPublicationSingleUseAndDiscard(t *testing.T) {
 			}
 			rejectPublication := func() {
 				t.Helper()
-				changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
+				changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
 				assertOrdinaryError(err)
 				if len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 					t.Fatalf("rejected publication emitted changes: %#v", changes)

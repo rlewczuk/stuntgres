@@ -22,7 +22,7 @@ func TestLikePatternEscapeColumnACL(t *testing.T) {
 	grant := func(sub int32) {
 		column := ref
 		column.Address.SubID = sub
-		if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
+		if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{entry}}); err != nil {
 			t.Fatal(err)
 		}
 	}

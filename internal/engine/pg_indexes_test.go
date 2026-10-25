@@ -132,7 +132,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 				if public {
 					acl.Entries[0].Grantee.Role = authorization.PrincipalRef{}
 				}
-				if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+				if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -145,7 +145,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 					{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: owner.Ref}, Privileges: authorization.UsagePrivilege},
 				}
 			}
-			if err := e.SetObjectACL(context.Background(), schema, schemaACL); err != nil {
+			if err := setObjectACL(e, context.Background(), schema, schemaACL); err != nil {
 				t.Fatal(err)
 			}
 			if !tc.owner || tc.emptyOwner {
@@ -194,7 +194,7 @@ func TestPGIndexesCaptureRetentionAndStableColumnACL(t *testing.T) {
 		if rights != 0 {
 			acl.Entries = []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}
 		}
-		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -291,14 +291,14 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 	}
 	column := parent
 	column.Address.SubID = 2
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
+	if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	old := capture()
 	if len(pgIndexesUnitRows(t, old)) != 1 {
 		t.Fatal("new column grant not captured")
 	}
-	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), column, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	if len(pgIndexesUnitRows(t, capture())) != 0 || len(pgIndexesUnitRows(t, old)) != 1 {

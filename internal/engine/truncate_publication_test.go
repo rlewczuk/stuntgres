@@ -112,7 +112,7 @@ func TestTruncateFinalVetoAdditional(t *testing.T) {
 				}
 				truncateUnitPublish(t, e, stage)
 			case "ACL":
-				if err := e.SetObjectACL(context.Background(), p, authorization.ACLValue{Explicit: true}); err != nil {
+				if err := setObjectACL(e, context.Background(), p, authorization.ACLValue{Explicit: true}); err != nil {
 					t.Fatal(err)
 				}
 			case "epoch":

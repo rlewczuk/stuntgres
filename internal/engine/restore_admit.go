@@ -235,10 +235,10 @@ func admitRestoreSessionAuthorization(r *restoreRun, _ *session.Operation, s *pa
 func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.Update) error {
 	var err error
 	if _, _, _, ok := largeobject.ACLRepair(s); ok {
-		return r.stage.restoreLargeObjectACL(op, s)
+		return restoreLargeObjectACL(r.stage, op, s)
 	}
 	if _, ok := control.ParseObjectACLRepair(s); ok {
-		return r.stage.restoreObjectACL(op, s)
+		return restoreObjectACL(r.stage, op, s)
 	}
 	if table.RestoreCatalogName(s.Name, "pg_constraint") && len(s.Assignments) == 2 {
 		err = restoreRetiredConstraint(r.stage, op, s, r.historicalAuthority)

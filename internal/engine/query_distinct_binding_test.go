@@ -202,7 +202,7 @@ func TestQueryDistinctPhysicalACL(t *testing.T) {
 			id.Address.SubID = 1
 			grant := func(ref ids.ObjectRef, rights authorization.Privileges) {
 				t.Helper()
-				if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
+				if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: grantor, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: rights}}}); err != nil {
 					t.Fatal(err)
 				}
 			}

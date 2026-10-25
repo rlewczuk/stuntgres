@@ -187,7 +187,7 @@ func TestTypeLifecyclePublicationAtomicity(t *testing.T) {
 				t.Fatal(err)
 			}
 			cancel()
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
+			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
 		}
 		cancel()
 		if !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before.State() {
@@ -203,7 +203,7 @@ func TestTypeLifecyclePublicationAtomicity(t *testing.T) {
 	}
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER TYPE public.mood RENAME TO winner"))
 	winner := e.CatalogRead()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().State() != winner.State() {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); err == nil || e.CatalogRead().State() != winner.State() {
 		t.Fatal("stale identity stage published", err)
 	}
 	if winner.MustType(old.Address()).Name() != "winner" || winner.MustType(old.Address()).Array != old.Array {

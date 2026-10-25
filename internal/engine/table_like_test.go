@@ -148,7 +148,7 @@ func TestTableLikeDefinitionIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if len(e.Storage.Relations[destination.Address()].Versions) != 0 {
@@ -218,7 +218,7 @@ func TestTableLikePublicationFence(t *testing.T) {
 	}
 	queryCreatePublish(t, e, update)
 	incumbent := e.CatalogRead()
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: incumbent.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("stale source silently retargeted", err)
 	}
 	if e.Catalog.State != incumbent.State() {

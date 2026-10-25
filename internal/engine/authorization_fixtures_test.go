@@ -132,9 +132,9 @@ func descriptorReferences(d catalog.Descriptor) []authorization.PrincipalRef {
 	return refs
 }
 
-// SetObjectACL publishes acl on ref directly, outside GRANT and REVOKE,
+// setObjectACL publishes acl on ref directly, outside GRANT and REVOKE,
 // with the validation, revision and publication steps of a grant.
-func (e *Engine) SetObjectACL(ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
+func setObjectACL(e *Engine, ctx context.Context, ref ids.ObjectRef, acl authorization.ACLValue) error {
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if ref.Domain() != e.Catalog.Domain || ref.Epoch != e.Catalog.State.Epoch() {

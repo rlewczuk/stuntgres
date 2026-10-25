@@ -40,7 +40,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(preparedSetup, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, preparedSetup, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	base = e.CatalogRead()
@@ -73,7 +73,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	}
 	before := e.Catalog.State
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal("publication cancellation", err)
 	}
 	if e.Catalog.State != before || e.Storage.IndexRoots[idx.Address()] != root || e.Storage.Relations[parent.Address()] != store {
@@ -94,7 +94,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
@@ -135,7 +135,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal("drop validation", err)
 		}
-		if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+		if _, err := publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal("drop publication", err)
 		}
 	}
@@ -161,7 +161,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(republication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, republication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if got, ok := e.CatalogRead().FamilySupport(member.Family, 23, 23, 1); !ok || got != &readded || got.Address() == member.Address() {
@@ -184,7 +184,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(operatorPublication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, operatorPublication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	retained := e.CatalogRead()

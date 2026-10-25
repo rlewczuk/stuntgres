@@ -274,7 +274,7 @@ func TestDomainAlterDefaultNullabilityPublication(t *testing.T) {
 				before := e.Catalog.State
 				stores := maps.Clone(e.Storage.Relations)
 				roots := maps.Clone(e.Storage.IndexRoots)
-				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: s.Base.Epoch()})
+				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: s.Base.Epoch()})
 				if kind == "success" || kind == "unrelated" {
 					if err != nil || domainUnitType(t, e.CatalogRead(), "d") == old {
 						t.Fatal("action not published", err)

@@ -29,7 +29,7 @@ func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *exec.
 	t.Helper()
 	source, ref := pgDatabaseUnitSource(t, e, catalog)
 	e.Mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), ref, source)
+	rows, err := captureCatalogSourceLocked(e, context.Background(), catalog, e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), ref, source)
 	e.Mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 1 || len(rows.Anonymous[0]) != 18 {
 		t.Fatal("one captured database", rows, err)
@@ -226,7 +226,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	check(pgDatabaseUnitCapture(t, e, e.CatalogRead()), uint32(successor.Ref.ID()), true)

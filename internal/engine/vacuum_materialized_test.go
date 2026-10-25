@@ -159,7 +159,7 @@ func vacuumMaterializedPreflight(t *testing.T) {
 			if canceled {
 				cancel()
 			}
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if canceled {
 				if !errors.Is(err, context.Canceled) || e.Storage.Relations[ref.Address] != old || old.Maintenance != latest || !storage.SameVersionRoot(root, old.Versions) || old.Ends != ends {
 					scope.Finish(err)

@@ -449,7 +449,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 					}
 					domainUnitPublish(t, e, changed)
 					before := e.CatalogRead()
-					_, err = e.PublishCatalog(stalePrepared, PublicationToken{Epoch: stale.Base.Epoch()})
+					_, err = publishCatalog(e, stalePrepared, PublicationToken{Epoch: stale.Base.Epoch()})
 					extensionDropUnitRejected(t, e, before, ext, before.Get(owner.Address()), err)
 					return
 				}

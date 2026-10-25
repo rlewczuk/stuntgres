@@ -368,7 +368,7 @@ func TestRoleOwnershipTransactionalPublication(t *testing.T) {
 			if replacement == address || replacement == (ids.ObjectAddress{}) {
 				t.Fatal("replacement did not remint identity")
 			}
-			if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
+			if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err == nil {
 				t.Fatal("captured ownership stage adopted same-name replacement")
 			}
 			if e.Catalog.State != current || e.RoleStore.Published != roles || auth.Catalog.Get(address) != captured || current.Get(address) != nil {

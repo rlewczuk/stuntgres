@@ -32,7 +32,7 @@ func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) {
 	t.Helper()
 	d, ref := pgDBRoleSettingUnitSource(t, e, catalog)
 	e.Mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), ref, d)
+	rows, err := captureCatalogSourceLocked(e, context.Background(), catalog, e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), ref, d)
 	e.Mu.Unlock()
 	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 0 || rows.Anonymous == nil || len(rows.Anonymous) != 0 {
 		t.Fatal("empty owned capture", rows, err)
@@ -122,7 +122,7 @@ func TestPGDBRoleSettingCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	e.Mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(ctx, catalog, e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), ref, d)
+	rows, err := captureCatalogSourceLocked(e, ctx, catalog, e.RoleStore.PublishedRead(&e.Catalog.Owner, catalog), ref, d)
 	e.Mu.Unlock()
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)
@@ -221,7 +221,7 @@ func TestPGDBRoleSettingAuthorization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+		if _, err := publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
 	}

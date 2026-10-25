@@ -38,7 +38,7 @@ func afterRestoreComparisonContext(r *restoreRun, op *session.Operation, stmt pa
 	if !ok {
 		return nil
 	}
-	if err := r.stage.validateComparisonBindingStatement(op, stmt, check); err != nil {
+	if err := validateComparisonBindingStatement(r.stage, op, stmt, check); err != nil {
 		return err
 	}
 	r.comparison.Bound()
@@ -52,7 +52,7 @@ func finishRestoreComparisonContext(r *restoreRun, _ context.Context, _ *session
 // validateComparisonBindingStatement captures the stage authorization under
 // Engine.mu, checks USAGE on the bound namespace with nothing held, then
 // checks the definitions stmt published.
-func (e *Engine) validateComparisonBindingStatement(op *session.Operation, stmt parser.Statement, check control.ComparisonCheck) error {
+func validateComparisonBindingStatement(e *Engine, op *session.Operation, stmt parser.Statement, check control.ComparisonCheck) error {
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(op)
 	e.Mu.Unlock()

@@ -75,7 +75,7 @@ func databaseCreateUnitRows(t *testing.T, e *Engine) map[string]ids.OID {
 	view := e.CatalogRead()
 	descriptor, ref := pgDatabaseUnitSource(t, e, view)
 	e.Mu.Lock()
-	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, descriptor)
+	rows, err := captureCatalogSourceLocked(e, context.Background(), view, e.RoleStore.PublishedRead(&e.Catalog.Owner, view), ref, descriptor)
 	e.Mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -375,12 +375,12 @@ func TestDatabaseCreateProvenance(t *testing.T) {
 	for _, source := range []*Engine{e, foreign} {
 		view := source.CatalogRead()
 		ref := source.Catalog.Domain.Ref(view.Epoch(), address)
-		if err := local.ValidateObjectRef(local.CatalogRead(), ref); err == nil {
+		if err := validateObjectRef(local, local.CatalogRead(), ref); err == nil {
 			t.Fatal("cross-target object reference accepted", ref)
 		}
 	}
 	view := local.CatalogRead()
-	if err := local.ValidateObjectRef(view, local.Catalog.Domain.Ref(view.Epoch(), address)); err != nil {
+	if err := validateObjectRef(local, view, local.Catalog.Domain.Ref(view.Epoch(), address)); err != nil {
 		t.Fatal("own reference rejected", err)
 	}
 }

@@ -352,7 +352,7 @@ func TestSerializablePublicationCatalogChangeSetVetoWithLiveGraph(t *testing.T) 
 	before := serializableSnapshotPublication(e)
 	e.Mu.Unlock()
 	cancel()
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()})
+	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()})
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || len(changes.Statistics) != 0 || len(changes.Namespaces) != 0 || changes.Replacement {
 		t.Fatal("catalog veto emitted ChangeSet", changes, err)
 	}

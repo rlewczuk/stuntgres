@@ -231,7 +231,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 	roleExecute(t, e, op, "CREATE USER summary_reader")
 	roleExecute(t, e, op, "CREATE TABLE summary_denied(a INT,b INT)")
 	ref := roleTableRef(t, e, "summary_denied")
-	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
+	if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
 	reader, _ := e.Roles().Lookup("summary_reader")
@@ -239,7 +239,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 	column.Address.SubID = 1
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: op.RoleState().CurrentUser, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	for _, acl := range []authorization.ACLValue{grant, {Explicit: true}} {
-		if err := e.SetObjectACL(context.Background(), column, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), column, acl); err != nil {
 			t.Fatal(err)
 		}
 		catalog := e.CatalogRead()
@@ -313,7 +313,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()

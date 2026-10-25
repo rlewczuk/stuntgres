@@ -45,7 +45,7 @@ func domainUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -134,7 +134,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	domainUnitPublish(t, e, change)
 	before := e.CatalogRead().State()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: chain.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: chain.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("base authorization generation lost", err)
 	}
 	drop := e.BeginCatalogStage(e.CatalogRead())
@@ -159,7 +159,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 	}
 	domainUnitPublish(t, e, table)
 	before = e.CatalogRead().State()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: drop.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: drop.Base.Epoch()}); err == nil || e.CatalogRead().State() != before {
 		t.Fatal("DROP lost new dependent column", err)
 	}
 	canceled := domainUnitStage(t, e, op, "CREATE DOMAIN public.canceled AS integer")
@@ -169,7 +169,7 @@ func TestDomainPublicationFencesBaseAndConcurrentColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: canceled.Base.Epoch()}); !errors.Is(err, context.Canceled) || e.CatalogRead().State() != before {
 		t.Fatal("canceled domain published", err)
 	}
 }

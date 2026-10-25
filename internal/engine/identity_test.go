@@ -74,7 +74,7 @@ func TestIdentityInsertOnlyAuthority(t *testing.T) {
 	table := roleTableRef(t, e, "i")
 	writer, _ := e.Roles().Lookup("identity_writer")
 	owner := e.RoleStore.Published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
-	if err := e.SetObjectACL(context.Background(), table, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: writer.Ref}, Privileges: authorization.InsertPrivilege}}}); err != nil {
+	if err := setObjectACL(e, context.Background(), table, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: writer.Ref}, Privileges: authorization.InsertPrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, `SET SESSION AUTHORIZATION identity_writer`)

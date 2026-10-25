@@ -192,14 +192,14 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 					t.Fatal("late cancellation retracted install", err)
 				}
 				transactionRows(t, b, "SELECT v FROM t", 99)
-				if !errors.Is(target.ValidateObjectRef(target.CatalogRead(), ref), ids.ErrCatalogReplaced) {
+				if !errors.Is(validateObjectRef(target, target.CatalogRead(), ref), ids.ErrCatalogReplaced) {
 					t.Fatal("old ref eligible")
 				}
 				prepared, err := target.ValidateCatalogStage(context.Background(), stage)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err = target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
+				if _, err = publishCatalog(target, prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, ids.ErrCatalogReplaced) {
 					t.Fatal("old stage publishable", err)
 				}
 				op := transactionOperation(t, a)
@@ -218,14 +218,14 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				if target.CatalogRead().State() != before.State() || target.Storage.Relations[ref.Address] != stored || target.Visibility.CommitSeq() != frontier {
 					t.Fatal("failed replacement changed state/storage/frontier")
 				}
-				if err = target.ValidateObjectRef(before, ref); err != nil {
+				if err = validateObjectRef(target, before, ref); err != nil {
 					t.Fatal(err)
 				}
 				prepared, err := target.ValidateCatalogStage(context.Background(), stage)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, err = target.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
+				if _, err = publishCatalog(target, prepared, PublicationToken{Epoch: before.Epoch()}); err != nil {
 					t.Fatal("eligible stage fenced", err)
 				}
 				controlsRequire(t, a, "COMMIT")

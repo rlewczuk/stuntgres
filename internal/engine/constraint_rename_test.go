@@ -46,7 +46,7 @@ func TestConstraintRenameImmutableGroup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
+			if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: e.Catalog.State.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			idx = e.Catalog.State.MustRelation(indexAddress)
@@ -291,7 +291,7 @@ func TestConstraintRenameAuthorization(t *testing.T) {
 			sessionSQL(t, owner, "DROP TABLE protected.t")
 			sessionSQL(t, owner, "CREATE TABLE protected.t("+declaration+")")
 			acl.Entries[0].Privileges = authorization.UsagePrivilege
-			if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
+			if err := setObjectACL(e, context.Background(), ns, acl); err != nil {
 				t.Fatal(err)
 			}
 			op, err := owner.Acquire(context.Background())

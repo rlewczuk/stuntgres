@@ -36,7 +36,7 @@ func familyPreflightCatalog(t *testing.T) (*Engine, *catalog.OperatorFamily, *ca
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	return e, family, operator, support

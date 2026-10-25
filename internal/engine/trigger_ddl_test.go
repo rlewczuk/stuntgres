@@ -201,7 +201,7 @@ func TestTriggerDDLStageAtomicity(t *testing.T) {
 			if reason == "epoch" {
 				token.Epoch++
 			}
-			_, err = e.PublishCatalog(prepared, token)
+			_, err = publishCatalog(e, prepared, token)
 			if err == nil {
 				t.Fatal("unfenced publication")
 			}

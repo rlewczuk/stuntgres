@@ -42,7 +42,7 @@ func pgParameterACLUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*c
 func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog catalog.Read, roles authorization.Read) *exec.Source {
 	t.Helper()
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
-	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, roles, ref, d)
+	rows, err := captureCatalogSourceLocked(e, context.Background(), catalog, roles, ref, d)
 	if err != nil || rows == nil || rows.Ref != ref || rows.Anonymous == nil {
 		t.Fatal("capture", rows, err)
 	}
@@ -431,7 +431,7 @@ func TestPGParameterACLAuthorization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+		if _, err := publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 			t.Fatal(err)
 		}
 	}

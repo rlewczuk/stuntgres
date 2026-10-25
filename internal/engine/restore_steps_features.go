@@ -135,5 +135,5 @@ func beforeRestoreRoutineDirective(r *restoreRun, op *session.Operation, stmt pa
 
 // finishRestoreSQLRoutines validates the deferred SQL routine bodies.
 func finishRestoreSQLRoutines(r *restoreRun, ctx context.Context, op *session.Operation) error {
-	return r.stage.validateRestoredSQLRoutines(ctx, op)
+	return validateRestoredSQLRoutines(r.stage, ctx, op)
 }

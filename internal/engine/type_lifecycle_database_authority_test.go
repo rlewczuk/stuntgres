@@ -90,7 +90,7 @@ func TestTypeLifecycleDatabaseMaintenanceAuthority(t *testing.T) {
 					domainUnitPublish(t, e, replacement)
 				}
 				intervening := e.CatalogRead()
-				_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+				_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 				if change != "horizon" {
 					if !errors.Is(err, ids.ErrCatalogReplaced) || e.CatalogRead().State() != intervening.State() || e.Storage.Relations[table.Address()] != original {
 						t.Fatal("genuine database authority change did not veto identity publication atomically", err)

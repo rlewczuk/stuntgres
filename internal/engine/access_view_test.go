@@ -96,7 +96,7 @@ func TestAccessViewTemporaryNamespaceFromEnvironment(t *testing.T) {
 	view := e.CatalogRead()
 	owner := view.MustDatabase(catalog.CurrentDatabaseAddress).Owner
 	ownerOnly := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: owner}, Privileges: authorization.DatabasePrivileges}}}
-	if err := e.SetObjectACL(context.Background(), e.Catalog.Domain.Ref(view.Epoch(), catalog.CurrentDatabaseAddress), ownerOnly); err != nil {
+	if err := setObjectACL(e, context.Background(), e.Catalog.Domain.Ref(view.Epoch(), catalog.CurrentDatabaseAddress), ownerOnly); err != nil {
 		t.Fatal(err)
 	}
 	none, own = effective()

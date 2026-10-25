@@ -31,7 +31,7 @@ func TestAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
 	for _, subID := range []int32{0, table.Attributes[0]} {
 		ref := tableRef
 		ref.Address.SubID = subID
-		if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -91,7 +91,7 @@ func TestAlterTypeIdentitySequenceMetadata(t *testing.T) {
 				sequenceRef := roleTableRef(t, e, "t_c_seq")
 				acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: initial.Owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 				for _, ref := range []ids.ObjectRef{tableRef, columnRef, sequenceRef} {
-					if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
+					if err := setObjectACL(e, context.Background(), ref, acl); err != nil {
 						t.Fatal(err)
 					}
 				}

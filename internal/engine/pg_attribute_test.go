@@ -237,7 +237,7 @@ func TestPGAttributePublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, publication, PublicationToken{Epoch: base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	current := e.CatalogRead()
@@ -307,7 +307,7 @@ func TestPGAttributeDroppedHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.PublishCatalog(publication, PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, publication, PublicationToken{Epoch: auth.Catalog.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	base := e.CatalogRead()

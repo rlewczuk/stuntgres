@@ -834,7 +834,7 @@ func TestPartitionConstraintsPublicationFences(t *testing.T) {
 				}
 			}
 			before := indexMaintenanceCapture(e)
-			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
+			_, err = publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			switch change {
 			case "epoch":
 				if !errors.Is(err, ids.ErrCatalogReplaced) {
@@ -870,7 +870,7 @@ func TestPartitionConstraintsPreservesNewestPhysicalRoot(t *testing.T) {
 	if latest == original {
 		t.Fatal("fixture did not publish a newer key root")
 	}
-	if _, err := e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := publishCatalog(e, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	if e.Storage.IndexRoots[child.Address] != latest || e.Storage.IndexRoots[roleTableRef(t, e, "parent_idx").Address] != nil {
@@ -891,7 +891,7 @@ func TestPartitionConstraintsFinalPublicationCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := first.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+	if _, err := publishCatalog(first, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 		t.Fatal(err)
 	}
 	polls := counting.checks.Load()
@@ -910,7 +910,7 @@ func TestPartitionConstraintsFinalPublicationCancellation(t *testing.T) {
 		t.Fatal("canceled before final publication boundary", err)
 	}
 	before := indexMaintenanceCapture(second)
-	_, err = second.PublishCatalog(prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
+	_, err = publishCatalog(second, prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
 	if !errors.Is(err, context.Canceled) || final.checks.Load() != polls {
 		t.Fatal("final cancellation not fenced", polls, final.checks.Load(), err)
 	}
@@ -1224,7 +1224,7 @@ func TestPartitionConstraintsDropFinalPublicationCancellation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err = first.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
+			if _, err = publishCatalog(first, prepared, PublicationToken{Epoch: stage.Base.Epoch()}); err != nil {
 				t.Fatal(err)
 			}
 			polls := counting.checks.Load()
@@ -1240,7 +1240,7 @@ func TestPartitionConstraintsDropFinalPublicationCancellation(t *testing.T) {
 				t.Fatal("drop canceled before final boundary", err)
 			}
 			before := indexMaintenanceCapture(second)
-			_, err = second.PublishCatalog(prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
+			_, err = publishCatalog(second, prepared, PublicationToken{Epoch: candidate.Base.Epoch()})
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal("late drop cancellation not fenced", err)
 			}

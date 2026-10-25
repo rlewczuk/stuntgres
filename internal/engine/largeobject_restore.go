@@ -13,7 +13,7 @@ import (
 
 // restoreLargeObjectACL is reachable only through the isolated Restore repair
 // admission. Ordinary UPDATE of metadata remains an unsupported catalog write.
-func (e *Engine) restoreLargeObjectACL(op *session.Operation, raw *parser.Update) error {
+func restoreLargeObjectACL(e *Engine, op *session.Operation, raw *parser.Update) error {
 	oid, text, absent, ok := largeobject.ACLRepair(raw)
 	if !ok {
 		return SQLError("0A000", "restore accepts only generated large object ACL repairs")

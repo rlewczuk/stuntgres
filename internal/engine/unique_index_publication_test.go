@@ -99,7 +99,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 		target := ref
 		target.Address.SubID = attribute
 		acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: actor.Ref, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: rights}}}
-		if err := e.SetObjectACL(context.Background(), target, acl); err != nil {
+		if err := setObjectACL(e, context.Background(), target, acl); err != nil {
 			t.Fatal(err)
 		}
 	}

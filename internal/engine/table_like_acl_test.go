@@ -44,7 +44,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 	grant := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: reader.Ref}, Privileges: authorization.SelectPrivilege}}}
 	column := source
 	column.Address.SubID = 1
-	if err := e.SetObjectACL(context.Background(), column, grant); err != nil {
+	if err := setObjectACL(e, context.Background(), column, grant); err != nil {
 		t.Fatal(err)
 	}
 	stage, _, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(LIKE src INCLUDING ALL)")
@@ -53,7 +53,7 @@ func TestTableLikeSourceACL(t *testing.T) {
 	if !errors.As(err, &denied) || denied.Code != "42501" || denied.Message != "permission denied for table src" || denied.Position != "" {
 		t.Fatal("column grant admitted LIKE", err)
 	}
-	if err := e.SetObjectACL(context.Background(), source, grant); err != nil {
+	if err := setObjectACL(e, context.Background(), source, grant); err != nil {
 		t.Fatal(err)
 	}
 	stage, destination, err := tableLikeBuild(t, e, op, "CREATE TABLE clone(LIKE src INCLUDING ALL)")

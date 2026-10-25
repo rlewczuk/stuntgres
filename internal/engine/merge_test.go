@@ -202,7 +202,7 @@ func TestMergeInsertColumnAuthority(t *testing.T) {
 	grant := func(table string, attribute int, mask authorization.Privileges) {
 		ref := roleTableRef(t, e, table)
 		ref.Address.SubID = int32(attribute)
-		if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
+		if err := setObjectACL(e, context.Background(), ref, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: mask}}}); err != nil {
 			t.Fatal(err)
 		}
 	}

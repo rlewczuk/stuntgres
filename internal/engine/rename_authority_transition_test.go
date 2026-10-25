@@ -22,7 +22,7 @@ func renameAuthorityFixture(t *testing.T) (*Engine, *session.Session, *session.S
 	address := view.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: "protected"})
 	ns := e.Catalog.Domain.Ref(view.Epoch(), address)
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: view.MustNamespace(address).Owner, Grantee: authorization.ACLGrantee{Role: actor.Ref}, Privileges: authorization.UsagePrivilege | authorization.CreatePrivilege}}}
-	if err := e.SetObjectACL(context.Background(), ns, acl); err != nil {
+	if err := setObjectACL(e, context.Background(), ns, acl); err != nil {
 		t.Fatal(err)
 	}
 	sessionSQL(t, owner, "SET SESSION AUTHORIZATION rename_transition_owner")

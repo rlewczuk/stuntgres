@@ -22,7 +22,7 @@ func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*catalog.Relation, *exec.
 		t.Fatal("missing pg_tablespace")
 	}
 	ref := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
-	source, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.Roles(), ref, d)
+	source, err := captureCatalogSourceLocked(e, context.Background(), e.CatalogRead(), e.Roles(), ref, d)
 	if err != nil {
 		t.Fatal(err)
 	}

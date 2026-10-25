@@ -198,7 +198,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 						})
 					}
 					ref := e.Catalog.Domain.Ref(oldView.Epoch(), old.Address())
-					if err := e.SetObjectACL(context.Background(), ref, want); err != nil {
+					if err := setObjectACL(e, context.Background(), ref, want); err != nil {
 						t.Fatal("SetObjectACL", err)
 					}
 					currentView := e.CatalogRead()

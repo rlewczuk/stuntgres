@@ -34,7 +34,7 @@ func TestCreateAggregatePublicationCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	if _, err = e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) {
+	if _, err = publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	key := ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "aggregate_unit_cancel", Signature: "23"}

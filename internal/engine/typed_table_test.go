@@ -172,7 +172,7 @@ func TestTypedPublicationFinalCancellationPreservesRoots(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})
+	changes, err := publishCatalog(e, prepared, PublicationToken{Epoch: before.Epoch()})
 	if !errors.Is(err, context.Canceled) || len(changes.Definitions) != 0 || e.CatalogRead().State() != before.State() {
 		t.Fatal("cancelled publication changed catalog", changes, err)
 	}
