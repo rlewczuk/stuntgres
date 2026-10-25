@@ -5,8 +5,10 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
 	"stuntgres/internal/engine/core"
+	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/table"
@@ -43,11 +45,8 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 	if err := typecmds.ValidateTemporaryCollationDump(e, ctx, catalogView); err != nil {
 		return nil, err
 	}
-	for address, name := range e.Foreign.NamespaceEntries() {
-		ns, ok := state.Namespace(address)
-		if !ok || ns.Name() != name {
-			return nil, fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
-		}
+	if !foreignNamespacesCurrent(&e.Foreign, state) {
+		return nil, fmt.Errorf("stuntgres: dump cannot serialize a renamed or retired configured foreign namespace")
 	}
 	return control.Collect(ctx, control.Source{
 		CatalogView:      catalogView,
@@ -64,4 +63,16 @@ func captureDumpLocked(e *core.Engine, ctx context.Context) (*control.Capture, e
 		Bootstrap:        e.RoleStore.Domain.Principal(authorization.BootstrapPrincipalID),
 		Foreign:          e.Foreign,
 	})
+}
+
+// foreignNamespacesCurrent reports whether every namespace the foreign
+// registry configured still exists in state under its configured name.
+func foreignNamespacesCurrent(r *fdw.Registry, state *catalog.State) bool {
+	for address, name := range r.NamespaceEntries() {
+		ns, ok := state.Namespace(address)
+		if !ok || ns.Name() != name {
+			return false
+		}
+	}
+	return true
 }
