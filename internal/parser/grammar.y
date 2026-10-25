@@ -2646,10 +2646,11 @@ scalar_atom: value %prec NAME_LIST { $$=LiteralExpr{Value:$1} }
  ;
 /* Only an actual scalar/index call can enter the failure-only argument context. */
 check_function_head: CHECK_FUNC '(' {$$=$1;sqllex.(*lexer).formatCallHead($1)} ;
-/* Ordinary scalar calls retain their own admission/position handling while
- * carrying OVER to resolution for scalar-versus-window diagnostics. */
+/* Ordinary checked scalar calls retain failure-only FILTER/OVER decorations
+ * for resolution, without changing their lexical or argument admission. */
 check_function_call: check_function_head function_args ')' {call,ok:=selectedScalarCall(sqllex,$1,$2);if !ok{return 1};$$=call}
  | name '.' check_function_head function_args ')' { l:=sqllex.(*lexer);if restriction:=l.generationRestriction;restriction!=nil && restriction.Pos==$3.pos {restriction.Pos=$1.pos};$$=FunctionExpr{Name:ObjectName{Parts:[]Identifier{{Text:$1.text,Pos:$1.pos},{Text:$3.text,Pos:$3.pos}}},Args:$4.Args,ArgNames:$4.ArgNames,Variadic:$4.Variadic,ResolutionOnly:$3.resolutionOnly,Pos:$1.pos} }
+ | check_function_call FILTER '(' WHERE target_or ')' {call:=$1.(FunctionExpr);if call.Filter!=nil||call.Window!=nil {sqllex.(*lexer).syntax($2);return 1};call.Filter=$5;$$=call}
  | check_function_call over_clause {call:=$1.(FunctionExpr);if call.Window!=nil {sqllex.(*lexer).syntax($2.token);return 1};call.Window=$2.spec;$$=call} ;
 /* Selected ordinary time and enum calls carry failure-only modifiers to resolution.
  * ORDER requires an argument; argument-free ORDER remains a syntax error. */

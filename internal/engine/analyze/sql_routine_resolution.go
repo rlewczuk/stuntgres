@@ -29,6 +29,7 @@ type sqlCallableSelection struct {
 	SQLCallable
 	auth       Authority
 	args       []expr.Expr
+	filter     expr.Expr
 	properties expr.Properties
 	// Ordinary selected typename calls retain their target and analyzed operand,
 	// not a synthetic parser FunctionCast or a speculative routine winner.
@@ -68,7 +69,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := cast != nil || b.typeNameCallable(raw.Name)
-	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !b.BindingCatalog().HasCasts() {
+ if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -77,14 +78,17 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	}
 	path, err := b.Host.LookupNamespaces(auth, raw.Name, FunctionLookup)
 	if err != nil {
-		// PostgreSQL transforms written arguments before reporting function
-		// namespace errors. Publish real argument diagnostics first without
-		// binding losing candidates or changing the successful lookup path.
+		// PostgreSQL transforms written arguments and FILTER before reporting
+		// function namespace errors. Keep the successful lookup path single-pass
+		// and preserve non-namespace failures unchanged.
 		if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42501" || diagnostic.Code == "3F000") {
 			for _, argument := range raw.Args {
 				if _, argumentErr := b.comparisonOperand(argument); argumentErr != nil {
 					return selection, true, argumentErr
 				}
+			}
+			if _, filterErr := b.BindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter}); filterErr != nil {
+				return selection, true, filterErr
 			}
 		}
 		return selection, true, err
@@ -149,6 +153,12 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 		if len(raw.ArgNames) > i && raw.ArgNames[i].Text != "" {
 			names[i] = raw.ArgNames[i].Text + " => " + names[i]
 		}
+	}
+	// PostgreSQL transforms FILTER after ordinary operands, before resolving
+	// the signature or rejecting scalar-only call decorations.
+	selection.filter, err = b.BindAggregateFilter(parser.AggregateExpr{Filter: raw.Filter})
+	if err != nil {
+		return selection, true, err
 	}
 	var familyStorage [4]functions.Argument
 	familyArgs := familyStorage[:min(len(operands), len(familyStorage))]
@@ -235,6 +245,13 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			return selection, true, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, len(candidates) > 1)
 		}
 		selection.SQLCallable = candidates[0]
+	}
+	// The actual winner's kind determines whether decorations are legal,
+	// before an unknown literal is converted to its selected formal type.
+	if selection.Procedure.RoutineKind == catalog.FunctionRoutine {
+		if err := functions.CallDecorationError(raw); err != nil {
+			return selection, true, err
+		}
 	}
 	selection.args = make([]expr.Expr, len(operands))
 	selection.properties = expr.Properties{Volatility: selection.Procedure.Volatility}
@@ -419,6 +436,9 @@ func SelectSQLCallables(view catalog.Read, candidates []SQLCallable, operands []
 }
 
 func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallableSelection, original parser.Expr, policy ExpressionPolicy) (expr.Expr, error) {
+	previousFilter := b.Clause.selectedFilter
+	b.Clause.selectedFilter = selected.filter
+	defer func() { b.Clause.selectedFilter = previousFilter }()
 	// Syntax eligibility admits a name bucket, not every overload in it.
 	// Reject a different ordinary winner before constructing its body/provider.
 	if b.replayConstructorCall(raw) && (selected.Procedure == nil || selected.Procedure.RangeConstructor == nil) {
@@ -551,6 +571,15 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if err != nil {
 			return nil, err
 		}
+  if extension.CitextStringName(symbol) {
+   node,err:=b.bindSelectedCitextString(raw,selected,symbol)
+   if err==nil&&(b.Params.NoParameters||b.Consumer.frozenDefinition) {
+    frozen:=raw;frozen.StoredProviderRoutine,frozen.StoredProviderSymbol=true,symbol
+    if b.Stored.Syntax==nil {b.Stored.Syntax=make(map[StoredExpressionSyntaxKey]parser.Expr)}
+    b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)]=frozen
+   }
+   return node,err
+  }
 		if extension.CitextRegexpName(symbol) {
 			node, err := b.bindSelectedCitextRegexp(raw, selected, symbol)
 			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {

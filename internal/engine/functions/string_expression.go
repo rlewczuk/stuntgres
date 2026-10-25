@@ -13,6 +13,7 @@ type String struct {
 	Args    []expr.Expr
 	Textual [4]bool
 	Syntax  parser.StringSyntax
+ Citext *CitextStringCapture
 }
 
 func (e String) Eval(c expr.Context) (sqltype.Value, error) {
@@ -26,6 +27,7 @@ func (e String) Eval(c expr.Context) (sqltype.Value, error) {
 	if e.Plan.Strict() {
 		for _, arg := range e.Args {
 			if c.FunctionLiteralNull(arg) {
+    if e.Citext!=nil {c.FunctionRegexExecution().Reset()}
 				return sqltype.Null(e.Usage.Type), nil
 			}
 		}
@@ -34,13 +36,20 @@ func (e String) Eval(c expr.Context) (sqltype.Value, error) {
 	for i, arg := range e.Args {
 		value, err := arg.Eval(c)
 		if err != nil {
+   if e.Citext!=nil {c.FunctionRegexExecution().Reset()}
 			return sqltype.Value{}, err
 		}
 		values[i] = value
 	}
+ if e.Citext!=nil {return e.Plan.EvaluateCitext(ctx,values,c.FunctionInput(),c.FunctionStringOutput(),c.FunctionRegexExecution())}
 	return e.Plan.Evaluate(ctx, values, c.FunctionInput(), c.FunctionStringOutput())
 }
 func (e String) Reconstruct(info expr.Info, args []expr.Expr, text sqltype.Usage) (String, error) {
+ if err:=e.validateCitext();err!=nil {return e,err}
+ if e.Citext!=nil {
+  capture:=*e.Citext;capture.Text=text
+  return NewCitextString(info,e.Plan.Name(),args,capture)
+ }
 	var usages [4]sqltype.Usage
 	for i, arg := range args {
 		usages[i] = arg.ResultUsage()
@@ -53,14 +62,20 @@ func (e String) Reconstruct(info expr.Info, args []expr.Expr, text sqltype.Usage
 	return e, nil
 }
 func (e String) Validate() error {
+ if err:=e.validateCitext();err!=nil {return err}
 	if len(e.Args) < 1 || len(e.Args) > 4 {
 		return fmt.Errorf("stuntgres: invalid stored string arity")
 	}
+ if missingArgument(e.Args) {return fmt.Errorf("stuntgres: missing stored string argument")}
 	var usages [4]sqltype.Usage
 	for i, arg := range e.Args {
 		usages[i] = arg.ResultUsage()
 	}
-	plan, err := sqltype.BindString(e.Plan.Name(), e.Usage, e.Plan.TextUsage(), usages[:len(e.Args)], e.Textual, e.Plan.CollationIndeterminate())
+ var plan sqltype.StringPlan
+ var err error
+ if e.Citext!=nil {plan,err=sqltype.BindCitextString(e.Plan.Name(),e.Usage,e.Citext.Text,usages[:len(e.Args)])} else {
+  plan,err=sqltype.BindString(e.Plan.Name(), e.Usage, e.Plan.TextUsage(), usages[:len(e.Args)], e.Textual, e.Plan.CollationIndeterminate())
+ }
 	if err != nil || plan != e.Plan {
 		return fmt.Errorf("stuntgres: invalid stored string provider")
 	}
@@ -72,7 +87,7 @@ func NewString(info expr.Info, name string, text sqltype.Usage, args []expr.Expr
 		usages[i] = arg.ResultUsage()
 	}
 	plan, err := sqltype.BindString(name, info.Usage, text, usages[:len(args)], textual, conflict)
-	return String{info, plan, args, textual, syntax}, err
+ return String{Info:info,Plan:plan,Args:args,Textual:textual,Syntax:syntax},err
 }
 func StringIntrinsic(name string, textual [4]bool) (stable, stage bool) {
 	return name == "||" && (!textual[0] || !textual[1]), name == "string_to_table"
@@ -371,7 +386,7 @@ func (e String) StrictNull() expr.Strict {
 	return expr.StrictNone
 }
 
-func (e String) ValidateStoredProvider() error { return nil }
+func (e String) ValidateStoredProvider() error {if e.Citext!=nil||e.Plan.Citext() {return e.Validate()};return nil}
 
 // Retag retains and remaps the bound text usage. A text usage change alone is
 // revalidated but does not count as a change.
@@ -396,6 +411,7 @@ var _ expr.Renderable = String{}
 
 // Render implements expr.Renderable.
 func (e String) Render() (expr.Rendering, error) {
+ if e.Citext!=nil {return e.citextRendering()}
 	// Corrupted operands have no form; stored SQL reports them.
 	switch {
 	case len(e.Args) < 1 || len(e.Args) > 4:
@@ -518,6 +534,8 @@ func (e String) SameGroup(other expr.Expr, same func(a, b expr.Expr) bool, defin
 	if !ok || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 		return false
 	}
+ if (e.Citext==nil)!=(o.Citext==nil) {return false}
+ if e.Citext!=nil&&(*e.Citext!=*o.Citext||e.RoutineReference!=o.RoutineReference) {return false}
 	for i := range e.Args {
 		if !same(e.Args[i], o.Args[i]) {
 			return false

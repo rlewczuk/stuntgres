@@ -26,6 +26,11 @@ and long-form input, canonical long ISMN output and ISMN13 result metadata.
 Corrected check digits, retained invalid markers and NULLs survive prepared
 execution, extension recreation and native Reset/Dump/Restore.
 
+Installed citext now supplies case-insensitive replace, split_part, strpos and
+translate overloads with TEXT/INT4 results, strict NULL propagation and ordinary
+overload and caller-privilege resolution. Stored calls retain installed identity
+through routine rename, schema movement and native Dump/Reset/Restore.
+
 The default text-search parser is executable through both text-name and OID
 overloads of ts_parse and ts_token_type, with typed set results, all 23 token
 descriptors, preserved document spelling and ordered URL/hyphen overlaps.

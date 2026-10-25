@@ -24,7 +24,7 @@ func citextRegexpUnitCall(t *testing.T,view catalog.Read,installation *catalog.E
 }
 func TestCitextRegexpProvider(t *testing.T) {
  e,installation,base:=citextUnitInstalled(t);view:=e.CatalogRead()
- if len(installation.Members)!=52||extension.CitextPatternOperatorEnd!=42||len(extension.CitextRegexpMembers)!=10 {t.Fatal("wrong installed inventory")}
+ if len(installation.Members)!=extension.CitextMemberCount||extension.CitextRegexpProcedureEnd!=52||extension.CitextPatternOperatorEnd!=42||len(extension.CitextRegexpMembers)!=10 {t.Fatal("wrong installed inventory")}
  for slot,address:=range installation.Members {
  want:=ids.ProcedureClassID;if slot==0 {want=ids.TypeClassID}else if slot>=9&&slot<15||slot>=26&&slot<42 {want=ids.OperatorClassID}
  if address.ClassID!=want {t.Fatal("wrong member class",slot,address)}

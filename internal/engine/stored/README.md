@@ -85,6 +85,12 @@ host methods.
   validating the original carrier and current provider manifest/signature.
   Schema rename therefore updates deparse and default replay labels without
   changing the captured declaration, coercion plan or original snapshot.
+  Selected citext string scalars preserve their shared `String` capture through
+  reference and original-declaration remapping. Validation checks the exact
+  installed member, source/destination scalar generations and builtin third
+  formals; rendering uses checked current labels with explicit formal casts.
+  Capture names, matching OIDs and current same-name declarations never replace
+  original authority.
   Mutation-rule VALUES expressions use the same checked current-label projection
   while preserving their original OLD/NEW bindings and callable input assembly.
   `RetagTypes` is a structural generation rewrite, not a presentation refresh.

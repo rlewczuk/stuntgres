@@ -95,6 +95,13 @@ routine declaration supplies signature, namespace, strictness and volatility;
 and explicitness arguments remain evaluated operands. Rebuild, capture, grouping
 and rendering preserve the selected call rather than reinterpreting it as a
 typename shortcut. No procedure becomes callable from type-catalog presence alone.
+`String` optionally retains a `CitextStringCapture` for a selected installed
+scalar. Reconstruction, grouping, rendering and type retagging preserve its
+opaque declaration and member reference; explicit formal replay casts retain
+overload selection. The shared strict typed-NULL preflight precedes routine
+admission, while nonnull calls use current caller permissions. Matching and
+translation remain type-owned plans rather than name-based expression dispatch.
+
 
 ## Geometric relation operator provider
 

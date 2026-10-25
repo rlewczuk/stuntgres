@@ -118,6 +118,7 @@ type ClauseState struct {
 	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
 	selectedAggregate      *catalog.Procedure
 	selectedProcedure      *catalog.Procedure // Live catalog winner; provider symbol is not a public alias.
+	selectedFilter         expr.Expr          // Bound FILTER belongs only to the immediate selected call.
 }
 
 // GroupingState collects the aggregates, grouping sets and window calls of

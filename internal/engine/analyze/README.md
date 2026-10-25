@@ -96,10 +96,18 @@ library, and never the root engine or `session`. The engine, the root driver
   `LookupPath`, `EffectivePath`, `CreationNamespace`, ... over one by-value
   `PathInput[E]`; `ResolveTypeName` takes a `TypeNameOperation` because the
   package never imports `session`.
-  SQL-callable namespace failures publish real written-argument binding errors
-  first, preserving cast/type source positions. Only SQL namespace errors are
-  deferred; cancellation and internal failures retain their original identity.
+  SQL-callable namespace failures first publish written-argument errors, then
+  FILTER errors, preserving cast/type source positions. Only SQL namespace
+  errors are deferred; cancellation and internal failures retain their identity.
   Successful lookup and builtin fallback do not gain a second argument pass.
+  Ordinary callable operands are transformed before FILTER, and FILTER before
+  namespace/signature errors. The selected routine's actual kind rejects scalar
+  decorations before implicit selected-formal conversion; explicitly written
+  invalid casts remain ordinary operand errors before FILTER. The
+  selected-call frame carries the bound Boolean expression into its immediate
+  provider/aggregate gateway; nested expression/provider entries suspend it.
+  This avoids rebinding aggregate FILTER children without lending an outer
+  call's proof to a nested call or retaining it for a later statement.
 - **Captured input retargeting** (`captured_inputs.go`): `IdentifierTarget` and
   the `*Retarget` interfaces.
 - **Privilege walkers** (`binding_privileges.go`): `CheckBinding` and

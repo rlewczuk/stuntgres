@@ -94,6 +94,7 @@ type StringPlan struct {
 	conversions [4]CoercionPlan
 	conflict    bool
 	caseOp      unicode16.CaseOperation
+ citext bool
 }
 
 func (p StringPlan) Name() string                  { return p.name }
@@ -292,6 +293,7 @@ func (p StringPlan) Evaluate(ctx context.Context, values [4]Value, input InputEn
 	if err := ctx.Err(); err != nil {
 		return Value{}, err
 	}
+ if p.citext {return Value{},fmt.Errorf("citext string evaluation requires regex execution")}
 	if p.name == "string_to_table" {
 		return Value{}, fmt.Errorf("string table plan requires a field cursor")
 	}

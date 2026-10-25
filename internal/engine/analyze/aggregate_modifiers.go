@@ -15,6 +15,9 @@ func (b *Binder) BindAggregateFilter(raw parser.AggregateExpr) (expr.Expr, error
 	if raw.Filter == nil {
 		return nil, nil
 	}
+	if b.Clause.selectedFilter != nil {
+		return b.Clause.selectedFilter, nil
+	}
 	clause, regexpClause := b.Clause.AggregateClause, b.Clause.RegexpClause
 	b.Clause.AggregateClause, b.Clause.RegexpClause = "FILTER", "FILTER"
 	defer func() { b.Clause.AggregateClause, b.Clause.RegexpClause = clause, regexpClause }()

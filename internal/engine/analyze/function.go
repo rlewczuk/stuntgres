@@ -14,6 +14,10 @@ import (
 )
 
 func (b *Binder) BindFunctionProvider(raw parser.FunctionExpr) (expr.Expr, error) {
+	if filter := b.Clause.selectedFilter; filter != nil && !b.Clause.selectedCallReentry {
+		b.Clause.selectedFilter = nil
+		defer func() { b.Clause.selectedFilter = filter }()
+	}
 	if len(raw.Name.Parts) < 1 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: invalid function name")
 	}

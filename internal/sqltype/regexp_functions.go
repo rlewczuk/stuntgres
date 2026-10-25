@@ -55,6 +55,7 @@ type RegexpPlan struct {
 	conflict                                                  bool
 	citext                                                    bool
 	replacement, start, occurrence, endOption, flags, subexpr int8
+ splitField int64 // Positive one-based scalar collection; zero retains array/table output.
 }
 
 func (p RegexpPlan) Name() string {
@@ -389,6 +390,18 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 		*dst = append(next, v)
 		return nil
 	}
+ fieldCount:=int64(0)
+ appendField:=func(text string) error {
+  if p.splitField>0 {
+   fieldCount++
+   if fieldCount==p.splitField {value=String(p.result.Type,text)}
+   return nil
+  }
+  element:=p.result.Type
+  if p.kind==RegexpSplitArray {element=element.Element()}
+  return appendValue(&fields,String(element,text))
+ }
+ if p.splitField>0 {value=Null(p.result.Type)}
 	array := func(elements []Value) (Value, error) {
 		if err := reserve(int(unsafe.Sizeof(arrayPayload{})) + int(unsafe.Sizeof(ArrayDimension{}))); err != nil {
 			return Value{}, err
@@ -583,11 +596,7 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 			}
 		case RegexpSplitArray, RegexpSplitTable:
 			if m.Whole.Start < len(source) && m.Whole.End > previousEnd {
-				element := p.result.Type
-				if p.kind == RegexpSplitArray {
-					element = element.Element()
-				}
-				err = appendValue(&fields, String(element, source[last:m.Whole.Start]))
+    err = appendField(source[last:m.Whole.Start])
 				if err != nil {
 					return
 				}
@@ -625,18 +634,16 @@ func (p RegexpPlan) evaluate(ctx context.Context, args [7]Value, state *PGRegexE
 		// output is invocation-owned and never mutated after publication.
 		value = String(p.result.Type, unsafe.String(unsafe.SliceData(output), len(output)))
 	case RegexpSplitArray, RegexpSplitTable:
-		element := p.result.Type
-		if p.kind == RegexpSplitArray {
-			element = element.Element()
-		}
-		err = appendValue(&fields, String(element, source[last:]))
+  err = appendField(source[last:])
 		if err != nil {
 			return
 		}
-		if p.kind == RegexpSplitTable {
-			values = fields
-		} else {
-			value, err = array(fields)
+  if p.splitField==0 {
+   if p.kind == RegexpSplitTable {
+    values = fields
+   } else {
+    value, err = array(fields)
+   }
 		}
 	}
 	if err == nil {

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+ "stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 )
@@ -78,6 +79,7 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 			"", "", // regexp_replace
 			"", "", // regexp_split_to_array
 			"", "", // regexp_split_to_table
+   "", "", "", "", // strpos, replace, split_part, translate: unnamed SQL scalars
 		}},
 		{"intarray", catalog.CRoutineLanguage, []string{"bqarr_in", "bqarr_out"}},
 		{"isn", catalog.CRoutineLanguage, []string{"ean13_in", "ean13_out", "isbn_in", "isn_out", "isbn_in", "ean13_out", "ismn_in", "isn_out", "ismn_in", "ean13_out"}},
@@ -112,6 +114,15 @@ func TestInfoRoutinesExtensionCompleteness(t *testing.T) {
 						language = catalog.CRoutineLanguage
 					case "regexp_match", "regexp_matches", "regexp_replace", "regexp_split_to_array", "regexp_split_to_table":
 						language = catalog.SQLRoutineLanguage
+     case "strpos", "replace", "split_part", "translate":
+      symbol,err:=extension.ProcedureSymbol(view,p)
+      if err!=nil||symbol!=p.Name()||p.Implementation!=extension.StockCitext {
+       t.Fatal("invalid citext string display member",p,err)
+      }
+      language=catalog.SQLRoutineLanguage
+      if p.Installed.ArgumentNames!=([4]string{})||p.Installed.Parallel!='s'||p.Installed.ReturnsSet||p.Installed.Rows!=0 {
+       t.Fatal("citext string scalar declaration metadata",p)
+      }
 					}
 				}
 				if p.Display.Language != language || p.Display.SecurityDefiner {

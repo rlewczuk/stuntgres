@@ -69,6 +69,13 @@ func remapScalar(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, 
 		}
 		// Retagging belongs to the routine recipe's existing type mapper.
 		next = n
+ case functions.String:
+  n.Args=args(n.Args)
+  if n.Citext!=nil&&ref!=nil {
+   capture:=*n.Citext;capture.Ref=ref(capture.Ref);n.Citext=&capture
+  }
+  next=n
+  if ref!=nil {next=remapQuoteOwner(next,ref)}
 	case functions.Regexp:
 		n.Args = args(n.Args)
 		n.RegexpCall = remapCitextRegexpReference(n.RegexpCall, ref)

@@ -18,7 +18,9 @@ const CitextPatternProcedureStart = 18
 const CitextPatternOperatorStart = 26
 const CitextPatternOperatorEnd = 42
 const CitextRegexpProcedureStart = CitextPatternOperatorEnd
-const CitextMemberCount = 52
+const CitextRegexpProcedureEnd = 52
+const CitextStringProcedureStart = CitextRegexpProcedureEnd
+const CitextMemberCount = CitextStringProcedureStart + 4
 
 // The slot order is the immutable installed manifest, not a public name lookup.
 var CitextComparisonNames = [...]string{"citext_eq", "citext_ne", "citext_lt", "citext_le", "citext_gt", "citext_ge"}

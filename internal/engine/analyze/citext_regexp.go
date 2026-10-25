@@ -56,7 +56,7 @@ func (b *Binder) bindSelectedCitextRegexp(raw parser.FunctionExpr, selected sqlC
 			break
 		}
 	}
-	if member < extension.CitextRegexpProcedureStart || member >= extension.CitextMemberCount {
+ if member < extension.CitextRegexpProcedureStart || member >= extension.CitextRegexpProcedureEnd {
 		return nil, fmt.Errorf("stuntgres: invalid citext regexp member")
 	}
 	properties.StageDependent = properties.StageDependent || functions.RegexpStageDependent(symbol)

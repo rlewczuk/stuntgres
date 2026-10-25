@@ -306,6 +306,12 @@ func (b *Binder) columnAtOf(relation *catalog.Relation, i int, pos parser.Positi
 	return column
 }
 func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult expr.Expr, bindError error) {
+	// Only the selected gateway may inherit its already-bound FILTER. Any
+	// ordinary child starts a separate occurrence, even when it returns early.
+	if filter := b.Clause.selectedFilter; filter != nil && !b.Clause.selectedCallReentry {
+		b.Clause.selectedFilter = nil
+		defer func() { b.Clause.selectedFilter = filter }()
+	}
 	if policy.Context == FilterContext && !policy.operand && policy.booleanConstruct == "" {
 		return b.BindBoolean(raw, policy.Context, "WHERE")
 	}

@@ -92,7 +92,7 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   accept `(citext,citext)` and `(citext,text)`. Their append-only slots preserve
   the storage/comparison/conversion prefix; paired negators retain exact routine
   and operand identities through symbolic owner metadata and import.
-  Ten SQL-language regexp overloads occupy the procedure tail after the explicit
+  Ten SQL-language regexp overloads occupy a bounded procedure range after the explicit
   pattern-operator bound: `regexp_match`, `regexp_matches`, `regexp_replace`,
   `regexp_split_to_array` and `regexp_split_to_table`, each with and without text
   flags. Their first two formals are citext; replacement and flags are text.
@@ -101,6 +101,11 @@ and the standard library; never the engine, `analyze`, `routine` or `plan`.
   Shared regexp scalar/set hooks preserve original spelling and text/text-array
   results, default to insensitive matching unless flags contain `c`, and retain
   exact provider identity, current caller ACL admission and control remapping.
+  Four subsequent SQL scalar slots bind `strpos(citext,citext)`,
+  `replace(citext,citext,citext)`, `split_part(citext,citext,integer)` and
+  `translate(citext,citext,text)`, with unnamed arguments and INT4/TEXT results.
+  Their symbolic owner signatures retain the distinct third formals; category
+  bounds keep regexp membership independent of the complete 56-member manifest.
   Incumbent comparison/operator slots remain fixed; the associated array is
   lookup-only. Operator links and procedure authority come from exact manifest
   slots and signatures. Comparison routine display declarations retain C

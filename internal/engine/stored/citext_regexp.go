@@ -29,7 +29,7 @@ func validateCapturedCitextRegexp(call functions.RegexpCall, captured *catalog.P
 	}
 	capture := call.Citext
 	if capture == nil || captured == nil || call.RoutineReference != captured ||
-		int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextMemberCount {
+  int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextRegexpProcedureEnd {
 		return fmt.Errorf("stuntgres: invalid captured citext regexp declaration")
 	}
 	member := extension.CitextRegexpMembers[int(capture.Member)-extension.CitextRegexpProcedureStart]
@@ -55,7 +55,7 @@ func validateCitextRegexpDeclaration(view catalog.Read, original *catalog.Proced
 		return nil, fmt.Errorf("stuntgres: invalid stored citext regexp authority")
 	}
 	capture := call.Citext
-	if capture == nil || int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextMemberCount {
+ if capture == nil || int(capture.Member) < extension.CitextRegexpProcedureStart || int(capture.Member) >= extension.CitextRegexpProcedureEnd {
 		return invalid()
 	}
 	if capture.Ref.Epoch != view.Epoch() {

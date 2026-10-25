@@ -311,7 +311,7 @@ Actual simple/extended protocol coverage belongs in
 - `cube` (scalar/codecs, coordinate extraction and spatial predicates/distances): `RUN='^TestReferenceCube'`
 - <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
 - <a id="citext-storage-and-value-round-trips"></a>`citext` storage, scalar
-  comparisons, pattern operators, regexp scalar/set overloads, binding, collation
+  comparisons, pattern operators, regexp scalar/set and string scalar overloads, binding, collation
   demand, diagnostics, catalogs and controls: `RUN='^TestReferenceCitext'`.
   Scenarios specify fixed Boolean vectors
   and original spelling independently, reuse held statements, and replay emitted
@@ -330,6 +330,15 @@ Actual simple/extended protocol coverage belongs in
   `RUN='^TestReferenceCitextRegexp(Provenance|BodyCollation|Renamed)$'`.
   Retained original SQL reports undefined-function lookup after rename; separately
   rebound held calls and stored identities report the current invocation name.
+- Citext string scalars: `RUN='^TestReferenceCitextString'`. Shared direct,
+  prepared and held scenarios specify literal search, replacement escapes,
+  array-style field bounds, character positions and ordered translation.
+  Qualified/mixed-TEXT controls, exact metadata/diagnostics and current-caller
+  ACLs accompany stored consumers, retained readers and emitted SQL replay.
+  `RUN='^TestReferenceCitextStringFilterDiagnostics$'` separately checks malformed
+  FILTER inputs before namespace/overload errors, written operand errors before
+  FILTER, scalar decoration errors before implicit selected-formal conversion,
+  and selected aggregate FILTER ownership across nested calls/error recovery.
 - `query_int`: `RUN='^TestReferenceQueryInt'`
 - `aclitem`: `RUN='^TestReferenceACLItem'`
 - ACL construction and expansion: `RUN='^TestReferenceACLValues'`
