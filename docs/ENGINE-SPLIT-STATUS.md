@@ -10,14 +10,14 @@ closing reviews. Their record is in `git log` and in this file at `26f8fea15`
 measured the root, built the `closure` tool, planned the seventh round (items
 181–205) and reset these docs.
 
-Last verified against `master` at `8cddab66f` (item 183 rebased on it).
+Last verified against `master` at `b1f5a1bc0` (item 185 rebased on it).
 
 ## Next ready items
 
 Every item below has all its needs ticked. Items that share no needs may run
 in parallel on separate branches.
 
-- 184, 185, 186, 187, 188.
+- 184, 186, 187, 188.
 
 ## Linear plan
 
@@ -65,9 +65,15 @@ ENGINE-SPLIT.md §4.
 184. [ ] Query, DML, COPY, cursor and protocol tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-184--query-dml-copy-cursor-and-protocol-tests)
      · needs 182 · P · 1.05 MB
-185. [ ] Transaction, session, catalog and procedural tests —
+185. [x] Transaction, session, catalog and procedural tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-185--transaction-session-catalog-and-procedural-tests)
-     · needs 182 · P · 0.8 MB
+     · needs 182 · P · 0.8 MB (`daec25f89`, `3134ef51b`, `1f7b7027d`, docs
+     commit) · 111 transitively free transaction, session, catalog, procedural
+     and runtime-prefix root test files moved as external tests (44 producer
+     tests to `pgcatalog/enginetests`, 67 to `core`), none deleted under T2;
+     root tests 1,114 files and 8.87 MB (−0.79 MB); quickcheck passed;
+     `REFERENCE=1` and bench skipped (no production change), racecheck and
+     finalcheck skipped at user request
 186. [ ] Table, index, partition and sequence DDL tests —
      [enginetest](ENGINE-SPLIT-enginetest.md#item-186--table-index-partition-and-sequence-ddl-tests)
      · needs 182 · P · 0.95 MB

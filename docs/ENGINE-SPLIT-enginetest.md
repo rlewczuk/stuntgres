@@ -285,7 +285,26 @@ inspection accessors were added.
   Non-free files of this group stay for items 193–194: 14 reach core internals,
   11 family or shared code, 3 root (`bitwise`, `timestamp`, `timezone_sources`).
 - 184: not started.
-- 185: not started.
+- 185: done (`daec25f89`, `3134ef51b`, `1f7b7027d`). 111 of the 123 transitively
+  free files of the group moved with `mvtest` (external tests, names and bodies
+  unchanged): 44 producer tests (`pg_*`, `info_*`,
+  `catalog_source_runtime_view`) to `pgcatalog/enginetests`, 67 to `core`. T2:
+  none deleted (every refcover candidate asserts internal state). Left:
+  `engine_test.go` and the helper-only `catalog_state_fixture`,
+  `catalog_source_producers` and `pg_description_seed_data`; the routine and
+  operator DDL files (`operator_class_dependency`, `operator_class_support`,
+  `operator_dump`, `operator_estimator`, `operator_option`, `operator_user`,
+  `routine_alter_owner_acl`, `routine_drop_replay`) are `routine` (DDL), for
+  item 187. `enginetest.SetObjectACL` came with item 183. Root-side cut: the
+  test-file method `AuthorizationView.definitionProceduresNamed` became a
+  receiver-first helper (external tests cannot declare methods on root types);
+  the copied `pgOperatorReleaseRows` opens `docs/design` from its new depth.
+  Notes: the `concurrent_index_*` files in `core` test CREATE INDEX CONCURRENTLY
+  and may follow `indexcmds` (item 198); mvtest left 24 root helpers with no
+  root user (in `advisory_xact_lock`, `pg_depend`, `pg_locks`,
+  `session_timeout`, ...) for item 193's dedupe; 19 free root test files (0.09
+  MB) match no wave's prefix list (`access` 8, `like` 2, `dependents`, `eval`,
+  `floating`, `name`, `nominal`, `operation`, `predefined`, `public`, `three`).
 - 186: not started.
 - 187: not started.
 - 193: not started.
