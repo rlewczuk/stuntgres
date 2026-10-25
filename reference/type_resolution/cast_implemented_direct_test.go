@@ -228,6 +228,9 @@ func castResultType(v castImplementedType, pg bool) string {
 	if v.name == `"char"` {
 		return "CHAR"
 	}
+	if v.name == `"char"[]` {
+		return "_CHAR"
+	}
 	if pg && (v.name == "xid8" || v.name == "pg_snapshot" || v.name == "jsonpath" || v.name == "jsonpath[]" || v.name == "regcollation[]" || v.name == "regcollation" || v.name == "macaddr8" || v.name == "int4multirange" || v.name == "int8multirange" || v.name == "nummultirange") {
 		return ""
 	}

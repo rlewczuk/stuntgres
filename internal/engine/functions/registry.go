@@ -48,6 +48,7 @@ type Definition struct {
 var definitions = [...]Definition{
 	{Names: []string{"tsvector_concat", "tsquery_and", "tsquery_or", "tsquery_not", "tsquery_phrase", "tsq_mcontains", "tsq_mcontained"}, ExactSpelling: true, SharedGates: true, Bind: bindFTS},
 	{Names: []string{"numnode", "querytree", "ts_rewrite"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSQuery},
+	{Names: []string{"setweight", "strip", "ts_delete", "ts_filter", "tsvector_to_array"}, ExactSpelling: true, SharedGates: true, Bind: bindFTSVector},
 	{Names: []string{"ts_parse", "ts_token_type"}, ExactSpelling: true, SharedGates: true, OwnsLabels: true, Bind: bindFTSParser, NamedCall: namedFTSParser},
 	{Names: []string{"box", "bound_box", "circle", "line", "lseg", "path", "point", "polygon"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryConversion},
 	{Names: []string{"area", "center", "diameter", "width", "height", "diagonal", "slope", "isclosed", "isopen", "npoints", "pclose", "popen"}, ExactSpelling: true, SharedGates: true, Bind: bindGeometryMeasure},

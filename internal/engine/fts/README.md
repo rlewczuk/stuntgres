@@ -78,6 +78,13 @@ the first saturated weight rather than input max-weight merging. Final aligned
 storage is checked before rendering. Operation scans/copies/rendering check
 cancellation at bounded intervals, return no partial result and never mutate inputs.
 
+Vector utilities transform the private canonical entries without reparsing text.
+Exact selector lookup shares immutable strings and unchanged position slices;
+only changed positions and the output entry buffer are owned anew. Weight parsing
+consumes an already converted internal byte and emits hard operation errors.
+Selector scans, transformations and extraction check cancellation at bounded
+intervals; no partial values or execution context escape an operation.
+
 ## Query inspection and rewriting
 
 `NodeCount` reads the immutable arena length. `IndexableTree` reduces NOT

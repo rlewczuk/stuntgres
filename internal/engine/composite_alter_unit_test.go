@@ -131,7 +131,7 @@ func TestCompositeArrayStorageAdmission(t *testing.T) {
 			t.Fatal("unsupported array element admitted", typ)
 		}
 	}
-	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Regclass} {
+	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Regclass, sqltype.Char} {
 		if !typedef.StoredArrayElement(testUsage(e, id).Type) {
 			t.Fatal("incumbent stored scalar array rejected", id)
 		}

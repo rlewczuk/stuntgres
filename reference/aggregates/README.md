@@ -28,6 +28,10 @@ Follow [docs/TESTING.md](../../docs/TESTING.md). `TestMain` uses the default
   interval witnesses such as `abs(actual-expected) <= 1e-12*max(1,abs(expected))`;
   every other cell, count, metadata and diagnostic stays exact. Do not add a
   global approximate comparator.
+- **Carrier boundaries.** Ordered-set witnesses assert executable internal
+  `"char"[]` results independently on both backends, while retaining separate
+  ordering-admission and unavailable-array-companion diagnostics for excluded
+  carriers.
 - **Late-group atomicity.** To prove a later group's failure publishes nothing on
   PostgreSQL, force a blocking sort (ORDER BY the aggregate result, then the key)
   so no cursor rows are sent before the error.

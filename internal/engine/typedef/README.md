@@ -18,6 +18,11 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 
 ## What it owns
 
+- **Array storage admission** (`types.go`): `StoredArrayElement` validates concrete
+  containers and storage-specific exclusions, then reuses sqltype's scalar array
+  element policy. Internal CHAR arrays share generic storage and replay without
+  admitting raw scalar CHAR declarations.
+
 - **Stage handlers** (`collation_ddl.go`, `conversion_ddl.go`, `domain*.go`,
   `enum.go`, `range*.go`, `composite.go`, `typed_type_drop.go`): CREATE/ALTER/DROP COLLATION
   and CONVERSION, CREATE/DROP DOMAIN, domain RENAME/SET SCHEMA, CREATE TYPE AS

@@ -36,9 +36,11 @@ func TestReferenceOrderedSetAggregateCarrierBoundaries(t *testing.T) {
 			}
 			orderedSetBoth(t,p,c,b,s)
 		}
+		// Internal "char" has an executable array companion. A table's
+		// relkind is r, so percentile_disc must produce {r} on both backends.
+		// The preceding carriers retain the no-executable-array boundary.
 		q="SELECT percentile_disc('{.5}'::float8[]) WITHIN GROUP(ORDER BY relkind)::text AS v FROM pg_catalog.pg_class WHERE relname='os_char_boundary'"
 		s=orderedSetValue(q,"TEXT","{r}")
-		if !b.PG {s=orderedSetDiagnostic(q,"42704","could not find array type for data type \"char\"","","")}
 		orderedSetBoth(t,p,c,b,s)
 		// Reach ordering admission through existing storage codecs. A raw
 		// literal CAST is not an admitted route for every range family.

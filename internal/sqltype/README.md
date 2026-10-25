@@ -225,6 +225,16 @@ plan keeps global state. Files are named by family prefix (`numeric*`,
   substitutes without exposing private query payloads or converting through text.
   Its checked `Empty` inquiry reads accumulator state without finalizing,
   rendering or reconstructing a query between SQL rule batches.
+- `FTSVectorPlan` checks same-generation vector, scalar and array companions
+  and exact typmods before strict NULL evaluation. TEXT and TEXT[] selectors
+  retain valid usage collations while matching lexemes byte-exactly. Conversion
+  transfers one owned TEXT element buffer to the generic array constructor.
+  Internal CHAR arrays use the ordinary
+  array codec and shared `ArrayElementAdmitted` scalar-element policy for codecs
+  and storage; this does not broaden scalar stored-annotation admission.
+  Executable-array inventories include OID 1002 with its same-generation CHAR
+  element, including the independent cast admission corpus; lookup-only
+  companions remain separate from executable type identities.
 - `CubeSpatialPlan` reads private entered endpoints without text conversion,
   normalized copies or padded coordinate allocations. Operand/result usages and
   descriptor identity are checked at binding. Ordered comparisons and sequential

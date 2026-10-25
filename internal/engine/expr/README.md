@@ -21,9 +21,9 @@ imports only `ids`, `parser`, `sqlstate`, `sqltype` and the standard library.
   `InfoOf` copies it for a wrapper without `UnknownNull` or `RegclassRef`.
 - **`RoutineReference`/`RoutineRecipeReference`**: opaque identity tokens for
   the selected routine and the stored recipe a grafted node came from; they
-  carry no catalog or permission authority. **`RoutineProvider`** is the bit set
-  of builtin bind families (constants defined in `functions`) that may select a
-  builtin routine declaration.
+  carry no catalog or permission authority. **`RoutineProvider`** is the 64-bit
+  bit set of builtin bind families (append-only constants defined in `functions`)
+  that may select a builtin routine declaration.
 - **Positioned errors**: `ErrorAt` (a zero position leaves it unpositioned) and
   `WithPosition`.
 

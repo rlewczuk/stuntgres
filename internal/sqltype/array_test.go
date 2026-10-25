@@ -18,6 +18,7 @@ func TestArrayBuiltinAuthority(t *testing.T) {
 		name, declaration string
 	}{
 		{1000, Bool, "_bool", "BOOLEAN[]"}, {1001, Bytea, "_bytea", "BYTEA[]"}, {1003, Name, "_name", "NAME[]"},
+		{1002, Char, "_char", `"char"[]`},
 		{1005, Int2, "_int2", "SMALLINT[]"}, {1007, Int4, "_int4", "INTEGER[]"}, {1009, Text, "_text", "TEXT[]"},
 		{1011, Xid, "_xid", "XID[]"},
 		{1014, BPChar, "_bpchar", "BPCHAR[]"}, {1015, VarChar, "_varchar", "VARCHAR[]"}, {1016, Int8, "_int8", "BIGINT[]"},
@@ -36,12 +37,12 @@ func TestArrayBuiltinAuthority(t *testing.T) {
 		}
 	}
 	// Catalog identity is not executable array authority.
-	for _, id := range []ID{Unknown, Char, Void, PgNodeTree, Cid, Xid8} {
+	for _, id := range []ID{Unknown, Void, PgNodeTree, Cid, Xid8} {
 		if _, err := Array(90000, "_boundary", types[id]); err == nil {
 			t.Fatal("unsupported scalar admitted to stored array", id)
 		}
 	}
-	for _, id := range []ID{1002, 1012, 271} {
+	for _, id := range []ID{1012, 271} {
 		if _, err := ArrayValue(types[id], nil, nil); err == nil {
 			t.Fatal("lookup-only array admitted an empty value", id)
 		}
@@ -103,7 +104,28 @@ func TestArrayPayloadOwnershipAndValidation(t *testing.T) {
 			t.Fatal("accepted invalid payload", tc)
 		}
 	}
-	for _, element := range []*Descriptor{nil, types[Unknown], types[Void], types[Char], types[PgNodeTree], types[1007]} {
+	charArray, err := Array(60000, "_char_payload", types[Char])
+	if err != nil || !charArray.Concrete() || charArray.Element() != types[Char] {
+		t.Fatal("internal char array authority", charArray, err)
+	}
+	charDims := []ArrayDimension{{Lower: -1, Length: 2}}
+	charElements := []Value{String(types[Char], "A"), Null(types[Char])}
+	charValue, err := ArrayValue(charArray, charDims, charElements)
+	if err != nil {
+		t.Fatal(err)
+	}
+	charDims[0].Lower = 99
+	charElements[0] = String(types[Char], "B")
+	charOutput, err := charArray.Output(context.Background(), charValue)
+	if err != nil || charOutput != "[-1:0]={A,NULL}" || charValue.ArrayElement(0).Type() != types[Char] || !charValue.ArrayElement(1).IsNull() {
+		t.Fatal("internal char array ownership/shape/NULL", charOutput, err)
+	}
+	for _, element := range []Value{String(testTypes()[Char], "A"), Null(testTypes()[Char]), String(types[Text], "A")} {
+		if _, err := ArrayValue(charArray, []ArrayDimension{{Lower: 1, Length: 1}}, []Value{element}); err == nil {
+			t.Fatal("accepted foreign internal char array element", element)
+		}
+	}
+	for _, element := range []*Descriptor{nil, types[Unknown], types[Void], types[PgNodeTree], types[1007]} {
 		if _, err := Array(60000, "_invalid", element); err == nil {
 			t.Fatal("accepted excluded element", element)
 		}

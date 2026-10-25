@@ -93,7 +93,7 @@ func ResolveTypeName(raw parser.TypeName, name string, object parser.ObjectName,
 			}
 		}
 	}
-	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !in.ThresholdArrayInput || d.ID() == sqltype.Char && !in.StringInput || d.ID() == sqltype.Void {
+	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !in.ThresholdArrayInput || d.ID() == sqltype.Char && len(raw.ArrayBounds) == 0 && !in.StringInput || d.ID() == sqltype.Void {
 		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()

@@ -1,3 +1,9 @@
+Tsvector utilities now support lexeme counts, weight assignment, stripping,
+exact deletion, weight filtering and canonical text-array conversion, including
+typed internal-char arrays with generic storage, bounds, NULLs and native
+Dump/Reset/Restore, collated text-array selectors with byte-exact matching,
+and ordinary prepared/stored expression replay.
+
 The default text-search parser is executable through both text-name and OID
 overloads of ts_parse and ts_token_type, with typed set results, all 23 token
 descriptors, preserved document spelling and ordered URL/hyphen overlaps.

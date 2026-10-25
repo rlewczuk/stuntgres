@@ -28,7 +28,7 @@ func StoredArrayElement(typ *sqltype.Descriptor) bool {
 	if physical.IsComposite() {
 		return physical.Concrete()
 	}
-	return sqltype.StoredScalarCastType(physical.ID()) || physical.ID() == sqltype.Regclass
+	return sqltype.ArrayElementAdmitted(physical.ID())
 }
 
 func CanonicalDeclarationTypeName(name string) string {

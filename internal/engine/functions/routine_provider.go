@@ -42,4 +42,5 @@ const (
 	GeometryMeasureRoutineProvider
 	CastRoutineProvider
 	FTSParserRoutineProvider
+	FTSVectorRoutineProvider
 )

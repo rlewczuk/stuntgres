@@ -35,6 +35,10 @@ these are shared across families:
   and direct/new-prepared scalar routes. Query utilities reuse the FTS scalar
   quoting and native logical-control helpers; diagnostics assert complete
   phase-specific records, and held SQL rules use one pinned session.
+- Vector utilities reuse the query utility scenario/scalar helpers and scalar
+  quoting; their held routes retain typed selector and weight operands across
+  executions. Select this family with
+  `make check RUN='^TestReferenceFTSVectorFunctions'`.
 
 - `box_helpers_test.go`: the geometry raw adapter. `boxScenario` and `boxSelect`
   check BOX/POINT/LSEG raw cells before normalization; LSEG (`lsegScenario`),

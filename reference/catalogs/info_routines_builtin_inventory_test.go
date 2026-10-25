@@ -53,8 +53,8 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 	facts = append(facts, irBuiltinFacts2...)
 	facts = append(facts, irBuiltinFacts3...)
 	facts = append(facts, irBuiltinCastFacts...)
-	if len(facts) != 1684 {
-		t.Fatalf("released represented inventory: got %d, want 1684", len(facts))
+	if len(facts) != 1692 {
+		t.Fatalf("released represented inventory: got %d, want 1692", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {

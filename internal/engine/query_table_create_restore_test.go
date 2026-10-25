@@ -69,7 +69,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		e.mu.Lock()
 		_, castErr := e.resolveAnnotationType(parser.TypeName{Name: "char", Quoted: true}, op, false)
 		_, domainErr := e.resolveAnnotationTypeMode(parser.TypeName{Name: "char", Quoted: true}, op, false, true)
-		_, arrayErr := e.resolveTableColumnType(parser.TypeName{Name: "char", Quoted: true, ArrayBounds: []int32{0}}, op)
+		arrayUsage, arrayErr := e.resolveTableColumnType(parser.TypeName{Name: "char", Quoted: true, ArrayBounds: []int32{0}}, op)
 		_, xidCastErr := e.resolveAnnotationType(parser.TypeName{Name: "xid"}, op, false)
 		_, xidDomainErr := e.resolveAnnotationTypeMode(parser.TypeName{Name: "xid"}, op, false, true)
 		_, xidArrayErr := e.resolveTableColumnType(parser.TypeName{Name: "xid", ArrayBounds: []int32{0}}, op)
@@ -89,11 +89,14 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		if xidCastErr != nil || xidDomainErr != nil {
 			t.Fatal(mode, xidCastErr, xidDomainErr)
 		}
+		if arrayErr != nil || !arrayUsage.Type.IsArray() || arrayUsage.Type.Element() != testUsage(e, sqltype.Char).Type {
+			t.Fatal(mode, "internal char array storage", arrayUsage, arrayErr)
+		}
 		var modifier *sqlstate.Error
 		if !errors.As(xidModifierErr, &modifier) || modifier.Code != "42601" || modifier.Message != `type modifier is not allowed for type "xid"` {
 			t.Fatal(mode, xidModifierErr)
 		}
-		for _, err := range []error{castErr, domainErr, arrayErr, xidArrayErr} {
+		for _, err := range []error{castErr, domainErr, xidArrayErr} {
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
 				t.Fatal(mode, err)

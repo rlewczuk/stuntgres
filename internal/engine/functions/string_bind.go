@@ -130,6 +130,9 @@ func FinishString(b Binder, raw parser.FunctionExpr, visible bool, operands []Ar
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	if visible && name == "length" && len(operands) == 1 && operands[0].Usage.Type != nil {
 		id := operands[0].Usage.Type.BaseType().ID()
+		if id == sqltype.TSVector {
+			return FinishFTSVector(b, raw, operands)
+		}
 		if id == sqltype.Path || id == sqltype.Lseg {
 			return FinishGeometryMeasure(b, raw, operands)
 		}

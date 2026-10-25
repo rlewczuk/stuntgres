@@ -304,6 +304,10 @@ publication and lock-manager tickets stay in the engine.
   SQL-based rewriting is intrinsically volatile and only demands
   `FTSQueryRuntime` after strict-NULL and empty-query bypass. Stored nodes keep
   typed operands and routine identity, never SQL rows or a statement host.
+- **Text-search vector utilities**: `FTSVector` owns checked immutable scalar
+  operations and strict typed operands. The string family's `FinishString`
+  routes an already analyzed typed vector `length` operand to this provider;
+  unknown and other typed length operands retain their existing owners.
 - **Cube spatial** (`cube_spatial.go`, `cube_spatial_bind.go`): `CubeSpatial`
   owns two coerced operands and a checked `sqltype.CubeSpatialPlan`.
   `InstalledCubeRoutine.CubeType` exposes the selected installation's descriptor

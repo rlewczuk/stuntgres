@@ -152,6 +152,7 @@ type Descriptor struct {
 	polygonInt                       *Descriptor
 	pathInt                          *Descriptor
 	ftsBoolean, ftsDistance, ftsText *Descriptor
+	ftsChar, ftsTextArray, ftsCharArray *Descriptor
 	lookupOnly                       bool
 	catalogNullOwner                 *Descriptor // Self only on the canonical nullable ANYARRAY builtin.
 	namespace                        string
@@ -403,7 +404,21 @@ func Builtins() []*Descriptor {
 			types = append(types, m)
 		}
 	}
-	return completeBuiltinIdentities(types)
+	types = completeBuiltinIdentities(types)
+	var vector *Descriptor
+	for _, d := range types {
+		if d.id == TSVector { vector = d; break }
+	}
+	for _, d := range types {
+		switch d.id {
+		case Int4: vector.ftsDistance = d
+		case Char: vector.ftsChar = d
+		case Text: vector.ftsText = d
+		case 1009: vector.ftsTextArray = d
+		case 1002: vector.ftsCharArray = d
+		}
+	}
+	return types
 }
 
 // Zero Value is invalid, not NULL. Scalars stay inline; only structural tree

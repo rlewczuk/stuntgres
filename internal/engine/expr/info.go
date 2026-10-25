@@ -25,7 +25,7 @@ type RoutineRecipeReference interface {
 // association describes an implemented declaration, not an execution
 // capability. The functions package defines the family constants; the type is
 // here so that catalog routine declarations and functions share it.
-type RoutineProvider uint32
+type RoutineProvider uint64
 
 // Info is the metadata every bound expression carries. Nodes embed it to
 // implement the metadata half of Expr. Callers supply generation-owned usages
