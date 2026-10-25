@@ -32,8 +32,12 @@ func TestRegtypeInventoryCapability(t *testing.T) {
 			t.Fatal("lookup identity became executable", id, d)
 		}
 	}
-	if types[22].IsArray() || types[30].IsArray() || types[19].IsArray() {
-		t.Fatal("typelem mistaken for array subscript authority")
+	if types[19].IsArray() { t.Fatal("NAME typelem mistaken for array subscript authority") }
+	for _,pair:=range [][2]ID{{Int2Vector,Int2},{OidVector,Oid}} {
+		vector:=types[pair[0]]
+		if !vector.IsArray() || !vector.IsCatalogVector() || !vector.Concrete() || vector.Element()!=types[pair[1]] {
+			t.Fatal("catalog vector lost true-array identity",pair,vector)
+		}
 	}
 	if types[603].Delimiter() != ';' || types[1020].Delimiter() != ';' {
 		t.Fatal("BOX array delimiter")

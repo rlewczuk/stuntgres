@@ -119,7 +119,7 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			return fmt.Errorf("stuntgres: invalid array element generation")
 		}
 		owner, exists := view.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-		if !exists || owner.(*catalog.Type).Array != t.SQLType.ID() || owner.Namespace() != t.Namespace() || owner.(*catalog.Type).Owner != t.Owner {
+		if !exists || !t.SQLType.IsCatalogVector() && owner.(*catalog.Type).Array != t.SQLType.ID() || owner.Namespace() != t.Namespace() || owner.(*catalog.Type).Owner != t.Owner {
 			return fmt.Errorf("stuntgres: invalid associated array identity")
 		}
 	}

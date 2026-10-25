@@ -172,6 +172,7 @@ var Specs = [...]Spec{
 		{"proretset", sqltype.Bool, false, 0, 0, -1},
 		{"prorows", sqltype.Float4, false, 0, 0, -1},
 		{"prosrc", sqltype.Text, false, 0, 0, -1},
+		{"proargtypes", sqltype.OidVector, false, 0, 1, -1},
 	}, false, CatalogHasIndexes(1255), false, false, "stuntgres: missing catalog source type"},
 	{3764, ids.PGCatalogNamespaceOID, "pg_ts_template", []ColumnSpec{
 		{"oid", sqltype.Oid, false, 0, 0, -1},
@@ -571,6 +572,10 @@ var Specs = [...]Spec{
 		{"indisready", sqltype.Bool, false, 0, 0, -1},
 		{"indislive", sqltype.Bool, false, 0, 0, -1},
 		{"indnullsnotdistinct", sqltype.Bool, false, 0, 0, -1},
+		{"indkey", sqltype.Int2Vector, false, 0, 1, -1},
+		{"indcollation", sqltype.OidVector, false, 0, 1, -1},
+		{"indclass", sqltype.OidVector, false, 0, 1, -1},
+		{"indoption", sqltype.Int2Vector, false, 0, 1, -1},
 	}, false, CatalogHasIndexes(2610), false, false, "stuntgres: missing catalog source type"},
 	{2618, ids.PGCatalogNamespaceOID, "pg_rewrite", []ColumnSpec{
 		{"oid", sqltype.Oid, true, 0, 0, -1},

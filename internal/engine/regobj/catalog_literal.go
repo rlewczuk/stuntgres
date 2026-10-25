@@ -26,7 +26,7 @@ func declarationUsageValid(u sqltype.Usage) bool {
 }
 
 func TypeDeclarationAt(view catalog.Read, reader catalog.DefinitionReader, u sqltype.Usage) (string, error) {
-	if u.Type.IsArray() {
+	if u.Type.IsArray() && !u.Type.IsCatalogVector() {
 		array, ok := catalog.DefinitionArrayAt(view, reader, u.Type.Element())
 		if !ok || array != u.Type || !declarationUsageValid(u) {
 			return "", fmt.Errorf("stuntgres: invalid array declaration authority")
@@ -57,7 +57,7 @@ func TypeDeclarationAt(view catalog.Read, reader catalog.DefinitionReader, u sql
 // A copied rank-zero array uses its catalog name, without adding bracket syntax.
 func ColumnDeclaration(view catalog.Read, column catalog.Column) (string, error) {
 	declaration, err := TypeDeclaration(view, column.Usage)
-	if err != nil || !column.Usage.Type.IsArray() {
+	if err != nil || !column.Usage.Type.IsArray() || column.Usage.Type.IsCatalogVector() {
 		return declaration, err
 	}
 	if column.DeclaredDimensions > 0 {

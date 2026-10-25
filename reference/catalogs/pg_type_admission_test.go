@@ -70,6 +70,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 		// REFCURSOR is now a concrete scalar. Its canonical companion is
 		// advertised catalog metadata, not executable array admission.
 		expected[1790], expected[2201] = true, true
+		expected[22], expected[30], expected[1006], expected[1013] = true, true, true, true
 		// Independently discover actual represented relation addresses from pg_class,
 		// and their companion identities from REGTYPE, never pg_type rows/facts.
 		rows, err := b.DB.QueryContext(p.Ctx, "SELECT c.reltype,n.nspname,c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE c.reltype<>0 ORDER BY c.oid")
@@ -115,7 +116,7 @@ func TestReferencePGTypeAdmission(t *testing.T) {
 			want = append(want, []any{id})
 		}
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type ORDER BY oid", []string{"oid"}, []string{"OID"}, want))
-		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (22,30,142,143,1006,1013,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
+		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT oid FROM pg_type WHERE oid IN (142,143,4533,4534,4535,6152,6153,6155) ORDER BY oid", []string{"oid"}, []string{"OID"}, nil))
 		// Lookup identity is deliberately broader than SQL catalog/codec admission.
 		for _, id := range []int64{142, 4533} {
 			literal := fmt.Sprint(id)

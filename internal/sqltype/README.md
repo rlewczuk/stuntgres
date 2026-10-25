@@ -69,6 +69,18 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   bounds, not SQL subscripting's rank-preserving/rebased slice. Callers admit
   rank and aligned offsets once and precompute block size. Full-rank delivery
   shares the original value; proper subslices own independent buffers.
+- `int2vector` and `oidvector` own space-separated text codecs and share immutable
+  array payloads with same-generation INT2/OID elements. Their constructors reject
+  NULL members and preserve rank one, lower bound zero even when empty. NULL is
+  separate from that empty header. Vector generation changes reown typed elements,
+  never reparse text. INT2VECTOR compares signed elements lexicographically;
+  OIDVECTOR compares length first, then unsigned elements. Ordinary subscripting
+  lowers containers to canonical element arrays; generic array casts into vectors
+  remain prohibited. Ordering providers do not grant physical index capability.
+  A SQL cast that evaluates an element conversion normalizes an empty vector to
+  an ordinary rank-zero empty array (NULL dimensional inquiries, cardinality
+  zero). Same-element/binary relabeling and immutable generation reownership
+  preserve the rank-one empty header; `MapArray` itself does not normalize it.
 - `pg_snapshot` owns an immutable full-XID bounds/member payload. Text input
   validates nondecreasing membership and canonicalizes duplicates; constructors
   copy caller-owned members and indexed access never exposes mutable backing.
@@ -447,3 +459,4 @@ match engine tests of the same mechanism):
 - Refcursor scalar codecs and admission: `RUN='^TestPLpgSQLCursorCodec$'`
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`
 - Trailing array slices and payload ownership: `RUN='^TestArrayForeachSlice$'`
+- Catalog vector codecs, shapes, generation ownership and ordering: `RUN='^TestCatalogVector'`

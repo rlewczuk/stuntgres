@@ -45,17 +45,17 @@ func pgTypeUnitBag(t *testing.T, source *exec.Source, d *catalog.Relation) map[u
 		}
 		bag[id] = row
 	}
-	for _, id := range []uint32{16, 20, 23, 25, 19, 1003, 71, 210, 13254, 13253, 3614, 3615, 3643, 3645, 600, 603, 1017, 1020, 1790, 2201} {
+	for _, id := range []uint32{16, 20, 22, 23, 25, 30, 1006, 1013, 19, 1003, 71, 210, 13254, 13253, 3614, 3615, 3643, 3645, 600, 603, 1017, 1020, 1790, 2201} {
 		if bag[id] == nil {
 			t.Fatal("missing genuine type", id)
 		}
 	}
-	for _, id := range []uint32{142, 143, 4533, 4534, 4535, 6152, 6153, 6155, 22, 30} {
+	for _, id := range []uint32{142, 143, 4533, 4534, 4535, 6152, 6153, 6155} {
 		if bag[id] != nil {
 			t.Fatal("unsupported advertised type", id)
 		}
 	}
-	for _, pair := range [][2]uint32{{3614, 3643}, {3615, 3645}, {600, 1017}, {603, 1020}, {1790, 2201}} {
+	for _, pair := range [][2]uint32{{22,1006}, {30,1013}, {3614, 3643}, {3615, 3645}, {600, 1017}, {603, 1020}, {1790, 2201}} {
 		array, err := bag[pair[0]][14].OID()
 		if err != nil || array != pair[1] {
 			t.Fatal("scalar companion identity", pair, array, err)

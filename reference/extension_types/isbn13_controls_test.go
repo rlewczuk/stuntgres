@@ -2,177 +2,21 @@ package reference_test
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
-	"errors"
-	"io"
-	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"stuntgres"
 	"stuntgres/reference/fixture"
 )
 
 func TestReferenceIsbn13Controls(t *testing.T) {
-	var emitted []byte
-	var sourceIdentities map[string][4]int64
-	types := [...]string{"ean13", "isbn", "isbn13", "ismn", "ismn13", "issn", "issn13"}
-	prefix := "CREATE EXTENSION isn; CREATE TABLE isbn13_staged(e ean13,v isbn13); INSERT INTO isbn13_staged VALUES('9780123456786','123456789X'); INSERT INTO isbn13_staged VALUES('9780123456786',"
-	bad := prefix + "'1234567890');"
-	want := ean13Diagnostic("22P02", isbnFailures[0].message)
-	want.Position = fixture.Position(utf8.RuneCountInString(prefix) + 1)
-	ean13Scenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
-		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
-		if b.PG {
-			s := fixture.ErrorDiagnostic(bad, want)
-			s.ErrorStage = "execute"
-			run(s)
-		} else {
-			fixture.AssertDiagnostic(t, stuntgres.Restore(p.Ctx, p.Native, strings.NewReader(bad)), &want)
-		}
-		run(fixture.Select("SELECT relname FROM pg_class WHERE relname='isbn13_staged'", []string{"relname"}, []string{"NAME"}, [][]any{}))
-		run(fixture.Select("SELECT extname FROM pg_extension WHERE extname='isn'", []string{"extname"}, []string{"NAME"}, [][]any{}))
-		isbn13ControlSetup(t, p, b, c)
-		isbn13ControlVerify(t, p, b, c)
-		run(fixture.Exec("DROP TABLE isbn13_control,isbn13_required", 0))
-		run(fixture.Exec("DROP EXTENSION isn", 0))
-		isbn13ControlSetup(t, p, b, c)
-		isbn13ControlVerify(t, p, b, c)
-		if b.PG {
-			return
-		}
-		run(fixture.Exec("BEGIN", 0))
-		run(fixture.Exec("INSERT INTO isbn13_control VALUES(99,'1400000000007','9791000000008')", 1))
-		var dump bytes.Buffer
-		err := stuntgres.Dump(p.Ctx, p.Native, &dump)
-		_, rollbackErr := c.ExecContext(p.Ctx, "ROLLBACK")
-		if err != nil || rollbackErr != nil {
-			t.Fatalf("Dump = %v; rollback = %v", err, rollbackErr)
-		}
-		if strings.Contains(dump.String(), "140000000000") {
-			t.Fatal("Dump leaked private values")
-		}
-		ext, consumer := strings.Index(dump.String(), "CREATE EXTENSION"), strings.Index(dump.String(), "CREATE TABLE")
-		if ext < 0 || consumer < ext || strings.Contains(dump.String(), "CREATE TYPE") || strings.Contains(dump.String(), "CREATE FUNCTION") {
-			t.Fatal("Dump must install isn before consumers without standalone members", dump.String())
-		}
-		old, metadata := isbnRetain(t, p, c, isbn13ControlQuery)
-		defer old.Close()
-		if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
-			t.Fatal(err)
-		}
-		run(fixture.Select("SELECT extname FROM pg_extension WHERE extname='isn'", []string{"extname"}, []string{"NAME"}, [][]any{}))
-		run(fixture.Select("SELECT typname FROM pg_type WHERE typnamespace='public'::regnamespace AND typname IN ('ean13','_ean13','isbn','_isbn','isbn13','_isbn13','ismn','_ismn','ismn13','_ismn13','issn','_issn')", []string{"typname"}, []string{"NAME"}, [][]any{}))
-		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
-			t.Fatal(err)
-		}
-		isbn13ControlVerify(t, p, b, c)
-		isbnConsumeRetained(t, old, metadata, isbn13ControlRows, "INT4", "EAN13", "ISBN13")
-		sourceIdentities = make(map[string][4]int64)
-		for _, typ := range types {
-			sourceIdentities[typ] = isbnIdentityStamp(t, p, c, typ)
-		}
-		var redump bytes.Buffer
-		if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
-			t.Fatal(err)
-		}
-		if !bytes.Equal(dump.Bytes(), redump.Bytes()) {
-			t.Fatal("same-target Restore changed deterministic dump")
-		}
-		if p.Postgres != nil {
-			isbnReplay(t, p, dump.String(), nil, func(pg *sql.Conn, pb fixture.Backend) {
-				isbn13ControlVerify(t, p, pb, pg)
-			})
-		}
-		emitted = dump.Bytes()
+	runISNControlPhases(t, isnControlPhases{
+		name: "isbn13", valid: "123456789X", invalid: "1234567890",
+		message: isbnFailures[0].message, private: "9791000000008",
+		query: isbn13ControlQuery, rows: isbn13ControlRows,
+		setup: isbn13ControlSetup, verify: isbn13ControlVerify,
+		failures: []string{"invalid_literal", "missing_member", "duplicate_slot", "wrong_type_role", "wrong_output_signature", "wrong_version", "isbn13_missing_member", "isbn13_duplicate_slot", "isbn13_wrong_type_role", "isbn13_wrong_output_signature", "canceled", "reader"},
 	})
-	if len(emitted) == 0 {
-		t.Fatal("native control dump was not produced")
-	}
-	// Each independent failed replacement owns a fresh fixture and deadline.
-	// Finish both source backends before these cases; none borrows their context.
-	for _, kind := range []string{"invalid_literal", "missing_member", "duplicate_slot", "wrong_type_role", "wrong_output_signature", "wrong_version", "isbn13_missing_member", "isbn13_duplicate_slot", "isbn13_wrong_type_role", "isbn13_wrong_output_signature", "canceled", "reader"} {
-		t.Run(kind, func(t *testing.T) {
-			target := fixture.NewFixture(t, false, true)
-			conn, err := target.Memory.Conn(target.Ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer conn.Close()
-			tb := fixture.Backend{Recorder: target.MemoryRecord, DB: target.Memory}
-			fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE TABLE isbn_allocation_spacer(v integer)", 0))
-			fixture.RunStep(t, target.Ctx, conn, tb.Recorder, fixture.Exec("CREATE EXTENSION isn", 0))
-			// Displace all seven scalar, companion and codec identities before
-			// restoring the actual source bytes into this case's baseline.
-			for _, typ := range types {
-				source := sourceIdentities[typ]
-				dest := isbnIdentityStamp(t, target, conn, typ)
-				for i := range source {
-					if source[i] == dest[i] {
-						t.Fatalf("destination %s role %d was not displaced", typ, i)
-					}
-				}
-			}
-			if err := stuntgres.Restore(target.Ctx, target.Native, bytes.NewReader(emitted)); err != nil {
-				t.Fatal(err)
-			}
-			isbn13ControlVerify(t, target, tb, conn)
-			retainedIdentities := make(map[string][4]int64)
-			for _, typ := range types {
-				retainedIdentities[typ] = isbnIdentityStamp(t, target, conn, typ)
-			}
-			// Failed replacement preserves values, descriptors and installed
-			// identities, including the eager Rows held across the operation.
-			retained, columns := isbnRetain(t, target, conn, isbn13ControlQuery)
-			defer retained.Close()
-			ctx := target.Ctx
-			var reader io.Reader = strings.NewReader(bad)
-			switch kind {
-			case "missing_member", "duplicate_slot", "wrong_type_role", "wrong_output_signature", "wrong_version", "isbn13_missing_member", "isbn13_duplicate_slot", "isbn13_wrong_type_role", "isbn13_wrong_output_signature":
-				reader = strings.NewReader(isbnInvalidOwnerDump(t, string(emitted), kind))
-			case "canceled":
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithCancel(ctx)
-				cancel()
-				reader = bytes.NewReader(emitted)
-			case "reader":
-				reader = io.MultiReader(bytes.NewReader(emitted), fixture.TypeLifecycleErrorReader{io.ErrUnexpectedEOF})
-			}
-			err = stuntgres.Restore(ctx, target.Native, reader)
-			switch kind {
-			case "invalid_literal":
-				fixture.AssertDiagnostic(t, err, &want)
-			case "canceled":
-				if !errors.Is(err, context.Canceled) {
-					t.Fatalf("canceled Restore = %v", err)
-				}
-			case "reader":
-				if !errors.Is(err, io.ErrUnexpectedEOF) {
-					t.Fatalf("reader Restore = %v", err)
-				}
-			default:
-				var state interface{ SQLState() string }
-				if err == nil || !strings.Contains(err.Error(), "invalid extension owner metadata") || errors.As(err, &state) {
-					t.Fatalf("invalid owner Restore must return ordinary control error: %v", err)
-				}
-			}
-			isbn13ControlVerify(t, target, tb, conn)
-			for typ, identity := range retainedIdentities {
-				if got := isbnIdentityStamp(t, target, conn, typ); got != identity {
-					t.Fatalf("failed Restore replaced %s identity: %v, want %v", typ, got, identity)
-				}
-			}
-			isbnConsumeRetained(t, retained, columns, isbn13ControlRows, "INT4", "EAN13", "ISBN13")
-			var after bytes.Buffer
-			if err := stuntgres.Dump(target.Ctx, target.Native, &after); err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(emitted, after.Bytes()) {
-				t.Fatal("failed Restore changed deterministic dump")
-			}
-		})
-	}
 }
 
 func TestReferenceIsbn13FeatureSmoke(t *testing.T) {

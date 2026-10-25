@@ -201,6 +201,7 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | `xid`, `cid`, `xid8` | `[]byte` (decimal text) |
 | `json` | `string` (exact input text) |
 | `jsonb`, `uuid`, network, geometric, bit strings, text search | canonical `string` |
+| `int2vector`, `oidvector` | canonical space-separated `string` |
 | arrays, composites, ranges, multiranges, enums | canonical `string` |
 | installed `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` | canonical `string`, including retained invalid marker |
 | `reg*` types | symbolic `string` |
@@ -208,6 +209,11 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
 empty `[]byte` is an empty value. `bytea` string and `[]byte` arguments are raw
 octets. Time zone and Unicode data are embedded; no host locale is consulted.
+
+Vector columns report `INT2VECTOR`/`OIDVECTOR` and string scan types. Text or
+non-nil byte arguments may carry empty vectors, distinct from SQL NULL; typed-nil
+byte arguments are NULL. Their canonical values and declared types survive native
+Dump/Reset/Restore through the ordinary type-owned codecs.
 
 After `CREATE EXTENSION isn`, EAN13, ISBN, ISBN13, ISMN, ISMN13, ISSN, ISSN13 and UPC columns
 accept textual literals and bound strings or bytes, including NULL. Results

@@ -117,6 +117,9 @@ func (p Comparison) compareArrays(ctx context.Context, a, b Value, input InputEn
 	if a.array == nil || b.array == nil {
 		return 0, fmt.Errorf("missing array payload")
 	}
+	if p.left.BaseType().id==OidVector {
+		if sign:=cmp.Compare(a.ArrayLen(),b.ArrayLen());sign!=0 {return sign,nil}
+	}
 	if err := p.element.demandOrdering(input); err != nil {
 		return 0, err
 	}

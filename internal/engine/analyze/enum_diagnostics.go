@@ -12,7 +12,7 @@ func (b *Binder) DiagnosticTypeName(typ *sqltype.Descriptor) string {
 	if typ == nil {
 		return "unknown"
 	}
-	if typ.IsArray() {
+	if typ.IsArray() && !typ.IsCatalogVector() {
 		return b.DiagnosticTypeName(typ.Element()) + "[]"
 	}
 	if !typ.IsUserDefined() {

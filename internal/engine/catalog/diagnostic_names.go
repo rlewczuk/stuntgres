@@ -58,7 +58,7 @@ func DependencyIdentifier(name string) string {
 // TypeDiagnosticNameAt names a type for error messages: bare when path finds
 // it first (or path is nil), schema-qualified otherwise; arrays get "[]".
 func TypeDiagnosticNameAt(view Read, reader DefinitionReader, d *Type, path []ids.ObjectAddress) string {
-	if d.SQLType.IsArray() {
+	if d.SQLType.IsArray() && !d.SQLType.IsCatalogVector() {
 		element, ok := DescriptorAt(view, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if ok {
 			return TypeDiagnosticNameAt(view, reader, element.(*Type), path) + "[]"

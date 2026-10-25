@@ -21,6 +21,10 @@ func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 	if d == nil || d.SQLType == nil {
 		return false
 	}
+	if d.SQLType.IsCatalogVector() {
+		element,ok:=catalog.Type(ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(d.SQLType.Element().ID())})
+		return d.SQLType.IsBuiltin() && ok && element.SQLType==d.SQLType.Element() && pgTypeAdmitted(catalog,element)
+	}
 	if d.SQLType.IsArray() {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		return ok && element.SQLType == d.SQLType.Element() && element.Array == d.SQLType.ID() && pgTypeAdmitted(catalog, element)
@@ -41,6 +45,11 @@ func pgTypeAdmitted(catalog catalog.Read, d *catalog.Type) bool {
 }
 
 func TypeFacts(ctx context.Context, catalog catalog.Read, d *catalog.Type, output sqltype.OutputEnvironment) (sqltype.PGTypeMetadata, error) {
+	if d.SQLType.IsCatalogVector() {
+		if !pgTypeAdmitted(catalog,d) { return sqltype.PGTypeMetadata{},fmt.Errorf("stuntgres: foreign catalog vector authority") }
+		f,_:=d.SQLType.PGTypeMetadata()
+		return f,nil
+	}
 	if d.SQLType.IsArray() {
 		element, ok := catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())})
 		if !ok || element.SQLType != d.SQLType.Element() || element.Array != d.SQLType.ID() {

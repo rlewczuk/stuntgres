@@ -1,6 +1,7 @@
 package pgcatalog
 
 import (
+	"fmt"
 	"sort"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
@@ -9,6 +10,9 @@ import (
 func capturePGIndex(in Input) ([][]sqltype.Value, error) {
 	ctx, view := in.Context, in.Catalog
 	source := in.Source
+	expected:=[12]sqltype.ID{sqltype.Oid,sqltype.Oid,sqltype.Bool,sqltype.Bool,sqltype.Bool,sqltype.Bool,sqltype.Bool,sqltype.Bool,sqltype.Int2Vector,sqltype.OidVector,sqltype.OidVector,sqltype.Int2Vector}
+	if len(source.Columns)!=len(expected){return nil,fmt.Errorf("stuntgres: invalid index source shape")}
+	for i,id:=range expected {owned,ok:=view.LookupType(id);if !ok||owned!=source.Columns[i].Usage.Type{return nil,fmt.Errorf("stuntgres: foreign index source type")}}
 	var relations []*catalog.Relation
 	for _, descriptor := range view.Descriptors() {
 		if relation, ok := descriptor.(*catalog.Relation); ok {
@@ -33,7 +37,9 @@ func capturePGIndex(in Input) ([][]sqltype.Value, error) {
 			return nil, err
 		}
 		if definition := relation.SQLIndex; definition != nil {
-			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.Address().ObjectID)), oid(1, uint32(definition.Parent.ObjectID)), boolean(2, definition.Unique), boolean(3, definition.Constraint != nil && definition.Constraint.Primary), boolean(4, definition.Valid), boolean(5, definition.Ready), boolean(6, definition.Live), boolean(7, definition.NullsNotDistinct)})
+			vectors,err:=in.Runtime.IndexVectors(ctx,view,relation,[4]*sqltype.Descriptor{source.Columns[8].Usage.Type,source.Columns[9].Usage.Type,source.Columns[10].Usage.Type,source.Columns[11].Usage.Type})
+			if err!=nil{return nil,err}
+			rows = append(rows, []sqltype.Value{oid(0, uint32(relation.Address().ObjectID)), oid(1, uint32(definition.Parent.ObjectID)), boolean(2, definition.Unique), boolean(3, definition.Constraint != nil && definition.Constraint.Primary), boolean(4, definition.Valid), boolean(5, definition.Ready), boolean(6, definition.Live), boolean(7, definition.NullsNotDistinct),vectors[0],vectors[1],vectors[2],vectors[3]})
 		}
 		if captureErr != nil {
 			return nil, captureErr

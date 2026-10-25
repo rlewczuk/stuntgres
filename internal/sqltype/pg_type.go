@@ -59,6 +59,11 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	if d == nil {
 		return PGTypeMetadata{}, false
 	}
+	if d.IsCatalogVector() && d.IsBuiltin() {
+		f:=PGTypeMetadata{PostgreSQLAttributeFacts:d.AttributeFacts(),Kind:"b",Category:"A",Element:d.element.id,Subscript:6179,Modifier:-1}
+		if d.id==Int2Vector {f.Input,f.Output,f.Receive,f.Send=40,41,2410,2411} else {f.Input,f.Output,f.Receive,f.Send=54,55,2420,2421}
+		return f,true
+	}
 	if d.IsArray() {
 		if d.element.ID() == Refcursor {
 			return PGTypeMetadata{}, false

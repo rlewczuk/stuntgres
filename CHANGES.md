@@ -21,6 +21,12 @@ Stored windows retain their actual owned aggregate identity, and repeated domain
 support signatures expose one declaration dependency edge per referenced object,
 without collapsing independently captured body/default dependency rows.
 
+INT2VECTOR and OIDVECTOR columns now share type-owned space-separated input,
+canonical output, binding, zero-based array bounds and ordering, including empty
+vectors distinct from NULL. Native logical Dump/Restore preserves these values.
+Catalog routine signatures and index key/class/collation/option vectors use the
+same typed representation.
+
 The `stuntgres` server's command line now uses cobra and viper. Every option
 can also be set with a `STUNTGRES_<OPTION>` environment variable or a
 `--config` YAML/TOML/JSON file (flag, then environment, then file, then default),

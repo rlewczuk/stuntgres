@@ -23,7 +23,7 @@ func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
-	if typ.IsArray() {
+	if typ.IsArray() && !typ.IsCatalogVector() {
 		return regtypeSpellingMode(view, path, ids.OID(typ.Element().ID()), qualified) + "[]"
 	}
 	switch typ.ID() {

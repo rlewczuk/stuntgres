@@ -14,7 +14,7 @@ import (
 func (b *Binder) BindArray(raw parser.ArrayExpr, target sqltype.Usage) (expr.Expr, error) {
 	operands := make([]ComparisonOperand, len(raw.Elements))
 	var selected sqltype.Usage
-	explicit := target.Type != nil && target.Type.BaseType().IsArray()
+	explicit := target.Type != nil && target.Type.BaseType().IsArray() && !target.Type.BaseType().IsCatalogVector()
 	if explicit {
 		target = target.BaseUsage()
 		selected = target.Type.Element().Usage()
@@ -188,6 +188,13 @@ func (b *Binder) BindSubscript(raw parser.SubscriptExpr) (expr.Expr, error) {
 		return nil, err
 	}
 	usage := base.ResultUsage().BaseUsage()
+	if usage.Type.IsCatalogVector() {
+		lowered:=b.Type(usage.Type.Element().AssociatedArray()).Usage()
+		conversion,err:=sqltype.PlanCoercion(usage,lowered,sqltype.Implicit)
+		if err!=nil{return nil,err}
+		base=plan.CoercionExpr{Info:b.Info(lowered,base.SourcePosition(),CoercionProperties(base,conversion)),Child:base,Plan:conversion,Mode:sqltype.Implicit}
+		usage=lowered
+	}
 	if !usage.Type.IsArray() && usage.Type.ID() != sqltype.Box && usage.Type.ID() != sqltype.Lseg && usage.Type.ID() != sqltype.Point {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", usage.Type.DiagnosticName()), parser.ExpressionStart(raw.Base))
 	}

@@ -418,7 +418,7 @@ var builtinIdentities = [...]builtinIdentity{
 	{325, "index_am_handler", "pg_catalog", 0, 0, 0, -1},
 	{869, "inet", "pg_catalog", 1041, 0, 0, -1},
 	{21, "int2", "pg_catalog", 1005, 0, 0, -1},
-	{22, "int2vector", "pg_catalog", 1006, 0, 0, -1},
+	{22, "int2vector", "pg_catalog", 1006, 21, 0, -1},
 	{23, "int4", "pg_catalog", 1007, 0, 0, -1},
 	{4451, "int4multirange", "pg_catalog", 6150, 0, 0, -1},
 	{3904, "int4range", "pg_catalog", 3905, 0, 0, -1},
@@ -441,7 +441,7 @@ var builtinIdentities = [...]builtinIdentity{
 	{4532, "nummultirange", "pg_catalog", 6151, 0, 0, -1},
 	{3906, "numrange", "pg_catalog", 3907, 0, 0, -1},
 	{26, "oid", "pg_catalog", 1028, 0, 0, -1},
-	{30, "oidvector", "pg_catalog", 1013, 0, 0, -1},
+	{30, "oidvector", "pg_catalog", 1013, 26, 0, -1},
 	{602, "path", "pg_catalog", 1019, 0, 0, -1},
 	{10027, "pg_aggregate", "pg_catalog", 10026, 0, 0, -1},
 	{12357, "pg_aios", "pg_catalog", 12356, 0, 0, -1},
@@ -684,6 +684,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 		}
 		if fact.element != 0 {
 			d.element = byID[fact.element]
+			if d.IsCatalogVector() { continue }
 			d.delimiter = d.element.Delimiter()
 			d.sql = d.element.SQLName() + "[]"
 			d.lookupOnly = d.element.ID() == Tid || d.element.ID() == Macaddr || d.element.ID() == Macaddr8 || IsOperatorAlias(d.element.ID()) || IsRegTS(d.element.ID()) || d.element.ID() == Money || IsNetwork(d.element.ID()) || IsTransactionIdentifier(d.element.BaseType().ID()) && d.element.ID() != Xid || !d.element.Concrete() || d.element.IsDomain() && d.element.IsBuiltin() || !d.element.IsDomain() && !ArrayElementAdmitted(d.element.ID())
@@ -693,6 +694,7 @@ func completeBuiltinIdentities(supported []*Descriptor) []*Descriptor {
 			if d.element.ID() == Refcursor || IsFTS(d.element.ID()) || d.element.ID() == Box || d.element.ID() == Point || d.element.ID() == Lseg || d.element.ID() == Circle || d.element.ID() == Line || d.element.ID() == Path || d.element.ID() == Polygon {
 				d.lookupOnly = true
 			}
+			if d.element.IsCatalogVector() { d.lookupOnly = true }
 		}
 	}
 	return result

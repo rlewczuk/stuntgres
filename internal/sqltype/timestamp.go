@@ -226,7 +226,7 @@ func (u Usage) Declaration() (string, error) {
 	if !u.Valid() {
 		return "", fmt.Errorf("invalid declaration usage")
 	}
-	if u.Type.IsArray() {
+	if u.Type.IsArray() && !u.Type.IsCatalogVector() {
 		u.Type = u.Type.element
 		declaration, err := u.Declaration()
 		return declaration + "[]", err

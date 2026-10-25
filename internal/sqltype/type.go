@@ -23,6 +23,7 @@ const (
 	Name             ID = 19
 	Int8             ID = 20
 	Int2             ID = 21
+	Int2Vector       ID = 22
 	Int4             ID = 23
 	Regproc          ID = 24
 	Text             ID = 25
@@ -30,6 +31,7 @@ const (
 	Tid              ID = 27
 	Xid              ID = 28
 	Cid              ID = 29
+	OidVector        ID = 30
 	Xid8             ID = 5069
 	PgSnapshot       ID = 5038
 	JSON             ID = 114
@@ -225,6 +227,7 @@ func (d *Descriptor) DiagnosticName() string {
 	if d.IsUserDefined() {
 		return d.sql
 	}
+	if d.IsCatalogVector() { return d.name }
 	if d.IsArray() {
 		return d.element.DiagnosticName() + "[]"
 	}
@@ -280,10 +283,12 @@ func Builtins() []*Descriptor {
 		{id: Name, name: "name", sql: "NAME", database: "NAME", associatedArray: NameArray},
 		{id: Int8, name: "int8", sql: "BIGINT", database: "INT8", associatedArray: 1016},
 		{id: Int2, name: "int2", sql: "SMALLINT", database: "INT2", associatedArray: 1005},
+		{id: Int2Vector, name: "int2vector", sql: "INT2VECTOR", database: "INT2VECTOR", associatedArray: 1006},
 		{id: Int4, name: "int4", sql: "INTEGER", database: "INT4", associatedArray: 1007},
 		{id: Text, name: "text", sql: "TEXT", database: "TEXT", associatedArray: 1009},
 		{id: Refcursor, name: "refcursor", sql: "REFCURSOR", database: "REFCURSOR", associatedArray: 2201},
 		{id: Oid, name: "oid", sql: "OID", database: "OID", associatedArray: 1028},
+		{id: OidVector, name: "oidvector", sql: "OIDVECTOR", database: "OIDVECTOR", associatedArray: 1013},
 		{id: Tid, name: "tid", sql: "TID", database: "TID"},
 		{id: Macaddr, name: "macaddr", sql: "MACADDR", database: "MACADDR", associatedArray: 1040},
 		{id: Macaddr8, name: "macaddr8", sql: "MACADDR8", database: "MACADDR8", associatedArray: 775},
@@ -351,6 +356,13 @@ func Builtins() []*Descriptor {
 			networkBoolean = d
 		case Float8:
 			circleFloat = d
+		}
+	}
+	for _, d := range types {
+		if d.id == Int2Vector || d.id == OidVector {
+			element := Int2
+			if d.id == OidVector { element = Oid }
+			for _, candidate := range types { if candidate.id == element { d.element = candidate; break } }
 		}
 	}
 	for _, d := range types {
@@ -574,6 +586,7 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	if !v.null && v.typ.BaseType().IsComposite() && !v.validCompositePayload() {
 		return Value{}, fmt.Errorf("invalid composite payload")
 	}
+	if !v.null && d.BaseType().IsCatalogVector() && !v.validCatalogVectorPayload() { return Value{},fmt.Errorf("invalid catalog vector payload") }
 	if v.typ == d {
 		if !v.null && d.BaseType().IsArray() && v.array == nil {
 			return Value{}, fmt.Errorf("missing array payload")
@@ -769,6 +782,10 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 			return Value{}, err
 		}
 		return plan.Apply(ctx, value, env, OutputEnvironment{})
+	}
+	if d.IsCatalogVector() {
+		if err := ValidateTextInput(text); err != nil { return Value{}, err }
+		return d.catalogVectorInput(ctx, text)
 	}
 	if d.IsArray() {
 		if err := ValidateTextInput(text); err != nil {
@@ -1110,6 +1127,7 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 		v.typ = d.BaseType()
 		return v.typ.OutputWithEnvironment(ctx, v, env)
 	}
+	if d.IsCatalogVector() { return d.catalogVectorOutput(ctx,v) }
 	if d.IsArray() {
 		return d.arrayOutput(ctx, v, env)
 	}
@@ -1348,6 +1366,11 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	}
+	if d.IsCatalogVector() {
+		text,err:=d.catalogVectorOutput(ctx,v)
+		if err!=nil{return "",err}
+		return "'"+text+"'",nil
 	}
 	if d.IsArray() || d.IsEnum() {
 		var text string
@@ -1894,7 +1917,7 @@ func StoredScalarCastType(id ID) bool {
 		return true
 	case PgSnapshot:
 		return true
-	case Bool, Int2, Int4, Int8, Oid, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
+	case Bool, Int2, Int2Vector, OidVector, Int4, Int8, Oid, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
 		return true
 	}
@@ -1964,6 +1987,7 @@ func PlanCoercion(source, target Usage, context CoercionContext) (CoercionPlan, 
 		return p, failure("42804", "incompatible source and destination types")
 	}
 	if source.Type.IsArray() && target.Type.IsArray() {
+		if target.Type.IsCatalogVector() { return p,failure("42846","cannot cast type "+source.Type.DiagnosticName()+" to "+target.Type.DiagnosticName()) }
 		from, to := source.Type.Element().Usage(), target.Type.Element().Usage()
 		from.Typmod, to.Typmod = source.Typmod, target.Typmod
 		from.Collation, to.Collation = source.Collation, target.Collation
@@ -2058,6 +2082,12 @@ func (p CoercionPlan) applyBaseUnchecked(ctx context.Context, v Value, input Inp
 	case moneyConversion:
 		return moneyCoercion(v, p.target, input.MonetaryLocale)
 	case arrayConversion:
+		// PostgreSQL's array_map normalizes special empty headers for an
+		// evaluated element expression, unlike a binary relabel. An already
+		// rank-zero empty payload remains immutable and can be shared.
+		if v.array != nil && len(v.array.dimensions) != 0 && len(v.array.elements) == 0 && !p.element.arrayElementRelabel() {
+			return ownedArray(p.target.Type, nil, nil)
+		}
 		return v.MapArray(p.target.Type, func(element Value, _ *Descriptor) (Value, error) {
 			return p.element.Apply(ctx, element, input, output)
 		})
@@ -2205,7 +2235,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 	if !u.validCollation() {
 		return Comparison{}, fmt.Errorf("invalid ordering collation")
 	}
-	if u.Type.id == 2249 && u.Type.IsComposite() || u.Type.id == 2287 && u.Type.IsArray() && u.Type.Element().id == 2249 && u.Type.Element().IsComposite() {
+	if u.Type.BaseType().IsCatalogVector() || u.Type.id == 2249 && u.Type.IsComposite() || u.Type.id == 2287 && u.Type.IsArray() && u.Type.Element().id == 2249 && u.Type.Element().IsComposite() {
 		p, err := BindComparison(u.Type, u.Type, u.Collation, false)
 		if err != nil {
 			return Comparison{}, err

@@ -49,6 +49,7 @@ func comparisonFormalID(d *sqltype.Descriptor) sqltype.ID {
 	if d.IsEnum() {
 		return 3500 // Released ANYENUM declaration; no concrete enum promotion.
 	}
+	if d.IsCatalogVector() && d.ID()==sqltype.OidVector { return sqltype.OidVector }
 	if d.IsArray() {
 		return 2277 // Released ANYARRAY declaration after actual capability admission.
 	}

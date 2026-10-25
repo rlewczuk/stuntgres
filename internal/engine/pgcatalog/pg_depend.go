@@ -190,7 +190,7 @@ func CollectDepend(ctx context.Context, view catalog.Read, runtime Runtime) ([]D
 			if runtime.Pinned(view, d.Address()) {
 				continue
 			}
-			if d.SQLType.IsArray() {
+			if d.SQLType.IsArray() && !d.SQLType.IsCatalogVector() {
 				add(d.Address(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.Element().ID())}, 'i')
 			} else if d.OwningRelation != (ids.ObjectAddress{}) && !d.SQLType.IsComposite() {
 				add(d.Address(), d.OwningRelation, 'i')

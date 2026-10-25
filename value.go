@@ -87,6 +87,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if v != nil {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: unnormalized byte argument")
 		}
+		if target.Type.BaseType().IsCatalogVector() { return sqltype.Null(target.Type),nil }
 		if target.Type.BaseType().ID() == sqltype.Refcursor {
 			return sqltype.Null(target.Type), nil
 		}

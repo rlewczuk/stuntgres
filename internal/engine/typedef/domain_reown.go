@@ -333,7 +333,10 @@ func ReownDomainTypes(next *catalog.State, mapping map[ids.ObjectAddress]ids.Obj
 		if collationChanged || base.Type != previous || target != address || namespace != d.Namespace() || d.SQLType.IsDomain() && declaration != d.SQLType.SQLName() || associated != d.Array {
 			var typ *sqltype.Descriptor
 			var err error
-			if d.SQLType.IsArray() {
+			if d.SQLType.IsCatalogVector() {
+				if target!=address || namespace!=d.Namespace() || associated!=d.Array { return fmt.Errorf("stuntgres: builtin vector identity cannot be remapped") }
+				typ,err=d.SQLType.RebindCatalogVector(base.Type)
+			} else if d.SQLType.IsArray() {
 				if !d.SQLType.Concrete() {
 					typ = sqltype.LookupArray(sqltype.ID(target.ObjectID), d.Name(), base.Type)
 				} else {

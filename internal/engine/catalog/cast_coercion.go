@@ -56,7 +56,7 @@ func CanCoerce(view Read, source, target sqltype.Usage, mode sqltype.CoercionCon
 	if source.Type.IsDomain() || target.Type.IsDomain() {
 		return CanCoerce(view, source.BaseUsage(), target.BaseUsage(), mode)
 	}
-	if source.Type.IsArray() && target.Type.IsArray() {
+	if source.Type.IsArray() && target.Type.IsArray() && !target.Type.IsCatalogVector() {
 		if _, exists := view.Cast(source.Type.ID(), target.Type.ID()); !exists {
 			from, to := source.Type.Element().Usage(), target.Type.Element().Usage()
 			from.Typmod, to.Typmod = source.Typmod, target.Typmod

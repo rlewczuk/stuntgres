@@ -20,48 +20,41 @@ func (v Value) OID() (uint32, error) {
 	return v.oid, nil
 }
 
-// unsignedInput reproduces PostgreSQL's unsigned strtoul(base 0) scanner,
-// retaining the original input for diagnostics and overflow-before-junk order.
-func (d *Descriptor) unsignedInput(text string) (uint64, error) {
-	s := trim(text)
+// unsignedPrefix reproduces strtoul(base 0), returning the original byte offset
+// after the number. No digits is end zero; overflow precedes trailing junk.
+func unsignedPrefix(text string) (n uint64, end int, overflow bool) {
+	start := 0
 	negative := false
-	if len(s) > 0 && (s[0] == '+' || s[0] == '-') {
-		negative = s[0] == '-'
-		s = s[1:]
+	if len(text)>0 && (text[0]=='+' || text[0]=='-') {
+		negative = text[0]=='-'
+		start++
 	}
 	base := uint64(10)
-	if len(s) > 0 && s[0] == '0' {
-		base = 8
-		if len(s) > 2 && (s[1] == 'x' || s[1] == 'X') {
-			if _, ok := digit(s[2], 16); ok {
-				base, s = 16, s[2:]
-			}
+	if start<len(text) && text[start]=='0' {
+		base=8
+		if start+2<len(text) && (text[start+1]=='x' || text[start+1]=='X') {
+			if _,ok:=digit(text[start+2],16);ok { base=16;start+=2 }
 		}
 	}
-	var n uint64
-	i, overflow := 0, false
-	for i < len(s) {
-		x, ok := digit(s[i], base)
-		if !ok {
-			break
-		}
-		if n > (^uint64(0)-x)/base {
-			overflow = true
-		} else if !overflow {
-			n = n*base + x
-		}
-		i++
+	end=start
+	for end<len(text) {
+		x,ok:=digit(text[end],base)
+		if !ok { break }
+		if n>(^uint64(0)-x)/base { overflow=true } else if !overflow { n=n*base+x }
+		end++
 	}
-	if overflow {
-		return 0, failure("22003", fmt.Sprintf("value \"%s\" is out of range for type %s", text, d.name))
-	}
-	if i == 0 || trim(s[i:]) != "" {
-		return 0, failure("22P02", fmt.Sprintf("invalid input syntax for type %s: \"%s\"", d.name, text))
-	}
-	if negative {
-		n = -n
-	}
-	return n, nil
+	if end==start { return 0,0,false }
+	if negative { n=-n }
+	return n,end,overflow
+}
+
+// Whole-input scalar policy remains separate from vector prefix scanning.
+func (d *Descriptor) unsignedInput(text string) (uint64,error) {
+	s:=trim(text)
+	n,end,overflow:=unsignedPrefix(s)
+	if overflow { return 0,vectorInputError("22003",d.name,text) }
+	if end==0 || trim(s[end:])!="" { return 0,vectorInputError("22P02",d.name,text) }
+	return n,nil
 }
 
 func (d *Descriptor) oidInput(text string) (Value, error) {

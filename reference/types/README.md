@@ -3,8 +3,8 @@
 Dual-mode tests for composite types (declarations, field expressions, ALTER TYPE
 attributes); enums (values, ALTER TYPE, support functions); the `citext`
 extension type; ACL values (`aclitem`, `makeaclitem`, `acldefault`,
-`aclexplode`); TID; BOOLEAN diagnostics and aggregates; and scalar comparison
-operators and null/distinct predicates.
+`aclexplode`); TID; catalog integer/OID vectors; BOOLEAN diagnostics and
+aggregates; and scalar comparison operators and null/distinct predicates.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
 (domains, `information_schema` domains, type identity lifecycle and
@@ -112,5 +112,6 @@ Rules:
 - `aclitem`: `RUN='^TestReferenceACLItem'`
 - ACL construction and expansion: `RUN='^TestReferenceACLValues'`
 - TID: `RUN='^TestReferenceTID'`
+- Catalog integer/OID vectors: `RUN='^TestReferenceCatalogVectors'`
 - BOOLEAN diagnostics and aggregates: `RUN='^TestReference(Boolean(Aggregate|Diagnostics)|AnyValueSourceACL)'`
 - Comparison operators, null/distinct predicates: `RUN='^TestReferenceCompare(Null|Ops)'`

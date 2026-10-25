@@ -112,6 +112,10 @@ func TestOrderingBtreeIdentityRejectedProviders(t *testing.T) {
 		}
 		t.Run(fmt.Sprint(typ.ID()), func(t *testing.T) {
 			p, err := BindOrdering(typ.Usage())
+			if typ.IsCatalogVector() {
+				if err!=nil || !p.OrderingBound() || p.DefaultBtreeOpclass()!=0 {t.Fatal("vector provider-only ordering identity",p,err)}
+				return
+			}
 			if err == nil || p.DefaultBtreeOpclass() != 0 {
 				t.Fatal("rejected provider advertised an identity", p, err)
 			}

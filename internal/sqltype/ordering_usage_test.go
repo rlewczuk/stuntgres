@@ -22,7 +22,7 @@ func TestOrderingUsage(t *testing.T) {
 				}
 				return
 			}
-			if d.ID() == Refcursor || d.ID() == Box || d.ID() == Point || d.ID() == Lseg || d.ID() == Path || d.ID() == Circle || d.ID() == Line || d.ID() == Polygon || d.ID() == Macaddr8 || IsFTS(d.ID()) || d.ID() == ACLItem || d.ID() == Void || d.IsArray() || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid || d.ID() == Cid || d.IsRange() || d.IsMultirange() {
+			if d.ID() == Refcursor || d.ID() == Box || d.ID() == Point || d.ID() == Lseg || d.ID() == Path || d.ID() == Circle || d.ID() == Line || d.ID() == Polygon || d.ID() == Macaddr8 || IsFTS(d.ID()) || d.ID() == ACLItem || d.ID() == Void || d.IsArray() && !d.IsCatalogVector() || d.ID() == JSON || d.ID() == JSONPath || isBitString(d.ID()) || d.ID() == Xid || d.ID() == Cid || d.IsRange() || d.IsMultirange() {
 				if err == nil {
 					t.Fatalf("%s ordering admitted", d.Name())
 				}

@@ -1,6 +1,8 @@
 package pgcatalog
 
 import (
+	"context"
+	"strconv"
 	"fmt"
 	"slices"
 	"sort"
@@ -31,6 +33,11 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			}
 		}
 	}
+	if source.Address().ObjectID == ids.ProcedureClassID {
+		expected:=[16]sqltype.ID{sqltype.Oid,sqltype.Name,sqltype.Oid,sqltype.Oid,sqltype.Int2,sqltype.Oid,sqltype.Char,sqltype.Bool,sqltype.Char,sqltype.Char,1009,sqltype.Oid,sqltype.Bool,sqltype.Float4,sqltype.Text,sqltype.OidVector}
+		if len(source.Columns)!=len(expected){return nil,fmt.Errorf("stuntgres: invalid procedure source shape")}
+		for i,id:=range expected {owned,ok:=view.LookupType(id);if !ok||owned!=source.Columns[i].Usage.Type{return nil,fmt.Errorf("stuntgres: foreign procedure source type")}}
+	}
 	descriptors := make([]catalog.Descriptor, 0)
 	for _, d := range view.Descriptors() {
 		if d.Address().ClassID == source.Address().ObjectID {
@@ -39,7 +46,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 	}
 	sort.Slice(descriptors, func(i, j int) bool { return descriptors[i].Address().ObjectID < descriptors[j].Address().ObjectID })
 	capacity := len(descriptors)
-	if source.Address().ObjectID == ids.ProcedureClassID { capacity += 5 }
+	if source.Address().ObjectID == ids.ProcedureClassID { capacity += 13 }
 	rows := make([][]sqltype.Value, 0, capacity)
 	for _, descriptor := range descriptors {
 		if err := ctx.Err(); err != nil {
@@ -111,6 +118,9 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 			text(8, parallel)
 			text(9, string(d.RoutineKind))
 			text(14, d.Display.Source)
+			var argumentErr error
+			row[15],argumentErr=procedureArgumentVector(ctx,source.Columns[15].Usage.Type,d.Signature)
+			if argumentErr!=nil{return nil,argumentErr}
 			row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 			if d.SQL != nil {
 				named := false
@@ -196,7 +206,7 @@ func captureExtensionCatalog(in Input) ([][]sqltype.Value, error) {
 		rows = append(rows, row)
 	}
 	if source.Address().ObjectID == ids.ProcedureClassID {
-		return appendParserHandlerProcedures(in, rows)
+		return appendInternalTypeProcedures(in, rows)
 	}
 	return rows, nil
 }
@@ -206,4 +216,21 @@ func ProcedureArity(p *catalog.Procedure) int64 {
 		return 0
 	}
 	return int64(strings.Count(string(p.Signature), ",") + 1)
+}
+
+func procedureArgumentVector(ctx context.Context, vector *sqltype.Descriptor, signature catalog.ProcedureSignature)(sqltype.Value,error){
+	text:=string(signature)
+	count:=0
+	if text!=""{count=strings.Count(text,",")+1}
+	elements:=make([]sqltype.Value,count)
+	for i:=range elements{
+		if err:=ctx.Err();err!=nil{return sqltype.Value{},err}
+		head,rest,_:=strings.Cut(text,",")
+		n,err:=strconv.ParseUint(head,10,32)
+		if err!=nil{return sqltype.Value{},fmt.Errorf("stuntgres: invalid routine signature: %w",err)}
+		elements[i],err=sqltype.OIDValue(vector.Element(),uint32(n))
+		if err!=nil{return sqltype.Value{},err}
+		text=rest
+	}
+	return sqltype.OwnedCatalogVectorValue(vector,elements)
 }

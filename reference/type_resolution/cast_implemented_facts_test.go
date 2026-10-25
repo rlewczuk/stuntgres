@@ -177,6 +177,17 @@ func castReleasedPath(source, target castImplementedType, context byte) castRele
 	if source.name == "record[]" && target.element != "" && castInventoryType(target.element).kind == "c" {
 		return castReleasedDecision{false, "forbidden-record-array", "REL_18_6 parse_coerce.c NOT_USED reverse structural array coercion", nil}
 	}
+	// Vector input grammars are not generic array text grammars, but a vector
+	// source may use element coercion to an ordinary array. Generic coercion
+	// destinations explicitly exclude both vector identities in REL_18_6.
+	if target.element!="" && (source.name=="int2vector" || source.name=="oidvector") {
+		element:="int2"
+		if source.name=="oidvector"{element="oid"}
+		d:=castReleasedPath(castInventoryType(element),castInventoryType(target.element),context)
+		d.operation="array("+d.operation+")"
+		d.authority="REL_18_6 parse_coerce.c find_coercion_pathway vector source ARRAYCOERCE"
+		return d
+	}
 	if source.element != "" && target.element != "" {
 		d := castReleasedPath(castInventoryType(source.element), castInventoryType(target.element), context)
 		d.operation = "array(" + d.operation + ")"

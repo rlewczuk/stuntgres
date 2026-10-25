@@ -286,6 +286,19 @@ func (r EngineCatalogRuntime) ViewDefinition(ctx context.Context, view catalog.R
 func (r EngineCatalogRuntime) IndexDefinition(ctx context.Context, view catalog.Read, relation *catalog.Relation) (string, error) {
 	return index.DefinitionSQL(ctx, view, relation, index.Presentation{})
 }
+func (r EngineCatalogRuntime) IndexVectors(ctx context.Context, view catalog.Read, relation *catalog.Relation, types [4]*sqltype.Descriptor) ([4]sqltype.Value,error) {
+	var values [4]sqltype.Value
+	facts,_,err:=index.ProjectIndexMetadata(ctx,view,view.Owner().Domain.Ref(view.Epoch(),relation.Address()))
+	if err!=nil{return values,err}
+	values[0],err=sqltype.CatalogInt2Vector(types[0],facts.IndKey)
+	if err!=nil{return values,err}
+	values[1],err=sqltype.CatalogOIDVector(types[1],facts.IndCollation)
+	if err!=nil{return values,err}
+	values[2],err=sqltype.CatalogOIDVector(types[2],facts.IndClass)
+	if err!=nil{return values,err}
+	values[3],err=sqltype.CatalogInt2Vector(types[3],facts.IndOption)
+	return values,err
+}
 func (r EngineCatalogRuntime) VisitRuleDefinitions(ctx context.Context, view catalog.Read, relation *catalog.Relation, visit func(catalog.RuleFact, string) error) error {
 	for _, rule := range stored.RulesOf(relation) {
 		if err := ctx.Err(); err != nil {

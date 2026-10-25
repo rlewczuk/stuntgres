@@ -36,6 +36,12 @@ these are shared across families:
   reciprocal links, overload signatures, ownership, membership and exact result
   metadata assertions; unrelated builtin catalog populations must not multiply
   the work of each repeated lifecycle check.
+  ISBN13 and ISMN controls use `isn_controls_phases_test.go`: statement
+  atomicity/recreation, same-engine replacement, displaced fresh-engine
+  replacement and each failed replacement run as serial independent scenarios.
+  Each failure seeds its own actual dump, frozen identity graph and retained
+  cursor; complete diagnostics, values, metadata, identity and deterministic
+  redump assertions remain per case. No fixture deadline spans the failure matrix.
 - `lo_helpers_test.go`: shared installed-domain scenarios reuse the fixture's OID
   raw-value adapter. Logical lo identity is independent of physical OID result
   metadata, including NULL/empty results and declared nullability. Numeric

@@ -457,8 +457,8 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 	e := New()
 	view := e.CatalogRead()
 	stableAttributes := map[ids.OID][]int32{
-		1255: {1, 2, 3, 4, 17, 19, 15, 13, 16, 12, 23, 5, 14, 7, 26},
-		2610: {1, 2, 5, 7, 11, 13, 14, 6},
+		1255: {1, 2, 3, 4, 17, 19, 15, 13, 16, 12, 23, 5, 14, 7, 26, 20},
+		2610: {1, 2, 5, 7, 11, 13, 14, 6, 16, 17, 18, 19},
 	}
 	for _, descriptor := range view.Descriptors() {
 		relation, ok := descriptor.(*catalog.Relation)
@@ -500,11 +500,17 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 		typmods    []int32
 	}{
 		{1255,
-			[]string{"oid", "proname", "pronamespace", "proowner", "pronargs", "prorettype", "provolatile", "proisstrict", "proparallel", "prokind", "proargnames", "prolang", "proretset", "prorows", "prosrc"},
-			[]sqltype.ID{26, 19, 26, 26, 21, 26, 18, 16, 18, 18, 1009, 26, 16, 700, 25},
-			[]bool{false, false, false, false, false, false, false, false, false, false, true, false, false, false, false},
-			[]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 100},
-			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
+			[]string{"oid", "proname", "pronamespace", "proowner", "pronargs", "prorettype", "provolatile", "proisstrict", "proparallel", "prokind", "proargnames", "prolang", "proretset", "prorows", "prosrc", "proargtypes"},
+			[]sqltype.ID{26, 19, 26, 26, 21, 26, 18, 16, 18, 18, 1009, 26, 16, 700, 25, 30},
+			[]bool{false, false, false, false, false, false, false, false, false, false, true, false, false, false, false, false},
+			[]uint32{0, 950, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 100, 0},
+			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
+		{2610,
+			[]string{"indexrelid", "indrelid", "indisunique", "indisprimary", "indisvalid", "indisready", "indislive", "indnullsnotdistinct", "indkey", "indcollation", "indclass", "indoption"},
+			[]sqltype.ID{26, 26, 16, 16, 16, 16, 16, 16, 22, 30, 30, 22},
+			[]bool{false, false, false, false, false, false, false, false, false, false, false, false},
+			[]uint32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			[]int32{-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1}},
 		{1418, []string{"oid", "umuser", "umserver", "umoptions"}, []sqltype.ID{26, 26, 26, 1009}, []bool{false, false, false, true}, []uint32{0, 0, 0, 950}, []int32{-1, -1, -1, -1}},
 		{pgcatalog.RulesOID, []string{"schemaname", "tablename", "rulename", "definition"}, []sqltype.ID{19, 19, 19, 25}, []bool{true, true, true, true}, []uint32{950, 950, 950, 100}, []int32{-1, -1, -1, -1}},
 		{16200, []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"}, []sqltype.ID{19, 19, 19, 19, 19, 1043, 1043, 1043}, []bool{true, true, true, true, true, true, true, true}, []uint32{950, 950, 950, 950, 950, 950, 950, 950}, []int32{-1, -1, -1, -1, -1, -1, 7, 7}},

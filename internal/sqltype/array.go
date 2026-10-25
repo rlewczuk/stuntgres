@@ -95,6 +95,15 @@ func ownedArray(d *Descriptor, dimensions []ArrayDimension, elements []Value) (V
 	if !d.Concrete() || !d.IsArray() || len(dimensions) > 6 {
 		return Value{}, fmt.Errorf("invalid array payload descriptor or rank")
 	}
+	if d.IsCatalogVector() {
+		if len(dimensions)!=1 || dimensions[0].Lower!=0 || dimensions[0].Length!=int32(len(elements)) {
+			return Value{},fmt.Errorf("invalid catalog vector dimensions")
+		}
+		for _,element:=range elements {
+			if element.typ!=d.element || element.null {return Value{},fmt.Errorf("invalid catalog vector element")}
+		}
+		return Value{typ:d,array:&arrayPayload{dimensions:dimensions,elements:elements}},nil
+	}
 	product := int64(1)
 	for _, dim := range dimensions {
 		if dim.Length <= 0 || int64(dim.Lower)+int64(dim.Length)-1 >= math.MaxInt32 {
@@ -155,13 +164,16 @@ func (v Value) MapArray(d *Descriptor, transform func(Value, *Descriptor) (Value
 	if v.array == nil {
 		return Value{}, fmt.Errorf("missing array payload")
 	}
+	if d.BaseType().IsCatalogVector() && (v.ArrayRank()!=1 || v.ArrayDimension(0).Lower!=0 || v.ArrayDimension(0).Length!=int32(v.ArrayLen())) {
+		return Value{},fmt.Errorf("invalid catalog vector mapping dimensions")
+	}
 	var elements []Value
 	for i, old := range v.array.elements {
 		next, err := transform(old, d.BaseType().element)
 		if err != nil {
 			return Value{}, err
 		}
-		if next.typ != d.BaseType().element {
+		if next.typ != d.BaseType().element || d.BaseType().IsCatalogVector() && next.null {
 			return Value{}, fmt.Errorf("invalid mapped element generation")
 		}
 		if next != old && (next.typ != old.typ || !SameDatum(next, old)) && elements == nil {
@@ -181,6 +193,23 @@ func (v Value) MapArray(d *Descriptor, transform func(Value, *Descriptor) (Value
 	}
 	result.typ = d
 	return result, nil
+}
+
+// arrayElementRelabel classifies the selected SQL operation, not whether mapping
+// happened to change a value. An empty array never evaluates an element callback.
+func (p CoercionPlan) arrayElementRelabel() bool {
+	if p.logicalTarget != nil && p.logicalTarget != p.logicalSource && p.logicalTarget.IsDomain() {
+		return false
+	}
+	if p.binary.method != binaryCoercionNone {
+		return true
+	}
+	switch p.method {
+	case identity, oidConversion, stringConversion, networkConversion, bitStringConversion:
+		return !p.FunctionExpression()
+	default:
+		return false
+	}
 }
 
 func (p CoercionPlan) sizeArray(ctx context.Context, v Value, input InputEnvironment, output OutputEnvironment) (Value, error) {

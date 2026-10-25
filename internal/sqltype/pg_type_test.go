@@ -28,6 +28,10 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 	}{
 		{16, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{1, true, "c", "p"}, Kind: "b", Category: "B", Preferred: true, Input: 1242, Output: 1243, Receive: 2436, Send: 2437, Modifier: -1}},
 		{20, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{8, true, "d", "p"}, Kind: "b", Category: "N", Input: 460, Output: 461, Receive: 2408, Send: 2409, Modifier: -1}},
+		{Int2Vector, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "p"}, Kind: "b", Category: "A", Element: Int2, Subscript: 6179, Input: 40, Output: 41, Receive: 2410, Send: 2411, Modifier: -1}},
+		{OidVector, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "p"}, Kind: "b", Category: "A", Element: Oid, Subscript: 6179, Input: 54, Output: 55, Receive: 2420, Send: 2421, Modifier: -1}},
+		{1006, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "x"}, Kind: "b", Category: "A", Element: Int2Vector, Subscript: 6179, Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1}},
+		{1013, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "x"}, Kind: "b", Category: "A", Element: OidVector, Subscript: 6179, Input: 750, Output: 751, Receive: 2400, Send: 2401, Analyze: 3816, Modifier: -1}},
 		{23, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{4, true, "i", "p"}, Kind: "b", Category: "N", Input: 42, Output: 43, Receive: 2406, Send: 2407, Modifier: -1}},
 		{25, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{-1, false, "i", "x"}, Kind: "b", Category: "S", Preferred: true, Input: 46, Output: 47, Receive: 2414, Send: 2415, Modifier: -1, Collation: 100}},
 		{Point, PGTypeMetadata{PostgreSQLAttributeFacts: PostgreSQLAttributeFacts{16, false, "d", "p"}, Kind: "b", Category: "G", Element: Float8, Subscript: 6180, Input: 117, Output: 118, Receive: 2428, Send: 2429, Modifier: -1}},
@@ -40,12 +44,12 @@ func TestPGTypeBuiltinFacts(t *testing.T) {
 			t.Fatal(c.id, got, ok, c.want)
 		}
 	}
-	for _, id := range []ID{142, 143, 22, 1006, 30, 1013, 2201, 4533, 4534, 4535, 6152, 6153, 6155, 2276, 2281} {
+	for _, id := range []ID{142, 143, 2201, 4533, 4534, 4535, 6152, 6153, 6155, 2276, 2281} {
 		if got, ok := types[id].PGTypeMetadata(); ok {
 			t.Fatal("unsupported family metadata", id, got)
 		}
 	}
-	for _, id := range []ID{1017, 1020} {
+	for _, id := range []ID{1017, 1020, 1006, 1013} {
 		if types[id].Concrete() {
 			t.Fatal("geometry companion metadata enabled an array codec", id)
 		}

@@ -117,7 +117,7 @@ func captureInfoRoutines(in Input) ([][]sqltype.Value, error) {
 			typ := result.SQLType
 			if typ.IsArray() {
 				element, ok := in.Catalog.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.Element().ID())})
-				if !ok || element.SQLType != typ.Element() || element.Array != typ.ID() {
+				if !ok || element.SQLType != typ.Element() || !typ.IsCatalogVector() && element.Array != typ.ID() {
 					return nil, fmt.Errorf("stuntgres: foreign routines result element")
 				}
 			}

@@ -9,7 +9,7 @@ import (
 // ArrayTypeOwner resolves genuine internal ownership, including displaced
 // companions. Equal numeric IDs or underscore spellings are not authority.
 func ArrayTypeOwner(v Read, array *Type) (*Type, error) {
-	if array == nil || !array.SQLType.IsArray() {
+	if array == nil || !array.SQLType.IsArray() || array.SQLType.IsCatalogVector() {
 		return nil, fmt.Errorf("stuntgres: invalid array ownership")
 	}
 	registered, ok := v.Type(array.Address())
@@ -34,7 +34,7 @@ func TypeAlterProtection(v Read, typ *Type, path []ids.ObjectAddress) error {
 
 // TypeAlterArrayProtection precedes schema-switch and destination-name checks.
 func TypeAlterArrayProtection(v Read, typ *Type, path []ids.ObjectAddress) error {
-	if typ.SQLType.IsArray() {
+	if typ.SQLType.IsArray() && !typ.SQLType.IsCatalogVector() {
 		element, err := ArrayTypeOwner(v, typ)
 		if err != nil {
 			return err
@@ -74,7 +74,7 @@ func MultirangeOwnerProtection(v Read, typ *Type, path []ids.ObjectAddress) erro
 // dependency diagnostics and the existing idempotent retirement closure.
 func TypeDropProtection(v Read, typ *Type, path []ids.ObjectAddress, pending map[ids.ObjectAddress]*Type) error {
 	required := typ
-	if typ.SQLType.IsArray() {
+	if typ.SQLType.IsArray() && !typ.SQLType.IsCatalogVector() {
 		element, err := ArrayTypeOwner(v, typ)
 		if err != nil {
 			return err

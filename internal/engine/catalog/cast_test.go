@@ -86,3 +86,25 @@ func TestCastDefinitionPrincipalRemap(t *testing.T) {
 		}
 	}
 }
+
+func TestCatalogVectorCoercionEligibility(t *testing.T) {
+	types:=make(map[sqltype.ID]*sqltype.Descriptor)
+	for _,d:=range sqltype.Builtins(){types[d.ID()]=d}
+	view:=Read{state:NewState(1)}
+	for _,vector:=range []sqltype.ID{sqltype.Int2Vector,sqltype.OidVector}{
+		target:=types[vector].Usage()
+		for mode:=sqltype.Implicit;mode<=sqltype.Explicit;mode++{
+			if err:=CanCoerce(view,target,target,mode);err!=nil{t.Fatal("vector identity rejected",vector,mode,err)}
+			for _,array:=range []sqltype.ID{1005,1007,1016,1028}{
+				if err:=CanCoerce(view,types[array].Usage(),target,mode);err==nil{t.Fatal("generic array gained vector coercion",array,vector,mode)}
+			}
+			array:=types[types[vector].Element().AssociatedArray()]
+			if err:=CanCoerce(view,target,array.Usage(),mode);err!=nil{t.Fatal("canonical container lowering rejected",vector,mode,err)}
+		}
+	}
+	candidates:=[]sqltype.OperatorInputs{{Left:2277,Right:2277},{Left:sqltype.OidVector,Right:sqltype.OidVector}}
+	can:=func(source *sqltype.Descriptor,target sqltype.ID)bool{return CanCoerce(view,source.Usage(),types[target].Usage(),sqltype.Implicit)==nil}
+	if i,err:=sqltype.ResolveOperatorWithCoercion(candidates,types[1007],types[1007],false,can);err!=nil||i!=0{t.Fatal("exact anyarray operator lost to vector",i,err)}
+	if _,err:=sqltype.ResolveOperatorWithCoercion(candidates,types[1007],types[1016],false,can);err==nil{t.Fatal("different ordinary arrays gained an operator through vectors")}
+	if i,err:=sqltype.ResolveOperatorWithCoercion(candidates,types[sqltype.OidVector],types[sqltype.OidVector],false,can);err!=nil||i!=1{t.Fatal("exact vector operator lost",i,err)}
+}

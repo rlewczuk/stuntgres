@@ -45,6 +45,8 @@ var castImplementedTypes = func() []castImplementedType {
 		castScalar("bpchar", "character", "Strings", 1042, "S", "red", "red"),
 		castScalar("refcursor", "refcursor", "Strings", 1790, "U", "cast_cursor", "cast_cursor"),
 		castScalar("oid", "oid", "Identifiers", 26, "N", "0", "0"),
+		castScalar("int2vector", "int2vector", "Identifiers", 22, "A", "1 2 3", "1 2 3"),
+		castScalar("oidvector", "oidvector", "Identifiers", 30, "A", "1 2 3", "1 2 3"),
 		castScalar("regclass", "regclass", "Identifiers", 2205, "N", "0", "-"),
 		castScalar("regtype", "regtype", "Identifiers", 2206, "N", "0", "-"),
 		castScalar("regproc", "regproc", "Identifiers", 24, "N", "0", "-"),

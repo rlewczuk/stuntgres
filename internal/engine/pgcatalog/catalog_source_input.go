@@ -85,6 +85,7 @@ type Runtime interface {
 	ColumnUpdatable(context.Context, catalog.Read, *catalog.Relation, int32) (bool, error)
 	ViewCapabilities(context.Context, catalog.Read, *catalog.Relation) (ViewCapability, error)
 	IndexDefinition(context.Context, catalog.Read, *catalog.Relation) (string, error)
+	IndexVectors(context.Context, catalog.Read, *catalog.Relation, [4]*sqltype.Descriptor) ([4]sqltype.Value, error)
 	VisitRuleDefinitions(context.Context, catalog.Read, *catalog.Relation, func(catalog.RuleFact, string) error) error
 	IndexKey(*catalog.Relation, catalog.IndexKey) (int32, expr.Expr, error)
 	VisitSequenceDefinitions(context.Context, func(catalog.Descriptor) error) error

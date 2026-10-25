@@ -27,6 +27,7 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 
 func (b *Binder) BindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
+	if usage.Type.IsCatalogVector() { usage=b.Type(usage.Type.Element().AssociatedArray()).Usage() }
 	if !usage.Type.IsArray() && usage.Type.ID() != sqltype.Box && usage.Type.ID() != sqltype.Lseg && usage.Type.ID() != sqltype.Point {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.DiagnosticTypeName(usage.Type)), pos)
 	}
@@ -39,6 +40,7 @@ func (b *Binder) BindArrayTarget(column catalog.Column, raw []parser.ArraySubscr
 	// only explicit RHS and subscript expressions contribute read authority.
 	coercionPlan, err := sqltype.PlanCoercion(usage, column.Usage, sqltype.Assignment)
 	if err != nil {
+		if column.Usage.Type.BaseType().IsCatalogVector() { return nil,expr.ErrorAt("42846",fmt.Sprintf("cannot cast type %s to %s",usage.Type.DiagnosticName(),column.Usage.Type.DiagnosticName()),pos) }
 		return nil, err
 	}
 	return &plan.ArrayAssignmentTarget{Node: plan.SubscriptExpr{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw), Reapply: coercionPlan, Name: column.Name, Pos: pos}, nil

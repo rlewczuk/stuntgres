@@ -16,7 +16,7 @@ func TypeUsageAuthority(view Read, typ *Type) (*Type, error) {
 	if !ok || actual != typ {
 		return nil, fmt.Errorf("stale type usage authority")
 	}
-	if typ.SQLType.IsArray() {
+	if typ.SQLType.IsArray() && !typ.SQLType.IsCatalogVector() {
 		var err error
 		typ, err = ArrayTypeOwner(view, typ)
 		if err != nil {
