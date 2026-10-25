@@ -13,7 +13,11 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.CreateIndex, count int) (core.Result, error) {
+// ExecuteCreateIndex runs CREATE INDEX in the statement scope: it prepares and
+// publishes the index in one catalog stage, retrying a generated name after a
+// publication conflict, then runs the CONCURRENTLY phases.
+// It takes Engine.Mu itself and releases it around lock waits.
+func ExecuteCreateIndex(e *core.Engine, scope *core.StatementScope, s *parser.CreateIndex, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

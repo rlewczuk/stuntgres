@@ -45,9 +45,9 @@ func (familyStatements) Execute(e *core.Engine, scope *core.StatementScope, stmt
 	case *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
 		return dispatched(executePolicy(e, scope, stmt, count))
 	case *parser.CreateIndex:
-		return dispatched(executeCreateIndex(e, scope, stmt.(*parser.CreateIndex), count))
+		return dispatched(ExecuteCreateIndex(e, scope, stmt.(*parser.CreateIndex), count))
 	case *parser.DropIndex, *parser.AlterIndex, *parser.Reindex:
-		return dispatched(executeIndexMaintenance(e, scope, stmt, count))
+		return dispatched(ExecuteIndexMaintenance(e, scope, stmt, count))
 	case *parser.CreateView:
 		return dispatched(executeCreateView(e, scope, stmt.(*parser.CreateView), count))
 	case *parser.AlterOwner:

@@ -11,7 +11,10 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func executeIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
+// ExecuteIndexMaintenance runs ALTER INDEX, DROP INDEX and REINDEX over the
+// targets the statement scope admitted; ALTER INDEX RENAME goes to
+// tablecmds.RenameRelationLocked. It takes Engine.Mu itself.
+func ExecuteIndexMaintenance(e *core.Engine, scope *core.StatementScope, stmt parser.Statement, count int) (core.Result, error) {
 	if count != 0 {
 		return core.Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
