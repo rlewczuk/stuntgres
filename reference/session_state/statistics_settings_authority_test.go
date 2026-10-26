@@ -30,6 +30,9 @@ func TestReferenceStatisticsSettingsAuthority(t *testing.T) {
 				e.Prepared = prepared
 				e.ErrorStage = "execute"
 				run(e)
+				unchanged := fixture.Select("SELECT setting,source,boot_val,reset_val FROM pg_settings WHERE name='log_statement_stats'", []string{"setting", "source", "boot_val", "reset_val"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"off", "default", "off", "off"}})
+				unchanged.Prepared = prepared
+				run(unchanged)
 			}
 			if !b.PG {
 				run(fixture.ImplicitError("SHOW track_counts", fixture.ControlsReferenceDiagnostic("42704", `unrecognized configuration parameter "track_counts"`)))

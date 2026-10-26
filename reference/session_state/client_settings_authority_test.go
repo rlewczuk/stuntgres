@@ -69,6 +69,26 @@ func TestReferenceClientSettingsAuthority(t *testing.T) {
 					s.t.Fatal(err)
 				}
 				defer held.Close()
+				// One eligible sensitive parameter distinguishes read authority
+				// from SET authority using the same prepared metadata consumer.
+				metadata := func(visible bool) {}
+				if tc.name == "session_preload_libraries" {
+					const metadataSQL = "SELECT name,setting,source,reset_val FROM pg_settings WHERE name='session_preload_libraries'"
+					reader, err := ordinary.conn.PrepareContext(s.p.Ctx, metadataSQL)
+					if err != nil {
+						s.t.Fatal(err)
+					}
+					defer reader.Close()
+					metadata = func(visible bool) {
+						var want [][]any
+						if visible {
+							want = [][]any{{tc.name, tc.changed, "session", ""}}
+						}
+						fixture.RunStep(s.t, s.p.Ctx, fixture.HeldStatement{Executor: ordinary.conn, Statement: reader, SQL: metadataSQL}, ordinary.recorder,
+							fixture.Select(metadataSQL, []string{"name", "setting", "source", "reset_val"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, want))
+					}
+					metadata(false)
+				}
 				// Prepare never mutates. Authority is re-evaluated at Execute.
 				s.clientReads(tc, clientInitial(tc, s.pg), false)
 				for _, grantee := range []string{"client_setting_login", "client_setting_grantee"} {
@@ -77,8 +97,18 @@ func TestReferenceClientSettingsAuthority(t *testing.T) {
 					}
 					s.run(fixture.Exec("GRANT SET ON PARAMETER "+tc.name+" TO "+grantee, 0))
 					fixture.RunStep(s.t, s.p.Ctx, fixture.HeldStatement{Executor: ordinary.conn, Statement: held, SQL: query}, ordinary.recorder, fixture.Exec(query, 0))
+					metadata(false)
 					if clientRestricted(tc.name) {
 						ordinary.run(physicalError("SELECT current_setting("+physicalLiteral(tc.name)+")", physicalDenied(tc.name), false, true))
+						if tc.name == "session_preload_libraries" {
+							// Returning set_config's result needs read authority;
+							// a SET grant alone must not install this candidate.
+							ordinary.run(physicalError("SELECT set_config('session_preload_libraries','metadata_rejected',false)", physicalDenied(tc.name), true, true))
+							s.run(fixture.Exec("GRANT pg_read_all_settings TO client_setting_login", 0))
+							metadata(true)
+							s.run(fixture.Exec("REVOKE pg_read_all_settings FROM client_setting_login", 0))
+							metadata(false)
+						}
 					} else {
 						ordinary.clientReads(tc, tc.changed, true)
 					}
@@ -96,9 +126,11 @@ func TestReferenceClientSettingsAuthority(t *testing.T) {
 				ordinary.clientReads(tc, clientInitial(tc, s.pg), true)
 				s.run(fixture.Exec("GRANT SET ON PARAMETER "+tc.name+" TO client_setting_login", 0))
 				fixture.RunStep(s.t, s.p.Ctx, fixture.HeldStatement{Executor: ordinary.conn, Statement: held, SQL: query}, ordinary.recorder, fixture.Exec(query, 0))
+				metadata(true)
 				s.run(fixture.Exec("REVOKE SET ON PARAMETER "+tc.name+" FROM client_setting_login", 0))
 				ordinary.clientReads(tc, tc.changed, true)
-				ordinary.run(physicalError(query, clientSetDenied(tc.name), false, false))
+				fixture.RunStep(s.t, s.p.Ctx, fixture.HeldStatement{Executor: ordinary.conn, Statement: held, SQL: query}, ordinary.recorder, physicalError(query, clientSetDenied(tc.name), false, false))
+				metadata(true)
 				ordinary.run(fixture.Exec("BEGIN", 0))
 				ordinary.run(fixture.Exec("RESET ALL", 0))
 				ordinary.clientReads(tc, clientInitial(tc, s.pg), false)
@@ -109,6 +141,7 @@ func TestReferenceClientSettingsAuthority(t *testing.T) {
 				ordinary.clientMetadata(tc, true)
 				s.clientReads(tc, clientInitial(tc, s.pg), false)
 				s.run(fixture.Exec("REVOKE pg_read_all_settings FROM client_setting_login", 0))
+				metadata(false)
 				if clientRestricted(tc.name) {
 					ordinary.run(physicalError("SHOW "+tc.name, physicalDenied(tc.name), false, true))
 				}

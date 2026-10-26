@@ -21,6 +21,56 @@ func TestReferenceStatisticsSettingsSources(t *testing.T) {
 				defer peer.Close()
 			}
 		}
+		const query = "SELECT setting,source,boot_val,reset_val FROM pg_settings WHERE name='application_name'"
+		held, err := conn.PrepareContext(p.Ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer held.Close()
+		check := func(value, source string) {
+			t.Helper()
+			var got [4]string
+			if err := held.QueryRowContext(p.Ctx).Scan(&got[0], &got[1], &got[2], &got[3]); err != nil || got != [4]string{value, source, "", ""} {
+				t.Fatalf("held metadata=%q: %v", got, err)
+			}
+			var other [4]string
+			if err := peer.QueryRowContext(p.Ctx, query).Scan(&other[0], &other[1], &other[2], &other[3]); err != nil || other != [4]string{"", "default", "", ""} {
+				t.Fatalf("peer metadata=%q: %v", other, err)
+			}
+		}
+		check("", "default")
+		for _, tc := range []struct{ command, value, source string }{
+			{"SET application_name='session'", "session", "session"},
+			{"SET application_name=DEFAULT", "", "default"},
+			{"SET application_name='session'", "session", "session"},
+			{"RESET application_name", "", "default"},
+			{"SET application_name='session'", "session", "session"},
+			{"RESET ALL", "", "default"},
+			{"BEGIN", "", "default"},
+			{"SET LOCAL application_name='local'", "local", "session"},
+			{"COMMIT", "", "default"},
+			{"BEGIN", "", "default"},
+			{"SET application_name='rolled'", "rolled", "session"},
+			{"ROLLBACK", "", "default"},
+			{"SET application_name='outer'", "outer", "session"},
+			{"BEGIN", "outer", "session"},
+			{"SET LOCAL application_name='local'", "local", "session"},
+			{"COMMIT", "outer", "session"},
+			{"BEGIN", "outer", "session"},
+			{"SAVEPOINT metadata_mark", "outer", "session"},
+			{"SET application_name='inner'", "inner", "session"},
+			{"ROLLBACK TO metadata_mark", "outer", "session"},
+			{"COMMIT", "outer", "session"},
+			{"BEGIN", "outer", "session"},
+			{"SET application_name=DEFAULT", "", "default"},
+			{"SET LOCAL application_name='local'", "local", "session"},
+			{"COMMIT", "", "session"},
+			{"RESET application_name", "", "default"},
+		} {
+			run(fixture.Exec(tc.command, 0))
+			check(tc.value, tc.source)
+		}
+		defer conn.ExecContext(p.Ctx, "ROLLBACK")
 		for _, prepared := range []bool{false, true} {
 			statisticsSettingsTimeout(run, "0", "default", prepared)
 			run(fixture.Exec("SET statement_timeout=0", 0))

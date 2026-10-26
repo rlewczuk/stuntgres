@@ -1,3 +1,8 @@
+`pg_settings` has focused coverage for all 17 metadata fields, including
+descriptions, typed enum arrays and empty results. Session defaults, SET/RESET
+provenance, held readers and independent read/SET authority are checked without
+advertising unregistered placeholders or unsupported settings.
+
 Statements that only add types, such as CREATE TABLE, CREATE VIEW and CREATE
 TYPE, no longer rewrite every type, rule and trigger in the catalog to reown
 type generations; only replacing an existing type's definition does.

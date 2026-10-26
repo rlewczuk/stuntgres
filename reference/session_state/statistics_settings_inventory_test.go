@@ -91,6 +91,36 @@ func statisticsSettingsBuiltinInventory(t *testing.T, pg bool, run statisticsSet
 
 func TestReferenceStatisticsSettingsUnsupportedCollectors(t *testing.T) {
 	statisticsSettingsCases(t, func(t *testing.T, p *fixture.Pair, conn *sql.Conn, pg bool, run statisticsSettingsRun) {
+		for _, prepared := range []bool{false, true} {
+			absent := fixture.Select("SELECT * FROM pg_settings WHERE name='settings_metadata_missing'", statisticsSettingsCustomColumns, statisticsSettingsCustomTypes, nil)
+			absent.Prepared = prepared
+			absent.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+				statisticsSettingsCheckMetadata(t, rows, pg, statisticsSettingsCustomColumns, statisticsSettingsCustomTypes)
+			}
+			run(absent)
+			for _, command := range []string{"SHOW settings_metadata_missing", "SET settings_metadata_missing='on'", "RESET settings_metadata_missing"} {
+				s := fixture.ImplicitError(command, fixture.ControlsReferenceDiagnostic("42704", `unrecognized configuration parameter "settings_metadata_missing"`))
+				s.Prepared = prepared
+				s.ErrorStage = "execute"
+				if prepared && command[:4] == "SHOW" {
+					s.ErrorStage = "prepare"
+				}
+				run(s)
+				run(absent)
+			}
+			for _, command := range []string{"SET metadata.placeholder='hidden'", "RESET metadata.placeholder", "RESET ALL"} {
+				run(fixture.Exec(command, 0))
+				s := fixture.Select("SELECT name FROM pg_settings WHERE name='metadata.placeholder'", []string{"name"}, []string{"TEXT"}, nil)
+				s.Prepared = prepared
+				run(s)
+			}
+			invalid := fixture.ImplicitError("SET standard_conforming_strings='maybe'", fixture.ControlsReferenceDiagnostic("22023", `parameter "standard_conforming_strings" requires a Boolean value`))
+			invalid.Prepared, invalid.ErrorStage = prepared, "execute"
+			run(invalid)
+			s := fixture.Select("SELECT setting,source,boot_val,reset_val FROM pg_settings WHERE name='standard_conforming_strings'", []string{"setting", "source", "boot_val", "reset_val"}, []string{"TEXT", "TEXT", "TEXT", "TEXT"}, [][]any{{"on", "default", "on", "on"}})
+			s.Prepared = prepared
+			run(s)
+		}
 		for _, tc := range []struct{ name, kind, boot, context string }{
 			{"track_activities", "bool", "on", "superuser"},
 			{"track_activity_query_size", "integer", "1024", "postmaster"},

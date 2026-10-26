@@ -88,6 +88,10 @@ func statisticsSettingsTimeoutRow(value, source string) []any {
 	return []any{"statement_timeout", value, "ms", "Client Connection Defaults / Statement Behavior", "user", "integer", source, "0", "2147483647", nil, "0", "0", nil, nil, false}
 }
 
+func statisticsSettingsFullTimeoutRow(value, source string) []any {
+	return []any{"statement_timeout", value, "ms", "Client Connection Defaults / Statement Behavior", "Sets the maximum allowed duration of any statement.", "0 disables the timeout.", "user", "integer", source, "0", "2147483647", nil, "0", "0", nil, nil, false}
+}
+
 func statisticsSettingsTimeout(run statisticsSettingsRun, value, source string, prepared bool) {
 	s := fixture.Select("SELECT "+statisticsSettingsColumnsSQL+" FROM pg_settings WHERE name='statement_timeout'", statisticsSettingsColumns, statisticsSettingsTypes, [][]any{statisticsSettingsTimeoutRow(value, source)})
 	if prepared {
@@ -101,18 +105,25 @@ func TestReferenceStatisticsSettingsMetadata(t *testing.T) {
 		for _, prepared := range []bool{false, true} {
 			for _, empty := range []bool{false, true} {
 				predicate := "name='statement_timeout'"
-				want := [][]any{statisticsSettingsTimeoutRow("0", "default")}
+				want := [][]any{statisticsSettingsFullTimeoutRow("0", "default")}
 				if empty {
 					predicate = "name='statistics_missing_parameter'"
 					want = nil
 				}
-				s := fixture.Select("SELECT "+statisticsSettingsColumnsSQL+" FROM pg_settings WHERE "+predicate, statisticsSettingsColumns, statisticsSettingsTypes, want)
-				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) { statisticsSettingsMetadata(t, rows, pg) }
+				s := fixture.Select("SELECT * FROM pg_settings WHERE "+predicate, statisticsSettingsCustomColumns, statisticsSettingsCustomTypes, want)
+				s.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+					statisticsSettingsCheckMetadata(t, rows, pg, statisticsSettingsCustomColumns, statisticsSettingsCustomTypes)
+				}
 				if prepared {
 					s = fixture.Prepared(s)
 				}
 				run(s)
 			}
+		}
+		for _, prepared := range []bool{false, true} {
+			s := fixture.Select("SELECT * FROM pg_settings WHERE name='application_name'", statisticsSettingsCustomColumns, statisticsSettingsCustomTypes, [][]any{{"application_name", "", nil, "Reporting and Logging / What to Log", "Sets the application name to be reported in statistics and logs.", nil, "user", "string", "default", nil, nil, nil, "", "", nil, nil, false}})
+			s.Prepared = prepared
+			run(s)
 		}
 		run(fixture.Exec("SET statistics.placeholder='hidden'", 0))
 		run(fixture.Select("SELECT name FROM pg_settings WHERE name='statistics.placeholder'", []string{"name"}, []string{"TEXT"}, nil))
@@ -132,6 +143,11 @@ func TestReferenceStatisticsSettingsMetadata(t *testing.T) {
 
 func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 	statisticsSettingsCases(t, func(t *testing.T, p *fixture.Pair, conn *sql.Conn, pg bool, run statisticsSettingsRun) {
+		full := fixture.Select("SELECT * FROM pg_settings WHERE name='statement_timeout'", statisticsSettingsCustomColumns, statisticsSettingsCustomTypes, [][]any{statisticsSettingsFullTimeoutRow("0", "default")})
+		full.CheckMetadata = func(t *testing.T, rows *sql.Rows) {
+			statisticsSettingsCheckMetadata(t, rows, pg, statisticsSettingsCustomColumns, statisticsSettingsCustomTypes)
+		}
+		run(full)
 		want := [][]any{
 			{"application_name", "", nil, "Reporting and Logging / What to Log", "user", "string", "default", nil, nil, nil, "", "", nil, nil, false},
 			{"log_statement_stats", "off", nil, "Statistics / Monitoring", "superuser", "bool", "default", nil, nil, nil, "off", "off", nil, nil, false},
@@ -217,6 +233,12 @@ func TestReferenceStatisticsSettingsFeatureSmoke(t *testing.T) {
 			retained.Close()
 		}
 		statisticsSettingsTimeout(run, "0", "default", true)
+		if err := stmt.QueryRowContext(p.Ctx).Scan(&value, &unit, &source); err != nil || value != "0" || unit != "ms" || source != "default" {
+			t.Fatal(value, unit, source, err)
+		}
+		run(fixture.ImplicitError("RESET settings_metadata_missing", fixture.ControlsReferenceDiagnostic("42704", `unrecognized configuration parameter "settings_metadata_missing"`)))
+		run(fixture.Select("SELECT name FROM pg_settings WHERE name='settings_metadata_missing'", []string{"name"}, []string{"TEXT"}, nil))
+		statisticsSettingsTimeout(run, "0", "default", false)
 		run(fixture.Exec("SET application_name=''", 0))
 		run(fixture.Select("SELECT setting,source FROM pg_settings WHERE name='application_name'", []string{"setting", "source"}, []string{"TEXT", "TEXT"}, [][]any{{"", "session"}}))
 		run(fixture.Exec("RESET application_name", 0))

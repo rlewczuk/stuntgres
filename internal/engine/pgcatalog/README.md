@@ -311,8 +311,11 @@ authority, never the recorded `Version`.
   authority before acquiring the settings mutex. Boot/reset metadata preserves
   SQL NULL separately from empty current strings and simulated startup defaults.
   Explicit simulated startup assignments report `override`, not a loaded file;
-  source locations remain NULL. The producer owns its enum-array buffers and
-  never publishes partial canceled rows.
+  source locations remain NULL. SET authority does not imply restricted-row read
+  authority. Captured provider defaults retain `client` provenance even when equal
+  to boot, and RESET restores that captured typed value without invoking the
+  provider again. The producer owns its enum-array buffers and never publishes
+  partial canceled rows; empty captures retain the same 17-column carrier.
 - Table-statistics and progress views: committed logical DML and manual VACUUM
   facts and real active phases with authenticated-owner visibility, captured
   under the engine capture lock; unknown metrics stay typed NULL.
