@@ -4,6 +4,10 @@ identities and option names; exact mapped-user, PUBLIC-owner and superuser rules
 control value disclosure. Direct and held prepared reads follow catalog and
 privilege changes without contacting a foreign server.
 
+RLS proposed-row checks have expanded direct/prepared PostgreSQL reference
+coverage for finalized trigger/generated values, implicit policy checks, constraint
+precedence and atomic INSERT/UPDATE rejection with transaction/savepoint recovery.
+
 `information_schema.user_defined_types` exposes standalone composite identities
 through 29 nullable domain-typed columns, with effective type-USAGE and inherited
 ownership visibility. Direct and prepared queries follow type, schema and ACL
