@@ -126,6 +126,7 @@ func (r EngineCatalogRuntime) CurrentPrincipal() authorization.PrincipalRef {
 var sharedCaptureNames = map[ids.OID]string{
 	pgcatalog.InfoEnabledRolesOID:                "enabled_roles",
 	pgcatalog.InfoCharacterSetsOID:               "character_sets",
+	pgcatalog.InfoCollationsOID:                  "collations",
 	pgcatalog.KeyColumnUsageOID:                  "key_column_usage",
 	pgcatalog.ConstraintColumnUsageOID:           "constraint_column_usage",
 	pgcatalog.InfoColumnColumnUsageOID:           "column_column_usage",

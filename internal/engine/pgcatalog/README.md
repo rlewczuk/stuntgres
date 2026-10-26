@@ -6,7 +6,7 @@ the producer-backed `information_schema` tables and views (`sql_features`,
 `data_type_privileges`, `user_mappings`, `key_column_usage`,
 `constraint_column_usage`, `column_column_usage`, `routine_sequence_usage`,
 `check_constraint_routine_usage`,
-`character_sets`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
+`character_sets`, `collations`, `enabled_roles`, `view_table_usage`, `domain_constraints`,
 `sequences`, `role_column_grants`, `role_table_grants`, `role_routine_grants`, `routine_privileges`,
 `role_udt_grants`, `role_usage_grants`, `columns`, `domains`, `views`, `tables`, `routines`). Each producer is a pure
 function from a captured catalog, a paired role read and a narrow runtime
@@ -341,6 +341,12 @@ authority, never the recorded `Version`.
   name set; partial rows are discarded on cancellation.
 - `character_sets`: one current-database UTF8 row; encoding and locale facts
   are shared with `pg_database`.
+- `collations`: four nullable source-owned domains (`sql_identifier` for the
+  database/schema/name and `character_data` for `NO PAD`). Rows enumerate actual
+  captured collations whose encoding is independent or matches `pg_database`,
+  joined to their actual namespaces. PUBLIC inquiry does not require schema
+  USAGE or search-path visibility and includes inquiry-only collations without
+  executing providers or inventing provider details. Empty captures remain typed.
 
 ## Domain constraints
 
@@ -520,9 +526,9 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 
 - Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
-- Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets))'`
+- Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets|Collations))'`
 - Installed text-search template producer units: `RUN='^TestPGTSTemplate'`
-- Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets)'`
+- Information schema: `RUN='^TestReferenceInfo(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|CharacterSets|Collations)'`
 - Large objects: `RUN='^TestReferenceLargeObject'`
 - Settings view: `RUN='^TestReferenceStatisticsSettings'`
 - Transforms: `RUN='^TestReferencePGTransform'`

@@ -12,6 +12,12 @@ defaults. Mutable settings honor parameter grants, transactions and captured
 session defaults; immutable contexts reject live changes. These are
 setting-only simulations, not physical WAL, durability or recovery effects.
 
+`information_schema.collations` exposes installed collation identities for the
+current database encoding with exact standard domain metadata and `NO PAD`.
+PUBLIC catalog inquiry includes private-schema and inquiry-only collations;
+ordinary schema access checks remain unchanged. Held reads follow collation
+creation, rename, schema move, ownership changes and removal.
+
 All 28 PostgreSQL 18 vacuum settings now expose typed values and complete
 catalog metadata through the shared registry. Ordinary logins can change the
 13 user-context controls, including the released-source USERSET eager-freeze

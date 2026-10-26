@@ -67,6 +67,7 @@ func icProviderInventory(c *icCase) {
 		"pg_settings":                            strings.Fields("name setting unit category short_desc extra_desc context vartype source min_val max_val enumvals boot_val reset_val sourcefile sourceline pending_restart"),
 		"information_schema.columns":             icColumns,
 		"information_schema.character_sets":      csColumns,
+		"information_schema.collations":          []string{"collation_catalog", "collation_schema", "collation_name", "pad_attribute"},
 		"information_schema.column_column_usage": colcuColumns,
 		"information_schema.check_constraint_routine_usage": ccruColumns,
 		"information_schema.constraint_column_usage":        fixture.CCUColumns,

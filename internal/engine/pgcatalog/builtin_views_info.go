@@ -172,6 +172,18 @@ var infoBuiltinViews = [...]builtinView{
 		viewText("  ORDER BY ("), viewRoutine("char_length", "25"), viewText("(("), viewIdentifier("c"), viewText("."), viewIdentifier("collname"), viewText(")::"), viewType("text"), viewText(")) DESC, "), viewIdentifier("c"), viewText("."), viewIdentifier("collname"), viewText("\n"),
 		viewText(" LIMIT 1;"),
 	}},
+	// information_schema.collations — REL_18_6 information_schema.sql.
+	{oid: InfoCollationsOID, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
+		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("collation_catalog"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("nc"), viewText("."), viewIdentifier("nspname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("collation_schema"), viewText(",\n"),
+		viewText("    ("), viewIdentifier("c"), viewText("."), viewIdentifier("collname"), viewText(")::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("collation_name"), viewText(",\n"),
+		viewText("    ('NO PAD'::character varying)::"), viewDomain("information_schema.character_data"), viewText(" AS "), viewIdentifier("pad_attribute"), viewText("\n"),
+		viewText("   FROM "), viewClass("pg_collation"), viewText(" "), viewIdentifier("c"), viewText(",\n"),
+		viewText("    "), viewClass("pg_namespace"), viewText(" "), viewIdentifier("nc"), viewText("\n"),
+		viewText("  WHERE (("), viewIdentifier("c"), viewText("."), viewIdentifier("collnamespace"), viewText(" = "), viewIdentifier("nc"), viewText("."), viewIdentifier("oid"), viewText(") AND ("), viewIdentifier("c"), viewText("."), viewIdentifier("collencoding"), viewText(" = ANY (ARRAY['-1'::integer, ( SELECT "), viewIdentifier("pg_database"), viewText("."), viewIdentifier("encoding"), viewText("\n"),
+		viewText("           FROM "), viewClass("pg_database"), viewText("\n"),
+		viewText("          WHERE ("), viewIdentifier("pg_database"), viewText("."), viewIdentifier("datname"), viewText(" = "), viewRoutine("current_database", ""), viewText("()))])));"),
+	}},
 	// information_schema.constraint_column_usage — REL_18_6 information_schema.sql; pinned 18.6 display.
 	{oid: 16207, rules: 0, delete: false, writable: nil, parts: []builtinViewPart{
 		viewText(" SELECT ("), viewRoutine("current_database", ""), viewText("())::"), viewDomain("information_schema.sql_identifier"), viewText(" AS "), viewIdentifier("table_catalog"), viewText(",\n"),

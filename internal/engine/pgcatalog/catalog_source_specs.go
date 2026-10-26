@@ -753,6 +753,12 @@ var Specs = [...]Spec{
 		{"default_collate_schema", 13248, true, 950, 0, -1},
 		{"default_collate_name", 13248, true, 950, 0, -1},
 	}, true, false, false, false, "stuntgres: missing character set identifier domain"},
+	{InfoCollationsOID, 13229, "collations", []ColumnSpec{
+		{"collation_catalog", 13248, true, 950, 0, -1},
+		{"collation_schema", 13248, true, 950, 0, -1},
+		{"collation_name", 13248, true, 950, 0, -1},
+		{"pad_attribute", 13246, true, 950, 0, -1},
+	}, true, false, false, false, "stuntgres: missing collation metadata domain"},
 	{ConstraintColumnUsageOID, 13229, "constraint_column_usage", []ColumnSpec{
 		{"table_catalog", 13248, true, 950, 0, -1},
 		{"table_schema", 13248, true, 950, 0, -1},

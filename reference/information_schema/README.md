@@ -3,7 +3,7 @@
 `information_schema` object views: `views` (including builtin view definitions,
 shared with `pg_views`), `view_table_usage`, `routines`,
 `routine_sequence_usage`, `check_constraint_routine_usage`, `routine_privileges`, `role_routine_grants`, `tables`,
-`columns`, `column_column_usage`, `character_sets`, `domains`,
+`columns`, `column_column_usage`, `character_sets`, `collations`, `domains`,
 `domain_constraints` and `sequences`. Grant, key, constraint and SQL metadata
 views are in [reference/catalog_privileges](../catalog_privileges/README.md); the
 other catalog families are listed in [reference/catalogs](../catalogs/README.md).
@@ -20,6 +20,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/catalog_privileges`)
 - Builtin `pg_views`/`pg_tables` definitions: `RUN='^TestReferencePGTableViewsBuiltins$'`
+- Collation inquiry: `RUN='^TestReferenceInfoCollations'`
 - CHECK routine usage: `RUN='^TestReferenceInfoCheckConstraintRoutineUsage'`
 
 CHECK routine-usage scenarios assert complete six-column identity bags and
@@ -28,6 +29,14 @@ They distinguish routine-owner visibility from table/schema/EXECUTE grants,
 direct edges from called bodies, and individual constraint identity from final
 DISTINCT. Held reads cover catalog and role publication; native retained eager
 rows survive Reset. Companion catalogs carry definition and validation facts.
+
+Collation inquiry asserts the exact four-column projection, domain/base
+relationships and encoding applicability through existing catalogs. Shared
+direct, fresh-prepared and held reads cover empty/NULL boundaries, collation
+lifecycle and complete diagnostics. Actual owner and reader sessions see
+private-schema collation metadata without schema USAGE, while ordinary
+qualified relation lookup still denies access. Native retained eager rows
+preserve their original values and metadata across catalog mutations.
 
 ### Domain constraints
 
