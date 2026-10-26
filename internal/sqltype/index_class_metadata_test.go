@@ -113,12 +113,23 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 	want[10157] = IndexClassMetadata{10157, 3580, 4614, 2950, 2950, "uuid_minmax_multi_ops", false}
 	want[10156] = IndexClassMetadata{10156, 3580, 4081, 2950, 2950, "uuid_minmax_ops", true}
 	want[10152] = IndexClassMetadata{10152, 3580, 4080, 1562, 1562, "varbit_minmax_ops", true}
+	for _, m := range []IndexClassMetadata{
+		{10060, 783, 2593, 603, 0, "box_ops", true},
+		{10061, 783, 1029, 600, 603, "point_ops", true},
+		{10062, 783, 2594, 604, 603, "poly_ops", true},
+		{10063, 783, 2595, 718, 603, "circle_ops", true},
+		{10072, 783, 3655, 3614, 3642, "tsvector_ops", true},
+		{10075, 783, 3702, 3615, 20, "tsquery_ops", true},
+		{10082, 783, 6158, 4537, 3831, "multirange_ops", true},
+	} {
+		want[m.OID] = m
+	}
 	return want
 }
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 130 || len(want) != 130 {
+	if IndexClassMetadataCount() != 137 || len(want) != 137 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -148,7 +159,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("metadata got %#v want %#v", got, want)
 	}
-	for _, i := range []int{-1, 130, 131} {
+	for _, i := range []int{-1, 137, 138} {
 		if m, ok := IndexClassMetadataAt(i); ok || m != (IndexClassMetadata{}) {
 			t.Fatal("bounds", i, m, ok)
 		}
@@ -158,7 +169,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if again, _ := IndexClassMetadataAt(0); again.Name == m.Name {
 		t.Fatal("metadata is mutable")
 	}
-	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "multirange_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "tsquery_ops", "tsvector_ops", "network_ops"} {
+	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "network_ops"} {
 		for _, m := range got {
 			if m.Name == name {
 				t.Fatal("diagnostic-only class advertised", m)

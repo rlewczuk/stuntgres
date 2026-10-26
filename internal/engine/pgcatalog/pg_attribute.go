@@ -118,7 +118,18 @@ func capturePGAttribute(in Input) ([][]sqltype.Value, error) {
 			return nil
 		}
 		for slot := range relation.Columns {
-			if err := appendRow(AttributeMetadata(relation, slot)); err != nil {
+			metadata := AttributeMetadata(relation, slot)
+			if definition := relation.SQLIndex; definition != nil && slot < len(definition.Keys) {
+				if storage := definition.Keys[slot].Class.StorageOID(); storage != 0 {
+					typ, exists := view.LookupType(sqltype.ID(storage))
+					if !exists {
+						return nil, fmt.Errorf("stuntgres: missing index storage type")
+					}
+					metadata.TypeID, metadata.Facts, metadata.Typmod = storage, typ.AttributeFacts(), -1
+					metadata.Dimensions = 0
+				}
+			}
+			if err := appendRow(metadata); err != nil {
 				return nil, err
 			}
 		}
@@ -169,6 +180,11 @@ func AttributeRow(owner *catalog.Owner, roles authorization.Read, source, relati
 	}
 	row := []sqltype.Value{
 		oid(0, uint32(relation.Address().ObjectID)), text(1, metadata.Name), oid(2, metadata.TypeID), integer(3, int64(metadata.Facts.Length)), integer(4, int64(metadata.Number)), integer(5, int64(metadata.Typmod)), integer(6, int64(metadata.Dimensions)), boolean(7, metadata.Facts.ByValue), text(8, metadata.Facts.Alignment), text(9, metadata.Facts.Storage), text(10, ""), boolean(11, metadata.NotNull), boolean(12, metadata.HasDefault), boolean(13, false), text(14, metadata.Identity), text(15, metadata.Generated), boolean(16, metadata.Dropped), boolean(17, metadata.Local), integer(18, metadata.Inheritance), oid(19, metadata.Collation), null(20), acl, null(22), null(23), sqltype.CatalogResultNull(source.Columns[24].Usage),
+	}
+	if definition := relation.SQLIndex; definition != nil && metadata.Number > 0 && !metadata.Dropped && int(metadata.Number) <= len(definition.Keys) {
+		if options := definition.Keys[metadata.Number-1].ClassOptions; options.Explicit {
+			row[22] = checked(foreignOptionsValue(source.Columns[22].Usage.Type, []catalog.ForeignOption{{Name: "siglen", Value: options.Text}}))
+		}
 	}
 	if relation.Foreign != nil && metadata.Number > 0 && !metadata.Dropped {
 		row[23] = checked(foreignOptionsValue(source.Columns[23].Usage.Type, relation.Foreign.Columns[metadata.Number]))

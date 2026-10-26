@@ -78,7 +78,14 @@ var supportedIndexClasses = [...]struct {
 	{"bpchar_pattern_ops", 405, 2231, 0, true},
 	{"enum_ops", 405, 3523, 0, false},
 	{"inet_ops", 783, 3550, 0, true},
+	{"box_ops", 783, 2593, 0, false},
+	{"point_ops", 783, 1029, 603, false},
+	{"poly_ops", 783, 2594, 603, false},
+	{"circle_ops", 783, 2595, 603, false},
+	{"tsvector_ops", 783, 3655, 3642, false},
+	{"tsquery_ops", 783, 3702, 20, false},
 	{"range_ops", 783, 3919, 0, false},
+	{"multirange_ops", 783, 6158, 3831, false},
 }
 
 func IndexClassMetadataCount() int { return len(supportedIndexClasses) + len(brinIndexClasses) }
@@ -128,6 +135,20 @@ func IndexFamilyMetadataByOID(oid uint32) (IndexFamilyMetadata, bool) {
 	var name string
 	var method uint32
 	switch oid {
+	case 1029:
+		name, method = "point_ops", 783
+	case 2593:
+		name, method = "box_ops", 783
+	case 2594:
+		name, method = "poly_ops", 783
+	case 2595:
+		name, method = "circle_ops", 783
+	case 3655:
+		name, method = "tsvector_ops", 783
+	case 3702:
+		name, method = "tsquery_ops", 783
+	case 6158:
+		name, method = "multirange_ops", 783
 	case 3550:
 		name, method = "network_ops", 783
 	case 3919:

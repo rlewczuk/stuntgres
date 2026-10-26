@@ -19,6 +19,11 @@ type ExclusionOperator struct {
 	rangePlan      RangeOperatorPlan
 	index          IndexComparison
 	member         uint32
+	pointPlan      PointPlan
+	polygonPlan    PolygonPlan
+	circlePlan     CirclePlan
+	geometryPlan   GeometryRelationPlan
+	gistPredicate  bool
 }
 
 // OperatorInputs identifies the released signature without retagging values.
@@ -38,10 +43,10 @@ func BindExclusionOperator(u Usage, class IndexClass, name string, member uint32
 	t := u.Type.BaseType()
 	id := t.ID()
 	if class.IsGiST() {
-		p, err := bindGiSTExclusion(u, class, name)
-		if err == nil && member == 0 {
-			return ExclusionOperator{}, failure("42809", fmt.Sprintf(`operator %s(%s,%s) is not a member of operator family "%s"`, name, t.DiagnosticName(), t.DiagnosticName(), class.Family))
+		if member == 0 {
+			return ExclusionOperator{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf(`operator %s(%s,%s) is not a member of operator family "%s"`, name, t.DiagnosticName(), t.DiagnosticName(), class.Family), Detail: "The exclusion operator must be related to the index operator class for the constraint."}
 		}
+		p, err := bindGiSTExclusion(u, class, name)
 		p.member = member
 		return p, err
 	}
@@ -141,14 +146,37 @@ func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool
 	if left.IsNull() || right.IsNull() {
 		return false, nil
 	}
-	if p.Name == "&&" {
-		if p.usage.Type.BaseType().IsRange() {
-			value, err := p.rangePlan.Evaluate(ctx, [2]Value{left, right})
-			if err != nil {
-				return false, err
-			}
-			return value.Boolean()
+	if p.gistPredicate {
+		if left.typ != p.usage.Type || right.typ != p.usage.Type {
+			return false, fmt.Errorf("foreign GiST exclusion value")
 		}
+		values := [2]Value{left, right}
+		// Domains keep stored identity; owning scalar plans use their base type.
+		values[0].typ, values[1].typ = p.usage.Type.BaseType(), p.usage.Type.BaseType()
+		var value Value
+		var err error
+		switch {
+		case p.pointPlan.input != nil:
+			value, err = p.pointPlan.Evaluate(ctx, values)
+		case p.polygonPlan.result != nil:
+			value, err = p.polygonPlan.Evaluate(ctx, values)
+		case p.circlePlan.input != nil:
+			value, err = p.circlePlan.Evaluate(ctx, values)
+		case p.geometryPlan.result != nil:
+			value, err = p.geometryPlan.Evaluate(ctx, values)
+		case p.rangePlan.result != nil:
+			value, err = p.rangePlan.Evaluate(ctx, values)
+		case values[0].typ.id == Box:
+			return boxSame(values[0], values[1])
+		default:
+			return false, fmt.Errorf("missing GiST exclusion predicate")
+		}
+		if err != nil {
+			return false, err
+		}
+		return value.Boolean()
+	}
+	if p.Name == "&&" {
 		if left.typ != p.usage.Type || right.typ != p.usage.Type {
 			return false, fmt.Errorf("foreign exclusion network value")
 		}
@@ -161,5 +189,8 @@ func (p ExclusionOperator) Matches(ctx context.Context, left, right Value) (bool
 		return comparison == 0, err
 	}
 	comparison, err := p.comparison.Compare(ctx, left, right, InputEnvironment{})
+	if p.Name == "<>" {
+		return comparison != 0, err
+	}
 	return comparison == 0, err
 }

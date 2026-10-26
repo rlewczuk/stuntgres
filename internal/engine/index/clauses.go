@@ -68,7 +68,7 @@ func ValidateIndexInclude(raw parser.IndexKey) error {
 	return nil
 }
 
-func ValidateHashKeyDirection(key parser.IndexKey, methodName string) error {
+func ValidateUnorderedKeyDirection(key parser.IndexKey, methodName string) error {
 	if key.DirectionExplicit {
 		return sqlError("0A000", fmt.Sprintf(`access method "%s" does not support ASC/DESC options`, methodName))
 	}

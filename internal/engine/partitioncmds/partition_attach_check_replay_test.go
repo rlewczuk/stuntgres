@@ -36,7 +36,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if core.OperationReplayOrZero(op).PartitionCheck != child || !core.PartitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("genuine leased physical replay rejected")
 	}
-	if err := partition.ConsumerBoundary(raw, child, core.PartitionReplayAllowed(op, auth)); err != nil {
+	if err := partition.ConsumerBoundary(auth.Catalog, raw, child, core.PartitionReplayAllowed(op, auth)); err != nil {
 		t.Fatal(err)
 	}
 	copyChild := *child

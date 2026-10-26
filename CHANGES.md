@@ -84,6 +84,13 @@ Stored views retain aggregate support captures for execution without treating
 them as direct DROP dependencies; explicitly written support calls keep their
 own dependency edges.
 
+GiST indexes now retain exact logical roots for all nine built-in operator
+classes, including geometric nearest-neighbor queries and geometric exclusion
+constraints. GiST buffering/fillfactor and per-key tsvector siglen options retain
+their configuration through metadata inquiry, maintenance, LIKE/partition copies
+and Dump/Restore. Built-in class display remains unqualified when visible;
+ambiguous compatible range defaults do not masquerade as exact-type conflicts.
+
 File-location settings now expose deterministic, explicitly simulated startup
 labels through SHOW, current_setting and pg_settings, including exact nullable
 boot/reset metadata. Effective-user read privileges filter aggregate rows and

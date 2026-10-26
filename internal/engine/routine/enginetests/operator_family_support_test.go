@@ -19,7 +19,7 @@ import (
 func TestOperatorFamilyProviderInventory(t *testing.T) {
 	e := engine.New()
 	view := e.CatalogRead()
-	if sqltype.IndexClassMetadataCount() != 130 {
+	if sqltype.IndexClassMetadataCount() != 137 {
 		t.Fatal("incomplete released class inventory", sqltype.IndexClassMetadataCount())
 	}
 	for i := range sqltype.IndexClassMetadataCount() {

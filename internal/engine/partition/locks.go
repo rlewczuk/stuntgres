@@ -34,7 +34,9 @@ func WriteExtensionBoundary(statement parser.Statement, d *catalog.Relation) err
 // support, with their 0A000/42P16 diagnostics. replayAllowed is the caller's
 // Restore trust check for the ALTER TABLE and ALTER ... DEFAULT replays; it is
 // consulted only for those statements, at the same point as before the move.
-func ConsumerBoundary(statement parser.Statement, d *catalog.Relation, replayAllowed func(parser.Statement, *catalog.Relation) bool) error {
+// GiST CREATE admission uses only the captured method's native authority;
+// method and option diagnostics remain the ordinary index binder's responsibility.
+func ConsumerBoundary(read catalog.Read, statement parser.Statement, d *catalog.Relation, replayAllowed func(parser.Statement, *catalog.Relation) bool) error {
 	if !catalog.HierarchyRelation(d) {
 		return nil
 	}
@@ -50,7 +52,10 @@ func ConsumerBoundary(statement parser.Statement, d *catalog.Relation, replayAll
 		message = "locking partition hierarchies is unsupported"
 	case *parser.CreateIndex:
 		if d.Partition != nil && !s.Unique {
-			message = "partitioned indexes are unsupported"
+			method, ok := read.LookupAccessMethod(s.Method)
+			if !ok || method.Native != catalog.GistAccessMethod {
+				message = "partitioned indexes are unsupported"
+			}
 		}
 	case *parser.Reindex:
 		if d.Partition != nil {

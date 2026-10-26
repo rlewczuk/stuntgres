@@ -44,6 +44,7 @@ func TestOperatorClassDefaultCompatibility(t *testing.T) {
 		{"enum", enum, 3500, false},
 		{"domain_enum", enumDomain, 3500, false},
 		{"range", types[3904], 3831, true},
+		{"multirange", types[4451], 4537, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			state := CloneState(base)

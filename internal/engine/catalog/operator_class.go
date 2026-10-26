@@ -99,6 +99,16 @@ func (r Read) DefaultIndexClass(method ids.OID, t *sqltype.Descriptor) (sqltype.
 		c, ok := r.uniqueDefaultIndexClassID(method, 3500)
 		return c, ok, nil
 	}
+	if m, ok := r.AccessMethod(method); ok && m.Native == GistAccessMethod {
+		if t.IsRange() {
+			c, ok := r.uniqueDefaultIndexClassID(method, 3831)
+			return c, ok, nil
+		}
+		if t.IsMultirange() {
+			c, ok := r.uniqueDefaultIndexClassID(method, 4537)
+			return c, ok, nil
+		}
+	}
 	return r.DefaultIndexClassID(method, t.ID())
 }
 func (r Read) DefaultIndexClassID(method ids.OID, input sqltype.ID) (sqltype.IndexClass, bool, error) {

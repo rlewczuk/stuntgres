@@ -149,7 +149,7 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 				sql.WriteString(stored.CollationDisplayName(view, presented.Collation, presentation.Path))
 			}
 		}
-		if presented.ExplicitClass {
+		if presented.ExplicitClass || presented.ClassOptions.Explicit {
 			class, exists := view.OperatorClass(ids.OID(presented.Class.OID()))
 			if !exists {
 				return "", fmt.Errorf("stuntgres: missing index operator class")
@@ -159,10 +159,27 @@ func DefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.Relati
 				return "", fmt.Errorf("stuntgres: missing operator class namespace")
 			}
 			sql.WriteByte(' ')
-			if presentation.Dump || class.Namespace().ObjectID != ids.PGCatalogNamespaceOID {
+			qualified := presentation.Dump
+			if !qualified && presentation.Path == nil {
+				// An absent presentation path uses the builtin namespace, like
+				// collation display; it is not an empty executing search path.
+				qualified = class.Namespace().ObjectID != ids.PGCatalogNamespaceOID
+			} else if !qualified {
+				qualified = true
+				for _, namespace := range presentation.Path {
+					if visible, ok := view.LookupOperatorClass(namespace, class.Method, class.Name()); ok {
+						qualified = visible.Address() != class.Address()
+						break
+					}
+				}
+			}
+			if qualified {
 				sql.WriteString(identifier(schema.Name()) + ".")
 			}
 			sql.WriteString(identifier(class.Name()))
+			if options := presented.ClassOptions; options.Explicit {
+				sql.WriteString(" (siglen='" + strings.ReplaceAll(options.Text, "'", "''") + "')")
+			}
 		}
 		if index.SQLIndex.Method == catalog.BtreeMethod {
 			if key.Desc {

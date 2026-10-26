@@ -300,7 +300,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			}
 		}
 		if err == nil && ref.Domain() != nil {
-			err = partition.ConsumerBoundary(stmt, auth.Catalog.MustRelation(ref.Address), partitionReplayAllowed(s.Op, auth))
+			err = partition.ConsumerBoundary(auth.Catalog, stmt, auth.Catalog.MustRelation(ref.Address), partitionReplayAllowed(s.Op, auth))
 		}
 	}
 	var definitionStamp ids.DefinitionRevision

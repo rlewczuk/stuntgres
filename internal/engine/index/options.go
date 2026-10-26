@@ -75,6 +75,9 @@ func TransformIndexOptions(old catalog.RelationOptions, s *parser.AlterIndex, me
 					n, _, _ = settings.ParseNumber(request.Value.Text, true)
 				}
 				option.Integer = int64(math.RoundToEven(n))
+			} else if option.Name == "buffering" {
+				option.Kind = catalog.RelationOptionEnum
+				option.Enum = strings.ToLower(option.Text)
 			} else {
 				option.Kind = catalog.RelationOptionBoolean
 				switch request.Value.Kind {
@@ -108,7 +111,7 @@ func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 		if o.Namespace != "" {
 			return sqlError("22023", fmt.Sprintf(`unrecognized parameter namespace "%s"`, o.Namespace))
 		}
-		recognized := name == "fillfactor" || name == "deduplicate_items" && method == catalog.BtreeMethod
+		recognized := name == "fillfactor" || name == "deduplicate_items" && method == catalog.BtreeMethod || name == "buffering" && method == catalog.GistMethod
 		if method == catalog.BrinMethod {
 			recognized = name == "pages_per_range" || name == "autosummarize"
 		}
@@ -134,6 +137,11 @@ func ValidateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 			}
 			if n < float64(low) || n > float64(high) {
 				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`value %s out of bounds for option "%s"`, indexOptionText(o.Value), name), Detail: fmt.Sprintf(`Valid values are between "%d" and "%d".`, low, high)}
+			}
+		} else if name == "buffering" {
+			value := strings.ToLower(indexOptionText(o.Value))
+			if value != "on" && value != "off" && value != "auto" {
+				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for enum option "buffering": %s`, indexOptionText(o.Value)), Detail: `Valid values are "on", "off", and "auto".`}
 			}
 		} else {
 			valid := o.Value.Kind == parser.BooleanValue

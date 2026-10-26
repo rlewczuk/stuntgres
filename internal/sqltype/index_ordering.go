@@ -309,6 +309,9 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 	if c.gist && c.input == 3831 {
 		return t.BaseType().IsRange()
 	}
+	if c.gist && c.input == 4537 {
+		return t.BaseType().IsMultirange()
+	}
 	return c.AcceptsID(t.BaseType().id)
 }
 
@@ -316,6 +319,9 @@ func (c IndexClass) Accepts(t *Descriptor) bool {
 func (c IndexClass) AcceptsID(id ID) bool {
 	if c.gist && c.input == 3831 {
 		return isRange(id)
+	}
+	if c.gist && c.input == 4537 {
+		return isMultirange(id)
 	}
 	if c.input == 0 {
 		return false

@@ -74,15 +74,23 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 		if err != nil {
 			return err
 		}
-		if len(s.Keys[i].Options) != 0 {
-			return sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.Keys[i].Class.Name))
+		definition.Keys[i].ClassOptions, err = BindClassOptions(view, definition.Keys[i].Class, s.Keys[i].Options)
+		if err != nil {
+			return err
 		}
 	}
+	var options catalog.RelationOptions
 	if len(s.Options) != 0 {
 		if err := ValidateIndexReloptions(s.Options, definition.Method, false); err != nil {
 			return err
 		}
-		return Capability("index storage parameters are unsupported", s.WithPos)
+		if definition.Method != catalog.GistMethod {
+			return Capability("index storage parameters are unsupported", s.WithPos)
+		}
+		options, err = TransformIndexOptions(catalog.RelationOptions{}, &parser.AlterIndex{Action: "set", Options: s.Options}, definition.Method)
+		if err != nil {
+			return err
+		}
 	}
 	name := raw.Name.Text
 	used := catalog.ConstraintNames(view, parent.Namespace(), parent)
@@ -150,7 +158,7 @@ func StageExclusion(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 	if err := PartitionUniqueCoverage(h.StageRead(), parent, definition); err != nil {
 		return DefaultClassDiagnostic(h, auth, err)
 	}
-	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}}
+	backing := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: parent.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: parent.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition, Columns: columns, Attributes: attributes, Index: lookup, ColumnMeta: catalog.ColumnMetadata{HighWater: int32(len(attributes))}, StorageOptions: options}
 	for i := range columns {
 		backing.Columns[i].Nullable = true
 		backing.Columns[i].NullabilityKnown = true

@@ -15,6 +15,22 @@ type IndexKey struct {
 	CollationRef     sqltype.CollationRef
 	Class            sqltype.IndexClass
 	ExplicitClass    bool
+	ClassOptions     IndexClassOptions
+}
+
+// IndexClassOptions retains the sole native per-key option without shared
+// mutable storage. Absent options stay absent in catalogs and SQL replay.
+type IndexClassOptions struct {
+	Siglen   int64
+	Text     string
+	Explicit bool
+}
+
+func (o IndexClassOptions) EffectiveSiglen() int64 {
+	if o.Explicit {
+		return o.Siglen
+	}
+	return 124
 }
 
 type IndexDefinition struct {

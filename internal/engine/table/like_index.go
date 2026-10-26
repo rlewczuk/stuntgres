@@ -175,7 +175,7 @@ func StageLikeIndexes(h Host, auth ddl.Authority, destination *catalog.Relation,
 				columns[i].OriginAttribute = int16(i + 1)
 				lookup[columns[i].Name] = i
 			}
-			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: source.ColumnMeta.HighWater}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition}
+			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: source.ColumnMeta.HighWater}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition, StorageOptions: source.StorageOptions}
 			if in.Options&analyze.LikeComments != 0 {
 				index.Comment = source.Comment
 			}

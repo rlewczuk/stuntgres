@@ -13,8 +13,8 @@ import (
 var pgOpclassColumns = []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"}
 var pgOpclassTypes = []string{"OID", "OID", "NAME", "OID", "OID", "OID", "OID", "BOOL", "OID"}
 
-// Independent proposed REL_18_0 identities; the root confirms these against the
-// pinned oracle before production. No expected value comes from native lookup.
+// Independent released identities, including the pinned PostgreSQL 18.6 GiST
+// inventory. No expected value comes from native lookup.
 func pgOpclassFacts() [][]any {
 	var rows [][]any
 	for _, f := range []struct {
@@ -69,7 +69,14 @@ func pgOpclassFacts() [][]any {
 	}
 	rows = append(rows,
 		[]any{int64(10017), int64(783), "inet_ops", int64(11), int64(10), int64(3550), int64(869), false, int64(0)},
+		[]any{int64(10060), int64(783), "box_ops", int64(11), int64(10), int64(2593), int64(603), true, int64(0)},
+		[]any{int64(10061), int64(783), "point_ops", int64(11), int64(10), int64(1029), int64(600), true, int64(603)},
+		[]any{int64(10062), int64(783), "poly_ops", int64(11), int64(10), int64(2594), int64(604), true, int64(603)},
+		[]any{int64(10063), int64(783), "circle_ops", int64(11), int64(10), int64(2595), int64(718), true, int64(603)},
+		[]any{int64(10072), int64(783), "tsvector_ops", int64(11), int64(10), int64(3655), int64(3614), true, int64(3642)},
+		[]any{int64(10075), int64(783), "tsquery_ops", int64(11), int64(10), int64(3702), int64(3615), true, int64(20)},
 		[]any{int64(10078), int64(783), "range_ops", int64(11), int64(10), int64(3919), int64(3831), true, int64(0)},
+		[]any{int64(10082), int64(783), "multirange_ops", int64(11), int64(10), int64(6158), int64(4537), true, int64(3831)},
 	)
 	rows = append(rows, pgOpclassBrinFacts()...)
 	sort.Slice(rows, func(i, j int) bool { return rows[i][0].(int64) < rows[j][0].(int64) })
@@ -158,7 +165,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 130 {
+	if len(facts) != 137 {
 		t.Fatal("inventory", len(facts))
 	}
 	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {

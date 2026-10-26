@@ -48,6 +48,11 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   diagnostic; nothing falls back to text while claiming binary format.
   VOID has runtime identity and output authority but no input provider; non-NULL
   text import owns `0A000`, while input-free identity needs no input capability.
+- `IndexClass` retains the catalog-selected method, family, input and storage
+  identities. GiST classes admit exact owning geometry, network, range,
+  multirange and text-search datums without a B-tree comparator. Logical
+  exclusion predicates reuse their scalar owners; catalog class membership
+  does not supply an otherwise missing scalar operation.
 - `CitextPattern` retains genuine operand descriptors and prepared implicit text
   adapters, delegating insensitive LIKE and POSIX evaluation to the shared plans.
   Source pattern bytes and embedded options remain unchanged; regex execution

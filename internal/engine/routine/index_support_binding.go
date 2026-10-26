@@ -208,11 +208,45 @@ func BindExclusionOperator(view catalog.Read, usage sqltype.Usage, class sqltype
 	if t.IsRange() {
 		input = 3831
 	}
+	if t.IsMultirange() {
+		input = 4537
+	}
 	if sqltype.IsRegObjectAlias(input) || sqltype.IsRoutineAlias(input) || sqltype.IsOperatorAlias(input) || sqltype.IsRegTS(input) {
 		input = sqltype.Oid
 	}
 	if t.IsEnum() {
 		input = 3500 // Released polymorphic anyenum operator input.
+	}
+	if class.IsGiST() {
+		if name == "!=" {
+			name = "<>"
+		}
+		var selected *catalog.Operator
+		key := catalog.OperatorNameKey{Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, Name: name}
+		for _, address := range view.State().OperatorNames().Buckets[key] {
+			operator, exists := view.Operator(address)
+			if exists && operator.Left == ids.OID(input) && operator.Right == ids.OID(input) {
+				selected = operator
+				break
+			}
+		}
+		if selected == nil {
+			return sqltype.ExclusionOperator{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("operator does not exist: %s %s %s", t.DiagnosticName(), name, t.DiagnosticName()), Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}
+		}
+		if selected.Commutator != selected.Address().ObjectID {
+			return sqltype.ExclusionOperator{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42809", Message: fmt.Sprintf("operator %s(%s,%s) is not commutative", name, t.DiagnosticName(), t.DiagnosticName()), Detail: "Only commutative operators can be used in exclusion constraints."}
+		}
+		for _, descriptor := range view.Descriptors() {
+			row, ok := descriptor.(*catalog.OperatorFamilyOperator)
+			if !ok || row.Family != ids.OID(family) || row.Method != ids.OID(class.MethodOID()) || row.Left != ids.OID(input) || row.Right != ids.OID(input) || row.Purpose != 's' {
+				continue
+			}
+			if row.Operator != selected.Address().ObjectID || selected.Result != 16 {
+				continue
+			}
+			return sqltype.BindExclusionOperator(usage, class, name, uint32(row.Address().ObjectID))
+		}
+		return sqltype.BindExclusionOperator(usage, class, name, 0)
 	}
 	strategy := int16(0)
 	if name == "=" {
@@ -220,11 +254,6 @@ func BindExclusionOperator(view catalog.Read, usage sqltype.Usage, class sqltype
 		if class.IsHash() {
 			strategy = 1
 		}
-		if class.IsGiST() && input == sqltype.Inet {
-			strategy = 18
-		}
-	} else if name == "&&" && class.IsGiST() {
-		strategy = 3
 	}
 	var member uint32
 	if strategy != 0 {

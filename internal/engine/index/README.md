@@ -41,6 +41,18 @@ builds a binder.
   BRIN uses `BindBrinIndex`, `BuildBrinIndexRoot`, `MergeBrinIndexRoot` and
   `BrinConsistent`; `BuildRelationIndexRoot` carries descriptor reloption intent
   into method dispatch. Summary support is not B-tree comparator support.
+  GiST roots are unsorted exact live memberships for the nine built-in classes;
+  owning scalar predicates and distance operators remain query authority.
+  They contain original typed values, not bounding boxes or signatures.
+  `ClassOptions` captures each key's explicit siglen independently; relation
+  fillfactor/buffering and key siglen retain logical configuration without
+  physical pages. Catalog inquiry and replay preserve explicit defaults and
+  absent defaults distinctly. Column capabilities use the selected catalog's
+  actual family ordering/fetch/compress support, not fixed class names.
+  LIKE and partition copies retain immutable relation and per-key configuration;
+  their roots are rebuilt against destination row and descriptor identities.
+  Ordinary GiST partitioned indexes use the same parent/child publication and
+  attachment path as partitioned constraint indexes.
 - **Publication, snapshots and ALTER TYPE rebuilds** (`publication.go`,
   `row_publication.go`, `layout_*.go`, `snapshot*.go`, `remint.go`,
   `effective_root.go`, `alter_type.go`): `PrepareIndexPublication` over
@@ -192,8 +204,9 @@ it across routed rows; a changed reference, parent or catalog root requires rebi
 
 ## Invariants
 
-- **Immutable roots.** Roots are ordered entries, equality buckets or logical range summaries,
-  maintained at the same Finish/commit frontier as rows. Derived keys evaluate
+- **Immutable roots.** Roots are ordered entries, unsorted GiST memberships,
+  equality buckets or logical range summaries, maintained at the same
+  Finish/commit frontier as rows. Derived keys evaluate
   at Execute, after predicate qualification and before rows are installed;
   failed batches, waits and builds preserve predecessor rows and roots.
   Maintenance rebuilds roots atomically without changing rows or identities.

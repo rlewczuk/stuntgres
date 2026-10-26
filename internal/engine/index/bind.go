@@ -129,20 +129,20 @@ func BindKey(h KeyHost, auth ddl.Authority, u sqltype.Usage, raw parser.IndexKey
 	}
 	key.Class = c
 	if method == catalog.GistMethod {
-		if raw.DirectionExplicit || raw.Nulls != parser.NullsDefault {
-			return key, sqlError("0A000", fmt.Sprintf(`access method "%s" does not support ordering options`, fact.Name()))
+		if err := ValidateUnorderedKeyDirection(raw, fact.Name()); err != nil {
+			return key, err
 		}
 		return key, nil
 	}
 	if method == catalog.BrinMethod {
-		if err := ValidateHashKeyDirection(raw, fact.Name()); err != nil {
+		if err := ValidateUnorderedKeyDirection(raw, fact.Name()); err != nil {
 			return key, err
 		}
 		_, err := sqltype.BindBrinComparison(KeyCollation(u, key), c)
 		return key, err
 	}
 	if method == catalog.HashMethod {
-		if err := ValidateHashKeyDirection(raw, fact.Name()); err != nil {
+		if err := ValidateUnorderedKeyDirection(raw, fact.Name()); err != nil {
 			return key, err
 		}
 		_, err := sqltype.BindIndexHash(KeyCollation(u, key), c)
@@ -252,8 +252,8 @@ func bindAttributes(h Host, auth ddl.Authority, input sqltype.InputEnvironment, 
 				} else if err := validateSystemKey(h, auth, raw, d.MethodOID); err != nil {
 					return fail(err)
 				}
-				if !included && (d.Method == catalog.HashMethod || d.Method == catalog.BrinMethod) {
-					if err := ValidateHashKeyDirection(raw, method.Name()); err != nil {
+				if !included && (d.Method == catalog.HashMethod || d.Method == catalog.BrinMethod || d.Method == catalog.GistMethod) {
+					if err := ValidateUnorderedKeyDirection(raw, method.Name()); err != nil {
 						return fail(err)
 					}
 				}

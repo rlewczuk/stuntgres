@@ -181,7 +181,7 @@ func PartitionIndexEquivalent(ctx context.Context, view catalog.Read, table *cat
 	}
 	for i, key := range a.Keys {
 		other := b.Keys[i]
-		if key.Attribute != other.Attribute || (key.Derived == nil) != (other.Derived == nil) {
+		if key.Attribute != other.Attribute || (key.Derived == nil) != (other.Derived == nil) || key.ClassOptions != other.ClassOptions {
 			return false, nil
 		}
 		au, err := KeyUsage(table, key)
@@ -446,7 +446,7 @@ func StagePartitionIndexChild(h Host, table, parentIndex, child *catalog.Relatio
 	if err != nil {
 		return nil, err
 	}
-	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: catalog.IndexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: parentIndex.ColumnMeta.HighWater}, Index: make(map[string]int, len(parentIndex.Columns))}
+	idx := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: child.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: child.Owner, RelationKind: catalog.IndexRelation, SQLIndex: mapped, Columns: slices.Clone(parentIndex.Columns), Attributes: slices.Clone(parentIndex.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: parentIndex.ColumnMeta.HighWater}, Index: make(map[string]int, len(parentIndex.Columns)), StorageOptions: parentIndex.StorageOptions}
 	for i := range idx.Columns {
 		idx.Columns[i].OriginTable = uint32(oid)
 		idx.Columns[i].OriginAttribute = int16(i + 1)

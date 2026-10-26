@@ -30,13 +30,13 @@ func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint
 		return false, false, nil
 	}
 	if kind == functions.WholeIndexProperty {
-		value, known = index.Property(relation.SQLIndex, true, 0, property)
+		value, known = index.Property(scope.Inquiry.CommentCatalog, relation.SQLIndex, true, 0, property)
 	} else {
 		ordinal, err := ordinalValue.Integer()
 		if err != nil {
 			return false, false, err
 		}
-		value, known = index.Property(relation.SQLIndex, false, ordinal, property)
+		value, known = index.Property(scope.Inquiry.CommentCatalog, relation.SQLIndex, false, ordinal, property)
 	}
 	return value, known, nil
 }

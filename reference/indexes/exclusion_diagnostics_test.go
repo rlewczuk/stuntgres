@@ -122,9 +122,6 @@ func TestReferenceExclusionMethodBoundaries(t *testing.T) {
 	})
 	t.Run("gist_point_provider", func(t *testing.T) {
 		fixture.ExclusionReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
-			if !b.PG {
-				return
-			} // Native has no POINT provider; do not reorder type binding.
 			run := func(s fixture.Step) { fixture.ExclusionReferenceRun(t, p, b, b.DB, s) }
 			run(fixture.Exec("CREATE TABLE t(v POINT,CONSTRAINT ex EXCLUDE USING gist(v WITH ~=))", 0))
 			run(fixture.Exec("INSERT INTO t VALUES('(1,2)'),('(3,4)')", 2))

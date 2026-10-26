@@ -99,9 +99,11 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	}
 	// The released provider-options phase follows catalog name admission.
 	for i, raw := range s.Keys {
-		if len(raw.Options) != 0 {
-			return CreatePlan{}, sqlError("22023", fmt.Sprintf("operator class %s has no options", definition.Keys[i].Class.Name))
+		options, err := BindClassOptions(view, definition.Keys[i].Class, raw.Options)
+		if err != nil {
+			return CreatePlan{}, err
 		}
+		definition.Keys[i].ClassOptions = options
 	}
 	definition.Unique, definition.NullsNotDistinct = s.Unique, s.NullsNotDistinct
 	if s.Unique && s.Concurrent.Character == 0 && !trusted {
@@ -114,7 +116,7 @@ func PrepareCreate(h Host, auth ddl.Authority, parent *catalog.Relation, s *pars
 	}
 	var storageOptions catalog.RelationOptions
 	if len(s.Options) != 0 {
-		if physical != catalog.BrinMethod {
+		if physical != catalog.BrinMethod && physical != catalog.GistMethod {
 			return CreatePlan{}, Capability("index storage parameters are unsupported", s.WithPos)
 		}
 		storageOptions, err = TransformIndexOptions(catalog.RelationOptions{}, &parser.AlterIndex{Action: "set", Options: s.Options}, physical)

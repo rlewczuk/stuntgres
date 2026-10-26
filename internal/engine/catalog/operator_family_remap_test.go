@@ -41,7 +41,7 @@ func TestOperatorFamilyPrincipalRemap(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if seeded != 101 || ordinary != 1 {
+	if seeded != 108 || ordinary != 1 {
 		t.Fatal("missing owner mapping", seeded, ordinary)
 	}
 	mapped := base.WithState(destination)

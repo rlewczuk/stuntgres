@@ -11,7 +11,7 @@ import (
 
 // The shared extraction program owns keys, not an ordering. No comparator is
 // bound for logical GiST membership and callers must never sort these entries.
-func bindLogicalExclusionKeys(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
+func bindLogicalGiSTKeys(view catalog.Read, parent *catalog.Relation, d *catalog.IndexDefinition) (Ordering, error) {
 	if d.Method != catalog.GistMethod || d.Unique {
 		return Ordering{}, fmt.Errorf("stuntgres: invalid logical GiST definition")
 	}
@@ -29,6 +29,9 @@ func bindLogicalExclusionKeys(view catalog.Read, parent *catalog.Relation, d *ca
 		}
 		if !key.Class.IsGiST() || !key.Class.Accepts(u.Type) || key.Desc || key.NullsFirst {
 			return o, fmt.Errorf("stuntgres: invalid logical GiST key")
+		}
+		if err := validateClassOptions(view, key); err != nil {
+			return o, err
 		}
 		if key.Derived != nil {
 			if key.Derived.Definition == nil || key.Derived.Execution == nil {
@@ -57,7 +60,7 @@ func BindIndexKeys(view catalog.Read, parent *catalog.Relation, d *catalog.Index
 		return brinKeyProgram(bindings, d), nil
 	}
 	if d.Method == catalog.GistMethod {
-		return bindLogicalExclusionKeys(view, parent, d)
+		return bindLogicalGiSTKeys(view, parent, d)
 	}
 	return BindIndexOrdering(view, parent, d)
 }

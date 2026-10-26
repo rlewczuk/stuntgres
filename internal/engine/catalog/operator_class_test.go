@@ -67,7 +67,7 @@ func TestOperatorClassCatalogMethodIdentity(t *testing.T) {
 func TestOperatorClassCatalogDefaults(t *testing.T) {
 	state := CloneState(familyCatalogFixture().State())
 	base := NewRead(nil, state)
-	if len(base.OperatorClasses()) != 130 {
+	if len(base.OperatorClasses()) != 137 {
 		t.Fatal("incomplete seeds", len(base.OperatorClasses()))
 	}
 	original, ok := base.DefaultOperatorClass(403, 23)

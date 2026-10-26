@@ -22,7 +22,7 @@ func bindIndexProvider(view catalog.Read, parent *catalog.Relation, d *catalog.I
 		_, err := BindHashIndex(view, parent, d)
 		return err
 	case catalog.GistMethod:
-		_, err := bindLogicalExclusionKeys(view, parent, d)
+		_, err := bindLogicalGiSTKeys(view, parent, d)
 		return err
 	case catalog.BrinMethod:
 		_, err := BindBrinIndex(view, parent, d)

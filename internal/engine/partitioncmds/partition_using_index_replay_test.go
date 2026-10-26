@@ -44,7 +44,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if !core.PartitionUsingIndexReplayAllowed(op, auth, raw, child) || core.OperationReplayOrZero(op).PartitionUsingIndex.Index != index {
 		t.Fatal("exact private physical/index origin not captured")
 	}
-	if err := partition.ConsumerBoundary(raw, child, core.PartitionReplayAllowed(op, auth)); err != nil {
+	if err := partition.ConsumerBoundary(auth.Catalog, raw, child, core.PartitionReplayAllowed(op, auth)); err != nil {
 		t.Fatal(err)
 	}
 	lookalike := *child
@@ -66,7 +66,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	}
 	origin := core.OperationReplayOrZero(op).PartitionUsingIndex
 	core.OperationReplay(op).PartitionUsingIndex = nil
-	if err := partition.ConsumerBoundary(raw, child, core.PartitionReplayAllowed(op, auth)); err == nil {
+	if err := partition.ConsumerBoundary(auth.Catalog, raw, child, core.PartitionReplayAllowed(op, auth)); err == nil {
 		t.Fatal("public hierarchy ADD USING INDEX admitted")
 	}
 	core.OperationReplay(op).PartitionUsingIndex = origin
