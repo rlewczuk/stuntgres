@@ -39,8 +39,8 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   generation with current naming and base authority.
 - `Value.Retag` remints descriptor ownership without changing the datum. It
   requires the same type ID, domain/base identity and constraints, and rejects
-  foreign hstore/lquery/citext/ISN generations and enum members even for equal OIDs; only
-  source-authorized catalog reownership/import remaps explicitly (`RemapHstore`, `RemapLquery`,
+  foreign hstore/lquery/ltree/citext/ISN generations and enum members even for equal OIDs; only
+  source-authorized catalog reownership/import remaps explicitly (`RemapHstore`, `RemapLquery`, `RemapLtree`,
   `RemapCitext`, `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`, `RemapIssn13`, `RemapUpc`).
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
@@ -83,6 +83,11 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   generation remapping share the validated payload without reparsing. Storage
   and representation comparison grant no matching, SQL comparison, grouping,
   indexing, executable companion-array or binary-codec capability.
+- Ltree owns immutable exact path text validated once under UTF8/C label grammar,
+  with count-first path bounds and deferred label-length checks. A present carrier
+  represents the empty nonnull path; NULL has separate framing. Output and authorized
+  import share the carrier without reparsing or granting SQL comparison, matching,
+  grouping, indexing, executable arrays or binary codecs.
 - Text-array input checks declared dimensions early, but child conversion and
   domain CHECK errors precede an extent mismatch, and storage grows only with
   parsed children (shared `ownedArray` guards).
@@ -132,7 +137,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed hstore/cube/query_int/lquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
+Installed hstore/cube/query_int/lquery/ltree/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -476,6 +481,7 @@ match engine tests of the same mechanism):
 - Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryAlignment|GeometryRelation|GeometryPosition|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
 - Cube constructors, coordinates and spatial kernels: `RUN='^TestCube'`
 - Installed lquery codecs, identity and cancellation: `RUN='^TestLquery'`
+- Installed ltree codecs, identity and cancellation: `RUN='^TestLtree'`
 - Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`
 - Casts and operator resolution: `RUN='^Test(CastDefinition|AggregateBinaryConversionRebind|Float4NeedsRawReplay|OperatorBitUnknownPreference|Comparison(ResolutionSignatures|ImplicitEligibility)|ConditionalEqualitySignatures)'`

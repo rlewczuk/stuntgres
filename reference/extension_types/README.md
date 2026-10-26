@@ -1,6 +1,6 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `lquery`,
+Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `lquery`, `ltree`,
 `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
@@ -63,6 +63,11 @@ these are shared across families:
   rename/schema moves; retired installations and unrelated TEXT destinations
   bind the original SQL afresh, never stale hstore values. The reusable family
   selector is `RUN='^TestReferenceHstore'`.
+- `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
+  assertions. The family covers empty versus NULL paths, UTF8/C label admission,
+  count/length diagnostic precedence, held binds, statement atomicity and native
+  replacement with retained readers. Both scalar roles are consumers of the same
+  extension during lifecycle tests. The reusable selector is `RUN='^TestReferenceLtree'`.
 
 Client quirks:
 

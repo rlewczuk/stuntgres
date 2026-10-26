@@ -97,7 +97,7 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 	if d.IsCitext() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "S", Collation: 100, Modifier: -1}, true
 	}
-	if d.IsHstore() || d.IsQueryInt() || d.IsLquery() || d.IsCube() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
+	if d.IsHstore() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree()) || d.IsCube() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() {
 		return PGTypeMetadata{PostgreSQLAttributeFacts: d.AttributeFacts(), Kind: "b", Category: "U", Modifier: -1}, true
 	}
 	if d.IsRange() {

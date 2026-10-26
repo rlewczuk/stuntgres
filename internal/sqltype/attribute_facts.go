@@ -44,7 +44,7 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 		f.Alignment = "d"
 		return f
 	}
-	if d.IsCitext() || d.IsHstore() || d.IsLquery() {
+	if d.IsCitext() || d.IsHstore() || d.IsLquery() || d.IsLtree() {
 		f.Storage = "x"
 		return f
 	}

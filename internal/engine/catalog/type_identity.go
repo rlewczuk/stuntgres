@@ -58,6 +58,8 @@ func SamePreparedTypeDefinition(old, current *Type) bool {
 		return b.IsQueryInt()
 	case a.IsLquery():
 		return b.IsLquery()
+	case a.IsLtree():
+		return b.IsLtree()
 	case a.IsCitext():
 		return b.IsCitext()
 	case a.IsEan13():

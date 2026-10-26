@@ -53,6 +53,12 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		}
 		v.lquery, other.lquery = nil, nil
 	}
+	if v.ltree != nil || other.ltree != nil {
+		if !v.validLtree() || !other.validLtree() || v.ltree.text != other.ltree.text {
+			return false, nil
+		}
+		v.ltree, other.ltree = nil, nil
+	}
 	v.typ, other.typ = nil, nil
 	if math.Float64bits(v.floating) != math.Float64bits(other.floating) {
 		return false, nil

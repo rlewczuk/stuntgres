@@ -1,3 +1,10 @@
+`CREATE EXTENSION ltree` also installs the `ltree` scalar and text codecs.
+Declared columns, literal/prepared/bound input, empty paths and NULLs retain exact
+path spelling and result metadata through native Dump/Reset/Restore and SQL
+extension recreation. Label grammar and path bounds follow PostgreSQL 18 UTF8/C.
+Ltree and lquery typed literals, including schema-qualified names, resolve through
+the shared binder for direct and prepared queries.
+
 Five lock-management settings now expose typed PostgreSQL 18 metadata, validation,
 context restrictions and effective parameter SET permissions. They are
 setting-only simulations: no deadlock scheduling, lock-table sizing, lock budget

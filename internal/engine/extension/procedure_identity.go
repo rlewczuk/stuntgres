@@ -182,7 +182,25 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !found {
 			return invalid()
 		}
-	case StockHstore, StockIntarray, StockLtree, StockCitext:
+	case StockLtree:
+		count = LtreeMemberCount
+		if len(ext.Members) != count || slot < 0 || slot >= count || slot%3 == 0 {
+			return invalid()
+		}
+		recipe := ltreeRecipes[slot/3]
+		base, ok := v.Type(ext.Members[recipe.slot])
+		if !ok || !recipe.accept(base.SQLType) || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 {
+			return invalid()
+		}
+		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
+		name, signature, result = recipe.name+"_in", "2275", ids.OID(base.SQLType.ID())
+		if slot%3 == 2 {
+			name, signature, result = recipe.name+"_out", LquerySignature(base.SQLType.ID()), 2275
+		}
+		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
+			return invalid()
+		}
+	case StockHstore, StockIntarray, StockCitext:
 		count = 3
 		if p.Implementation == StockCitext {
 			count = CitextMemberCount
@@ -194,7 +212,7 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 		if !ok || base.SQLType == nil {
 			return invalid()
 		}
-		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockLtree && !base.SQLType.IsLquery() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
+		if base.Address() != ext.Members[0] || base.Extension != ext.Address() || base.Namespace() == (ids.ObjectAddress{}) || base.Revision() == 0 || p.Implementation == StockHstore && !base.SQLType.IsHstore() || p.Implementation == StockIntarray && !base.SQLType.IsQueryInt() || p.Implementation == StockCitext && !base.SQLType.IsCitext() {
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil {
@@ -214,14 +232,6 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			name = "bqarr_in"
 			if slot == 2 {
 				name = "bqarr_out"
-			}
-		case StockLtree:
-			name = "lquery_in"
-			if slot == 2 {
-				name = "lquery_out"
-			}
-			if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
-				return invalid()
 			}
 		case StockCitext:
 			name = "citextin"

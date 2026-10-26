@@ -133,6 +133,7 @@ type Descriptor struct {
 	enum                                *enumDefinition
 	queryInt                            bool
 	lquery                              bool
+	ltree                               bool
 	hstore                              bool
 	cube                                bool
 	citext                              bool
@@ -486,6 +487,7 @@ type Value struct {
 	aclitem         aclitemDatum
 	queryInt        *queryIntPayload
 	lquery          *lqueryPayload
+	ltree           *ltreePayload
 	hstore          *hstorePayload
 	ftsVector       *fts.Vector
 	ftsQuery        *fts.Query
@@ -556,6 +558,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if fromEnum.IsLquery() != toEnum.IsLquery() || fromEnum.IsLquery() && (fromEnum != toEnum || !v.null && !v.validLquery()) {
 		return Value{}, fmt.Errorf("incompatible lquery generation or payload")
+	}
+	if fromEnum.IsLtree() != toEnum.IsLtree() || fromEnum.IsLtree() && (fromEnum != toEnum || !v.null && !v.validLtree()) {
+		return Value{}, fmt.Errorf("incompatible ltree generation or payload")
 	}
 	if fromEnum.IsCube() != toEnum.IsCube() || fromEnum.IsCube() && !v.null && !v.validCube() {
 		return Value{}, fmt.Errorf("incompatible cube payload")
@@ -842,7 +847,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || d.IsLquery() || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree()) || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -860,6 +865,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsLquery() {
 		return d.lqueryInput(ctx, text)
+	}
+	if d.IsLtree() {
+		return d.ltreeInput(ctx, text)
 	}
 	if d.IsCube() {
 		return d.cubeInput(ctx, text)
@@ -1187,6 +1195,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsLquery() {
 		return d.lqueryOutput(ctx, v)
 	}
+	if d.IsLtree() {
+		return d.ltreeOutput(ctx, v)
+	}
 	if d.IsCube() {
 		return d.cubeOutput(ctx, v, env)
 	}
@@ -1459,6 +1470,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if d.IsLquery() {
 		text, err := d.lqueryOutput(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
+	}
+	if d.IsLtree() {
+		text, err := d.ltreeOutput(ctx, v)
 		if err != nil {
 			return "", err
 		}

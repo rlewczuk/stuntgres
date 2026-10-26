@@ -1845,8 +1845,8 @@ type TypedLiteralExpr struct {
 	TypeName TypeName
 	Text     string
 	Pos      Position
-	// Newly admitted nominal syntax requires a domain, not another provider.
-	// The parser records the syntax fact; only the binder has type authority.
+	// Nominal syntax requires a domain unless the binder admits the resolved
+	// installed scalar. The parser records syntax, not type authority.
 	RequiresDomain bool
 }
 type ColumnExpr struct {

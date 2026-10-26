@@ -17,7 +17,7 @@ import (
 func ImportScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, allocateEnumMember func() (int64, error)) error {
 	for address, descriptor := range next.Descriptors() {
 		d, ok := descriptor.(*catalog.Type)
-		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsHstore() && !d.SQLType.IsQueryInt() && !d.SQLType.IsLquery() && !d.SQLType.IsCube() && !d.SQLType.IsCitext() && !d.SQLType.IsEan13() && !d.SQLType.IsIsbn() && !d.SQLType.IsIsbn13() && !d.SQLType.IsIsmn() && !d.SQLType.IsIsmn13() && !d.SQLType.IsIssn() && !d.SQLType.IsIssn13() && !d.SQLType.IsUpc() {
+		if !ok || !d.SQLType.IsEnum() && !d.SQLType.IsHstore() && !d.SQLType.IsQueryInt() && (!d.SQLType.IsLquery() && !d.SQLType.IsLtree()) && !d.SQLType.IsCube() && !d.SQLType.IsCitext() && !d.SQLType.IsEan13() && !d.SQLType.IsIsbn() && !d.SQLType.IsIsbn13() && !d.SQLType.IsIsmn() && !d.SQLType.IsIsmn13() && !d.SQLType.IsIssn() && !d.SQLType.IsIssn13() && !d.SQLType.IsUpc() {
 			continue
 		}
 		source := d.SQLType
@@ -61,6 +61,8 @@ func ImportScalarTypesLocked(next *catalog.State, mapping map[ids.ObjectAddress]
 			typ, err = sqltype.Upc(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		} else if source.IsLquery() {
 			typ, err = sqltype.Lquery(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
+		} else if source.IsLtree() {
+			typ, err = sqltype.Ltree(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		} else {
 			typ, err = sqltype.QueryInt(sqltype.ID(target.ObjectID), d.Name(), source.SQLName())
 		}

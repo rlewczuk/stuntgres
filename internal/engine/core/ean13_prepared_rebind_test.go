@@ -187,11 +187,14 @@ func TestUpcPreparedLiteralReown(t *testing.T)    { testInstalledScalarPreparedL
 func TestLqueryPreparedLiteralReown(t *testing.T) {
 	testInstalledScalarPreparedLiteralReown(t, "lquery", 0)
 }
+func TestLtreePreparedLiteralReown(t *testing.T) {
+	testInstalledScalarPreparedLiteralReown(t, "ltree", 3)
+}
 
 func testInstalledScalarPreparedLiteralReown(t *testing.T, family string, slot int) {
 	var e *core.Engine
 	var ext *catalog.Extension
-	if family == "lquery" {
+	if family == "lquery" || family == "ltree" {
 		e = engine.New()
 		op, done := enginetest.RoleOperation(t, e, "postgres")
 		enginetest.RoleExecute(t, e, op, "CREATE EXTENSION ltree")
@@ -208,6 +211,11 @@ func testInstalledScalarPreparedLiteralReown(t *testing.T, family string, slot i
 		inputs = []string{"Top.*{0,2}.sport*@.!football|tennis{1,}.Russ*|Spain", "foo{1}"}
 		outputs = []string{"Top.*{,2}.sport@*.!football|tennis{1,}.Russ*|Spain", "foo{1}", ""}
 		constructor = sqltype.Lquery
+	}
+	if family == "ltree" {
+		inputs = []string{"Top.Countries.Europe", ""}
+		outputs = []string{"Top.Countries.Europe", "", ""}
+		constructor = sqltype.Ltree
 	}
 	if family == "isbn" {
 		inputs = []string{"9780123456780!", "123456789X"}

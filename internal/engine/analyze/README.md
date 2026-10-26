@@ -18,6 +18,10 @@ the activation's complete scalar Usage in the ordinary PL-local expression.
 Reached WHEN lists use the shared IN binder; no alternate comparison resolver
 or published fake local carries search state.
 
+Nominal typed literals for installed ltree and lquery resolve through the ordinary
+type lookup before admission. Their resolved scalar descriptors, not their written
+names, authorize input alongside domains.
+
 ## Imports
 
 Layer L10 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).

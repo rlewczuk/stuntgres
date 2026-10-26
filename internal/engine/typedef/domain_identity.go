@@ -182,6 +182,8 @@ func stageTypeIdentity(h StageHost, auth ddl.Authority, source parser.ObjectName
 		next.SQLType, err = sqltype.QueryInt(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsLquery():
 		next.SQLType, err = sqltype.Lquery(old.SQLType.ID(), name, declaration)
+	case old.SQLType.IsLtree():
+		next.SQLType, err = sqltype.Ltree(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsEan13():
 		next.SQLType, err = sqltype.Ean13(old.SQLType.ID(), name, declaration)
 	case old.SQLType.IsIsbn():

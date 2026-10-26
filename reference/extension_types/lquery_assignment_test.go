@@ -22,6 +22,10 @@ func TestReferenceLqueryAssignment(t *testing.T) {
 			for _, args := range [][]any{{1, buffer}, {2, nil}, {3, "foo{1}"}, {4, []byte(nil)}} {
 				fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(q, 1, args...))
 			}
+			for _, q := range []string{"SELECT lquery 'a*@%' AS v", "SELECT public.lquery 'a*@%' AS v"} {
+				s := lquerySelect(b, q, []string{"v"}, [][]any{{"a%@*"}})
+				run(s); run(fixture.Prepared(s))
+			}
 			copy(buffer, "xxxx")
 			run(fixture.Exec("CREATE TABLE lq_copy(id integer NOT NULL,v lquery)", 0))
 			run(fixture.Exec("INSERT INTO lq_copy SELECT id,v FROM lq_assign", 4))
