@@ -7,11 +7,18 @@ ALTER GROUP); SET ROLE and SET SESSION AUTHORIZATION; ownership, REASSIGN OWNED,
 DROP OWNED and DROP ROLE; table and column GRANT/REVOKE; ALTER DEFAULT
 PRIVILEGES; predefined roles; `pg_has_role`/`row_security_active`; the
 `row_security` setting; and row security (policy DDL, table flags, policy
-combination and finalized INSERT/UPDATE proposed-row checks with atomic rejection).
+combination, existing-row USING filtering and finalized INSERT/UPDATE proposed-row
+checks with atomic rejection).
 Related: non-table grants and large objects in
 `reference/object_grants`; `pg_roles`, `pg_user`, `pg_group`, `pg_default_acl`
 and ACL inquiry functions in `reference/catalog_privileges`; session identity forms in
 `reference/sessions`.
+
+Existing-row USING policies filter SELECT sources and UPDATE/DELETE targets before
+non-leakproof user expressions. FALSE or NULL silently suppresses rows; missing
+applicable policies default to denial. Ordinary ACL checks remain separate, and
+policy evaluation errors preserve their diagnostics rather than becoming hidden
+rows or proposed-row policy violations.
 
 ## Testing
 
@@ -113,6 +120,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Transactional policy definitions and existing RLS consumers: `RUN='^TestReferenceTransactionalPolicies(Routes|Retention|Savepoints|Diagnostics|Prepared|Dependencies|Locks|Controls)$'`
 - Table RLS flags, default deny, BYPASSRLS: `RUN='^TestReferenceRLSBase'`
 - Policy applicability and combination: `RUN='^TestReferenceRLSCombination'`
+- Existing-row USING filtering: `RUN='^TestReferenceRLSFilter'`
 - Proposed-row checks, transformations and statement atomicity: `RUN='^TestReferenceRLSCheck'`
 
 - Role DDL, authorization and sessions:
