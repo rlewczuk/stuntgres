@@ -14,6 +14,7 @@ const emptyObjectACLExpression = `pg_catalog.acldefault('c'::pg_catalog."char",0
 type ObjectACLRepair struct {
 	Class          ids.OID
 	Identity, Text string
+	Column         string
 	Absent, Owner  bool
 }
 
@@ -74,6 +75,10 @@ func ParseObjectACLRepair(s *parser.Update) (r ObjectACLRepair, ok bool) {
 		r.Class, column, key, typ = ids.TablespaceClassID, "spcacl", "spcname", "name"
 	case "pg_type":
 		r.Class, column, key, typ = ids.TypeClassID, "typacl", "oid", "regtype"
+	case "pg_class":
+		r.Class, column, key, typ = ids.RelationClassID, "relacl", "oid", "regclass"
+	case "pg_attribute":
+		r.Class, column, key, typ = ids.RelationClassID, "attacl", "attrelid", "regclass"
 	default:
 		return
 	}
@@ -100,7 +105,28 @@ func ParseObjectACLRepair(s *parser.Update) (r ObjectACLRepair, ok bool) {
 	if !valid || v.Kind != parser.StringValue && (r.Owner || v.Kind != parser.NullValue) {
 		return
 	}
-	predicate, valid := s.Where.(parser.OperatorExpr)
+	where := s.Where
+	if column == "attacl" {
+		conjunction, valid := where.(parser.LogicalExpr)
+		if !valid || conjunction.Op != parser.LogicalAnd {
+			return
+		}
+		where = conjunction.Left
+		predicate, valid := conjunction.Right.(parser.OperatorExpr)
+		if !valid || len(predicate.Name.Parts) != 1 || predicate.Name.Parts[0].Text != "=" || len(predicate.Args) != 2 {
+			return
+		}
+		col, valid := predicate.Args[0].(parser.ColumnExpr)
+		if !valid || len(col.Name.Parts) != 1 || col.Name.Parts[0].Text != "attname" {
+			return
+		}
+		name, valid := repairLiteral(predicate.Args[1], "name", false)
+		if !valid || name.Kind != parser.StringValue || name.Text == "" {
+			return
+		}
+		r.Column = name.Text
+	}
+	predicate, valid := where.(parser.OperatorExpr)
 	if !valid || len(predicate.Name.Parts) != 1 || predicate.Name.Parts[0].Text != "=" || len(predicate.Args) != 2 {
 		return
 	}

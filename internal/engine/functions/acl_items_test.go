@@ -49,6 +49,17 @@ func (r *aclTestRuntime) ObjectPrivilege(kind AccessKind, actor *AccessRole, tar
 	return true, true, nil
 }
 
+func (r *aclTestRuntime) RelationPrivilege(kind AccessKind, actor *AccessRole, relation AccessRelation, column AccessColumn, privilege string) (bool, bool, error) {
+	switch kind {
+	case AccessTable, AccessSequence, AccessColumnPrivilege, AccessAnyColumn:
+		r.calls++
+		r.actor, r.relation, r.privilege = actor, relation, privilege
+		return true, true, nil
+	default:
+		return false, false, errors.New("invalid relation inquiry kind")
+	}
+}
+
 // aclTestTypes is one builtin generation, so items, arrays and records agree.
 var aclTestTypes = temporalTestTypes()
 

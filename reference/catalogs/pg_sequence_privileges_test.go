@@ -8,13 +8,13 @@ import (
 
 func pgSequenceAssertNoAccess(t *testing.T, p *fixture.Pair, b fixture.Backend, reader fixture.Executor, schema, sequence string, oid int64) {
 	t.Helper()
+	fixture.RunStep(t, p.Ctx, reader, b.Recorder, fixture.Select("SELECT has_sequence_privilege($1::oid,'USAGE'),has_sequence_privilege($1::oid,'SELECT'),has_sequence_privilege($1::oid,'UPDATE')", []string{"has_sequence_privilege", "has_sequence_privilege", "has_sequence_privilege"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{false, false, false}}, oid))
 	if b.PG {
-		fixture.RunStep(t, p.Ctx, reader, b.Recorder, fixture.Select("SELECT has_schema_privilege('"+schema+"','USAGE'),has_sequence_privilege($1::oid,'USAGE'),has_sequence_privilege($1::oid,'SELECT'),has_sequence_privilege($1::oid,'UPDATE')", []string{"has_schema_privilege", "has_sequence_privilege", "has_sequence_privilege", "has_sequence_privilege"}, []string{"BOOL", "BOOL", "BOOL", "BOOL"}, [][]any{{false, false, false, false}}, oid))
+		fixture.RunStep(t, p.Ctx, reader, b.Recorder, fixture.Select("SELECT has_schema_privilege('"+schema+"','USAGE')", []string{"has_schema_privilege"}, []string{"BOOL"}, [][]any{{false}}))
 		return
 	}
-	// Native privilege predicates are unsupported. Name resolution proves the
-	// private schema denies USAGE; numeric identities independently reach the
-	// sequence ACL. Denied nextval/currval jointly exclude USAGE/SELECT/UPDATE.
+	// Native name resolution and denied sequence operations independently
+	// establish that inquiry evaluation did not open or advance the generator.
 	denied := fixture.ControlsReferenceDiagnostic("42501", "permission denied for schema "+schema)
 	denied.Position = "16"
 	step := fixture.ImplicitError("SELECT nextval('"+schema+"."+sequence+"')", denied)

@@ -21,18 +21,24 @@ evaluated. Non-NULL calls remain volatile and unfolded. Runtime row NULL still
 evaluates the written siblings before testing strictness or borrowing the
 session generator.
 
-`AccessInquiry` uses a closed kind for role membership, row security and routine,
-language, wrapper, server, database, schema, type and tablespace privilege
-inquiries. Role NAME/OID and object TEXT/OID axes bind independently to exact
-selected declarations. Arguments evaluate once in written order before strict
-NULL handling; the nullable BOOL recipe retains neither a role snapshot nor a
-decision. `ACLRuntime.ObjectPrivilege` borrows the executing statement's current
-private catalog and expression principal on every invocation, including held
-prepared statements. Text routine and type identities use the existing
-regprocedure and regtype resolvers with the executing invoker's namespace
-authority. Independent ordinary and grant-option masks implement comma-list
-ANY after complete token validation. Inquiry-specific PUBLIC defaults and raw
-unknown role OIDs do not change creation or execution admission.
+`AccessInquiry` uses closed kinds for role membership, row security, routine,
+language, wrapper, server, database, schema, type, tablespace, table, sequence,
+column and any-column privileges. Role NAME/OID, object TEXT/OID and column
+TEXT/INT2 axes bind independently to exact selected declarations. The four-slot
+carrier evaluates written arguments once before strict NULL handling and retains
+no authority or decision; its result is nullable BOOL.
+`ACLRuntime.ObjectPrivilege` and `RelationPrivilege` borrow the executing
+statement's current private catalog and expression principal, including on held
+prepared reuse. Existing regprocedure, regtype and regclass resolvers own text
+identities with the executing invoker's namespace authority. Independent ordinary
+and grant-option masks implement comma-list ANY after complete token validation.
+Relation inquiries preserve stable attribute numbers and distinguish absent
+objects from false privileges. Inquiry-specific defaults, PUBLIC and raw unknown
+role OIDs do not change creation or execution admission.
+All thirty relation/column overloads have successful CatalogRoutineProvider
+associations in `routine/inventory.go`, with released internal source labels in
+`routine/display_inventory.go`. Lookup-only result identities alone never grant
+binding or execution authority; the selected descriptor and manifest are required.
 
 
 ## Imports and layering

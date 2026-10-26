@@ -15,14 +15,15 @@ standard library, and holds no state, no mutex and no engine callback.
 
 ## What it owns
 
-- **Event graph** (`graph.go`): `Phase` and its 16 ordered constants
-  (`Declaration` … `OperatorLinks`), `Event{OID, Phase}`, `Graph` (each event
-  to the events that must precede it) with `Add` and `DependsOn`, and
-  `DeclarationEvents`/`DeclarationIDs`. The numeric phase order is part of the
-  output order: add new phases at the end.
+- **Event graph** (`graph.go`): appended `Phase` constants,
+  `Event{OID, Phase, Step}`, `Graph` (each event to its predecessors), `Add`,
+  `DependsOn`, `DeclarationEvents` and `DeclarationIDs`. Existing object phases
+  have Step zero; source-shaped attribute construction and retirement use stable
+  operation ordinals. Numeric phase order remains part of output order, so new
+  phases go at the end.
 - **Order** (`order.go`): `Order` sorts a captured graph topologically. It
-  breaks ties by captured priority (the OID when none is captured), then OID,
-  then phase. It never reads the catalog, honors cancellation, and fails on
+  breaks ties by captured priority (OID when absent), OID, phase, then Step.
+  It never reads the catalog, honors cancellation, and fails on
   missing predecessors and on cycles, self edges included. Its error texts
   (`stuntgres: cyclic view dump dependencies`, `stuntgres: missing view dump
   predecessor`) name views for every event kind; they are public and stay

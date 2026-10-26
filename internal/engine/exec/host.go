@@ -60,6 +60,7 @@ type Host interface {
 	RoleMembership(c *Context, actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error)
 	RowSecurityActive(c *Context, relation functions.AccessRelation) (bool, error)
 	ObjectPrivilege(c *Context, kind functions.AccessKind, actor *functions.AccessRole, object functions.AccessRole, privilege string) (bool, bool, error)
+	RelationPrivilege(c *Context, kind functions.AccessKind, actor *functions.AccessRole, relation functions.AccessRelation, column functions.AccessColumn, privilege string) (bool, bool, error)
 	// functions.AdvisoryRuntime and functions.BlockingRuntime
 	Advisory(c *Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error)
 	BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error)

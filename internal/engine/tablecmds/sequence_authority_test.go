@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	"stuntgres/internal/engine"
@@ -53,9 +54,16 @@ func TestSequenceAuthorityRemapAndControlAtomicity(t *testing.T) {
 	if err := enginetest.SetObjectACL(e, context.Background(), ref, acl); err != nil {
 		t.Fatal(err)
 	}
-	var rejected bytes.Buffer
-	if err := engine.Dump(context.Background(), e, &rejected); err == nil || rejected.Len() != 0 {
-		t.Fatal("ACL dump must fail before output", err, rejected.String())
+	var granted bytes.Buffer
+	if err := engine.Dump(context.Background(), e, &granted); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Restore(context.Background(), e, bytes.NewReader(granted.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	ref = enginetest.RoleTableRef(t, e, "s")
+	if got := e.Catalog.State.MustRelation(ref.Address).Security.ACL; !reflect.DeepEqual(got, acl) {
+		t.Fatal("sequence ACL changed across restore", got, acl)
 	}
 	enginetest.RoleError(t, e, op, "DROP ROLE seq_reader", "2BP01", `role "seq_reader" cannot be dropped because some objects depend on it`, "privileges for sequence s")
 	before := e.Catalog.State

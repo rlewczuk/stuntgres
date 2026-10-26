@@ -29,6 +29,7 @@ type ACLRuntime interface {
 	RowSecurityActive(relation AccessRelation) (bool, error)
 	// ObjectPrivilege returns exists=false for an absent object OID.
 	ObjectPrivilege(kind AccessKind, actor *AccessRole, object AccessRole, privilege string) (value, exists bool, err error)
+	RelationPrivilege(kind AccessKind, actor *AccessRole, relation AccessRelation, column AccessColumn, privilege string) (value, exists bool, err error)
 }
 
 // AccessRole is a role argument of pg_has_role: an OID, or a name the
@@ -45,4 +46,11 @@ type AccessRelation struct {
 	ByOID bool
 	OID   uint32
 	Name  string
+}
+
+// AccessColumn preserves the independent text/smallint released formal axis.
+type AccessColumn struct {
+	ByNumber bool
+	Number   int32
+	Name     string
 }

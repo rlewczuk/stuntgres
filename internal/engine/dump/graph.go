@@ -30,12 +30,16 @@ const (
 	InheritedForeignKeys
 	DomainChecks
 	OperatorLinks
+	AttributeRetirement
+	AttributeConstruction
+	AttributeCompletion
 )
 
 // Event is one emission step: a phase of the object with this OID.
 type Event struct {
 	OID   ids.OID
 	Phase Phase
+	Step  uint32 // Stable operation ordinal; zero for ordinary object phases.
 }
 
 // Graph maps each event to the events that must be emitted before it.

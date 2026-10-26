@@ -53,6 +53,37 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 			}
 			table, column = "pg_type", "typacl"
 			locator = "oid=" + dump.CommentLiteral(regobj.TypeSpelling(c.OriginalCatalog, nil, d.Address().ObjectID)) + "::pg_catalog.regtype"
+		case *catalog.Relation:
+			if d.RelationKind == catalog.CatalogRelation {
+				continue
+			}
+			if err := access.ValidateACL(c.OriginalRoles, d); err != nil {
+				return err
+			}
+			ns, ok := c.OriginalCatalog.Namespace(d.Namespace())
+			if !ok {
+				return fmt.Errorf("stuntgres: missing ACL relation namespace")
+			}
+			identity := dump.CommentLiteral(catalog.QuoteIdentifier(ns.Name())+"."+catalog.QuoteIdentifier(d.Name())) + "::pg_catalog.regclass"
+			if acl.Explicit {
+				literal, err := objectACLLiteral(ctx, c, acl)
+				if err != nil {
+					return err
+				}
+				statements = append(statements, "UPDATE pg_catalog.pg_class SET relacl="+literal+"::pg_catalog.aclitem[] WHERE oid="+identity+";\n")
+			}
+			for i, sub := range d.Attributes {
+				columnACL := d.Security.ColumnACL[sub]
+				if !columnACL.Explicit {
+					continue
+				}
+				literal, err := objectACLLiteral(ctx, c, columnACL)
+				if err != nil {
+					return err
+				}
+				statements = append(statements, "UPDATE pg_catalog.pg_attribute SET attacl="+literal+"::pg_catalog.aclitem[] WHERE attrelid="+identity+" AND attname="+dump.CommentLiteral(d.Columns[i].Name)+"::pg_catalog.name;\n")
+			}
+			continue
 		case *catalog.Procedure:
 			if catalog.ExtensionMembership(d) != (ids.ObjectAddress{}) {
 				continue
@@ -103,24 +134,9 @@ func prepareObjectACLs(ctx context.Context, s *dumpScript) error {
 		if err := access.ValidateACL(c.OriginalRoles, d); err != nil {
 			return err
 		}
-		literal := "NULL"
-		if acl.Explicit && len(acl.Entries) == 0 {
-			// Text '{}' loses PostgreSQL's one-dimensional empty ACL shape.
-			literal = emptyObjectACLExpression
-		} else if acl.Explicit {
-			array, ok := c.OriginalCatalog.LookupType(sqltype.ACLItemArray)
-			if !ok {
-				return fmt.Errorf("stuntgres: missing ACL array type")
-			}
-			value, err := pgcatalog.ClassACL(c.OriginalCatalog.Owner(), c.OriginalRoles, array, acl)
-			if err != nil {
-				return err
-			}
-			text, err := array.OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{ACLItem: c.ACLOutput})
-			if err != nil {
-				return err
-			}
-			literal = dump.CommentLiteral(text)
+		literal, err := objectACLLiteral(ctx, c, acl)
+		if err != nil {
+			return err
 		}
 		ownerColumn := ""
 		switch table {
@@ -243,4 +259,26 @@ func emitObjectACLStatements(ctx context.Context, w *dumpWriter, statements []st
 		}
 	}
 	return nil
+}
+
+func objectACLLiteral(ctx context.Context, c *Capture, acl authorization.ACLValue) (string, error) {
+	if !acl.Explicit {
+		return "NULL", nil
+	}
+	if len(acl.Entries) == 0 {
+		return emptyObjectACLExpression, nil
+	}
+	array, ok := c.OriginalCatalog.LookupType(sqltype.ACLItemArray)
+	if !ok {
+		return "", fmt.Errorf("stuntgres: missing ACL array type")
+	}
+	value, err := pgcatalog.ClassACL(c.OriginalCatalog.Owner(), c.OriginalRoles, array, acl)
+	if err != nil {
+		return "", err
+	}
+	text, err := array.OutputWithEnvironment(ctx, value, sqltype.OutputEnvironment{ACLItem: c.ACLOutput})
+	if err != nil {
+		return "", err
+	}
+	return dump.CommentLiteral(text), nil
 }

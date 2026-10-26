@@ -114,8 +114,7 @@ func TestReferenceInheritanceAlterRetiredCompaction(t *testing.T) {
 			fixture.Select("SELECT a,b FROM c ORDER BY a", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(2), int64(20)}, {int64(3), int64(30)}}),
 			fixture.Select("SELECT attname,attislocal,attinhcount FROM pg_attribute WHERE attrelid='c'::regclass::oid AND attnum>0 AND NOT attisdropped ORDER BY attname", []string{"attname", "attislocal", "attinhcount"}, []string{"NAME", "BOOL", "INT2"}, [][]any{{"a", true, int64(0)}, {"b", false, int64(1)}}),
 		}
-		// Symmetric failing values keep full physical Detail independently exact
-		// even when compaction changes the child layout from a,b to b,a.
+		// Both live child columns retain their original physical numbers.
 		enforcement := []fixture.Step{
 			fixture.ImplicitError("INSERT INTO c(a,b) VALUES(NULL,NULL)", inheritanceNullDiagnostic("c", "a", "null, null")),
 			fixture.ImplicitError("INSERT INTO c(a,b) VALUES(0,0)", inheritanceCheckDiagnostic("c", "ck", "0, 0")),
@@ -123,9 +122,15 @@ func TestReferenceInheritanceAlterRetiredCompaction(t *testing.T) {
 			fixture.ImplicitError("INSERT INTO leaf(a,b) VALUES(0,0)", inheritanceCheckDiagnostic("leaf", "ck", "0, 0")),
 		}
 		afterReplay := []fixture.Step{
-			fixture.Select("SELECT attname,attnum FROM pg_attribute WHERE attrelid='p'::regclass::oid AND attnum>0 AND NOT attisdropped", []string{"attname", "attnum"}, []string{"NAME", "INT2"}, [][]any{{"b", int64(1)}}),
+			fixture.Select("SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='p'::regclass AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "........pg.dropped.1........", true}, {int64(2), "b", false}}),
+			fixture.Select("SELECT attname,attnum FROM pg_attribute WHERE attrelid='c'::regclass AND attnum>0 ORDER BY attnum", []string{"attname", "attnum"}, []string{"NAME", "INT2"}, [][]any{{"a", int64(1)}, {"b", int64(2)}}),
+			fixture.Select("SELECT attname,attnum FROM pg_attribute WHERE attrelid='leaf'::regclass AND attnum>0 ORDER BY attnum", []string{"attname", "attnum"}, []string{"NAME", "INT2"}, [][]any{{"a", int64(1)}, {"b", int64(2)}}),
 		}
 		retiredRoundTrip(s, checks, enforcement, afterReplay, nil)
+		s.exec("ALTER TABLE p ADD next_slot INT", 0)
+		for _, table := range []string{"p", "c", "leaf"} {
+			s.run(fixture.Select("SELECT attnum FROM pg_attribute WHERE attrelid='"+table+"'::regclass AND attname='next_slot'", []string{"attnum"}, []string{"INT2"}, [][]any{{int64(3)}}))
+		}
 	})
 }
 

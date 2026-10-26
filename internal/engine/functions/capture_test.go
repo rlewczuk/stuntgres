@@ -82,7 +82,7 @@ func TestCaptureOperandsWrittenSlots(t *testing.T) {
 		}
 	}
 	for _, node := range []expr.Capturable{
-		AccessInquiry{Count: -1}, AccessInquiry{Count: 4}, AccessInquiry{Count: 1},
+		AccessInquiry{Count: -1}, AccessInquiry{Count: 5}, AccessInquiry{Count: 1},
 		ACLValue{Kind: ACLKind(255)}, ACLValue{Kind: ACLMake},
 		DatetimeAgeFinite{Count: 3}, DatetimeAgeFinite{Count: 1},
 		DatetimeTrunc{Count: -1}, DatetimeTrunc{Count: 4},
@@ -232,7 +232,7 @@ func TestCaptureOperandsNoAllocations(t *testing.T) {
 		{"regexp_call", regexp, expr.CaptureFunction, []expr.Expr{a[2], a[0], a[1]}},
 		{"regexp", Regexp{regexp}, expr.CaptureFunction, []expr.Expr{a[2], a[0], a[1]}},
 		{"regexp_set", RegexpSet{regexp}, expr.CaptureFunction, []expr.Expr{a[2], a[0], a[1]}},
-		{"access", AccessInquiry{Args: [3]expr.Expr{a[0], a[1], a[2]}, Count: 3}, expr.CaptureFunction, a[:3]},
+		{"access", AccessInquiry{Args: [4]expr.Expr{a[0], a[1], a[2]}, Count: 3}, expr.CaptureFunction, a[:3]},
 		{"acl", ACLValue{Kind: ACLMake, Args: [4]expr.Expr{a[0], a[1], a[2], a[3]}}, expr.CaptureFunction, a[:4]},
 		{"acl_operator", ACLValue{Kind: ACLContains, Args: [4]expr.Expr{a[0], a[1]}}, expr.CaptureOperator, a[:2]},
 		{"age", DatetimeAgeFinite{Args: [2]expr.Expr{a[0], a[1]}, Count: 2}, expr.CaptureFunction, a[:2]},

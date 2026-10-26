@@ -102,7 +102,8 @@ Family-local provider vectors enumerate actual represented fields and stable
 attributes; the common provider/self cases assert complete 44-cell rows.
 Foreign capability uses genuine installed handlers and explicit native public
 interface phases without external scans. Native controls replay actual Dump
-bytes and preserve old eager rows, with explicit ACL rejection tested separately.
+bytes, preserve old eager rows and roundtrip explicit raw ACLs, generated and
+identity data, privilege inquiries and the reader's filtered column metadata.
 
 - Column metadata: `RUN='^TestReferenceInfoColumns'`
 

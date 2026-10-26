@@ -86,11 +86,19 @@ func TestReferenceRoleDefaultPrivilegesControls(t *testing.T) {
 		if !b.PG {
 			run(fixture.Exec("ALTER DEFAULT PRIVILEGES REVOKE SELECT ON TABLES FROM dp_reader", 0))
 			var out bytes.Buffer
-			err := stuntgres.Dump(p.Ctx, p.Native, &out)
-			var state interface{ SQLState() string }
-			if err == nil || errors.As(err, &state) || out.Len() != 0 {
-				t.Fatal("materialized ACL Dump boundary", out.String(), err)
+			if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+				t.Fatal("materialized ACL Dump", err)
 			}
+			if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(out.Bytes())); err != nil {
+				t.Fatal("materialized ACL Restore", err)
+			}
+			fixture.RoleGrantActor(run, "dp_reader", func() {
+				fixture.RoleGrantPermissionDenied(run, "SELECT x FROM dp_control_old", "table", "dp_control_old")
+				dpRead(run, "dp_control_new", 9)
+				dpRead(run, "dp_control_after_restore", 11)
+			})
+			run(fixture.Select("SELECT has_table_privilege('dp_reader','dp_control_old','SELECT') AS old,has_table_privilege('dp_reader','dp_control_new','SELECT') AS new", []string{"old", "new"}, []string{"BOOL", "BOOL"}, [][]any{{false, true}}))
+			run(fixture.Select("SELECT relacl::text AS acl FROM pg_class WHERE oid='dp_control_new'::regclass", []string{"acl"}, []string{"TEXT"}, [][]any{{"{postgres=arwdDxtm/postgres,dp_reader=r/postgres}"}}))
 			run(fixture.Exec("ALTER DEFAULT PRIVILEGES GRANT SELECT ON TABLES TO dp_reader", 0))
 			run(fixture.Exec("SET SESSION AUTHORIZATION dp_reader", 0))
 			if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {

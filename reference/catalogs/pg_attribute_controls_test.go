@@ -67,6 +67,9 @@ func TestReferencePGAttributeControls(t *testing.T) {
 		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump)); err != nil {
 			t.Fatal(err)
 		}
+		if !bytes.Equal(fixture.ViewDump(t, p), dump) {
+			t.Fatal("attribute history changed canonical redump")
+		}
 		newID := pgAttributeID(t, p, b.DB, "pa18_control")
 		fixture.PGAttributeCheck(t, p, b, b.DB, s)
 		// The old literal retains its logical relation identity across replacement.
@@ -79,7 +82,7 @@ func TestReferencePGAttributeControls(t *testing.T) {
 		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Prepared(s))
 		parameterStep.Args = []any{newID}
 		fixture.PGAttributeCheck(t, p, b, parameterHeld, parameterStep)
-		pgAttributeRead(t, p, b, b.DB, newID, " AND attisdropped", nil)
+		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid=$1 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "id", false}, {int64(2), "matrix", false}, {int64(3), "........pg.dropped.3........", true}}, newID))
 		fixture.PGAttributeCheck(t, p, b, b.DB, fixture.Select("SELECT id,matrix FROM pa18_control", []string{"id", "matrix"}, []string{"INT4", "_INT4"}, [][]any{{int64(9), "{{1,2},{3,4}}"}}))
 		if !old.Next() {
 			t.Fatal("retained missing row", old.Err())
@@ -104,6 +107,7 @@ func TestReferencePGAttributeControls(t *testing.T) {
 			pg := fixture.Backend{Name: "postgres", DB: p.Postgres, Recorder: p.PostgresRecord, PG: true}
 			fixture.PGAttributeCheck(t, p, pg, p.Postgres, s)
 			fixture.PGAttributeCheck(t, p, pg, p.Postgres, fixture.Select("SELECT id,matrix FROM pa18_control", []string{"id", "matrix"}, []string{"INT4", "_INT4"}, [][]any{{int64(9), "{{1,2},{3,4}}"}}))
+			fixture.PGAttributeCheck(t, p, pg, p.Postgres, fixture.Select("SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='pa18_control'::regclass AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "id", false}, {int64(2), "matrix", false}, {int64(3), "........pg.dropped.3........", true}}))
 			// Leave public clean for the ordinary shared PG phase above.
 			fixture.PGClassExec(t, p, pg, p.Postgres, "DROP TABLE pa18_control")
 		}

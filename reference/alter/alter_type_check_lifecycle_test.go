@@ -161,8 +161,11 @@ func TestReferenceAlterTypeCheckControlsAndDefaultRemoval(t *testing.T) {
 			t.Fatal(text, dump.String())
 		}
 	}
-	if strings.Contains(dump.String(), "ALTER TABLE") {
-		t.Fatal(dump.String())
+	referenceAlterTypeCheckLayout(t, p)
+	if p.Postgres != nil {
+		if _, err := p.Postgres.ExecContext(p.Ctx, "DROP TABLE t;"+dump.String()); err != nil {
+			t.Fatal("PostgreSQL rejected emitted dropped-slot CHECK dump", err)
+		}
 	}
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
@@ -174,6 +177,7 @@ func TestReferenceAlterTypeCheckControlsAndDefaultRemoval(t *testing.T) {
 	if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || again.String() != dump.String() {
 		t.Fatal(err, again.String(), dump.String())
 	}
+	referenceAlterTypeCheckLayout(t, p)
 	for _, step := range []fixture.Step{
 		fixture.Exec("INSERT INTO t DEFAULT VALUES", 1), fixture.Exec("INSERT INTO t(c) VALUES(NULL)", 1),
 		fixture.Select("SELECT * FROM t ORDER BY c", []string{"c", "n"}, []string{"INT8", "INT4"}, [][]any{{int64(7), int64(1)}, {int64(8), int64(1)}, {nil, int64(1)}}),
@@ -224,4 +228,11 @@ func TestReferenceAlterTypeCheckFloatingControls(t *testing.T) {
 			p.Step(t, fixture.Select("SELECT c FROM t ORDER BY c", []string{"c"}, []string{"FLOAT8"}, [][]any{{float64(1.00000013)}, {float64(1.00000013)}, {float64(2)}, {float64(2.5)}, {nil}, {nil}}))
 		})
 	}
+}
+
+func referenceAlterTypeCheckLayout(t *testing.T, p *fixture.Pair) {
+	t.Helper()
+	p.Step(t, fixture.Select("SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='t'::regclass AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "........pg.dropped.1........", true}, {int64(2), "c", false}, {int64(3), "n", false}}))
+	p.Step(t, fixture.Select("SELECT relnatts FROM pg_class WHERE oid='t'::regclass", []string{"relnatts"}, []string{"INT2"}, [][]any{{int64(3)}}))
+	p.Step(t, fixture.Select("SELECT conname,connoinherit FROM pg_constraint WHERE conrelid='t'::regclass AND contype='c'", []string{"conname", "connoinherit"}, []string{"NAME", "BOOL"}, [][]any{{"ck", true}}))
 }

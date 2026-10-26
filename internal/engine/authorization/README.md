@@ -43,8 +43,10 @@ and ACL DDL decisions are in [`role`](../role/README.md).
   `GrantWarning` is the 01006/01007 warning of a partial GRANT or REVOKE.
   `SchemaACLOwner` transfers ownership. `MaterializeRelationACL` and
   `MaterializeDatabaseACL` build absent-ACL baselines. `ObjectPrivilege` and
-  `ForeignPrivilege` parse privilege lists. `ACLItemBits` converts to
-  PostgreSQL's `aclitem` bit layout. `ValidateACL` checks stored values.
+  `ForeignPrivilege` parse grant lists; `ParseRelationPrivileges` validates full
+  inquiry lists into ordinary/grant-option alternatives without changing the
+  stored ACL grammar. `ACLItemBits` converts to PostgreSQL's `aclitem` layout.
+  `ValidateACL` checks stored values.
 - **Default privileges:** `DefaultACLClass`, `DefaultClass`, `DefaultMask`,
   `DefaultBaseline`, `MatchesDefaultBaseline`, `DefaultPrivilege`,
   `CreationDefaultACL`, `ValidateDefaultACL`, `ValidateDefaultACLHeader` and

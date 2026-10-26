@@ -50,6 +50,17 @@ func TestReferenceCompositeAlterInheritedChecks(t *testing.T) {
 							s := fixture.Select("SELECT conname,conislocal,coninhcount FROM pg_constraint WHERE conrelid='"+table+"'::regclass::oid ORDER BY conname", []string{"conname", "conislocal", "coninhcount"}, []string{"NAME", "BOOL", "INT2"}, want)
 							s.Prepared = prepared
 							fixture.RunStep(t, p.Ctx, observe, backend.Recorder, s)
+							attributeName, attributeCount := "id", count
+							if !dependent {
+								attributeName = "........pg.dropped.1........"
+								if !local {
+									// Recursive deletion retains the final provider, not the live diamond count.
+									attributeCount = 1
+								}
+							}
+							s = fixture.Select("SELECT attnum,attname,attisdropped,attislocal,attinhcount FROM pg_attribute WHERE attrelid='"+table+"'::regclass::oid AND attnum=1", []string{"attnum", "attname", "attisdropped", "attislocal", "attinhcount"}, []string{"INT2", "NAME", "BOOL", "BOOL", "INT2"}, [][]any{{int64(1), attributeName, !dependent, local, attributeCount}})
+							s.Prepared = prepared
+							fixture.RunStep(t, p.Ctx, observe, backend.Recorder, s)
 						}
 					}
 					before := func() {
@@ -90,13 +101,9 @@ func TestReferenceCompositeAlterInheritedChecks(t *testing.T) {
 						fixture.RunStep(t, p.Ctx, observe, backend.Recorder, fixture.Select(`SELECT reloftype='pair'::regtype::oid AS attached FROM pg_class WHERE oid='root'::regclass::oid`, []string{"attached"}, []string{"BOOL"}, [][]any{{true}}))
 					}
 					check(c, b)
-					future := func(conn *sql.Conn, backend fixture.Backend, reconstructed bool) {
+					future := func(conn *sql.Conn, backend fixture.Backend) {
 						names, types := []string{"note", "v", "extra"}, []string{"TEXT", "", "INT4"}
 						values := [][]any{{"first", "(payload,)", nil}, {"second", "(accepted,)", int64(5)}}
-						if reconstructed {
-							names, types = []string{"note", "extra", "v"}, []string{"TEXT", "INT4", ""}
-							values = [][]any{{"first", nil, "(payload,)"}, {"second", int64(5), "(accepted,)"}}
-						}
 						metadata := fixture.Select(`SELECT * FROM child ORDER BY note`, names, types, values)
 						metadata.Prepared = prepared
 						fixture.EnumReferenceRunStep(t, p.Ctx, conn, backend.Recorder, metadata)
@@ -104,9 +111,6 @@ func TestReferenceCompositeAlterInheritedChecks(t *testing.T) {
 							want := fixture.CompositeReferenceDiagnostic("23514", `new row for relation "child" violates check constraint "`+tc.constraint+`"`)
 							want.Schema, want.Table, want.Constraint = "public", "child", tc.constraint
 							want.Detail = "Failing row contains (" + tc.note + ", " + tc.value + ", 5)."
-							if reconstructed {
-								want.Detail = "Failing row contains (" + tc.note + ", 5, " + tc.value + ")."
-							}
 							fixture.CompositeReferenceError(t, p, conn, "INSERT INTO child(note,v,extra) VALUES('"+tc.note+"',$1,5)", "execute", want, tc.value)
 						}
 						s := fixture.Exec(`INSERT INTO child(note,v,extra) VALUES('third',$1,6)`, 1, "(free,)")
@@ -114,7 +118,7 @@ func TestReferenceCompositeAlterInheritedChecks(t *testing.T) {
 						fixture.RunStep(t, p.Ctx, conn, backend.Recorder, s)
 						fixture.RunStep(t, p.Ctx, conn, backend.Recorder, fixture.Exec(`DELETE FROM child WHERE note='third'`, 1))
 					}
-					future(c, b, false)
+					future(c, b)
 					check(c, b)
 					if b.PG {
 						return
@@ -139,7 +143,7 @@ func TestReferenceCompositeAlterInheritedChecks(t *testing.T) {
 						t.Fatal("fresh inherited CHECK Restore", err)
 					}
 					freshBackend := fixture.Backend{Recorder: freshRecorder}
-					future(freshConn, freshBackend, true)
+					future(freshConn, freshBackend)
 					check(freshConn, freshBackend)
 					if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 						t.Fatal(err)
@@ -148,7 +152,7 @@ func TestReferenceCompositeAlterInheritedChecks(t *testing.T) {
 						t.Fatal("Reset inherited CHECK Restore", err)
 					}
 					check(c, b)
-					future(c, b, true)
+					future(c, b)
 					check(c, b)
 					if p.Postgres != nil {
 						if _, err := p.Postgres.ExecContext(p.Ctx, `DROP SCHEMA public CASCADE; CREATE SCHEMA public`); err != nil {
@@ -168,7 +172,7 @@ func TestReferenceCompositeAlterInheritedChecks(t *testing.T) {
 							t.Fatal(err)
 						}
 						defer pgConn.Close()
-						future(pgConn, pgBackend, true)
+						future(pgConn, pgBackend)
 						check(pgConn, pgBackend)
 					}
 				})

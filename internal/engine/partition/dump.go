@@ -151,6 +151,10 @@ func DumpNeedsAttach(view catalog.Read, d *catalog.Relation) bool {
 		return false
 	}
 	parent := view.MustRelation(d.Membership.Parent)
+	if len(d.ColumnMeta.Dropped) != 0 || !slices.Equal(d.Attributes, parent.Attributes) || d.ColumnMeta.HighWater != parent.ColumnMeta.HighWater {
+		return true
+	}
+	// Other declaration differences still require the incumbent attach path.
 	for i, column := range d.Columns {
 		if column.DeclaredDimensions != 0 || column.Name != parent.Columns[i].Name {
 			return true

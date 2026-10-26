@@ -105,7 +105,7 @@ func (w *objectACLWriter) Write(p []byte) (int, error) {
 	return w.Buffer.Write(p)
 }
 
-func objectACLRejectedControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, table string) {
+func objectACLRoundtripControls(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, table string) {
 	t.Helper()
 	run := func(s fixture.Step) { objectACLRun(t, p, b, c, s) }
 	checks := []fixture.Step{
@@ -121,11 +121,26 @@ func objectACLRejectedControls(t *testing.T, p *fixture.Pair, b fixture.Backend,
 		return
 	}
 	var out objectACLWriter
-	err := stuntgres.Dump(p.Ctx, p.Native, &out)
-	if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit relation or column ACL" || out.calls != 0 || out.Len() != 0 {
-		t.Fatal("Dump must reject before writer publication", out.calls, out.String(), err)
+	if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+		t.Fatal("Dump column ACL", err)
 	}
-	err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE acl_obj_replacement(a INT); GRANT SELECT ON acl_obj_replacement TO PUBLIC"))
+	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
+		t.Fatal(err)
+	}
+	if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(out.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range checks {
+		run(s)
+	}
+	var redump bytes.Buffer
+	if err := stuntgres.Dump(p.Ctx, p.Native, &redump); err != nil {
+		t.Fatal(err)
+	}
+	if redump.String() != out.String() {
+		t.Fatal("column ACL redump changed")
+	}
+	err := stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE acl_obj_replacement(a INT); GRANT SELECT ON acl_obj_replacement TO PUBLIC"))
 	want := fixture.ControlsReferenceDiagnostic("0A000", "restore accepts only CREATE/ALTER/DROP SCHEMA, CREATE TABLE/SEQUENCE/VIEW/INDEX/POLICY/RULE, materialized extension dependency ALTER, row-security/existing-index/eligible NOT VALID ALTER TABLE, INSERT, deferred reference DEFAULT, database-local COMMENT, generated sequence ownership/state and SET SESSION AUTHORIZATION")
 	fixture.AssertDiagnostic(t, err, &want)
 	for _, s := range checks {
@@ -139,7 +154,7 @@ func TestReferenceObjectACLControls(t *testing.T) {
 		objectACLRun(t, p, b, c, fixture.Exec("CREATE TABLE acl_obj_controls(a INT,b INT)", 0))
 		objectACLRun(t, p, b, c, fixture.Exec("INSERT INTO acl_obj_controls VALUES (7,9)", 1))
 		objectACLRun(t, p, b, c, fixture.Exec("GRANT SELECT(a) ON acl_obj_controls TO PUBLIC", 0))
-		objectACLRejectedControls(t, p, b, c, "acl_obj_controls")
+		objectACLRoundtripControls(t, p, b, c, "acl_obj_controls")
 	})
 }
 

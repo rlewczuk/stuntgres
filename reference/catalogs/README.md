@@ -84,9 +84,9 @@ retire obsolete lookup names.
   native-emitted Dump bytes unchanged and fail if the dump is empty; never
   substitute handwritten SQL. Prove replay through restored values and
   identities, not dump spelling (quoting, deparse formatting).
-- Native Dump rejects explicit relation, column, routine and parameter ACLs
-  before writing: run Dump/Reset/Restore phases before explicit GRANT/REVOKE
-  phases, or assert the rejection.
+- Native Dump preserves supported raw relation, column, routine, namespace,
+  type and tablespace ACLs. Parameter/default-privilege ACLs reject before writing.
+  Provision every named owner, grantor and grantee before logical Restore.
 - Keep password setup out of recorders and failure output.
 - Client quirks: drain and close a PostgreSQL cursor before issuing another
   command on its physical connection; pq parses FLOAT4 shortest-decimal text

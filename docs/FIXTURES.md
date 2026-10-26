@@ -56,7 +56,7 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   TEMP objects, uncommitted or prepared work, sequence `currval`/`lastval` session
   state, and commit timestamp history.
 - Dump fails before writing anything when it cannot serialize faithfully, for
-  example explicit relation or column ACLs, invalid indexes, or cyclic view
+  example invalid indexes, parameter/default-privilege ACLs or cyclic view
   dependencies (`stuntgres: cyclic view dump dependencies`).
 - Event triggers replay in the final DDL section, after saved data/defaults and
   attribute metadata, initially disabled and activated only after all definitions.
@@ -80,16 +80,17 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   grants, grant options and explicit-empty ACLs. These native metadata comments
   do not apply ACL changes when the SQL stream is replayed on PostgreSQL.
 - Supported SQL routines/procedures/aggregates, retained languages, foreign
-  wrappers/servers, schemas, types and retained tablespaces preserve raw ACLs,
-  named grantors/grantees, grant options and absent versus
+  wrappers/servers, schemas, types, retained tablespaces, relations and columns
+  preserve raw ACLs, named grantors/grantees, grant options and absent versus
   explicit-empty/default-equivalent arrays. Generated type companions retain
   their own raw ACLs independently of effective type-USAGE delegation.
   Exact captured schema/tablespace authority is installed before object recipes;
   type ACLs follow their identity's declaration and precede dependent consumers.
   Final bounded administrative catalog UPDATE repairs reconcile owner moves.
-  Routine/type locators use destination-resolved qualified
-  regprocedure/regtype identities, never allocated source OIDs. Retained
-  language, namespace and tablespace owner changes use named regrole repairs.
+  Routine/type/relation locators use destination-resolved qualified
+  regprocedure/regtype/regclass identities and exact column names, never
+  allocated source OIDs or dense column offsets. Retained language, namespace
+  and tablespace owner changes use named regrole repairs.
   Provision every named role before Restore. These generated repairs also work
   under administrative PostgreSQL replay; ordinary native UPDATE remains
   unsupported for these catalogs.
@@ -99,6 +100,15 @@ comments, and sequence state. The output can also be replayed on PostgreSQL.
   Database registrations and destination attachment owners/ACLs are never
   serialized or changed by Restore/Reset; provision destination authority
   independently.
+- Relation replay preserves physical attribute numbers, dropped gaps and the
+  next-column highwater. Inert generated INT4 declarations are paired with
+  ordinary drops; inheritance layouts can use staged CREATE/ADD/DROP statements
+  without renumbering surviving columns. Erased inheritance provenance uses
+  ordinary generated helper tables that are detached and removed before rows.
+  Restore admits only complete fresh-constructor/retirement/teardown pairs and
+  publishes no helper objects. Column ACL locators remain exact live names.
+  Typed tables and partitions retain ordinary pre-attachment attribute gaps
+  through their existing attachment paths, with captured keys, bounds and routing.
 - Custom range declarations include their selected subtype class, collation,
   optional diff and generated multirange name. Restore rebuilds destination-owned
   family descriptors and endpoint values rather than retaining source captures.

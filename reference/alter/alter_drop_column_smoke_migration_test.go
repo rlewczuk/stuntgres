@@ -294,6 +294,8 @@ func migrationAlterDropColumnSmoke(t *testing.T, p *fixture.Pair, backend fixtur
 		}
 		m.DropRows(r, []string{"a", "c"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(9)}})
 		m.RecordQuery(db, "SELECT * FROM frontier_smoke", []string{"a", "c"}, []string{"INT4", "INT8"}, [][]any{{int64(1), int64(9)}})
+		m.RecordQuery(db, "SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='frontier_smoke'::regclass AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "a", false}, {int64(2), "........pg.dropped.2........", true}, {int64(3), "c", false}, {int64(4), "........pg.dropped.4........", true}})
+		m.RecordQuery(db, "SELECT col_description('frontier_smoke'::regclass,3),obj_description('frontier_smoke'::regclass,'pg_class')", []string{"col_description", "obj_description"}, []string{"TEXT", "TEXT"}, [][]any{{"frontier column", "frontier table"}})
 	}
 	checkFrontier()
 	var frontierDump bytes.Buffer
@@ -301,7 +303,7 @@ func migrationAlterDropColumnSmoke(t *testing.T, p *fixture.Pair, backend fixtur
 		if err = stuntgres.Dump(ctx, p.Native, &frontierDump); err != nil {
 			t.Fatal(err)
 		}
-		for _, literal := range []string{`CREATE TABLE "public"."frontier_smoke" ("a" INTEGER, "c" BIGINT);`, `COMMENT ON TABLE "public"."frontier_smoke" IS E'frontier table';`, `COMMENT ON COLUMN "public"."frontier_smoke"."c" IS E'frontier column';`} {
+		for _, literal := range []string{`COMMENT ON TABLE "public"."frontier_smoke" IS E'frontier table';`, `COMMENT ON COLUMN "public"."frontier_smoke"."c" IS E'frontier column';`} {
 			if !strings.Contains(frontierDump.String(), literal) {
 				t.Fatal("frontier canonical metadata", literal, frontierDump.String())
 			}
@@ -321,6 +323,8 @@ func migrationAlterDropColumnSmoke(t *testing.T, p *fixture.Pair, backend fixtur
 			t.Fatal(err, frontierAgain.String())
 		}
 	}
+	m.AlterExec(db, "ALTER TABLE frontier_smoke ADD next_slot INT")
+	m.RecordQuery(db, "SELECT attnum FROM pg_attribute WHERE attrelid='frontier_smoke'::regclass AND attname='next_slot'", []string{"attnum"}, []string{"INT2"}, [][]any{{int64(5)}})
 
 }
 
@@ -347,6 +351,7 @@ func migrationAlterDropColumnZeroColumnControlsSmoke(t *testing.T, p *fixture.Pa
 		}
 		m.DropRows(rows, []string{}, []string{}, [][]any{{}, {}})
 		m.RecordQuery(db, "SELECT * FROM z", []string{}, []string{}, [][]any{{}, {}})
+		m.RecordQuery(db, "SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='z'::regclass AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "........pg.dropped.1........", true}})
 	}
 	check()
 	var dump bytes.Buffer
@@ -355,7 +360,7 @@ func migrationAlterDropColumnZeroColumnControlsSmoke(t *testing.T, p *fixture.Pa
 		if err := stuntgres.Dump(ctx, p.Native, &dump); err != nil {
 			t.Fatal(err)
 		}
-		if strings.Count(dump.String(), `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 || !strings.Contains(dump.String(), `CREATE TABLE "public"."z" ();`) || strings.Contains(dump.String(), "VALUES ()") {
+		if strings.Count(dump.String(), `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 || strings.Contains(dump.String(), "VALUES ()") {
 			t.Fatal(dump.String())
 		}
 		if err := stuntgres.Reset(ctx, p.Native); err != nil {
@@ -380,4 +385,6 @@ func migrationAlterDropColumnZeroColumnControlsSmoke(t *testing.T, p *fixture.Pa
 			t.Fatal(err, same.String())
 		}
 	}
+	m.AlterExec(db, "ALTER TABLE z ADD next_slot INT")
+	m.RecordQuery(db, "SELECT attnum FROM pg_attribute WHERE attrelid='z'::regclass AND attname='next_slot'", []string{"attnum"}, []string{"INT2"}, [][]any{{int64(2)}})
 }

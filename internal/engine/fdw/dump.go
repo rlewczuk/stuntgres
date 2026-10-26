@@ -134,9 +134,6 @@ func DumpTable(ctx context.Context, view catalog.Read, roles authorization.Read,
 	if r.Foreign == nil {
 		return dump.Statement{}, fmt.Errorf("stuntgres: missing foreign table definition")
 	}
-	if r.Security.ACL.Explicit || len(r.Security.ColumnACL) != 0 {
-		return dump.Statement{}, fmt.Errorf("stuntgres: dump cannot serialize explicit relation or column ACL")
-	}
 	owner, err := roles.Descriptor(r.Owner)
 	if err != nil {
 		return dump.Statement{}, err

@@ -65,8 +65,7 @@ func TestReferenceInfoColumnsVisibility(t *testing.T) {
 		// SELECT(c) grant previously folded into its owner entry.
 		c.exec("RESET ROLE", "ALTER TABLE ic_scope.vis OWNER TO ic_owner", "SET ROLE ic_reader")
 		check()
-		// Exercise the actual SELECT privilege independently of the metadata
-		// predicate; has_column_privilege is not a supported SQL helper.
+		// Exercise actual SELECT independently of metadata visibility.
 		for _, prepared := range []bool{false, true} {
 			s := fixture.ErrorDiagnostic("SELECT c FROM ic_scope.vis", fixture.ControlsReferenceDiagnostic("42501", "permission denied for table vis"))
 			s.SelectRows, s.Prepared, s.ErrorStage = true, prepared, "execute"

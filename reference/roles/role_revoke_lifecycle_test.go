@@ -138,10 +138,15 @@ func TestReferenceRoleRevokeLifecycle(t *testing.T) {
 			return
 		}
 		var out bytes.Buffer
-		err = stuntgres.Dump(p.Ctx, p.Native, &out)
-		if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit relation or column ACL" || out.Len() != 0 {
-			t.Fatal("Dump ACL boundary", out.String(), err)
+		if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+			t.Fatal("Dump ACL", err)
 		}
+		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(out.Bytes())); err != nil {
+			t.Fatal("Restore ACL", err)
+		}
+		run(fixture.Select("SELECT relacl::text AS acl FROM pg_class WHERE oid='t'::regclass", []string{"acl"}, []string{"TEXT"}, [][]any{{"{postgres=arwdDxtm/postgres,rg_a=r/postgres}"}}))
+		run(fixture.Select("SELECT has_table_privilege('rg_a','t','SELECT') AS ordinary,has_table_privilege('rg_a','t','SELECT WITH GRANT OPTION') AS option,has_column_privilege('rg_reader','t','a','SELECT') AS reader", []string{"ordinary", "option", "reader"}, []string{"BOOL", "BOOL", "BOOL"}, [][]any{{true, false, false}}))
+		revokeRead(run, "rg_reader", false)
 		err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE replacement(a INT); REVOKE SELECT ON replacement FROM rg_reader CASCADE"))
 		fixture.State(t, err, "0A000")
 		run(fixture.Select("SELECT a,b FROM t", []string{"a", "b"}, []string{"INT4", "INT4"}, [][]any{{int64(11), int64(9)}}))

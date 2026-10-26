@@ -98,8 +98,10 @@ func TestReferenceAlterDropColumnZeroColumnControls(t *testing.T) {
 		s.Prepared = prepared
 		p.Step(t, s)
 	}
+	layout := fixture.Select("SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='z'::regclass AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "........pg.dropped.1........", true}})
+	p.Step(t, layout)
 	canonical := referenceDDLNativeDump(t, p)
-	if !strings.Contains(canonical, `CREATE TABLE "public"."z" ();`) || strings.Count(canonical, `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 || strings.Contains(canonical, "VALUES ()") {
+	if strings.Count(canonical, `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 || strings.Contains(canonical, "VALUES ()") {
 		t.Fatal(canonical)
 	}
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
@@ -121,6 +123,7 @@ func TestReferenceAlterDropColumnZeroColumnControls(t *testing.T) {
 		s.Prepared = prepared
 		p.Step(t, s)
 	}
+	p.Step(t, layout)
 	p.Step(t, referenceDDLPositionError("INSERT INTO z VALUES ()", "42601", `syntax error at or near ")"`, "23", false, "execute"))
 	p.Step(t, empty)
 	p.Step(t, fixture.Prepared(empty))
@@ -147,4 +150,6 @@ func TestReferenceAlterDropColumnZeroColumnControls(t *testing.T) {
 			fixture.TableDDLMetadata(t, p.Ctx, backend.DB, backend.PG, prepared, "SELECT * FROM z", []string{}, []string{}, []bool{}, 2)
 		}
 	}
+	p.Step(t, fixture.Exec("ALTER TABLE z ADD next_slot INT", 0))
+	p.Step(t, fixture.Select("SELECT attnum FROM pg_attribute WHERE attrelid='z'::regclass AND attname='next_slot'", []string{"attnum"}, []string{"INT2"}, [][]any{{int64(2)}}))
 }

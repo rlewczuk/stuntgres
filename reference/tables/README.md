@@ -38,13 +38,13 @@ The rules below also apply to `reference/inheritance` and `reference/partitions`
   resource high-water bounds, distinguishing optional async requests from
   synchronous HTTP reads and live cursors from cumulative ReScan generations.
 - Native-control phases replay their actual Dump output, unmodified, on
-  PostgreSQL. Roles named by the dump must already exist there and need their
-  schema USAGE regranted after
-  each `public` reset: Dump serializes neither roles nor schema ACLs. Register
+  PostgreSQL. Roles named by the dump must already exist there: Dump serializes
+  their object/schema ACLs, not role definitions or memberships. Register
   same-session `RESET ROLE`, `RESET SESSION AUTHORIZATION` and `RESET search_path`
   cleanup before replaying.
-  Wrapper/server USAGE ACLs roundtrip as exact named raw ACL repairs; foreign
-  relation/column ACLs retain their no-output preflight refusal. Routine handler
+  Wrapper/server USAGE and foreign relation/column ACLs roundtrip as exact named
+  raw ACL repairs with independent inquiry outcomes. Capture invokes no provider
+  callbacks and replacement preserves the real catalog graph. Routine handler
   inquiries read the actual EXECUTE ACL even when the handler is metadata-only.
 - BPCHAR cells scan as strings on both clients, but `ScanType` is `string`
   natively and `interface{}` on pq.

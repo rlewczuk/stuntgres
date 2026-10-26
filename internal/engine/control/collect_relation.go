@@ -58,9 +58,6 @@ func collectRelationDump(ctx context.Context, c *dumpCollection, a ids.ObjectAdd
 	if ns.Temporary != (ids.SessionToken{}) {
 		return nil
 	}
-	if r.Security.ACL.Explicit || len(r.Security.ColumnACL) != 0 {
-		return fmt.Errorf("stuntgres: dump cannot serialize explicit relation or column ACL")
-	}
 	principal, err := c.DomainRoles.Descriptor(r.Owner)
 	if err != nil {
 		return err

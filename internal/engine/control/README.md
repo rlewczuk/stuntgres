@@ -77,8 +77,9 @@ function references once into the destination authority.
   Owner changes follow relabeling, then stable-slot owner metadata. Authentic
   installed routine ACLs use that metadata's named grantor/grantee codec during
   native Restore, preserving absent/explicit-empty ACLs and grant options.
-  Other supported routine, language, wrapper, server, namespace, type and
-  tablespace raw ACLs use destination-resolved administrative catalog repairs
+  Other supported routine, language, wrapper, server, namespace, type,
+  tablespace, relation and column raw ACLs use destination-resolved administrative
+  catalog repairs
   (`object_acl.go`). Namespace/tablespace owner and ACL repairs run after schema
   creation, before dependent definitions. Type ACLs run at their definition or
   owning-family identity-ready event, before consumers requiring USAGE. Final
@@ -142,11 +143,36 @@ function references once into the destination authority.
 
 ### Ordering and replay rules
 
-- Anything Dump cannot serialize exactly (relation/column ACLs, default
-  privileges, invalid indexes or unsupported loose providers) is rejected before
-  any output, never silently reset. Supported object ACL rendering and provider
-  validation are fully preflighted before writer I/O. Database registration and
-  destination attachment authority are excluded, not replaced by ACL repairs.
+- Anything Dump cannot serialize exactly (default privileges, invalid indexes
+  or unsupported loose providers) is rejected before any output, never silently
+  reset. Supported object ACL rendering and provider validation are fully
+  preflighted before writer I/O; column repairs locate live columns by exact name.
+  Database registration and destination attachment authority are excluded, not
+  replaced by ACL repairs.
+  Attribute ACL updates are classified separately from array-rank repairs;
+  malformed ACL syntax remains a rejected ACL repair, never a rank repair.
+- **Attribute history** (`attribute_history.go`, `attribute_simulation.go`):
+  deterministic inert placeholders preserve retired slots through ordinary DDL.
+  Compatible declarations retain the existing CREATE/attach serializers; mixed
+  inherited layouts use a simulated CREATE/ADD/DROP action schedule constrained
+  by exact slots, locality and current origins. Per-action graph identities
+  retain real provider and consumer edges. Erased origins use ordinary helper
+  tables, with closed detach/empty teardown pairs and no final helper metadata.
+  Typed and partition attachment follows the completed ordinary pre-attachment
+  layout, including local dropped slots. Existing attachment, row, constraint and
+  provider dependencies remain authoritative; partition membership is not an
+  ordinary history edge or a transient helper.
+  Restore pre-pairs literal constructors, checks their destination-owned fresh
+  references and exact live closure, and delegates effects to ordinary DDL.
+  Closed staged CHECK declarations use that constructor authority, including
+  ordinary inherited/local definition merges, rather than unrelated generated
+  expression repair authority. Standalone fresh CHECK replay still requires an
+  absent name throughout its actual propagation closure; unpaired merges do not
+  gain admission. Paired inert retirements enable only the existing destination
+  namespace lookup seam, retaining the named owner's ordinary ALTER authority
+  even when the schema owner differs. Namespace ACL serialization is unchanged.
+  Data/final ACL consumption closes column-shape admission. Rendering finishes
+  before writer I/O; no captured descriptor is injected or renumbered.
 - **Default deferral** breaks table → routine → table cycles as CREATE TABLE,
   CREATE FUNCTION, then ALTER TABLE SET DEFAULT. Replaying a default definition
   does not evaluate it; staged DML uses ordinary default evaluation.

@@ -75,9 +75,7 @@ func dropColumnsMetadata(ctx context.Context, view catalog.Read, descriptor func
 		if slot < 0 {
 			return nil, fmt.Errorf("stuntgres: missing captured drop attribute")
 		}
-		history := pgcatalog.AttributeMetadata(old, slot)
-		history.Name = fmt.Sprintf("........pg.dropped.%d........", history.Number)
-		history.TypeID, history.NotNull, history.HasDefault, history.Generated, history.Dropped = 0, false, false, "", true
+		history := droppedAttributeMetadata(old, slot)
 		next.ColumnMeta.Dropped[history.Number] = history
 	}
 	if old.Foreign != nil {
@@ -225,4 +223,17 @@ func dropColumnsMetadata(ctx context.Context, view catalog.Read, descriptor func
 	}
 	TransitionPhysicalNotNull(old, &next)
 	return &next, nil
+}
+
+// Recursive inheritance preparation batches removed origins. PostgreSQL deletes
+// a nonlocal column on the final origin's visit, when its pre-drop count is one,
+// rather than exposing the earlier batched descriptor's original origin count.
+func droppedAttributeMetadata(old *catalog.Relation, slot int) catalog.AttributeMetadata {
+	history := pgcatalog.AttributeMetadata(old, slot)
+	if !history.Local {
+		history.Inheritance = 1
+	}
+	history.Name = fmt.Sprintf("........pg.dropped.%d........", history.Number)
+	history.TypeID, history.NotNull, history.HasDefault, history.Generated, history.Dropped = 0, false, false, "", true
+	return history
 }

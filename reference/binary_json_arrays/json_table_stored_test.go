@@ -52,7 +52,6 @@ func TestReferenceJSONTableStored(t *testing.T) {
 			run(fixture.Exec(q, 0))
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, check)
 		}
-		// Replay before ACL mutations: native Dump rejects explicit relation ACLs.
 		jsonpathNavigateReplay(t, p, b, c, check)
 		if b.PG {
 			fixture.RunStep(t, p.Ctx, held, b.Recorder, check)

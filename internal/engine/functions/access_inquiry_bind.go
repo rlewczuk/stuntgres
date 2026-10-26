@@ -9,10 +9,10 @@ import (
 // bindAccessInquiry shares exact spelling, scalar gates and independent
 // name/OID axes across the typed access inquiry families.
 func bindAccessInquiry(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
-	var operands [3]Argument
-	var small [3]string
+	var operands [4]Argument
+	var small [4]string
 	names := small[:0]
-	if len(raw.Args) <= 3 {
+	if len(raw.Args) <= 4 {
 		names = small[:len(raw.Args)]
 	} else if len(raw.Args) <= 100 {
 		names = make([]string, len(raw.Args))
@@ -64,25 +64,26 @@ func bindAccessInquiry(b Binder, raw parser.FunctionExpr) (expr.Expr, error) {
 		n.Kind = AccessType
 	case "has_tablespace_privilege":
 		n.Kind = AccessTablespace
+	case "has_table_privilege":
+		n.Kind = AccessTable
+	case "has_sequence_privilege":
+		n.Kind = AccessSequence
+	case "has_column_privilege":
+		n.Kind = AccessColumnPrivilege
+	case "has_any_column_privilege":
+		n.Kind = AccessAnyColumn
 	}
-	if !visible || name != n.Name() || len(raw.ArgNames) != 0 || n.Kind == AccessRowSecurity && n.Count != 1 || n.Kind != AccessRowSecurity && n.Count != 2 && n.Count != 3 {
+	if !visible || name != n.Name() || len(raw.ArgNames) != 0 || !n.validArity() {
 		return nil, b.SignatureError(raw.Name, raw.Pos, names)
 	}
 	properties := expr.Properties{Volatility: expr.Stable}
-	var formal [3]sqltype.ID
+	var formal [4]sqltype.ID
 	for i := range n.Count {
-		id := sqltype.Text
-		if n.Kind == AccessRowSecurity || i < n.Count-1 {
-			id = sqltype.Name
-			if n.Kind == AccessRowSecurity || n.Kind >= AccessFunction && i == n.Count-2 {
-				id = sqltype.Text
-			}
-			if operands[i].Usage.Type != nil {
-				// Unknown role inputs prefer NAME; object identities prefer TEXT.
-				// Each typed numeric/alias axis independently prefers OID.
-				if _, failure := sqltype.PlanCoercion(operands[i].Usage, b.Type(id).Usage(), sqltype.Implicit); failure != nil {
-					id = sqltype.Oid
-				}
+		id, alternate := n.formalAxis(i)
+		if alternate != 0 && operands[i].Usage.Type != nil {
+			// Unknown axes prefer the released textual formal.
+			if _, failure := sqltype.PlanCoercion(operands[i].Usage, b.Type(id).Usage(), sqltype.Implicit); failure != nil {
+				id = alternate
 			}
 		}
 		formal[i] = id

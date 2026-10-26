@@ -96,6 +96,7 @@ func (s *dumpScript) visitBindingConsumers(visit func(castConsumer, authorizatio
 					site.Attribute = attribute
 					site.ForeignDefault = true
 				}
+				site = s.attributeConsumer(site, attribute, "")
 				if err := visit(site, d.Owner, def.Expression); err != nil {
 					return err
 				}
@@ -111,6 +112,7 @@ func (s *dumpScript) visitBindingConsumers(visit func(castConsumer, authorizatio
 						continue
 					}
 				}
+				site = s.attributeConsumer(site, attribute, "")
 				if err := visit(site, d.Owner, generation.Expression); err != nil {
 					return err
 				}
@@ -127,6 +129,7 @@ func (s *dumpScript) visitBindingConsumers(visit func(castConsumer, authorizatio
 					site.Event.Phase = dump.InheritanceChecks
 					site.Check = check.Name
 				}
+				site = s.attributeConsumer(site, 0, check.Name)
 				if err := visit(site, d.Owner, check.Expression); err != nil {
 					return err
 				}

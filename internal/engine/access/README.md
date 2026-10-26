@@ -28,6 +28,11 @@ No parallel language-permission table or cached grant decision exists.
   - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.
+  - Inquiries: `RelationPrivilege` receives a runtime-resolved existing
+    relation/valid attribute and ordinary/option alternatives. It follows the
+    inheritable role closure, preserves relation-kind absent ACL defaults and
+    implicit owner options, and scans only live positive columns for any-column
+    checks. Requested rights are not clipped to grant-admission class masks.
   - Helpers: `DescriptorACL`, `ClassPrivileges`, `ValidateACL`. Global
     access methods have no owner or ACL: `ValidateACL` classifies them with
     the other ownerless descriptors, while their catalog provider validates

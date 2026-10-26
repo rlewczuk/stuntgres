@@ -13,7 +13,7 @@ import (
 // and insertAuthority stay set until the next statement's prepare.
 func prepareRestoreReplayFlags(r *restoreRun, op *session.Operation, stmt parser.Statement) error {
 	replay := core.OperationReplay(op)
-	replay.TableDestination = restoreTableDestination(stmt)
+	replay.TableDestination = restoreTableDestination(stmt) || r.cur.attributeConstruction
 	_, replay.InsertAuthority = stmt.(*parser.Insert)
 	_, replay.CommentAuthority = stmt.(*parser.Comment)
 	_, replay.DefaultReplay = stmt.(*parser.AlterTableDefault)

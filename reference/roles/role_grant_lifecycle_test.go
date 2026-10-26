@@ -110,10 +110,15 @@ func TestReferenceRoleGrantLifecycle(t *testing.T) {
 			return
 		} // Native controls have no PostgreSQL API counterpart.
 		var out bytes.Buffer
-		err = stuntgres.Dump(p.Ctx, p.Native, &out)
-		if err == nil || err.Error() != "stuntgres: dump cannot serialize explicit relation or column ACL" || out.Len() != 0 {
-			t.Fatal("explicit ACL Dump boundary", out.String(), err)
+		if err := stuntgres.Dump(p.Ctx, p.Native, &out); err != nil {
+			t.Fatal("explicit ACL Dump", err)
 		}
+		if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(out.Bytes())); err != nil {
+			t.Fatal("explicit ACL Restore", err)
+		}
+		run(fixture.Select("SELECT relacl::text AS acl FROM pg_class WHERE oid='t'::regclass", []string{"acl"}, []string{"TEXT"}, [][]any{{"{postgres=arwdDxtm/postgres,rg_future=r/postgres}"}}))
+		run(fixture.Select("SELECT has_table_privilege('rg_future','t','SELECT') AS future,has_column_privilege('rg_reader','t','a','SELECT') AS reader", []string{"future", "reader"}, []string{"BOOL", "BOOL"}, [][]any{{true, false}}))
+		run(fixture.Select("SELECT attacl::text AS acl FROM pg_attribute WHERE attrelid='t'::regclass AND attname='a'", []string{"acl"}, []string{"TEXT"}, [][]any{{nil}}))
 		err = stuntgres.Restore(p.Ctx, p.Native, strings.NewReader("CREATE TABLE replacement(a INT); GRANT SELECT ON replacement TO rg_reader"))
 		fixture.State(t, err, "0A000")
 		run(fixture.Exec("SET SESSION AUTHORIZATION rg_future", 0))

@@ -132,6 +132,7 @@ rows:
 						site.Event.Phase = dump.Defaults
 						site.Attribute = attribute
 					}
+					site = s.attributeConsumer(site, attribute, "")
 					walkMember(site, definition.Expression)
 				}
 				for attribute, generation := range d.ColumnMeta.Generations {
@@ -140,6 +141,7 @@ rows:
 						site.Event.Phase = dump.InheritanceRecipes
 						site.Attribute = attribute
 					}
+					site = s.attributeConsumer(site, attribute, "")
 					walkMember(site, generation.Expression)
 				}
 				for _, check := range d.Constraints.Check {
@@ -154,6 +156,7 @@ rows:
 						site.Event.Phase = dump.InheritanceChecks
 						site.Check = check.Name
 					}
+					site = s.attributeConsumer(site, 0, check.Name)
 					walkMember(site, check.Expression)
 				}
 			}

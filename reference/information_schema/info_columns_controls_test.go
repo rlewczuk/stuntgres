@@ -127,11 +127,25 @@ func TestReferenceInfoColumnsNativeControls(t *testing.T) {
 			t.Fatalf("canceled Restore=%v", err)
 		}
 		unchanged()
-		c.exec("CREATE ROLE ic_reader", "GRANT SELECT ON ic_scope.ctl TO ic_reader")
-		var rejected bytes.Buffer
-		if err := stuntgres.Dump(c.p.Ctx, c.p.Native, &rejected); err == nil || rejected.Len() != 0 {
-			t.Fatalf("explicit ACL Dump error=%v bytes=%d", err, rejected.Len())
+		c.exec("CREATE ROLE ic_reader", "GRANT USAGE ON SCHEMA ic_scope TO ic_reader", "GRANT SELECT ON ic_scope.ctl TO ic_reader")
+		c.run(c.conn, fixture.Exec("INSERT INTO ic_scope.ctl(a) VALUES(7)", 1))
+		checkACL := func() {
+			c.run(c.conn, fixture.Select("SELECT relacl::text AS acl FROM pg_class WHERE oid='ic_scope.ctl'::regclass", []string{"acl"}, []string{"TEXT"}, [][]any{{"{postgres=arwdDxtm/postgres,ic_reader=r/postgres}"}}))
+			c.run(c.conn, fixture.Select("SELECT has_table_privilege('ic_reader','ic_scope.ctl','SELECT') AS v", []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
+			c.exec("SET ROLE ic_reader")
+			c.run(c.conn, icProjection(false, where, want[:3]))
+			c.run(c.conn, fixture.Select("SELECT a,id,g FROM ic_scope.ctl", []string{"a", "id", "g"}, []string{"INT4", "INT4", "INT4"}, [][]any{{int64(7), int64(5), int64(8)}}))
+			c.exec("RESET ROLE")
 		}
+		checkACL()
+		var granted bytes.Buffer
+		if err := stuntgres.Dump(c.p.Ctx, c.p.Native, &granted); err != nil {
+			t.Fatal("explicit ACL Dump", err)
+		}
+		if err := stuntgres.Restore(c.p.Ctx, c.p.Native, bytes.NewReader(granted.Bytes())); err != nil {
+			t.Fatal("explicit ACL Restore", err)
+		}
+		checkACL()
 		unchanged()
 	})
 }

@@ -137,7 +137,8 @@ func pgDescriptionControlsScenario(t *testing.T) {
 	}
 	for _, backend := range p.Backends() {
 		oid := fixture.PGDescriptionRelationID(t, p, backend, "pgd_control_table")
-		pgDescriptionRelationBag(t, p, backend, oid, [][]any{{oid, int64(1259), int64(0), "control whole"}, {oid, int64(1259), int64(2), "control third"}})
+		pgDescriptionRelationBag(t, p, backend, oid, [][]any{{oid, int64(1259), int64(0), "control whole"}, {oid, int64(1259), int64(3), "control third"}})
+		fixture.RunStep(t, p.Ctx, backend.DB, backend.Recorder, fixture.Select("SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid=$1 AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "a", false}, {int64(2), "........pg.dropped.2........", true}, {int64(3), "c", false}}, oid))
 		sequence := fixture.PGDescriptionRelationID(t, p, backend, "pgd_control_sequence")
 		pgDescriptionRelationBag(t, p, backend, sequence, [][]any{{sequence, int64(1259), int64(0), "control sequence"}})
 		var namespace int64

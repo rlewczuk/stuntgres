@@ -84,6 +84,7 @@ func beforeRestorePhysicalSelfForeignKey(r *restoreRun, op *session.Operation, s
 		return false, err
 	}
 	if admitted {
+		delete(r.attributePairs.Constraints, alteration)
 		r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
 		r.pairedNotNull = table.RestoredNotNull{}
 		return true, nil

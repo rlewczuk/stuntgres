@@ -27,6 +27,7 @@ func beforeRestoreInheritedForeignKey(r *restoreRun, op *session.Operation, stmt
 	if err != nil || !admitted {
 		return false, err
 	}
+	delete(r.attributePairs.Constraints, alteration)
 	r.pendingForeignKeys = append(r.pendingForeignKeys, declaration)
 	r.physicalForeignProvider = nil
 	r.pairedNotNull = table.RestoredNotNull{}

@@ -12,10 +12,6 @@ import (
 	"stuntgres/reference/fixture"
 )
 
-type ownershipWriter struct{ calls int }
-
-func (w *ownershipWriter) Write(p []byte) (int, error) { w.calls++; return len(p), nil }
-
 func TestReferenceRoleOwnershipControls(t *testing.T) {
 	ownershipCases(t, func(s *membershipScenario) {
 		// Exercise schema grant provenance and replay in a bounded setup schema,
@@ -77,7 +73,7 @@ func TestReferenceRoleOwnershipControls(t *testing.T) {
 				s.t.Fatal("bounded schema grant setup changed logical snapshot", err)
 			}
 		}
-		// Keep the relation/column ACL rejection boundary independent below.
+		// Independently roundtrip ownership, data and relation/column ACLs below.
 		s.exec("CREATE SCHEMA own_control AUTHORIZATION own_source")
 		s.actor("own_source")
 		for _, q := range []string{
@@ -206,23 +202,45 @@ INSERT INTO own_control.p VALUES(7);`
 					s.t.Fatal("failed restore changed ownership/data/sequence snapshot", err)
 				}
 			}
-			for _, tc := range []struct{ grant, message string }{
-				{"GRANT SELECT ON own_control.t TO own_reader", "stuntgres: dump cannot serialize explicit relation or column ACL"},
-				{"GRANT SELECT(payload) ON own_control.t TO own_reader", "stuntgres: dump cannot serialize explicit relation or column ACL"},
-			} {
+			for _, column := range []bool{false, true} {
 				if err := stuntgres.Restore(s.p.Ctx, s.p.Native, bytes.NewReader(dump.Bytes())); err != nil {
 					s.t.Fatal(err)
 				}
-				s.exec(tc.grant)
-				w := &ownershipWriter{}
-				err := stuntgres.Dump(s.p.Ctx, s.p.Native, w)
-				if err == nil || err.Error() != tc.message || w.calls != 0 {
-					s.t.Fatal("explicit ACL dump before writer I/O", err, w.calls)
+				s.exec("GRANT USAGE ON SCHEMA own_control TO own_reader")
+				grant := "GRANT SELECT ON own_control.t TO own_reader"
+				if column {
+					grant = "GRANT SELECT(payload) ON own_control.t TO own_reader"
 				}
-				var structured interface{ SQLState() string }
-				if errors.As(err, &structured) {
-					s.t.Fatal("control ACL error must be ordinary Go error", err)
+				s.exec(grant)
+				checkACL := func() {
+					ownershipBool(s, "SELECT has_table_privilege('own_reader','own_control.t','SELECT')", !column)
+					ownershipBool(s, "SELECT has_column_privilege('own_reader','own_control.t','payload','SELECT')", true)
+					ownershipBool(s, "SELECT has_column_privilege('own_reader','own_control.t','id','SELECT')", !column)
+					relationACL, columnACL := any("{own_target=arwdDxtm/own_target,own_reader=r/own_target}"), any(nil)
+					if column {
+						relationACL, columnACL = nil, "{own_reader=r/own_target}"
+					}
+					ownershipSelect(s, "SELECT relacl::text AS acl FROM pg_class WHERE oid='own_control.t'::regclass", []string{"acl"}, []string{"TEXT"}, [][]any{{relationACL}})
+					ownershipSelect(s, "SELECT attacl::text AS acl FROM pg_attribute WHERE attrelid='own_control.t'::regclass AND attname='payload'", []string{"acl"}, []string{"TEXT"}, [][]any{{columnACL}})
+					s.actor("own_reader")
+					ownershipSelect(s, "SELECT payload FROM own_control.t", []string{"payload"}, []string{"INT4"}, [][]any{{int64(7)}})
+					if column {
+						fixture.RoleGrantPermissionDenied(s.run, "SELECT id FROM own_control.t", "table", "t")
+					} else {
+						ownershipSelect(s, "SELECT id FROM own_control.t", []string{"id"}, []string{"INT4"}, [][]any{{int64(1)}})
+					}
+					s.actor("")
 				}
+				checkACL()
+				var granted bytes.Buffer
+				if err := stuntgres.Dump(s.p.Ctx, s.p.Native, &granted); err != nil {
+					s.t.Fatal("explicit ACL Dump", err)
+				}
+				if err := stuntgres.Restore(s.p.Ctx, s.p.Native, bytes.NewReader(granted.Bytes())); err != nil {
+					s.t.Fatal("explicit ACL Restore", err)
+				}
+				check()
+				checkACL()
 			}
 		}
 	})

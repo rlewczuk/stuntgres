@@ -282,6 +282,15 @@ Vacuum and same-ID domain-generation transport preserve produced callable/partia
 truth without SQL replay; admitted native replacement repairs destination summaries
 before locked remint. Baseline transport reuses the shared row-position map.
 
+Table, sequence, column and any-column privilege inquiries support all thirty
+released typed overloads, current-role ACLs, grant options and strict nullable
+BOOL results. Native Dump/Restore preserves raw relation and column ACLs with
+destination-resolved identities and retains dropped attribute gaps, future column
+numbers and inherited provenance through source-shaped logical replay.
+Typed and partition attachment replay retains pre-attachment attribute gaps and
+genuine keys, bounds and routing; ordinary transient construction helpers are
+removed before data.
+
 The `stuntgres` server's new `--reference DB=URL` option (repeatable,
 requires `-q`) runs database DB in dual-backend mode: every command is also
 sent to the real PostgreSQL server at URL, clients still receive stuntgres's

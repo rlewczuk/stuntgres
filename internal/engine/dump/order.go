@@ -31,7 +31,10 @@ func (h ready) Less(i, j int) bool {
 	if left.OID != right.OID {
 		return left.OID < right.OID
 	}
-	return left.Phase < right.Phase
+	if left.Phase != right.Phase {
+		return left.Phase < right.Phase
+	}
+	return left.Step < right.Step
 }
 func (h ready) Swap(i, j int)   { h.ids[i], h.ids[j] = h.ids[j], h.ids[i] }
 func (h *ready) Push(value any) { h.ids = append(h.ids, value.(Event)) }

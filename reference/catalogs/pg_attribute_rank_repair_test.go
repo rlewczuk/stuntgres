@@ -25,9 +25,9 @@ func TestReferencePGAttributeRankRepairSQL(t *testing.T) {
 	for _, kind := range []string{"local_add_merge", "local_add_nested", "detached_type"} {
 		t.Run(kind, func(t *testing.T) {
 			pgAttributeScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+				restored := false
 				local := kind != "detached_type"
 				nested := kind == "local_add_nested"
-				restored := false
 				target := "pa18_repair_child"
 				if local {
 					fixture.PGClassExec(t, p, b, b.DB,
@@ -76,8 +76,8 @@ func TestReferencePGAttributeRankRepairSQL(t *testing.T) {
 						var want [][]any
 						if local {
 							ordinal = 2
-							// Logical reconstruction intentionally remints deleted source holes.
-							if nested && !restored && (name == "pa18_repair_type" || name == "pa18_repair_root") {
+							// Relation history retains slots; the existing composite-type serializer remints its own layout.
+							if nested && (name == "pa18_repair_root" || name == "pa18_repair_type" && !restored) {
 								ordinal = 3
 							}
 							first := pgAttributeRow(id, "id", 23, 4, 1, -1, 0, true, "i", "p", false, 0)
@@ -103,6 +103,9 @@ func TestReferencePGAttributeRankRepairSQL(t *testing.T) {
 							want = append(want, note)
 						}
 						pgAttributeRead(t, p, backend, backend.DB, id, " AND attnum>0 AND NOT attisdropped", want)
+						if nested && (name == "pa18_repair_root" || name == "pa18_repair_type" && !restored) {
+							fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT attnum,attname FROM pg_attribute WHERE attrelid=$1 AND attisdropped ORDER BY attnum", []string{"attnum", "attname"}, []string{"INT2", "NAME"}, [][]any{{int64(2), "........pg.dropped.2........"}}, id))
+						}
 					}
 					if local {
 						fixture.PGAttributeCheck(t, p, backend, backend.DB, fixture.Select("SELECT id,a FROM pa18_repair_root ORDER BY id", []string{"id", "a"}, []string{"INT4", "_INT4"}, [][]any{{int64(9), "{{1,2}}"}, {int64(10), "{{1,2}}"}}))
@@ -207,7 +210,11 @@ func TestReferencePGAttributeRankRepairSQL(t *testing.T) {
 							t.Fatal("rank repair replay cleanup", err)
 						}
 					}
-					dump = fixture.ViewDump(t, p)
+					again := fixture.ViewDump(t, p)
+					if !bytes.Equal(again, dump) {
+						t.Fatal("rank repair changed canonical attribute history", string(again), string(dump))
+					}
+					dump = again
 				}
 				var retained int64
 				if !old.Next() {

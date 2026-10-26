@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -36,7 +37,11 @@ func fdwUnitSource() (Source, *catalog.ForeignObject, *catalog.ForeignObject, *c
 	roleView := roles.Read(owner)
 	var aclTypes []*sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
-		if typ.ID() == sqltype.ACLItem || typ.ID() == sqltype.ACLItemArray {
+		element := typ
+		if typ.IsArray() {
+			element = typ.Element()
+		}
+		if element.ID() == sqltype.ACLItem || element.ID() == sqltype.Int4 {
 			aclTypes = append(aclTypes, typ)
 		}
 	}
@@ -118,7 +123,7 @@ func fdwUnitValidator(source *Source, w *catalog.ForeignObject) *catalog.Procedu
 	w.Validator = proc.Address()
 	return proc
 }
-func fdwUnitDump(source Source, dst *bytes.Buffer) error {
+func fdwUnitDump(source Source, dst io.Writer) error {
 	if err := CheckPortable(source.State); err != nil {
 		return err
 	}
@@ -425,8 +430,15 @@ func TestFDWDumpACLPreflight(t *testing.T) {
 		var out bytes.Buffer
 		out.WriteString("sentinel")
 		err := fdwUnitDump(source, &out)
-		if err == nil || !strings.Contains(err.Error(), "ACL") || out.String() != "sentinel" {
-			t.Fatalf("relation/column ACL preflight=%v, bytes=%d", err, out.Len())
+		if err != nil {
+			t.Fatal("representable relation/column ACL rejected", err)
+		}
+		catalogName, aclName := "pg_class", "relacl"
+		if column {
+			catalogName, aclName = "pg_attribute", "attacl"
+		}
+		if !strings.Contains(out.String(), "UPDATE pg_catalog."+catalogName+" SET "+aclName+"=pg_catalog.acldefault(") {
+			t.Fatal("explicit-empty relation/column ACL repair missing")
 		}
 	}
 }

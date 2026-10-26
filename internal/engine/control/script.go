@@ -53,6 +53,8 @@ type dumpScript struct {
 	objectACLStatements                       []string
 	initialACLStatements                      []string
 	typeACLStatements                         map[ids.OID][]string
+	attributeHistory                          *attributeHistory
+	attributeSchedules                        map[ids.ObjectAddress]*attributeSchedule
 }
 
 // buildDumpScript renders the captured groups and statements and orders
@@ -82,6 +84,12 @@ func buildDumpScript(ctx context.Context, capture *Capture) (*dumpScript, error)
 		return nil, err
 	}
 	if err := s.renderTypeStatements(ctx); err != nil {
+		return nil, err
+	}
+	if err := s.prepareAttributeHistory(); err != nil {
+		return nil, err
+	}
+	if err := s.prepareAttributeSchedules(ctx); err != nil {
 		return nil, err
 	}
 	viewOrder, err := s.order(ctx)
@@ -314,6 +322,11 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 			return nil, err
 		}
 	}
+	s.installAttributeScheduleGraph()
+	declarationOrder, err = dump.Order(ctx, s.Graph, priorities)
+	if err != nil {
+		return nil, err
+	}
 	viewOrder := dump.DeclarationIDs(declarationOrder)
 	// Cast rows are ordered by their real consumers, not the generic early
 	// declaration chain. A historical recipe used by a deferred DEFAULT or
@@ -327,6 +340,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if err := partition.DumpEvents(ctx, Resolver{}, s.OriginalCatalog, s.Graph, phaseDeclarations, s.Tables, s.IndexIndices, s.ConstraintReplay, s.DeferDefaults); err != nil {
 		return nil, err
 	}
+	s.addAttributeRetirementEvents()
 	if err := s.addSeparatedCheckEvents(); err != nil {
 		return nil, err
 	}
@@ -337,6 +351,7 @@ func (s *dumpScript) order(ctx context.Context) ([]ids.OID, error) {
 	if err := s.addSeparatedDomainCheckEvents(); err != nil {
 		return nil, err
 	}
+	s.finishAttributeScheduleGraph()
 	// Deferral, inherited recipes and invalid-check phases are now final.
 	// Attach windows to the events that actually emit each expression.
 	if err := s.prepareCastWindows(); err != nil {

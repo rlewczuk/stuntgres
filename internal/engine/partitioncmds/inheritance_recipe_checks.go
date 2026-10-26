@@ -106,7 +106,7 @@ func RestoreCheck(e *core.Engine, op *session.Operation, raw *parser.AlterTable,
 			break
 		}
 	}
-	if !connectedRepair && !raw.Actions[0].Check.NoInherit && catalog.InheritanceHasChildren(auth.Catalog, target.Address()) {
+	if !connectedRepair && !raw.Actions[0].Check.NoInherit {
 		// Reuse the real propagation closure, but admit only new definitions.
 		// No existing local or inherited CHECK can be merged by this path.
 		for _, member := range table.InheritanceAlterOrder(auth.Catalog, target) {

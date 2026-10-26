@@ -106,8 +106,8 @@ driver import it.
   - Foreign tables never use storage/row collection. Compatible destination
     registrations are prerequisites, never serialized code.
   - Mapping credentials are emitted as stored (sensitive host output).
-    Wrapper/server raw ACLs replay exactly through `control`'s bounded generated
-    catalog repairs; unsupported relation/column ACLs still fail before output.
+    Wrapper/server and foreign relation/column raw ACLs replay exactly through
+    `control`'s bounded generated catalog repairs.
   - Replay uses bootstrap CREATE, ordinary owner transfers and named raw ACL
     repair, and runs authentic option validators but never IMPORT, scan or
     modify callbacks.

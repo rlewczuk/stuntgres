@@ -114,6 +114,15 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   drops owned foreign objects and revokes named language grants before restoring
   the original raw language ACL. A catalog UPDATE alone cannot remove
   PostgreSQL's shared role dependencies created by GRANT.
+- Relation/column/any-column/sequence inquiries: `RUN='^TestReferenceAccessRelations'`.
+  Lifecycle coverage retains relation/column rename and drop, role replacement,
+  membership, SET ROLE and held-statement freshness; it does not require role
+  rename. Attached-attribute persistence covers typed tables and RANGE partitions
+  whose ordinary source drops columns 2 and 4 before OF/ATTACH. Both preserve
+  physical attributes 1 and 3, column grants, rows, fresh-driver Restore and
+  canonical redump, with actual emitted SQL replayed on PostgreSQL. Partition
+  hierarchy column mutation and retirement/reattachment compositions are outside
+  this coverage; ordinary mixed and detached inheritance histories remain covered.
 - Parameters and tablespaces:
   `RUN='^TestReferenceObjectGrantParametersTablespaces$'` in both modes.
   Canonical work_mem and its case-folded spelling now share real parameter ACL

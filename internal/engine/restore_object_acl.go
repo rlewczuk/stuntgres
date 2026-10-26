@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"maps"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -57,6 +58,18 @@ func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update)
 			return failure
 		}
 		address.ObjectID = ids.OID(oid)
+	} else if repair.Class == ids.RelationClassID {
+		name, failure := parser.ParseRegclassName(repair.Identity)
+		if failure != nil || len(name.Parts) != 2 {
+			e.Mu.Unlock()
+			return fmt.Errorf("stuntgres: invalid ACL relation identity")
+		}
+		ref, failure := e.ResolveRelationReference(auth, name, true)
+		if failure != nil {
+			e.Mu.Unlock()
+			return failure
+		}
+		address = ref.Address
 	} else {
 		address = auth.Catalog.NameAddress(ids.NameKey{ClassID: repair.Class, Name: repair.Identity})
 	}
@@ -69,6 +82,22 @@ func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update)
 	var acl *authorization.ACLValue
 	var revision *ids.DefinitionRevision
 	switch d := old.(type) {
+	case *catalog.Relation:
+		x := *d
+		next, acl, revision = &x, &x.Security.ACL, &x.ObjectRevision
+		if repair.Column != "" {
+			_, exists := x.Index[repair.Column]
+			if !exists {
+				e.Mu.Unlock()
+				return fmt.Errorf("stuntgres: missing column ACL repair target")
+			}
+			x.Security.ColumnACL = maps.Clone(d.Security.ColumnACL)
+			if x.Security.ColumnACL == nil {
+				x.Security.ColumnACL = make(map[int32]authorization.ACLValue)
+			}
+			columnACL := authorization.ACLValue{}
+			acl = &columnACL
+		}
 	case *catalog.Procedure:
 		x := *d
 		next, acl, revision = &x, &x.ACL, &x.ObjectRevision
@@ -118,11 +147,24 @@ func restoreObjectACL(e *core.Engine, op *session.Operation, raw *parser.Update)
 		*acl = authorization.ACLValue{Explicit: !repair.Absent}
 		if !repair.Absent {
 			output := regobj.ACLItemOutput{Owner: &e.Catalog.Owner, Roles: auth.Roles}
-			acl.Entries, err = regobj.ObjectACL(op.Context(), auth.Catalog, repair.Text, e.CaptureACLItemInput(auth, op), output, access.ClassPrivileges(next))
+			mask := access.ClassPrivileges(next)
+			if repair.Column != "" {
+				mask = authorization.ColumnGrantPrivileges
+			}
+			acl.Entries, err = regobj.ObjectACL(op.Context(), auth.Catalog, repair.Text, e.CaptureACLItemInput(auth, op), output, mask)
 			if err != nil {
 				e.Mu.Unlock()
 				return err
 			}
+		}
+	}
+	if repair.Column != "" {
+		x := next.(*catalog.Relation)
+		sub := x.Attributes[x.Index[repair.Column]]
+		if acl.Explicit {
+			x.Security.ColumnACL[sub] = *acl
+		} else {
+			delete(x.Security.ColumnACL, sub)
 		}
 	}
 	if err = access.ValidateACL(auth.Roles, next); err != nil {

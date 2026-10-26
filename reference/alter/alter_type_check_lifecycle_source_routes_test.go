@@ -165,8 +165,11 @@ func TestReferenceAlterTypeCheckControlsAndDefaultRemovalSourceConsumerRoutes(t 
 			t.Fatal(text, dump.String())
 		}
 	}
-	if strings.Contains(dump.String(), "ALTER TABLE") {
-		t.Fatal(dump.String())
+	referenceAlterTypeCheckLayout(t, p)
+	if p.Postgres != nil {
+		if _, err := p.Postgres.ExecContext(p.Ctx, "DROP TABLE t;"+dump.String()); err != nil {
+			t.Fatal("PostgreSQL rejected emitted dropped-slot CHECK dump", err)
+		}
 	}
 	if err := stuntgres.Reset(p.Ctx, p.Native); err != nil {
 		t.Fatal(err)
@@ -178,6 +181,7 @@ func TestReferenceAlterTypeCheckControlsAndDefaultRemovalSourceConsumerRoutes(t 
 	if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil || again.String() != dump.String() {
 		t.Fatal(err, again.String(), dump.String())
 	}
+	referenceAlterTypeCheckLayout(t, p)
 	for _, step := range []fixture.Step{
 		fixture.Exec("INSERT INTO t DEFAULT VALUES", 1), fixture.Exec("INSERT INTO t(c) VALUES(NULL)", 1),
 		fixture.Select("SELECT * FROM t ORDER BY c", []string{"c", "n"}, []string{"INT8", "INT4"}, [][]any{{int64(7), int64(1)}, {int64(8), int64(1)}, {nil, int64(1)}}),

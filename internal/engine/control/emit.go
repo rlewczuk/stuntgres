@@ -85,6 +85,9 @@ var dumpPhaseEmitters = [...]dumpPhaseEmitter{
 	dump.InheritedForeignKeys:    {dumpBootstrapOwner, emitDumpInheritedForeignKeys},
 	dump.DomainChecks:            {nil, emitDumpDomainChecks},
 	dump.OperatorLinks:           {dumpBootstrapOwner, emitDumpOperatorLinks},
+	dump.AttributeRetirement:     {dumpBootstrapOwner, emitDumpAttributeRetirement},
+	dump.AttributeConstruction:   {dumpBootstrapOwner, emitDumpAttributeConstruction},
+	dump.AttributeCompletion:     {dumpBootstrapOwner, emitDumpAttributeCompletion},
 }
 
 // emitDumpEvents writes every ordered event through its phase's entry.

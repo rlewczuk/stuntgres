@@ -58,8 +58,8 @@ func TestCastDefinitionRestoreCheckAdmission(t *testing.T) {
 	if err := partitioncmds.RestoreCheck(e, op, raw, nil); err != nil || e.Catalog.State != before {
 		t.Fatal("ordinary CHECK admission must be quiet and need no generation repair", err)
 	}
-	// The private replay admission never grants ordinary execution importer
-	// authority, and inheriting tables still need the real repair recipe.
+	// Fresh leaf-local CHECKs use ordinary ALTER, not generation-repair
+	// authority. They still require the isolated importer.
 	importTargets := e.ImportTargets
 	e.ImportTargets = nil
 	if err := partitioncmds.RestoreCheck(e, op, raw, nil); err == nil {
@@ -67,8 +67,13 @@ func TestCastDefinitionRestoreCheckAdmission(t *testing.T) {
 	}
 	e.ImportTargets = importTargets
 	inherited := enginetest.Statement(t, "ALTER TABLE public.c ADD CONSTRAINT positive CHECK(a>0)").(*parser.AlterTable)
-	if err := partitioncmds.RestoreCheck(e, op, inherited, nil); err == nil {
-		t.Fatal("inherited CHECK admitted without generation repair")
+	if err := partitioncmds.RestoreCheck(e, op, inherited, nil); err != nil || e.Catalog.State != before {
+		t.Fatal("fresh leaf CHECK must need no generation repair", err)
+	}
+	roleExecute(t, e, op, "ALTER TABLE public.p ADD CONSTRAINT positive CHECK(a>0)")
+	before = e.Catalog.State
+	if err := partitioncmds.RestoreCheck(e, op, inherited, nil); err == nil || e.Catalog.State != before {
+		t.Fatal("unpaired inherited CHECK merge gained fresh-definition authority", err)
 	}
 }
 

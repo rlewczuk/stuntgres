@@ -146,12 +146,18 @@ func admitRestoreInstalledTypeOwner(r *restoreRun, op *session.Operation, s *par
 			continue
 		}
 		roles, err := extension.InstalledTypes(auth.Catalog, ext)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		for _, role := range roles {
 			typ := role.Type
-			if typ.Name() != s.Name.Parts[1].Text || auth.Catalog.MustNamespace(typ.Namespace()).Name() != s.Name.Parts[0].Text { continue }
+			if typ.Name() != s.Name.Parts[1].Text || auth.Catalog.MustNamespace(typ.Namespace()).Name() != s.Name.Parts[0].Text {
+				continue
+			}
 			for _, member := range record.Members {
-				if member.Kind == "type" && member.Name == role.Name && member.Signature == "" && member.Owner == s.Target.Name { return nil }
+				if member.Kind == "type" && member.Name == role.Name && member.Signature == "" && member.Owner == s.Target.Name {
+					return nil
+				}
 			}
 		}
 	}
@@ -176,8 +182,21 @@ func admitRestoreCreateTable(r *restoreRun, op *session.Operation, s *parser.Cre
 // a valid CHECK (with inherited repair authority where needed), or the
 // restorable constraint forms.
 func admitRestoreAlterTable(r *restoreRun, op *session.Operation, s *parser.AlterTable) error {
+	if len(s.Actions) == 1 && s.Actions[0].Action == parser.DropColumn {
+		return r.admitAttributeRetirement(op, s)
+	}
+	if _, paired := r.attributePairs.Detaches[s]; paired {
+		return r.admitAttributeHelperDetach(op, s)
+	}
 	if r.cur.physicalConstructor != nil || access.RowSecurityActions(s.Actions) {
+		delete(r.attributePairs.Constraints, s)
 		return nil
+	}
+	if _, paired := r.attributePairs.Adds[s]; paired {
+		return r.admitAttributeDefinition(op, s)
+	}
+	if _, paired := r.attributePairs.Constraints[s]; paired {
+		return r.admitAttributeDefinition(op, s)
 	}
 	if len(s.Actions) == 1 && s.Actions[0].Action == parser.SetRelationOptions && !s.IfExists && !s.Only && len(s.Name.Parts) == 2 {
 		return nil // Execution uses the ordinary bounded validator and private stage.
@@ -206,6 +225,9 @@ func admitRestoreDetachPartition(r *restoreRun, op *session.Operation, s *parser
 
 // admitRestoreDropTable admits only a generated partition replay teardown.
 func admitRestoreDropTable(r *restoreRun, op *session.Operation, s *parser.DropTable) error {
+	if _, paired := r.attributePairs.Teardowns[s]; paired {
+		return r.admitAttributeHelperTeardown(op, s)
+	}
 	if s.IfExists || s.Mode != parser.DropRestrict || len(s.Names) != 1 || len(s.Names[0].Parts) != 2 || !strings.HasPrefix(s.Names[0].Parts[1].Text, partition.ReplayStem) {
 		return core.SQLError("0A000", "restore accepts only generated empty partition replay teardown")
 	}
@@ -240,6 +262,15 @@ func replayRestoreCatalogUpdate(r *restoreRun, op *session.Operation, s *parser.
 	var err error
 	if _, _, _, ok := largeobject.ACLRepair(s); ok {
 		return restoreLargeObjectACL(r.stage, op, s)
+	}
+	// ACL intent is distinct from array-rank repair even when its strict
+	// generated syntax is invalid. Never hand an attacl update to rank replay.
+	if table.RestoreCatalogName(s.Name, "pg_attribute") {
+		for _, assignment := range s.Assignments {
+			if assignment.Target.Text == "attacl" {
+				return restoreObjectACL(r.stage, op, s)
+			}
+		}
 	}
 	if _, ok := control.ParseObjectACLRepair(s); ok {
 		return restoreObjectACL(r.stage, op, s)

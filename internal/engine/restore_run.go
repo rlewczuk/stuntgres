@@ -29,13 +29,15 @@ type restoreRun struct {
 	statements []parser.Statement
 
 	// Records decoded from the script's line comments.
-	domainReplays      []typedef.PositionedDomainReplay
-	domainReplayPairs  map[*parser.Insert]typedef.DomainReplayRecord
-	domainDefaults     []typedef.PositionedDomainDefault
-	domainDefaultPairs map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
-	extensionOwners    []extension.OwnerRecord
-	snapshots          []view.MaterializedSnapshot
-	comparison         control.ComparisonRestore
+	domainReplays         []typedef.PositionedDomainReplay
+	domainReplayPairs     map[*parser.Insert]typedef.DomainReplayRecord
+	domainDefaults        []typedef.PositionedDomainDefault
+	domainDefaultPairs    map[*parser.CreateDomain]typedef.DomainDefaultSnapshot
+	extensionOwners       []extension.OwnerRecord
+	snapshots             []view.MaterializedSnapshot
+	comparison            control.ComparisonRestore
+	attributePairs        control.AttributeConstructorPairs
+	attributeConstructors map[control.AttributeDropTarget]ids.ObjectRef
 
 	// Table, NOT NULL and foreign key captures.
 	pendingForeignKeys      []table.RestoredForeignKeys
@@ -68,10 +70,12 @@ type restoreRun struct {
 // restoreStatement is the state of the statement being replayed. Restore
 // resets it before each statement.
 type restoreStatement struct {
-	index               int
-	physicalConstructor *table.PhysicalNotNullConstructor
-	physicalIndexBase   catalog.Read
-	pending             table.RestoredForeignKeys // CREATE TABLE foreign keys bound at finish
+	index                 int
+	physicalConstructor   *table.PhysicalNotNullConstructor
+	physicalIndexBase     catalog.Read
+	pending               table.RestoredForeignKeys // CREATE TABLE foreign keys bound at finish
+	attributeConstruction bool
+	attributeAdd          *control.AttributeAddPair
 	// Owner directive state as it was before this statement.
 	priorAuthorization, ownerForCreate authorization.PrincipalRef
 	ownerPair                          table.RestoredInheritedOwner
@@ -82,6 +86,7 @@ type restoreStatement struct {
 // running. archiveHighWater is the highest retired-history archive number
 // already in the target catalog.
 func (r *restoreRun) startCaptures(archiveHighWater uint64) {
+	r.attributeConstructors = make(map[control.AttributeDropTarget]ids.ObjectRef)
 	r.partitionTeardowns = make(map[ids.ObjectAddress]partition.ReplayTeardown)
 	r.notNullOrigins = make(map[ids.OID]table.RestoredNotNull)
 	r.physicalIndexes = make(map[ids.ObjectAddress]*catalog.Relation)
@@ -103,6 +108,10 @@ func (h *restoreHost) Begin(source string, statements []parser.Statement) error 
 	r := h.run
 	r.source, r.statements = source, statements
 	var err error
+	r.attributePairs, err = control.PairAttributeConstructors(r.statements)
+	if err != nil {
+		return err
+	}
 	r.domainReplayPairs, err = typedef.PairDomainReplay(r.source, r.statements, r.domainReplays)
 	if err != nil {
 		return err

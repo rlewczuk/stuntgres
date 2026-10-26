@@ -115,7 +115,7 @@ var definitions = [...]Definition{
 	{Names: []string{"unaccent", "daitch_mokotoff"}, Bind: bindInstalledText},
 	{Names: []string{"acldefault", "makeaclitem", "aclexplode"}, Bind: bindACLValue, NamedCall: namedACLValue},
 	{Names: []string{"pg_get_acl"}, Bind: bindObjectACL, NamedCall: namedObjectACL},
-	{Names: []string{"pg_has_role", "row_security_active", "has_function_privilege", "has_language_privilege", "has_foreign_data_wrapper_privilege", "has_server_privilege", "has_database_privilege", "has_schema_privilege", "has_type_privilege", "has_tablespace_privilege"}, Bind: bindAccessInquiry},
+	{Names: []string{"pg_has_role", "row_security_active", "has_function_privilege", "has_language_privilege", "has_foreign_data_wrapper_privilege", "has_server_privilege", "has_database_privilege", "has_schema_privilege", "has_type_privilege", "has_tablespace_privilege", "has_table_privilege", "has_sequence_privilege", "has_column_privilege", "has_any_column_privilege"}, Bind: bindAccessInquiry},
 	{Names: []string{"current_catalog", "current_database", "current_role", "current_user", "session_user", "user", "system_user", "current_schema"}, Claims: parser.IdentityFunctionName, SharedGates: true, Bind: bindIdentityFunction},
 	{Names: []string{"current_schemas"}, ExactSpelling: true, SharedGates: true, Bind: bindCurrentSchemas},
 	{Names: []string{"pg_my_temp_schema", "pg_is_other_temp_schema"}, Claims: parser.NamespaceInquiryFunctionName, SharedGates: true, OwnsSpelling: true, Bind: bindNamespaceInquiry},

@@ -71,10 +71,17 @@ func TestReferenceTransactionalPrivilegesControls(t *testing.T) {
 					run(fixture.Exec("INSERT INTO fresh VALUES(7)", 1))
 					run(fixture.Exec("GRANT SELECT ON fresh TO rg_reader", 0))
 					dump.Reset()
-					err = stuntgres.Dump(p.Ctx, p.Native, &dump)
-					if err == nil || errors.As(err, &state) || dump.Len() != 0 {
-						t.Fatal("committed ACL dump must fail ordinarily before output", err, dump.String())
+					if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
+						t.Fatal("committed ACL Dump", err)
 					}
+					if err := stuntgres.Restore(p.Ctx, p.Native, bytes.NewReader(dump.Bytes())); err != nil {
+						t.Fatal("committed ACL Restore", err)
+					}
+					run(fixture.Select("SELECT relacl::text AS acl FROM pg_class WHERE oid='fresh'::regclass", []string{"acl"}, []string{"TEXT"}, [][]any{{"{postgres=arwdDxtm/postgres,rg_reader=r/postgres}"}}))
+					run(fixture.Select("SELECT has_table_privilege('rg_reader','fresh','SELECT') AS v", []string{"v"}, []string{"BOOL"}, [][]any{{true}}))
+					fixture.RoleGrantActor(run, "rg_reader", func() {
+						run(fixture.Select("SELECT a FROM fresh", []string{"a"}, []string{"INT4"}, [][]any{{int64(7)}}))
+					})
 				})
 			})
 		}

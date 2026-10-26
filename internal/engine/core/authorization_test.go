@@ -120,8 +120,16 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	enginetest.RoleExecute(t, e, op, "SELECT a FROM secret")
 	enginetest.RoleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	var dump bytes.Buffer
-	if err := engine.Dump(context.Background(), e, &dump); err == nil || dump.Len() != 0 {
-		t.Fatal("explicit ACL dump loss", err, dump.String())
+	security := e.Catalog.State.MustRelation(ref.Address).Security
+	if err := engine.Dump(context.Background(), e, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	restored := e.Catalog.State.MustRelation(roleTableRef(t, e, "secret").Address)
+	if !reflect.DeepEqual(restored.Security.ACL, security.ACL) || !reflect.DeepEqual(restored.Security.ColumnACL, security.ColumnACL) {
+		t.Fatal("raw relation/column ACL changed across restore", restored.Security, security)
 	}
 	namespace := e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID})
 	entry.Privileges = authorization.UsagePrivilege

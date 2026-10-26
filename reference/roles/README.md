@@ -84,6 +84,13 @@ authority.
   non-table families and lock/concurrent-writer cases live in
   `reference/object_grants`.
 
+Native control witnesses preserve materialized table/column ACLs, raw grantor
+and grant-option state, data and actor authority across Dump/Restore. Default
+privilege descriptors still reject Dump before output; arbitrary GRANT/REVOKE
+and ALTER DEFAULT PRIVILEGES remain outside Restore admission and fail atomically.
+Transactional controls retain committed-only capture and stale-publication
+fences, then prove a committed grant survives replacement with its roles intact.
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Role attributes: `RUN='^TestReferenceRoleAttributes'`

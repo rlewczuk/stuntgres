@@ -88,8 +88,21 @@ func TestViewReplaceIdentityAndACL(t *testing.T) {
 		t.Fatal("owner ACL rewrite", transferred)
 	}
 	var dump bytes.Buffer
-	if err := engine.Dump(context.Background(), e, &dump); err == nil {
-		t.Fatal("explicit ACL dump silently discarded grants")
+	if err := engine.Dump(context.Background(), e, &dump); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Restore(context.Background(), e, bytes.NewReader(dump.Bytes())); err != nil {
+		t.Fatal(err)
+	}
+	restored := e.Catalog.State.MustRelation(enginetest.RoleTableRef(t, e, "v").Address)
+	if restored.Owner != transferred.Owner || !authorization.EqualACL(restored.Security.ACL, transferred.Security.ACL) || len(restored.Security.ColumnACL) != len(transferred.Security.ColumnACL) || !reflect.DeepEqual(restored.Attributes, transferred.Attributes) {
+		t.Fatal("restored view lost owner/ACL/attribute metadata", restored, transferred)
+	}
+	for number, want := range transferred.Security.ColumnACL {
+		got, exists := restored.Security.ColumnACL[number]
+		if !exists || !authorization.EqualACL(got, want) {
+			t.Fatal("restored view lost raw column ACL", number, got, want)
+		}
 	}
 }
 

@@ -30,12 +30,30 @@ func (n accessExecutionFailure) Eval(expr.Context) (sqltype.Value, error) {
 }
 
 func TestAccessExecutionInquiryCarrier(t *testing.T) {
-	for _, kind := range []AccessKind{AccessFunction, AccessLanguage, AccessForeignWrapper, AccessServer, AccessDatabase, AccessSchema, AccessType, AccessTablespace} {
-		for _, formals := range [][]sqltype.ID{{19, 25, 25}, {19, 26, 25}, {26, 25, 25}, {26, 26, 25}, {25, 25}, {26, 25}} {
+	accessInquiryCarrier(t, []AccessKind{AccessFunction, AccessLanguage, AccessForeignWrapper, AccessServer, AccessDatabase, AccessSchema, AccessType, AccessTablespace})
+}
+
+func TestAccessRelationsCarrier(t *testing.T) {
+	accessInquiryCarrier(t, []AccessKind{AccessTable, AccessSequence, AccessColumnPrivilege, AccessAnyColumn})
+}
+
+func accessInquiryCarrier(t *testing.T, kinds []AccessKind) {
+	for _, kind := range kinds {
+		signatures := [][]sqltype.ID{{19, 25, 25}, {19, 26, 25}, {26, 25, 25}, {26, 26, 25}, {25, 25}, {26, 25}}
+		if kind == AccessColumnPrivilege {
+			signatures = [][]sqltype.ID{{19, 25, 25, 25}, {19, 25, 21, 25}, {19, 26, 25, 25}, {19, 26, 21, 25}, {26, 25, 25, 25}, {26, 25, 21, 25}, {26, 26, 25, 25}, {26, 26, 21, 25}, {25, 25, 25}, {25, 21, 25}, {26, 25, 25}, {26, 21, 25}}
+		}
+		for _, formals := range signatures {
 			n := AccessInquiry{Kind: kind, Count: len(formals), Info: expr.Info{Usage: aclTestTypes[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Stable}}}
 			for i, id := range formals {
 				if id == sqltype.Oid {
 					n.Args[i] = aclTestOID(t, 42)
+				} else if id == sqltype.Int2 {
+					value, err := sqltype.Integer(aclTestTypes[id], 1)
+					if err != nil {
+						t.Fatal(err)
+					}
+					n.Args[i] = aclTestLiteral(value)
 				} else {
 					n.Args[i] = aclTestText(id, "value")
 				}

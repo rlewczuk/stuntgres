@@ -36,11 +36,17 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 	p.Step(t, fixture.Exec("CREATE TABLE z(v TEXT)", 0))
 	p.Step(t, fixture.Exec("INSERT INTO z VALUES('one'),('two')", 2))
 	p.Step(t, fixture.Exec("ALTER TABLE ONLY(z) DROP v", 0))
+	checkLayout := func() {
+		t.Helper()
+		p.Step(t, fixture.Select(`SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='"S"."T"'::regclass AND attnum>0 ORDER BY attnum`, []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "a", false}, {int64(2), "........pg.dropped.2........", true}, {int64(3), "s", false}, {int64(4), "c", false}, {int64(5), "........pg.dropped.5........", true}}))
+		p.Step(t, fixture.Select("SELECT attnum,attname,attisdropped FROM pg_attribute WHERE attrelid='z'::regclass AND attnum>0 ORDER BY attnum", []string{"attnum", "attname", "attisdropped"}, []string{"INT2", "NAME", "BOOL"}, [][]any{{int64(1), "........pg.dropped.1........", true}}))
+	}
+	checkLayout()
 	var dump bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &dump); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(dump.String(), "sentinel") || strings.Contains(dump.String(), "ALTER TABLE") || strings.Contains(dump.String(), "VALUES ()") || strings.Count(dump.String(), `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 || !strings.Contains(dump.String(), `CREATE TABLE "S"."T" ("a" INTEGER CONSTRAINT "T_a_not_null" NOT NULL, "s" TEXT, "c" BIGINT);`) {
+	if strings.Contains(dump.String(), "sentinel") || strings.Contains(dump.String(), "VALUES ()") || strings.Count(dump.String(), `INSERT INTO "public"."z" DEFAULT VALUES;`) != 2 {
 		t.Fatal(dump.String())
 	}
 	schemaDirective := strings.Index(dump.String(), `CREATE SCHEMA "S" AUTHORIZATION "drop_table_owner";`)
@@ -88,6 +94,7 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 		expected := fixture.Select(`SELECT * FROM "S"."T" ORDER BY a`, []string{"a", "s", "c"}, []string{"INT4", "TEXT", "INT8"}, [][]any{{int64(1), "O'Brien\n\\tail", int64(9223372036854775807)}, {int64(2), nil, nil}})
 		p.Step(t, expected)
 		p.Step(t, fixture.Prepared(expected))
+		checkLayout()
 		for _, backend := range p.Backends() {
 			db := backend.DB
 			conn, err := db.Conn(p.Ctx)
@@ -117,6 +124,8 @@ func TestReferenceAlterDropColumnControls(t *testing.T) {
 			t.Fatal(err, again.String())
 		}
 	}
+	p.Step(t, fixture.Exec(`ALTER TABLE "S"."T" ADD next_slot INT`, 0))
+	p.Step(t, fixture.Select(`SELECT attnum FROM pg_attribute WHERE attrelid='"S"."T"'::regclass AND attname='next_slot'`, []string{"attnum"}, []string{"INT2"}, [][]any{{int64(6)}}))
 }
 
 func TestReferenceAlterDropColumnDistinctOwnerRestoreBoundary(t *testing.T) {
@@ -148,8 +157,8 @@ func TestReferenceAlterDropColumnDistinctOwnerRestoreBoundary(t *testing.T) {
 		func() {
 			defer oracle.Close()
 			defer oracle.ExecContext(context.Background(), "RESET SESSION AUTHORIZATION")
-			// Independent PG fixture privileges bridge its real destination authority;
-			// native Dump still rejects explicit ACLs and has no public GRANT support.
+			// Supply this oracle replay's independent schema CREATE prerequisite;
+			// supported namespace ACL serialization remains part of logical replay.
 			for _, line := range strings.Split(dump.String(), "\n") {
 				if line == "" {
 					continue

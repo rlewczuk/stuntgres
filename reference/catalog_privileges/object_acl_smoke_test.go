@@ -77,7 +77,7 @@ func TestReferenceObjectACLFeatureSmoke(t *testing.T) {
 			untouched()
 		}
 		run(fixture.Exec("GRANT SELECT(a) ON acl_obj_smoke TO PUBLIC", 0))
-		objectACLRejectedControls(t, p, b, c, "acl_obj_smoke")
+		objectACLRoundtripControls(t, p, b, c, "acl_obj_smoke")
 		run(data)
 	})
 }

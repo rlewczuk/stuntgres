@@ -21,13 +21,17 @@ const (
 	AccessSchema
 	AccessType
 	AccessTablespace
+	AccessTable
+	AccessSequence
+	AccessColumnPrivilege
+	AccessAnyColumn
 )
 
 // AccessInquiry retains only typed operands, never authority or decisions.
 type AccessInquiry struct {
 	expr.Info
 	Kind  AccessKind
-	Args  [3]expr.Expr
+	Args  [4]expr.Expr
 	Count int
 }
 
@@ -57,6 +61,14 @@ func (n AccessInquiry) Name() string {
 		return "has_type_privilege"
 	case AccessTablespace:
 		return "has_tablespace_privilege"
+	case AccessTable:
+		return "has_table_privilege"
+	case AccessSequence:
+		return "has_sequence_privilege"
+	case AccessColumnPrivilege:
+		return "has_column_privilege"
+	case AccessAnyColumn:
+		return "has_any_column_privilege"
 	}
 	return ""
 }
@@ -65,7 +77,7 @@ func (n AccessInquiry) Eval(c expr.Context) (sqltype.Value, error) {
 	if _, err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	var values [3]sqltype.Value
+	var values [4]sqltype.Value
 	null := false
 	for i := range n.Count {
 		value, err := n.Args[i].Eval(c)
@@ -97,7 +109,7 @@ func (n AccessInquiry) Eval(c expr.Context) (sqltype.Value, error) {
 	} else {
 		var actor *AccessRole
 		targetIndex := 0
-		if n.Count == 3 {
+		if n.Count == n.minimumArity()+1 {
 			role, failure := accessRoleValue(n.Args[0], values[0])
 			if failure != nil {
 				return sqltype.Value{}, failure
@@ -116,7 +128,29 @@ func (n AccessInquiry) Eval(c expr.Context) (sqltype.Value, error) {
 			result, err = runtime.RoleMembership(actor, target, privilege)
 		} else {
 			var exists bool
-			result, exists, err = runtime.ObjectPrivilege(n.Kind, actor, target, privilege)
+			if n.relationInquiry() {
+				relation := AccessRelation{ByOID: target.ByOID, OID: target.OID, Name: target.Name}
+				var column AccessColumn
+				if n.Kind == AccessColumnPrivilege {
+					i := n.Count - 2
+					column.ByNumber = n.Args[i].ResultUsage().Type.ID() == sqltype.Int2
+					if column.ByNumber {
+						number, failure := values[i].Integer()
+						if failure != nil {
+							return sqltype.Value{}, failure
+						}
+						column.Number = int32(number)
+					} else {
+						column.Name, err = values[i].Text()
+						if err != nil {
+							return sqltype.Value{}, err
+						}
+					}
+				}
+				result, exists, err = runtime.RelationPrivilege(n.Kind, actor, relation, column, privilege)
+			} else {
+				result, exists, err = runtime.ObjectPrivilege(n.Kind, actor, target, privilege)
+			}
 			if err == nil && !exists {
 				return sqltype.Null(n.Usage.Type), nil
 			}
@@ -142,7 +176,7 @@ func accessRoleValue(arg expr.Expr, value sqltype.Value) (AccessRole, error) {
 
 // Validate checks the stored recipe: arity, formals and result.
 func (n AccessInquiry) Validate() error {
-	if n.Kind > AccessTablespace || n.Kind == AccessRowSecurity && n.Count != 1 || n.Kind != AccessRowSecurity && n.Count != 2 && n.Count != 3 {
+	if !n.validArity() {
 		return fmt.Errorf("stuntgres: invalid stored access inquiry arity")
 	}
 	properties := expr.Properties{Volatility: expr.Stable}
@@ -157,12 +191,8 @@ func (n AccessInquiry) Validate() error {
 			return fmt.Errorf("stuntgres: invalid stored access inquiry argument")
 		}
 		id := arg.ResultUsage().Type.ID()
-		valid := id == sqltype.Text
-		if n.Kind == AccessRowSecurity || n.Kind >= AccessFunction && i == n.Count-2 {
-			valid = id == sqltype.Text || id == sqltype.Oid
-		} else if i < n.Count-1 {
-			valid = id == sqltype.Name || id == sqltype.Oid
-		}
+		preferred, alternate := n.formalAxis(i)
+		valid := id == preferred || alternate != 0 && id == alternate
 		if !valid {
 			return fmt.Errorf("stuntgres: invalid stored access inquiry signature")
 		}
@@ -172,6 +202,55 @@ func (n AccessInquiry) Validate() error {
 		return fmt.Errorf("stuntgres: invalid stored access inquiry result")
 	}
 	return nil
+}
+
+func (n AccessInquiry) relationInquiry() bool {
+	switch n.Kind {
+	case AccessTable, AccessSequence, AccessColumnPrivilege, AccessAnyColumn:
+		return true
+	}
+	return false
+}
+
+func (n AccessInquiry) minimumArity() int {
+	if n.Kind == AccessRowSecurity {
+		return 1
+	}
+	if n.Kind == AccessColumnPrivilege {
+		return 3
+	}
+	return 2
+}
+
+func (n AccessInquiry) validArity() bool {
+	switch n.Kind {
+	case AccessRowSecurity:
+		return n.Count == 1
+	case AccessColumnPrivilege:
+		return n.Count == 3 || n.Count == 4
+	case AccessMembership, AccessFunction, AccessLanguage, AccessForeignWrapper,
+		AccessServer, AccessDatabase, AccessSchema, AccessType, AccessTablespace,
+		AccessTable, AccessSequence, AccessAnyColumn:
+		return n.Count == 2 || n.Count == 3
+	}
+	return false
+}
+
+// formalAxis gives the released preferred unknown type and optional alternative.
+func (n AccessInquiry) formalAxis(i int) (sqltype.ID, sqltype.ID) {
+	if n.Kind == AccessRowSecurity {
+		return sqltype.Text, sqltype.Oid
+	}
+	if i == n.Count-1 {
+		return sqltype.Text, 0
+	}
+	if n.Kind == AccessColumnPrivilege && i == n.Count-2 {
+		return sqltype.Text, sqltype.Int2
+	}
+	if n.Kind != AccessMembership && i == n.Count-n.minimumArity() {
+		return sqltype.Text, sqltype.Oid
+	}
+	return sqltype.Name, sqltype.Oid
 }
 
 func (n AccessInquiry) Children() []expr.Expr { return n.Args[:n.Count] }

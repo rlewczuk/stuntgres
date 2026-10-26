@@ -28,6 +28,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: deferred physical primary owner", Before: beforeRestoreDeferredPhysicalOwner},
 	{Name: "table: physical import index base", Before: beforeRestorePhysicalIndexBase},
 	{Name: "owner directive snapshot", Before: beforeRestoreOwnerSnapshot},
+	{Name: "table: staged foreign key", Before: beforeRestoreAttributeForeignKey},
 	{Name: "inheritance: inherited foreign key", Before: beforeRestoreInheritedForeignKey},
 	{Name: "table: physical self foreign key", Before: beforeRestorePhysicalSelfForeignKey},
 
@@ -77,6 +78,7 @@ var restoreHooks = []control.Hook[*restoreRun]{
 
 	// After execution.
 	{Name: "comparison bound definition", After: afterRestoreComparisonContext},
+	{Name: "table: attribute constructor capture", After: afterRestoreAttributeConstructor},
 	{Name: "table: physical NOT NULL constructor capture", After: afterRestorePhysicalConstructor},
 	{Name: "table: physical foreign key provider", After: afterRestorePhysicalForeignKeyProvider},
 	{Name: "table: physical import index", After: afterRestorePhysicalImportIndex},
@@ -90,9 +92,11 @@ var restoreHooks = []control.Hook[*restoreRun]{
 	{Name: "table: foreign key targets", After: afterRestoreForeignKeys},
 	{Name: "table: deferred default", After: afterRestoreDefault},
 	{Name: "inheritance: generation capture", After: afterRestoreGeneration},
+	{Name: "table: attribute definition capture", After: afterRestoreAttributeDefinition},
 
 	// After the last statement.
 	{Name: "comparison context closure", Finish: finishRestoreComparisonContext},
+	{Name: "table: attribute retirements", Finish: finishRestoreAttributeRetirements},
 	{Name: "table: physical NOT NULL boundary at end", Finish: finishRestorePhysicalBoundary},
 	{Name: "table: foreign keys", Finish: finishRestoreForeignKeys},
 	{Name: "extension: owners", Finish: finishRestoreExtensionOwners},
