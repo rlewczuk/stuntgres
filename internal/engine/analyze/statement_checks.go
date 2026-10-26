@@ -223,7 +223,7 @@ func GuardedCatalogRelation(d *catalog.Relation) bool {
 	if d == nil || d.RelationKind != catalog.CatalogRelation || d.Address().ClassID != ids.RelationClassID {
 		return false
 	}
-	return d.Address().ObjectID == pgcatalog.AggregateOID || d.Address().ObjectID == pgcatalog.AMOID || d.Address().ObjectID == pgcatalog.TypeOID || d.Address().ObjectID == pgcatalog.TSParserOID || d.Address().ObjectID == pgcatalog.TSConfigOID || d.Address().ObjectID == pgcatalog.TransformOID
+	return d.Address().ObjectID == pgcatalog.AggregateOID || d.Address().ObjectID == pgcatalog.AMOID || d.Address().ObjectID == 2602 || d.Address().ObjectID == pgcatalog.TypeOID || d.Address().ObjectID == pgcatalog.TSParserOID || d.Address().ObjectID == pgcatalog.TSConfigOID || d.Address().ObjectID == pgcatalog.TransformOID
 }
 
 // Reachability is independent of catalog binding and precedes relation admission.

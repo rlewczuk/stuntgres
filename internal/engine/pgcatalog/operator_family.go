@@ -11,6 +11,30 @@ func captureOperatorFamilies(in Input) ([][]sqltype.Value, error) {
 	if err := in.Context.Err(); err != nil {
 		return nil, err
 	}
+	var expected [9]sqltype.ID
+	var width int
+	switch in.Source.Address().ObjectID {
+	case 2602:
+		expected = [9]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Char, sqltype.Oid, sqltype.Oid, sqltype.Oid}
+		width = 9
+	case 2603:
+		expected = [9]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Oid, sqltype.Int2, sqltype.Regproc}
+		width = 6
+	case 2753:
+		expected = [9]sqltype.ID{sqltype.Oid, sqltype.Oid, sqltype.Name, sqltype.Oid, sqltype.Oid}
+		width = 5
+	default:
+		return nil, fmt.Errorf("stuntgres: invalid operator family source identity")
+	}
+	if len(in.Source.Columns) != width {
+		return nil, fmt.Errorf("stuntgres: invalid operator family source shape")
+	}
+	for i, id := range expected[:width] {
+		owned, ok := in.Catalog.LookupType(id)
+		if !ok || owned != in.Source.Columns[i].Usage.Type {
+			return nil, fmt.Errorf("stuntgres: invalid operator family source type")
+		}
+	}
 	var definitions []catalog.Descriptor
 	for a, d := range in.Catalog.Descriptors() {
 		if a.ClassID == in.Source.Address().ObjectID {
@@ -18,7 +42,6 @@ func captureOperatorFamilies(in Input) ([][]sqltype.Value, error) {
 		}
 	}
 	sort.Slice(definitions, func(i, j int) bool { return definitions[i].Address().ObjectID < definitions[j].Address().ObjectID })
-	width := len(in.Source.Columns)
 	rows := make([][]sqltype.Value, len(definitions))
 	cells := make([]sqltype.Value, len(rows)*width)
 	for i, d := range definitions {

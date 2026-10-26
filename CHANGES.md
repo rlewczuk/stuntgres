@@ -1,3 +1,9 @@
+`pg_amop` reports its released builtin index metadata through its owning relation
+descriptor. Catalog metadata coverage distinguishes base-source NOT NULL fields
+from stored-view nullability and lib/pq's INT2 scan type. Direct, fresh-prepared
+and owner-prepared catalog writes recheck reader authority before effects;
+native privileged writes remain unsupported.
+
 Polymorphic SQL and PL procedure calls retain concrete invocation output types
 through result metadata, private PL formals and native replay. Procedure options
 are parsed as complete clauses: malformed suffixes fail during parsing, while
