@@ -77,9 +77,16 @@ func definitionFamilyMembers(t *testing.T, p *fixture.Pair, b fixture.Backend, e
 	support := [][]any{{int64(1), int64(23), int64(23), int64(351)}}
 	if optional {
 		operators = append(operators, []any{int64(3), int64(23), int64(23), int64(96), "s", int64(403), int64(0)})
-		support = append(support, []any{int64(2), int64(23), int64(23), int64(3130)})
+		if b.PG {
+			support = append(support, []any{int64(2), int64(23), int64(23), int64(3130)})
+		}
 	}
 	run := definitionRun(t, p, b, e)
 	run(fixture.Select(`SELECT a.amopstrategy,a.amoplefttype::bigint,a.amoprighttype::bigint,a.amopopr::bigint,a.amoppurpose,a.amopmethod::bigint,a.amopsortfamily::bigint FROM pg_amop a JOIN pg_opfamily f ON f.oid=a.amopfamily WHERE f.opfname=$1 ORDER BY a.amopstrategy`, []string{"amopstrategy", "amoplefttype", "amoprighttype", "amopopr", "amoppurpose", "amopmethod", "amopsortfamily"}, []string{"INT2", "INT8", "INT8", "INT8", "CHAR", "INT8", "INT8"}, operators, name))
 	run(fixture.Select(`SELECT a.amprocnum,a.amproclefttype::bigint,a.amprocrighttype::bigint,a.amproc::oid::bigint FROM pg_amproc a JOIN pg_opfamily f ON f.oid=a.amprocfamily WHERE f.opfname=$1 ORDER BY a.amprocnum`, []string{"amprocnum", "amproclefttype", "amprocrighttype", "amproc"}, []string{"INT2", "INT8", "INT8", "INT8"}, support, name))
+	count := int64(1)
+	if optional {
+		count = 2
+	}
+	run(definitionCount(`SELECT count(*) FROM pg_depend d JOIN pg_opfamily f ON f.oid=d.refobjid WHERE d.classid=2603 AND d.refclassid=2753 AND d.deptype='a' AND f.opfname=$1`, count, name))
 }

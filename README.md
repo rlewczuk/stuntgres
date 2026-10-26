@@ -46,6 +46,15 @@ transition-input ordering. SQL cannot manufacture or expose `internal` states.
 Existing final and moving aggregate support remains independent. See the
 [aggregate contracts](reference/aggregates/README.md#testing) for selected proof.
 
+`pg_catalog.pg_amproc` exposes six typed support-membership columns, including
+symbolic `regproc` identities and exact operator-family/type associations. Owners
+publish implemented comparator/hash routines, genuine internal BRIN minmax
+operations, SQL/provider-backed DDL members and installed `cube_cmp`. Copied
+sort/equal-image/options/physical callback metadata remains internal, not an
+advertised implementation. Catalog reads do not imply PostgreSQL physical
+storage or callback ABI support; see the
+[operator-family contract](docs/design/PG18-INDEX-OPERATOR-FAMILY.md).
+
 ## Using stuntgres in unit tests
 
 Each `stuntgres.NewDriver()` owns independent in-memory clusters.

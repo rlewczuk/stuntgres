@@ -89,7 +89,7 @@ func TestOperatorFamilyPrincipalRemap(t *testing.T) {
 func TestOperatorFamilyAddressRemap(t *testing.T) {
 	family := &OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 90001}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 90002}, ObjectName: "address_family", Method: 783, ObjectRevision: 7}
 	operator := &OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: 90003}, ObjectRevision: 8, Family: 90001, Left: 90004, Right: 90005, Operator: 90006, Method: 783, SortFamily: 90007, Number: 1, Purpose: 'o'}
-	support := &OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 90008}, ObjectRevision: 9, Family: 90001, Left: 90004, Right: 90005, Function: 90009, Number: 1}
+	support := &OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: 90008}, ObjectRevision: 9, Family: 90001, Left: 90004, Right: 90005, Function: 90009, Number: 1, CatalogVisible: true}
 	mapping := make(map[ids.ObjectAddress]ids.ObjectAddress)
 	for _, address := range []ids.ObjectAddress{family.Address(), family.Namespace(), operator.Address(), support.Address(), {ClassID: ids.TypeClassID, ObjectID: 90004}, {ClassID: ids.TypeClassID, ObjectID: 90005}, {ClassID: ids.OperatorClassID, ObjectID: 90006}, {ClassID: ids.OperatorFamilyClassID, ObjectID: 90007}, {ClassID: ids.ProcedureClassID, ObjectID: 90009}} {
 		next := address
@@ -125,4 +125,9 @@ func TestOperatorFamilyAddressRemap(t *testing.T) {
 			t.Fatal("unchanged address mapping copied immutable descriptor")
 		}
 	}
+}
+
+func TestOperatorFamilySupportVisibilityRemap(t *testing.T) {
+	t.Run("addresses", TestOperatorFamilyAddressRemap)
+	t.Run("principals", TestOperatorFamilyPrincipalRemap)
 }

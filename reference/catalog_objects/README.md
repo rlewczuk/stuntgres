@@ -30,9 +30,9 @@ scenarios assert complete notice records through the shared notice-enabled pool.
   consumer, including `TestReferencePGTypeAdmission` in
   [reference/catalogs](../catalogs/README.md#testing).
   Access-method and operator-class inventories include BRIN's released method,
-  handler, minmax classes and diagnostic-only algorithm identities. BRIN class
-  tuples are independently captured in `pg_opclass_brin_facts_test.go`; catalog
-  presence does not grant a native summary algorithm.
+  handler and minmax classes. Genuine minmax support operations 3383–3386 consume
+  internal summaries; this does not advertise missing physical callback ABIs.
+  BRIN class tuples are independently captured in `pg_opclass_brin_facts_test.go`.
   `pg_amop` projects live operator-family owners, not generic rows per class
   or per physical index. Its admitted inventory preserves cross-type search
   members and ordering members with their real sort-family links; catalog
@@ -49,6 +49,25 @@ scenarios assert complete notice records through the shared notice-enabled pool.
   Permission scenarios retain owner-prepared statements across SET ROLE and
   require complete reader-denial diagnostics before effects. Native owner writes
   remain unsupported and effect-free; PostgreSQL owner writes are never executed.
+  `TestReferencePGAmproc(Inventory|Shape|Metadata|Diagnostics|Permissions|HeldExecution|Lifecycle|Extension|Cancellation|FeatureSmoke)`
+  checks the six OID/OID/OID/OID/INT2/REGPROC columns, independent comparator,
+  cross-type, hash and internal BRIN facts, installed cube ownership and dynamic
+  owner lifecycle. Generated member OIDs are valid/stable within each backend,
+  not harvested cross-backend goldens. Unsupported callbacks are absent natively
+  and explicitly present upstream. `CatalogVisible` is an immutable owner fact:
+  internal descriptors/dependencies and logical property consumers retain hidden
+  memberships. Private `TestPGAmprocImplementedProjection` and
+  `TestOperatorFamilySupportVisibility(Remap)?` cover projection/default denial,
+  finite implementation facts and copy/remapping; use the exact selectors below.
+  Selected proof: `make check RUN='^TestReferencePGAmproc'` and the same command
+  with `REFERENCE=1`; private selector
+  `make check RUN='^(TestPGAmprocImplementedProjection|TestOperatorFamilySupportVisibility|TestOperatorFamilySupportVisibilityRemap)$'`.
+  `pg_amproc` uses the same execution-time catalog mutation guard as `pg_amop`.
+  Its permission proof covers direct, fresh-prepared, reader-prepared held and
+  owner-prepared held mutations after `SET ROLE`, including empty predicates.
+  Reader writes fail with `42501`; native owner writes separately fail with
+  `0A000`, without changing memberships or the sentinel. The guard admits
+  preparation, not catalog writes or additional support implementations.
   `TestReferenceGeometryRelationOperatorCatalog` restricts these shared facts by
   selected spellings and geometric formals, independently asserts all15 fields
   and symbolic procedure links, and couples required rows to typed-column

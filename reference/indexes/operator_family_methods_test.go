@@ -70,7 +70,9 @@ func TestReferenceOperatorFamilyDiagnostics(t *testing.T) {
 }
 
 func TestReferenceOperatorFamilyMethods(t *testing.T) {
-	familyScenario(t, func(t *testing.T, _ context.Context, _ *sql.Conn, run func(fixture.Step)) {
+	familyBackends(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		conn, _ := classConn(t, p, b)
+		run := func(s fixture.Step) { fixture.PgDescriptionExecutorRows(t, p, b, conn, s) }
 		for _, method := range []string{"btree", "hash", "gist"} {
 			run(fixture.Exec("CREATE OPERATOR FAMILY public.family_probe USING "+method, 0))
 		}
@@ -86,9 +88,11 @@ func TestReferenceOperatorFamilyMethods(t *testing.T) {
 			run(fixture.Exec("ALTER OPERATOR FAMILY public.family_probe USING btree ADD "+member, 0))
 		}
 		// Slot3 infers its pair from the first and third formal, not first two.
-		run(fixture.Select(`SELECT p.amprocnum,p.amproclefttype,p.amprocrighttype FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='family_probe' AND f.opfmethod=403 ORDER BY p.amprocnum`, []string{"amprocnum", "amproclefttype", "amprocrighttype"}, []string{"INT2", "OID", "OID"}, [][]any{
-			{int64(1), int64(23), int64(23)}, {int64(2), int64(23), int64(23)}, {int64(3), int64(23), int64(20)}, {int64(4), int64(23), int64(23)}, {int64(5), int64(23), int64(23)}, {int64(6), int64(23), int64(23)},
-		}))
+		associated := [][]any{{int64(1), int64(23), int64(23)}}
+		if b.PG {
+			associated = [][]any{{int64(1), int64(23), int64(23)}, {int64(2), int64(23), int64(23)}, {int64(3), int64(23), int64(20)}, {int64(4), int64(23), int64(23)}, {int64(5), int64(23), int64(23)}, {int64(6), int64(23), int64(23)}}
+		}
+		run(fixture.Select(`SELECT p.amprocnum,p.amproclefttype,p.amprocrighttype FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='family_probe' AND f.opfmethod=403 ORDER BY p.amprocnum`, []string{"amprocnum", "amproclefttype", "amprocrighttype"}, []string{"INT2", "OID", "OID"}, associated))
 		run(fixture.Exec(`ALTER OPERATOR FAMILY public.family_probe USING hash ADD FUNCTION 1 pg_catalog.hashint4(integer), FUNCTION 2 (integer,integer) pg_catalog.int8pl(bigint,bigint), FUNCTION 3 (integer,integer) pg_catalog.btint4sortsupport(internal)`, 0))
 		for slot := 1; slot <= 12; slot++ {
 			fn := `pg_catalog.int4mi(integer,integer)`
@@ -102,7 +106,11 @@ func TestReferenceOperatorFamilyMethods(t *testing.T) {
 		// method; this exact ADD succeeded in the pinned discovery round.
 		run(fixture.Exec(`ALTER OPERATOR FAMILY public.family_probe USING gist ADD OPERATOR 1 pg_catalog.<(integer,integer) FOR ORDER BY public.family_probe`, 0))
 		run(fixture.Select(`SELECT a.amoppurpose,a.amopsortfamily=f.oid AS matching_sort_family FROM pg_amop a JOIN pg_opfamily f ON f.oid=a.amopsortfamily WHERE a.amopmethod=783 AND a.amopstrategy=1 AND f.opfname='family_probe' AND f.opfnamespace='public'::regnamespace AND f.opfmethod=403`, []string{"amoppurpose", "matching_sort_family"}, []string{"CHAR", "BOOL"}, [][]any{{"o", true}}))
-		run(fixture.Select(`SELECT f.opfmethod,count(*) FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='family_probe' GROUP BY f.opfmethod ORDER BY f.opfmethod`, []string{"opfmethod", "count"}, []string{"OID", "INT8"}, [][]any{{int64(403), int64(6)}, {int64(405), int64(3)}, {int64(783), int64(12)}}))
+		counts := [][]any{{int64(403), int64(1)}, {int64(405), int64(2)}, {int64(783), int64(11)}}
+		if b.PG {
+			counts = [][]any{{int64(403), int64(6)}, {int64(405), int64(3)}, {int64(783), int64(12)}}
+		}
+		run(fixture.Select(`SELECT f.opfmethod,count(*) FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='family_probe' GROUP BY f.opfmethod ORDER BY f.opfmethod`, []string{"opfmethod", "count"}, []string{"OID", "INT8"}, counts))
 		// Explicit association deliberately differs from real function formals.
 		run(fixture.Exec(`ALTER OPERATOR FAMILY public.family_probe USING btree ADD FUNCTION 1 (smallint,bigint) pg_catalog.btint4cmp(integer,integer)`, 0))
 		run(fixture.Exec(`ALTER OPERATOR FAMILY public.family_probe USING btree DROP FUNCTION 1(smallint,bigint)`, 0))

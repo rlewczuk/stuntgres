@@ -81,7 +81,13 @@ func TestReferenceTransactionalDefinitionSavepoints(t *testing.T) {
 					execute(fixture.Exec(`ROLLBACK TO drop_atomic`, 0))
 					execute(fixture.Exec(`RELEASE drop_atomic`, 0))
 					execute(fixture.Exec(`RELEASE graph`, 0))
-					execute(definitionCount(`SELECT count(*) FROM pg_amproc WHERE amprocfamily=$1::oid`, 2, family))
+					visible := int64(1)
+					if b.PG {
+						visible = 2
+					}
+					execute(definitionCount(`SELECT count(*) FROM pg_amproc WHERE amprocfamily=$1::oid`, visible, family))
+					// The failed DROP prefix must restore hidden optional metadata too.
+					execute(definitionCount(`SELECT count(*) FROM pg_depend WHERE classid=2603 AND refclassid=2753 AND refobjid=$1::oid AND deptype='a'`, 1, family))
 					definitionRun(t, p, b, b.DB)(definitionCount(`SELECT count(*) FROM pg_am WHERE amname='tx_save_am'`, 0))
 					end()
 					run(definitionCount(`SELECT count(*) FROM pg_am WHERE amname='tx_save_am'`, 0))

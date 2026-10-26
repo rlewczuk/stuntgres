@@ -44,7 +44,11 @@ func TestReferenceTransactionalDefinitionPlain(t *testing.T) {
 					exec(`CREATE OPERATOR CLASS public.tx_plain_class DEFAULT FOR TYPE integer USING tx_plain_am FAMILY public.tx_plain_family AS ` + definitionClassItems)
 					run(fixture.Select(`SELECT a.amhandler::oid::bigint,c.opcintype::bigint,c.opcdefault,c.opcmethod=a.oid,c.opcfamily=f.oid FROM pg_opclass c JOIN pg_am a ON a.amname='tx_plain_am' JOIN pg_opfamily f ON f.opfname='tx_plain_family' WHERE c.opcname='tx_plain_class'`, []string{"amhandler", "opcintype", "opcdefault", "?column?", "?column?"}, []string{"INT8", "INT8", "BOOL", "BOOL", "BOOL"}, [][]any{{int64(330), int64(23), true, true, true}}))
 					exec(`ALTER OPERATOR FAMILY public.tx_plain_family USING tx_plain_am ADD FUNCTION 2 (integer,integer) pg_catalog.btint4sortsupport(internal)`)
-					run(definitionCount(`SELECT count(*) FROM pg_amproc a JOIN pg_opfamily f ON f.oid=a.amprocfamily WHERE f.opfname='tx_plain_family'`, 2))
+					visible := int64(1)
+					if b.PG {
+						visible = 2
+					}
+					run(definitionCount(`SELECT count(*) FROM pg_amproc a JOIN pg_opfamily f ON f.oid=a.amprocfamily WHERE f.opfname='tx_plain_family'`, visible))
 					exec(`ALTER OPERATOR FAMILY public.tx_plain_family USING tx_plain_am DROP FUNCTION 2(integer,integer)`)
 					exec(`ALTER OPERATOR CLASS public.tx_plain_class USING tx_plain_am RENAME TO tx_plain_renamed`)
 					exec(`ALTER OPERATOR FAMILY public.tx_plain_family USING tx_plain_am RENAME TO tx_plain_family_renamed`)

@@ -48,6 +48,9 @@ type OperatorFamilySupport struct {
 	Family, Left, Right, Function ids.OID
 	InternalOwner                 ids.ObjectAddress
 	Number                        int16
+	// CatalogVisible is asserted by the implementation owner. Declarative
+	// memberships remain available internally without advertising a callback.
+	CatalogVisible bool
 }
 
 func (d *OperatorFamilySupport) Address() ids.ObjectAddress       { return d.ObjectAddress }

@@ -103,7 +103,7 @@ func TestReferenceSPGiSTMetadataProperties(t *testing.T) {
 			{int64(10521), int64(3794), int64(869), int64(869), int64(26), "s", int64(933), int64(4000), int64(0)},
 			{int64(10522), int64(3794), int64(869), int64(869), int64(27), "s", int64(934), int64(4000), int64(0)},
 		}))
-		classRoutes(t, p, b, conn, fixture.Select(`SELECT p.oid::bigint,p.amprocfamily::bigint,p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::oid::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfmethod=4000 ORDER BY p.oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT8", "INT8", "INT2", "INT8"}, [][]any{
+		classRoutes(t, p, b, conn, familyBuiltinVisible(fixture.Select(`SELECT p.oid::bigint,p.amprocfamily::bigint,p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::oid::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfmethod=4000 ORDER BY p.oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT8", "INT8", "INT2", "INT8"}, [][]any{
 			{int64(10296), int64(3474), int64(3831), int64(3831), int64(1), int64(3469)},
 			{int64(10297), int64(3474), int64(3831), int64(3831), int64(2), int64(3470)},
 			{int64(10298), int64(3474), int64(3831), int64(3831), int64(3), int64(3471)},
@@ -140,7 +140,7 @@ func TestReferenceSPGiSTMetadataProperties(t *testing.T) {
 			{int64(10329), int64(5008), int64(604), int64(604), int64(4), int64(5015)},
 			{int64(10330), int64(5008), int64(604), int64(604), int64(5), int64(5016)},
 			{int64(10331), int64(5008), int64(604), int64(604), int64(6), int64(5011)},
-		}))
+		}), b.PG))
 		classRoutes(t, p, b, conn, fixture.Select(`SELECT oid::bigint,amname,amhandler::oid::bigint,amtype FROM pg_am WHERE oid=4000`, []string{"oid", "amname", "amhandler", "amtype"}, []string{"INT8", "NAME", "INT8", "CHAR"}, [][]any{{int64(4000), "spgist", int64(334), "i"}}))
 		for _, c := range []struct {
 			typ, class           string

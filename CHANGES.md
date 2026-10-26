@@ -1,3 +1,10 @@
+`pg_amproc` publishes only owner-asserted implemented support memberships, with
+exact OID/INT2/REGPROC columns and operator-family/type associations. Native
+comparator/hash, genuine internal BRIN and installed cube support remain visible;
+copied unsupported callback identities remain available to internal logical
+consumers without appearing as SQL capabilities. Family/class DDL supplies the
+same visibility fact without changing admission or implementing new callbacks.
+
 `pg_amop` reports its released builtin index metadata through its owning relation
 descriptor. Catalog metadata coverage distinguishes base-source NOT NULL fields
 from stored-view nullability and lib/pq's INT2 scan type. Direct, fresh-prepared

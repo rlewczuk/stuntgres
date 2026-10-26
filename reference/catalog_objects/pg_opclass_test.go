@@ -166,6 +166,10 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
 	pgLSNOID := pgOpclassPGLSNOID(t, p, b)
 	facts := pgOpclassFacts(pgLSNOID)
+	lsnSupport := [][]any{{int64(1), int64(3220), int64(3220), int64(3251)}}
+	if b.PG {
+		lsnSupport = append(lsnSupport, []any{int64(4), int64(3220), int64(3220), int64(5051)})
+	}
 	q := "SELECT * FROM pg_catalog.pg_opclass"
 	if b.PG {
 		var predicates []string
@@ -189,10 +193,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			{int64(4), int64(3220), int64(3220), "s", int64(3227), int64(403), int64(0)},
 			{int64(5), int64(3220), int64(3220), "s", int64(3225), int64(403), int64(0)},
 		}, pgLSNOID),
-		fixture.Select("SELECT m.amprocnum,m.amproclefttype,m.amprocrighttype,m.amproc::oid AS amproc FROM pg_catalog.pg_amproc m JOIN pg_catalog.pg_opclass c ON c.opcfamily=m.amprocfamily WHERE c.oid=$1::oid ORDER BY m.amprocnum", []string{"amprocnum", "amproclefttype", "amprocrighttype", "amproc"}, []string{"INT2", "OID", "OID", "OID"}, [][]any{
-			{int64(1), int64(3220), int64(3220), int64(3251)},
-			{int64(4), int64(3220), int64(3220), int64(5051)},
-		}, pgLSNOID),
+		fixture.Select("SELECT m.amprocnum,m.amproclefttype,m.amprocrighttype,m.amproc::oid AS amproc FROM pg_catalog.pg_amproc m JOIN pg_catalog.pg_opclass c ON c.opcfamily=m.amprocfamily WHERE c.oid=$1::oid ORDER BY m.amprocnum", []string{"amprocnum", "amproclefttype", "amprocrighttype", "amproc"}, []string{"INT2", "OID", "OID", "OID"}, lsnSupport, pgLSNOID),
 	} {
 		fixture.PgDescriptionRows(t, p, b, s)
 		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))

@@ -4,8 +4,8 @@ import "stuntgres/reference/fixture"
 
 // Complete released REGPROC presentation, independently observed alongside
 // the numeric projection in operator_family_builtin_test.go.
-func familyBuiltinRegprocStep() fixture.Step {
-	return fixture.Select(`SELECT oid,amprocfamily,amproclefttype,amprocrighttype,amprocnum,amproc FROM pg_catalog.pg_amproc WHERE amprocfamily IN (`+familyImplementedIDs+`) ORDER BY amprocfamily,amproclefttype,amprocrighttype,amprocnum,oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"OID", "OID", "OID", "OID", "INT2", "REGPROC"}, [][]any{
+func familyBuiltinRegprocStep(pg bool) fixture.Step {
+	return familyBuiltinVisible(fixture.Select(`SELECT oid,amprocfamily,amproclefttype,amprocrighttype,amprocnum,amproc FROM pg_catalog.pg_amproc WHERE amprocfamily IN (`+familyImplementedIDs+`) ORDER BY amprocfamily,amproclefttype,amprocrighttype,amprocnum,oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"OID", "OID", "OID", "OID", "INT2", "REGPROC"}, [][]any{
 		{int64(10003), int64(424), int64(16), int64(16), int64(1), "btboolcmp"},
 		{int64(10005), int64(424), int64(16), int64(16), int64(4), "btequalimage"},
 		{int64(10004), int64(424), int64(16), int64(16), int64(6), "btboolskipsupport"},
@@ -191,5 +191,5 @@ func familyBuiltinRegprocStep() fixture.Step {
 		{int64(10181), int64(5032), int64(5069), int64(5069), int64(2), "hashxid8extended"},
 		{int64(10130), int64(5067), int64(5069), int64(5069), int64(1), "xid8cmp"},
 		{int64(10131), int64(5067), int64(5069), int64(5069), int64(4), "btequalimage"},
-	})
+	}), pg)
 }

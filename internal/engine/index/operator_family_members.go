@@ -87,6 +87,19 @@ func familyRoutine(h FamilyDDLHost, auth ddl.Authority, item parser.OperatorFami
 	}
 	return identity, args, result, nil
 }
+
+// Released identities alone are not implementations. Keep declarative members
+// for internal consumers, but publish only capabilities supplied by their owner.
+func familySupportImplemented(view catalog.Read, oid ids.OID) bool {
+	d, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid})
+	if !ok || d.RoutineKind != catalog.FunctionRoutine {
+		return false
+	}
+	if _, ok := sqltype.NativeIndexRoutineByOID(uint32(oid)); ok {
+		return true
+	}
+	return catalog.ValidateBrinSupport(d) == nil || d.SQL != nil || d.Builtin != nil && d.Builtin.Providers != 0 || d.Implementation != nil
+}
 func familyOperator(h FamilyDDLHost, auth ddl.Authority, item parser.OperatorFamilyItem) (*catalog.Operator, error) {
 	return familyOperatorInput(h, auth, item, 0)
 }
@@ -244,7 +257,7 @@ func stageOperatorMembers(h FamilyDDLHost, auth ddl.Authority, family *catalog.O
 			if err != nil {
 				return err
 			}
-			next = &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID}, Family: family.Address().ObjectID, Left: left, Right: right, Number: int16(number), Function: identity.ID}
+			next = &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID}, Family: family.Address().ObjectID, Left: left, Right: right, Number: int16(number), Function: identity.ID, CatalogVisible: familySupportImplemented(view, identity.ID)}
 		} else {
 			input := ids.OID(0)
 			if class != nil {

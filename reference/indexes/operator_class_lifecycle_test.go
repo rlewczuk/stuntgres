@@ -117,7 +117,11 @@ func TestReferenceOperatorClassLifecycle(t *testing.T) {
 		run(fixture.Select(`SELECT relname FROM pg_class WHERE relname='class_life_index'`, []string{"relname"}, []string{"NAME"}, nil))
 		run(fixture.Select(`SELECT opcname FROM pg_opclass WHERE oid=$1::oid`, []string{"opcname"}, []string{"NAME"}, nil, oid))
 		run(fixture.Select(`SELECT opfname FROM pg_opfamily WHERE opfname='class_life_family'`, []string{"opfname"}, []string{"NAME"}, [][]any{{"class_life_family"}}))
-		run(fixture.Select(`SELECT p.amprocnum,p.amproclefttype::bigint,p.amprocrighttype::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='class_life_family' ORDER BY p.amprocnum,p.amprocrighttype`, []string{"amprocnum", "amproclefttype", "amprocrighttype"}, []string{"INT2", "INT8", "INT8"}, [][]any{{int64(1), int64(23), int64(20)}, {int64(2), int64(23), int64(23)}}))
+		remaining := [][]any{{int64(1), int64(23), int64(20)}}
+		if b.PG {
+			remaining = append(remaining, []any{int64(2), int64(23), int64(23)})
+		}
+		run(fixture.Select(`SELECT p.amprocnum,p.amproclefttype::bigint,p.amprocrighttype::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='class_life_family' ORDER BY p.amprocnum,p.amprocrighttype`, []string{"amprocnum", "amproclefttype", "amprocrighttype"}, []string{"INT2", "INT8", "INT8"}, remaining))
 		run(fixture.Select(`SELECT a.amopstrategy FROM pg_amop a JOIN pg_opfamily f ON f.oid=a.amopfamily WHERE f.opfname='class_life_family'`, []string{"amopstrategy"}, []string{"INT2"}, nil))
 		run(fixture.Select(`SELECT oid::bigint FROM pg_proc WHERE oid=351`, []string{"oid"}, []string{"INT8"}, [][]any{{int64(351)}}))
 		run(fixture.Select(`SELECT oid::bigint FROM pg_operator WHERE oid=97`, []string{"oid"}, []string{"INT8"}, [][]any{{int64(97)}}))

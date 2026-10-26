@@ -56,6 +56,9 @@ func TestReferenceOperatorFamilyReviewLookupMetadata(t *testing.T) {
 			}
 			run(s)
 			check := fixture.Select(`SELECT f.opfmethod::bigint,p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::oid::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='family_review_lookup' AND f.opfnamespace='public'::regnamespace`, []string{"opfmethod", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT8", "INT2", "INT8"}, [][]any{{int64(405), int64(829), int64(829), int64(1), int64(399)}})
+			if !b.PG {
+				check.Rows = nil
+			}
 			run(check)
 			bad := fixture.ImplicitError(`ALTER OPERATOR FAMILY public.family_review_lookup USING hash ADD FUNCTION 1 pg_catalog.int8inc(bigint)`, fixture.Diagnostic{Code: "42P17", Message: "hash function 1 must return integer"})
 			if prepared {
@@ -68,7 +71,12 @@ func TestReferenceOperatorFamilyReviewLookupMetadata(t *testing.T) {
 			}
 		}
 		check := func() {
-			run(fixture.Select(`SELECT p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::oid::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='family_review_lookup' AND f.opfnamespace='public'::regnamespace`, []string{"amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT2", "INT8"}, [][]any{{int64(829), int64(829), int64(1), int64(399)}}))
+			var expected [][]any
+			if b.PG {
+				expected = [][]any{{int64(829), int64(829), int64(1), int64(399)}}
+			}
+			run(fixture.Select(`SELECT p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::oid::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfname='family_review_lookup' AND f.opfnamespace='public'::regnamespace`, []string{"amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT2", "INT8"}, expected))
+			run(fixture.Select(`SELECT count(*) FROM pg_depend d JOIN pg_opfamily f ON f.oid=d.refobjid WHERE d.classid=2603 AND d.refclassid=2753 AND d.deptype='a' AND f.opfname='family_review_lookup' AND f.opfnamespace='public'::regnamespace`, []string{"count"}, []string{"INT8"}, [][]any{{int64(1)}}))
 		}
 		if !b.PG {
 			var dump bytes.Buffer

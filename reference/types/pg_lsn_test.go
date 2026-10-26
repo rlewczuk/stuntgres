@@ -78,7 +78,11 @@ func TestReferencePGLSNMetadata(t *testing.T) {
 	pgLSNScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 		run(fixture.Select("SELECT c.oid > 0 AS valid_oid,c.opcfamily::text,c.opcintype::text,c.opckeytype::text,c.opcdefault FROM pg_catalog.pg_opclass c JOIN pg_catalog.pg_am a ON a.oid=c.opcmethod WHERE a.amname='btree' AND c.opcname='pg_lsn_ops' AND c.opcnamespace='pg_catalog'::regnamespace", []string{"valid_oid", "opcfamily", "opcintype", "opckeytype", "opcdefault"}, []string{"BOOL", "TEXT", "TEXT", "TEXT", "BOOL"}, [][]any{{true, "3253", "3220", "0", true}}))
-		run(fixture.Select("SELECT p.amprocnum,p.amproclefttype::text,p.amprocrighttype::text,p.amproc::oid::text FROM pg_catalog.pg_amproc p JOIN pg_catalog.pg_opclass c ON c.opcfamily=p.amprocfamily JOIN pg_catalog.pg_am a ON a.oid=c.opcmethod WHERE a.amname='btree' AND c.opcname='pg_lsn_ops' ORDER BY p.amprocnum", []string{"amprocnum", "amproclefttype", "amprocrighttype", "amproc"}, []string{"INT2", "TEXT", "TEXT", "TEXT"}, [][]any{{int64(1), "3220", "3220", "3251"}, {int64(4), "3220", "3220", "5051"}}))
+		support := [][]any{{int64(1), "3220", "3220", "3251"}}
+		if b.PG {
+			support = append(support, []any{int64(4), "3220", "3220", "5051"})
+		}
+		run(fixture.Select("SELECT p.amprocnum,p.amproclefttype::text,p.amprocrighttype::text,p.amproc::oid::text FROM pg_catalog.pg_amproc p JOIN pg_catalog.pg_opclass c ON c.opcfamily=p.amprocfamily JOIN pg_catalog.pg_am a ON a.oid=c.opcmethod WHERE a.amname='btree' AND c.opcname='pg_lsn_ops' ORDER BY p.amprocnum", []string{"amprocnum", "amproclefttype", "amprocrighttype", "amproc"}, []string{"INT2", "TEXT", "TEXT", "TEXT"}, support))
 		run(fixture.Exec("CREATE TABLE pglsn_metadata(id integer,v pg_lsn)", 0))
 		run(fixture.Exec("INSERT INTO pglsn_metadata VALUES(1,'80000000/0'),(2,NULL)", 2))
 		for _, prepared := range []bool{false, true} {

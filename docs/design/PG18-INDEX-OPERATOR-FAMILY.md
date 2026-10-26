@@ -8,10 +8,11 @@ custom class DDL, FAMILY association and new custom-class indexes. A family is
 not a class. No fabricated class, reassigned builtin class or public test-only
 association supplies that downstream witness.
 
-The PostgreSQL18.6 UTF8/C oracle independently recorded49 implemented families,
-292 operator members and185 support members. The compiled seed contains those
-exact identities and fields, including optional and cross-type rows. Generated
-initdb member OIDs are observed release facts, not guessed allocator values.
+The compiled seed preserves released family/operator/support identities,
+including optional and cross-type declarative rows. The current internal
+inventory is 116 families, 638 operator members and 376 support members; those
+counts do not claim that all copied upstream callbacks are implemented.
+Generated initdb member OIDs are release observations, not allocator promises.
 The existing class metadata inventory supplies the builtin class associations.
 This includes the existing MACADDR class10024, family1984 and its five operators
 and three support rows. Routine836 compares the unsigned six octets in network
@@ -28,6 +29,26 @@ operator purpose filters reads, not primary identity. A secondary operator key
 is `(operator,purpose,family)`. `Read.OperatorFamily`, `Read.FamilyOperator` and
 `Read.FamilySupport` select real descriptors from the same name/descriptor maps
 used by Candidate publication; there is no second runtime resolver.
+
+`OperatorFamilySupport.CatalogVisible` is immutable owner-supplied eligibility,
+default false. Only the existing six-column `pg_amproc` producer filters it;
+`Read.FamilySupport`, dependencies, logical GiST/SP-GiST properties and siglen
+validation retain complete declarative memberships. Shape/owned-type validation
+precedes enumeration, cancellation includes skipped descriptors, and only
+admitted rows allocate result cells.
+
+Builtin publication marks the finite native comparator/hash inventory and genuine
+BRIN minmax operations 3383–3386. BRIN operates on internal summaries and is not
+a scalar-function filter. Family/class DDL requires a current implemented
+Procedure (native operation, validated BRIN, SQL body, nonzero builtin provider,
+or installed implementation); released identity fallback alone never qualifies.
+Cube explicitly publishes its installed comparison membership. Copy/remapping
+preserves eligibility without granting execution or changing dependency owners.
+Sort/equal-image/options and unsupported physical callbacks remain metadata-only.
+SQL reads preserve OID/OID/OID/OID/INT2/REGPROC shape, symbolic procedure output
+and associated types independent of formal arguments. Held executions recapture
+current membership while already returned rows retain their original snapshot.
+
 
 Support formals/result remain routine metadata, distinct from the member's
 associated types. The existing private builtin identity inventory embeds genuine

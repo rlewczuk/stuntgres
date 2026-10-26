@@ -60,7 +60,7 @@ func TestOperatorFamilyPublication(t *testing.T) {
 	// Ordinary catalog publication installs the descriptor, initial rows and
 	// genuine released int4 support root together before the failure trials.
 	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: namespace, ObjectName: "family_publication", ObjectRevision: 2, Owner: owner, Method: 403}
-	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 3, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351}
+	member := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 3, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351, CatalogVisible: true}
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
 	if err := stage.Create(family); err != nil {

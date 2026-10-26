@@ -1,19 +1,19 @@
 package reference_test
 
 import (
-	"context"
-	"database/sql"
 	"stuntgres/reference/fixture"
 	"testing"
 )
 
 // Released rows observed on the pinned PostgreSQL 18.6 UTF8/C oracle.
-// These are full implemented-family bags, including optional/cross-type members.
+// These are full released-family bags; native SQL exposes implemented supports.
 const familyImplementedIDs = `424,426,427,428,429,431,434,435,1970,1971,1974,1976,1977,1982,1983,1984,1988,1989,1990,1994,1995,1996,1997,1998,1999,2000,2001,2040,2095,2097,2099,2222,2223,2225,2226,2227,2229,2231,2789,2968,2969,3522,3523,3550,3919,4033,4034,5032,5067`
 
 func TestReferenceOperatorFamilyBuiltinMetadata(t *testing.T) {
-	familyScenario(t, func(t *testing.T, _ context.Context, _ *sql.Conn, run func(fixture.Step)) {
-		run(familyBuiltinRegprocStep())
+	familyBackends(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend) {
+		conn, _ := classConn(t, p, b)
+		run := func(s fixture.Step) { fixture.PgDescriptionExecutorRows(t, p, b, conn, s) }
+		run(familyBuiltinRegprocStep(b.PG))
 		run(fixture.Select(`SELECT oid,opfmethod,opfname,opfnamespace,opfowner FROM pg_catalog.pg_opfamily WHERE oid IN (`+familyImplementedIDs+`) ORDER BY oid`, []string{"oid", "opfmethod", "opfname", "opfnamespace", "opfowner"}, []string{"OID", "OID", "NAME", "OID", "OID"}, [][]any{
 			{int64(424), int64(403), "bool_ops", int64(11), int64(10)},
 			{int64(426), int64(403), "bpchar_ops", int64(11), int64(10)},
@@ -359,7 +359,7 @@ func TestReferenceOperatorFamilyBuiltinMetadata(t *testing.T) {
 			{int64(10053), int64(5067), int64(5069), int64(5069), int64(4), "s", int64(5076), int64(403), int64(0)},
 			{int64(10054), int64(5067), int64(5069), int64(5069), int64(5), "s", int64(5074), int64(403), int64(0)},
 		}))
-		run(fixture.Select(`SELECT oid,amprocfamily,amproclefttype,amprocrighttype,amprocnum,amproc::oid FROM pg_catalog.pg_amproc WHERE amprocfamily IN (`+familyImplementedIDs+`) ORDER BY amprocfamily,amproclefttype,amprocrighttype,amprocnum,oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"OID", "OID", "OID", "OID", "INT2", "OID"}, [][]any{
+		run(familyBuiltinVisible(fixture.Select(`SELECT oid,amprocfamily,amproclefttype,amprocrighttype,amprocnum,amproc::oid FROM pg_catalog.pg_amproc WHERE amprocfamily IN (`+familyImplementedIDs+`) ORDER BY amprocfamily,amproclefttype,amprocrighttype,amprocnum,oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"OID", "OID", "OID", "OID", "INT2", "OID"}, [][]any{
 			{int64(10003), int64(424), int64(16), int64(16), int64(1), int64(1693)},
 			{int64(10005), int64(424), int64(16), int64(16), int64(4), int64(5051)},
 			{int64(10004), int64(424), int64(16), int64(16), int64(6), int64(6408)},
@@ -545,10 +545,11 @@ func TestReferenceOperatorFamilyBuiltinMetadata(t *testing.T) {
 			{int64(10181), int64(5032), int64(5069), int64(5069), int64(2), int64(6422)},
 			{int64(10130), int64(5067), int64(5069), int64(5069), int64(1), int64(5096)},
 			{int64(10131), int64(5067), int64(5069), int64(5069), int64(4), int64(5051)},
-		}))
+		}), b.PG))
 		// Class eligibility remains the existing supportedIndexClasses boundary.
 		// PostgreSQL also has btree cidr_ops (10009) in network_ops; that class
-		// is not implemented. Family and member bags above remain complete.
+		// is not implemented. Family/operator bags remain complete; support
+		// bags distinguish native implementations from released declarations.
 		run(fixture.Select(`SELECT oid,opcmethod,opcname,opcnamespace,opcowner,opcfamily,opcintype,opcdefault,opckeytype FROM pg_catalog.pg_opclass WHERE opcfamily IN (`+familyImplementedIDs+`) AND oid <> 10009 ORDER BY opcfamily,oid`, []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"}, []string{"OID", "OID", "NAME", "OID", "OID", "OID", "OID", "BOOL", "OID"}, [][]any{
 			{int64(10003), int64(403), "bool_ops", int64(11), int64(10), int64(424), int64(16), true, int64(0)},
 			{int64(10004), int64(403), "bpchar_ops", int64(11), int64(10), int64(426), int64(1042), true, int64(0)},

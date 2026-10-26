@@ -65,7 +65,11 @@ func TestReferenceOperatorClassDefinitions(t *testing.T) {
 			nineRow = []any{strconv.FormatInt(oid, 10), "403", "class_def_explicit", strconv.FormatInt(ns, 10), strconv.FormatInt(owner, 10), strconv.FormatInt(family, 10), "23", false, "0"}
 		}
 		classRoutes(t, p, b, conn, fixture.Select(nine, []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"}, []string{"OID", "OID", "NAME", "OID", "OID", "OID", "OID", "BOOL", "OID"}, [][]any{nineRow}))
-		run(fixture.Select(`SELECT p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::text FROM pg_amproc p JOIN pg_opclass c ON c.opcfamily=p.amprocfamily WHERE c.opcname='class_def_assoc'`, []string{"amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT2", "TEXT"}, [][]any{{int64(23), int64(23), int64(2), "btint4sortsupport"}}))
+		var optional [][]any
+		if b.PG {
+			optional = [][]any{{int64(23), int64(23), int64(2), "btint4sortsupport"}}
+		}
+		run(fixture.Select(`SELECT p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::text FROM pg_amproc p JOIN pg_opclass c ON c.opcfamily=p.amprocfamily WHERE c.opcname='class_def_assoc'`, []string{"amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT2", "TEXT"}, optional))
 		t.Run("enum_default", func(t *testing.T) { classDefaultDefinition(t, p, b, conn) })
 	})
 }

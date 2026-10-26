@@ -56,5 +56,5 @@ func (p *CubeProvider) stageComparisons(stage Stage, ext *catalog.Extension, own
 	if err != nil {
 		return err
 	}
-	return stage.Create(&catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: oid}, ObjectRevision: rev, Family: class.Family, Left: class.InputType, Right: class.InputType, Function: ext.Members[9].ObjectID, InternalOwner: class.Address(), Number: 1})
+	return stage.Create(&catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: oid}, ObjectRevision: rev, Family: class.Family, Left: class.InputType, Right: class.InputType, Function: ext.Members[9].ObjectID, InternalOwner: class.Address(), Number: 1, CatalogVisible: true})
 }

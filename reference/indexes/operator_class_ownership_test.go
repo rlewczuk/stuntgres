@@ -78,8 +78,17 @@ func TestReferenceOperatorClassMemberOwnership(t *testing.T) {
 						if alive {
 							support = append(support, []any{int64(1), int64(23), int64(23)})
 						}
-						support = append(support, []any{int64(2), int64(23), int64(23)})
+						if b.PG || method == "hash" {
+							support = append(support, []any{int64(2), int64(23), int64(23)})
+						}
 						classRoutes(t, p, b, conn, fixture.Select(`SELECT amprocnum,amproclefttype::bigint,amprocrighttype::bigint FROM pg_amproc WHERE amprocfamily=$1::oid ORDER BY amprocnum,amprocrighttype`, []string{"amprocnum", "amproclefttype", "amprocrighttype"}, []string{"INT2", "INT8", "INT8"}, support, f))
+						// Hidden metadata-only support still owns the same loose AUTO
+						// family edge; SQL visibility must not erase lifetime authority.
+						looseCount := int64(1)
+						if method == "btree" {
+							looseCount = 2
+						}
+						classRoutes(t, p, b, conn, fixture.Select(`SELECT count(*) FROM pg_depend WHERE classid=2603 AND refclassid=2753 AND refobjid=$1::oid AND deptype='a'`, []string{"count"}, []string{"INT8"}, [][]any{{looseCount}}, f))
 						for _, member := range []struct {
 							catalog int64
 							query   string

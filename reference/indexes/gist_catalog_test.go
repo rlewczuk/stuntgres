@@ -121,7 +121,7 @@ func TestReferenceGiSTMetadataProperties(t *testing.T) {
 			{int64(10510), int64(3550), int64(869), int64(869), int64(26), "s", int64(933), int64(783), int64(0)},
 			{int64(10511), int64(3550), int64(869), int64(869), int64(27), "s", int64(934), int64(783), int64(0)},
 		}))
-		run(fixture.Select(`SELECT p.oid::bigint,p.amprocfamily::bigint,p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::oid::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfmethod=783 ORDER BY p.oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT8", "INT8", "INT2", "INT8"}, [][]any{
+		run(familyBuiltinVisible(fixture.Select(`SELECT p.oid::bigint,p.amprocfamily::bigint,p.amproclefttype::bigint,p.amprocrighttype::bigint,p.amprocnum,p.amproc::oid::bigint FROM pg_amproc p JOIN pg_opfamily f ON f.oid=p.amprocfamily WHERE f.opfmethod=783 ORDER BY p.oid`, []string{"oid", "amprocfamily", "amproclefttype", "amprocrighttype", "amprocnum", "amproc"}, []string{"INT8", "INT8", "INT8", "INT8", "INT2", "INT8"}, [][]any{
 			{int64(10208), int64(1029), int64(600), int64(600), int64(1), int64(2179)},
 			{int64(10209), int64(1029), int64(600), int64(600), int64(2), int64(2583)},
 			{int64(10210), int64(1029), int64(600), int64(600), int64(3), int64(1030)},
@@ -190,7 +190,7 @@ func TestReferenceGiSTMetadataProperties(t *testing.T) {
 			{int64(10273), int64(6158), int64(4537), int64(4537), int64(6), int64(3880)},
 			{int64(10274), int64(6158), int64(4537), int64(4537), int64(7), int64(3881)},
 			{int64(10275), int64(6158), int64(2276), int64(2276), int64(12), int64(6347)},
-		}))
+		}), b.PG))
 		run(fixture.Exec(`CREATE TABLE gist_properties(p point,b box,g polygon,c circle,i inet,r int4range,m int4multirange,q tsquery,v tsvector,n integer)`, 0))
 		for _, tc := range []struct {
 			name, key string

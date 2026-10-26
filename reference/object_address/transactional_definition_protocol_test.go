@@ -185,8 +185,15 @@ func TestReferenceTransactionalDefinitionProtocol(t *testing.T) {
 					if !explicit {
 						peerGraph = "1"
 					}
-					memberQuery := `SELECT count(*) FROM pg_amproc a JOIN pg_opfamily f ON f.oid=a.amprocfamily WHERE f.opfname='tx_wire_family' AND a.amprocnum=2`
+					// Hidden optional metadata still has a real AUTO family edge.
+					// Observe that edge for Parse/Bind effect isolation on both engines.
+					memberQuery := `SELECT count(*) FROM pg_depend d JOIN pg_opfamily f ON f.oid=d.refobjid WHERE d.classid=2603 AND d.refclassid=2753 AND d.deptype='a' AND f.opfname='tx_wire_family'`
 					definitionWireUtility(t, p, b, c, peer, prefix+"add", `ALTER OPERATOR FAMILY public.tx_wire_family USING tx_wire_am ADD FUNCTION 2 (integer,integer) pg_catalog.btint4sortsupport(internal)`, "ALTER OPERATOR FAMILY", memberQuery, status)
+					optionalVisible := "0"
+					if b.PG {
+						optionalVisible = "1"
+					}
+					definitionWireScalar(t, p.Ctx, c, `SELECT count(*) FROM pg_amproc a JOIN pg_opfamily f ON f.oid=a.amprocfamily WHERE f.opfname='tx_wire_family' AND a.amprocnum=2`, optionalVisible)
 					memberBefore := "0"
 					if !explicit {
 						memberBefore = "1"
@@ -250,7 +257,12 @@ func TestReferenceTransactionalDefinitionProtocol(t *testing.T) {
 			definitionWireSimple(t, p.Ctx, c, `ROLLBACK TO member; ALTER OPERATOR FAMILY public.tx_wire_family USING tx_wire_am ADD FUNCTION 1 pg_catalog.btint4cmp(integer,integer); RELEASE member; ROLLBACK`, []string{"ROLLBACK", "ALTER OPERATOR FAMILY", "RELEASE", "ROLLBACK"}, 'I', nil)
 			definitionWireScalar(t, p.Ctx, peer, amAbsent, "0")
 			definitionWireSimple(t, p.Ctx, c, `CREATE ACCESS METHOD tx_wire_am TYPE INDEX HANDLER bthandler; CREATE OPERATOR FAMILY public.tx_wire_family USING tx_wire_am; CREATE OPERATOR CLASS public.tx_wire_class DEFAULT FOR TYPE integer USING tx_wire_am FAMILY public.tx_wire_family AS `+definitionClassItems+`; ALTER OPERATOR FAMILY public.tx_wire_family USING tx_wire_am ADD FUNCTION 2 (integer,integer) pg_catalog.btint4sortsupport(internal)`, []string{"CREATE ACCESS METHOD", "CREATE OPERATOR FAMILY", "CREATE OPERATOR CLASS", "ALTER OPERATOR FAMILY"}, 'I', nil)
-			definitionWireScalar(t, p.Ctx, peer, `SELECT count(*) FROM pg_amproc a JOIN pg_opfamily f ON f.oid=a.amprocfamily WHERE f.opfname='tx_wire_family'`, "2")
+			visible := "1"
+			if b.PG {
+				visible = "2"
+			}
+			definitionWireScalar(t, p.Ctx, peer, `SELECT count(*) FROM pg_amproc a JOIN pg_opfamily f ON f.oid=a.amprocfamily WHERE f.opfname='tx_wire_family'`, visible)
+			definitionWireScalar(t, p.Ctx, peer, `SELECT count(*) FROM pg_depend d JOIN pg_opfamily f ON f.oid=d.refobjid WHERE d.classid=2603 AND d.refclassid=2753 AND d.deptype='a' AND f.opfname='tx_wire_family'`, "1")
 			definitionWireSimple(t, p.Ctx, c, `ALTER OPERATOR FAMILY public.tx_wire_family USING tx_wire_am DROP FUNCTION 2(integer,integer); DROP OPERATOR CLASS public.tx_wire_class USING tx_wire_am; DROP OPERATOR FAMILY public.tx_wire_family USING tx_wire_am; DROP ACCESS METHOD tx_wire_am`, []string{"ALTER OPERATOR FAMILY", "DROP OPERATOR CLASS", "DROP OPERATOR FAMILY", "DROP ACCESS METHOD"}, 'I', nil)
 			definitionWireScalar(t, p.Ctx, c, `SELECT 42`, "42")
 			definitionWireAuthority(t, p, b, c, peer)

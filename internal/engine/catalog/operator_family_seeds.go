@@ -3,6 +3,7 @@ package catalog
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
 )
 
 // Exact PostgreSQL 18.6 UTF8/C initdb identities observed by the pinned
@@ -1163,6 +1164,13 @@ var builtinFamilySupportKeys = func() [len(builtinFamilySupports)]ids.NameKey {
 	var keys [len(builtinFamilySupports)]ids.NameKey
 	for i := range keys {
 		d := &builtinFamilySupports[i]
+		_, d.CatalogVisible = sqltype.NativeIndexRoutineByOID(uint32(d.Function))
+		for _, operation := range brinSupportDeclarations {
+			if operation.oid == d.Function {
+				d.CatalogVisible = true
+				break
+			}
+		}
 		for _, family := range builtinFamilyRows {
 			if family.oid == d.Family {
 				d.InternalOwner = builtinMemberInternalOwner(family.method, d.Family, d.Left, d.Right, d.Number, true)

@@ -28,7 +28,7 @@ func familyPreflightCatalog(t *testing.T) (*core.Engine, *catalog.OperatorFamily
 	builtin, _ := base.OperatorFamily(ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 1976})
 	family := &catalog.OperatorFamily{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: catalogUnitOID(t, e)}, ObjectNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, ObjectName: "family_preflight", ObjectRevision: 2, Owner: builtin.Owner, Method: 403}
 	operator := &catalog.OperatorFamilyOperator{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 3, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Purpose: 's', Operator: 97, Method: 403}
-	support := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 4, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351}
+	support := &catalog.OperatorFamilySupport{ObjectAddress: ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: catalogUnitOID(t, e)}, ObjectRevision: 4, Family: family.Address().ObjectID, Left: 23, Right: 23, Number: 1, Function: 351, CatalogVisible: true}
 	setup := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(setup)
 	for _, descriptor := range []catalog.Descriptor{family, operator, support} {

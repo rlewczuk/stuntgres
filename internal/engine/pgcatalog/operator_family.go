@@ -37,7 +37,13 @@ func captureOperatorFamilies(in Input) ([][]sqltype.Value, error) {
 	}
 	var definitions []catalog.Descriptor
 	for a, d := range in.Catalog.Descriptors() {
+		if err := in.Context.Err(); err != nil {
+			return nil, err
+		}
 		if a.ClassID == in.Source.Address().ObjectID {
+			if support, ok := d.(*catalog.OperatorFamilySupport); ok && in.Source.Address().ObjectID == 2603 && !support.CatalogVisible {
+				continue
+			}
 			definitions = append(definitions, d)
 		}
 	}
