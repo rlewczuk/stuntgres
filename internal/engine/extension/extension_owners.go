@@ -66,8 +66,8 @@ func OwnerMetadata(view catalog.Read, roles authorization.Read, ext *catalog.Ext
 			if IntarrayProviderOf(d) != nil && symbol == "bqarr_out" {
 				member.Signature = "query_int"
 			}
-			if LtreeProviderOf(d) != nil && (symbol == "lquery_out" || symbol == "ltree_out") {
-				member.Signature = strings.TrimSuffix(symbol, "_out")
+			if LtreeProviderOf(d) != nil && slot%3 == 2 { 
+				member.Signature = ltreeRecipes[slot/3].name
 			}
 			if HstoreProviderOf(d) != nil && symbol == "hstore_out" {
 				member.Signature = "hstore"
@@ -324,7 +324,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 				return invalid()
 			}
 		case "type":
-			if (record.Name != "hstore" || member.Name != "hstore") && (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "ltree" || member.Name != "lquery" && member.Name != "ltree") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13" && member.Name != "ismn" && member.Name != "ismn13" && member.Name != "issn" && member.Name != "issn13" && member.Name != "upc") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
+			if (record.Name != "hstore" || member.Name != "hstore") && (record.Name != "intarray" || member.Name != "query_int") && (record.Name != "ltree" || member.Name != "lquery" && member.Name != "ltree" && member.Name != "ltxtquery") && (record.Name != "cube" || member.Name != "cube") && (record.Name != "citext" || member.Name != "citext") && (record.Name != "isn" || member.Name != "ean13" && member.Name != "isbn" && member.Name != "isbn13" && member.Name != "ismn" && member.Name != "ismn13" && member.Name != "issn" && member.Name != "issn13" && member.Name != "upc") && (record.Name != "earthdistance" || member.Name != "earth" && member.Name != "earth[]") && (record.Name != "lo" || member.Name != "lo" && member.Name != "lo[]") || member.Signature != "" {
 				return invalid()
 			}
 			if record.Name == "isn" {
@@ -338,7 +338,7 @@ func DecodeOwners(comment string) (OwnerRecord, bool, error) {
 					return invalid()
 				}
 			}
-			if record.Name == "ltree" && !((member.Slot == 0 && member.Name == "lquery") || (member.Slot == 3 && member.Name == "ltree")) {
+			if record.Name == "ltree" && !((member.Slot == 0 && member.Name == "lquery") || (member.Slot == 3 && member.Name == "ltree") || (member.Slot == 6 && member.Name == "ltxtquery")) {
 				return invalid()
 			}
 			if (record.Name == "citext" || record.Name == "hstore") && member.Slot != 0 {

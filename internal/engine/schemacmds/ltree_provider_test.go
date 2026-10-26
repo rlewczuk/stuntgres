@@ -23,7 +23,7 @@ func TestLtreeProviderIdentity(t *testing.T) {
 	e,_,ext,_:=lqueryProviderInstalled(t,false)
 	view:=e.CatalogRead()
 	base:=view.MustType(ext.Members[3])
-	if len(ext.Members)!=6 || !base.SQLType.IsLtree() || base.Owner!=ext.Owner { t.Fatal("ltree manifest") }
+	if len(ext.Members)!=9 || !base.SQLType.IsLtree() || base.Owner!=ext.Owner { t.Fatal("ltree manifest") }
 	if err:=(stored.TypeProvider{}).Validate(view,base); err!=nil { t.Fatal(err) }
 	array,ok:=view.LookupArray(base.SQLType)
 	if !ok || array.Concrete() || array.Element()!=base.SQLType || array.ID()!=base.Array { t.Fatal("companion array") }
@@ -71,7 +71,7 @@ func TestLtreeProviderRemap(t *testing.T) {
 	target,_,dest,_:=lqueryProviderInstalled(t,true)
 	mapping:=map[ids.ObjectAddress]ids.ObjectAddress{ext.Address():dest.Address()}
 	for i,a:=range ext.Members { mapping[a]=dest.Members[i] }
-	for _,slot:=range []int{0,3} {
+	for _,slot:=range []int{0,3,6} {
 		old:=source.CatalogRead().MustType(ext.Members[slot]); next:=target.CatalogRead().MustType(dest.Members[slot])
 		mapping[ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(old.Array)}]=ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(next.Array)}
 	}

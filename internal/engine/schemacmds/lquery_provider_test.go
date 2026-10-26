@@ -54,7 +54,7 @@ func TestLqueryProviderIdentity(t *testing.T) {
 	e,_,ext,base := lqueryProviderInstalled(t,false)
 	view := e.CatalogRead()
 	if err := extension.StockLtree.ValidateExtension(view,ext); err != nil { t.Fatal(err) }
-	if ext.Version != "1.3" || len(ext.Members) != 6 || !base.SQLType.IsLquery() || base.Owner != ext.Owner { t.Fatal("installed scalar manifest") }
+	if ext.Version != "1.3" || len(ext.Members) != 9 || !base.SQLType.IsLquery() || base.Owner != ext.Owner { t.Fatal("installed scalar manifest") }
 	array, ok := view.LookupArray(base.SQLType)
 	if !ok || array.Concrete() || array.Element() != base.SQLType || array.ID() != base.Array { t.Fatal("lookup-only companion") }
 	if err := (stored.TypeProvider{}).Validate(view,base); err != nil { t.Fatal(err) }
@@ -65,7 +65,7 @@ func TestLqueryProviderIdentity(t *testing.T) {
 		if err := extension.StockLtree.ValidateProcedure(view,proc); err != nil { t.Fatal(err) }
 	}
 	roles, err := extension.InstalledTypes(view,ext)
-	if err != nil || len(roles) != 2 || roles[0].Name != "lquery" || roles[0].Type != base || roles[1].Name != "ltree" || !roles[1].Type.SQLType.IsLtree() { t.Fatal("symbolic type roles",roles,err) }
+	if err != nil || len(roles) != 3 || roles[0].Name != "lquery" || roles[0].Type != base || roles[1].Name != "ltree" || !roles[1].Type.SQLType.IsLtree() || roles[2].Name != "ltxtquery" || !roles[2].Type.SQLType.IsLtxtquery() { t.Fatal("symbolic type roles",roles,err) }
 	metadata, err := extension.OwnerMetadata(view,e.RoleStore.PublishedRead(&e.Catalog.Owner,view),ext)
 	if err != nil { t.Fatal(err) }
 	var records []extension.OwnerRecord
@@ -79,7 +79,7 @@ func TestLqueryProviderIdentity(t *testing.T) {
 	})
 	if err != nil || len(records) != 1 { t.Fatal("owner metadata decoding",records,err) }
 	record := records[0]
-	if record.Name != "ltree" || record.Version != "1.3" || record.Schema != "public" || record.Owner != "postgres" || len(record.Members) != 6 { t.Fatal("owner recipe",record) }
+	if record.Name != "ltree" || record.Version != "1.3" || record.Schema != "public" || record.Owner != "postgres" || len(record.Members) != 9 { t.Fatal("owner recipe",record) }
 	for _, member := range record.Members {
 		if member.Owner != "postgres" { t.Fatal("member owner",member) }
 		switch member.Slot {
@@ -95,6 +95,12 @@ func TestLqueryProviderIdentity(t *testing.T) {
 			if member.Kind != "procedure" || member.Name != "ltree_in" || member.Signature != "2275" { t.Fatal("input owner role",member) }
 		case 5:
 			if member.Kind != "procedure" || member.Name != "ltree_out" || member.Signature != "ltree" { t.Fatal("output owner role",member) }
+		case 6:
+			if member.Kind != "type" || member.Name != "ltxtquery" || member.Signature != "" { t.Fatal("scalar owner role",member) }
+		case 7:
+			if member.Kind != "procedure" || member.Name != "ltxtq_in" || member.Signature != "2275" { t.Fatal("input owner role",member) }
+		case 8:
+			if member.Kind != "procedure" || member.Name != "ltxtq_out" || member.Signature != "ltxtquery" { t.Fatal("output owner role",member) }
 		default:
 			t.Fatal("unrecognized owner slot",member)
 		}
@@ -162,6 +168,9 @@ func TestLqueryProviderRemap(t *testing.T) {
 	sourceTree := source.CatalogRead().MustType(ext.Members[3])
 	targetTree := target.CatalogRead().MustType(destination.Members[3])
 	mapping[ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(sourceTree.Array)}] = ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(targetTree.Array)}
+	sourceText := source.CatalogRead().MustType(ext.Members[6])
+	targetText := target.CatalogRead().MustType(destination.Members[6])
+	mapping[ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(sourceText.Array)}] = ids.ObjectAddress{ClassID:ids.TypeClassID,ObjectID:ids.OID(targetText.Array)}
 	originalMembers := slices.Clone(ext.Members)
 	mapped := extension.RemapDescriptor(ext,mapping).(*catalog.Extension)
 	if !slices.Equal(mapped.Members,destination.Members) || !slices.Equal(ext.Members,originalMembers) { t.Fatal("manifest remap") }

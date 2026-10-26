@@ -40,6 +40,11 @@ func TestUpcPreparedAuthorityRebind(t *testing.T)    { testIsnPreparedAuthorityR
 
 func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 	e, ext := isnSQLInstalled(t)
+	testInstalledScalarPreparedAuthorityRebind(t, e, ext, family, slot)
+}
+
+func testInstalledScalarPreparedAuthorityRebind(t *testing.T, e *core.Engine, ext *catalog.Extension, family string, slot int) {
+	t.Helper()
 	base := e.CatalogRead().MustType(ext.Members[slot])
 	op, done := enginetest.RoleOperation(t, e, "postgres")
 	defer done()
@@ -112,6 +117,9 @@ func testIsnPreparedAuthorityRebind(t *testing.T, family string, slot int) {
 	sibling := sqltype.Isbn
 	if family == "isbn" {
 		sibling = sqltype.Ean13
+	}
+	if family == "ltxtquery" {
+		sibling = sqltype.Ltree
 	}
 	foreign, err := sibling(base.SQLType.ID(), base.Name(), base.SQLType.SQLName())
 	if err != nil {

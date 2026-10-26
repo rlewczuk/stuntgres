@@ -39,9 +39,13 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   generation with current naming and base authority.
 - `Value.Retag` remints descriptor ownership without changing the datum. It
   requires the same type ID, domain/base identity and constraints, and rejects
-  foreign hstore/lquery/ltree/citext/ISN generations and enum members even for equal OIDs; only
-  source-authorized catalog reownership/import remaps explicitly (`RemapHstore`, `RemapLquery`, `RemapLtree`,
+  foreign hstore/lquery/ltree/ltxtquery/citext/ISN generations and enum members even for equal OIDs; only
+  source-authorized catalog reownership/import remaps explicitly (`RemapHstore`, `RemapLquery`, `RemapLtree`, `RemapLtxtquery`,
   `RemapCitext`, `RemapEan13`, `RemapIsbn`, `RemapIsbn13`, `RemapIsmn`, `RemapIsmn13`, `RemapIssn`, `RemapIssn13`, `RemapUpc`).
+- Installed `Ltxtquery` retains immutable canonical text, with a dedicated iterative
+  lexer, operator frames and printer. Operand byte/storage offsets, pending operators
+  and subtree offsets follow the released representation. Input/output honor context
+  cancellation; storage grants neither matching operators nor executable arrays.
 - Capabilities (comparison, ordering, grouping, hashing, index, binary
   providers, storage admission) come from descriptor providers, never from a
   catalog OID or scalar operators alone. A missing provider fails with its own
@@ -137,7 +141,7 @@ continue owning their original descriptors. Fresh metadata and diagnostics name
 the current type; prepared occurrence capture/recreation policy belongs to the
 engine, not a codec-level stale-name retry.
 
-Installed hstore/cube/query_int/lquery/ltree/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
+Installed hstore/cube/query_int/lquery/ltree/ltxtquery/citext/ean13/isbn/isbn13/ismn/ismn13/earth/lo retain real codec/manifest roles and earth
 CHECK recipes after identity ALTER. Dump/Restore remaps these providers by their
 validated installation identities; mutable spelling grants no provider authority.
 Neither a logical OID nor lifecycle support introduces a new range provider,
@@ -480,7 +484,7 @@ match engine tests of the same mechanism):
 
 - Geometry, network: `RUN='^Test(Point|Lseg|Circle|GeometryAlignment|GeometryRelation|GeometryPosition|GeometryConversion|GeometryMeasure|CubeSpatial|EarthCubeChecks|NetworkSubnet)'`
 - Cube constructors, coordinates and spatial kernels: `RUN='^TestCube'`
-- Installed lquery codecs, identity and cancellation: `RUN='^TestLquery'`
+- Installed label-query codecs, identity and cancellation: `RUN='^Test(Lquery|Ltxtquery)'`
 - Installed ltree codecs, identity and cancellation: `RUN='^TestLtree'`
 - Earth domain, coordinate and point kernels: `RUN='^TestEarth(CubeChecks|CoordinateKernel|PointKernel)$'`
 - MAC kernels and lifecycle: `RUN='^Test(MACBitwiseProvider|MACUnaryProvider|MACOperationsProviderLifecycle|MACBitwiseReownership|MACOperationsRoutineMetadata)$'`

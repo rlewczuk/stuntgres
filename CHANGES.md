@@ -1,3 +1,10 @@
+`CREATE EXTENSION ltree` also installs `ltxtquery` with its `ltxtq_in` and
+`ltxtq_out` text codecs. Declared columns, literal and bound assignments, NULLs
+and result metadata preserve canonical Boolean label queries through native
+Dump/Reset/Restore, type rename/move and SQL extension recreation. Parsing
+preserves precedence and suffix modifiers and enforces released storage bounds;
+matching operations are not part of scalar storage.
+
 `CREATE EXTENSION ltree` also installs the `ltree` scalar and text codecs.
 Declared columns, literal/prepared/bound input, empty paths and NULLs retain exact
 path spelling and result metadata through native Dump/Reset/Restore and SQL

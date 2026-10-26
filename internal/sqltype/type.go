@@ -134,6 +134,7 @@ type Descriptor struct {
 	queryInt                            bool
 	lquery                              bool
 	ltree                               bool
+	ltxtquery                           bool
 	hstore                              bool
 	cube                                bool
 	citext                              bool
@@ -488,6 +489,7 @@ type Value struct {
 	queryInt        *queryIntPayload
 	lquery          *lqueryPayload
 	ltree           *ltreePayload
+	ltxtquery       *ltxtqueryPayload
 	hstore          *hstorePayload
 	ftsVector       *fts.Vector
 	ftsQuery        *fts.Query
@@ -558,6 +560,9 @@ func (v Value) Retag(d *Descriptor) (Value, error) {
 	}
 	if fromEnum.IsLquery() != toEnum.IsLquery() || fromEnum.IsLquery() && (fromEnum != toEnum || !v.null && !v.validLquery()) {
 		return Value{}, fmt.Errorf("incompatible lquery generation or payload")
+	}
+	if fromEnum.IsLtxtquery() != toEnum.IsLtxtquery() || fromEnum.IsLtxtquery() && (fromEnum != toEnum || !v.null && !v.validLtxtquery()) {
+		return Value{}, fmt.Errorf("incompatible ltxtquery generation or payload")
 	}
 	if fromEnum.IsLtree() != toEnum.IsLtree() || fromEnum.IsLtree() && (fromEnum != toEnum || !v.null && !v.validLtree()) {
 		return Value{}, fmt.Errorf("incompatible ltree generation or payload")
@@ -847,7 +852,7 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	if d.id == PgNodeTree {
 		return Value{}, failure("0A000", "cannot accept a value of type pg_node_tree")
 	}
-	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree()) || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
+	if IsFTS(d.id) || d.IsHstore() || d.IsCube() || d.IsQueryInt() || (d.IsLquery() || d.IsLtree() || d.IsLtxtquery()) || d.IsCitext() || d.IsEan13() || d.IsIsbn() || d.IsIsbn13() || d.IsIsmn() || d.IsIsmn13() || d.IsIssn() || d.IsIssn13() || d.IsUpc() || IsCharacter(d.id) || d.id == Char || d.id == Refcursor || d.id == Name || d.id == JSON || d.id == JSONB || d.id == JSONPath {
 		if err := ValidateTextInput(text); err != nil {
 			return Value{}, err
 		}
@@ -865,6 +870,9 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 	}
 	if d.IsLquery() {
 		return d.lqueryInput(ctx, text)
+	}
+	if d.IsLtxtquery() {
+		return d.ltxtqueryInput(ctx, text)
 	}
 	if d.IsLtree() {
 		return d.ltreeInput(ctx, text)
@@ -1195,6 +1203,9 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 	if d.IsLquery() {
 		return d.lqueryOutput(ctx, v)
 	}
+	if d.IsLtxtquery() {
+		return d.ltxtqueryOutput(ctx, v)
+	}
 	if d.IsLtree() {
 		return d.ltreeOutput(ctx, v)
 	}
@@ -1470,6 +1481,13 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	}
 	if d.IsLquery() {
 		text, err := d.lqueryOutput(ctx, v)
+		if err != nil {
+			return "", err
+		}
+		return "'" + text + "'", nil
+	}
+	if d.IsLtxtquery() {
+		text, err := d.ltxtqueryOutput(ctx, v)
 		if err != nil {
 			return "", err
 		}

@@ -138,8 +138,10 @@ function references once into the destination authority.
 - **Installed type identity replay** (`type_identity_replay.go`): canonical
   extension installations follow prerequisite order before ordinary consumer
   declarations. Every installed scalar role's renamed/moved identity is reconstructed with
-  ordinary ALTERs under bootstrap authority. Deterministic free temporary names
-  break cross-member cycles; moves preserve companion spelling and renames use
+  ordinary ALTERs under bootstrap authority. Ltree scalar roles include lquery,
+  ltree and ltxtquery; codec ownership uses canonical roles even when ltxtq_out
+  refers to a renamed or moved scalar. Deterministic free temporary names break
+  cross-member cycles; moves preserve companion spelling and renames use
   the shared generated-array predictor. This predictor seeds mixed domain/composite
   rendering, including domains over installed arrays. All four ISN scalars' captured
   owners are then restored with ordinary TYPE OWNER SQL, which transfers each

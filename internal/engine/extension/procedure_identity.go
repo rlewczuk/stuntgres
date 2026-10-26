@@ -193,9 +193,9 @@ func procedureSymbol(v catalog.Read, p *catalog.Procedure, allowDetached bool) (
 			return invalid()
 		}
 		if err := ValidateProviderHeader(v, base, ids.TypeClassID); err != nil { return invalid() }
-		name, signature, result = recipe.name+"_in", "2275", ids.OID(base.SQLType.ID())
+		name, signature, result = recipe.input, "2275", ids.OID(base.SQLType.ID())
 		if slot%3 == 2 {
-			name, signature, result = recipe.name+"_out", LquerySignature(base.SQLType.ID()), 2275
+			name, signature, result = recipe.output, LquerySignature(base.SQLType.ID()), 2275
 		}
 		if p.Display != (catalog.RoutineDisplay{Language: catalog.CRoutineLanguage, Source: name}) || p.Installed != (catalog.InstalledRoutineDeclaration{}) || p.Language != (ids.ObjectAddress{}) || p.SQLBody != nil || p.SQLDefaults != nil || len(p.Body) != 0 {
 			return invalid()

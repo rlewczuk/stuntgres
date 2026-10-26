@@ -828,7 +828,7 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			if err != nil {
 				return nil, err
 			}
-			if r.RequiresDomain && !u.Type.IsDomain() && !u.Type.IsLquery() && !u.Type.IsLtree() {
+			if r.RequiresDomain && !u.Type.IsDomain() && !u.Type.IsLquery() && !u.Type.IsLtree() && !u.Type.IsLtxtquery() {
 				return nil, expr.ErrorAt("0A000", "typed literals are unsupported", rawType.Pos)
 			}
 			if found {

@@ -1,6 +1,6 @@
 # reference/extension_types
 
-Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `lquery`, `ltree`,
+Dual-mode tests for extension types: `hstore`, `cube`, `earth`, `query_int`, `lquery`, `ltree`, `ltxtquery`,
 `ean13`, `isbn`, `isbn13`, `ismn`, `ismn13`, `issn`, `issn13`, `upc` and `lo`.
 
 Other type families: [reference/domain_types](../domain_types/README.md#testing)
@@ -66,7 +66,7 @@ these are shared across families:
 - `ltree_helpers_test.go` owns exact scalar-text/raw transport and metadata
   assertions. The family covers empty versus NULL paths, UTF8/C label admission,
   count/length diagnostic precedence, held binds, statement atomicity and native
-  replacement with retained readers. Both scalar roles are consumers of the same
+  replacement with retained readers. All three scalar roles are consumers of the same
   extension during lifecycle tests. The reusable selector is `RUN='^TestReferenceLtree'`.
 
 Client quirks:
@@ -124,7 +124,7 @@ Rules:
 - <a id="earth-domain-contract"></a>`earth` domain, coordinates and conversions: `RUN='^TestReferenceEarth'`
 - `query_int`: `RUN='^TestReferenceQueryInt'`
 - `lquery` declarations, canonical text codecs, assignment, metadata and controls:
-  `RUN='^TestReferenceLquery'`. Fixtures preserve explicit non-star quantifiers,
+  `RUN='^TestReference(Lquery|Ltxtquery)'`. Fixtures preserve explicit non-star quantifiers,
   normalize modifier flags and quantifier bounds, and assert complete diagnostics
   independently of native formatting. Controls retain rows and metadata across
   replacement and replay actual emitted SQL on PostgreSQL.

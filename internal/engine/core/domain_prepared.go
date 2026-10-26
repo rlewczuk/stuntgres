@@ -22,7 +22,7 @@ func (d *StatementDescription) retireAnalysisTypeCastsForRebind(installedScalarA
 	var captures map[analyze.PreparedTypeKey]analyze.TypeOccurrence
 	if installedScalarAuthorityRebind {
 		for key, captured := range d.types {
-			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && (captured.Base.Type.IsHstore() || (captured.Base.Type.IsLquery() || captured.Base.Type.IsLtree()) || captured.Base.Type.IsEan13() || captured.Base.Type.IsIsbn() || captured.Base.Type.IsIsbn13() || captured.Base.Type.IsIsmn() || captured.Base.Type.IsIsmn13() || captured.Base.Type.IsIssn() || captured.Base.Type.IsIssn13() || captured.Base.Type.IsUpc()) {
+			if key.Kind == analyze.IdentityCast && captured.Kind == analyze.IdentityCast && captured.Base.Type != nil && (captured.Base.Type.IsHstore() || (captured.Base.Type.IsLquery() || captured.Base.Type.IsLtree() || captured.Base.Type.IsLtxtquery()) || captured.Base.Type.IsEan13() || captured.Base.Type.IsIsbn() || captured.Base.Type.IsIsbn13() || captured.Base.Type.IsIsmn() || captured.Base.Type.IsIsmn13() || captured.Base.Type.IsIssn() || captured.Base.Type.IsIssn13() || captured.Base.Type.IsUpc()) {
 				if captures == nil {
 					captures = make(map[analyze.PreparedTypeKey]analyze.TypeOccurrence)
 				}

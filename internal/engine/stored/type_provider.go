@@ -43,7 +43,7 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 			err = extension.StockHstore.ValidateExtension(view, parent)
 		case parent.Name() == "intarray" && t.SQLType.IsQueryInt():
 			err = extension.StockIntarray.ValidateExtension(view, parent)
-		case parent.Name() == "ltree" && (t.SQLType.IsLquery() || t.SQLType.IsLtree()):
+		case parent.Name() == "ltree" && (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()):
 			err = extension.StockLtree.ValidateExtension(view, parent)
 		case parent.Name() == "cube" && t.SQLType.IsCube():
 			err = extension.StockCube.ValidateExtension(view, parent)
@@ -64,7 +64,7 @@ func (TypeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 		if err != nil {
 			return err
 		}
-	} else if t.SQLType.IsHstore() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() {
+	} else if t.SQLType.IsHstore() || t.SQLType.IsQueryInt() || (t.SQLType.IsLquery() || t.SQLType.IsLtree() || t.SQLType.IsLtxtquery()) || t.SQLType.IsCube() || t.SQLType.IsCitext() || t.SQLType.IsEan13() || t.SQLType.IsIsbn() || t.SQLType.IsIsbn13() || t.SQLType.IsIsmn() || t.SQLType.IsIsmn13() || t.SQLType.IsIssn() || t.SQLType.IsIssn13() || t.SQLType.IsUpc() {
 		return fmt.Errorf("stuntgres: installed scalar type has no installation")
 	}
 	if t.OwningRelation != (ids.ObjectAddress{}) {

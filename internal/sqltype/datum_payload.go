@@ -53,6 +53,10 @@ func (v Value) SamePayload(ctx context.Context, other Value) (bool, error) {
 		}
 		v.lquery, other.lquery = nil, nil
 	}
+	if v.ltxtquery != nil || other.ltxtquery != nil {
+		if !v.validLtxtquery() || !other.validLtxtquery() || v.ltxtquery.text != other.ltxtquery.text { return false, nil }
+		v.ltxtquery, other.ltxtquery = nil, nil
+	}
 	if v.ltree != nil || other.ltree != nil {
 		if !v.validLtree() || !other.validLtree() || v.ltree.text != other.ltree.text {
 			return false, nil

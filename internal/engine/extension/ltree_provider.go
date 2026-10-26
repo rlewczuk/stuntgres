@@ -18,17 +18,19 @@ func (p *LtreeProvider) Versions() catalog.ExtensionVersions {
 
 var StockLtree = &LtreeProvider{control: catalog.ExtensionControl{Version: "1.3", Trusted: true, Superuser: true, Relocatable: true, Comment: new("data type for hierarchical tree-like structures")}}
 
-const LtreeMemberCount = 6
+const LtreeMemberCount = 9
 
-// Each scalar owns a fixed type/input/output triple. Keep the lquery slots stable.
+// Each scalar owns a fixed type/input/output triple. Keep the existing slots stable.
 var ltreeRecipes = [...]struct {
 	slot int
 	name string
+	input, output string
 	constructor func(sqltype.ID, string, string) (*sqltype.Descriptor, error)
 	accept func(*sqltype.Descriptor) bool
 }{
-	{0, "lquery", sqltype.Lquery, (*sqltype.Descriptor).IsLquery},
-	{3, "ltree", sqltype.Ltree, (*sqltype.Descriptor).IsLtree},
+	{0, "lquery", "lquery_in", "lquery_out", sqltype.Lquery, (*sqltype.Descriptor).IsLquery},
+	{3, "ltree", "ltree_in", "ltree_out", sqltype.Ltree, (*sqltype.Descriptor).IsLtree},
+	{6, "ltxtquery", "ltxtq_in", "ltxtq_out", sqltype.Ltxtquery, (*sqltype.Descriptor).IsLtxtquery},
 }
 
 const LtreeTypeContext = "SQL statement \"CREATE TYPE lquery (\n\tINTERNALLENGTH = -1,\n\tINPUT = lquery_in,\n\tOUTPUT = lquery_out,\n\tSTORAGE = extended\n)\"\nextension script file \"ltree--1.1.sql\", near line 315"

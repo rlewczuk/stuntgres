@@ -212,6 +212,7 @@ and [selected proof](../reference/query_core/README.md#routine-alter-proof).
 | installed `hstore` | canonical key/value-pair `string` |
 | installed `lquery` | canonical query-syntax `string` |
 | installed `ltree` | exact path-text `string`, including the empty path |
+| installed `ltxtquery` | canonical Boolean label-query `string` |
 | `reg*` types | symbolic `string` |
 
 NULL is `nil`. A `nil` interface or typed-nil `[]byte` argument is NULL; a non-nil
@@ -233,12 +234,14 @@ Held literal assignments retain their values across type rename/schema movement.
 Consumer teardown/recreation binds original SQL literals under current types;
 it does not revive retired type authority.
 
-After `CREATE EXTENSION ltree`, ltree and lquery columns accept literal and bound
+After `CREATE EXTENSION ltree`, ltree, lquery and ltxtquery columns accept literal and bound
 text or non-nil bytes; nil and typed-nil bytes are SQL NULL. Typed literal syntax
 such as `ltree 'a.b'` or `public.lquery 'a*'` uses ordinary type resolution in
 direct and prepared queries. Ltree preserves exact path spelling and accepts an
 empty nonnull path, while lquery emits canonical query
-syntax and rejects empty input. Results report `LTREE`/`LQUERY`, string scan types
+syntax and rejects empty input. Ltxtquery stores canonical Boolean label-query text,
+with suffix modifiers and precedence; empty input is invalid. Results report
+`LTREE`/`LQUERY`/`LTXTQUERY`, string scan types
 and stored column nullability even for empty results. Native Dump/Reset/Restore
 preserves values and typed NULLs with destination-owned scalar and codec identities.
 

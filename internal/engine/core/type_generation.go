@@ -19,18 +19,18 @@ func (e *Engine) ReownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	if _, err := typedef.ReownDomainTypes(next, nil, false, routine.RangeTypeRebinder(next, nil)); err != nil {
 		return err
 	}
-	// Hstore, citext and ISN deliberately reject ordinary same-OID generation Retag.
+	// Hstore, ltxtquery, citext and ISN reject ordinary same-OID generation Retag.
 	// Authorize only the exact published source pointer of a changed catalog-owned role,
 	// using the existing transient scalar-import seam for nested values/recipes.
 	imports := next.ScalarImports()
 	authorized := false
 	for address, descriptor := range next.Descriptors() {
 		typ, ok := descriptor.(*catalog.Type)
-		if !ok || !typ.SQLType.IsHstore() && !typ.SQLType.IsCitext() && !typ.SQLType.IsEan13() && !typ.SQLType.IsIsbn() && !typ.SQLType.IsIsbn13() && !typ.SQLType.IsIsmn() && !typ.SQLType.IsIsmn13() && !typ.SQLType.IsIssn() && !typ.SQLType.IsIssn13() && !typ.SQLType.IsUpc() {
+		if !ok || !typ.SQLType.IsHstore() && !typ.SQLType.IsLtxtquery() && !typ.SQLType.IsCitext() && !typ.SQLType.IsEan13() && !typ.SQLType.IsIsbn() && !typ.SQLType.IsIsbn13() && !typ.SQLType.IsIsmn() && !typ.SQLType.IsIsmn13() && !typ.SQLType.IsIssn() && !typ.SQLType.IsIssn13() && !typ.SQLType.IsUpc() {
 			continue
 		}
 		old, exists := stage.Base.Type(address)
-		if !exists || !(old.SQLType.IsHstore() && typ.SQLType.IsHstore() || old.SQLType.IsCitext() && typ.SQLType.IsCitext() || old.SQLType.IsEan13() && typ.SQLType.IsEan13() || old.SQLType.IsIsbn() && typ.SQLType.IsIsbn() || old.SQLType.IsIsbn13() && typ.SQLType.IsIsbn13() || old.SQLType.IsIsmn() && typ.SQLType.IsIsmn() || old.SQLType.IsIsmn13() && typ.SQLType.IsIsmn13() || old.SQLType.IsIssn() && typ.SQLType.IsIssn() || old.SQLType.IsIssn13() && typ.SQLType.IsIssn13() || old.SQLType.IsUpc() && typ.SQLType.IsUpc()) || old.SQLType == typ.SQLType || old.Extension != typ.Extension || old.Array != typ.Array {
+		if !exists || !(old.SQLType.IsHstore() && typ.SQLType.IsHstore() || old.SQLType.IsLtxtquery() && typ.SQLType.IsLtxtquery() || old.SQLType.IsCitext() && typ.SQLType.IsCitext() || old.SQLType.IsEan13() && typ.SQLType.IsEan13() || old.SQLType.IsIsbn() && typ.SQLType.IsIsbn() || old.SQLType.IsIsbn13() && typ.SQLType.IsIsbn13() || old.SQLType.IsIsmn() && typ.SQLType.IsIsmn() || old.SQLType.IsIsmn13() && typ.SQLType.IsIsmn13() || old.SQLType.IsIssn() && typ.SQLType.IsIssn() || old.SQLType.IsIssn13() && typ.SQLType.IsIssn13() || old.SQLType.IsUpc() && typ.SQLType.IsUpc()) || old.SQLType == typ.SQLType || old.Extension != typ.Extension || old.Array != typ.Array {
 			continue
 		}
 		if !authorized {

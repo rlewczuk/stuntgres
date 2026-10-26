@@ -103,8 +103,8 @@ func ImportOwners(ctx context.Context, candidateView catalog.Read, roles authori
 				if IntarrayProviderOf(selected) != nil && symbol == "bqarr_out" {
 					signature = "query_int"
 				}
-				if LtreeProviderOf(selected) != nil && (symbol == "lquery_out" || symbol == "ltree_out") {
-					signature = symbol[:len(symbol)-4]
+				if LtreeProviderOf(selected) != nil && member.Slot%3 == 2 {
+					signature = ltreeRecipes[member.Slot/3].name
 				}
 				if HstoreProviderOf(selected) != nil && symbol == "hstore_out" {
 					signature = "hstore"
