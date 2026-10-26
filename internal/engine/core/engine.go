@@ -398,6 +398,9 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		return Description{}, err
 	}
 	var results []catalog.Column
+	if _, call := stmt.(*parser.Call); call {
+		results = analyze.RoutineCallSchema(b)
+	}
 	if b.Query != nil && !b.CommandQuery {
 		results = b.Query.Root.Schema()
 	}

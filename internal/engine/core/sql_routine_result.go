@@ -33,7 +33,7 @@ func SQLRoutineFinalError(result sqltype.Usage, names ...func(sqltype.ID) string
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P13", Message: "return type mismatch in function declared to return " + proc.ResultDiagnosticName(result.Type, name), Detail: "Function's final statement must be SELECT or INSERT/UPDATE/DELETE/MERGE RETURNING."}
 }
 
-func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, result sqltype.Usage, auth AuthorizationView) (proc.ResultPlan, error) {
+func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, result sqltype.Usage, auth AuthorizationView, definition *proc.Definition) (proc.ResultPlan, error) {
 	// CREATE/Restore may supply the catalog's declaration-only RECORD.
 	// Only that admitted identity becomes a private executable result usage;
 	// shaped records and foreign same-OID descriptors retain their own checks.
@@ -57,10 +57,20 @@ func ValidateSQLRoutineTerminal(statement parser.Statement, b analyze.Binding, r
 	}
 	var plan proc.ResultPlan
 	var err error
+	adapt := func(columns []catalog.Column) (proc.ResultPlan, error) {
+		if definition != nil && definition.Procedure {
+			usages := make([]sqltype.Usage, len(columns))
+			for i, column := range columns {
+				usages[i] = column.Usage
+			}
+			return proc.PlanTuple(usages, result.Type)
+		}
+		return validateSQLRoutineResult(columns, result, display)
+	}
 	if _, selecting := statement.(*parser.Select); selecting && b.Query != nil {
-		plan, err = validateSQLRoutineResult(b.Query.Root.Schema(), result, display)
+		plan, err = adapt(b.Query.Root.Schema())
 	} else if b.Returning != nil {
-		plan, err = validateSQLRoutineResult(b.Returning.Schema, result, display)
+		plan, err = adapt(b.Returning.Schema)
 	} else {
 		err = SQLRoutineFinalError(result, display)
 	}

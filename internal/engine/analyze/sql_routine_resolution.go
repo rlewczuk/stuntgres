@@ -63,13 +63,28 @@ func (b *Binder) BindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, erro
 	if raw.Syntax != parser.OrdinaryFunctionSyntax || raw.StringSyntax != parser.OrdinaryStringSyntax {
 		return nil, false, nil
 	}
-	if node, handled, err := b.retainedTypeNameCast(raw); handled || err != nil {
-		if err == nil && handled && b.replayConstructorCall(raw) {
-			return nil, true, fmt.Errorf("stuntgres: invalid restore scalar")
+	if !raw.ProcedureCall {
+		if node, handled, err := b.retainedTypeNameCast(raw); handled || err != nil {
+			if err == nil && handled && b.replayConstructorCall(raw) {
+				return nil, true, fmt.Errorf("stuntgres: invalid restore scalar")
+			}
+			return node, handled, err
 		}
-		return node, handled, err
 	}
+	previousCall := b.Consumer.CallArguments
+	if raw.ProcedureCall {
+		b.Consumer.CallArguments = true
+	}
+	defer func() { b.Consumer.CallArguments = previousCall }()
 	selected, handled, err := b.selectSQLCallable(raw, nil)
+	if raw.ProcedureCall {
+		if diagnostic, ok := err.(*sqlstate.Error); ok && (diagnostic.Code == "42883" || diagnostic.Code == "42725") && strings.HasPrefix(diagnostic.Message, "function "+catalog.ObjectNameText(raw.Name)+"(") {
+			copy := *diagnostic
+			copy.Message = strings.Replace(copy.Message, "function ", "procedure ", 1)
+			copy.Hint = strings.ReplaceAll(copy.Hint, "function", "procedure")
+			err = &copy
+		}
+	}
 	if err != nil || !handled {
 		return nil, handled, err
 	}
@@ -85,8 +100,8 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
-	typeName := cast != nil || b.typeNameCallable(raw.Name)
-	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
+	typeName := !raw.ProcedureCall && (cast != nil || b.typeNameCallable(raw.Name))
+	if !raw.ProcedureCall && !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !catalog.HasBuiltinInternalRoutine(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -113,7 +128,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	selection.auth = auth
 	var candidates []SQLCallable
 	var seen map[catalog.ProcedureSignature]bool
-	if len(raw.ArgNames) == 0 {
+	if len(raw.ArgNames) == 0 && !raw.ProcedureCall {
 		seen = make(map[catalog.ProcedureSignature]bool)
 	}
 	hasSQL, hasCube := false, false
@@ -129,7 +144,9 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			for part := range strings.SplitSeq(string(d.Signature), ",") {
 				internalSignature = internalSignature || part == "2281"
 			}
-			if internalSignature { hasSQL = true }
+			if internalSignature {
+				hasSQL = true
+			}
 			if d.DynamicCallable() {
 				hasSQL = true
 			}
@@ -168,12 +185,12 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 				// They carry no provider authority and every applicable winner
 				// is rejected by the INTERNAL guards before execution routing.
 				declaration := &catalog.Procedure{
-					ObjectAddress: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID},
+					ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID},
 					ObjectNamespace: path.At(i),
-					ObjectName: identity.Name,
-					Signature: identity.Signature,
-					RoutineKind: catalog.FunctionRoutine,
-					Result: result,
+					ObjectName:      identity.Name,
+					Signature:       identity.Signature,
+					RoutineKind:     catalog.FunctionRoutine,
+					Result:          result,
 				}
 				candidate, valid := SQLCallableShape(auth.ReadCatalog(), b.Host.DefinitionOf(auth), declaration, raw)
 				if valid {
@@ -181,12 +198,14 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 					candidate.polymorphic = true // Run the type-only INTERNAL applicability probe.
 					candidates = append(candidates, candidate)
 				}
-				seen[identity.Signature] = true
+				if seen != nil {
+					seen[identity.Signature] = true
+				}
 				hasSQL = true
 			}
 		}
 	}
-	if !typeName && !providerOverride && !hasSQL && !hasCube && !b.BindingCatalog().HasCasts() {
+	if !raw.ProcedureCall && !typeName && !providerOverride && !hasSQL && !hasCube && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	issue := functions.FunctionLabels(raw)
@@ -200,8 +219,28 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	}
 	operands := make([]ComparisonOperand, len(raw.Args))
 	names := make([]string, len(raw.Args))
+	// Applicability must analyze OUT, but its dependency purpose is known only
+	// after selection. Keep each actual's captures separate until that point;
+	// deduplicating them early would lose an executable sibling's purpose.
+	var callArguments []struct {
+		dependencies []catalog.ExpressionDependency
+		input        bool
+	}
+	if raw.ProcedureCall {
+		callArguments = make([]struct {
+			dependencies []catalog.ExpressionDependency
+			input        bool
+		}, len(raw.Args))
+	}
 	for i, arg := range raw.Args {
+		previousDependencies := b.Dependencies
+		if raw.ProcedureCall {
+			b.Dependencies = nil
+		}
 		operands[i], err = b.comparisonOperand(arg)
+		if raw.ProcedureCall {
+			callArguments[i].dependencies, b.Dependencies = b.Dependencies, previousDependencies
+		}
 		if err != nil {
 			return selection, true, err
 		}
@@ -264,7 +303,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	if exact >= 0 {
 		selection.SQLCallable = candidates[exact]
 	} else {
-		if len(operands) == 1 && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
+		if !raw.ProcedureCall && len(operands) == 1 && len(raw.ArgNames) == 0 && !raw.Star && !raw.Variadic {
 			annotation := parser.TypeName{Name: name, Quoted: true, Pos: raw.Pos}
 			if len(raw.Name.Parts) == 2 {
 				annotation.Schema = &raw.Name.Parts[0]
@@ -299,6 +338,16 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			return selection, true, b.functionResolutionErrorForTypes(raw.Name, raw.Pos, names, len(candidates) > 1)
 		}
 		selection.SQLCallable = candidates[0]
+	}
+	if raw.ProcedureCall && selection.Procedure.RoutineKind != catalog.ProcedureRoutine {
+		diagnostic := expr.ErrorAt("42809", catalog.ObjectNameText(raw.Name)+"("+strings.Join(names, ", ")+") is not a procedure", raw.Pos).(*sqlstate.Error)
+		diagnostic.Hint = "To call a function, use SELECT."
+		return selection, true, diagnostic
+	}
+	if !raw.ProcedureCall && selection.Procedure.RoutineKind == catalog.ProcedureRoutine {
+		diagnostic := expr.ErrorAt("42809", catalog.ObjectNameText(raw.Name)+"("+strings.Join(names, ", ")+") is a procedure", raw.Pos).(*sqlstate.Error)
+		diagnostic.Hint = "To call a procedure, use CALL."
+		return selection, true, diagnostic
 	}
 	if selection.Procedure.SQL != nil && selection.polymorphic && selection.Signature.Result.Type == nil {
 		return selection, true, sqlError("42804", "could not determine polymorphic type because input has type unknown")
@@ -360,13 +409,29 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	}
 	selection.args = make([]expr.Expr, len(operands))
 	selection.properties = expr.Properties{Volatility: selection.Procedure.Volatility}
+	if raw.ProcedureCall {
+		for _, source := range selection.InputMap {
+			if source.Start >= 0 {
+				for i := source.Start; i < source.Start+source.Count; i++ {
+					callArguments[i].input = true
+				}
+			}
+		}
+	}
 	for i, o := range operands {
 		target := selection.Inputs[i]
 		if selection.Targets != nil {
 			target = selection.Targets[i]
 		}
 		if target.Type != nil && target.Type.Concrete() && (selection.Procedure.DynamicCallable() || extension.CitextProviderOf(selection.Procedure) == extension.StockCitext || selection.Procedure.Builtin != nil && selection.Procedure.Builtin.Providers&functions.CastRoutineProvider != 0 || extension.CubeProviderOf(selection.Procedure) == extension.StockCube || extension.EarthdistanceProviderOf(selection.Procedure) == extension.StockEarthdistance || o.descriptor() != nil) {
+			previousDependencies := b.Dependencies
+			if raw.ProcedureCall {
+				b.Dependencies = callArguments[i].dependencies
+			}
 			selection.args[i], err = b.CoerceConditional(o, target, "function")
+			if raw.ProcedureCall {
+				callArguments[i].dependencies, b.Dependencies = b.Dependencies, previousDependencies
+			}
 			if err != nil {
 				return selection, true, err
 			}
@@ -375,6 +440,15 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 			// Unknown literals and parameters retain their raw occurrence for
 			// the winning family. Known operands are never analyzed twice.
 			selection.args[i] = o.Node
+		}
+	}
+	for _, argument := range callArguments {
+		for _, dependency := range argument.dependencies {
+			purpose := dependency.Purpose
+			if !argument.input {
+				purpose = catalog.OperandDependency
+			}
+			b.captureDependency(dependency.Ref, dependency.Revision, purpose)
 		}
 	}
 	return selection, true, nil
@@ -753,16 +827,6 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 	}
 	if d != nil && d.SQL != nil {
-		if d.RoutineKind == catalog.ProcedureRoutine {
-			diagnostic := expr.ErrorAt("42809", catalog.ObjectNameText(raw.Name)+"("+string(d.Signature)+") is a procedure", raw.Pos).(*sqlstate.Error)
-			types := make([]string, len(d.SQL.Inputs))
-			for i, input := range d.SQL.Inputs {
-				types[i] = input.Type.DiagnosticName()
-			}
-			diagnostic.Message = catalog.ObjectNameText(raw.Name) + "(" + strings.Join(types, ", ") + ") is a procedure"
-			diagnostic.Hint = "To call a procedure, use CALL."
-			return nil, diagnostic
-		}
 		modifier := ""
 		if raw.Distinct {
 			modifier = "DISTINCT"
@@ -819,7 +883,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			}
 			frozen := parser.FunctionExpr{
 				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}},
-				Args: raw.Args, ArgNames: raw.ArgNames, Variadic: raw.Variadic, Pos: raw.Pos, StoredSQLRoutine: true,
+				Args: raw.Args, ArgNames: raw.ArgNames, Variadic: raw.Variadic, Pos: raw.Pos, StoredSQLRoutine: true, ProcedureCall: raw.ProcedureCall,
 			}
 			if b.Stored.Syntax == nil {
 				b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
@@ -828,6 +892,47 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		}
 		args := selected.args
 		assembly := selected.InputMap
+		writtenCount := len(raw.Args)
+		argNames := raw.ArgNames
+		if raw.ProcedureCall && len(d.SQL.OutputFormals) != 0 {
+			// Analysis has coerced every position. Compact only the private
+			// winning arguments; OUT nodes never become executable/fold children.
+			remap := make([]int, len(args))
+			for _, source := range assembly {
+				if source.Start >= 0 {
+					for i := source.Start; i < source.Start+source.Count; i++ {
+						remap[i] = 1
+					}
+				}
+			}
+			count := 0
+			var names []parser.Identifier
+			if len(argNames) != 0 {
+				names = make([]parser.Identifier, 0, len(args))
+			}
+			for i, arg := range args {
+				if remap[i] == 0 {
+					continue
+				}
+				remap[i] = count
+				args[count] = arg
+				if names != nil {
+					names = append(names, argNames[i])
+				}
+				count++
+			}
+			for i, source := range assembly {
+				if source.Start >= 0 {
+					assembly[i].Start = remap[source.Start]
+				}
+			}
+			clear(args[count:])
+			args, writtenCount, argNames = args[:count:count], count, names
+			info.Property = expr.Properties{Volatility: d.Volatility}
+			for _, arg := range args {
+				info.Property = expr.MergeProperties(info.Property, arg.Properties())
+			}
+		}
 		for slot, source := range assembly {
 			if source.Start >= 0 {
 				continue
@@ -842,7 +947,9 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			if selected.Signature.Inputs != nil && node.ResultUsage() != selected.Signature.Inputs[slot] {
 				var failure error
 				node, failure = b.CoerceSelected(node, selected.Signature.Inputs[slot], sqltype.Implicit, node.SourcePosition(), nil)
-				if failure != nil { return nil, failure }
+				if failure != nil {
+					return nil, failure
+				}
 			}
 			assembly[slot] = plan.RoutineInput{Start: len(args), Count: 1}
 			args = append(args, node)
@@ -860,7 +967,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if signature.Result.Type == nil {
 			signature = proc.InvocationSignature{Inputs: d.SQL.Inputs, Result: resultUsage}
 		}
-		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: len(raw.Args), ArgNames: raw.ArgNames, Variadic: raw.Variadic, InputMap: assembly, Signature: signature}
+		node := plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: args, WrittenCount: writtenCount, ArgNames: argNames, Variadic: raw.Variadic, InputMap: assembly, Signature: signature}
 		node, err := node.Collate(b.CollatedInfo)
 		if err != nil {
 			return nil, err

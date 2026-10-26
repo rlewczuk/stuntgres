@@ -41,6 +41,17 @@ single-statement limit of driver calls) belong to callers.
 - Setting-call statements retain operand trees for semantic argument analysis;
   their provider, not a syntactic expression-shape check, resolves row visibility.
   Call-start and final function-name component positions remain distinct.
+- Standalone `Call` retains the command position and the positioned shared
+  `FunctionExpr` argument/notation syntax. Raw expression visitors include every
+  actual, including pure OUT placeholders; CALL remains an unreserved name.
+- Routine signature types retain SETOF in the AST for declaration validation,
+  including positioned named/mode-bearing formals. The lexer scopes its type
+  token to formal declarations (excluding defaults), the first token of an actual
+  RETURNS clause, SQL/JSON result types, operator options and standalone type
+  input; ordinary identifiers retain its ColumnName keyword category. The
+  RETURNS grammar reduction arms a one-token state, consumed by the next lexer
+  call even for a quoted or non-SETOF token; it never extends into the body.
+  General type productions are not SETOF-recursive.
 - `SET [SESSION|LOCAL] XML OPTION DOCUMENT/CONTENT` lowers to the existing
   xmloption Set node. XML has an explicit unreserved terminal to distinguish
   this prefix from SET CONSTRAINTS, while retaining its ordinary identifier,
@@ -91,6 +102,10 @@ Scratch reuse is an allocation optimization, not a parsed-result cache.
   CREATE OR REPLACE FUNCTION uses those same attribute clauses and diagnostics
   in every admitted body form, retaining replacement separately from strictness
   and volatility.
+  Procedure attributes use complete grammar-owned option shapes before retaining
+  their first introducer for semantic rejection. Unknown or incomplete options
+  fail parsing; quoted names never act as introducers. Signed numbers and
+  qualified support names reuse shared grammar, and PARALLEL takes an identifier.
 - SQL/JSON clause words are contextual to the selected call's own parenthesis
   depth. Wrapper introducers use scoped tokens so `::jsonpath` does not consume
   WITH/WITHOUT as a type-name tail; DEFAULT expressions ending in TRUE/FALSE/NULL
@@ -151,6 +166,8 @@ scalar syntax errors.
 Expression-origin probes inherit the predecessor's byte/character coordinates,
 so their two-token scan does not recount the preceding body.
 Contextual PL keywords do not change SQL parsing or configured prewalk behavior.
+Unreserved FIRST and SECOND are also positioned PL target names; FETCH FIRST
+retains its separate cursor-motion production, and SECOND remains a temporal field.
 RAISE retains severity, explicit source form, decoded format, ordered arguments
 and option occurrences; bare rethrow remains distinct. ASSERT retains separate
 condition and optional-message spans. Their depth-zero commas and RAISE USING
@@ -224,8 +241,8 @@ text is sliced from these boundaries and never rescanned into executable syntax.
 
 Trigger lifecycle AST/position/full-input units use `RUN='^TestParseTriggerLifecycle$'`.
 Static capture AST/boundary units use `RUN='^TestPLpgSQLSelectIntoParser$'`.
-Routine result declaration form, ordered TABLE syntax and conflict/full-input
-units use `RUN='^TestRoutineResultDeclarations$'`.
+Routine declarations and positioned CALL/notation/full-input ownership units use
+`RUN='^TestRoutine(ResultDeclarations|ProcedureCall)$'`.
 
 Unit tests here drive the real lexer and generated parser and check AST shape,
 positions, ownership and complete-input rejection. Public SQL acceptance and

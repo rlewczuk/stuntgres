@@ -211,6 +211,9 @@ implement its slots, so either import would form a cycle.
   `ProtocolPlannedStatement`, `ProtocolPlainSelect`, `ProtocolHasRows` and
   `ProtocolParameterOIDs`. It takes no lock; the root calls it with nothing
   held.
+  CALL takes the ordinary statement snapshot and catalog replacement fence,
+  with a producer-free analyzed Describe and a non-counted CALL completion tag.
+  It is not event DDL; procedure CREATE keeps its existing utility admission.
 - **Timeouts** (`timeout.go`): transaction, idle-in-transaction and idle session
   budgets and timers.
 - **LISTEN/NOTIFY** (`notification_*.go`): records, persistent listener FIFO,

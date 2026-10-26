@@ -27,24 +27,25 @@ const (
 // Definition contains syntax, not executable resources or permission decisions.
 // Standard bodies additionally require a checked catalog-owned frozen program.
 type Definition struct {
-	Kind          BodyKind
-	Invocation    InvocationKind
-	PLSyntax      *parser.PLBlock
-	PL            *PLProgram
-	Source        string
-	Position      parser.Position
-	Statements    []parser.Statement
-	Standard      bool
-	Name          string
-	Names         []string
-	Inputs        []sqltype.Usage
-	Result        sqltype.Usage
-	ReturnsSet    bool
-	TableResult   bool
-	Formals       []Formal
-	InputFormals  []int
-	OutputFormals []int
-	FormalInputs  []int
+	Kind              BodyKind
+	Procedure         bool
+	Invocation        InvocationKind
+	PLSyntax          *parser.PLBlock
+	PL                *PLProgram
+	Source            string
+	Position          parser.Position
+	Statements        []parser.Statement
+	Standard          bool
+	Name              string
+	Names             []string
+	Inputs            []sqltype.Usage
+	Result            sqltype.Usage
+	ReturnsSet        bool
+	TableResult       bool
+	Formals           []Formal
+	InputFormals      []int
+	OutputFormals     []int
+	FormalInputs      []int
 	PolymorphicResult bool
 }
 

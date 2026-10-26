@@ -56,6 +56,16 @@ func TestExplicitUtilityRefusal(t *testing.T) {
 }
 
 func TestStatementPhases(t *testing.T) {
+	call := &parser.Call{}
+	if !SnapshotStatement(call) || !ReplacementRead(call) || SnapshotTargetAdmission(call) || DescribeBeforeSnapshot(call) != DescribeAnalyzed || DescribeAfterSnapshot(call) || !PreparableBody(call) || !ProtocolPlannedStatement(call) || ProtocolPlainSelect(call) || ProtocolHasRows(call, nil) || !ReadOnlyExempt(call) || ModifyingTag(call) != "" {
+		t.Fatal("CALL phase classification")
+	}
+	if tag, counted, insert, ok := ClassifyCommandTag(call, TxIdle); tag != "CALL" || counted || insert || !ok {
+		t.Fatal(tag, counted, insert, ok)
+	}
+	if _, ddl := EventCommand(call); ddl || TransactionalSchemaUtility(&parser.CreateFunction{Procedure: true}) {
+		t.Fatal("CALL expanded DDL admission")
+	}
 	if !SnapshotStatement(&parser.SettingCall{}) || SnapshotStatement(&parser.CreateTable{}) {
 		t.Fatal("snapshot statements")
 	}

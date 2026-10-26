@@ -10,7 +10,7 @@ import (
 
 func PreparableBody(stmt parser.Statement) bool {
 	switch stmt.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+	case *parser.Call, *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return true
 	}
 	return false

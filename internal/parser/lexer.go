@@ -28,8 +28,6 @@ type lexer struct {
 	// Operator definition options share type syntax, including SETOF, without
 	// reserving that spelling in ordinary expression or identifier contexts.
 	operatorDDL bool
-	// Only RETURNS after a closed parameter list introduces a result type.
-	routineResultType bool
 	// SQL EXTRACT admits a field word, not an ordinary scalar call head.
 	extractField        bool
 	jsonParenDepth      int
@@ -48,13 +46,19 @@ type lexer struct {
 	ruleDefinition    bool // Rule actions use ordinary query expressions, not standalone VALUES replay.
 	insertScalarEnd   int
 	// Selected calls are arguments only beneath an admitted call/operator.
-	selectedInputDepth         int
-	typeInputEntry             bool
-	typeInputMode              bool
-	typeInputResult            TypeName
-	typeInputNotice            func(sqlstate.Error)
-	options                    Options
-	routineBodyDepth           int // SQL-standard body input syntax; never changes outer prewalk policy.
+	selectedInputDepth int
+	typeInputEntry     bool
+	typeInputMode      bool
+	typeInputResult    TypeName
+	typeInputNotice    func(sqlstate.Error)
+	options            Options
+	routineBodyDepth   int // SQL-standard body input syntax; never changes outer prewalk policy.
+	// Only declaration-level formal types reinterpret SETOF; defaults remain SQL.
+	routineFormalDepth    int
+	routineFormalBrackets int
+	routineFormalDefault  bool
+	// Actual returns_word arms only the next token; ordinary RETURNS names do not.
+	routineResultType          bool
 	plEntry, plMode            bool
 	plResult                   *PLBlock
 	plExpression               bool
@@ -845,6 +849,8 @@ func (l *lexer) filterUnicodeToken(token rawToken) rawToken {
 }
 
 func (l *lexer) Lex(v *sqlSymType) int {
+	routineResultType := l.routineResultType
+	l.routineResultType = false
 	if l.err != nil {
 		return 0
 	}
@@ -994,15 +1000,6 @@ func (l *lexer) Lex(v *sqlSymType) int {
 				token.code = PL_ASSIGN
 			}
 		}
-	}
-	if l.typeInputMode && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
-		token.code = SETOF_TYPE
-	}
-	if l.operatorDDL && l.previousToken == int('=') && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
-		token.code = SETOF_TYPE
-	}
-	if l.routineResultType && l.previousToken == RETURNS_CLAUSE && token.lexeme.keyword != nil && token.lexeme.text == "setof" {
-		token.code = SETOF_TYPE
 	}
 	if l.options.Context != nil {
 		if err := l.options.Context.Err(); err != nil {
@@ -1225,8 +1222,6 @@ func (l *lexer) Lex(v *sqlSymType) int {
 						token.code = JSON_NULL
 					}
 				}
-			case "setof":
-				token.code = SETOF_TYPE
 			}
 		}
 	}
@@ -1403,6 +1398,14 @@ func (l *lexer) Lex(v *sqlSymType) int {
 			case "both":
 				token.code = BOTH
 			}
+		}
+	case "setof":
+		if token.lexeme.keyword != nil && l.previousToken != int('.') &&
+			(routineResultType || l.typeInputMode && l.previousToken == 0 ||
+				l.operatorDDL && l.previousToken == int('=') ||
+				l.previousToken == RETURNING && (len(l.jsonAggregateDepths) > 0 || len(l.jsonFunctionDepths) > 0) ||
+				l.routineFormalDepth > 0 && l.jsonParenDepth == l.routineFormalDepth && !l.routineFormalDefault) {
+			token.code = SETOF_TYPE
 		}
 	case "aggregate":
 		if token.lexeme.keyword != nil && (l.previousToken == CREATE || l.previousToken == ALTER || l.previousToken == DROP) {
@@ -1766,6 +1769,23 @@ func (l *lexer) Lex(v *sqlSymType) int {
 		l.operatorDDL = false
 		l.viewQuery = false
 	}
+	if l.routineFormalDepth > 0 && l.jsonParenDepth == l.routineFormalDepth {
+		switch token.code {
+		case '[':
+			l.routineFormalBrackets++
+		case ']':
+			l.routineFormalBrackets--
+		case DEFAULT, '=':
+			l.routineFormalDefault = true
+		case ',':
+			if l.routineFormalBrackets == 0 {
+				l.routineFormalDefault = false
+			}
+		case ')':
+			l.routineFormalDepth = 0
+			l.routineFormalDefault = false
+		}
+	}
 	if token.code == int('(') {
 		l.jsonParenDepth++
 	} else if token.code == int(')') {
@@ -1830,7 +1850,6 @@ func (l *lexer) Lex(v *sqlSymType) int {
 	}
 	l.temporalLead = token.code == TIMESTAMP || token.code == TIME || token.code == IDENT && columnType(token.lexeme).Quoted && (token.lexeme.text == "timestamp" || token.lexeme.text == "time")
 	l.plClosingLoop = token.code == PL_LOOP && l.previousToken == END
-	l.routineResultType = token.code == RETURNS_CLAUSE && l.previousToken == int(')')
 	l.previousToken = token.code
 	return token.code
 }

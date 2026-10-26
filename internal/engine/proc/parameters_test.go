@@ -40,4 +40,28 @@ func TestRoutineParameterLayout(t *testing.T) {
 			t.Fatal("invalid projection accepted", fs)
 		}
 	}
+	procedure := &Definition{Procedure: true}
+	if err := procedure.SetFormals([]Formal{{Mode: "o", Usage: usage}, {Mode: "b", Usage: usage, HasDefault: true}}); err != nil {
+		t.Fatal("OUT before defaulted INOUT", err)
+	}
+	array, err := sqltype.Array(1007, "_int4", integer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fs := range [][]Formal{
+		{{Mode: "i", Usage: usage, HasDefault: true}, {Mode: "o", Usage: usage}},
+		{{Mode: "v", Usage: array.Usage()}, {Mode: "o", Usage: usage}},
+	} {
+		before := procedure.Formals
+		if err := procedure.SetFormals(fs); err == nil {
+			t.Fatal("invalid procedure layout accepted")
+		}
+		if &procedure.Formals[0] != &before[0] {
+			t.Fatal("failed declaration published projections")
+		}
+		function := &Definition{}
+		if err := function.SetFormals(fs); err != nil {
+			t.Fatal("procedure restriction leaked into function", err)
+		}
+	}
 }

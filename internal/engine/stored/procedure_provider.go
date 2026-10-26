@@ -181,14 +181,14 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if (d.SQL.Invocation == proc.DMLTriggerInvocation) != (result.ID() == 2279) || (d.SQL.Invocation == proc.EventTriggerInvocation) != (result.ID() == 3838) || d.SQL.Invocation != proc.OrdinaryInvocation && (d.SQL.Kind != proc.PLpgSQLBody || len(d.SQL.Formals) != 0 || d.RoutineKind != catalog.FunctionRoutine) {
 		return invalid()
 	}
-	layout := &proc.Definition{}
+	layout := &proc.Definition{Procedure: d.SQL.Procedure}
 	if err := layout.SetFormals(d.SQL.Formals); err != nil {
 		return err
 	}
 	if !slices.Equal(layout.Inputs, d.SQL.Inputs) || !slices.Equal(layout.Names, d.SQL.Names) || !slices.Equal(layout.InputFormals, d.SQL.InputFormals) || !slices.Equal(layout.OutputFormals, d.SQL.OutputFormals) || !slices.Equal(layout.FormalInputs, d.SQL.FormalInputs) {
 		return invalid()
 	}
-	if len(layout.OutputFormals) == 1 && d.SQL.Result != layout.Formals[layout.OutputFormals[0]].Usage {
+	if !d.SQL.DerivedResult() && len(layout.OutputFormals) == 1 && d.SQL.Result != layout.Formals[layout.OutputFormals[0]].Usage {
 		return invalid()
 	}
 	if d.SQL.ReturnsSet && (d.SQL.Kind != proc.SQLBody || d.RoutineKind != catalog.FunctionRoutine) {
@@ -266,7 +266,7 @@ func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
 	if string(d.Signature) != signature.String() {
 		return invalid()
 	}
-	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.RoutineKind == catalog.ProcedureRoutine && (!d.SQL.Void() || d.Strict) || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
+	if d.Builtin != nil || d.Aggregate != nil || d.Foreign != nil || d.Conversion.Name() != "" || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || len(d.Body) != 0 || d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.ProcedureRoutine || d.SQL.Procedure != (d.RoutineKind == catalog.ProcedureRoutine) || d.RoutineKind == catalog.ProcedureRoutine && (len(d.SQL.OutputFormals) == 0 && !d.SQL.Void() || d.Strict) || d.Volatility != expr.Volatile || ids.OID(d.SQL.Result.Type.ID()) != d.Result {
 		return invalid()
 	}
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/ids"
@@ -55,9 +56,8 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 			binder.Params.routineInputCollation = inputCollation
 		}
 		if definition.Standard && parser.ModifyingStatement(stmt) {
-			// Frozen mutation presentation owns a lexical frame just like a
-			// checked rule action. Reserve it before binding FROM/VALUES so
-			// captures and the synthetic mutation project share one owner.
+			// Frozen mutation scalars and their presentation project share one
+			// lexical frame.
 			binder.Query.Frame, binder.Query.NextQueryFrame = 1, 1
 		}
 	}
@@ -114,6 +114,22 @@ func describe(ctx context.Context, host Host, stmt parser.Statement, auth Author
 		}
 	}
 	switch s := stmt.(type) {
+	case *parser.Call:
+		node, err := binder.Bind(s.Function, ExpressionPolicy{Context: ProjectionContext})
+		if err != nil {
+			return b, err
+		}
+		if definition != nil {
+			if call, ok := node.(plan.SQLRoutineExpr); ok && len(call.Procedure.SQL.OutputFormals) != 0 {
+				return b, sqlError("0A000", "calling procedures with output arguments is not supported in SQL functions")
+			}
+		}
+		if binder.Params.NoParameters || binder.Consumer.frozenDefinition {
+			if err := binder.CaptureViewLiterals(s.Function, node, ViewTargetLiteral, 0); err != nil {
+				return b, err
+			}
+		}
+		b.Expressions = [][]expr.Expr{{node}}
 	case *parser.CreateTable:
 		if err := bindCreateTable(host, auth, s, &b); err != nil {
 			return b, err

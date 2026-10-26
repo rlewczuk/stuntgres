@@ -47,10 +47,22 @@ func TestRoutineResultFormalBuiltinCatalog(t *testing.T) {
 		t.Fatal("formal array descriptor identities")
 	}
 	seen := map[ids.OID]bool{}
+	wantDefaults := map[ids.OID]int64{1397: 0, 3960: 1, 4007: 2, 40: 0, 3717: 0}
+	seenDefaults := map[ids.OID]bool{}
 	for _, row := range captured.Anonymous {
 		id, err := row[0].OID()
 		if err != nil {
 			t.Fatal(err)
+		}
+		if len(row) != 21 || row[20].Type() != source.Columns[20].Usage.Type || row[20].IsNull() {
+			t.Fatal("default-count projection width/type/nullability", id)
+		}
+		if want, ok := wantDefaults[ids.OID(id)]; ok {
+			got, err := row[20].Integer()
+			if err != nil || got != want {
+				t.Fatal("canonical default count", id, got, want, err)
+			}
+			seenDefaults[ids.OID(id)] = true
 		}
 		expected, ok := want[ids.OID(id)]
 		if !ok {
@@ -92,5 +104,8 @@ func TestRoutineResultFormalBuiltinCatalog(t *testing.T) {
 	}
 	if len(seen) != len(want) {
 		t.Fatal("incomplete represented declaration roster", len(seen), len(want))
+	}
+	if len(seenDefaults) != len(wantDefaults) {
+		t.Fatal("incomplete default-count declaration roster", seenDefaults)
 	}
 }

@@ -76,3 +76,26 @@ func TestRoutineResultFormalCatalog(t *testing.T) {
 		t.Fatal("released argument attribute numbers")
 	}
 }
+
+func TestRoutineProcedureDefaultCount(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		declaration catalog.Procedure
+		want        int64
+	}{
+		{"fixed", catalog.Procedure{}, 0},
+		{"builtin", catalog.Procedure{Builtin: &catalog.BuiltinRoutineDeclaration{Defaults: 2}}, 2},
+		{"installed", catalog.Procedure{Installed: catalog.InstalledRoutineDeclaration{Defaults: 5}}, 5},
+		{"SQL formals", catalog.Procedure{SQL: &proc.Definition{Formals: []proc.Formal{{Mode: "o"}, {Mode: "i"}, {Mode: "b", HasDefault: true}, {Mode: "i", HasDefault: true}}}}, 2},
+		{"variadic default", catalog.Procedure{SQL: &proc.Definition{Formals: []proc.Formal{{Mode: "o"}, {Mode: "v", HasDefault: true}}}}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := procedureDefaultCount(&tc.declaration); got != tc.want {
+				t.Fatal("declaration default count", got, tc.want)
+			}
+		})
+	}
+	if got := AttributeNumber(ids.ProcedureClassID, "pronargdefaults", 21); got != 18 {
+		t.Fatal("released default-count attribute number", got)
+	}
+}

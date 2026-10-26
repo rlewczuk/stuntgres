@@ -2016,8 +2016,9 @@ const (
 )
 
 type FunctionExpr struct {
-	Name ObjectName
-	Args []Expr
+	ProcedureCall bool // CALL matches every declaration position, including OUT.
+	Name          ObjectName
+	Args          []Expr
 	// ArgNames is nil for positional calls; zero entries mark positional arguments.
 	// Args and labels always retain written order, independently of bound slots.
 	ArgNames           []Identifier

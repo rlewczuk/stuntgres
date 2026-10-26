@@ -17,6 +17,8 @@ func AttributeNumber(oid ids.OID, name string, ordinal int32) int32 {
 			return 8
 		case "pronargs":
 			return 17
+		case "pronargdefaults":
+			return 18
 		case "prorettype":
 			return 19
 		case "provolatile":

@@ -43,7 +43,8 @@ func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.Autho
 		actions = make([]stored.RuleAction, 0, len(d.SQL.Statements))
 	}
 	for i, statement := range d.SQL.Statements {
-		if !sqlRoutineDataCommand(statement) {
+		_, calling := statement.(*parser.Call)
+		if !sqlRoutineDataCommand(statement) || d.SQL.Standard && calling {
 			if d.SQL.Standard {
 				return last, resultPlan, core.SQLError("0A000", core.RoutineCommandTag(statement)+" is not yet supported in unquoted SQL function body")
 			}
@@ -85,7 +86,7 @@ func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.Autho
 			}
 		}
 		if i == len(d.SQL.Statements)-1 && !d.SQL.Void() {
-			resultPlan, err = core.ValidateSQLRoutineTerminal(statement, last, d.SQL.Result, auth)
+			resultPlan, err = core.ValidateSQLRoutineTerminal(statement, last, d.SQL.Result, auth, d.SQL)
 			if err != nil {
 				return last, resultPlan, exec.SQLRoutineContext(err, d.Name(), false)
 			}
@@ -106,7 +107,7 @@ func BindSQLRoutineLocked(e *core.Engine, op *session.Operation, auth core.Autho
 
 func sqlRoutineDataCommand(statement parser.Statement) bool {
 	switch statement.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+	case *parser.Call, *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return true
 	}
 	return false

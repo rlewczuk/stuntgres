@@ -405,6 +405,8 @@ func visitQuerySources(statement Statement, visitQuery func(*Select) error, visi
 		}
 		pending = pending[:oldPending]
 		switch s := statement.(type) {
+		case *Call:
+			return expression(s.Function)
 		case *CreateTrigger:
 			if err := expression(s.When); err != nil {
 				return err

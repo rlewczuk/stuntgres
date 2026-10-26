@@ -7,6 +7,16 @@ import (
 	"stuntgres/reference/fixture"
 )
 
+func TestReferenceRoutineResultsContextualIdentifiers(t *testing.T) {
+	resultsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		for _, projection := range []string{"returns setof", "returns AS setof", `"returns" "setof"`, "src.returns setof"} {
+			resultsBoth(t, p, b, c, "SELECT "+projection+" FROM (VALUES(7)) AS src(returns)", []string{"setof"}, []string{"INT4"}, [][]any{{int64(7)}})
+		}
+		resultsExec(t, p, b, c, "CREATE FUNCTION rr_contextual_identifiers() RETURNS SETOF integer LANGUAGE SQL BEGIN ATOMIC SELECT returns setof FROM (VALUES(7)) AS src(returns); END")
+		resultsBoth(t, p, b, c, "SELECT * FROM rr_contextual_identifiers()", []string{"rr_contextual_identifiers"}, []string{"INT4"}, [][]any{{int64(7)}})
+	})
+}
+
 func TestReferenceRoutineResultsOutputs(t *testing.T) {
 	resultsScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
 		resultsMultiSetup(t, p, b, c)

@@ -378,6 +378,16 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleRendering)
 		renderer := action.renderer(action.presentation)
 		return renderer.SelectQuerySQL(ctx, view, action.presentation.syntax, action.presentation.queries[action.presentation.syntax])
 	}
+	if _, calling := action.syntax.(*parser.Call); calling {
+		if len(b.Expressions) != 1 || len(b.Expressions[0]) != 1 {
+			return "", fmt.Errorf("stuntgres: missing CALL capture")
+		}
+		text, err := ruleExpressionSQL(ctx, view, b.Expressions[0][0], action)
+		if err != nil {
+			return "", err
+		}
+		return "CALL " + text, nil
+	}
 	name, err := action.relation(view, b.Ref, false)
 	if err != nil {
 		return "", err

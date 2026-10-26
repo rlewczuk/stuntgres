@@ -332,7 +332,7 @@ func EarlyIndexUtility(stmt parser.Statement) bool {
 // refusal for stmt; data statements check their own targets.
 func ReadOnlyExempt(stmt parser.Statement) bool {
 	switch stmt.(type) {
-	case *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+	case *parser.Call, *parser.Copy, *parser.Select, *parser.DeclareCursor, *parser.FetchCursor, *parser.CloseCursor, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		return true
 	}
 	return false

@@ -97,7 +97,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   helpers. Its persistence phase replays the actual emitted native stream on
   PostgreSQL and provisions role names independently of allocated OIDs.
   Persistent procedure authority is checked through its actual kind, owner,
-  raw ACL and name/OID inquiries without adding unsupported CALL execution.
+  raw ACL and name/OID inquiries; CALL effects use query_outer's shared scenarios.
   Language/wrapper/server checks preserve delegated grantors/options, changed
   server ownership and NULL versus empty ACLs. Temporary-routine cases verify
   their declarations and ACL repairs are omitted together while persistent

@@ -26,7 +26,7 @@ func TestSQLRoutineDeclaredRecordPlan(t *testing.T) {
 	columns := []catalog.Column{{Name: "a", Usage: integer.Usage()}, {Name: "b", Usage: text.Usage()}}
 	binding := analyze.Binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: columns}}}
 	auth := core.AuthorizationView{View: access.View{Catalog: read}}
-	conversion, err := core.ValidateSQLRoutineTerminal(&parser.Select{}, binding, record.Usage(), auth)
+	conversion, err := core.ValidateSQLRoutineTerminal(&parser.Select{}, binding, record.Usage(), auth, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestSQLRoutineDeclaredRecordPlan(t *testing.T) {
 		t.Fatal("planning changed the catalog declaration")
 	}
 	foreign, _ := engine.New().CatalogRead().LookupType(2249)
-	if _, err := core.ValidateSQLRoutineTerminal(&parser.Select{}, binding, foreign.Usage(), auth); err == nil {
+	if _, err := core.ValidateSQLRoutineTerminal(&parser.Select{}, binding, foreign.Usage(), auth, nil); err == nil {
 		t.Fatal("foreign declaration acquired executable record authority")
 	}
 	if _, err := conversion.Apply(context.Background(), []sqltype.Value{one}, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}); err == nil {

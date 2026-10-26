@@ -18,6 +18,19 @@ the activation's complete scalar Usage in the ordinary PL-local expression.
 Reached WHEN lists use the shared IN binder; no alternate comparison resolver
 or published fake local carries search state.
 
+Standalone CALL uses the common callable selector with the full formal-position
+projection for every candidate kind, including function OUT declarations.
+Candidate ranking and namespace masking precede invocation-kind rejection.
+All written actuals bind and coerce; only IN/INOUT/VARIADIC positions enter the
+executable child/inverse-slot map. Pure OUT dependencies retain analysis-only
+operand purpose, so they cannot demand execution or retire unrelated folds.
+Hidden defaults are attached only to the selected, omitted input slots.
+Set-returning actuals are rejected by the shared set-placement admission, including
+builtin series providers; the CALL context survives ordinary argument binding.
+CALL schema uses the checked invocation tuple's exact member usages, retaining
+declaration-owned labels and order without rebuilding a shape or exposing
+declaration pseudo-types.
+
 Nominal typed literals for installed ltree and lquery resolve through the ordinary
 type lookup before admission. Their resolved scalar descriptors, not their written
 names, authorize input alongside domains.
@@ -342,6 +355,9 @@ units that build bindings, grep `internal/engine/*_test.go` and
   `RUN='^TestRoutineAggregateDependencyPurpose$'`.
 - Exact SQL routine grouped metadata and immutable rewrites:
   `RUN='^TestSQLRoutineGroupProperties$'`.
+- Callable projection, default/variadic mapping and candidate ownership:
+  `RUN='^TestSQLCallable'`, also with `RACE=1`.
+- CALL actual set-placement admission: `RUN='^TestCallArgumentSetAdmission$'`.
 - Query binding units: `RUN='^TestQuery(Aliases|Values|CTE|Lock|Set)'`
 - Host, slots and authorities (engine): `RUN='^Test(AnalysisHost|ExpectedOfCopiesHeldInputs|CapturedInputsRetargetOnlyTheirSinks|BindingSlotsKeepNilAbsent)'`
 - Search path and type names (engine): `RUN='^Test(SearchPath|RegTSProviderResolution|DomainIdentity)'`

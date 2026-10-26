@@ -22,6 +22,10 @@ PL call capability is required even on retained paths. EXECUTE remains live,
 while language USAGE belongs to DO/CREATE admission rather than each call.
 PL execution stays with the root's existing lexical/root operation owner; no
 second SQLRoutineExpr family or fake handler scalar is introduced.
+Standalone CALL consumes that same private input frame and handler. Procedure
+outputs retain the declaration's tuple identity, including sole OUT; no-output
+PL handlers retain their private empty return, normalized only at the typed
+invocation-value boundary. No caller slot receives writable copyback here.
 
 SQL scalar and set openings share once-only written/default input evaluation and
 one private frame. The statement host runs the same borrowed routine runner;

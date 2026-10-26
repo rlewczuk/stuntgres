@@ -180,6 +180,15 @@ ordinary SQL errors leave the connection reusable.
 - `RowsAffected` counts rows actually inserted, updated, deleted or merged.
   CREATE MATERIALIZED VIEW WITH DATA reports the produced row count; WITH NO
   DATA reports zero without running the producer. `LastInsertId` is not supported.
+- **Procedures.** Standalone `CALL` returns one row of declared OUT/INOUT columns,
+  including a sole composite-valued output as one column. A procedure without
+  outputs has no row descriptor. CALL reports zero affected rows, independently
+  of body DML. OUT actuals are required and implicitly typechecked (including
+  protocol parameter input conversion), but never evaluated or folded.
+  Named/default/variadic input assembly shares function overload resolution;
+  routine kind is checked after selecting the winner. SQL and PL bodies borrow
+  the same statement transaction, with no separate commit or result lifetime.
+  SQL-body calls with outputs are rejected rather than inventing copyback.
 - **Multi-statement strings.** A parameterless `ExecContext`/`QueryContext` may
   contain several statements. The whole string is parsed first, then commands run
   in order and stop at the first error. `Exec` reports the last command's count;
@@ -196,8 +205,8 @@ ordinary SQL errors leave the connection reusable.
   retire the affected fold lifetime. Incidental operand-name reanalysis alone
   need not discard an otherwise valid typed result. Parameterized definitions
   keep their computed values operation-local. Wire Describe preserves the
-  shared definition owner. Bind plans supported INSERT/UPDATE/DELETE/MERGE and
-  modifying-CTE SELECT without applying their effects. Those portals keep an
+  shared definition owner. Bind plans supported CALL, INSERT/UPDATE/DELETE/MERGE
+  and modifying-CTE SELECT without applying their effects. Those portals keep an
   independent immutable Bind generation; Execute uses fresh canonical binding,
   current authority and data without publishing back to the definition. Closing
   or replacing the statement, DISCARD PLANS, or a later path change cannot replace

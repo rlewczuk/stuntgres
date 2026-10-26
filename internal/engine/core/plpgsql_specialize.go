@@ -12,8 +12,12 @@ import (
 // invocation owns its private descriptor even when it replaces that cache entry.
 func (s *StatementScope) invokePLRoutineSpecialized(d *catalog.Procedure, input *proc.Frame, read catalog.Read, collation sqltype.CollationRef, result sqltype.Usage) (sqltype.Value, error) {
 	needs := d.SQL.Polymorphic() || d.SQL.Result.Type.ID() == 2249
-	for _, usage := range d.SQL.Inputs { needs = needs || usage.Type.ID() == 2249 }
-	if !needs { return s.invokePLRoutine(d, input, read, collation) }
+	for _, usage := range d.SQL.Inputs {
+		needs = needs || usage.Type.ID() == 2249
+	}
+	if !needs {
+		return s.invokePLRoutine(d, input, read, collation)
+	}
 	signature := proc.InvocationSignature{Inputs: input.Inputs, Result: result}
 	copiedInputs := false
 	// Generic RECORD transport can hide a concrete anonymous tuple descriptor.
@@ -38,22 +42,35 @@ func (s *StatementScope) invokePLRoutineSpecialized(d *catalog.Procedure, input 
 	retained := payload.sqlRoutines[d.Address()]
 	current := retained.plSpecialized
 	if retained.definition != d.SQL || current == nil || !retained.signature.Equal(signature) || retained.inputCollation != collation || retained.name != d.Name() {
-		definition := *d.SQL
+		definition, err := d.SQL.Specialize(signature)
+		if err != nil {
+			e.Mu.Unlock()
+			return sqltype.Value{}, err
+		}
+		// Compilation replaces PL and may normalize unshaped OUT transport.
+		// Specialize deliberately returns the declaration for unchanged usages.
+		if definition == d.SQL {
+			owned := *definition
+			owned.Formals = slices.Clone(definition.Formals)
+			definition = &owned
+		}
 		definition.PolymorphicResult = sqltype.PolymorphicFamily(d.SQL.Result.Type.ID()) != 0
-		definition.Inputs, definition.Result = signature.Inputs, signature.Result
-		definition.Formals = slices.Clone(d.SQL.Formals)
 		for index := range definition.Formals {
-			slot := definition.FormalInputs[index]
-			if slot >= 0 { definition.Formals[index].Usage = signature.Inputs[slot] } else if sqltype.PolymorphicFamily(definition.Formals[index].Usage.Type.ID()) != 0 { definition.Formals[index].Usage = result }
-			if slot < 0 && definition.Formals[index].Usage.Type.ID() == 2249 {
+			usage := definition.Formals[index].Usage
+			if definition.FormalInputs[index] < 0 && usage.Type.ID() == 2249 && !usage.Type.IsComposite() {
 				definition.Formals[index].Usage = sqltype.DeferredRecord().Usage()
 			}
 		}
 		private := *d
-		private.SQL = &definition
+		private.SQL = definition
 		auth, err := s.RoutineAuthorizationLocked()
-		if err == nil { err = e.CompilePLRoutineLocked(s.Op, auth, &private) }
-		if err != nil { e.Mu.Unlock(); return sqltype.Value{}, err }
+		if err == nil {
+			err = e.CompilePLRoutineLocked(s.Op, auth, &private)
+		}
+		if err != nil {
+			e.Mu.Unlock()
+			return sqltype.Value{}, err
+		}
 		current = &private
 		retained = payload.sqlRoutines[d.Address()]
 		retained.definition, retained.signature, retained.inputCollation, retained.name = d.SQL, signature, collation, d.Name()

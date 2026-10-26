@@ -202,6 +202,12 @@ Routine and aggregate rename/schema/owner changes preserve hard captured
 identities. Owned SQL declarations and aggregate definitions render current
 qualified names and owners, actual body/support forms and checked dependencies,
 never evaluated results, frames or granted authority.
+SQL and PL procedure definitions retain all formal modes, input defaults,
+variadic arrays, actual language and declared output tuple types. A sole
+procedure OUT remains a RECORD declaration; functions keep scalar-one-OUT
+policy. Replacement shares one original-occurrence type/collation remap memo
+between formals, output tuples and retained calls, never remapping an already
+mapped result or serializing invocation values.
 Moving aggregate definitions retain separate moving state types, forward,
 inverse and final identities, external seeds and option flags. Native replacement
 remaps user-defined moving states along with stored window views and frozen

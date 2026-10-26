@@ -135,6 +135,10 @@ evaluation needs beyond it. `*exec.Context` is its only implementation.
   result width never implies cardinality.
   Rebuilt target-set occurrences retain selected procedure/reference, result
   shape and input-assembly identity through the common source-occurrence hook.
+  CALL keeps the same immutable node and input assembly: `Args`, `WrittenCount`,
+  capture operands and inverse child slots contain only written executable
+  inputs plus selected hidden defaults. Pure OUT analysis remains with the
+  statement binder and cannot enter rebuild/folding/evaluation children.
 - `EvalInstalledText`, `EvalInstalledCubeSpatial` and `EvalInstalledEarthPoint`
   run the prologue, validate captured provider authority and evaluate the kernel,
   including strict NULL calls. Spatial and point wrappers retain Procedure/Ref

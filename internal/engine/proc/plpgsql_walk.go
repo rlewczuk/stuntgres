@@ -35,6 +35,16 @@ func (r *PLRun) Invoke(input *Frame, collation sqltype.CollationRef) (sqltype.Va
 		return sqltype.Value{}, fmt.Errorf("stuntgres: unconsumed PL control transfer")
 	}
 	if d.PL.Procedure {
+		if err := r.Host.Context().Err(); err != nil {
+			return sqltype.Value{}, err
+		}
+		if len(d.OutputFormals) != 0 {
+			fields := make([]sqltype.Value, len(d.OutputFormals))
+			for i, formal := range d.OutputFormals {
+				fields[i] = f.Values[formal]
+			}
+			return sqltype.OwnedCompositeValue(d.Result.Type, fields)
+		}
 		return sqltype.Value{}, nil
 	}
 	if len(d.OutputFormals) == 1 {

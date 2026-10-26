@@ -17,12 +17,55 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 	for i := range candidate.InputMap {
 		candidate.InputMap[i].Start = -1
 	}
-	variadic := -1
-	if len(d.SQL.InputFormals) == len(d.SQL.Inputs) && len(d.SQL.Inputs) > 0 {
-		i := len(d.SQL.Inputs) - 1
-		if d.SQL.Formals[d.SQL.InputFormals[i]].Mode == "v" {
-			variadic = i
+	// CALL projects declaration positions for every kind before selecting a
+	// winner. Execution still receives only genuine input slots.
+	count := len(d.SQL.InputFormals)
+	if raw.ProcedureCall {
+		count = len(d.SQL.Formals)
+	}
+	formalAt := func(position int) int {
+		if raw.ProcedureCall {
+			return position
 		}
+		return d.SQL.InputFormals[position]
+	}
+	sources := candidate.InputMap
+	if count != len(sources) {
+		sources = make([]plan.RoutineInput, count)
+		for i := range sources {
+			sources[i].Start = -1
+		}
+	}
+	variadic := -1
+	var variadicElement sqltype.Usage
+	for position := range count {
+		formal := d.SQL.Formals[formalAt(position)]
+		if formal.Mode == "v" {
+			variadic = position
+			switch formal.Usage.Type.ID() {
+			case 2277, 5078:
+				id := sqltype.ID(2283)
+				if formal.Usage.Type.ID() == 5078 {
+					id = 5077
+				}
+				element, ok := catalog.DefinitionTypeAt(view, reader, id)
+				if !ok {
+					return candidate, false
+				}
+				variadicElement = element.Usage()
+			default:
+				variadicElement = formal.Usage.Type.Element().Usage()
+			}
+		}
+	}
+	if raw.ProcedureCall && variadic >= 0 {
+		// Released candidate expansion uses the last full formal position,
+		// even for functions whose legal OUT follows the VARIADIC input.
+		// Kind rejection occurs after matching and before any execution.
+		variadic = count - 1
+	}
+	if variadic >= 0 && len(raw.ArgNames) != 0 && !raw.Variadic {
+		return candidate, false
 	}
 	for written := range raw.Args {
 		slot := written
@@ -32,9 +75,9 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 		}
 		if label != "" {
 			slot = -1
-			for input, name := range d.SQL.Names {
-				if name == label {
-					slot = input
+			for position := range count {
+				if d.SQL.Formals[formalAt(position)].Name == label {
+					slot = position
 					break
 				}
 			}
@@ -44,11 +87,11 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 		} else if variadic >= 0 && written >= variadic && !raw.Variadic {
 			slot = variadic
 		}
-		if slot < 0 || slot >= len(d.SQL.Inputs) {
+		if slot < 0 || slot >= count {
 			return candidate, false
 		}
-		source := &candidate.InputMap[slot]
-		usage := d.SQL.Inputs[slot]
+		source := &sources[slot]
+		usage := d.SQL.Formals[formalAt(slot)].Usage
 		if slot == variadic && !raw.Variadic {
 			if label != "" {
 				return candidate, false
@@ -61,16 +104,7 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 			}
 			source.Count++
 			candidate.Variadic = true
-			switch usage.Type.ID() {
-			case 2277, 5078:
-				id := sqltype.ID(2283)
-				if usage.Type.ID() == 5078 { id = 5077 }
-				element, ok := catalog.DefinitionTypeAt(view, reader, id)
-				if !ok { return candidate, false }
-				usage = element.Usage()
-			default:
-				usage = usage.Type.Element().Usage()
-			}
+			usage = variadicElement
 		} else {
 			if source.Start >= 0 {
 				return candidate, false
@@ -80,17 +114,18 @@ func sqlRoutineParameterShape(view catalog.Read, reader catalog.DefinitionReader
 		candidate.Inputs[written] = usage
 	}
 	if raw.Variadic && variadic >= 0 {
-		source := candidate.InputMap[variadic]
+		source := sources[variadic]
 		if source.Start != len(raw.Args)-1 || source.Count != 1 {
 			return candidate, false
 		}
 	}
-	for slot, source := range candidate.InputMap {
-		if source.Start >= 0 {
-			continue
-		}
-		if !d.SQL.HasDefault(slot) {
+	for position, source := range sources {
+		formal := formalAt(position)
+		if source.Start < 0 && !d.SQL.Formals[formal].HasDefault {
 			return candidate, false
+		}
+		if input := d.SQL.FormalInputs[formal]; input >= 0 {
+			candidate.InputMap[input] = source
 		}
 	}
 	return candidate, true

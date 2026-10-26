@@ -5,26 +5,43 @@ import (
 	"unicode/utf8"
 )
 
+// Call is a standalone routine invocation, not an expression statement.
+type Call struct {
+	Function FunctionExpr
+	Pos      Position
+}
+
+func (*Call) statement() {}
+
 // CreateFunction is the shared SQL function/procedure declaration. Body inputs
 // are private routine parameters, never parameters of the enclosing command.
 type CreateFunction struct {
-	Name            ObjectName
-	Arguments       []RoutineParameter
-	Result          TypeName
-	ResultSpecified bool
-	TableResult     []RoutineParameter
-	Language        Identifier
-	Body            string
-	BodyPos         Position
-	Symbol          string
-	SymbolSpecified bool
-	SymbolPos       Position
-	Procedure       bool
-	Strict          bool
-	Volatility      string
-	Replace         bool
-	Standard        []Statement // Non-nil for a definition-analyzed SQL-standard body.
-	Pos             Position
+	Name             ObjectName
+	Arguments        []RoutineParameter
+	Result           TypeName
+	ResultSpecified  bool
+	TableResult      []RoutineParameter
+	Language         Identifier
+	Body             string
+	BodyPos          Position
+	Symbol           string
+	SymbolSpecified  bool
+	SymbolPos        Position
+	Procedure        bool
+	Strict           bool
+	Volatility       string
+	Replace          bool
+	InvalidAttribute Position
+	Standard         []Statement // Non-nil for a definition-analyzed SQL-standard body.
+	Pos              Position
+}
+
+func (d *CreateFunction) setProcedureAttributes(groups ...[]lexeme) {
+	for _, group := range groups {
+		if len(group) != 0 && d.InvalidAttribute.Character == 0 {
+			d.InvalidAttribute = group[0].pos
+		}
+	}
 }
 
 func (l *lexer) functionAttributes(declaration *CreateFunction, groups ...[]lexeme) bool {

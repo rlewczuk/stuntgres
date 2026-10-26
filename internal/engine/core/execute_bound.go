@@ -44,6 +44,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	expressionsChanged := false
 	foldCaptures := evaluation.FoldCaptures
 	_, inserting := stmt.(*parser.Insert)
+	_, calling := stmt.(*parser.Call)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
 	if scope.protocolOrZero().bind != nil || scope.protocolOrZero().execute != nil || ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && session.ProtocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.cursor != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
@@ -62,13 +63,23 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	scope.RoutineAuth = routineAuth
 	scope.RoutineDependencies = b.Dependencies
-	if inserting || b.Merge != nil || b.Update != nil || b.Query != nil || (deleting && (b.Delete.Using != nil || b.Predicate != nil || b.Returning != nil)) || len(b.Insert.Defaults) != 0 {
+	if calling || inserting || b.Merge != nil || b.Update != nil || b.Query != nil || (deleting && (b.Delete.Using != nil || b.Predicate != nil || b.Returning != nil)) || len(b.Insert.Defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
 		e.Mu.Unlock()
 		if err := scope.readmitPreparedPrograms(routineAuth); err != nil {
 			return Result{}, err
+		}
+		if calling {
+			node, _, failure := exec.PreflightCoercionsWithPolicy(&evaluation, expressions[0][0], true)
+			if failure != nil {
+				return Result{}, failure
+			}
+			if failure = view.ValidateExpressionJoinExecution(&evaluation, node, auth.Catalog); failure != nil {
+				return Result{}, failure
+			}
+			expressions = [][]expr.Expr{{node}}
 		}
 		if evaluation.PlanStaticOperators && deleting {
 			b, err = view.RuleMutationProducerDemand(b)
@@ -512,6 +523,27 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 	}
 	switch s := stmt.(type) {
+	case *parser.Call:
+		e.Mu.Unlock()
+		evaluation := execution.evaluation
+		value, err := execution.expressions[0][0].Eval(&evaluation)
+		if err != nil {
+			return Result{}, err
+		}
+		schema := analyze.RoutineCallSchema(b)
+		if len(schema) == 0 {
+			return Result{CommandTag: "CALL"}, nil
+		}
+		if value.IsNull() {
+			return Result{}, SQLError("XX000", "procedure returned null record")
+		}
+		fields := make([]sqltype.Value, len(schema))
+		for i := range fields {
+			fields[i] = value.CompositeField(i)
+		}
+		result, err := anonymousResult(schema, [][]sqltype.Value{fields}, 0)
+		result.CommandTag = "CALL"
+		return result, err
 	case *parser.Merge:
 		err := e.CaptureCheckCommentSnapshotLocked(scope, b.Relation)
 		if err == nil && b.Returning != nil {

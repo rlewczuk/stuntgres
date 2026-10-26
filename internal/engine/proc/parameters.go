@@ -67,6 +67,13 @@ func (d *Definition) SetFormals(formals []Formal) error {
 			inputs = append(inputs, i)
 		} else if f.HasDefault {
 			return fail("only input parameters can have default values")
+		} else if d.Procedure {
+			if variadic {
+				return fail("VARIADIC parameter must be the last parameter")
+			}
+			if defaulted {
+				return fail("procedure OUT parameters cannot appear after one with a default value")
+			}
 		}
 		if f.Output() {
 			outputs = append(outputs, i)

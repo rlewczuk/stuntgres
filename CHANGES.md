@@ -1,9 +1,17 @@
+Polymorphic SQL and PL procedure calls retain concrete invocation output types
+through result metadata, private PL formals and native replay. Procedure options
+are parsed as complete clauses: malformed suffixes fail during parsing, while
+syntactically valid prohibited attributes retain their declaration diagnostic.
+
 `CREATE EXTENSION seg` installs the interval scalar and its genuine text codecs.
 Literal and bound values preserve endpoint annotations and significant digits;
 results expose canonical text (including derived `Infinity`/`-Infinity`), SEG
 metadata, installed codec catalog identities and SQL NULLs. Native
 Dump/Reset/Restore retains exact binary32 endpoints and precision independently
 of canonical SQL output.
+
+Procedure EXECUTE permission denials identify the routine as a procedure rather
+than a function, including direct and prepared `CALL` after privilege revocation.
 
 Native active JSONB existence cancellation coverage synchronizes at the real
 provider cancellation poll before observing its live worker stack, rather than
@@ -38,6 +46,15 @@ declarations expose exact metadata/ACLs without installing callable providers.
 Default system ACLs add no Dump output; changed view SELECT and backing EXECUTE
 ACLs round-trip through existing native controls. Both views expose their exact
 identity-aware definitions to catalog and information-schema consumers.
+
+SQL and PL/pgSQL procedures support standalone `CALL`, named/default/variadic
+arguments, typed unevaluated OUT actuals and declared OUT/INOUT result columns.
+Calls share statement-atomic effects and cancellation; native Dump/Restore
+preserves procedure declarations, output types and data.
+`SETOF` remains an ordinary identifier after a column named `returns`, including
+implicit output aliases inside SQL-standard routine bodies.
+`pg_proc.pronargdefaults` exposes canonical declaration default counts, including
+restored SQL/PL routines and captured builtin/installed declarations.
 
 `information_schema.user_defined_types` exposes standalone composite identities
 through 29 nullable domain-typed columns, with effective type-USAGE and inherited

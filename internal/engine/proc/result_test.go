@@ -68,6 +68,14 @@ func TestRoutineResultSchema(t *testing.T) {
 	if got.Type() != tuple || got.CompositeLen() != 1 || got.CompositeField(0).Type() != composite || !sqltype.SameDatum(got.CompositeField(0), value) {
 		t.Fatal("tuple wrapper lost composite output")
 	}
+	one.Procedure = true
+	if !one.DerivedResult() || !one.MatchesOutputTuple(tuple) {
+		t.Fatal("sole procedure OUT lost declaration tuple")
+	}
+	empty := &Definition{Procedure: true, Result: routineTestType(t, sqltype.Void).Usage()}
+	if empty.DerivedResult() || !empty.Void() {
+		t.Fatal("no-output procedure fabricated tuple")
+	}
 }
 
 func TestRoutineResultAdaptation(t *testing.T) {
@@ -78,6 +86,9 @@ func TestRoutineResultAdaptation(t *testing.T) {
 		t.Fatal(err)
 	}
 	plan, err := PlanResult([]sqltype.Usage{integer.Usage(), bytes.Usage()}, shape.Usage())
+	if _, err := PlanTuple([]sqltype.Usage{shape.Usage()}, shape); err == nil {
+		t.Fatal("tuple adaptation collapsed whole-record body column")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

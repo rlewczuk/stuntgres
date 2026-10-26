@@ -41,6 +41,9 @@ func (b *Binder) BindFunctionSource(raw parser.FunctionExpr) (expr.Expr, error) 
 }
 
 func (b *Binder) stringSetAllowed(pos parser.Position) error {
+	if b.Consumer.CallArguments {
+		return expr.ErrorAt("0A000", "set-returning functions are not allowed in CALL arguments", pos)
+	}
 	kind := b.Clause.AggregateClause
 	if b.Consumer.DefaultConsumer {
 		kind = "DEFAULT expressions"

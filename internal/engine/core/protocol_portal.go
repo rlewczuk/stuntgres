@@ -11,8 +11,8 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
- "stuntgres/internal/engine/ids"
-		"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -31,14 +31,14 @@ const (
 
 type protocolPortal struct {
 	PreparedBinding
-	resource PreparedResource
+	resource          PreparedResource
 	context           session.ProtocolContext
 	columns           []catalog.Column
 	formats           []int16
 	values            []sqltype.Value
 	producer          *sqlCursor
 	rows              exec.RowResult
-	started bool
+	started           bool
 	state             protocolPortalState
 	tag               string
 	completionBase    string // Actual executed command, independent of outer syntax/resources.
@@ -58,16 +58,19 @@ type ProtocolExecution struct {
 
 func newProtocolPortal(entry PreparedDefinition, tx ids.TxRef) *protocolPortal {
 	portal := &protocolPortal{PreparedBinding: PreparedBinding{Entry: entry, Transaction: tx}}
- portal.resource.Closer = portal
- portal.Resource = &portal.resource
- return portal
+	portal.resource.Closer = portal
+	portal.Resource = &portal.resource
+	return portal
 }
 func protocolPortalOf(binding *PreparedBinding) *protocolPortal {
- if binding == nil || binding.Resource == nil { return nil }
- portal, _ := binding.Resource.Closer.(*protocolPortal)
- return portal
+	if binding == nil || binding.Resource == nil {
+		return nil
+	}
+	portal, _ := binding.Resource.Closer.(*protocolPortal)
+	return portal
 }
 func (p *protocolPortal) close(ctx context.Context) error { return p.PreparedBinding.Close(ctx) }
+
 // Close implements the real accepted resource's terminal cleanup capability.
 func (p *protocolPortal) Close(ctx context.Context) error { return p.releaseExecutor(ctx) }
 
@@ -141,9 +144,9 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 	// This description copy shares only the definition's fold owner. Bind
 	// produces a private graph/frame; later definition changes cannot replace
 	// that graph, and no portal description is published back by name.
- p := newProtocolPortal(*entry,s.TxRef)
- p.Birth, p.context, p.columns = births.ordinal,out,entry.Description.Results
- r.Bind(name,&p.PreparedBinding)
+	p := newProtocolPortal(*entry, s.TxRef)
+	p.Birth, p.context, p.columns = births.ordinal, out, entry.Description.Results
+	r.Bind(name, &p.PreparedBinding)
 	defer func() {
 		if err == nil {
 			err = s.sessionPublicationPreflight()
@@ -229,7 +232,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input sessio
 		return out, err
 	}
 	switch entry.Body.(type) {
-	case *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
+	case *parser.Call, *parser.Select, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		s.Expected = &p.Entry.Description
 		s.protocol().bind = p
 		_, err = s.Execute(entry.Body, int(count), importer)
@@ -294,7 +297,10 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 		return Result{}, fmt.Errorf("stuntgres: portal lacks projection")
 	}
 	bind := s.protocolOrZero().bind
- if err := bind.AcceptFolds(s.FoldCaptures); err != nil { source.Close(); return Result{},err }
+	if err := bind.AcceptFolds(s.FoldCaptures); err != nil {
+		source.Close()
+		return Result{}, err
+	}
 	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), PreparedResource: PreparedResource{Root: project, Closer: bind}, schema: project.Schema(), Source: source, authority: s.authority,
 		leaves: s.QuerySources, locks: s.QueryLockContext, catalog: s.Inquiry.CommentCatalog, roles: s.Inquiry.commentRoles, routineDependencies: s.RoutineDependencies, routineAuth: s.RoutineAuth,
 		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog, visibilityRelationPath: s.Inquiry.visibilityRelationPath, visibilityOtherPath: s.Inquiry.visibilityOtherPath}

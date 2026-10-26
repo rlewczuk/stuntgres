@@ -207,7 +207,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	if scope.sqlRoutine.terminal {
-		scope.sqlRoutine.resultPlan, err = ValidateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result, auth)
+		scope.sqlRoutine.resultPlan, err = ValidateSQLRoutineTerminal(stmt, b, scope.sqlRoutine.result, auth, scope.sqlRoutine.definition)
 		if err != nil {
 			e.Mu.Unlock()
 			return Result{}, err
@@ -292,6 +292,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if scope.Expected != nil {
 		var results []catalog.Column
+		if _, call := stmt.(*parser.Call); call {
+			results = analyze.RoutineCallSchema(b)
+		}
 		if b.Query != nil && !b.CommandQuery {
 			results = b.Query.Root.Schema()
 		}
@@ -411,6 +414,9 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if p := scope.protocolOrZero().bind; p != nil {
 		p.values = canonical
+		if _, call := stmt.(*parser.Call); call {
+			p.columns = analyze.RoutineCallSchema(b)
+		}
 		if b.Returning != nil {
 			p.columns = b.Returning.Schema
 		}

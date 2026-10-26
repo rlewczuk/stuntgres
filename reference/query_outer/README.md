@@ -32,9 +32,21 @@ reuse the native replay helpers; generated identities are checked within each
 owner, not pinned to another backend's allocation sequence. Raw formal-array
 checks retain oid[] and internal "char"[] metadata even for NULL values.
 
+Standalone procedure scenarios use `proceduresScenario`, `proceduresBoth` and
+`proceduresHeld` with declaration-owned output metadata checked before iteration.
+CALL TEXT descriptors use `resultsTextMetadata`'s unbounded length for both
+adapters; sequence state uses the existing known-nonnullable native profile.
+`proceduresDefaultCountsCheck` checks bounded canonical declaration defaults
+through direct/prepared queries and the same native replay phases.
+Their SQL and PL bodies modify real rows; native control phases retain two
+roundtrips, independent Driver ownership and unchanged emitted-SQL oracle replay.
+PL CALL writable-destination copyback is not part of these standalone consumers.
+
 ```sh
 make check RUN='^(TestReferenceRoutineResults|TestReferencePseudoTypes(Result|Record))'
 make check RUN='^(TestReferenceRoutineResults|TestReferencePseudoTypes(Result|Record))' REFERENCE=1
+make check RUN='^TestReferenceRoutineProcedures'
+make check RUN='^TestReferenceRoutineProcedures' REFERENCE=1
 make check RUN='^TestReferenceQueryOuterJoin'
 make check RUN='^TestReferenceQueryOuterJoin' REFERENCE=1
 ```

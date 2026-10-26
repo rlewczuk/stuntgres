@@ -60,6 +60,7 @@ type parameterState struct {
 type ConsumerContext struct {
 	DefaultConsumer  bool
 	RoutineDefault   bool
+	CallArguments    bool
 	DefaultTemporary ids.SessionToken
 	// Selected timezone/calendar operand analysis owns its released rejection
 	// diagnostic without admitting additional explicit cast providers.

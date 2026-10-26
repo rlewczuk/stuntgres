@@ -28,6 +28,10 @@ No parallel language-permission table or cached grant decision exists.
     Virtual catalog views use the same effective ACL and column authority as
     stored views and report the view noun in authorization diagnostics. Source
     production never substitutes original authentication for current authority.
+    Routine EXECUTE denials distinguish procedures using canonical `RoutineKind`,
+    not the shared `ProcedureObject` class or the presence of a SQL body.
+    Generic routine ownership denials retain the function noun used by
+    CREATE OR REPLACE; statement-specific callers supply their own nouns.
   - Identity: `Ref` mints a reference in the view's epoch, `Stamp` names the
     captured publication, `Recapture` binds a substituted catalog to the same
     role root.
@@ -191,13 +195,15 @@ rejection, `RoleRead`'s owner and domain checks, the lazy TEMP environment,
 `RowSecurityPrincipal`, the role store's read fences, allocators and Restore
 capture, the row-security setting guard, DROP OWNED policy
 cleanup, the `RowSecurityKind` fallback, the TEMP namespace helpers and the
-ownerless ACL validation of access methods and casts. Engine unit tests
-exercise the checks through `AuthorizationView`.
+ownerless ACL validation of access methods and casts. Routine denial checks pin
+canonical function/window/procedure kinds independently of a SQL body, while
+preserving generic replacement-ownership wording. Engine unit tests exercise
+the checks through `AuthorizationView`.
 System-read versus ordinary-column authority uses `RUN='^TestQueryTableOIDAdmission'`.
 
 
 ```sh
-make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|RoleStore|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|TemporaryNamespaceOnly))'
+make check RUN='^Test(AccessMethodOwnerlessACLValidation|AdjustRelationCreationPersistence|RoleStore|CastDefinitionOwnerlessACL|DropOwnedPolicyTargets|OperatorFamilyMemberOwnershipValidation|OwnTemporaryNamespace|RoleReadRequiresOwnerDomainAndRoot|RowSecurity(KindDelegates|PrincipalFollows|SettingGuard)|View(RejectsForeign|RoutineDenialKind|TemporaryNamespaceOnly))'
 make check RUN='^Test(AccessView|RoleStore|DatabaseTemporaryCapturedRights|DataTypePrivilegesCapture|ObjectACLAddressLookup|RLS|Ownership|RoleOwnership|DropOwned|ReassignOwned)'
 make check RUN='^TestReference(AccessRole|ForeignActionsAuthorization|SchemaAuthorization$$|TypedTableAuthorization$$)'
 ```

@@ -20,10 +20,11 @@ Explicit VOLATILE selects the ordinary effectful SQL routine mode.
 
 SQL result declarations retain set cardinality independently of scalar/composite
 shape. OUT/INOUT and TABLE fields use the same ordered formal projections and
-input-only signature. Multiple outputs derive a declaration-owned record; TABLE
-retains output-only mode `t` for metadata and replay. Replacement checks actual
-row shape and setness, not just the shared RECORD OID. Dump renders TABLE/SETOF
-and orders real formal child types and named result types before their callers.
+input-only signature. Functions with multiple outputs and procedures with any
+output derive a declaration-owned record; TABLE retains output-only mode `t`.
+Replacement checks actual row shape and setness, not just the shared RECORD OID.
+Dump renders modes/defaults/VARIADIC and TABLE/SETOF, and orders real formal child
+types and named result types before their callers.
 
 Declaration safety checks result/output determinability and INTERNAL input
 requirements before replacement compatibility. Language admission follows the
@@ -43,13 +44,13 @@ resolution, while state/drop use normal owner-role authority after lookup.
 The engine owns phase scheduling, genuine private utility publication and
 unlocked implicit invocation; no replication modes or helper SRFs are fabricated.
 
-`CREATE OR REPLACE FUNCTION` uses the same SQL/PL declaration, default and body
+`CREATE OR REPLACE FUNCTION/PROCEDURE` uses the same SQL/PL declaration, default and body
 binders as creation. Exact name/namespace/input identity retains OID, owner, ACL
 and extension membership. Owner/kind/result checks, existing named inputs and
 trailing default compatibility precede tentative replacement; body-validation
 failure leaves the checked predecessor intact. SQL/PL language changes keep
 ordinary validation. Builtin/externally implemented function replacement and
-unrelated procedure/language admission are not added by this bounded contract.
+language lifecycle retain their separate admission contracts.
 
 ## Routine ALTER contract
 

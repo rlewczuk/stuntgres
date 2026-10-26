@@ -13,9 +13,10 @@ Native [Reset, Dump and Restore](docs/FIXTURES.md) give explicit logical snapsho
 for fixtures; they are not `pg_dump` archives. The optional `cmd/stuntgres`
 executable serves the same engine over the PostgreSQL wire protocol.
 
-The [PL/pgSQL block core](reference/operators/README.md#plpgsql-core) supports
-DO, lexical declarations, assignment and scalar/void RETURN, not general
-procedural control flow, CALL/copyback or language lifecycle.
+SQL and PL/pgSQL procedures use standalone `CALL`, including named, default and
+variadic arguments and declared OUT/INOUT result columns. Calls share the
+executing statement's atomic effects and cancellation. Native fixture controls
+preserve routine declarations and data; see [routine execution](docs/DRIVER.md).
 
 Client connection defaults use one typed settings registry, including
 `SET XML OPTION DOCUMENT/CONTENT`. Presentation, UTF8/C locale boundaries,

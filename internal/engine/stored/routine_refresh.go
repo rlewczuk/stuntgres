@@ -34,7 +34,7 @@ func currentRoutineCall(read catalog.Read, call plan.SQLRoutineExpr) (*catalog.P
 		return nil, ids.ErrCatalogReplaced
 	}
 	current, ok := read.Procedure(call.Ref.Address)
-	if !ok || current.SQL == nil || !exec.SameRoutineDeclaration(current, call.Procedure) || current.RoutineKind != catalog.FunctionRoutine || !call.Signature.ValidFor(current.SQL) {
+	if !ok || current.SQL == nil || !exec.SameRoutineDeclaration(current, call.Procedure) || current.RoutineKind != call.Procedure.RoutineKind || !call.Signature.ValidFor(current.SQL) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	derived, err := call.Collate(func(info expr.Info, inputs ...expr.Expr) (expr.Info, error) {

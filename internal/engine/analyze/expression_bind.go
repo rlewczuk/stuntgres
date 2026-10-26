@@ -66,6 +66,23 @@ func (b *Binder) Bind(raw parser.Expr, policy ExpressionPolicy) (boundResult exp
 			boundResult = nil
 		}
 	}()
+	if b.Consumer.CallArguments {
+		switch r := raw.(type) {
+		case parser.SubqueryExpr:
+			return nil, expr.ErrorAt("0A000", "cannot use subquery in CALL argument", r.Pos)
+		case parser.IndexSubqueryExpr:
+			return nil, expr.ErrorAt("0A000", "cannot use subquery in CALL argument", r.Pos)
+		case parser.AggregateExpr:
+			if r.Window != nil {
+				return nil, expr.ErrorAt("42P20", "window functions are not allowed in CALL arguments", r.Pos)
+			}
+			return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in CALL arguments", r.Pos)
+		case parser.FunctionExpr:
+			if r.Window != nil {
+				return nil, expr.ErrorAt("42P20", "window functions are not allowed in CALL arguments", r.Pos)
+			}
+		}
+	}
 	if b.Consumer.CopyWhere {
 		switch r := raw.(type) {
 		case parser.SubqueryExpr:

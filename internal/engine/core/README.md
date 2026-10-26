@@ -13,9 +13,13 @@ Routine invocation activates concrete checked inputs/results without changing
 catalog declarations. Session-private SQL analysis and PL program retention each
 keep only the last specialization, keyed by complete usages, declaration/name
 and input collation. Nested invocations retain their own frames and immutable
-program projections. RECORD input projections unwrap actual tuple descriptors
-before PL compilation, so retained `%TYPE` copies and parameter frames agree
-without changing caller transport metadata. Scalar RECORD packing and result
+program projections. Canonical declaration specialization projects each PL OUT
+formal from its invocation tuple member. Compilation owns a private definition
+and formal slice even when usages are unchanged; only genuinely unshaped RECORD
+OUT transport is deferred, never an already-shaped member. RECORD inputs unwrap
+actual tuple descriptors before PL compilation, so retained `%TYPE` copies and
+parameter frames agree without changing caller transport metadata. Scalar
+RECORD packing and result
 coercions are planned before producers open. Terminal validation converts only
 the admitted catalog's unshaped RECORD declaration to a private executable
 usage; it does not grant authority to foreign same-OID descriptors. First-row
@@ -45,6 +49,15 @@ fields, shared by every database target:
 Event-trigger definition DDL also goes through `Statements.Execute` to the
 schema family. Its successful completion uses `CompleteUtility`, preserving any
 pending statement journal; core owns callback execution, not schema execution.
+
+Standalone CALL follows analyzed command admission, fold publication and the
+shared SQL/PL invocation owner, not synthetic SELECT or a second connection.
+Describe exposes declaration-owned OUT/INOUT labels with checked invocation
+member usages; execution exports one detached tuple through `anonymousResult`,
+or no descriptor without outputs. CALL's
+completion count is zero regardless of body effects. Quoted SQL-body CALL with
+outputs fails before producers; no-output calls use the ordinary command runner.
+Unquoted SQL bodies reject CALL during definition validation.
 
 Code shared by families with no arrow between them sits here: relation
 ownership (`ExecuteRelationOwnership`, `OwnershipStage`, `PublishOwnership`)
@@ -488,8 +501,9 @@ list cached by its prepared handle. VACUUM is
   identity and immutable `exec.AcceptedFolds`. Its `PreparedResource.Root` is the
   real graph consumed by the cursor, with the existing unlocked terminal close
   capability, never an observation copy or a graph in a shared definition.
-- Parse/Describe do not fold; Bind plans supported SELECT/DML bodies without
-  effects. Old accepted portals keep their fixed group/resource independently
+- Parse/Describe do not fold; Bind plans supported SELECT/DML/CALL bodies without
+  effects. Command portals retain a close capability but no query producer root.
+  Old accepted portals keep their fixed group/resource independently
   of definition close/name replacement and cannot publish into a replacement.
   Missing accepted groups for Bind-planned commands reject rather than silently
   recompute. Utility portals instead import inputs at Bind and use ordinary
@@ -955,6 +969,12 @@ Trigger payload/frame/runtime/remap/stage units share
 Event-trigger journal, frame, projection, drop and rewrite units share
 `RUN='^TestEventTrigger'`; public direct/prepared behavior belongs in the
 dual-mode reference suite.
+
+Routine invocation, CALL projection and retained-fold ownership units use
+`RUN='^Test(SQLRoutine|PLpgSQLProcedure)'`, also with `RACE=1`.
+The private session cache is observed by same-package handler units over seeded
+catalog descriptors and real session admission; composed external units assert
+checked bindings and compiler ownership. Neither requires an inspection export.
 
 Core tests are package-level units of these contracts; public SQL behavior is
 tested only in `reference/` ([docs/TESTING.md](../../../docs/TESTING.md)). SHOW ALL

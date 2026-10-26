@@ -407,6 +407,9 @@ func (v View) Check(env Environment, req Requirement) error {
 		kind = "event trigger"
 	} else if d.Kind() == ids.ProcedureObject {
 		kind = "function"
+		if p, ok := d.(*catalog.Procedure); ok && p.RoutineKind == catalog.ProcedureRoutine {
+			kind = "procedure"
+		}
 	} else if d.Kind() == ids.ForeignWrapperObject {
 		kind = "foreign-data wrapper"
 	} else if d.Kind() == ids.LargeObjectObject {

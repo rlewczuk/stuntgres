@@ -27,8 +27,10 @@ func (d *Definition) OutputTuple() (*sqltype.Descriptor, error) {
 	return sqltype.RecordSignatureShape(members)
 }
 
-// DerivedResult reports a function's formal-derived anonymous record policy.
-func (d *Definition) DerivedResult() bool { return len(d.OutputFormals) > 1 }
+// DerivedResult reports declaration-owned anonymous tuple result policy.
+func (d *Definition) DerivedResult() bool {
+	return len(d.OutputFormals) > 1 || d.Procedure && len(d.OutputFormals) > 0
+}
 
 // MatchesOutputTuple checks exact formal provenance, including child generations.
 func (d *Definition) MatchesOutputTuple(t *sqltype.Descriptor) bool {

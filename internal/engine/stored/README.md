@@ -10,6 +10,10 @@ sources and typed local Usages participate in validation, equivalence and remap;
 declared pseudo signatures pass the same determinability and language checks as
 creation, separately from concrete invocation validation. No activation values or
 evaluated PL expressions enter stored payloads.
+Procedure result policy remains declaration-owned through validation and remap:
+every OUT/INOUT tuple is RECORD even with one member, while no-output is VOID.
+The shared original-occurrence memo maps output shape, formals and child
+generations once; same-OID foreign/unshaped descriptors remain invalid.
 
 `Trigger`/`TriggerList` provide a checked relation-owned `TriggersPayload`, sorted
 by table-local name. Definitions retain routine/attribute identities, immutable
@@ -641,7 +645,7 @@ Public behavior belongs in `reference/`; follow [docs/TESTING.md](../../../docs/
 add `REFERENCE=1` for the oracle.
 Frozen source-identity captures and remapping use `RUN='^TestStoredTableOID'`.
 Formal-derived routine result validation and shared occurrence remapping use
-`RUN='^TestSQLRoutineResult'`, also with `RACE=1`; malformed shapes and foreign
+`RUN='^TestSQLRoutine(Result|Procedure)'`, also with `RACE=1`; malformed shapes and foreign
 child generations must fail without changing the original declaration.
 Installed declaration and generated constructor ownership use
 `RUN='^TestRoutineFormal(Installed|Constructor)OwnerRemap$'` with `RACE=1`.

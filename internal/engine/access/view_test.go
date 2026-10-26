@@ -240,3 +240,44 @@ func TestRoleRecordAuthorityLineage(t *testing.T) {
 		t.Fatal("fresh or nil authority lineage")
 	}
 }
+
+func TestViewRoutineDenialKind(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		kind catalog.RoutineKind
+		noun string
+	}{
+		{"function", catalog.FunctionRoutine, "function"},
+		{"window", catalog.WindowRoutine, "function"},
+		{"procedure", catalog.ProcedureRoutine, "procedure"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newAccessFixture(t)
+			p := &catalog.Procedure{
+				ObjectAddress:   ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 42000},
+				ObjectNamespace: f.public.Address(), ObjectRevision: 1, ObjectName: "p",
+				RoutineKind: tc.kind, Owner: f.bootstrap,
+				ACL: authorization.ACLValue{Explicit: true},
+			}
+			f.read.State().SetDescriptor(p.Address(), p)
+			v := f.view(t, "pg_monitor")
+			ref := v.Ref(p.Address())
+			env := countingEnvironment{calls: new(int)}
+			for _, check := range []struct {
+				req     Requirement
+				message string
+			}{
+				{Requirement{Object: ref, Privileges: authorization.ExecutePrivilege}, "permission denied for " + tc.noun + " p"},
+				// PostgreSQL's CREATE OR REPLACE ownership check uses
+				// OBJECT_FUNCTION even for a procedure (pg_proc.c).
+				{Requirement{Object: ref, OwnerOnly: true}, "must be owner of function p"},
+			} {
+				err := v.Check(env, check.req)
+				diagnostic, ok := err.(interface{ SQLState() string })
+				if !ok || diagnostic.SQLState() != "42501" || err.Error() != "stuntgres: "+check.message {
+					t.Fatalf("denial: got %v, want 42501 %q", err, check.message)
+				}
+			}
+		})
+	}
+}

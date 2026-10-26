@@ -127,6 +127,9 @@ func (c *Context) evalSQLRoutine(n plan.SQLRoutineExpr, values *[]sqltype.Value)
 	if err != nil {
 		return value, err // The body owner annotates its actual command ordinal.
 	}
+	if n.Procedure.RoutineKind == catalog.ProcedureRoutine && n.Procedure.SQL.Void() {
+		value = sqltype.VoidValue(n.Usage.Type)
+	}
 	return frame.Result(value, n.Usage)
 }
 

@@ -52,7 +52,7 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			d := &catalog.Procedure{ObjectName: "procedure_unit", RoutineKind: catalog.ProcedureRoutine, Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "procedure_unit", Source: source, Result: void.Usage(), PLSyntax: raw}}
+			d := &catalog.Procedure{ObjectName: "procedure_unit", RoutineKind: catalog.ProcedureRoutine, Language: language.Address(), SQL: &proc.Definition{Procedure: true, Kind: proc.PLpgSQLBody, Name: "procedure_unit", Source: source, Result: void.Usage(), PLSyntax: raw}}
 			e.Mu.Lock()
 			auth, err := e.AuthorizationLocked(s.Op)
 			if err == nil {
@@ -70,6 +70,61 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 			}
 		})
 	}
+	t.Run("declared_output_tuple", func(t *testing.T) {
+		e, s := plUnitScope(t)
+		read := e.CatalogRead()
+		language, err := catalog.LookupLanguage(read, "plpgsql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		integer, _ := read.LookupType(sqltype.Int4)
+		definition := &proc.Definition{Procedure: true, Kind: proc.PLpgSQLBody, Name: "procedure_outputs", Source: "BEGIN answer:=n+1;n:=n+2;END"}
+		if err = definition.SetFormals([]proc.Formal{{Mode: "b", Name: "n", Usage: integer.Usage()}, {Mode: "o", Name: "answer", Usage: integer.Usage()}}); err != nil {
+			t.Fatal(err)
+		}
+		tuple, err := definition.OutputTuple()
+		if err != nil {
+			t.Fatal(err)
+		}
+		definition.Result = tuple.Usage()
+		definition.PLSyntax, err = parser.ParsePLpgSQL(definition.Source, proc.PLReturnPolicy(definition.Result, 2, true))
+		if err != nil {
+			t.Fatal(err)
+		}
+		d := &catalog.Procedure{ObjectName: definition.Name, RoutineKind: catalog.ProcedureRoutine, Language: language.Address(), Signature: "23", Result: 2249, SQL: definition}
+		e.Mu.Lock()
+		auth, err := e.AuthorizationLocked(s.Op)
+		if err == nil {
+			err = e.CompilePLRoutineLocked(s.Op, auth, d)
+		}
+		e.Mu.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+		frame := proc.NewFrame(definition.Inputs)
+		defer frame.Close()
+		input, err := sqltype.Integer(integer, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = frame.Bind(0, input, integer.Usage()); err != nil {
+			t.Fatal(err)
+		}
+		previous := core.ScopeSQLRoutine(s)
+		value, err := core.ScopeInvokePLRoutine(s, d, frame, read, sqltype.CollationRef{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if value.Type() != tuple || value.CompositeLen() != 2 || !core.SameSQLRoutineDemand(core.ScopeSQLRoutine(s), previous) || !sqltype.SameDatum(frame.Parameters[0], input) {
+			t.Fatal("procedure output lifetime/scratch or caller frame")
+		}
+		for i, want := range []int64{12, 11} {
+			got, err := value.CompositeField(i).Integer()
+			if err != nil || got != want {
+				t.Fatal(got, want, err)
+			}
+		}
+	})
 	e, s := plUnitScope(t)
 	read := e.CatalogRead()
 	language, err := catalog.LookupLanguage(read, "plpgsql")
@@ -82,7 +137,7 @@ func TestPLpgSQLProcedureReturn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d := &catalog.Procedure{ObjectName: "bad_procedure", RoutineKind: catalog.ProcedureRoutine, Language: language.Address(), SQL: &proc.Definition{Kind: proc.PLpgSQLBody, Name: "bad_procedure", Source: source, Result: void.Usage(), PLSyntax: raw}}
+	d := &catalog.Procedure{ObjectName: "bad_procedure", RoutineKind: catalog.ProcedureRoutine, Language: language.Address(), SQL: &proc.Definition{Procedure: true, Kind: proc.PLpgSQLBody, Name: "bad_procedure", Source: source, Result: void.Usage(), PLSyntax: raw}}
 	e.Mu.Lock()
 	auth, err := e.AuthorizationLocked(s.Op)
 	if err == nil {

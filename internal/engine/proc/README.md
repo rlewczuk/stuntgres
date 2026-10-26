@@ -7,7 +7,7 @@ or own name lookup, permissions, query execution, transactions or prepared cache
 `Definition` retains body form, original quoted text/source position, ordered
 statement syntax and ordered formal modes/names/usages/default-presence flags.
 `SetFormals` derives input/output projections, inverse input slots and input-only
-SQL names/usages. INOUT belongs to both; pure OUT consumes no actual input.
+SQL names/usages. INOUT belongs to both; pure OUT consumes no invocation input.
 PL lexical `$n` separately addresses all declared formals, including OUT.
 Shared SQL names are projection-aware, allowing pure IN/OUT name reuse; PL's
 single formal namespace instead rejects named/positional collisions.
@@ -28,9 +28,11 @@ companion descriptors and the exact subtype descriptor used by scalar members.
 `ResolveResult` applies the caller's input-family solution to those output members;
 outputs never supply independent type inference. Derived OUT members project that
 solution without applying actual-input or scalar-result enum/nonarray restrictions.
-`Definition.Specialize` projects
-concrete inputs, result and formals into an invocation-private definition, sharing
-unchanged immutable syntax and leaving published declarations untouched.
+`Definition.Specialize` projects concrete inputs, result and formals into an
+invocation-private definition. Each derived OUT formal uses its corresponding
+tuple member, including a procedure's sole output; scalar function policy is
+unchanged. It shares immutable syntax, leaves published declarations untouched,
+and returns the original definition when no usage changes.
 PL polymorphic result `$0` is a private NULL-initialized slot only when there are
 no OUT placeholders. Aliases share that result slot; invocation-specialized
 formals and transitive `%TYPE` copies share immutable syntax, not mutable
@@ -87,10 +89,12 @@ immutable ordered record from OUT/INOUT/TABLE formals, synthesizing unnamed outp
 labels by output ordinal. `RecordSignatureShape` admits canonical polymorphic
 declaration members without granting value or storage authority; specialization
 builds an ordinary concrete `RecordShape`. `MatchesOutputTuple` checks exact
-formal provenance. Function policy collapses one output; `PlanTuple` preserves
-even one composite output as a tuple member for other routine owners.
-Derived records have no catalog storage identity; their children retain exact
-type generations and usages. VOID discards every output and yields typed SQL NULL.
+formal provenance. Function policy collapses one output; procedure policy keeps
+a declaration-owned RECORD for any output, and VOID only without outputs.
+`PlanTuple` preserves even one composite output as a tuple member. Derived records
+have no catalog storage identity; their children retain exact type generations
+and usages. VOID discards body output and yields typed SQL NULL without a CALL
+row descriptor.
 Result mismatch rendering accepts an admitted type-name capability without
 retaining it in the plan; named types follow the captured search path, while
 anonymous records keep their SQL diagnostic identity.
@@ -120,6 +124,10 @@ EXECUTE/invoker authority and data. Eligible non-set terminal SELECT
 uses first-row demand; nonterminal/VOID SELECT, set results and every DML command
 run fully. Required sort/aggregate/auxiliary work remains query/DML-owned.
 No scalar row yields whole typed NULL; a present all-NULL tuple remains present.
+Standalone CALL rejects an absent SQL output record with XX000, rather than
+fabricating a row of NULL members. PL procedures export final output slots into
+their declared tuple before closing the lexical frame, on bare RETURN or
+fallthrough; the no-output private handler result remains empty.
 Set declarations retain every row and yield zero values when empty. Completed
 set values belong to the existing owned source protocol, not a suspended frame
 or statement scope. Persistence retains TABLE/SETOF and ordered formal modes,
@@ -367,8 +375,8 @@ diagnostics keep their own action, and source failures use the FOR action alone.
 ## Testing
 
 Package units cover frames, parameter layout and genuine result-schema/tuple
-adaptation (`RUN='^TestRoutineResult'`). Engine-level invocation units live in
-`internal/engine/core`. Public SQL routines live in
+adaptation (`RUN='^TestRoutine(Parameter|Result|Procedure)'`). Engine-level
+invocation units live in `internal/engine/core`. Public SQL routines live in
 [reference/query_core](../../../reference/query_core/README.md#testing) (bodies),
 [reference/operators](../../../reference/operators/README.md#testing) (parameters)
 and [reference/query_outer](../../../reference/query_outer/README.md#testing)

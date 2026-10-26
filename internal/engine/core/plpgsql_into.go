@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/proc"
@@ -24,7 +25,7 @@ func (h *plHost) Capture(run *proc.PLRun, f *proc.PLFrame, in proc.PLInstruction
 	var result Result
 	origin := s.plNoticeOrigin(f, in.Syntax.Pos, plIntoAction)
 	noticeStart := len(s.Op.Notices)
-	diagnostic := proc.PLDiagnosticQuery{Text: raw.Text, Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
+	diagnostic := proc.PLDiagnosticQuery{Text: strings.TrimRight(raw.Text, " \t\r\n"), Offset: raw.Start.Character - 1, Callback: proc.PLSQLCallback}
 	failure := func(cause error) error {
 		return s.plRuntimeQueryError(cause, h.read, h.d, in.Syntax.Pos, plIntoAction, diagnostic)
 	}

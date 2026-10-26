@@ -51,7 +51,7 @@ func TestSQLRoutineResultShapeValidation(t *testing.T) {
 		t.Fatal("correct formal-derived shape", err)
 	}
 	original := d.SQL.Result.Type
-	for _, kind := range []string{"name", "order", "type", "attribute", "width", "unshaped", "foreign child", "set policy", "projection"} {
+	for _, kind := range []string{"name", "order", "type", "attribute", "width", "unshaped", "foreign child", "set policy", "projection", "procedure policy"} {
 		t.Run(kind, func(t *testing.T) {
 			next := *d
 			definition := *d.SQL
@@ -86,6 +86,8 @@ func TestSQLRoutineResultShapeValidation(t *testing.T) {
 				definition.TableResult = true
 			case "projection":
 				definition.OutputFormals = []int{1, 999}
+			case "procedure policy":
+				definition.Procedure = true
 			}
 			if kind != "unshaped" {
 				shape, err := sqltype.RecordShape(members)
@@ -312,7 +314,7 @@ func TestSQLRoutineScalarRecordRemap(t *testing.T) {
 			t.Fatal("stabilize scalar RECORD declaration", err)
 		}
 		call := plan.SQLRoutineExpr{
-			Info: expr.Info{Usage: result, RoutineReference: &source, Property: expr.Properties{Volatility: expr.Volatile}},
+			Info:      expr.Info{Usage: result, RoutineReference: &source, Property: expr.Properties{Volatility: expr.Volatile}},
 			Procedure: &source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()),
 			Signature: proc.InvocationSignature{Result: result},
 		}
@@ -362,5 +364,116 @@ func TestSQLRoutineScalarRecordRemap(t *testing.T) {
 	bad.SQL = &definition
 	if err := validateSQLProcedure(read, &bad); err == nil {
 		t.Fatal("foreign same-OID scalar RECORD declaration accepted")
+	}
+}
+
+func TestSQLRoutineProcedureResultOwnership(t *testing.T) {
+	read, original := resultProviderFixture(t)
+	integer, _ := read.LookupType(sqltype.Int4)
+	var leaves [3]*sqltype.Descriptor
+	for i := range leaves {
+		typ, err := sqltype.Domain(sqltype.ID(98500+i), "procedure_leaf", "capture.procedure_leaf", integer.Usage())
+		if err != nil {
+			t.Fatal(err)
+		}
+		leaves[i] = typ
+		descriptor := &catalog.Type{SQLType: typ, ObjectNamespace: original.Namespace(), ObjectRevision: 1}
+		read.State().SetDescriptor(descriptor.Address(), descriptor)
+	}
+	definition := &proc.Definition{Name: original.Name(), Procedure: true}
+	if err := definition.SetFormals([]proc.Formal{{Mode: "i", Name: "x", Usage: leaves[0].Usage()}, {Mode: "o", Name: "answer", Usage: leaves[0].Usage()}}); err != nil {
+		t.Fatal(err)
+	}
+	shape, err := definition.OutputTuple()
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition.Result = shape.Usage()
+	source := *original
+	source.SQL, source.Signature, source.RoutineKind = definition, "98500", catalog.ProcedureRoutine
+	read.State().SetDescriptor(source.Address(), &source)
+	if err := validateSQLProcedure(read, &source); err != nil {
+		t.Fatal("single OUT RECORD rejected", err)
+	}
+	for _, corruption := range []string{"scalar", "generic", "foreign", "name", "kind"} {
+		next, layout := source, *definition
+		next.SQL = &layout
+		switch corruption {
+		case "scalar":
+			layout.Result = leaves[0].Usage()
+			next.Result = 98500
+		case "generic":
+			generic, _ := read.LookupType(2249)
+			layout.Result = generic.Usage()
+		case "foreign":
+			foreign := *leaves[0]
+			layout.Formals = append([]proc.Formal(nil), layout.Formals...)
+			layout.Formals[1].Usage = foreign.Usage()
+			tuple, err := layout.OutputTuple()
+			if err != nil {
+				t.Fatal(err)
+			}
+			layout.Result = tuple.Usage()
+		case "name":
+			tuple, err := sqltype.RecordShape([]sqltype.CompositeMember{{Attribute: 1, Name: "wrong", Usage: leaves[0].Usage()}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			layout.Result = tuple.Usage()
+		case "kind":
+			layout.Procedure = false
+		}
+		if err := validateSQLProcedure(read, &next); err == nil {
+			t.Fatal("corrupt procedure output admitted", corruption)
+		}
+	}
+	mapper := NewRoutineRemap(read, nil, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+		if typ == leaves[0] {
+			return leaves[1]
+		}
+		if typ == leaves[1] {
+			return leaves[2]
+		}
+		return typ
+	}, nil, true)
+	mapped, err := mapper.Procedure(&source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = mapper.Declarations(); err != nil {
+		t.Fatal(err)
+	}
+	if !mapped.SQL.Procedure || mapped.SQL.Inputs[0].Type != leaves[1] || mapped.SQL.Formals[1].Usage.Type != leaves[1] || !mapped.SQL.MatchesOutputTuple(mapped.SQL.Result.Type) || mapped.SQL.Result.Type.CompositeMember(0).Usage.Type != leaves[1] || mapper.Type(shape) != mapped.SQL.Result.Type {
+		t.Fatal("procedure declaration/result mapped zero or twice")
+	}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: leaves[0].Usage()}, Value: sqltype.Null(leaves[0])}
+	call := plan.SQLRoutineExpr{Info: expr.Info{Usage: definition.Result, RoutineReference: &source, Property: expr.Properties{Volatility: expr.Volatile}}, Procedure: &source, Ref: read.Owner().Domain.Ref(read.Epoch(), source.Address()), Args: []expr.Expr{literal}, WrittenCount: 1, InputMap: []plan.RoutineInput{{Start: 0, Count: 1}}, ChildSlots: []int{0}, Signature: proc.InvocationSignature{Inputs: definition.Inputs, Result: definition.Result}}
+	if err := call.ValidateStoredProvider(); err != nil {
+		t.Fatal("original procedure call provenance", err)
+	}
+	rebuilt, _, err := mapExpressionWithProcedure(read, nil, call, mapper.Type, nil, nil, false, nil, mapper.Procedure, mapper.Collation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = rebuilt.(plan.SQLRoutineExpr).ValidateStoredProvider(); err != nil {
+		t.Fatal(err)
+	}
+	if rebuilt.ResultUsage().Type != mapper.Type(shape) || rebuilt.(plan.SQLRoutineExpr).Procedure != mapped {
+		t.Fatal("call and declaration remapped competing result generations")
+	}
+	rejected := NewRoutineRemap(read, nil, func(typ *sqltype.Descriptor) *sqltype.Descriptor {
+		if typ == leaves[0] {
+			return nil
+		}
+		return typ
+	}, nil, true)
+	if _, err := rejected.Definition(definition); err == nil {
+		t.Fatal("missing child generation accepted")
+	}
+	if definition.Result.Type != shape || definition.Formals[1].Usage.Type != leaves[0] || source.SQL != definition || call.ResultUsage().Type != shape {
+		t.Fatal("remap or rejected candidate mutated source")
+	}
+	if err := mapper.Finish(); err != nil {
+		t.Fatal(err)
 	}
 }

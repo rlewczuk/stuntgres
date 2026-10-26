@@ -127,6 +127,11 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Builtin input names have one immutable declaration owner. `parameters` and
   `pg_proc` share the ordered formal walk and name projection; argument count
   and identity remain input-only.
+  `proallargtypes` and `proargmodes` retain all declaration slots in order through
+  one typed-array materializer.
+  `pronargdefaults` reads SQL/PL `Formals` through `DefaultCount`, or the captured
+  builtin/installed declaration's default count; metadata-only internal routines
+  have zero defaults. It never evaluates defaults or retains a separate registry.
   All-IN declarations return typed NULL arrays before allocating element slices.
   Non-SQL VARIADIC uses the existing `ProcedureVariadic` owner and terminal input
   slot, retaining its declared array/ANY type rather than the element OID.
@@ -144,13 +149,14 @@ type Producer func(Input) ([][]sqltype.Value, error)
   Owned aggregate `proargnames` follows the canonical flattened declaration,
   including retained direct and ordered argument names; unnamed declarations
   retain NULL rather than an invented list.
-  The twenty-column projection preserves these declaration fields and appends
-  nullable ACLITEM[] `proacl`, using captured `Runtime.ObjectACL` and `ClassACL`
-  authority. Implicit routine ACLs remain SQL NULL; explicit empty and granted
-  ACLs remain real arrays. Internal metadata-only supplements retain NULL ACLs.
+  The twenty-one-column projection preserves these declaration fields, nullable
+  ACLITEM[] `proacl`, and non-NULL INT2 `pronargdefaults`. ACLs use captured
+  `Runtime.ObjectACL` and `ClassACL` authority. Implicit routine ACLs remain SQL
+  NULL; explicit empty and granted ACLs remain real arrays. Internal metadata-only
+  supplements retain NULL ACLs.
   Canonical array-compatible OIDVECTOR owns `proargtypes`; no separate carrier
   or scalar-only vector path is introduced. Released attribute identities stay
-  `proargtypes`20, `proallargtypes`21, `proargmodes`22 and `proacl`30
+  `pronargdefaults`18, `proargtypes`20, `proallargtypes`21, `proargmodes`22 and `proacl`30
   independently of projection order.
 - `pg_index` vector cells use the runtime's captured index metadata projection,
   then shared typed constructors: all key/INCLUDE attributes in `indkey`,
@@ -704,10 +710,10 @@ catalog SQL belongs in `reference/catalogs` and its sibling catalog packages
 - Package units: `RUN='^Test(ProducerRegistryLookup|PgClassPartitionTree|CollationActualVersionProviders)$'`
 - Ordered routine formal arrays, represented builtin/installed/generated
   declarations and released attribute identities:
-  `RUN='^TestRoutineResultFormal(Builtin|Owned)?Catalog$'`, also with `RACE=1`.
+  `RUN='^(TestRoutineResultFormal(Builtin|Owned)?Catalog|TestRoutineProcedureDefaultCount)$'`, also with `RACE=1`.
   Composed declaration captures live in `enginetests/`; SQL projection units
   remain here. Expectations include scalar OUT, canonical VARIADIC, one-based
-  dimensions and typed all-IN NULL controls.
+  dimensions, typed all-IN NULL controls and declaration-owned default counts.
 - Registry coverage (engine): `RUN='^TestCatalogSourceProducerCoverage$'`
 - Producer units (engine): `RUN='^Test(PGLargeobject|PGTransform|PGSettings|Info(UserMappings|KeyColumnUsage|ConstraintColumnUsage|RoutineSequenceUsage|RoutineRoutineUsage|CharacterSets|Collations))'`
 - Column-domain usage producer units (core): `RUN='^TestInfoColumnDomainUsage'`

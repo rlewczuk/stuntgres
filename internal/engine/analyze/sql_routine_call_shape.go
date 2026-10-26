@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,6 +28,36 @@ func SQLCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 			declared = append(declared, t.Usage())
 			candidate.polymorphic = candidate.polymorphic || !t.Concrete()
 		}
+	}
+	if outputs := d.OutputDeclaration(); raw.ProcedureCall && outputs != nil {
+		layout := &proc.Definition{Inputs: declared, InputFormals: make([]int, len(declared)), FormalInputs: make([]int, len(declared)+outputs.Len()), Formals: make([]proc.Formal, len(declared)+outputs.Len())}
+		defaults := int(d.Installed.Defaults)
+		variadic := sqltype.ID(0)
+		if d.Builtin != nil {
+			defaults, variadic = int(d.Builtin.Defaults), sqltype.ID(d.Builtin.Variadic)
+		}
+		for i, usage := range declared {
+			layout.InputFormals[i], layout.FormalInputs[i] = i, i
+			layout.Formals[i] = proc.Formal{Mode: "i", Name: outputs.Name(i), Usage: usage}
+			layout.Formals[i].HasDefault = i >= len(declared)-defaults
+			if i == len(declared)-1 && variadic != 0 {
+				layout.Formals[i].Mode = "v"
+			}
+		}
+		for i := range outputs.Len() {
+			t, ok := catalog.DefinitionTypeAt(view, reader, sqltype.ID(outputs.Type(i)))
+			if !ok {
+				return candidate, false
+			}
+			index := len(declared) + i
+			layout.FormalInputs[index] = -1
+			layout.Formals[index] = proc.Formal{Mode: "o", Name: outputs.Name(index), Usage: t.Usage()}
+		}
+		projected := *d
+		projected.SQL = layout
+		candidate, valid := sqlRoutineParameterShape(view, reader, &projected, raw)
+		candidate.Procedure = d
+		return candidate, valid
 	}
 	if len(raw.ArgNames) > 0 {
 		if len(declared) == 0 {
@@ -139,24 +170,34 @@ func (b *Binder) ProbeSQLCallable(raw parser.FunctionExpr, operands []functions.
 		for i, operand := range operands {
 			if candidate.Inputs[i].Type.ID() == 2276 {
 				candidate.Targets[i] = operand.Usage
-				if candidate.Targets[i].Type == nil { candidate.Targets[i] = b.Type(sqltype.Text).Usage() }
+				if candidate.Targets[i].Type == nil {
+					candidate.Targets[i] = b.Type(sqltype.Text).Usage()
+				}
 			}
 		}
 		return true
 	}
 	if candidate.Procedure.Installed.ArgumentNames[0] != "" {
 		declared := candidate.Inputs
-		if candidate.NamedDeclaration != nil { declared = candidate.NamedDeclaration }
-		if len(operands) != len(declared) || len(declared) > 4 || raw.Variadic { return false }
+		if candidate.NamedDeclaration != nil {
+			declared = candidate.NamedDeclaration
+		}
+		if len(operands) != len(declared) || len(declared) > 4 || raw.Variadic {
+			return false
+		}
 		var names [7]string
 		copy(names[:], candidate.Procedure.Installed.ArgumentNames[:])
 		written, _, valid := functions.RegexpSlots(raw, names, len(operands))
-		if !valid { return false }
+		if !valid {
+			return false
+		}
 		candidate.Inputs = make([]sqltype.Usage, len(declared))
 		candidate.Targets = make([]sqltype.Usage, len(declared))
 		for i, slot := range written[:len(operands)] {
 			target := declared[slot]
-			if operands[i].Usage.Type != nil && !b.CanCoerce(operands[i].Usage, target, sqltype.Implicit) { return false }
+			if operands[i].Usage.Type != nil && !b.CanCoerce(operands[i].Usage, target, sqltype.Implicit) {
+				return false
+			}
 			candidate.Inputs[i], candidate.Targets[i] = target, target
 		}
 		return true

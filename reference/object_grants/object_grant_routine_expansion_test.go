@@ -13,43 +13,31 @@ func TestReferenceObjectGrantRoutineSchemaExpansion(t *testing.T) {
 		run(fixture.Exec("CREATE SCHEMA og_routine_empty", 0))
 		run(fixture.Exec("GRANT USAGE ON SCHEMA og_routine_scope,og_routine_empty TO og_object_reader", 0))
 		run(fixture.Exec("CREATE EXTENSION unaccent SCHEMA og_routine_scope", 0))
-		if b.PG {
-			// PostgreSQL supplies the actual procedure creator/runtime. Native
-			// has no such provider; its ALL PROCEDURES expansion is genuinely empty.
-			run(fixture.Exec("CREATE PROCEDURE og_routine_scope.p() LANGUAGE SQL AS 'SELECT 1'", 0))
-		}
+		run(fixture.Exec("CREATE PROCEDURE og_routine_scope.p() LANGUAGE SQL AS 'SELECT 1'", 0))
 		run(fixture.Exec("REVOKE ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA og_routine_scope FROM PUBLIC", 0))
 		call := "SELECT og_routine_scope.unaccent('Hôtel') AS v"
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			fixture.RoleGrantPermissionDenied(run, call, "function", "unaccent")
-			if b.PG {
-				fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
-			}
+			fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
 		})
 		fixture.RoleGrantError(run, "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA og_routine_scope,og_routine_missing TO og_object_reader", "3F000", `schema "og_routine_missing" does not exist`)
 		fixture.RoleGrantActor(run, "og_object_reader", func() { fixture.RoleGrantPermissionDenied(run, call, "function", "unaccent") })
 		run(fixture.Exec("GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA og_routine_scope TO og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select(call, []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}}))
-			if b.PG {
-				fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
-			}
+			fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
 		})
 		run(fixture.Exec("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA og_routine_scope FROM og_object_reader", 0))
 		run(fixture.Exec("GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA og_routine_scope TO og_object_reader", 0))
 		run(fixture.Exec("GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA og_routine_empty TO og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			fixture.RoleGrantPermissionDenied(run, call, "function", "unaccent")
-			if b.PG {
-				run(fixture.Exec("CALL og_routine_scope.p()", 0))
-			}
+			run(fixture.Exec("CALL og_routine_scope.p()", 0))
 		})
 		run(fixture.Exec("GRANT EXECUTE ON ALL ROUTINES IN SCHEMA og_routine_scope TO og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select(call, []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}}))
-			if b.PG {
-				run(fixture.Exec("CALL og_routine_scope.p()", 0))
-			}
+			run(fixture.Exec("CALL og_routine_scope.p()", 0))
 		})
 		var revokeOwner string
 		if err := c.QueryRowContext(p.Ctx, "SELECT current_user").Scan(&revokeOwner); err != nil {
@@ -70,42 +58,32 @@ func TestReferenceObjectGrantRoutineSchemaExpansion(t *testing.T) {
 		revokeACL()
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select(call, []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}}))
-			if b.PG {
-				run(fixture.Exec("CALL og_routine_scope.p()", 0))
-			}
+			run(fixture.Exec("CALL og_routine_scope.p()", 0))
 		})
 		run(fixture.Exec("REVOKE EXECUTE ON ALL PROCEDURES IN SCHEMA og_routine_scope FROM og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			run(fixture.Select(call, []string{"v"}, []string{"TEXT"}, [][]any{{"Hotel"}}))
-			if b.PG {
-				fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
-			}
+			fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
 		})
 		run(fixture.Exec("GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA og_routine_scope TO og_object_reader", 0))
 		run(fixture.Exec("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA og_routine_scope FROM og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			fixture.RoleGrantPermissionDenied(run, call, "function", "unaccent")
-			if b.PG {
-				run(fixture.Exec("CALL og_routine_scope.p()", 0))
-			}
+			run(fixture.Exec("CALL og_routine_scope.p()", 0))
 		})
 		run(fixture.Exec("GRANT EXECUTE ON ALL ROUTINES IN SCHEMA og_routine_scope TO og_object_reader", 0))
 		run(fixture.Exec("REVOKE EXECUTE ON ALL ROUTINES IN SCHEMA og_routine_scope FROM og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			fixture.RoleGrantPermissionDenied(run, call, "function", "unaccent")
-			if b.PG {
-				fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
-			}
+			fixture.RoleGrantPermissionDenied(run, "CALL og_routine_scope.p()", "procedure", "p")
 		})
 		run(fixture.Exec("GRANT EXECUTE ON ALL ROUTINES IN SCHEMA og_routine_scope TO og_object_reader", 0))
-		if b.PG {
-			fixture.RoleGrantError(run, "GRANT EXECUTE ON FUNCTION og_routine_scope.p() TO og_object_reader", "42809", "og_routine_scope.p() is not a function")
-			run(fixture.Exec("GRANT EXECUTE ON PROCEDURE og_routine_scope.p TO og_object_reader", 0))
-			// Expansion covers current objects only, never future function defaults.
-			run(fixture.Exec("CREATE FUNCTION og_routine_scope.later() RETURNS INTEGER LANGUAGE SQL AS 'SELECT 9'", 0))
-			run(fixture.Exec("REVOKE EXECUTE ON FUNCTION og_routine_scope.later() FROM PUBLIC", 0))
-			fixture.RoleGrantActor(run, "og_object_reader", func() { fixture.RoleGrantPermissionDenied(run, "SELECT og_routine_scope.later()", "function", "later") })
-		}
+		fixture.RoleGrantError(run, "GRANT EXECUTE ON FUNCTION og_routine_scope.p() TO og_object_reader", "42809", "og_routine_scope.p() is not a function")
+		run(fixture.Exec("GRANT EXECUTE ON PROCEDURE og_routine_scope.p TO og_object_reader", 0))
+		// Expansion covers current objects only, never future function defaults.
+		run(fixture.Exec("CREATE FUNCTION og_routine_scope.later() RETURNS INTEGER LANGUAGE SQL AS 'SELECT 9'", 0))
+		run(fixture.Exec("REVOKE EXECUTE ON FUNCTION og_routine_scope.later() FROM PUBLIC", 0))
+		fixture.RoleGrantActor(run, "og_object_reader", func() { fixture.RoleGrantPermissionDenied(run, "SELECT og_routine_scope.later()", "function", "later") })
 		run(fixture.Exec("REVOKE USAGE ON SCHEMA og_routine_scope FROM og_object_reader", 0))
 		fixture.RoleGrantActor(run, "og_object_reader", func() {
 			fixture.RoleGrantPermissionDenied(run, call, "schema", "og_routine_scope", prepared)

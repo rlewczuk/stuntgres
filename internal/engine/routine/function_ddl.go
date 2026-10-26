@@ -21,6 +21,9 @@ import (
 // StageCreateFunction stages CREATE FUNCTION ... LANGUAGE SQL and binds its
 // body against the stage, except during Restore SQL body replay.
 func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
+	if s.Procedure && s.InvalidAttribute.Character != 0 {
+		return expr.ErrorAt("42P13", "invalid attribute in procedure definition", s.InvalidAttribute)
+	}
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -55,7 +58,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 			return sqltype.Usage{}, err
 		}
 		typ, ok := h.DefinitionType(auth, sqltype.ID(id))
-		if (s.Procedure || s.Language.Text != "sql") && typ != nil && typ.BaseType().IsComposite() {
+		if s.Language.Text != "sql" && !s.Procedure && typ != nil && typ.BaseType().IsComposite() {
 			return sqltype.Usage{}, expr.ErrorAt("0A000", "SQL functions require concrete scalar types", raw.Pos)
 		}
 		if !ok || !typ.Concrete() && !sqltype.IsPseudo(typ.ID()) {
@@ -64,8 +67,8 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		return typ.Usage(), nil
 	}
 	for i, arg := range arguments {
-		if s.Procedure && (arg.Mode != "" && arg.Mode != "in" || arg.Default != nil) {
-			return expr.ErrorAt("0A000", "procedure argument modes and defaults are unsupported", arg.Pos)
+		if s.Procedure && arg.Type.Setof {
+			return expr.ErrorAt("42P13", "procedures cannot accept set arguments", arg.Pos)
 		}
 		mode := "i"
 		switch arg.Mode {
@@ -84,7 +87,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		}
 		formals[i] = proc.Formal{Mode: mode, Name: arg.Name.Text, Usage: usage, Position: arg.Pos, HasDefault: arg.Default != nil}
 	}
-	layout := &proc.Definition{}
+	layout := &proc.Definition{Procedure: s.Procedure}
 	if err = layout.SetFormals(formals); err != nil {
 		return err
 	}
@@ -93,12 +96,12 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 	for i, input := range inputs {
 		signature[i] = strconv.FormatUint(uint64(input.Type.ID()), 10)
 	}
-	if s.Language.Text != "sql" && len(layout.OutputFormals) > 1 {
+	if !s.Procedure && s.Language.Text != "sql" && len(layout.OutputFormals) > 1 {
 		return sqlError("0A000", "multiple-output SQL function execution is unsupported")
 	}
 	resultSyntax := s.Result
 	var result sqltype.Usage
-	if s.Procedure {
+	if s.Procedure && len(layout.OutputFormals) == 0 {
 		resultSyntax = parser.TypeName{Name: "void"}
 	} else if len(layout.OutputFormals) > 0 {
 		if layout.DerivedResult() {
@@ -254,6 +257,7 @@ func StageCreateFunction(h DDLHost, auth ddl.Authority, s *parser.CreateFunction
 		d.Display.Source = ""
 	}
 	definition.Name, definition.Names = name, names
+	definition.Procedure = s.Procedure
 	definition.Formals, definition.InputFormals = layout.Formals, layout.InputFormals
 	definition.OutputFormals, definition.FormalInputs = layout.OutputFormals, layout.FormalInputs
 	definition.ReturnsSet, definition.TableResult = s.Result.Setof, s.TableResult != nil

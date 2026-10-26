@@ -113,6 +113,20 @@ func TestSQLRoutineProviderCallShapes(t *testing.T) {
 			}
 		})
 	}
+	builtin, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3955})
+	if !ok {
+		t.Fatal("missing declared json_array_elements output owner")
+	}
+	full, valid := analyze.SQLCallableShape(auth.Catalog, auth.Definition, builtin, parser.FunctionExpr{ProcedureCall: true, Args: make([]parser.Expr, 2)})
+	if !valid || len(full.Inputs) != 2 || full.Inputs[0].Type.ID() != sqltype.JSON || full.Inputs[1].Type.ID() != sqltype.JSON || full.Procedure != builtin {
+		t.Fatal("builtin CALL omitted full OUT projection", full, valid)
+	}
+	if _, valid := analyze.SQLCallableShape(auth.Catalog, auth.Definition, builtin, parser.FunctionExpr{ProcedureCall: true, Args: make([]parser.Expr, 1)}); valid {
+		t.Fatal("builtin CALL omitted required OUT")
+	}
+	if _, valid := analyze.SQLCallableShape(auth.Catalog, auth.Definition, builtin, parser.FunctionExpr{Args: make([]parser.Expr, 1)}); !valid {
+		t.Fatal("builtin SELECT acquired OUT actual")
+	}
 }
 
 func TestSQLRoutineCallableShapeMasking(t *testing.T) {
