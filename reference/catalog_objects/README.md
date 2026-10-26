@@ -3,7 +3,7 @@
 Schema-object catalogs: `pg_namespace`, schemas and `search_path`, visibility
 inquiry functions, `pg_operator` (with the geometric and `lseg` operator
 catalogs), `pg_cast`, `pg_aggregate`, `pg_am`, `pg_opclass`, `pg_amop`, `pg_collation`,
-`pg_language`, `pg_transform`, `pg_ts_config`, `pg_ts_parser`, `pg_largeobject`, and comments
+`pg_language`, `pg_transform`, `pg_ts_config`, `pg_ts_config_map`, `pg_ts_parser`, `pg_largeobject`, and comments
 (`pg_description`, `pg_shdescription`, comment inquiry functions and
 transactional comments). The other catalog families are listed in
 [reference/catalogs](../catalogs/README.md).
@@ -87,6 +87,13 @@ scenarios assert complete notice records through the shared notice-enabled pool.
   Role DROP/recreate must not inherit text; this family does not add
   role-renaming SQL.
 
+Text-search mapping scenarios assert the four source-owned OID/INT4/INT4/OID
+columns, genuine configuration/parser/token/dictionary references and explicit
+dictionary sequence order. Held readers exercise changing parameters and current
+mapping state. Native replacement checks distinguish detached retained rows and
+metadata from fresh executions; PostgreSQL streaming rows are not treated as
+native-control snapshots.
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Namespaces, schemas, `search_path`: `RUN='^TestReferencePGNamespace'`, `RUN='^TestReferenceSchema'`
@@ -104,6 +111,8 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - Geometric position catalogs: `RUN='^TestReferenceGeometryPositionOperatorCatalog$'`
 - Casts: `RUN='^TestReferencePGCast'`
 - Collations, languages, transforms, text search: `RUN='^TestReferencePGCollation'`, `RUN='^TestReferencePGLanguage'`, `RUN='^TestReferencePGTransform'`, `RUN='^TestReferencePGTSConfig'`, `RUN='^TestReferencePGTSParser'`
+- Text-search mappings: `RUN='^TestReferencePGTSConfigMap'`; private ownership:
+  `RUN='^TestPGTSConfigMap(Capture|Ownership)$'`.
 - Large-object pages: `RUN='^TestReferencePGLargeobject'`
 - Visibility inquiries: `RUN='^TestReferenceVisibilityInquiry'`, `RUN='^TestReferenceBooleanCall'`
 - Catalog smoke scenarios migrated from the root package: `RUN='^TestReferenceSmoke'`

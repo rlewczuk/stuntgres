@@ -150,6 +150,9 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 		}
 		values := [4]int64{}
 		for i, v := range row {
+			if v.IsNull() || v.Type() != source.Columns[i].Usage.Type {
+				t.Fatal("mapping cell lost source-owned type", i, v)
+			}
 			if i == 0 || i == 3 {
 				oid, failure := v.OID()
 				err = failure
@@ -171,20 +174,146 @@ func TestPGTSConfigMapCapture(t *testing.T) {
 			t.Fatal("missing stock token", token)
 		}
 	}
+	retained := make([][]sqltype.Value, len(rows))
+	for i := range rows {
+		retained[i] = append([]sqltype.Value(nil), rows[i]...)
+	}
+	address := source.Address()
+	input.Ref = e.Catalog.Domain.Ref(e.Catalog.State.Epoch(), address)
+	captured, err := core.CaptureCatalogSourceRows(input, produce)
+	if err != nil || captured == nil || captured.Ref != input.Ref || captured.Anonymous == nil || !reflect.DeepEqual(captured.Anonymous, rows) {
+		t.Fatal("mapping capture lost source identity/rows", captured, err)
+	}
 	next := *view.MustTSConfiguration(ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: 3748})
 	next.Mappings = nil
 	next.ObjectRevision++
 	state := catalog.CloneState(view.State())
 	state.SetDescriptor(next.Address(), &next)
 	input.Catalog = view.WithState(state)
-	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || len(rows) != 19 {
-		t.Fatal("capture retained mapping rows", fresh, err)
+	if fresh, err := produce(input); err != nil || fresh == nil || len(fresh) != 0 || !reflect.DeepEqual(rows, retained) {
+		t.Fatal("capture retained exact mapping rows", fresh, err)
+	}
+	empty, err := core.CaptureCatalogSourceRows(input, produce)
+	if err != nil || empty == nil || empty.Ref != input.Ref || empty.Anonymous == nil || len(empty.Anonymous) != 0 {
+		t.Fatal("empty capture lost anonymous source identity", empty, err)
+	}
+	reject := func(label string) {
+		t.Helper()
+		if rows, err := produce(input); rows != nil || err == nil {
+			t.Fatal(label, rows, err)
+		}
+		if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || err == nil {
+			t.Fatal("wrapper published invalid "+label, got, err)
+		}
+	}
+	for _, width := range []int{3, 5} {
+		invalid := *source
+		invalid.Columns = make([]catalog.Column, width)
+		copy(invalid.Columns, source.Columns)
+		input.Source = &invalid
+		reject("invalid mapping width")
+	}
+	foreign := engine.New().CatalogRead()
+	for i, column := range source.Columns {
+		invalid := *source
+		invalid.Columns = append([]catalog.Column(nil), source.Columns...)
+		invalid.Columns[i].Usage.Type, _ = foreign.LookupType(column.Usage.Type.ID())
+		input.Source = &invalid
+		reject("foreign mapping column type")
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	input.Context = canceled
+	invalid := *source
+	invalid.Columns = nil
+	input.Source = &invalid
 	if rows, err := produce(input); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("mapping capture cancellation", rows, err)
+	}
+	if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || !errors.Is(err, context.Canceled) {
+		t.Fatal("canceled mapping wrapper published source", got, err)
+	}
+}
+
+func TestPGTSConfigMapOwnership(t *testing.T) {
+	e := engine.New()
+	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TSConfigMapOID}
+	check := func(view catalog.Read) *catalog.Relation {
+		t.Helper()
+		relation := view.MustRelation(address)
+		if relation.Address() != address || relation.RowType != 10066 || len(relation.Columns) != 4 {
+			t.Fatal("native mapping identity/shape", relation)
+		}
+		row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10066})
+		array := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 10065})
+		ownedRow, rowOK := view.LookupType(10066)
+		ownedArray, arrayOK := view.LookupArray(ownedRow)
+		if !rowOK || !arrayOK || ownedRow != row.SQLType || ownedArray != array.SQLType || row.Array != 10065 || array.SQLType.Element() != row.SQLType || row.OwningRelation != address || array.OwningRelation != address || row.Owner != relation.Owner || array.Owner != relation.Owner {
+			t.Fatal("native mapping row/array ownership", row, array)
+		}
+		for i, name := range []string{"mapcfg", "maptokentype", "mapseqno", "mapdict"} {
+			id := sqltype.Oid
+			if i == 1 || i == 2 {
+				id = sqltype.Int4
+			}
+			owned, ok := view.LookupType(id)
+			if !ok || relation.Columns[i].Name != name || relation.Columns[i].Usage.Type != owned {
+				t.Fatal("mapping source attribute identity", i, relation.Columns[i])
+			}
+		}
+		return relation
+	}
+	oldView := e.CatalogRead()
+	old := check(oldView)
+	columns := append([]catalog.Column(nil), old.Columns...)
+	oldRow, _ := oldView.LookupType(10066)
+	oldArray, _ := oldView.LookupArray(oldRow)
+	produce, ok := pgcatalog.ProducerFor(pgcatalog.TSConfigMapOID)
+	if !ok {
+		t.Fatal("missing mapping producer")
+	}
+	input := pgcatalog.Input{Context: context.Background(), Catalog: oldView, Source: old, Owner: oldView.Owner(), Runtime: core.EngineCatalogRuntime{}}
+	rows, err := produce(input)
+	if err != nil || len(rows) != 19 {
+		t.Fatal("old generation mapping rows", rows, err)
+	}
+	retained := make([][]sqltype.Value, len(rows))
+	for i := range rows {
+		retained[i] = append([]sqltype.Value(nil), rows[i]...)
+	}
+	if err := engine.Reset(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	freshView := e.CatalogRead()
+	fresh := check(freshView)
+	freshRow, _ := freshView.LookupType(10066)
+	freshArray, _ := freshView.LookupArray(freshRow)
+	if old == fresh || oldRow == freshRow || oldArray == freshArray {
+		t.Fatal("replacement reused mapping relation/row/array")
+	}
+	for i := range columns {
+		if columns[i].Usage.Type == fresh.Columns[i].Usage.Type {
+			t.Fatal("replacement reused mapping attribute type", i)
+		}
+		for _, row := range rows {
+			if row[i].Type() != columns[i].Usage.Type || row[i].Type() == fresh.Columns[i].Usage.Type {
+				t.Fatal("retained mapping cell retagged", i)
+			}
+		}
+	}
+	if !reflect.DeepEqual(old.Columns, columns) || !reflect.DeepEqual(rows, retained) || oldArray.Element() != oldRow || check(oldView) != old {
+		t.Fatal("replacement changed retained mapping generation")
+	}
+	input.Catalog, input.Owner, input.Source = freshView, freshView.Owner(), fresh
+	if got, err := produce(input); err != nil || got == nil || len(got) != 19 {
+		t.Fatal("fresh mapping producer", got, err)
+	}
+	input.Source = old
+	if got, err := produce(input); got != nil || err == nil {
+		t.Fatal("fresh mapping producer admitted old source", got, err)
+	}
+	if got, err := core.CaptureCatalogSourceRows(input, produce); got != nil || err == nil {
+		t.Fatal("wrapper admitted old mapping source", got, err)
 	}
 }
 

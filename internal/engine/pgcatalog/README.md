@@ -50,6 +50,10 @@ type Producer func(Input) ([][]sqltype.Value, error)
   catalog sources retain their real row types and read-only SQL admission.
   Configuration dependencies follow current mappings even for a seeded
   configuration; only genuinely pinned referenced identities are omitted.
+  Mapping token IDs belong to the configuration's actual parser; dictionary
+  occurrences, including repeats, retain their one-based list positions and
+  actual dictionary references. Sequence order is semantic, not a guarantee of
+  SQL row order without `ORDER BY`.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual
