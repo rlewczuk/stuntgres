@@ -397,6 +397,9 @@ func (e *Engine) capturePreparedQuerySourcesLocked(scope *StatementScope, prepar
 			e.closeQuerySourceSetLocked(scope.Op.Context(), first, sources)
 			return nil, err
 		}
+		if !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
+			e.initializeTemporarySourceLocked(scope, source)
+		}
 		if program == nil && !denied && (leaf.Relation.RelationKind == catalog.TableRelation || leaf.Relation.RelationKind == catalog.PartitionedRelation) {
 			partition.CapturePruner(partition.CaptureCatalog(scope.inheritanceRead(scope.Inquiry.CommentCatalog), scope.PartitionRelations), leaf.Relation, source)
 		}

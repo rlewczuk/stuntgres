@@ -30,7 +30,7 @@ func parameterSpaceRequest(kind string, names ...string) *parser.ObjectGrant {
 }
 
 func TestObjectGrantParameterPublication(t *testing.T) {
-	for _, name := range []string{"lc_messages", "og_custom.value"} {
+	for _, name := range []string{"lc_messages", "work_mem", "max_stack_depth", "temp_file_limit", "og_custom.value"} {
 		t.Run(name, func(t *testing.T) {
 			e, op, reader, _ := objectGrantUnitFixture(t)
 			before, roles := e.Catalog.State, e.RoleStore.Published
@@ -65,7 +65,7 @@ func TestObjectGrantParameterPublication(t *testing.T) {
 			if err := applyObjectGrantUnit(e, op, request); err != nil || e.Catalog.State != stable || e.RoleStore.Published != stableRoles {
 				t.Fatal("repeated parameter grant was not a no-op", err)
 			}
-			late := parameterSpaceRequest("parameter", name, "work_mem")
+			late := parameterSpaceRequest("parameter", name, "missing_resource_setting")
 			if err := applyObjectGrantUnit(e, op, late); err == nil || e.Catalog.State != stable || e.RoleStore.Published != stableRoles {
 				t.Fatal("late unsupported parameter published prefix", err)
 			}

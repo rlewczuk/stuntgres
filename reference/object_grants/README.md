@@ -114,6 +114,12 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   drops owned foreign objects and revokes named language grants before restoring
   the original raw language ACL. A catalog UPDATE alone cannot remove
   PostgreSQL's shared role dependencies created by GRANT.
+- Parameters and tablespaces:
+  `RUN='^TestReferenceObjectGrantParametersTablespaces$'` in both modes.
+  Canonical work_mem and its case-folded spelling now share real parameter ACL
+  delegation/revocation in both backends. Only PostgreSQL's legacy sort_mem
+  alias remains supplemental oracle evidence; native intentionally rejects
+  that alias without rejecting the canonical resource setting.
 - Partition-key recipes: `RUN='^TestReferenceObjectGrantPartitionKey'`
 - Domain CHECK recipes: `RUN='^TestReferenceObjectGrantDomainCheck'`
 - Ordinary table CHECK admission and readmission: `RUN='^TestReferenceObjectGrantCheck'`

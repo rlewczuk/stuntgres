@@ -406,6 +406,49 @@ termination, restart or plugin-loading effects. Logical data and constraints
 remain active. `DriverConfig.TrackCommitTimestamp` and its genuine native
 commit-timestamp tracking remain unchanged.
 
+## Resource settings
+
+The [44 resource settings](../internal/engine/settings/README.md#resource-settings)
+share typed SHOW/current_setting, pg_settings and ordinary session actions.
+All roles can read them. Postmaster and sighup settings reject individual changes
+with55P02 before parsing, even with parameter SET permission:
+`SET shared_buffers='bogus'` requires restart; `SET file_extend_method='write_zeros'`
+cannot be changed now. RESET ALL skips these immutable settings.
+max_stack_depth and temp_file_limit require effective superuser or inherited SET
+permission; read-all-settings membership does not grant SET.
+
+For mutable settings, `SET work_mem='1024kB'` yields SHOW/current_setting `1MB`,
+pg_settings.setting `1024`, unit `kB`, source `session`. RESET/default restores the
+physical session's captured default, without provider reentry. Transactions,
+LOCAL, savepoints and peer isolation use the existing settings store. Returned
+Rows remain snapshots; held statements observe current values and authority.
+
+The native profile is explicitly simulated64-bit Linux/8kB blocks: the automatic
+commit/subtransaction/transaction buffer counts are current/reset32 with boot0;
+io_max_concurrency is64 with boot-1; max_stack_depth is2MB with boot100kB and a
+simulated7680kB ceiling, independent of the host's stack limit. Native
+max_prepared_transactions metadata is0; the PostgreSQL18.6 fixture is configured
+to100. Actual native logical PREPARE TRANSACTION remains operative. The existing
+max_parallel_workers_per_gather logical executor consumer is likewise preserved;
+max_parallel_workers/max_worker_processes do not add a pool cap, and
+parallel_leader_participation does not introduce executor policy.
+
+Successful owned logical TEMP table data access captures temp_buffers once.
+Creating/preparing a TEMP table, using TEMP sequences and failed foreign TEMP
+attempts do not initialize it. After SET2048 and TEMP INSERT, explicit SET1024
+fails22023; RESET still restores1024, explicit SET2048 still succeeds, and explicit
+SET1024 still fails. This is a sticky initialized count, not a comparison against
+the current setting. DEFAULT, NULL reset, RESET ALL and transaction/savepoint
+restoration bypass that check. DROP/recreate, DISCARD TEMP, pool reuse and logical
+Reset/Restore do not uninitialize it; a replacement physical session does.
+**Physical page/cache initialization timing is not simulated.**
+
+These values do not allocate memory, enforce spill/file/notify budgets, copy or
+extend files, flush writes, prefetch, spawn AIO/autovacuum/background workers,
+configure IPC/huge pages, tune byte stacks or enforce2PC capacity. SQL-routine
+active-body safety remains separate. Settings are not physical-effect claims.
+Logical Reset/Dump/Restore neither clear nor serialize live resource settings.
+
 ## Preset options
 
 The [20 preset settings](../internal/engine/settings/README.md#preset-options)

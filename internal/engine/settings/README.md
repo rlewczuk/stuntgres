@@ -419,6 +419,74 @@ timeouts, restarts or plugin loading. Logical constraints remain active.
 track_commit_timestamp retains its genuine native timestamp consumer and driver
 configuration; in_hot_standby is unchanged.
 
+## Resource settings
+
+The 44 resource settings use the shared typed registry. `resource.go` supplies
+43 descriptors; the existing single `max_parallel_workers_per_gather` descriptor
+and its real logical parallel-execution consumer remain in `builtins.go`.
+All resource reads are unrestricted, including ordinary authenticated users.
+Categories and English descriptions follow PostgreSQL 18.6 resource usage.
+
+| Context | Names |
+|---|---|
+| user | backend_flush_after, effective_io_concurrency, file_copy_method, hash_mem_multiplier, io_combine_limit, logical_decoding_work_mem, maintenance_io_concurrency, maintenance_work_mem, max_parallel_maintenance_workers, max_parallel_workers, max_parallel_workers_per_gather, parallel_leader_participation, temp_buffers, vacuum_buffer_usage_limit, work_mem |
+| superuser | max_stack_depth, temp_file_limit |
+| sighup | autovacuum_work_mem, bgwriter_delay, bgwriter_flush_after, bgwriter_lru_maxpages, bgwriter_lru_multiplier, file_extend_method, io_workers |
+| postmaster | commit_timestamp_buffers, dynamic_shared_memory_type, huge_page_size, huge_pages, io_max_combine_limit, io_max_concurrency, io_method, max_files_per_process, max_notify_queue_pages, max_prepared_transactions, max_worker_processes, min_dynamic_shared_memory, multixact_member_buffers, multixact_offset_buffers, notify_buffers, serializable_buffers, shared_buffers, shared_memory_type, subtransaction_buffers, transaction_buffers |
+
+Sighup/postmaster contexts reject live assignments and resets before parsing,
+including same values, DEFAULT and set_config(NULL). SET grants cannot remove
+these restrictions; RESET ALL skips them. The two superuser settings use effective
+superuser or inherited parameter SET privileges, checked at execution time.
+RESET ALL can clear their overrides after privilege revocation. Mutable defaults
+are captured once; immutable provider answers must normalize to the initialized
+default, not merely the compiled boot value.
+
+This is a fixed **simulated 64-bit Linux profile**, not a report of Go/OS
+capabilities. Memory values use kB, except min_dynamic_shared_memory (MB);
+buffer counts and flush/combine limits use 8kB blocks; bgwriter_delay uses ms.
+SHOW/current_setting scale units, whereas pg_settings exposes base units.
+For example work_mem=1024kB yields SHOW1MB and setting1024/unitkB. Shared buffers
+initially show128MB. The three automatic commit/subtransaction/transaction
+buffer pools have boot0 but current/reset32 (256kB); io_max_concurrency has
+boot-1 but current/reset64; max_stack_depth has boot100 but current/reset2048
+(2MB). Each initialized native value has source `default`. Native prepared
+transaction capacity metadata remains0, while the pinned fixture explicitly
+starts100 with source `command line`; existing logical native2PC is not disabled.
+
+Advertised simulated enums are dynamic shared memory `posix,sysv,mmap`, main
+shared memory `sysv,mmap`, huge pages `off,on,try`, file copy `copy,clone`, file
+extension `posix_fallocate,write_zeros` and asynchronous IO `sync,worker`.
+The pinned PostgreSQL build may advertise additional IO support independently.
+max_stack_depth has a simulated7680kB ceiling (8MB-minus512kB profile), not a Go
+stack allocation or host RLIMIT probe. Pure hooks preserve vacuum's0-or-at-least128kB
+domain, autovacuum's-1 sentinel and0..63-to64kB normalization, nonzero IO maximum,
+and seven SLRU pools' multiples-of16. Ordinary bounds run before hooks.
+Integer check-hook diagnostics print the parsed base-unit integer without quotes
+or a unit suffix (for example vacuum input127kB reports `: 127`); malformed
+input diagnostics still quote the original text. The simulated stack ceiling
+accepts7680kB and rejects7681 or2147483647 with the same exact7680kB detail,
+matching the pinned oracle profile without reading native host limits.
+
+temp_buffers adds one session-owned initialized count. Successful owned logical
+TEMP **table data access or insertion** captures the then-current typed count.
+CREATE, binding, Prepare, TEMP sequences and failed foreign-table access do not.
+This deliberately models logical access, not physical page/cache timing. Once
+captured, explicit candidates must equal that count (equivalent units work), even
+if RESET or transaction restoration has changed the current setting. RESET,
+DEFAULT, set_config(NULL), RESET ALL and transaction/savepoint restoration bypass
+the first-use check. The count survives rollback, DROP/recreate, DISCARD TEMP,
+pool reuse and logical Reset/Restore; only physical session end clears it.
+
+No physical memory allocation, spill quota, files, copy/extension operation,
+writeback, prefetch, AIO workers, IPC, huge pages, autovacuum, notify budget,
+worker-pool sizing, stack-byte limit or2PC-capacity enforcement is installed.
+The real per-gather logical executor and separate SQL-routine body-depth safety
+remain unchanged. Unit selectors are TestResourceSettingsDescriptors,
+TestResourceSettingsValidation, TestResourceSettingsStartupDefaults,
+TestResourceSettingsTempInitialization, TestResourceTemporaryAccessBoundaries and
+TestResourceTemporaryInitializedValidation.
+
 ## What stays in the engine
 
 SET/RESET/SHOW execution, `current_setting`/`set_config` and RESET ALL stay

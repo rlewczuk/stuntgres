@@ -154,6 +154,10 @@ func (d Definition) Parse(input string) (Value, error) {
 	} else if number < d.FloatMin || number > d.FloatMax {
 		return v, parameterError(fmt.Sprintf(`%s%s is outside the valid range for parameter "%s" (%s%s .. %s%s)`, realText(number), baseUnitLabel(d.Unit), d.Name, realText(d.FloatMin), baseUnitLabel(d.Unit), realText(d.FloatMax), baseUnitLabel(d.Unit)), "")
 	}
+	number, err := d.resourceNumber(number)
+	if err != nil {
+		return v, err
+	}
 	v.Number = number
 	return v, nil
 }

@@ -40,6 +40,24 @@ waits on relation targets and bound view relations through
 their unexported bodies keep the frames that read-only reference fixtures
 match.
 
+Resource setting simulation keeps TEMP initialization separate from the
+transaction TEMP footprint. Successful opened query/DML/COPY table sources
+and accepted write staging call `initializeTemporaryBuffersLocked`
+under Engine.Mu, then take Settings.Mu to capture the owned session's typed
+count. Foreign namespaces, sequences, CREATE/binding and Prepare do not
+initialize it. No new physical buffer/cache allocation is introduced.
+Setting publication checks explicit candidates before Touch/install under
+the existing Engine.Mu -> Settings.Mu -> Session.Mu window; reset candidates
+and journal restoration bypass the sticky-count check.
+`TestResourceTemporaryInitializedValidation` checks malformed, range and
+normalized-but-different candidates through direct/prepared SET and bound
+set_config after initialization. It compares the real Actions, typed/text
+overrides, defaults and provider provenance before Finish can restore a failed
+statement, then checks current value/source after savepoint recovery.
+The public resource Lifecycle definition additionally isolates first use of
+empty native SELECT/UPDATE/DELETE/MERGE/COPY TO sources on fresh physical
+owners, separately from populated shared PostgreSQL preservation witnesses.
+
 ## Event-trigger command ownership
 
 `session.EventCommand` classifies eligible transactional utilities before target

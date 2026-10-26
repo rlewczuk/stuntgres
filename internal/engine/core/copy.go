@@ -438,6 +438,9 @@ func (s *StatementScope) copyTableRows(b analyze.Binding, auth AuthorizationView
 	if err != nil {
 		return nil, err
 	}
+	e.Mu.Lock()
+	e.initializeTemporarySourceLocked(s, source)
+	e.Mu.Unlock()
 	borrowQueryAuthority(source, s)
 	if err = exec.SelectQuerySources(s.Op.Context(), source); err != nil {
 		return nil, err

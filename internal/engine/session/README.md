@@ -104,6 +104,16 @@ implement its slots, so either import would form a cycle.
   raw identifier lists; scoped mutable superuser settings use parameter SET
   authority. log_directory/log_filename read restrictions are independent.
   Their validated settings have no physical logging or presentation consumers.
+  Resource settings add two grant-eligible privileged names, max_stack_depth
+  and temp_file_limit; all44 reads are unrestricted. One private
+  `SettingsStore.temporaryBuffers` count, protected by Settings.Mu, captures
+  the typed temp_buffers value once at successful owned logical TEMP table
+  access. It is not the transaction's AccessedTemporary footprint or a
+  journal action. Explicit differing candidates fail before Touch/install;
+  reset/default/NULL and transactional restoration bypass that check.
+  Rollback, savepoints, DROP/recreate, DISCARD TEMP, logical Reset/Restore and
+  pool reuse do not clear it. EndSession clears it. Providers run only before
+  TEMP use and retain their ordinary pure parsing/immutable-default contract.
   SET list flattening distinguishes raw keyword lists from quote-reconstructed
   tablespace/preload lists. Catalog-dependent client setting checks run in the
   root before the atomic install window, not under session locks. Simulated

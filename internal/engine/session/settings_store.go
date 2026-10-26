@@ -23,6 +23,8 @@ type SettingsStore struct {
 	ProviderDefaults    map[string]bool // Captured present responses, even when equal to boot.
 	Actions             map[string]settingAction
 	RoleAction          roleSettingAction
+	// Physical-session sticky simulated TEMP initialization; not journaled.
+	temporaryBuffers int64
 	// Read-only projections of the transaction owner, published owner-first
 	// under this mutex. These are never session overrides or journal actions.
 	CurrentIsolation  string
@@ -236,6 +238,7 @@ func (s *SettingsStore) EndSession(_ ids.SessionToken, _ EndReason) error {
 	s.ProviderDefaults = nil
 	s.Actions = nil
 	s.RoleAction = roleSettingAction{}
+	s.temporaryBuffers = 0
 	return nil
 }
 func (s *SettingsStore) Value(name string) string {
@@ -264,4 +267,14 @@ func (s *SettingsStore) TypedValue(name string) settings.Value {
 		return v
 	}
 	return s.DefaultTyped[name]
+}
+
+// InitializeTemporaryBuffers captures the configured count at the first owned
+// logical TEMP table data access. Transaction/reset restoration never clears it.
+func (s *SettingsStore) InitializeTemporaryBuffers() {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	if !s.Ended && s.temporaryBuffers == 0 {
+		s.temporaryBuffers = int64(s.TypedValue("temp_buffers").Number)
+	}
 }

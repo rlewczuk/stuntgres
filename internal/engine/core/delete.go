@@ -153,6 +153,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	}
 	s.projectExclusionDeletionLocked(e, candidate)
 	s.multiEvents = append(s.multiEvents, lock.MultiEvent{Tuple: lock.MultiTuple{lock.Resource{ObjectRef: candidate.Ref, Row: original.Row}, original.Version}, Mode: lock.MultiUpdateAction})
+	e.initializeTemporaryBuffersLocked(s, candidate.Ref)
 	return nil
 }
 
@@ -165,6 +166,10 @@ func executeDelete(s *StatementScope, b analyze.Binding, view *visibility.View, 
 		view.Release()
 		return Result{}, err
 	}
+	e := s.Engine()
+	e.Mu.Lock()
+	e.initializeTemporarySourceLocked(s, source)
+	e.Mu.Unlock()
 	defer source.Close()
 	outcome, err := dml.ExecuteDelete(s.WriteHost(), dml.DeleteInput{Binding: b, Source: source, Inputs: inputs, Parameters: parameters})
 	if err != nil {

@@ -39,7 +39,7 @@ func SettingAccess(d settings.Definition, allowed func(name string) (bool, error
 // builtins. Custom privileged definitions and unlisted builtins remain deny-only.
 func parameterGrantSetting(name string) bool {
 	switch name {
-	case "deadlock_timeout", "output_plugin_libraries":
+	case "deadlock_timeout", "output_plugin_libraries", "max_stack_depth", "temp_file_limit":
 		return true
 	case "lc_messages", "dynamic_library_path", "event_triggers", "extension_control_path", "session_preload_libraries", "session_replication_role", "lo_compat_privileges":
 		return true

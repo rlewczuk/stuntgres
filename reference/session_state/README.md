@@ -107,6 +107,45 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
   NULL file fields; RESET restores the actual captured client/config source;
   unauthorized readers never see file fields. Ordinary-login scenarios use
   the fixture's role-core-fixture password convention.
+- Resource settings: run each bounded `TestReferenceResourceSettingsInventory`,
+  `TestReferenceResourceSettingsContext`, `TestReferenceResourceSettingsValidation`,
+  `TestReferenceResourceSettingsAuthority` and `TestReferenceResourceSettingsLifecycle`
+  with `make check RUN='^NAME$'`, then the same argv with `REFERENCE=1`.
+  The independent44-row literals cover all17 metadata columns, boot versus
+  initialized defaults, unrestricted ordinary/inherited-reader inventory,
+  typed direct/prepared SQL, complete diagnostics, grants/revocation, LOCAL,
+  reset/savepoints and retained native controls. The oracle is pinned18.6;
+  native's simulated Linux enum profile intentionally omits io_uring, while
+  reference expects the Debian build's additional IO method. Config-file
+  provenance is permitted only for the independently named initdb defaults.
+  Provider injection is an internal-only unit seam, not a public SQL API.
+  TEMP first-use witnesses capture a sticky initialized count at owned logical
+  table data access, with reset bypass, rollback retention, COPY streaming,
+  failed foreign attempts, sequences, pool replacement and logical controls.
+  The same Lifecycle selector independently proves first initialization through
+  SELECT, UPDATE, DELETE, MERGE and streaming COPY TO on fresh **empty native**
+  owners, without prior INSERT/COPY FROM. Empty-source timing is native's
+  explicit logical simulation boundary; the populated PostgreSQL preservation
+  cases remain shared. Initialized direct/prepared SET and bound set_config
+  separately assert malformed/range errors before sticky-count rejection,
+  normalized1MB/8MB candidates and unchanged current/reset-source values.
+  `TestResourceTemporaryInitializedValidation` checks full diagnostics and
+  unchanged native Actions/values/provenance immediately after Execute, before
+  Finish can restore a statement checkpoint.
+  Ordinary first-use SQL runs on its recorded fixture owner. Streaming COPY TO
+  uses an unwrapped pinned transport with explicit value/source, output/count
+  and complete diagnostic assertions; it never reuses another SQL owner's
+  middleware recorder.
+  No physical-page/cache timing or resource allocation is claimed.
+  Feature smoke argv:
+  `make check RUN='^TestReferenceResourceSettingsSimulationSmoke$'` and
+  `make check RUN='^TestReferenceResourceSettingsSimulationSmoke$' REFERENCE=1`.
+  Expect1MB/raw1024 work_mem, typed flush/hash/combine values, exact vacuum
+  rejection, immutable context errors, TEMP captured-count/reset nuance and
+  unchanged sentinel/peer data. Also run migrated definitions
+  `TestReferenceSettingsPublicTypedSQL` and
+  `TestReferenceObjectGrantParametersTablespaces` in both modes, plus retained
+  `TestReferenceQueryParallelSettings`/`TestReferenceQueryParallelErrors`.
 - Replication settings: `RUN='^TestReferenceReplicationSettings'` covers the exact
   26-name family, independently expected metadata, immutable contexts, mutable
   values/list quoting, read versus SET authority, physical-session capture and

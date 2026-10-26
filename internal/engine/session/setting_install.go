@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"stuntgres/internal/engine/ids"
@@ -29,6 +30,11 @@ func (s *SettingsStore) AdmitLocked(domain *ids.Domain, op *Operation) error {
 func (s *SettingsStore) ApplyLocked(op *Operation, domain *ids.Domain, registry settings.Registry, d settings.Definition, value *settings.Value, notice *sqlstate.Error, local bool) (string, error) {
 	if err := s.AdmitLocked(domain, op); err != nil {
 		return "", err
+	}
+	if d.Name == "temp_buffers" && value != nil && s.temporaryBuffers != 0 && int64(value.Number) != s.temporaryBuffers {
+		return "", &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023",
+			Message: fmt.Sprintf(`invalid value for parameter "temp_buffers": %d`, int64(value.Number)),
+			Detail: `"temp_buffers" cannot be changed after any temporary tables have been accessed in the session.`}
 	}
 	s.Touch(d.Name, local)
 	if _, registered := registry.Definitions()[d.Name]; !registered {

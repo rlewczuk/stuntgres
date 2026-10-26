@@ -113,13 +113,11 @@ func objectGrantParameterDelegation(t *testing.T, p *fixture.Pair, b fixture.Bac
 	// No SET/custom placeholder or ALTER SYSTEM side effect is needed to store
 	// aliases/custom ACLs. Revoking through another spelling removes the same
 	// dependency, rather than leaving a second identity behind.
-	for _, names := range [][2]string{{`"LC_MESSAGES"`, "lc_messages"}, {"sort_mem", "work_mem"}, {`"OG_CUSTOM"."Value"`, "og_custom.value"}} {
-		// Native has no work_mem setter/provider; grants cannot fabricate one.
-		// The legacy alias mapping is supplemental PostgreSQL evidence only.
+	for _, names := range [][2]string{{`"LC_MESSAGES"`, "lc_messages"}, {`"WORK_MEM"`, "work_mem"}, {"sort_mem", "work_mem"}, {`"OG_CUSTOM"."Value"`, "og_custom.value"}} {
+		// Canonical work_mem is shared. Only the legacy alias remains
+		// supplemental PostgreSQL evidence; native intentionally has no aliases.
 		if names[0] == "sort_mem" && !b.PG {
-			for _, name := range names {
-				fixture.RoleGrantError(run, "GRANT ALL ON PARAMETER "+name+" TO og_object_reader WITH GRANT OPTION", "42704", `unrecognized configuration parameter "`+name+`"`)
-			}
+			fixture.RoleGrantError(run, "GRANT ALL ON PARAMETER sort_mem TO og_object_reader WITH GRANT OPTION", "42704", `unrecognized configuration parameter "sort_mem"`)
 			continue
 		}
 		run(fixture.Exec("GRANT ALL ON PARAMETER "+names[0]+" TO og_object_reader WITH GRANT OPTION", 0))

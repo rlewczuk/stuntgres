@@ -3,6 +3,8 @@ package core
 import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -29,6 +31,37 @@ func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.Object
 	}
 	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) && (mode == temporaryTargetAttempt || ns.Temporary == scope.Op.Session.SessionToken) {
 		scope.Owner.AccessedTemporary = true
+	}
+}
+
+// initializeTemporaryBuffersLocked is separate from the transaction TEMP
+// footprint: only successful owned table storage access initializes the session
+// simulation. Binding, creation, sequences and foreign attempts do not call it.
+// Caller holds Engine.Mu, never Settings.Mu or Session.Mu.
+func (e *Engine) initializeTemporaryBuffersLocked(scope *StatementScope, ref ids.ObjectRef) {
+	view := e.PrivateCatalogLocked(scope.PendingCatalog())
+	d, ok := view.Relation(ref.Address)
+	if !ok || d.RelationKind != catalog.TableRelation {
+		return
+	}
+	ns, ok := view.Namespace(d.Namespace())
+	if ok && ns.Temporary == scope.Op.Session.SessionToken && ns.Temporary != (ids.SessionToken{}) {
+		scope.Op.Session.Settings.InitializeTemporaryBuffers()
+	}
+}
+
+// A captured physical source has actually opened table data. Merely retaining a
+// visibility root (for CTE/rule/routine admission) does not initialize buffers.
+func (e *Engine) initializeTemporarySourceLocked(scope *StatementScope, source *exec.Source) {
+	if source == nil || source.RlsDenied {
+		return
+	}
+	if source.Inheritance != nil {
+		for _, segment := range source.Inheritance {
+			e.initializeTemporaryBuffersLocked(scope, segment.Leaf.Ref)
+		}
+	} else {
+		e.initializeTemporaryBuffersLocked(scope, source.Ref)
 	}
 }
 

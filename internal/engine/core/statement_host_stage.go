@@ -209,6 +209,7 @@ func (h *statementHost) StageReplacement(ref ids.ObjectRef, old []storage.RowVer
 				s.recordForeignEffect(ref, old[i], next)
 			}
 		}
+		e.initializeTemporaryBuffersLocked(s, ref)
 	}
 	return false, nil
 }
@@ -316,6 +317,7 @@ func (h *statementHost) StageInsert(ref ids.ObjectRef, batch index.WriteBatch) (
 			s.recordForeignEffect(ref, storage.RowVersion{}, next)
 		}
 	}
+	e.initializeTemporaryBuffersLocked(s, ref)
 	return false, nil
 }
 
@@ -390,6 +392,7 @@ func (h *statementHost) AppendAcceptedInsert(ref ids.ObjectRef, candidate index.
 	if s.foreignEffectRelevant(ref, catalog) {
 		s.recordForeignEffect(ref, storage.RowVersion{}, version)
 	}
+	e.initializeTemporaryBuffersLocked(s, ref)
 	return true, false, nil
 }
 
