@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"maps"
@@ -10,7 +11,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -169,7 +169,7 @@ func TestPGDBRoleSettingAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	execute := func(ast parser.Statement, held core.StatementDescription, denied bool) {
+	execute := func(ast parser.Statement, held core.Description, denied bool) {
 		scope, err := e.StartStatement(op)
 		if err != nil {
 			t.Fatal(err)

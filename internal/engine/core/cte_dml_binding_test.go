@@ -19,7 +19,7 @@ import (
 
 func TestCTEDMLBindingOwner(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, session, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, session, "INSERT INTO t VALUES(1,10),(2,20),(3,30)")
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "t")
@@ -37,7 +37,7 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 			t.Fatal(usage)
 		}
 	}
-	if len(core.ScopeMutations(scope)) != 3 || core.DescriptionAnalysis(&description) == nil || len(core.PreparedAnalysisTargets(core.DescriptionAnalysis(&description))) != 3 {
+	if len(core.ScopeMutations(scope)) != 3 || description.Analysis == nil || len(description.Analysis.Targets) != 3 {
 		t.Fatal("occurrences were conflated", len(core.ScopeMutations(scope)))
 	}
 	seen := make(map[parser.Statement]bool)
@@ -46,7 +46,7 @@ func TestCTEDMLBindingOwner(t *testing.T) {
 		if i == scope.ActiveMutation {
 			mutation = scope.StatementMutation
 		}
-		if seen[mutation.Statement] || mutation.LockedRef != ref || core.PreparedAnalysisTargets(core.DescriptionAnalysis(&description))[mutation.Statement] != ref {
+		if seen[mutation.Statement] || mutation.LockedRef != ref || description.Analysis.Targets[mutation.Statement] != ref {
 			t.Fatal("wrong exact target occurrence", i, mutation.LockedRef)
 		}
 		seen[mutation.Statement] = true

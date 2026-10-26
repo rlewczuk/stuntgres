@@ -151,7 +151,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 		return err
 	}
 	evaluation := c.state.Evaluation(s.Op.Context())
-	return view.ValidateQueryJoinExecution(&evaluation, c.root, auth.Catalog, 0)
+	return view.ValidateQueryJoinExecution(&evaluation, c.Root, auth.Catalog, 0)
 }
 
 func (c *sqlCursor) openProducer(s *StatementScope) error {
@@ -160,7 +160,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	}
 	c.authority.Expression = &exec.CursorExpressionData{Identity: s.Identity, StatementStart: s.statementStart}
 	c.state.Retain = c.scroll
-	stage, err := exec.OpenQueryProjectStage(s.Op.Context(), &c.state, c.root)
+	stage, err := exec.OpenQueryProjectStage(s.Op.Context(), &c.state, c.Root)
 	if err != nil {
 		return err
 	}

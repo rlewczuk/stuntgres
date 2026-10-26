@@ -24,7 +24,7 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 		childIndex++
 		if sqlCall && childIndex >= call.WrittenCount {
 			local := *c
-			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies())
+			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies(), call.Info)
 			next, changed, err := SimplifyConditional(&local, child, decisiveDefaults)
 			c.PreparedDomainChecks = local.PreparedDomainChecks
 			return next, changed, err
@@ -47,10 +47,6 @@ func simplifyCompositeNode(c *Context, node expr.Composite, decisiveDefaults boo
 		// The engine owns OVERLAPS inline admission and its folded pair ends.
 		routed, did, err := SimplifyOverlapsRoute(c, next.(functions.DatetimeOverlaps))
 		return routed, changed || did, false, err
-	case expr.FoldQuoteCapture:
-		// The engine owns the statement's quote-capture cache.
-		folded, did, err := FoldStringVariadic(c, next.(functions.StringVariadic))
-		return folded, changed || did, true, err
 	}
 	return next, changed, false, nil
 }
@@ -86,7 +82,7 @@ func compositeConstantInputs(node expr.Composite) bool {
 		return false
 	}
 	for _, child := range node.Children() {
-		if _, literal := child.(plan.LiteralExpr); !literal {
+		if _, literal := child.(plan.LiteralExpr); child != nil && !literal {
 			return false
 		}
 	}

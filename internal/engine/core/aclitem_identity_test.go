@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
@@ -88,7 +88,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if original, ok := oldRoles.Lookup("acl_unit_a"); !ok || original.Ref != a.Ref {
 		t.Fatal("rename mutated old role root")
 	}
-	expected := core.NewDescription(core.DescriptionFields{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()})
+	expected := &core.Description{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()}
 	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	captured, err := reused.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(value, captured) {

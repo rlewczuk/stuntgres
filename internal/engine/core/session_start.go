@@ -119,10 +119,10 @@ func (e *Engine) startSession(ctx context.Context, start session.SessionStart, p
 		}
 	}
 	if err == nil {
-		prepared := &sqlPreparedRegistry{entries: make(map[string]*sqlPreparedStatement), token: s.SessionToken}
+		prepared := NewPreparedRegistry(s.SessionToken)
 		_, err = op.Attach(session.PreparedSQL, prepared)
 		if err == nil {
-			payload.preparedSQL = prepared
+			payload.PreparedSQL = prepared
 		}
 	}
 	e.Mu.Lock()

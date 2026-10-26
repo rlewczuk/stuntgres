@@ -66,6 +66,11 @@ seams, binders and storage paths; do not build parallel implementations.
   ignore the suffix.
 - **Behavior changes.** Update callers and the owning docs, and remove obsolete
   paths instead of adding shims.
+- **Prepared values.** Retain only owned immutable typed artifacts, never graphs,
+  frames, borrowed scratch or authority. Preserve separate analysis and complete
+  fold-planning publications; dependency purposes must not suppress analysis.
+  Equal immutable outputs alone do not prove retention: pair a distinguishing
+  public lifetime scenario with private owner/generation/backing-state assertions.
 
 ## Documentation rules
 

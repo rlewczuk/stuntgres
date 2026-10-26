@@ -16,36 +16,36 @@ import (
 // A definition owns an immutable analyzed query and its creation-time source layout.
 // Runtime source opening uses identities, never the retained deparser syntax.
 type View struct {
-	query             *plan.Query
-	syntax            *parser.Select
-	actionSyntax      parser.Statement // Exact owning routine command, not its synthetic SELECT.
-	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
-	mutationFrame     bool        // Synthetic frame 1 includes a mutation target row.
-	sources           []ViewLeaf
-	dependencies      []catalog.ExpressionDependency
-	sequenceRefs      map[int]ids.ObjectRef
-	literals          map[analyze.ViewLiteralPath]plan.LiteralExpr
-	castUsages        map[analyze.ViewLiteralPath]sqltype.Usage
-	routineInputs     []sqltype.Usage // Non-nil only for a routine command presentation.
-	routineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
-	operatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
-	composites        map[analyze.ViewLiteralPath]analyze.TypeOccurrence
-	similarSubstrings map[analyze.ViewLiteralPath]bool
-	posixSubstrings   map[analyze.ViewLiteralPath]bool
-	columns           map[analyze.ViewLiteralPath]analyze.ViewColumn
-	stars             map[analyze.ViewLiteralPath][]analyze.ViewColumn
-	frames            map[uint32]*plan.ProjectNode
-	queries           map[*parser.Select]*plan.ProjectNode
-	namespaces        []analyze.ViewNamespace
-	barrier, invoker  bool
-	checkOption       CheckMode
-	options           []string // Immutable ordered installed name=value facts, including explicit false.
-	rule              ids.OID
-	consumer          ids.ObjectAddress
-	temporary         ids.SessionToken
-	references        map[ids.ObjectRef]catalog.Descriptor
-	collations        map[analyze.ViewLiteralPath]uint32
-	quoteRevision     ids.DefinitionRevision // frozen defining revision, not later relation renames
+	query              *plan.Query
+	syntax             *parser.Select
+	actionSyntax       parser.Statement // Exact owning routine command, not its synthetic SELECT.
+	expressionSyntax   parser.Expr // Lexical outer frame for a frozen Boolean definition.
+	mutationFrame      bool        // Synthetic frame 1 includes a mutation target row.
+	sources            []ViewLeaf
+	dependencies       []catalog.ExpressionDependency
+	sequenceRefs       map[int]ids.ObjectRef
+	literals           map[analyze.ViewLiteralPath]plan.LiteralExpr
+	castUsages         map[analyze.ViewLiteralPath]sqltype.Usage
+	routineInputs      []sqltype.Usage // Non-nil only for a routine command presentation.
+	routineRefs        map[analyze.ViewLiteralPath]ids.ObjectRef
+	operatorRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
+	composites         map[analyze.ViewLiteralPath]analyze.TypeOccurrence
+	similarSubstrings  map[analyze.ViewLiteralPath]bool
+	posixSubstrings    map[analyze.ViewLiteralPath]bool
+	columns            map[analyze.ViewLiteralPath]analyze.ViewColumn
+	stars              map[analyze.ViewLiteralPath][]analyze.ViewColumn
+	frames             map[uint32]*plan.ProjectNode
+	queries            map[*parser.Select]*plan.ProjectNode
+	namespaces         []analyze.ViewNamespace
+	barrier, invoker   bool
+	checkOption        CheckMode
+	options            []string // Immutable ordered installed name=value facts, including explicit false.
+	rule               ids.OID
+	consumer           ids.ObjectAddress
+	temporary          ids.SessionToken
+	references         map[ids.ObjectRef]catalog.Descriptor
+	collations         map[analyze.ViewLiteralPath]uint32
+	definitionRevision ids.DefinitionRevision // frozen defining revision, not later relation renames
 }
 
 // Stored leaves contain identities and frozen layout, never live storage or

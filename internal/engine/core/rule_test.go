@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"maps"
 	"slices"
@@ -12,7 +13,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -442,7 +442,7 @@ func TestRuleProgramRecursion(t *testing.T) {
 func TestRuleProgramAtomicStage(t *testing.T) {
 	e, _, src, sink := ruleUnitCatalog(t)
 	start := time.Unix(10, 0)
-	expected := &core.StatementDescription{}
+	expected := &core.Description{}
 	s := core.NewScope(core.ScopeFields{Op: &session.Operation{}, StatementStart: start, Expected: expected})
 	s.LockedRef, s.LockedDescriptor = ruleUnitRef(e, src), src
 	core.SetScopeSelf(s, s)

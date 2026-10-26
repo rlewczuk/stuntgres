@@ -1,20 +1,20 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func executeUsingDescription(e *core.Engine, op *session.Operation, ast parser.Statement, description *core.StatementDescription) (core.Result, error) {
+func executeUsingDescription(e *core.Engine, op *session.Operation, ast parser.Statement, description *core.Description) (core.Result, error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return core.Result{}, err

@@ -79,8 +79,8 @@ type EvalStatement struct {
 	PreparedDomainChecks map[*catalog.Type]DomainCheckProgram
 	PreparedGenerations  map[*catalog.Relation][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
 	PGRegex              sqltype.PGRegexExecution
-	QuoteCaptures        *QuoteCaptureCandidate
-	QuoteOrigin          QuoteOrigin
+	FoldCaptures         *FoldCaptureCandidate
+	FoldOrigin           FoldOrigin
 	// Preparation admits closed immutable scalar operators for plain SELECTs
 	// and rule programs, without widening parameter or row-dependent demand.
 	PlanStaticOperators bool

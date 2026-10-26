@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -292,7 +292,8 @@ type routineDependencyCoverage struct {
 	purpose catalog.DependencyPurpose
 }
 
-// The complete manifest retains original stamps and both capture purposes.
+// The complete manifest retains original stamps and independent support captures.
+// Exact Definition captures subsume Operand captures at the same Ref/Revision.
 // Column coverage suppresses whole-relation captures only within one purpose.
 func routineDependencySet(dependencies []catalog.ExpressionDependency) []catalog.ExpressionDependency {
 	attributes := make(map[routineDependencyCoverage]bool)
@@ -303,13 +304,31 @@ func routineDependencySet(dependencies []catalog.ExpressionDependency) []catalog
 			attributes[routineDependencyCoverage{ref, dependency.Purpose}] = true
 		}
 	}
-	seen := make(map[catalog.ExpressionDependency]bool)
+	seen := make(map[catalog.ExpressionDependency]int)
 	next := dependencies[:0]
 	for _, dependency := range dependencies {
-		if dependency.Ref.Address.SubID == 0 && attributes[routineDependencyCoverage{dependency.Ref, dependency.Purpose}] || seen[dependency] {
+		if dependency.Ref.Address.SubID == 0 && attributes[routineDependencyCoverage{dependency.Ref, dependency.Purpose}] {
 			continue
 		}
-		seen[dependency] = true
+		if _, exists := seen[dependency]; exists {
+			continue
+		}
+		other := dependency
+		if dependency.Purpose == catalog.OperandDependency {
+			other.Purpose = catalog.DefinitionDependency
+			if _, exists := seen[other]; exists {
+				continue
+			}
+		} else if dependency.Purpose == catalog.DefinitionDependency {
+			other.Purpose = catalog.OperandDependency
+			if index, exists := seen[other]; exists {
+				next[index] = dependency
+				delete(seen, other)
+				seen[dependency] = index
+				continue
+			}
+		}
+		seen[dependency] = len(next)
 		next = append(next, dependency)
 	}
 	return next
@@ -319,34 +338,34 @@ func (p *RoutineProgram) validateDependencySet() error {
 	if len(p.actionDependencies) != len(p.actions) {
 		return fmt.Errorf("stuntgres: incomplete routine dependency capture")
 	}
-	attributes := make(map[routineDependencyCoverage]bool)
-	for i, dependencies := range p.actionDependencies {
+	dependencyCount := 0
+	for i, captures := range p.actionDependencies {
 		expected := make(map[catalog.ExpressionDependency]int)
 		visitRoutineActionDependencies(p.actions[i], func(dependency catalog.ExpressionDependency) { expected[dependency]++ })
-		for _, dependency := range dependencies {
+		for _, dependency := range captures {
 			if expected[dependency] == 0 {
 				return fmt.Errorf("stuntgres: extra action dependency capture")
 			}
 			expected[dependency]--
-			ref := dependency.Ref
-			if ref.Address.ClassID == ids.RelationClassID && ref.Address.SubID != 0 {
-				ref.Address.SubID = 0
-				attributes[routineDependencyCoverage{ref, dependency.Purpose}] = true
-			}
 		}
 		for _, count := range expected {
 			if count != 0 {
 				return fmt.Errorf("stuntgres: missing action dependency capture")
 			}
 		}
+		dependencyCount += len(captures)
 	}
-	expected := make(map[catalog.ExpressionDependency]bool)
-	for _, dependencies := range p.actionDependencies {
-		for _, dependency := range dependencies {
-			if dependency.Ref.Address.SubID != 0 || !attributes[routineDependencyCoverage{dependency.Ref, dependency.Purpose}] {
-				expected[dependency] = true
-			}
-		}
+	// Normalize a private union, never the exact original per-action captures.
+	// Construction and validation must agree on purpose dominance, independent
+	// support stamps and purpose-local relation-column coverage.
+	dependencies := make([]catalog.ExpressionDependency, 0, dependencyCount)
+	for _, actionDependencies := range p.actionDependencies {
+		dependencies = append(dependencies, actionDependencies...)
+	}
+	dependencies = routineDependencySet(dependencies)
+	expected := make(map[catalog.ExpressionDependency]bool, len(dependencies))
+	for _, dependency := range dependencies {
+		expected[dependency] = true
 	}
 	if len(expected) != len(p.dependencies) {
 		return fmt.Errorf("stuntgres: mismatched routine dependency capture")

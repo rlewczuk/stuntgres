@@ -29,7 +29,7 @@ func (c *ViewCapture) CaptureRoutineReference(path ViewLiteralPath, ref ids.Obje
 type DefaultOrigin struct {
 	Definition catalog.ColumnDefault
 	Consumer   *catalog.Relation
-	Quote      exec.QuoteOrigin
+	Fold       exec.FoldOrigin
 	Requested  bool // UPDATE explicitly selected DEFAULT, including fresh NULL.
 }
 
@@ -108,7 +108,8 @@ const (
 	CompositeRecordArgument
 	DomainCast
 	TypeNameCast
-	IdentityCast // Non-domain user type; shares occurrence lifetime, not domain stamps.
+	IdentityCast      // Non-domain user type; shares occurrence lifetime, not domain stamps.
+	RecordConstructor // Exact immutable anonymous shape; current fields still bind first.
 )
 
 type TypeOccurrence struct {

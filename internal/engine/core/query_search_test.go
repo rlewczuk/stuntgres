@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"testing"
@@ -8,7 +9,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -262,8 +262,8 @@ func TestQuerySearchSignature(t *testing.T) {
 		if !analyze.SameStatementResultUsage(left, right) || analyze.SameStatementUsage(left, right) || sqltype.SameRecordUsage(left, right) {
 			t.Fatal("public/internal/parameter signatures conflated")
 		}
-		expected := core.StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: left}}}
-		actual := core.StatementDescription{Results: []catalog.Column{{Name: "seq", Usage: right}}}
+		expected := core.Description{Results: []catalog.Column{{Name: "seq", Usage: left}}}
+		actual := core.Description{Results: []catalog.Column{{Name: "seq", Usage: right}}}
 		if err := core.CheckStatementSignature(expected, actual); err != nil {
 			t.Fatal(err)
 		}
@@ -284,9 +284,9 @@ func TestQuerySearchSignature(t *testing.T) {
 	}
 	for _, breadth := range []bool{true, false} {
 		_, d := searchUnitDefinition(t, breadth, named.Usage(), false)
-		expected := *core.NewDescription(core.DescriptionFields{CatalogOwner: &engine.New().Catalog.Owner, Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}})
+		expected := core.Description{CatalogOwner: &engine.New().Catalog.Owner, Results: []catalog.Column{{Name: "seq", Usage: d.Search.Result.Usage()}}}
 		actual := expected
-		core.SetDescriptionCatalogOwner(&actual, &engine.New().Catalog.Owner)
+		actual.CatalogOwner = &engine.New().Catalog.Owner
 		if err := core.CheckStatementSignature(expected, actual); err == nil {
 			t.Fatal("catalog leaf owner fence relaxed")
 		}

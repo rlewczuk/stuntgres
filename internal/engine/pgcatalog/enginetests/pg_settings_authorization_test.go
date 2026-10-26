@@ -133,7 +133,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 		nameOnly bool
 		want     [][]driver.Value
 		ast      parser.Statement
-		held     core.StatementDescription
+		held     core.Description
 	}
 	consumers := []consumer{
 		{query: "SELECT name FROM pg_catalog.pg_settings WHERE name='application_name'", nameOnly: true, want: [][]driver.Value{{"application_name"}}},
@@ -153,7 +153,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 			t.Fatal(c.query, err)
 		}
 	}
-	execute := func(t *testing.T, c *consumer, expected *core.StatementDescription) (core.Result, error) {
+	execute := func(t *testing.T, c *consumer, expected *core.Description) (core.Result, error) {
 		t.Helper()
 		scope, err := e.StartStatement(reader)
 		if err != nil {
@@ -186,7 +186,7 @@ func TestPGSettingsCatalogACLConsumers(t *testing.T) {
 			for _, route := range []string{"direct", "new-prepare", "held"} {
 				t.Run(phase+"/"+route+"/"+c.query, func(t *testing.T) {
 					denied := phase == "denied" || (phase == "name-only" && !c.nameOnly)
-					var expected *core.StatementDescription
+					var expected *core.Description
 					switch route {
 					case "new-prepare":
 						description, err := e.Describe(reader, c.ast)

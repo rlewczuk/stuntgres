@@ -91,14 +91,14 @@ switch's generic behavior.
 - **`GroupPropertyRewriter`**: merges already rewritten children at grouping
   only; substitution, preflight and retag never invoke it.
 - **`Folding`** (`PlanningFold`): `FoldConstant` (default), `FoldNever`, and
-  the engine-owned folds `FoldOverlapsRoute`/`FoldQuoteCapture` dispatched by
+  the engine-owned `FoldOverlapsRoute` dispatched by
   kind. **`StrictFolding`** (`StrictNull`): when a literal NULL child replaces
   the call with a typed NULL.
 - **`StoredProvider`** (`ValidateStoredProvider`): stored generation plans
   reject protocol nodes without it.
 - **`Retaggable`** (`Retag`): catalog retag for nodes with derived inputs over
   the engine's `Retag` environment; returns whether anything changed.
-  **`Annotated`**: an opaque engine value (such as a quote-capture origin) that
+  **`Annotated`**: an opaque engine value (such as a retained-fold origin) that
   rebuilds keep.
 - **`Renderable`** (`Render`, `render.go`): the node's presentation as one
   `Rendering` value read by node-tree output (`Tree`, `Inputs`), the deparser

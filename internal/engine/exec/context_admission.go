@@ -73,7 +73,7 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 		var v sqltype.Value
 		var failure error
 		if child >= n.WrittenCount {
-			v, failure = c.evalRoutineDefault(n.Ref, slot, n.Procedure.SQLDefaults.Dependencies(), arg)
+			v, failure = c.evalRoutineDefault(n.Ref, slot, n.Procedure.SQLDefaults.Dependencies(), arg, n.Info)
 		} else {
 			v, failure = arg.Eval(c)
 		}
@@ -112,12 +112,12 @@ func (c *Context) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, er
 }
 
 // The declaration recipe, not the caller/table manifest, owns hidden defaults.
-func (c *Context) evalRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency, node expr.Expr) (sqltype.Value, error) {
-	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
+func (c *Context) evalRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency, node expr.Expr, site expr.Info) (sqltype.Value, error) {
+	previousOrigin, recipe, graft := c.FoldOrigin, c.RoutineRecipe, c.RoutineGraft
 	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
-	c.SelectRoutineDefault(owner, slot, dependencies)
+	c.SelectRoutineDefault(owner, slot, dependencies, site)
 	defer func() {
-		c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
+		c.FoldOrigin, c.RoutineRecipe, c.RoutineGraft = previousOrigin, recipe, graft
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
 	}()
 	return node.Eval(c)
@@ -126,8 +126,13 @@ func (c *Context) evalRoutineDefault(owner ids.ObjectRef, slot int, dependencies
 // SelectRoutineDefault selects the declaration's original hidden-argument
 // recipe. Written arguments stay with their caller; this boundary is shared by
 // planning traversal, scalar admission and actual default evaluation.
-func (c *Context) SelectRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency) {
-	c.QuoteOrigin = QuoteOrigin{Owner: owner, Attribute: int32(slot + 1)}
+func (c *Context) SelectRoutineDefault(owner ids.ObjectRef, slot int, dependencies []catalog.ExpressionDependency, site expr.Info) {
+	c.FoldOrigin = FoldOrigin{Owner: owner, Attribute: int32(slot + 1), Expansion: site.Source, Site: site.Occurrence}
+	if c.Catalog.Owner() != nil {
+		if d := c.Catalog.Get(owner.Address); d != nil {
+			c.FoldOrigin.Revision = d.Revision()
+		}
+	}
 	c.RoutineRecipe, c.RoutineGraft = true, false
 	c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = dependencies, nil, nil
 }

@@ -19,7 +19,7 @@ func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationR
 	if c.epoch != s.TxRef.Epoch() {
 		return dml.MutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
-	if c.Place == exec.CursorFailed || c.root == nil {
+	if c.Place == exec.CursorFailed || c.Root == nil {
 		return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" is held from a previous transaction", b.CurrentOf))
 	}
 	occurrence := -1
@@ -44,7 +44,7 @@ func (s *StatementScope) positionedMutationRow(b analyze.Binding) (dml.MutationR
 			return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" does not have a FOR UPDATE/SHARE reference to table \"%s\"", b.CurrentOf, b.Relation.Name()))
 		}
 	} else {
-		scan := exec.CursorSimpleScan(c.root, c.Source)
+		scan := exec.CursorSimpleScan(c.Root, c.Source)
 		if scan == nil || scan.Ref != b.Ref {
 			return dml.MutationRowIdentity{}, SQLError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.CurrentOf, b.Relation.Name()))
 		}

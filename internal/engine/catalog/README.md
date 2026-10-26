@@ -219,8 +219,9 @@ private frames, not catalog authority.
   `VisitProcedureDefinitionDependencies` owns the common namespace, result/formal,
   checked standard-body/default and owned aggregate edges consumed by catalog
   projection, definition admission, retirement preflight, DROP closure and dump
-  ordering. It projects only `DefinitionDependency` entries from the complete
-  runtime manifests; aggregate support captures are not caller edges. An
+  ordering. It projects written `DefinitionDependency` and constant-input
+  `OperandDependency` entries from the complete runtime manifests; aggregate
+  support captures are not caller edges. An
   explicitly written support call retains its own direct edge at the same
   address. Each body/default pass deduplicates independently, preserving two
   physical rows when both phases reference the same procedure.

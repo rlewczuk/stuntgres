@@ -123,7 +123,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 func TestUpdateCurrentOfArbitration(t *testing.T) {
 	t.Run("key_escalation", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE keyed(id INT UNIQUE,v INT)")
 		sessionSQL(t, s, "INSERT INTO keyed VALUES(1,10),(2,20)")
 		sessionSQL(t, s, "BEGIN")
@@ -149,8 +149,8 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		transactionRows(t, s, "SELECT id FROM keyed ORDER BY id", 2, 3)
 	})
 	e := engine.New()
-	holder := sessionStart(t, e, nil)
-	worker := sessionStart(t, e, nil)
+	holder := enginetest.StartSession(t, e, nil)
+	worker := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, worker, "CREATE TABLE t(v INT)")
 	sessionSQL(t, worker, "INSERT INTO t VALUES(7),(7)")
 	sessionSQL(t, worker, "BEGIN")

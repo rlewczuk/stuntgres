@@ -56,8 +56,8 @@ func (e *Engine) prepareStoredSourceLocked(scope *StatementScope, ref ids.Object
 	}
 	e.Mu.Unlock()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: HostOf(scope), Catalog: catalog, Input: scope.Input, Output: scope.Output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.QuoteCaptures = scope.quoteCaptures
-	evaluation.QuoteOrigin = exec.QuoteOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.QuoteRevision()}
+	evaluation.FoldCaptures = scope.FoldCaptures
+	evaluation.FoldOrigin = exec.FoldOrigin{Owner: ref, Definition: definition.RuleOID(), Revision: definition.DefinitionRevision()}
 	evaluation.RoutineRecipe, evaluation.RoutineConsumer = true, consumer
 	evaluation.RoutineChecks = definition.Dependencies()
 	evaluation.RoutineAuthority = &auth

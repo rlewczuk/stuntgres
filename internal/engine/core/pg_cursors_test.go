@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/enginetest"
 )
 
 func TestPGCursorsSource(t *testing.T) {
@@ -75,7 +76,7 @@ func TestPGCursorsSource(t *testing.T) {
 	if got, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: currentRef, Source: &invalid, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Cursors: core.PayloadOf(s).Cursors})}, capturePGCursors); got != nil || err == nil {
 		t.Fatal("incompatible timestamp ownership published facts", got, err)
 	}
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, peer, "DECLARE peer NO SCROLL CURSOR WITH HOLD FOR SELECT 99")
 	peerSource, err := core.CaptureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: core.NewCatalogRuntime(core.CatalogRuntimeFields{Cursors: core.PayloadOf(peer).Cursors})}, capturePGCursors)
 	if err != nil || len(peerSource.Anonymous) != 1 {

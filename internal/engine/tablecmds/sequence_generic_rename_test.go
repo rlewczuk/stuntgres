@@ -28,7 +28,7 @@ func TestSequenceGenericRelationRenameAuthority(t *testing.T) {
 			generator := e.Storage.Sequences[ref.Address]
 			state := *generator
 			utility := enginetest.Statement(t, "ALTER TABLE s RENAME TO identity")
-			var expected *core.StatementDescription
+			var expected *core.Description
 			if prepared {
 				_, d := sequencePreparedDescription(t, e, s, "ALTER TABLE s RENAME TO identity")
 				expected = &d

@@ -13,25 +13,16 @@ import (
 	"stuntgres/internal/engine/fdw"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
-	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// CheckStatementSignature calls checkStatementSignature.
-func CheckStatementSignature(expected StatementDescription, actual StatementDescription) error {
-	return checkStatementSignature(expected, actual)
-}
-
 // DisposeSQLCursors calls disposeSQLCursors.
 func DisposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
 	return disposeSQLCursors(ctx, cursors)
 }
-
-// PreparedAnalysis names preparedAnalysis.
-type PreparedAnalysis = preparedAnalysis
 
 // ProtocolPortal names protocolPortal.
 type ProtocolPortal = protocolPortal
@@ -58,27 +49,9 @@ func EngineExecuteStatement(x *Engine, scope *StatementScope, stmt parser.Statem
 }
 
 // EnginePreparedAnalysisValidLocked calls x.preparedAnalysisValidLocked.
-func EnginePreparedAnalysisValidLocked(x *Engine, auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {
-	return x.preparedAnalysisValidLocked(auth, analysis, path)
+func EnginePreparedAnalysisValidLocked(x *Engine, auth AuthorizationView, analysis *Analysis, path sequence.Environment) bool {
+	return analysis.Valid(auth.Catalog, x.preparedEnvironmentAtPathLocked(auth, path, false))
 }
-
-// DescriptionAnalysis returns x.analysis.
-func DescriptionAnalysis(x *StatementDescription) *preparedAnalysis { return x.analysis }
-
-// DescriptionPlanGeneration returns x.planGeneration.
-func DescriptionPlanGeneration(x *StatementDescription) uint64 { return x.planGeneration }
-
-// DescriptionPlanOwner returns x.planOwner.
-func DescriptionPlanOwner(x *StatementDescription) ids.SessionToken { return x.planOwner }
-
-// DescriptionRegtypes returns x.regtypes.
-func DescriptionRegtypes(x *StatementDescription) *regobj.Analysis { return x.regtypes }
-
-// SetDescriptionCatalogOwner sets x.catalogOwner.
-func SetDescriptionCatalogOwner(x *StatementDescription, v *catalog.Owner) { x.catalogOwner = v }
-
-// SetDescriptionRefreshTemporals sets x.refreshTemporals.
-func SetDescriptionRefreshTemporals(x *StatementDescription, v bool) { x.refreshTemporals = v }
 
 // ScopeAcquireRelationTarget calls x.acquireRelationTarget.
 func ScopeAcquireRelationTarget(x *StatementScope, stmt parser.Statement, authorityStmt parser.Statement, execute bool, source bool) error {
@@ -184,38 +157,11 @@ func CursorsToken(x *cursorRegistry) ids.SessionToken { return x.token }
 // SetCursorsOrdinal sets x.ordinal.
 func SetCursorsOrdinal(x *cursorRegistry, v uint64) { x.ordinal = v }
 
-// PreparedAnalysisDependencies returns x.dependencies.
-func PreparedAnalysisDependencies(x *preparedAnalysis) []catalog.ExpressionDependency {
-	return x.dependencies
-}
-
-// PreparedAnalysisNeedsReanalysis returns x.needsReanalysis.
-func PreparedAnalysisNeedsReanalysis(x *preparedAnalysis) bool { return x.needsReanalysis }
-
-// PreparedAnalysisSources returns x.sources.
-func PreparedAnalysisSources(x *preparedAnalysis) map[*parser.TableReference]analyze.PreparedSource {
-	return x.sources
-}
-
-// PreparedAnalysisTarget returns x.target.
-func PreparedAnalysisTarget(x *preparedAnalysis) ids.ObjectRef { return x.target }
-
-// PreparedAnalysisTargets returns x.targets.
-func PreparedAnalysisTargets(x *preparedAnalysis) map[parser.Statement]ids.ObjectRef {
-	return x.targets
-}
-
-// SetPreparedAnalysisDomain sets x.domain.
-func SetPreparedAnalysisDomain(x *preparedAnalysis, v *ids.Domain) { x.domain = v }
-
-// SetPreparedAnalysisPrivate sets x.private.
-func SetPreparedAnalysisPrivate(x *preparedAnalysis, v *session.Journal) { x.private = v }
-
 // PortalFields holds the protocolPortal fields tests set.
 type PortalFields struct {
 	Tx       ids.TxRef
 	Born     uint64
-	Entry    sqlPreparedStatement
+	Entry    PreparedDefinition
 	Context  session.ProtocolContext
 	Columns  []catalog.Column
 	Producer *sqlCursor
@@ -225,11 +171,17 @@ type PortalFields struct {
 
 // NewPortal builds a protocolPortal from f.
 func NewPortal(f PortalFields) *protocolPortal {
-	return &protocolPortal{tx: f.Tx, born: f.Born, entry: f.Entry, context: f.Context, columns: f.Columns, producer: f.Producer, rows: f.Rows, started: f.Started}
+	p := newProtocolPortal(f.Entry, f.Tx)
+	p.Birth, p.context, p.columns, p.producer, p.rows, p.started = f.Born, f.Context, f.Columns, f.Producer, f.Rows, f.Started
+	if f.Producer != nil {
+		p.Resource = &f.Producer.PreparedResource
+		p.Resource.Closer = p
+	}
+	return p
 }
 
-// PortalBornRef returns &x.born.
-func PortalBornRef(x *protocolPortal) *uint64 { return &x.born }
+// PortalBornRef returns &x.Birth.
+func PortalBornRef(x *protocolPortal) *uint64 { return &x.Birth }
 
 // PortalClose calls x.close.
 func PortalClose(x *protocolPortal, ctx context.Context) error {
@@ -242,8 +194,8 @@ func PortalColumns(x *protocolPortal) []catalog.Column { return x.columns }
 // PortalContext returns x.context.
 func PortalContext(x *protocolPortal) session.ProtocolContext { return x.context }
 
-// PortalEntryRef returns &x.entry.
-func PortalEntryRef(x *protocolPortal) *sqlPreparedStatement { return &x.entry }
+// PortalEntryRef returns &x.Entry.
+func PortalEntryRef(x *protocolPortal) *PreparedDefinition { return &x.Entry }
 
 // PortalNext calls x.next.
 func PortalNext(x *protocolPortal, ctx context.Context, values []sqltype.Value) (bool, error) {
@@ -253,8 +205,8 @@ func PortalNext(x *protocolPortal, ctx context.Context, values []sqltype.Value) 
 // PortalProducer returns x.producer.
 func PortalProducer(x *protocolPortal) *sqlCursor { return x.producer }
 
-// PortalRetired returns x.retired.
-func PortalRetired(x *protocolPortal) bool { return x.retired }
+// PortalRetired returns x.Retired.
+func PortalRetired(x *protocolPortal) bool { return x.Retired }
 
 // PortalRow returns x.row.
 func PortalRow(x *protocolPortal) []sqltype.Value { return x.row }
@@ -266,16 +218,16 @@ func PortalRows(x *protocolPortal) exec.RowResult { return x.rows }
 func PortalScratch(x *protocolPortal) []byte { return x.scratch }
 
 // PortalTx returns x.tx.
-func PortalTx(x *protocolPortal) ids.TxRef { return x.tx }
+func PortalTx(x *protocolPortal) ids.TxRef { return x.Transaction }
 
 // PortalTxRef returns &x.tx.
-func PortalTxRef(x *protocolPortal) *ids.TxRef { return &x.tx }
+func PortalTxRef(x *protocolPortal) *ids.TxRef { return &x.Transaction }
 
 // SetPortalRows sets x.rows.
 func SetPortalRows(x *protocolPortal, v exec.RowResult) { x.rows = v }
 
 // SetPortalTx sets x.tx.
-func SetPortalTx(x *protocolPortal, v ids.TxRef) { x.tx = v }
+func SetPortalTx(x *protocolPortal, v ids.TxRef) { x.Transaction = v }
 
 // ProtocolScopeBind returns x.bind.
 func ProtocolScopeBind(x protocolScope) *protocolPortal { return x.bind }
@@ -343,7 +295,7 @@ func CursorPromoted(x *sqlCursor) bool { return x.promoted }
 func CursorRecordShape(x *sqlCursor) *sqltype.Descriptor { return x.recordShape }
 
 // CursorRoot returns x.root.
-func CursorRoot(x *sqlCursor) *plan.ProjectNode { return x.root }
+func CursorRoot(x *sqlCursor) *plan.ProjectNode { return x.Root }
 
 // CursorRoutineAuth returns x.routineAuth.
 func CursorRoutineAuth(x *sqlCursor) AuthorizationView { return x.routineAuth }
@@ -391,120 +343,39 @@ func SetCursorStage(x *sqlCursor, v *exec.Stage) { x.stage = v }
 // SetCursorTx sets x.tx.
 func SetCursorTx(x *sqlCursor, v ids.TxRef) { x.tx = v }
 
-// PreparedRegistryEntries returns x.entries.
-func PreparedRegistryEntries(x *sqlPreparedRegistry) map[string]*sqlPreparedStatement {
-	return x.entries
-}
-
-// PreparedRegistryPortals returns x.portals.
-func PreparedRegistryPortals(x *sqlPreparedRegistry) map[string]*protocolPortal { return x.portals }
-
-// PreparedRegistryToken returns x.token.
-func PreparedRegistryToken(x *sqlPreparedRegistry) ids.SessionToken { return x.token }
-
-// SetPreparedRegistryPortals sets x.portals.
-func SetPreparedRegistryPortals(x *sqlPreparedRegistry, v map[string]*protocolPortal) { x.portals = v }
-
-// PreparedStatementFields holds the sqlPreparedStatement fields tests set.
-type PreparedStatementFields struct {
-	Body        parser.Statement
-	Description StatementDescription
-}
-
-// NewPreparedStatement builds a sqlPreparedStatement from f.
-func NewPreparedStatement(f PreparedStatementFields) *sqlPreparedStatement {
-	return &sqlPreparedStatement{body: f.Body, description: f.Description}
-}
-
-// PreparedStatementBody returns x.body.
-func PreparedStatementBody(x *sqlPreparedStatement) parser.Statement { return x.body }
-
 // EngineHoldPrecommit calls x.holdPrecommit.
 func EngineHoldPrecommit(x *Engine, op *session.Operation, owner *session.TransactionOwner, start time.Time, settlement *StatementScope) error {
 	return x.holdPrecommit(op, owner, start, settlement)
 }
 
-// EnginePreparedAnalysisDefinitionsValidLocked calls x.preparedAnalysisDefinitionsValidLocked.
-func EnginePreparedAnalysisDefinitionsValidLocked(x *Engine, auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment, installedScalarAuthorityRebind bool) bool {
-	return x.preparedAnalysisDefinitionsValidLocked(auth, analysis, path, installedScalarAuthorityRebind)
+// EnginePreparedAnalysisDefinitionsValidLocked calls Analysis.DefinitionsValid.
+func EnginePreparedAnalysisDefinitionsValidLocked(x *Engine, auth AuthorizationView, analysis *Analysis, path sequence.Environment, installedScalarAuthorityRebind bool) bool {
+	return analysis.DefinitionsValid(auth.Catalog, x.preparedEnvironmentAtPathLocked(auth, path, false), installedScalarAuthorityRebind)
 }
 
 // EnginePreparedAnalysisLocked calls x.preparedAnalysisLocked.
-func EnginePreparedAnalysisLocked(x *Engine, s *StatementScope, auth AuthorizationView, b analyze.Binding) (*preparedAnalysis, error) {
+func EnginePreparedAnalysisLocked(x *Engine, s *StatementScope, auth AuthorizationView, b analyze.Binding) (*Analysis, error) {
 	return x.preparedAnalysisLocked(s, auth, b)
 }
 
 // EnginePreparedInstalledScalarAuthorityRebindLocked calls x.preparedInstalledScalarAuthorityRebindLocked.
-func EnginePreparedInstalledScalarAuthorityRebindLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) bool {
+func EnginePreparedInstalledScalarAuthorityRebindLocked(x *Engine, auth AuthorizationView, expected *Description, path sequence.Environment) bool {
 	return x.preparedInstalledScalarAuthorityRebindLocked(auth, expected, path)
 }
 
 // EnginePreparedInstalledScalarLiteralTemporalsLocked calls x.preparedInstalledScalarLiteralTemporalsLocked.
-func EnginePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment) []analyze.TemporalConstant {
+func EnginePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *Description, path sequence.Environment) []analyze.TemporalConstant {
 	return x.preparedInstalledScalarLiteralTemporalsLocked(auth, expected, path)
 }
 
 // EngineRetirePreparedInstalledScalarLiteralTemporalsLocked calls x.retirePreparedInstalledScalarLiteralTemporalsLocked.
-func EngineRetirePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *StatementDescription, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
+func EngineRetirePreparedInstalledScalarLiteralTemporalsLocked(x *Engine, auth AuthorizationView, expected *Description, path sequence.Environment, captures []analyze.TemporalConstant) []analyze.TemporalConstant {
 	return x.retirePreparedInstalledScalarLiteralTemporalsLocked(auth, expected, path, captures)
 }
 
 // EngineRegisterExtension calls x.registerExtension.
 func EngineRegisterExtension(x *Engine, name string, implementation extension.Installer) error {
 	return x.registerExtension(name, implementation)
-}
-
-// DescriptionCatalogEpochRef returns &x.catalogEpoch.
-func DescriptionCatalogEpochRef(x *StatementDescription) *ids.CatalogEpoch { return &x.catalogEpoch }
-
-// DescriptionPlanGenerationRef returns &x.planGeneration.
-func DescriptionPlanGenerationRef(x *StatementDescription) *uint64 { return &x.planGeneration }
-
-// DescriptionQuoteGeneration returns x.quoteGeneration.
-func DescriptionQuoteGeneration(x *StatementDescription) uint64 { return x.quoteGeneration }
-
-// DescriptionRetireAnalysisTypeCasts calls x.retireAnalysisTypeCasts.
-func DescriptionRetireAnalysisTypeCasts(x *StatementDescription) {
-	x.retireAnalysisTypeCasts()
-}
-
-// DescriptionRetireAnalysisTypeCastsForRebind calls x.retireAnalysisTypeCastsForRebind.
-func DescriptionRetireAnalysisTypeCastsForRebind(x *StatementDescription, installedScalarAuthorityRebind bool) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
-	return x.retireAnalysisTypeCastsForRebind(installedScalarAuthorityRebind)
-}
-
-// DescriptionTypes returns x.types.
-func DescriptionTypes(x *StatementDescription) map[analyze.PreparedTypeKey]analyze.TypeOccurrence {
-	return x.types
-}
-
-// DescriptionFields holds the StatementDescription fields tests set.
-type DescriptionFields struct {
-	Parameters     analyze.ParameterInfo
-	Results        []catalog.Column
-	CatalogOwner   *catalog.Owner
-	CatalogEpoch   ids.CatalogEpoch
-	Temporals      []analyze.TemporalConstant
-	Types          map[analyze.PreparedTypeKey]analyze.TypeOccurrence
-	Regtypes       *regobj.Analysis
-	Analysis       *preparedAnalysis
-	PlanGeneration uint64
-}
-
-// NewDescription builds a StatementDescription from f.
-func NewDescription(f DescriptionFields) *StatementDescription {
-	return &StatementDescription{Parameters: f.Parameters, Results: f.Results, catalogOwner: f.CatalogOwner, catalogEpoch: f.CatalogEpoch, Temporals: f.Temporals, types: f.Types, regtypes: f.Regtypes, analysis: f.Analysis, planGeneration: f.PlanGeneration}
-}
-
-// SetDescriptionAnalysis sets x.analysis.
-func SetDescriptionAnalysis(x *StatementDescription, v *preparedAnalysis) { x.analysis = v }
-
-// SetDescriptionPlanGeneration sets x.planGeneration.
-func SetDescriptionPlanGeneration(x *StatementDescription, v uint64) { x.planGeneration = v }
-
-// SetDescriptionTypes sets x.types.
-func SetDescriptionTypes(x *StatementDescription, v map[analyze.PreparedTypeKey]analyze.TypeOccurrence) {
-	x.types = v
 }
 
 // ScopeForeignWrites calls x.foreignWrites.
@@ -530,54 +401,6 @@ func ScopeSelectPreparedAnalysis(x *StatementScope, stmt parser.Statement) error
 // CursorsRollback calls x.rollback.
 func CursorsRollback(x *cursorRegistry, mark uint64) []*sqlCursor {
 	return x.rollback(mark)
-}
-
-// PreparedAnalysisFields holds the preparedAnalysis fields tests set.
-type PreparedAnalysisFields struct {
-	Domain       *ids.Domain
-	Epoch        ids.CatalogEpoch
-	Session      ids.SessionToken
-	Private      *session.Journal
-	Path         sequence.Environment
-	Namespace    uint64
-	Dependencies []catalog.ExpressionDependency
-	Types        map[ids.ObjectAddress]*catalog.Type
-}
-
-// NewPreparedAnalysis builds a preparedAnalysis from f.
-func NewPreparedAnalysis(f PreparedAnalysisFields) *preparedAnalysis {
-	return &preparedAnalysis{domain: f.Domain, epoch: f.Epoch, session: f.Session, private: f.Private, path: f.Path, namespace: f.Namespace, dependencies: f.Dependencies, types: f.Types}
-}
-
-// PreparedAnalysisEpochRef returns &x.epoch.
-func PreparedAnalysisEpochRef(x *preparedAnalysis) *ids.CatalogEpoch { return &x.epoch }
-
-// PreparedAnalysisNamespaceRef returns &x.namespace.
-func PreparedAnalysisNamespaceRef(x *preparedAnalysis) *uint64 { return &x.namespace }
-
-// PreparedAnalysisPath returns x.path.
-func PreparedAnalysisPath(x *preparedAnalysis) sequence.Environment { return x.path }
-
-// PreparedAnalysisPathRef returns &x.path.
-func PreparedAnalysisPathRef(x *preparedAnalysis) *sequence.Environment { return &x.path }
-
-// SetPreparedAnalysisCasts sets x.casts.
-func SetPreparedAnalysisCasts(x *preparedAnalysis, v map[catalog.CastPair]*catalog.Cast) { x.casts = v }
-
-// SetPreparedAnalysisDependencies sets x.dependencies.
-func SetPreparedAnalysisDependencies(x *preparedAnalysis, v []catalog.ExpressionDependency) {
-	x.dependencies = v
-}
-
-// SetPreparedAnalysisNeedsReanalysis sets x.needsReanalysis.
-func SetPreparedAnalysisNeedsReanalysis(x *preparedAnalysis, v bool) { x.needsReanalysis = v }
-
-// SetPreparedAnalysisSession sets x.session.
-func SetPreparedAnalysisSession(x *preparedAnalysis, v ids.SessionToken) { x.session = v }
-
-// SetPreparedAnalysisTypes sets x.types.
-func SetPreparedAnalysisTypes(x *preparedAnalysis, v map[ids.ObjectAddress]*catalog.Type) {
-	x.types = v
 }
 
 // PreparedCommandExecutionFields holds the preparedCommandExecution fields tests set.
@@ -634,7 +457,7 @@ type CursorFields struct {
 
 // NewCursor builds a sqlCursor from f.
 func NewCursor(f CursorFields) *sqlCursor {
-	return &sqlCursor{tx: f.Tx, ordinal: f.Ordinal, epoch: f.Epoch, hold: f.Hold, promoted: f.Promoted, pinned: f.Pinned, values: f.Values, count: f.Count, root: f.Root, schema: f.Schema, Source: f.Source, state: f.State, stage: f.Stage, authority: f.Authority, foreignOwner: f.ForeignOwner, scroll: f.Scroll}
+	return &sqlCursor{tx: f.Tx, ordinal: f.Ordinal, epoch: f.Epoch, hold: f.Hold, promoted: f.Promoted, pinned: f.Pinned, values: f.Values, count: f.Count, PreparedResource: PreparedResource{Root: f.Root}, schema: f.Schema, Source: f.Source, state: f.State, stage: f.Stage, authority: f.Authority, foreignOwner: f.ForeignOwner, scroll: f.Scroll}
 }
 
 // StatementHostFields holds the statementHost fields tests set.
@@ -657,3 +480,17 @@ func CursorStage(x *sqlCursor) *exec.Stage { return x.stage }
 func BindingHostView(x *BindingHost, a analyze.Authority) AuthorizationView {
 	return x.view(a)
 }
+
+func NewProtocolPortal(entry PreparedDefinition, tx ids.TxRef) *protocolPortal {
+	return newProtocolPortal(entry, tx)
+}
+
+func ProtocolPortalOf(binding *PreparedBinding) *protocolPortal {
+	return protocolPortalOf(binding)
+}
+
+func PortalProducerRef(p *protocolPortal) **sqlCursor { return &p.producer }
+func PortalRowsRef(p *protocolPortal) *exec.RowResult { return &p.rows }
+func PortalColumnsRef(p *protocolPortal) *[]catalog.Column { return &p.columns }
+func PortalStartedRef(p *protocolPortal) *bool { return &p.started }
+func PortalContextRef(p *protocolPortal) *session.ProtocolContext { return &p.context }

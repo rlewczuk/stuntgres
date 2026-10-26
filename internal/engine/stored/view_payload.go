@@ -28,110 +28,110 @@ func ViewPayload(v *View) catalog.ViewPayload {
 // and call NewView; code editing an unpublished definition uses Parts or
 // With. Maps and slices are shared, never copied.
 type ViewParts struct {
-	Query             *plan.Query
-	Syntax            *parser.Select
-	ActionSyntax      parser.Statement
-	ExpressionSyntax  parser.Expr
-	MutationFrame     bool
-	Sources           []ViewLeaf
-	Dependencies      []catalog.ExpressionDependency
-	SequenceRefs      map[int]ids.ObjectRef
-	Literals          map[analyze.ViewLiteralPath]plan.LiteralExpr
-	CastUsages        map[analyze.ViewLiteralPath]sqltype.Usage
-	RoutineInputs     []sqltype.Usage
-	RoutineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
-	OperatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
-	Composites        map[analyze.ViewLiteralPath]analyze.TypeOccurrence
-	SimilarSubstrings map[analyze.ViewLiteralPath]bool
-	PosixSubstrings   map[analyze.ViewLiteralPath]bool
-	Columns           map[analyze.ViewLiteralPath]analyze.ViewColumn
-	Stars             map[analyze.ViewLiteralPath][]analyze.ViewColumn
-	Frames            map[uint32]*plan.ProjectNode
-	Queries           map[*parser.Select]*plan.ProjectNode
-	Namespaces        []analyze.ViewNamespace
-	Barrier           bool
-	Invoker           bool
-	CheckOption       CheckMode
-	Options           []string
-	Rule              ids.OID
-	Consumer          ids.ObjectAddress
-	Temporary         ids.SessionToken
-	References        map[ids.ObjectRef]catalog.Descriptor
-	Collations        map[analyze.ViewLiteralPath]uint32
-	QuoteRevision     ids.DefinitionRevision
+	Query              *plan.Query
+	Syntax             *parser.Select
+	ActionSyntax       parser.Statement
+	ExpressionSyntax   parser.Expr
+	MutationFrame      bool
+	Sources            []ViewLeaf
+	Dependencies       []catalog.ExpressionDependency
+	SequenceRefs       map[int]ids.ObjectRef
+	Literals           map[analyze.ViewLiteralPath]plan.LiteralExpr
+	CastUsages         map[analyze.ViewLiteralPath]sqltype.Usage
+	RoutineInputs      []sqltype.Usage
+	RoutineRefs        map[analyze.ViewLiteralPath]ids.ObjectRef
+	OperatorRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
+	Composites         map[analyze.ViewLiteralPath]analyze.TypeOccurrence
+	SimilarSubstrings  map[analyze.ViewLiteralPath]bool
+	PosixSubstrings    map[analyze.ViewLiteralPath]bool
+	Columns            map[analyze.ViewLiteralPath]analyze.ViewColumn
+	Stars              map[analyze.ViewLiteralPath][]analyze.ViewColumn
+	Frames             map[uint32]*plan.ProjectNode
+	Queries            map[*parser.Select]*plan.ProjectNode
+	Namespaces         []analyze.ViewNamespace
+	Barrier            bool
+	Invoker            bool
+	CheckOption        CheckMode
+	Options            []string
+	Rule               ids.OID
+	Consumer           ids.ObjectAddress
+	Temporary          ids.SessionToken
+	References         map[ids.ObjectRef]catalog.Descriptor
+	Collations         map[analyze.ViewLiteralPath]uint32
+	DefinitionRevision ids.DefinitionRevision
 }
 
 // NewView builds a definition from p.
 func NewView(p ViewParts) *View {
 	return &View{
-		query:             p.Query,
-		syntax:            p.Syntax,
-		actionSyntax:      p.ActionSyntax,
-		expressionSyntax:  p.ExpressionSyntax,
-		mutationFrame:     p.MutationFrame,
-		sources:           p.Sources,
-		dependencies:      p.Dependencies,
-		sequenceRefs:      p.SequenceRefs,
-		literals:          p.Literals,
-		castUsages:        p.CastUsages,
-		routineInputs:     p.RoutineInputs,
-		routineRefs:       p.RoutineRefs,
-		operatorRefs:      p.OperatorRefs,
-		composites:        p.Composites,
-		similarSubstrings: p.SimilarSubstrings,
-		posixSubstrings:   p.PosixSubstrings,
-		columns:           p.Columns,
-		stars:             p.Stars,
-		frames:            p.Frames,
-		queries:           p.Queries,
-		namespaces:        p.Namespaces,
-		barrier:           p.Barrier,
-		invoker:           p.Invoker,
-		checkOption:       p.CheckOption,
-		options:           p.Options,
-		rule:              p.Rule,
-		consumer:          p.Consumer,
-		temporary:         p.Temporary,
-		references:        p.References,
-		collations:        p.Collations,
-		quoteRevision:     p.QuoteRevision,
+		query:              p.Query,
+		syntax:             p.Syntax,
+		actionSyntax:       p.ActionSyntax,
+		expressionSyntax:   p.ExpressionSyntax,
+		mutationFrame:      p.MutationFrame,
+		sources:            p.Sources,
+		dependencies:       p.Dependencies,
+		sequenceRefs:       p.SequenceRefs,
+		literals:           p.Literals,
+		castUsages:         p.CastUsages,
+		routineInputs:      p.RoutineInputs,
+		routineRefs:        p.RoutineRefs,
+		operatorRefs:       p.OperatorRefs,
+		composites:         p.Composites,
+		similarSubstrings:  p.SimilarSubstrings,
+		posixSubstrings:    p.PosixSubstrings,
+		columns:            p.Columns,
+		stars:              p.Stars,
+		frames:             p.Frames,
+		queries:            p.Queries,
+		namespaces:         p.Namespaces,
+		barrier:            p.Barrier,
+		invoker:            p.Invoker,
+		checkOption:        p.CheckOption,
+		options:            p.Options,
+		rule:               p.Rule,
+		consumer:           p.Consumer,
+		temporary:          p.Temporary,
+		references:         p.References,
+		collations:         p.Collations,
+		definitionRevision: p.DefinitionRevision,
 	}
 }
 
 // Parts returns v's fields; the definition itself is not changed.
 func (v *View) Parts() ViewParts {
 	return ViewParts{
-		Query:             v.query,
-		Syntax:            v.syntax,
-		ActionSyntax:      v.actionSyntax,
-		ExpressionSyntax:  v.expressionSyntax,
-		MutationFrame:     v.mutationFrame,
-		Sources:           v.sources,
-		Dependencies:      v.dependencies,
-		SequenceRefs:      v.sequenceRefs,
-		Literals:          v.literals,
-		CastUsages:        v.castUsages,
-		RoutineInputs:     v.routineInputs,
-		RoutineRefs:       v.routineRefs,
-		OperatorRefs:      v.operatorRefs,
-		Composites:        v.composites,
-		SimilarSubstrings: v.similarSubstrings,
-		PosixSubstrings:   v.posixSubstrings,
-		Columns:           v.columns,
-		Stars:             v.stars,
-		Frames:            v.frames,
-		Queries:           v.queries,
-		Namespaces:        v.namespaces,
-		Barrier:           v.barrier,
-		Invoker:           v.invoker,
-		CheckOption:       v.checkOption,
-		Options:           v.options,
-		Rule:              v.rule,
-		Consumer:          v.consumer,
-		Temporary:         v.temporary,
-		References:        v.references,
-		Collations:        v.collations,
-		QuoteRevision:     v.quoteRevision,
+		Query:              v.query,
+		Syntax:             v.syntax,
+		ActionSyntax:       v.actionSyntax,
+		ExpressionSyntax:   v.expressionSyntax,
+		MutationFrame:      v.mutationFrame,
+		Sources:            v.sources,
+		Dependencies:       v.dependencies,
+		SequenceRefs:       v.sequenceRefs,
+		Literals:           v.literals,
+		CastUsages:         v.castUsages,
+		RoutineInputs:      v.routineInputs,
+		RoutineRefs:        v.routineRefs,
+		OperatorRefs:       v.operatorRefs,
+		Composites:         v.composites,
+		SimilarSubstrings:  v.similarSubstrings,
+		PosixSubstrings:    v.posixSubstrings,
+		Columns:            v.columns,
+		Stars:              v.stars,
+		Frames:             v.frames,
+		Queries:            v.queries,
+		Namespaces:         v.namespaces,
+		Barrier:            v.barrier,
+		Invoker:            v.invoker,
+		CheckOption:        v.checkOption,
+		Options:            v.options,
+		Rule:               v.rule,
+		Consumer:           v.consumer,
+		Temporary:          v.temporary,
+		References:         v.references,
+		Collations:         v.collations,
+		DefinitionRevision: v.definitionRevision,
 	}
 }
 
@@ -204,11 +204,11 @@ func (v *View) Consumer() ids.ObjectAddress { return v.consumer }
 // Temporary returns the TEMP owner session token.
 func (v *View) Temporary() ids.SessionToken { return v.temporary }
 
-// QuoteRevision returns the frozen defining revision used for quoting.
-func (v *View) QuoteRevision() ids.DefinitionRevision { return v.quoteRevision }
+// DefinitionRevision returns the frozen defining revision for stored expansion provenance.
+func (v *View) DefinitionRevision() ids.DefinitionRevision { return v.definitionRevision }
 
-// DependsOn projects hard definition edges without discarding the complete
-// execution manifest. A written support call has its own definition capture.
+// DependsOn projects written definition and operand edges without discarding the
+// complete execution manifest. A written support call has its own direct capture.
 func (v *View) DependsOn(target ids.ObjectAddress) bool {
 	for _, leaf := range v.sources {
 		if target.SubID == 0 && leaf.Ref.Address == target {
@@ -216,7 +216,7 @@ func (v *View) DependsOn(target ids.ObjectAddress) bool {
 		}
 	}
 	for _, dependency := range v.dependencies {
-		if dependency.Purpose != catalog.DefinitionDependency {
+		if dependency.Purpose == catalog.AggregateSupportDependency {
 			continue
 		}
 		a := dependency.Ref.Address

@@ -48,7 +48,7 @@ type sqlRoutineScratch struct {
 	authority           *exec.Authority
 	routineAuth         AuthorizationView
 	routineDependencies []catalog.ExpressionDependency
-	expected            *StatementDescription
+	expected            *Description
 	prepared            preparedRebind
 	admissionWaited     bool
 	sqlRoutine          sqlRoutineDemand

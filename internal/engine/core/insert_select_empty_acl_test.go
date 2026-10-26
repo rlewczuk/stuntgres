@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"database/sql/driver"
 	"errors"
@@ -9,7 +10,6 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -79,7 +79,7 @@ func TestInsertSelectEmptyManifestACL(t *testing.T) {
 				grant(target, tc.targetColumn)
 				enginetest.RoleExecute(t, e, op, "SET SESSION AUTHORIZATION worker")
 				ast := enginetest.Statement(t, tc.query)
-				var expected *core.StatementDescription
+				var expected *core.Description
 				if prepared {
 					desc, err := e.Describe(op, ast)
 					if err != nil || len(desc.Results) != 0 || desc.Parameters.Count != 0 {

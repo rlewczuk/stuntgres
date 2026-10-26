@@ -121,12 +121,12 @@ func VisitProcedureCapturedDefinitionDependencies(d *Procedure, yield func(ids.O
 // retain multiple stamps at one address, but each pass emits one semantic edge.
 func visitDirectExpressionDependencies(dependencies []ExpressionDependency, yield func(ids.ObjectAddress) bool) bool {
 	for i, dependency := range dependencies {
-		if dependency.Purpose != DefinitionDependency {
+		if dependency.Purpose != DefinitionDependency && dependency.Purpose != OperandDependency {
 			continue
 		}
 		duplicate := false
 		for _, old := range dependencies[:i] {
-			if old.Purpose == DefinitionDependency && old.Ref.Address == dependency.Ref.Address {
+			if (old.Purpose == DefinitionDependency || old.Purpose == OperandDependency) && old.Ref.Address == dependency.Ref.Address {
 				duplicate = true
 				break
 			}

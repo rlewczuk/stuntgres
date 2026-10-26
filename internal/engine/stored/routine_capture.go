@@ -112,7 +112,7 @@ func validateRoutineCapture(action RuleAction, dependencies []catalog.Expression
 				address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
 				captured := false
 				for _, original := range presentation.dependencies {
-					if original.Ref.Address != address || original.Purpose != catalog.DefinitionDependency {
+					if original.Ref.Address != address || original.Purpose != catalog.DefinitionDependency && original.Purpose != catalog.OperandDependency {
 						continue
 					}
 					found := false

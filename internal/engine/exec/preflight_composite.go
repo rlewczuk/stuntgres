@@ -28,7 +28,7 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 		childIndex++
 		if sqlCall && childIndex >= call.WrittenCount {
 			local := *c
-			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies())
+			local.SelectRoutineDefault(call.Ref, call.ChildSlots[childIndex], call.Procedure.SQLDefaults.Dependencies(), call.Info)
 			next, changed, err := PreflightCoercionsWithPolicy(&local, child, decisiveDefaults)
 			c.PreparedDomainChecks = local.PreparedDomainChecks
 			return next, changed, err
@@ -96,7 +96,7 @@ func preflightComposite(c *Context, node expr.Composite, decisiveDefaults bool) 
 func preflightEvaluate(c *Context, node expr.Expr, changed bool) (expr.Expr, bool, error) {
 	p := node.Properties()
 	if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-		value, err := EvaluatePlanningExpression(c, node)
+		value, err := FoldPlanningExpression(c, node)
 		return preflightValue(c, expr.InfoOf(node), value, err)
 	}
 	if call, ok := node.(functions.Regexp); ok {

@@ -33,7 +33,7 @@ func TestTruncateSnapshots(t *testing.T) {
 	for _, kind := range []string{"truncate", "delete", "rollback"} {
 		t.Run(kind, func(t *testing.T) {
 			e, writer, p, q := truncateUnitFixture(t)
-			reader := sessionStart(t, e, nil)
+			reader := enginetest.StartSession(t, e, nil)
 			sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			tx := reader.Transactions.Ref
 			transactionRows(t, reader, "SELECT id FROM q", 7)
@@ -76,7 +76,7 @@ func TestTruncateSnapshotsInherited(t *testing.T) {
 	sessionSQL(t, writer, "CREATE TABLE c() INHERITS(p)")
 	sessionSQL(t, writer, "INSERT INTO c VALUES(3)")
 	child := roleTableRef(t, e, "c")
-	reader := sessionStart(t, e, nil)
+	reader := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	tx := reader.Transactions.Ref
 	transactionRows(t, reader, "SELECT id FROM q", 7)
@@ -176,7 +176,7 @@ func TestTruncateGenerationExhaustion(t *testing.T) {
 }
 func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 	e, writer, p, q := truncateUnitFixture(t)
-	reader := sessionStart(t, e, nil)
+	reader := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, reader, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	tx := reader.Transactions.Ref
 	transactionRows(t, reader, "SELECT id FROM q", 7)

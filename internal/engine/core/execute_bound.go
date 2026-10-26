@@ -42,11 +42,11 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	var err error
 	expressions := b.Expressions
 	expressionsChanged := false
-	quoteCaptures := evaluation.QuoteCaptures
+	foldCaptures := evaluation.FoldCaptures
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
-	if ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && session.ProtocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.cursor != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
+	if scope.protocolOrZero().bind != nil || scope.protocolOrZero().execute != nil || ((scope.protocolOrZero().command || scope.protocolOrZero().simple) && session.ProtocolPlainSelect(stmt)) || scope.sqlRoutine.rewrite || scope.sqlRoutine.lexical != nil || scope.sqlRoutine.cursor != nil || scope.sqlRoutine.assignment != nil || scope.sqlRoutine.assignmentPlanning {
 		// Plan closed immutable recipes before executor startup, retaining
 		// imported-parameter, PL-local, row, domain and volatile demand barriers.
 		// The private folded graph is also the graph retained by live portals.
@@ -327,12 +327,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	previousRLSCommand := scope.rlsCommand
 	scope.rlsCommand = &execution
 	defer func() { scope.rlsCommand = previousRLSCommand }()
-	if scope.Expected != nil && b.Parameters.Count == 0 && quoteCaptures.Private {
-		scope.Expected.Quotes = quoteCaptures.Entries
-		scope.Expected.quoteGeneration = op.Session.DiscardPlansGeneration
+	if prepared == nil {
+		if err := e.publishFoldAttemptLocked(scope, auth, foldCaptures); err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
 	}
-	quoteCaptures.Sealed = true
-	scope.quoteCaptures = quoteCaptures
+	scope.FoldCaptures = foldCaptures
 	b = view.PhysicalBinding(b)
 	if err = partition.WriteExtensionBoundary(stmt, b.Relation); err != nil {
 		e.Mu.Unlock()

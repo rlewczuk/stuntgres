@@ -122,7 +122,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			desc := core.StatementDescription{Temporals: bound.Prepared.Temporals}
+			desc := core.Description{Temporals: bound.Prepared.Temporals}
 			before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 			wantCaptures := 4
 			if form == "BETWEEN SYMMETRIC" || form == "NOT BETWEEN SYMMETRIC" {

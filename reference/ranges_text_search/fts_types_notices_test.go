@@ -75,9 +75,9 @@ func TestReferenceFTSTypesNotices(t *testing.T) {
 							}
 						}
 						emit := !tc.constant || tc.runtime
-						// PostgreSQL folds constant runtime casts on first Execute.
-						// Native retains its existing per-execution expression evaluation.
-						if b.PG && tc.runtime && tc.constant && i > 0 {
+						// Constant runtime casts fold at first demanded planning on
+						// both backends; bound runtime inputs still emit each use.
+						if tc.runtime && tc.constant && i > 0 {
 							emit = false
 						}
 						if emit {

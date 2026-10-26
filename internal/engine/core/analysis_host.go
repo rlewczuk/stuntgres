@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/stored"
@@ -92,7 +93,11 @@ func (h *BindingHost) Roles(auth analyze.Authority) authorization.Read {
 // DefinitionStamp is the provider stamp of d as auth's session sees it.
 func (h *BindingHost) DefinitionStamp(auth analyze.Authority, d catalog.Descriptor) ids.DefinitionRevision {
 	base, _ := authorityBase(auth)
-	return PreparedDefinitionStamp(d, base.Session)
+	var memory *sequence.SessionMemory
+	if base.Session != nil {
+		memory = &PayloadOf(base.Session).Sequences
+	}
+	return DefinitionStamp(d, PreparedEnvironment{Sequences: memory})
 }
 
 func (h *BindingHost) AuthorizationStorage(auth analyze.Authority, address ids.ObjectAddress) *storage.Relation {
@@ -316,6 +321,6 @@ func (h *BindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, 
 
 // NewExpressionBinder is the root construction point: it binds through the
 // engine's host for op.
-func NewExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *session.Operation, expected *StatementDescription) *analyze.Binder {
+func NewExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *session.Operation, expected *Description) *analyze.Binder {
 	return analyze.NewBinder(ctx, e.AnalysisHost(op), input, expectedOf(expected))
 }

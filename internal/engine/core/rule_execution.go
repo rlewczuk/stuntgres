@@ -11,7 +11,6 @@ import (
 	"stuntgres/internal/engine/partition"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
-	"stuntgres/internal/engine/stored"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -42,12 +41,12 @@ type ruleCommandScratch struct {
 	locks      *exec.LockContext
 	admission  analyze.LockAdmission
 	RuleAction RuleActionScope
-	quotes     *exec.QuoteCaptureCandidate
+	FoldCaptures *exec.FoldCaptureCandidate
 	rlsCommand *preparedCommandExecution
 }
 
 func (s *StatementScope) ruleScratch() ruleCommandScratch {
-	return ruleCommandScratch{Mutation: s.StatementMutation, Ref: s.LockedRef, Descriptor: s.LockedDescriptor, Storage: s.LockedStorage, ViewWrite: s.ViewWrite, Sources: s.QuerySources, unique: s.UniqueBinding, conflict: s.InsertConflict, returning: s.InsertReturning, partition: s.PartitionInsert, locks: s.QueryLockContext, admission: s.QueryLockAdmission, RuleAction: s.ruleAction, quotes: s.quoteCaptures, rlsCommand: s.rlsCommand}
+	return ruleCommandScratch{Mutation: s.StatementMutation, Ref: s.LockedRef, Descriptor: s.LockedDescriptor, Storage: s.LockedStorage, ViewWrite: s.ViewWrite, Sources: s.QuerySources, unique: s.UniqueBinding, conflict: s.InsertConflict, returning: s.InsertReturning, partition: s.PartitionInsert, locks: s.QueryLockContext, admission: s.QueryLockAdmission, RuleAction: s.ruleAction, FoldCaptures: s.FoldCaptures, rlsCommand: s.rlsCommand}
 }
 func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.StatementMutation = c.Mutation
@@ -56,11 +55,11 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.UniqueBinding, s.InsertConflict, s.InsertReturning, s.PartitionInsert = c.unique, c.conflict, c.returning, c.partition
 	s.QueryLockContext, s.QueryLockAdmission = c.locks, c.admission
 	s.ruleAction = c.RuleAction
-	s.quoteCaptures = c.quotes
+	s.FoldCaptures = c.FoldCaptures
 	s.rlsCommand = c.rlsCommand
 }
 
-func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
+func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate Description) (Result, error) {
 	program := view.RuleProgram{Count: -1, Returning: -1}
 	count, err := view.RuleRewriter{Owner: &e.Catalog.Owner}.ExpandLocked(auth, stmt, b, nil, &program)
 	if err != nil {
@@ -139,6 +138,10 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		}
 	}()
 	prepared := make([]PreparedCTEProgram, len(program.Commands))
+	captures := &exec.FoldCaptureCandidate{}
+	if candidate.FoldPlanning != nil {
+		captures = candidate.FoldPlanning.Group
+	}
 	for i, command := range program.Commands {
 		if err := scope.Op.Context().Err(); err != nil {
 			return Result{}, err
@@ -151,16 +154,22 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		if i == captureOwner {
 			scope.Command.Capture = original.Mutation.Command.Capture
 		}
-		captures := &exec.QuoteCaptureCandidate{}
-		if command.Binding.Parameters.Count == 0 {
-			*captures = exec.QuoteCaptureCandidate{Entries: candidate.Quotes, Private: quoteChanged}
-			stored.PruneQuoteCaptures(captures, commandAuth.Catalog)
-		}
-		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Parameters: parameters, Host: HostOf(scope), Catalog: commandAuth.Catalog, Input: scope.Input, Output: scope.Output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
+		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: scope.Op.Context(), Parameters: parameters, Host: HostOf(scope), Catalog: commandAuth.Catalog, Input: scope.Input, Output: scope.Output, FoldCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.Mu.Lock()
 		if _, err := e.PrepareCTECommandsLocked(scope, command.Syntax, command.Binding, commandAuth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
 			return Result{}, err
 		}
+	}
+	e.Mu.Lock()
+	foldErr := e.publishFoldAttemptLocked(scope, auth, captures)
+	e.Mu.Unlock()
+	if foldErr != nil {
+		return Result{}, foldErr
+	}
+	if bind := scope.protocolOrZero().bind; bind != nil {
+		if err := bind.AcceptFolds(captures); err != nil { return Result{},err }
+		failed = false
+		return Result{}, nil
 	}
 	for i, command := range program.Commands {
 		if err := scope.Op.Context().Err(); err != nil {

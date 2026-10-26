@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/proc"
 	"stuntgres/internal/engine/stored"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -36,7 +37,7 @@ func CommandRoutineProgramAdmission(x *commandRoutineProgram) *exec.RoutineProgr
 }
 
 // RoutineAnalysisDescriptions returns x.descriptions.
-func RoutineAnalysisDescriptions(x *sqlRoutineAnalysis) []StatementDescription { return x.descriptions }
+func RoutineAnalysisDescriptions(x *sqlRoutineAnalysis) []Description { return x.descriptions }
 
 // RoutineAnalysisPLDiagnostic returns x.plDiagnostic.
 func RoutineAnalysisPLDiagnostic(x *sqlRoutineAnalysis) string { return x.plDiagnostic }
@@ -95,14 +96,24 @@ func CommandRoutineProgramRi(x *commandRoutineProgram) bool { return x.ri }
 type RoutineDemandFields struct {
 	Lexical *proc.PLFrame
 	Result  sqltype.Usage
+	Scalar  bool
 }
 
 // NewRoutineDemand builds a sqlRoutineDemand from f.
 func NewRoutineDemand(f RoutineDemandFields) sqlRoutineDemand {
-	return sqlRoutineDemand{lexical: f.Lexical, result: f.Result}
+	return sqlRoutineDemand{lexical: f.Lexical, result: f.Result, scalar: f.Scalar}
 }
 
 // ScopeAdmitSQLRoutineCommand calls the real bound-command admission owner.
 func ScopeAdmitSQLRoutineCommand(s *StatementScope, d *catalog.Procedure, program *stored.RoutineProgram, index int) error {
 	return s.admitSQLRoutineCommand(d, program, index)
 }
+func RewriteTupleStatement(stmt parser.Statement) bool { return rewriteTupleStatement(stmt) }
+
+func RewriteReadOnlyViolation(stmt parser.Statement) string { return rewriteReadOnlyViolation(stmt) }
+
+func RoutineDemandRewrite(x *sqlRoutineDemand) bool { return x.rewrite }
+
+func SetRoutineDemandScalar(x *sqlRoutineDemand, v bool) { x.scalar = v }
+
+func SetRoutineDemandRewrite(x *sqlRoutineDemand, v bool) { x.rewrite = v }

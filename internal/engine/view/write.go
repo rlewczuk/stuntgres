@@ -189,8 +189,8 @@ func BindViewWrite(owner *catalog.Owner, view catalog.Read, b *analyze.Binding, 
 		var lowerStored func(expr.Expr, bool) (expr.Expr, bool, error)
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return stored.RewriteViewExpression(view, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
-				if q, ok := n.(functions.StringVariadic); ok && exec.QuoteOriginOf(q).Owner == (ids.ObjectRef{}) {
-					q = q.WithOrigin(exec.QuoteOrigin{Owner: ref, Definition: stored.ViewOf(d).RuleOID(), Revision: stored.ViewOf(d).QuoteRevision()})
+				if q, ok := n.(functions.StringVariadic); ok && exec.FoldOriginOf(q).Owner == (ids.ObjectRef{}) {
+					q = q.WithOrigin(exec.FoldOrigin{Owner: ref, Definition: stored.ViewOf(d).RuleOID(), Revision: stored.ViewOf(d).DefinitionRevision()})
 					q.RoutineRecipeReference = d
 					var args []expr.Expr
 					// A changed leaf exits the shared mapper before its children.

@@ -114,7 +114,7 @@ func TestCommentQualifiedDiagnostics(t *testing.T) {
 				if err != nil {
 					t.Fatal("semantic failure occurred at Prepare", err)
 				}
-				if !reflect.DeepEqual(info, core.StatementDescription{}) {
+				if !reflect.DeepEqual(info, core.Description{}) {
 					t.Fatal("utility Prepare metadata", info)
 				}
 			}

@@ -351,3 +351,55 @@ func TestReferenceStringVariadicParameterized(t *testing.T) {
 			[]string{"id", "a", "b", "r"}, []string{"INT4", "TEXT", "TEXT", "TEXT"}, stored))
 	})
 }
+
+// This shared scenario preserves the complete owner-operation matrix of the
+// internal retained-generation witness without asserting private planner state.
+func TestReferenceStringVariadicOperationLocal(t *testing.T) {
+	formatReferenceScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn) {
+		command := func(q string) { fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Exec(q, 0)) }
+		command("CREATE TABLE sv_operation_merge(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
+		query := "MERGE INTO sv_operation_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))"
+		prepare := func(q string) fixture.HeldStatement {
+			stmt, err := c.PrepareContext(p.Ctx, q)
+			if err != nil { t.Fatal(err) }
+			t.Cleanup(func() { if err := stmt.Close(); err != nil { t.Error(err) } })
+			return fixture.HeldStatement{Executor:c, Statement:stmt, SQL:q}
+		}
+		owner, peer := prepare(query), prepare(query)
+		affected := int64(1)
+		if b.PG { affected = 0 } // Existing pq MERGE command-count boundary.
+		for id := int64(1); id <= 12; id++ {
+			on, setting := id%2 == 1, "off"
+			if on { setting = "on" }
+			if id == 9 || id == 11 {
+				command("BEGIN")
+				if id == 11 { command("SAVEPOINT sv_operation") }
+				command("SET LOCAL quote_all_identifiers="+setting)
+				command("DISCARD PLANS")
+			} else {
+				if id == 10 { command("ROLLBACK") }
+				if id == 12 { command("ROLLBACK TO SAVEPOINT sv_operation") }
+				command("SET quote_all_identifiers="+setting)
+			}
+			if id == 7 { command("DISCARD PLANS") }
+			held := owner
+			if id%2 == 0 { held = peer }
+			fixture.RunStep(t, p.Ctx, held, b.Recorder, fixture.Exec(query, affected, id))
+			a, valueB, root := "a", "b", "root"
+			if on { a, valueB, root = `"a"`, `"b"`, `"root"` }
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT a,b,r FROM sv_operation_merge WHERE id=$1", []string{"a","b","r"}, []string{"TEXT","TEXT","TEXT"}, [][]any{{a,valueB,root}}, id))
+		}
+		command("ROLLBACK")
+		command("CREATE TABLE sv_operation_base(id integer,r text)")
+		command("CREATE VIEW sv_operation_view AS SELECT id,r FROM sv_operation_base WHERE r<>quote_ident('blocked') WITH LOCAL CHECK OPTION")
+		viewSQL := "INSERT INTO sv_operation_view VALUES($1::integer,quote_ident('root'))"
+		view := prepare(viewSQL)
+		for id := int64(1); id <= 2; id++ {
+			setting, root := "off", "root"
+			if id == 1 { setting, root = "on", `"root"` }
+			command("SET quote_all_identifiers="+setting)
+			fixture.RunStep(t, p.Ctx, view, b.Recorder, fixture.Exec(viewSQL, 1, id))
+			fixture.RunStep(t, p.Ctx, c, b.Recorder, fixture.Select("SELECT r FROM sv_operation_base WHERE id=$1", []string{"r"}, []string{"TEXT"}, [][]any{{root}}, id))
+		}
+	})
+}

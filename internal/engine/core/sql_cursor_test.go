@@ -50,7 +50,7 @@ func cursorUnitBatch(t *testing.T, s *session.Session, q string, want [][]driver
 }
 func cursorUnitSetup(t *testing.T) *session.Session {
 	t.Helper()
-	s := sessionStart(t, engine.New(), nil)
+	s := enginetest.StartSession(t, engine.New(), nil)
 	sessionSQL(t, s, "CREATE TABLE unit_rows(i INT NOT NULL)")
 	sessionSQL(t, s, "INSERT INTO unit_rows VALUES(1),(2),(3)")
 	sessionSQL(t, s, "BEGIN")
@@ -189,7 +189,7 @@ type cursorUnitContextKey struct{}
 func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 	for _, route := range []string{"view", "union"} {
 		t.Run(route, func(t *testing.T) {
-			s := sessionStart(t, engine.New(), nil)
+			s := enginetest.StartSession(t, engine.New(), nil)
 			sessionSQL(t, s, "CREATE TABLE unit_rows(i INT)")
 			sessionSQL(t, s, "INSERT INTO unit_rows VALUES(1),(2)")
 			sessionSQL(t, s, "CREATE SEQUENCE unit_sequence START 10")
@@ -463,7 +463,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 }
 
 func TestSQLCursorMetadataInstall(t *testing.T) {
-	s := sessionStart(t, engine.New(), nil)
+	s := enginetest.StartSession(t, engine.New(), nil)
 	sessionSQL(t, s, "CREATE TABLE metadata_failure(i INTEGER)")
 	sessionSQL(t, s, "INSERT INTO metadata_failure VALUES(2)")
 	executeAt := func(query string, instant time.Time) {

@@ -1,13 +1,13 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/enginetest"
 )
 
 type protocolDisposalProbe struct {
@@ -27,7 +28,7 @@ func (p protocolDisposalProbe) Close() error { return p.close() }
 
 func TestProtocolSimpleDisposalFence(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, session, "BEGIN")
 	op, _, err := session.AcquireCommand(context.Background())
 	if err != nil {
@@ -58,7 +59,8 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	scope.ReplacementRead = true
 	rows := exec.NewFinalRows(nil, 0)
 	calls := 0
-	core.SetPreparedRegistryPortals(core.PayloadPreparedSQL(core.PayloadOf(session)), map[string]*core.ProtocolPortal{"": core.NewPortal(core.PortalFields{Tx: ref, Rows: protocolDisposalProbe{RowResult: rows, close: func() error {
+	portal := core.NewProtocolPortal(core.PreparedDefinition{}, ref)
+	(*core.PortalRowsRef(portal)) = protocolDisposalProbe{RowResult: rows, close: func() error {
 		calls++
 		if !owner.Admission.TryLock() {
 			t.Error("disposal held admission")
@@ -76,7 +78,8 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 			e.ReplacementMu.Unlock()
 		}
 		return rows.Close()
-	}}})})
+	}}
+	core.PayloadOf(session).PreparedSQL.Bind("", &portal.PreparedBinding)
 	if err := core.ScopeBeginProtocolSimplePortal(scope); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +135,10 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			source.Close()
 			t.Fatal(err)
 		}
-		p := core.NewPortal(core.PortalFields{Producer: core.NewCursor(core.CursorFields{Root: root, Source: source, State: state, Stage: &stage})})
+		p := core.NewProtocolPortal(core.PreparedDefinition{}, ids.TxRef{})
+		(*core.PortalProducerRef(p)) = core.NewCursor(core.CursorFields{Root: root, Source: source, State: state, Stage: &stage})
+		p.Resource = &(*core.PortalProducerRef(p)).PreparedResource
+		p.Resource.Closer = p
 		defer core.PortalClose(p, context.Background())
 		row := make([]sqltype.Value, 2)
 		for i := range 4 {

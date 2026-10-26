@@ -100,9 +100,40 @@ second SQLRoutineExpr family or fake handler scalar is introduced.
   runtime coercion and CHECK failures do not become planning errors.
   Assignment preflight simplifies SQL constants before importing execution-frame
   coercions; failures in the import phase retain their runtime origin.
+  `FoldPlanningExpression` is the single demanded conditional/preflight computation
+  and current routine admission boundary, including physical IO coercions and
+  strict null-or-evaluate inputs. `FoldDefinition` owns the live generation and
+  immutable typed entries/dependencies; `Begin` borrows them into a
+  `FoldAttempt` and changed planning uses COW. The prepared runtime validates
+  the complete operation's environment, current authority and cancellation
+  before `Accept` seals it. Stale, foreign or retired attempts cannot publish.
+  Root-only invalidation preserves exact stored origins for their own lifetime
+  validation; all-origin invalidation retires them too. Repeated invalidation
+  cannot resurrect retired syntax or needlessly advance the generation.
+  `Current` supplies the actual accepted planning input without copying;
+  `AcceptedFolds` preserves its generation and immutable backing independently
+  of later definition retirement. Its fixed `Candidate` has no definition
+  publication rights, so an old portal cannot update a replacement definition.
+  Source/expansion and exact stored origin, selected provider/coercion, usages
+  and physical literal inputs qualify hits. Literal and result identity uses
+  `sqltype.SameDatum`, preserving exact descriptor provenance, FLOAT4 raw words,
+  FLOAT8 NaN payloads and signed zero; usage and UnknownNull remain exact.
+  Optional nil children retain their ordered slots, distinct from typed NULL
+  and invalid literals, without evaluation or dependencies. Selected-operator
+  provider nodes contribute usage and recursively visited inputs, not a datum.
+  Changed or invalid literal data cannot hit an earlier value. An accepted fixed
+  portal generation rejects a miss rather than recomputing. Stable hits borrow
+  immutable compound backing without copying. Frame qualification is original
+  analysis metadata, never execution frame identity. Strictness and conditional
+  demand remain at their existing callers;
+  row, parameter, stage, runtime-domain and nonimmutable values never persist.
+  Retention does not demand otherwise execution-only arithmetic or ROW
+  projections, and raw literals are not new computations. Typed constructor
+  ownership witnesses use an existing conditional/preflight demand such as
+  COALESCE rather than introducing an eager expression walk.
 - **Routine admission and descriptors** (`routine_*.go`): planning-time EXECUTE
   admission (`AdmitRoutineCall`, `AdmitRoutineReference`,
-  `EvaluatePlanningExpression`), the consumed-call footprint `RoutineProgram`,
+  `FoldPlanningExpression`), the consumed-call footprint `RoutineProgram`,
   and descriptor extraction, revalidation and the SQL-body walk
   (`WalkRoutineBody`), shared with `analyze` and the engine. Admission reads
   `RoutineAccess`: the captured `access.View` and `access.Environment`.

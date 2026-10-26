@@ -152,7 +152,7 @@ func ValidateExpressionJoinExecution(c *exec.Context, expression expr.Expr, cata
 				continue
 			}
 			local := *c
-			local.SelectRoutineDefault(call.Ref, call.ChildSlots[i], call.Procedure.SQLDefaults.Dependencies())
+			local.SelectRoutineDefault(call.Ref, call.ChildSlots[i], call.Procedure.SQLDefaults.Dependencies(), call.Info)
 			if err := ValidateExpressionJoinExecution(&local, child, catalog); err != nil {
 				return err
 			}
@@ -333,7 +333,7 @@ func ValidateMarkedQueryJoin(c *exec.Context, node plan.Node, view catalog.Read,
 				return err
 			}
 			child := *c
-			child.QuoteOrigin = exec.QuoteOrigin{Owner: n.Ref, Definition: stored.ViewOf(d).RuleOID(), Revision: stored.ViewOf(d).QuoteRevision()}
+			child.FoldOrigin = exec.FoldOrigin{Owner: n.Ref, Definition: stored.ViewOf(d).RuleOID(), Revision: stored.ViewOf(d).DefinitionRevision()}
 			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = stored.ViewOf(d).Dependencies(), nil, d
 			child.RoutineRecipe, child.RoutineGraft = true, false
 			root, storedReads, err := PrepareStoredExecutionRoot(&child, stored.ViewOf(d), outputUses)

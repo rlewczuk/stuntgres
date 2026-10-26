@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"reflect"
@@ -9,18 +10,18 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/regobj"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/enginetest"
 )
 
 func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
-	admin := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
+	admin := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{
 		"CREATE ROLE routine_operand_a",
 		"CREATE ROLE routine_operand_b",
@@ -37,10 +38,10 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	regoperatorPreparedInstall(t, e, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, 92001, ids.OID(typ.SQLType.ID()), 23)
 	sessionSQL(t, s, "SET ROLE routine_operand_a")
 	ast, d := sequencePreparedDescription(t, e, s, `SELECT '("abs(integer)","public.#=#(routine_types.secret,integer)",integer)'::public.routine_operator_pair AS c,'551'::regoperator AS o,'23'::regtype AS t`)
-	if core.DescriptionRegtypes(&d) == nil || len(core.DescriptionRegtypes(&d).Constants) != 3 {
-		t.Fatal("mixed datum did not enter shared analysis", core.DescriptionRegtypes(&d))
+	if d.Regtypes == nil || len(d.Regtypes.Constants) != 3 {
+		t.Fatal("mixed datum did not enter shared analysis", d.Regtypes)
 	}
-	saved := regoperatorPreparedSnapshot(core.DescriptionRegtypes(&d).Constants)
+	saved := regoperatorPreparedSnapshot(d.Regtypes.Constants)
 	c := saved[0]
 	if c.TypeID == 0 || c.Operator != 0 || c.Value.Type() == nil || !c.Value.Type().ContainsRegproc() || !c.Value.Type().ContainsOperatorAlias() {
 		t.Fatal("mixed datum lost routine-owner classification", c)
@@ -55,9 +56,15 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal("fresh mixed members lost actual identities", procedure, operatorID, typeID, procedureErr, operatorErr, typeErr)
 	}
 	int4 := e.CatalogRead().Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23})
+	// Capture each parsed signature operand in source order: abs(integer),
+	// then #=#(secret,integer). The leading INT4 is additive routine-signature
+	// provenance; retain both original operator operands and their order.
+	// Captured input stamps use the default purpose; the binder projects them
+	// to operand-only dependencies, not executable type uses.
 	want := []catalog.ExpressionDependency{
-		{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision()},
-		{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision()},
+		{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision(), Purpose: catalog.DefinitionDependency},
+		{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision(), Purpose: catalog.DefinitionDependency},
+		{Ref: e.Catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision(), Purpose: catalog.DefinitionDependency},
 	}
 	if !reflect.DeepEqual(c.Operands, want) || !slices.Contains(c.Qualified, ns) {
 		t.Fatal("mixed owner lost exact operand stamps or qualified authority", c)
@@ -65,12 +72,13 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	assertDependencies := func(deps []catalog.ExpressionDependency) {
 		t.Helper()
 		for _, operand := range want {
+			operand.Purpose = catalog.OperandDependency
 			if !slices.Contains(deps, operand) {
 				t.Fatal("mixed operand missing from binder manifest", operand, deps)
 			}
 		}
 	}
-	assertDependencies(core.PreparedAnalysisDependencies(core.DescriptionAnalysis(&d)))
+	assertDependencies(d.Analysis.Dependencies)
 	// Rebind actual captured datums at one occurrence. Invalid text ensures
 	// that each target selects its retained cell rather than reparsing.
 	func() {
@@ -89,7 +97,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		for i := range cells {
 			cells[i].Offset = 7
 		}
-		expected := *core.NewDescription(core.DescriptionFields{Regtypes: &regobj.Analysis{Constants: cells}})
+		expected := core.Description{Regtypes: &regobj.Analysis{Constants: cells}}
 		b := core.NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &expected)
 		b.Query.Auth = &auth
 		pos := parser.Position{Offset: 7, Character: 8}
@@ -123,13 +131,13 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 			t.Fatal("standalone REGTYPE cross-selected mixed cell", id, err, idErr)
 		}
 	}()
-	if !regoperatorPreparedCellValid(t, e, s, core.DescriptionRegtypes(&d)) {
+	if !regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 		t.Fatal("fresh mixed cell invalid")
 	}
 	signature := slices.Clone(d.Results)
-	before := core.DescriptionAnalysis(&d)
+	before := d.Analysis
 	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_b")
-	if regoperatorPreparedCellValid(t, e, s, core.DescriptionRegtypes(&d)) {
+	if regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 		t.Fatal("qualified operand authority change retained mixed cell")
 	}
 	result, failure := sequencePreparedExecute(e, s, ast, &d)
@@ -140,7 +148,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		}
 		t.Fatal("mixed authority denial did not fail without rows", failure)
 	}
-	if core.DescriptionAnalysis(&d) != before || !reflect.DeepEqual(core.DescriptionRegtypes(&d).Constants, saved) || !reflect.DeepEqual(d.Results, signature) {
+	if d.Analysis != before || !reflect.DeepEqual(d.Regtypes.Constants, saved) || !reflect.DeepEqual(d.Results, signature) {
 		t.Fatal("failed mixed reanalysis published partial capture or signature")
 	}
 	sessionSQL(t, admin, "ALTER SCHEMA routine_types OWNER TO routine_operand_a")
@@ -154,7 +162,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) {
 		t.Fatal("recovered mixed datum changed identity", values, err)
 	}
-	assertDependencies(core.PreparedAnalysisDependencies(core.DescriptionAnalysis(&d)))
+	assertDependencies(d.Analysis.Dependencies)
 	if !reflect.DeepEqual(d.Results, signature) {
 		t.Fatal("recovered mixed statement changed signature")
 	}
@@ -167,25 +175,25 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if regoperatorPreparedCellValid(t, e, s, core.DescriptionRegtypes(&d)) {
+	if regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 		t.Fatal("mixed capture accepted stale operand revision")
 	}
-	priorAnalysis := core.DescriptionAnalysis(&d)
+	priorAnalysis := d.Analysis
 	revised, err := sequencePreparedExecute(e, s, ast, &d)
 	if err != nil {
 		t.Fatal("mixed revision recapture failed", err)
 	}
 	defer revised.Rows.Close()
 	present, err = revised.Rows.Next(context.Background(), values)
-	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) || core.DescriptionAnalysis(&d) == priorAnalysis {
+	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) || d.Analysis == priorAnalysis {
 		t.Fatal("mixed revision did not recapture unchanged actual identities", values, err)
 	}
-	want[0].Revision = changed.Revision()
-	if !reflect.DeepEqual(core.DescriptionRegtypes(&d).Constants[0].Operands, want) {
-		t.Fatal("mixed recapture retained stale operand stamps", core.DescriptionRegtypes(&d).Constants[0].Operands, want)
+	want[1].Revision = changed.Revision()
+	if !reflect.DeepEqual(d.Regtypes.Constants[0].Operands, want) {
+		t.Fatal("mixed recapture retained stale operand stamps", d.Regtypes.Constants[0].Operands, want)
 	}
-	assertDependencies(core.PreparedAnalysisDependencies(core.DescriptionAnalysis(&d)))
-	if !reflect.DeepEqual(d.Results, signature) || !regoperatorPreparedCellValid(t, e, s, core.DescriptionRegtypes(&d)) {
+	assertDependencies(d.Analysis.Dependencies)
+	if !reflect.DeepEqual(d.Results, signature) || !regoperatorPreparedCellValid(t, e, s, d.Regtypes) {
 		t.Fatal("revised mixed capture changed signature or remained invalid")
 	}
 }

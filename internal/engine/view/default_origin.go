@@ -17,7 +17,7 @@ func BindingDefaultOrigin(b *analyze.Binding, slot int) analyze.DefaultOrigin {
 	if definition.Expression == nil {
 		return analyze.DefaultOrigin{}
 	}
-	return analyze.DefaultOrigin{Definition: definition, Consumer: physical.Relation, Quote: exec.QuoteOrigin{Owner: physical.Ref, Attribute: attribute, Definition: definition.OID}}
+	return analyze.DefaultOrigin{Definition: definition, Consumer: physical.Relation, Fold: exec.FoldOrigin{Owner: physical.Ref, Attribute: attribute, Definition: definition.OID}}
 }
 
 // EvalBindingDefault evaluates the default of binding slot.

@@ -115,7 +115,7 @@ Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 - `pg_blocking_pids`: `RUN='^TestReferenceBlockingPids'`
 - Transaction status and commit timestamps, tracking off: `RUN='^TestReference(TransactionIdentityStatusDefaultTracking|CommitTime(Disabled|SpecialIDs|Resolution))'`
 - Native controls inside transactions: `RUN='^TestReferenceControlTransactions'`
-- Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|QueryRevalidates)'`
+- Prepared-statement revalidation and rebind: `RUN='^TestReferencePrepared(Rebind|Fold|QueryRevalidates)'`
 - DISCARD: `RUN='^TestReferenceDiscard'`
 - SQL PREPARE/EXECUTE/DEALLOCATE: `RUN='^TestReferenceSQLPrepared'`
 - Wire server (all): `RUN='^TestReference(Server|TransactionalSchemaProtocol|TransactionalCommentProtocol|TransactionalViewsProtocol|TransactionalMaterializedRefreshProtocol|TransactionalTypesProtocol|TransactionalPoliciesProtocol|TransactionalRulesProtocol|TransactionalCollationConversionCastProtocol)'`

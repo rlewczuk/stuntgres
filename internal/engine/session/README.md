@@ -329,7 +329,7 @@ checks, `visibilitySnapshotLocked`, the pgrowlocks dependency flag and storing
 the view), the protocol Parse,
 Bind, Describe, Execute and fastpath steps (`protocol_*.go`, with
 `ProtocolStatement`, `ProtocolPortalDescription` and `ProtocolExecution`,
-which carry `StatementDescription`), the `Engine.Mu`
+which carry the prepared description owned by `core.Description`), the `Engine.Mu`
 windows of notification publication and polling, the `…Locked` journal
 wrappers, the root fence types and the fence check order, and the root slot
 types.

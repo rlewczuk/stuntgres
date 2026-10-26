@@ -147,8 +147,8 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 
 func TestDeleteCurrentOfArbitration(t *testing.T) {
 	e := engine.New()
-	holder := sessionStart(t, e, nil)
-	worker := sessionStart(t, e, nil)
+	holder := enginetest.StartSession(t, e, nil)
+	worker := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, worker, "CREATE TABLE t(v INT)")
 	sessionSQL(t, worker, "INSERT INTO t VALUES(7),(7)")
 	sessionSQL(t, worker, "BEGIN")
@@ -232,7 +232,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 		{"unmarked_view_scan", "CREATE VIEW visible AS SELECT i FROM unit_rows", "SELECT i FROM visible", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := sessionStart(t, engine.New(), nil)
+			s := enginetest.StartSession(t, engine.New(), nil)
 			sessionSQL(t, s, "CREATE TABLE unit_rows(i INT NOT NULL)")
 			sessionSQL(t, s, "INSERT INTO unit_rows VALUES(1),(2),(3)")
 			if tc.setup != "" {

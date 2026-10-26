@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -25,7 +24,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
+			s := enginetest.StartSession(t, e, nil)
 			setup := func() {
 				for _, q := range []string{"CREATE TABLE input(id INT)", "CREATE TABLE t(id INT,a INT,b INT)", "CREATE SEQUENCE draw", "CREATE SEQUENCE gate", "CREATE SEQUENCE own_draw"} {
 					sessionSQL(t, s, q)
@@ -50,8 +49,8 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			}
 			ast, description := sequencePreparedDescription(t, e, s, query("1"))
 			assertBorrowed := func() {
-				if description.Sequences != nil || core.DescriptionRegtypes(&description) != nil {
-					t.Fatal("stored recipe entered caller literal provenance", description.Sequences, core.DescriptionRegtypes(&description))
+				if description.Sequences != nil || description.Regtypes != nil {
+					t.Fatal("stored recipe entered caller literal provenance", description.Sequences, description.Regtypes)
 				}
 			}
 			assertBorrowed()
@@ -66,22 +65,22 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			ownedAST, owned := sequencePreparedDescription(t, e, s, query("nextval('own_draw')"))
 			ownedRef := enginetest.CatalogRef(t, e, e.CatalogRead(), "own_draw")
 			assertOwned := func() {
-				if owned.Sequences == nil || len(owned.Sequences.Constants) != 1 || owned.Sequences.Constants[0].Ref != ownedRef || core.DescriptionRegtypes(&owned) != nil {
-					t.Fatal("raw caller/CTE capture group polluted or lost", owned.Sequences, core.DescriptionRegtypes(&owned))
+				if owned.Sequences == nil || len(owned.Sequences.Constants) != 1 || owned.Sequences.Constants[0].Ref != ownedRef || owned.Regtypes != nil {
+					t.Fatal("raw caller/CTE capture group polluted or lost", owned.Sequences, owned.Regtypes)
 				}
 			}
 			assertOwned()
 			_, regtype := sequencePreparedDescription(t, e, s, "SELECT 'integer'::regtype")
-			if core.DescriptionRegtypes(&regtype) == nil || len(core.DescriptionRegtypes(&regtype).Constants) != 1 {
+			if regtype.Regtypes == nil || len(regtype.Regtypes.Constants) != 1 {
 				t.Fatal("direct regtype capture was discarded")
 			}
-			before := core.DescriptionAnalysis(&description)
+			before := description.Analysis
 			sessionSQL(t, s, "COMMENT ON TABLE t IS 'invalidate rule target dependency'")
 			result, err := sequencePreparedExecute(e, s, ast, &description)
 			if result.Rows != nil {
 				result.Rows.Close()
 			}
-			if err != nil || core.DescriptionAnalysis(&description) == before {
+			if err != nil || description.Analysis == before {
 				t.Fatal("stored dependency failed normal reanalysis", err)
 			}
 			assertBorrowed()
@@ -93,9 +92,9 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				t.Fatal(err)
 			}
 			assertOwned()
-			previous := core.DescriptionAnalysis(&owned)
+			previous := owned.Analysis
 			captures := append([]sequence.Constant(nil), owned.Sequences.Constants...)
-			before = core.DescriptionAnalysis(&description)
+			before = description.Analysis
 			if err := engine.Reset(context.Background(), e); err != nil {
 				t.Fatal(err)
 			}
@@ -104,7 +103,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 			if result.Rows != nil {
 				result.Rows.Close()
 			}
-			if err != nil || core.DescriptionAnalysis(&description) == before {
+			if err != nil || description.Analysis == before {
 				t.Fatal("borrowed current recipe was fenced as an old caller literal", err)
 			}
 			assertBorrowed()
@@ -113,7 +112,7 @@ func TestUpdateRowPreparedRecipeCaptures(t *testing.T) {
 				result.Rows.Close()
 				t.Fatal("retired caller literal exposed rows")
 			}
-			if !errors.Is(err, ids.ErrCatalogReplaced) || core.DescriptionAnalysis(&owned) != previous || !reflect.DeepEqual(captures, owned.Sequences.Constants) {
+			if !errors.Is(err, ids.ErrCatalogReplaced) || owned.Analysis != previous || !reflect.DeepEqual(captures, owned.Sequences.Constants) {
 				t.Fatal("direct caller lifetime fence or atomic capture publication changed", err)
 			}
 		})

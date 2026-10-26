@@ -99,7 +99,7 @@ func TestCheckAbsentValidatorHasNoAllocation(t *testing.T) {
 	}
 }
 
-func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.StatementDescription) {
+func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.Description) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

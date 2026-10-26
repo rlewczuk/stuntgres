@@ -9,7 +9,7 @@ import (
 )
 
 // EngineDescribeOperation calls x.describeOperation.
-func EngineDescribeOperation(x *Engine, scope *StatementScope, stmt parser.Statement) (StatementDescription, error) {
+func EngineDescribeOperation(x *Engine, scope *StatementScope, stmt parser.Statement) (Description, error) {
 	return x.describeOperation(scope, stmt)
 }
 

@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"reflect"
 	"testing"
@@ -8,7 +9,6 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -46,7 +46,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			e.Mu.Unlock()
 			t.Fatal("mixed temporal dependencies changed", bound.QuerySources, bound.Parameters)
 		}
-		desc := core.StatementDescription{Temporals: bound.Prepared.Temporals}
+		desc := core.Description{Temporals: bound.Prepared.Temporals}
 		before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 		counts := map[sqltype.ID]int{}
 		for _, capture := range before {
@@ -97,7 +97,7 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 6, Scalar: 86400123456},
 		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 3, Scalar: 86400123000},
 	}
-	desc := core.StatementDescription{Temporals: captures}
+	desc := core.Description{Temporals: captures}
 	b.Expected = core.ExpectedOf(&desc)
 	before := append([]analyze.TemporalConstant(nil), captures...)
 	for _, expected := range captures {
@@ -140,7 +140,7 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	if !reflect.DeepEqual(before, desc.Temporals) || len(b.Prepared.Temporals) != 0 {
 		t.Fatal("capture contract mutated", desc.Temporals, b.Prepared.Temporals)
 	}
-	b.Expected = core.ExpectedOf(&core.StatementDescription{Temporals: []analyze.TemporalConstant{captures[2], captures[4]}})
+	b.Expected = core.ExpectedOf(&core.Description{Temporals: []analyze.TemporalConstant{captures[2], captures[4]}})
 	if got, found, err := b.CaptureAt(7); err != nil || !found || got != captures[2] {
 		t.Fatal("uniform frozen metadata rejected", got, found, err)
 	}

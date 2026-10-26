@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"reflect"
@@ -11,7 +12,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -104,7 +104,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := core.NewDescription(core.DescriptionFields{Temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()})
+	description := &core.Description{Temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), CatalogOwner: &e.Catalog.Owner, CatalogEpoch: e.CatalogRead().Epoch()}
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.InputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {

@@ -51,7 +51,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 	})
 	t.Run("promotion_before_real_ssi_publication", func(t *testing.T) {
 		e := engine.New()
-		s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+		s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE hold_ssi(class INT,v INT)")
 		sessionSQL(t, s, "INSERT INTO hold_ssi VALUES(1,10),(2,20)")
 		sessionSQL(t, s, "CREATE SEQUENCE hold_ssi_draw START 10 CACHE 1")
@@ -146,8 +146,8 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			e := engine.New()
-			s := sessionStart(t, e, nil)
-			holder := sessionStart(t, e, nil)
+			s := enginetest.StartSession(t, e, nil)
+			holder := enginetest.StartSession(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE unit_rows(i INT NOT NULL)")
 			sessionSQL(t, s, "INSERT INTO unit_rows VALUES(1),(2),(3)")
 			sessionSQL(t, s, "CREATE SEQUENCE hold_draw START 10 CACHE 1")

@@ -57,7 +57,7 @@ func foldRandomNullInputs(c *Context, node expr.Expr) (next expr.Expr, changed, 
 			} else if folded {
 				continue
 			}
-			if _, err := EvaluatePlanningExpression(c, arg); err != nil {
+			if _, err := FoldPlanningExpression(c, arg); err != nil {
 				return nil, false, true, err
 			}
 		}

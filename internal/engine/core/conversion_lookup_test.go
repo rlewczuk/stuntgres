@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -271,7 +271,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err := regobj.CaptureProcOutputValue(rows, view, path, procedureValue); err != nil {
 		t.Fatal(err)
 	}
-	heldDescription := core.NewDescription(core.DescriptionFields{Regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}})
+	heldDescription := &core.Description{Regtypes: &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Remove(e.Catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
 		t.Fatal(err)

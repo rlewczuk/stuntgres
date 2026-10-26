@@ -30,20 +30,20 @@ func TestRoutineDefaultOriginRestoration(t *testing.T) {
 	defaults := []catalog.ExpressionDependency{{Ref: owner, Revision: 3}}
 	for _, failure := range []error{nil, errors.New("default evaluation failed"), context.Canceled} {
 		c := &Context{}
-		c.QuoteOrigin = QuoteOrigin{Owner: caller, Attribute: 4, Definition: 5, Revision: 6}
+		c.FoldOrigin = FoldOrigin{Owner: caller, Attribute: 4, Definition: 5, Revision: 6}
 		c.RoutineRecipe, c.RoutineGraft = false, true
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = previous, []ids.ObjectRef{caller}, consumer
-		before, quote := c.EvalAdmission, c.QuoteOrigin
+		before, previousOrigin := c.EvalAdmission, c.FoldOrigin
 		node := routineDefaultOriginExpr{evaluate: func(active *Context) (sqltype.Value, error) {
-			if active.QuoteOrigin != (QuoteOrigin{Owner: owner, Attribute: 2}) || !active.RoutineRecipe || active.RoutineGraft || active.RoutineConsumer != nil || active.RoutineReferences != nil || !reflect.DeepEqual(active.RoutineChecks, defaults) {
+			if active.FoldOrigin != (FoldOrigin{Owner: owner, Attribute: 2}) || !active.RoutineRecipe || active.RoutineGraft || active.RoutineConsumer != nil || active.RoutineReferences != nil || !reflect.DeepEqual(active.RoutineChecks, defaults) {
 				t.Fatal("default borrowed caller origin", active)
 			}
 			return sqltype.Value{}, failure
 		}}
-		if _, err := c.evalRoutineDefault(owner, 1, defaults, node); !errors.Is(err, failure) {
+		if _, err := c.evalRoutineDefault(owner, 1, defaults, node, expr.Info{}); !errors.Is(err, failure) {
 			t.Fatal(err, failure)
 		}
-		if c.QuoteOrigin != quote || !reflect.DeepEqual(c.EvalAdmission, before) {
+		if c.FoldOrigin != previousOrigin || !reflect.DeepEqual(c.EvalAdmission, before) {
 			t.Fatal("default leaked origin after evaluation", failure, c)
 		}
 	}

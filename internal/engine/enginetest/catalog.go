@@ -61,7 +61,7 @@ func ValidateObjectRef(e *core.Engine, view catalog.Read, ref ids.ObjectRef) err
 // ExpressionBinder is a scalar binder over a postgres session, with real
 // catalog and session authorization like public SQL. The session ends at
 // test cleanup.
-func ExpressionBinder(t testing.TB, ctx context.Context, e *core.Engine, input sqltype.InputEnvironment, expected *core.StatementDescription) *analyze.Binder {
+func ExpressionBinder(t testing.TB, ctx context.Context, e *core.Engine, input sqltype.InputEnvironment, expected *core.Description) *analyze.Binder {
 	t.Helper()
 	op, done := RoleOperation(t, e, "postgres")
 	t.Cleanup(done)

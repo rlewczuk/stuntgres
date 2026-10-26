@@ -153,7 +153,30 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("anonymous FROM shape completion", err)
 				}
 				next := completed.(functions.JSONRecord)
-				if !next.Defined || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Plan.BaseIndex() != tc.base || !reflect.DeepEqual(next.Args, call.Args) || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != expr.Stable || next.Properties().StageDependent != tc.set {
+				sourceCall := source.(functions.JSONRecord)
+				if !reflect.DeepEqual(next.Args, sourceCall.Args) || next.Source != sourceCall.Source || next.Occurrence != sourceCall.Occurrence {
+					t.Fatal("completion changed source occurrence or inputs", sourceCall, next)
+				}
+				if len(next.Args) != len(call.Args) {
+					t.Fatal("completion changed input arity", next.Args, call.Args)
+				}
+				// Separate bindings allocate distinct expansions. Compare every
+				// other literal field, including usage, properties and authority.
+				for i, argument := range next.Args {
+					got, ok := argument.(plan.LiteralExpr)
+					want, wantOK := call.Args[i].(plan.LiteralExpr)
+					if !ok || !wantOK {
+						t.Fatal("expected literal record inputs", argument, call.Args[i])
+					}
+					if got.Source != want.Source || got.Occurrence == 0 || want.Occurrence == 0 || got.Occurrence == want.Occurrence {
+						t.Fatal("separate bindings lost distinct fold provenance", got.Info, want.Info)
+					}
+					got.Occurrence = want.Occurrence
+					if !reflect.DeepEqual(got, want) {
+						t.Fatal("completion changed input contract beyond fold occurrence", got, want)
+					}
+				}
+				if !next.Defined || next.Info.RoutineReference != captured || next.SourcePosition() != call.SourcePosition() || next.Plan.BaseIndex() != tc.base || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeLen() != 2 || !next.Properties().DomainDependent || !next.Properties().RuntimeDomainConversion || next.Properties().Volatility != expr.Stable || next.Properties().StageDependent != tc.set {
 					t.Fatal("completion erased original authority or domain/stage/shape", next)
 				}
 				rebuilt, err := next.Reconstruct(next.Info, next.Args)

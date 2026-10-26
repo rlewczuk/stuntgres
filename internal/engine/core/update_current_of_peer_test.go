@@ -24,7 +24,7 @@ func TestUpdateCurrentOfPeerCommitRecheck(t *testing.T) {
 	for _, lane := range []string{"blocked_peer", "snapshot_gap"} {
 		t.Run(lane, func(t *testing.T) {
 			e := engine.New()
-			owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			owner, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			rollbackStatement := enginetest.Statement(t, "ROLLBACK")
 			rollback := func(s *session.Session) {
 				cleanup, stop := context.WithTimeout(context.Background(), 2*time.Second)

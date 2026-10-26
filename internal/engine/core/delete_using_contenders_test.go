@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"database/sql/driver"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -27,7 +27,7 @@ func TestDeleteUsingQueuedContenderRecheck(t *testing.T) {
 				enginetest.SessionSQL(t, peer, q)
 			}
 			ast := enginetest.Statement(t, "DELETE FROM t x USING s WHERE x.id=1 AND x.v>=s.lo AND x.v<=s.hi RETURNING old.v,s.n,s.lo,s.hi")
-			var expected *core.StatementDescription
+			var expected *core.Description
 			if prepared {
 				op := enginetest.TransactionOperation(t, writer)
 				description, err := e.Describe(op, ast)

@@ -44,14 +44,14 @@ func TestLqueryPreparedLiteralRetirement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	analysis := *core.NewPreparedAnalysis(core.PreparedAnalysisFields{
+	analysis := core.Analysis{
 		Domain: e.Catalog.Domain, Epoch: auth.Catalog.Epoch(), Session: auth.Session.SessionToken,
 		Private: auth.Session.Transactions.Catalog, Path: path, Namespace: auth.Catalog.State().NamespaceGeneration(),
 		Types:        map[ids.ObjectAddress]*catalog.Type{base.Address(): base},
 		Dependencies: []catalog.ExpressionDependency{{Ref: e.Catalog.Domain.Ref(auth.Catalog.Epoch(), base.Address()), Revision: base.Revision()}},
-	})
-	expected := *core.NewDescription(core.DescriptionFields{Temporals: original, Analysis: &analysis, PlanGeneration: auth.Session.DiscardPlansGeneration})
-	retire := func(a core.AuthorizationView, d *core.StatementDescription) []analyze.TemporalConstant {
+	}
+	expected := core.Description{Temporals: original, Analysis: &analysis, PlanGeneration: auth.Session.DiscardPlansGeneration}
+	retire := func(a core.AuthorizationView, d *core.Description) []analyze.TemporalConstant {
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
 		return core.EngineRetirePreparedInstalledScalarLiteralTemporalsLocked(e, a, d, path, d.Temporals)
@@ -71,28 +71,28 @@ func TestLqueryPreparedLiteralRetirement(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name   string
-		change func(*core.StatementDescription, *core.PreparedAnalysis)
+		change func(*core.Description, *core.Analysis)
 	}{
-		{"missing source", func(_ *core.StatementDescription, a *core.PreparedAnalysis) { core.SetPreparedAnalysisTypes(a, nil) }},
-		{"missing dependency", func(_ *core.StatementDescription, a *core.PreparedAnalysis) { core.SetPreparedAnalysisDependencies(a, nil) }},
-		{"foreign dependency", func(_ *core.StatementDescription, a *core.PreparedAnalysis) {
-			core.SetPreparedAnalysisDependencies(a, []catalog.ExpressionDependency{{Ref: new(ids.Domain).Ref(auth.Catalog.Epoch(), base.Address())}})
+		{"missing source", func(_ *core.Description, a *core.Analysis) { a.Types = nil }},
+		{"missing dependency", func(_ *core.Description, a *core.Analysis) { a.Dependencies = nil }},
+		{"foreign dependency", func(_ *core.Description, a *core.Analysis) {
+			a.Dependencies = []catalog.ExpressionDependency{{Ref: new(ids.Domain).Ref(auth.Catalog.Epoch(), base.Address())}}
 		}},
-		{"foreign source", func(d *core.StatementDescription, _ *core.PreparedAnalysis) {
+		{"foreign source", func(d *core.Description, _ *core.Analysis) {
 			d.Temporals[0].Value = sqltype.Null(foreign)
 			d.Temporals[1].Value = sqltype.Null(foreign)
 		}},
-		{"wrong type id", func(d *core.StatementDescription, _ *core.PreparedAnalysis) {
+		{"wrong type id", func(d *core.Description, _ *core.Analysis) {
 			d.Temporals[0].TypeID++
 			d.Temporals[1].TypeID++
 		}},
-		{"epoch", func(_ *core.StatementDescription, a *core.PreparedAnalysis) { *core.PreparedAnalysisEpochRef(a)++ }},
-		{"discard", func(d *core.StatementDescription, _ *core.PreparedAnalysis) { *core.DescriptionPlanGenerationRef(d)++ }},
-		{"retired analysis", func(_ *core.StatementDescription, a *core.PreparedAnalysis) { core.SetPreparedAnalysisNeedsReanalysis(a, true) }},
+		{"epoch", func(_ *core.Description, a *core.Analysis) { a.Epoch++ }},
+		{"discard", func(d *core.Description, _ *core.Analysis) { d.PlanGeneration++ }},
+		{"retired analysis", func(_ *core.Description, a *core.Analysis) { a.NeedsReanalysis = true }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			a, d := analysis, expected
-			core.SetDescriptionAnalysis(&d, &a)
+			d.Analysis = &a
 			d.Temporals = append([]analyze.TemporalConstant(nil), original...)
 			tc.change(&d, &a)
 			snapshot := append([]analyze.TemporalConstant(nil), d.Temporals...)
@@ -102,7 +102,7 @@ func TestLqueryPreparedLiteralRetirement(t *testing.T) {
 			}
 		})
 	}
-	if !reflect.DeepEqual(expected.Temporals, saved) || core.PreparedAnalysisNeedsReanalysis(&analysis) {
+	if !reflect.DeepEqual(expected.Temporals, saved) || analysis.NeedsReanalysis {
 		t.Fatal("candidate retirement mutated published statement state")
 	}
 }

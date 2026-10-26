@@ -117,7 +117,7 @@ type Binder interface {
 	// (encoding conversion lookup), so the statement captures that snapshot.
 	NoteVisibilitySnapshot()
 	// Frame identifies the query frame being bound; the variadic string
-	// family's quote-capture folding keys on it.
+	// family's retained-fold occurrence keys on it.
 	Frame() uint32
 	// CapturePolymorphicBody captures the builtin routines a SQL-bodied
 	// builtin selects from the node's actual argument.

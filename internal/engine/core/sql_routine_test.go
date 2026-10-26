@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"bytes"
 	"context"
 	"errors"
@@ -9,7 +10,6 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
@@ -109,12 +109,12 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	if err := result.Rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	var retained *core.PreparedAnalysis
+	var retained *core.Analysis
 	for _, entry := range core.PayloadSQLRoutines(core.PayloadOf(op.Session)) {
 		if len(core.RoutineAnalysisDescriptions(&entry)) != 1 {
 			t.Fatal("single-command retention shape", len(core.RoutineAnalysisDescriptions(&entry)))
 		}
-		retained = core.DescriptionAnalysis(&core.RoutineAnalysisDescriptions(&entry)[0])
+		retained = core.RoutineAnalysisDescriptions(&entry)[0].Analysis
 	}
 	if retained == nil {
 		t.Fatal("body bypassed shared prepared analysis owner")
@@ -125,7 +125,7 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, entry := range core.PayloadSQLRoutines(core.PayloadOf(op.Session)) {
-		if len(core.RoutineAnalysisDescriptions(&entry)) != 1 || core.DescriptionAnalysis(&core.RoutineAnalysisDescriptions(&entry)[0]) != retained {
+		if len(core.RoutineAnalysisDescriptions(&entry)) != 1 || core.RoutineAnalysisDescriptions(&entry)[0].Analysis != retained {
 			t.Fatal("unchanged body identity reanalyzed")
 		}
 	}

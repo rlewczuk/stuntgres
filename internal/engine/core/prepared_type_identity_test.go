@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"testing"
 
@@ -8,7 +9,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -94,14 +94,14 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 			if family.name == "pair" {
 				leaf := domainUnitType(t, e.CatalogRead(), "leaf")
 				memberSeen := false
-				for _, dependency := range core.PreparedAnalysisDependencies(analysis) {
+				for _, dependency := range analysis.Dependencies {
 					memberSeen = memberSeen || dependency.Ref.Address == leaf.Address()
 				}
 				if !memberSeen {
 					t.Fatal("held composite lost executable member dependency")
 				}
 			}
-			expected := core.NewDescription(core.DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: analysis})
+			expected := &core.Description{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: analysis}
 			enginetest.RoleExecute(t, e, op, "ALTER TYPE public."+family.name+" RENAME TO renamed")
 			enginetest.RoleExecute(t, e, op, "ALTER TYPE public.renamed SET SCHEMA identity_dst")
 			current := e.CatalogRead().MustType(old.Address())
@@ -116,7 +116,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 				e.Mu.Unlock()
 				t.Fatal(err)
 			}
-			valid := core.EnginePreparedAnalysisValidLocked(e, auth, analysis, core.PreparedAnalysisPath(analysis))
+			valid := core.EnginePreparedAnalysisValidLocked(e, auth, analysis, analysis.Path)
 			e.Mu.Unlock()
 			if !valid || !catalog.SamePreparedTypeDefinition(old, current) {
 				t.Fatal("identity-only edit retired held analysis")
@@ -158,7 +158,7 @@ func TestTypeLifecyclePreparedCapture(t *testing.T) {
 					t.Fatal("enum definition change concealed")
 				}
 			}
-			core.DescriptionRetireAnalysisTypeCasts(expected)
+			expected.RetireAnalysisTypeCasts()
 			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("retired occurrence rescued old spelling")

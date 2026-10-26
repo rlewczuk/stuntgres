@@ -175,6 +175,29 @@ ordinary SQL errors leave the connection reusable.
 - **SQL `PREPARE`/`EXECUTE`** names and cursors are session objects, independent of
   Go `Stmt` handles; closing a `Stmt` or `Rows` neither deallocates a name nor moves
   a cursor.
+- Parameterless prepared definitions retain immutable typed constant results,
+  not executable graphs or permission decisions. The first execution (wire
+  Bind) computes demanded folds; Prepare/Parse/Describe do not. Current binding,
+  casts and authority still run on reuse. Relevant executable dependencies,
+  effective namespace/private context, DISCARD PLANS and native replacement
+  retire the affected fold lifetime. Incidental operand-name reanalysis alone
+  need not discard an otherwise valid typed result. Parameterized definitions
+  keep their computed values operation-local. Wire Describe preserves the
+  shared definition owner. Bind plans supported INSERT/UPDATE/DELETE/MERGE and
+  modifying-CTE SELECT without applying their effects. Those portals keep an
+  independent immutable Bind generation; Execute uses fresh canonical binding,
+  current authority and data without publishing back to the definition. Closing
+  or replacing the statement, DISCARD PLANS, or a later path change cannot replace
+  that accepted portal generation or its selected relation occurrences. Creating
+  the same transaction's private catalog journal after Bind is not portal
+  replacement: current binding still checks exact identities and current rights,
+  and unlocked planning is fenced against its accepted catalog context.
+  Native/type/provider incompatibility still rejects use.
+  Plain SELECT portals retain their existing private producer graphs. The
+  accepted binding owns the actual graph/resource association and immutable
+  typed group independently of the named definition; session end closes every
+  remaining binding through the normal terminal cleanup path.
+
 
 Access-method, family and class definition utilities have no parameter or row
 signature and report zero affected rows. Go Prepare and wire Parse/Describe/Bind

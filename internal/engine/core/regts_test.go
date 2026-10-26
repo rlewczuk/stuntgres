@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"reflect"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/control"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dump"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -289,7 +289,7 @@ func TestRegTSPreparedCapture(t *testing.T) {
 		t.Fatal("alias/occurrence/dependency capture", b.Prepared.RegtypeConstants)
 	}
 	cell := &regobj.Analysis{Constants: append([]analyze.RegtypeConstant(nil), b.Prepared.RegtypeConstants...)}
-	expected := *core.NewDescription(core.DescriptionFields{Regtypes: cell})
+	expected := core.Description{Regtypes: cell}
 	held := core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &expected)
 	held.Query.Auth = &auth
 	v, err := held.RegTSConstant("reg_ts_missing", dictionary.Usage(), parser.Position{Offset: 7, Character: 8})

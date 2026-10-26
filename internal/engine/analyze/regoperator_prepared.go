@@ -1,6 +1,7 @@
 package analyze
 
 import (
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +29,7 @@ func (b *Binder) OperatorConstant(text string, typ *sqltype.Descriptor, pos pars
 		}
 	}
 	for _, operand := range constant.Operands {
-		b.dependency(operand.Ref, operand.Revision)
+		b.captureDependency(operand.Ref, operand.Revision, catalog.OperandDependency)
 	}
 	b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, constant)
 	return sqltype.OperatorValue(typ, constant.ID)
@@ -42,7 +43,7 @@ func (b *Binder) operatorCompoundConstant(text string, usage sqltype.Usage, pos 
 				return sqltype.Value{}, err
 			}
 			for _, operand := range constant.Operands {
-				b.dependency(operand.Ref, operand.Revision)
+				b.captureDependency(operand.Ref, operand.Revision, catalog.OperandDependency)
 			}
 			b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, constant)
 			return value, nil
@@ -62,7 +63,7 @@ func (b *Binder) operatorCompoundConstant(text string, usage sqltype.Usage, pos 
 	}
 	constant.Value = value
 	for _, operand := range constant.Operands {
-		b.dependency(operand.Ref, operand.Revision)
+		b.captureDependency(operand.Ref, operand.Revision, catalog.OperandDependency)
 	}
 	b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, constant)
 	return value, nil

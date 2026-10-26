@@ -111,6 +111,11 @@ host methods.
   current qualifier. Frozen leaves retain a separate table SELECT requirement.
   Executable and presentation refs remap once together, preserving attribute -6
   in semantic dependencies without weakening foreign-domain or epoch fences.
+  Frozen typed identifier operands keep operand-only dependency purpose through
+  view, rule and routine-default manifests. Actual relation/rewrite sources and
+  callable uses remain executable; executable use of the same identity wins.
+  Both purposes remain in ordinary analysis validity. Only the executable
+  projection governs retained-fold retirement; neither purpose caches authority.
   Routine public name/namespace/owner are mutable presentation. Same-address
   declaration checks retain kind, exact signature/result, SQL/default/body and
   provider association. Installed captures validate their real manifest slot
@@ -193,13 +198,25 @@ host methods.
   of identical recording occurrences. Full publication/remapping additionally
   checks complete action occurrence counts and the program-wide set. Missing support-only captures
   cannot be repaired by a plausible direct graph or a fresh name lookup.
-  Remapping preserves both lanes, original stamps and source immutability.
-  Stored views likewise project only definition captures in `DependsOn`;
+  Remapping preserves every purpose, original stamp and source immutability.
+  Stored views project written definition and operand captures in `DependsOn`;
   support-only execution captures do not bypass the aggregate's transitive edge.
   An explicitly written support call keeps its independent direct edge.
+  `OperandDependency` separately records identities used only as constant-input
+  operands. A written definition use subsumes an operand capture only at the
+  same Ref and Revision; it never subsumes an aggregate-support capture.
+  Routine construction and full validation/remapping use the same canonical
+  program-wide union, with exact count and membership checks. Definition
+  dominance is independent of recording order, and column captures suppress
+  whole-relation captures only within their own purpose. Normalization never
+  changes the exact original per-action captures or their occurrence counts.
+  Prepared executable-fold validation ignores operand-only revisions but
+  requires exact aggregate-support stamps before considering declaration or
+  codec equivalence.
   Regproc/regprocedure definition references are validated from checked retained
-  literal occurrences and the presentation's original Ref/Revision, then matched
-  to the action's complete triple. A shared aggregate-support address neither
+  literal occurrences and the presentation's original Definition or Operand
+  Ref/Purpose/Revision, then matched exactly to the action's complete triple.
+  A shared aggregate-support address neither
   authorizes a forged direct lane nor converts a literal into an EXECUTE call.
   Pre-remap checks retain original literal authority without a live source read;
   full target occurrence/type validation follows remapping.
@@ -336,8 +353,13 @@ host methods.
   fully quoted identities, trailing newlines and separate TEMP export rules.
 - **Retag and remap.** `MapExpression`, `RetagTypes`, `RetagTypesWithQuery`
   (`expression_retag.go`, the canonical mapper); `RemapExpression`,
-  `RemapScalar`, `RemapLikeExpression`, `RemapViewQuery` (`expression_remap.go`);
+  `RemapScalar` (`expression_remap.go`), `RemapViewQuery` and `ViewQueryRemapper`
+  (`remap_view_query.go`, `remap_view_providers.go`), `RemapLikeExpression`;
   `RemapView` (`frozen_presentation_remap.go`).
+  `PruneFoldCaptures` (`fold_captures.go`) validates exact default/view/routine
+  definition origins without retaining executable trees or using unrelated
+  relation revisions as stored-definition tokens. Frozen `DefinitionRevision`
+  identifies a defining expansion separately from mutable presentation metadata.
 - **The remap protocol.** `ReownExpressions` (`expression_reown.go`) remaps and
   retags every stored expression of a catalog state after a renumbering
   (Restore, extension owner import, DROP OWNED, TEMP preservation) or after type
@@ -383,7 +405,7 @@ host methods.
   `PartitionDependRefs`, `DependPinned`); temporary provenance and reference
   epoch checks (`temporary_provenance.go`); `ProcedureProvider` and
   `TypeProvider` validators with the domain recipe validators and
-  `ValidateTypeProviders`; `PruneQuoteCaptures`; installed-node validators
+  `ValidateTypeProviders`; `PruneFoldCaptures`; installed-node validators
   (`ValidateInstalled*`); the view read graph and volatility
   (`ValidateViewReadGraph`, `ViewVolatile`, `CaptureRetainedInput`); row-mark
   readers (`view_row_marks.go`); `HasDynamicSourceDependency` (installed

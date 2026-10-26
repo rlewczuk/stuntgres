@@ -4,17 +4,18 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-// DependencyPurpose distinguishes written definition references from captures
-// needed only to execute an aggregate's selected implementation.
+// DependencyPurpose separates written executable references, selected aggregate
+// support captures, and identities used only as constant-input operands.
 type DependencyPurpose uint8
 
 const (
 	DefinitionDependency DependencyPurpose = iota
 	AggregateSupportDependency
+	OperandDependency
 )
 
 func (p DependencyPurpose) Valid() bool {
-	return p == DefinitionDependency || p == AggregateSupportDependency
+	return p == DefinitionDependency || p == AggregateSupportDependency || p == OperandDependency
 }
 
 type ExpressionDependency struct {

@@ -1,6 +1,8 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/core"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -10,7 +12,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/copyfmt"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/session"
@@ -56,20 +57,21 @@ func (r *protocolUnitInput) End() error {
 
 func TestProtocolPreparedRegistry(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	r := core.PayloadPreparedSQL(core.PayloadOf(a))
-	entry := core.NewPreparedStatement(core.PreparedStatementFields{Body: &parser.Select{}})
-	p := core.NewPortal(core.PortalFields{Entry: *entry, Context: session.ProtocolContext{Source: "original"}})
-	core.PreparedRegistryEntries(r)["s"] = entry
-	core.SetPreparedRegistryPortals(r, map[string]*core.ProtocolPortal{"p": p})
-	delete(core.PreparedRegistryEntries(r), "s")
-	if core.PreparedStatementBody(core.PortalEntryRef(p)) != core.PreparedStatementBody(entry) || core.PortalContext(p).Source != "original" {
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	r := core.PayloadOf(a).PreparedSQL
+	entry := &core.PreparedDefinition{Body: &parser.Select{}}
+	p := core.NewProtocolPortal(*entry, ids.TxRef{})
+	(*core.PortalContextRef(p)) = session.ProtocolContext{Source: "original"}
+	r.Install("s", entry)
+	r.Bind("p", &p.PreparedBinding)
+	r.Remove("s")
+	if p.Entry.Body != entry.Body || (*core.PortalContextRef(p)).Source != "original" {
 		t.Fatal("definition removal lost retained portal recipe")
 	}
-	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || core.PortalRetired(p) {
+	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || p.Retired {
 		t.Fatal("foreign retirement modified registry", err)
 	}
-	if err := r.EndSession(a.SessionToken, session.CleanClose); err != nil || !core.PortalRetired(p) || len(core.PreparedRegistryPortals(r)) != 0 {
+	if err := r.EndSession(a.SessionToken, session.CleanClose); err != nil || !p.Retired || r.Binding("p") != nil {
 		t.Fatal("owned retirement retained portal", err)
 	}
 }
@@ -84,9 +86,9 @@ func TestProtocolValueCodecs(t *testing.T) {
 		defer done()
 		for _, retained := range []bool{false, true} {
 			record := sqltype.DeferredRecord()
-			description := core.StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{record.Usage()}}}
+			description := core.Description{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{record.Usage()}}}
 			e.Mu.Lock()
-			var expected *core.StatementDescription
+			var expected *core.Description
 			if retained {
 				expected = &description
 			}
@@ -116,7 +118,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 	})
 	t.Run("captured-role-output", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		op, _, err := s.AcquireCommand(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -160,7 +162,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 
 func TestProtocolCycleRetention(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	cycle := s.NewProtocolCycle()
 	op, _, err := s.AcquireCommand(context.Background())
 	if err != nil {
@@ -200,7 +202,7 @@ func TestProtocolCycleRetention(t *testing.T) {
 		t.Fatal(err)
 	}
 	next.Done()
-	foreign := sessionStart(t, e, nil)
+	foreign := enginetest.StartSession(t, e, nil)
 	foreignOp, _, err := foreign.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -213,7 +215,7 @@ func TestProtocolCycleRetention(t *testing.T) {
 
 func TestProtocolNotificationPoll(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	_, available, wake, err := core.EngineOf(s).PollProtocolNotification(s)
 	if err != nil || available || wake == nil {
 		t.Fatal(available, wake, err)
@@ -258,7 +260,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 
 func TestProtocolFunctionInvocation(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	op, _, err := s.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -285,7 +287,7 @@ func TestProtocolFunctionInvocation(t *testing.T) {
 func TestProtocolCopyHooks(t *testing.T) {
 	t.Run("terminal-veto", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE t(v INT)")
 		op, _, err := s.AcquireCommand(context.Background())
 		if err != nil {
@@ -326,7 +328,7 @@ func TestProtocolCopyHooks(t *testing.T) {
 		}
 	})
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	op, _, err := s.AcquireCommand(context.Background())
 	if err != nil {
 		t.Fatal(err)

@@ -36,7 +36,7 @@ type sqlCursor struct {
 	values                                      []sqltype.Value
 	count                                       int
 	storeOffset                                 int64
-	root                                        *plan.ProjectNode
+	PreparedResource
 	schema                                      []catalog.Column
 	recordShape                                 *sqltype.Descriptor // Lazy FETCH record descriptor, immutable after publication.
 	Source                                      *exec.Source
@@ -95,7 +95,7 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.rlsPrograms = nil
 	c.state.ReleaseMemberships()
 	c.state = exec.State{}
-	c.root = nil
+	c.Root = nil
 	c.leaves, c.locks = nil, nil
 	c.catalog = catalog.Read{}
 	c.roles = authorization.Read{}
@@ -205,7 +205,7 @@ func (s *StatementScope) installCursor(declaration *parser.DeclareCursor, reques
 	if err != nil {
 		return nil, "", err
 	}
-	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), hold: declaration.Hold, root: project, schema: project.Schema(), Source: source, authority: s.authority,
+	c := &sqlCursor{tx: s.TxRef, epoch: s.TxRef.Epoch(), hold: declaration.Hold, PreparedResource: PreparedResource{Root: project}, schema: project.Schema(), Source: source, authority: s.authority,
 		leaves: s.QuerySources, locks: s.QueryLockContext, catalog: s.Inquiry.CommentCatalog, roles: s.Inquiry.commentRoles,
 		routineDependencies: s.RoutineDependencies, routineAuth: s.RoutineAuth,
 		deparseAuth: s.Inquiry.deparseAuth, deparsePath: s.Inquiry.DeparsePath, collationPath: s.Inquiry.collationPath, visibilityCatalog: s.Inquiry.visibilityCatalog,
@@ -466,7 +466,7 @@ func (s *StatementScope) closeCursor(close *parser.CloseCursor) (Result, error) 
 	var cleanupErr error
 	if close.All {
 		cleanupErr = disposeSQLCursors(s.Op.Context(), r.clear())
-		for name := range PayloadOf(s.Op.Session).preparedSQL.portals {
+		for name := range PayloadOf(s.Op.Session).PreparedSQL.Bindings() {
 			if err := s.CloseProtocolPortal(name); cleanupErr == nil {
 				cleanupErr = err
 			}

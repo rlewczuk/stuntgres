@@ -39,7 +39,7 @@ func FreezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 		}
 		definition.sequenceRefs[constant.Offset] = constant.Ref
 		if _, exists := view.Find(constant.Ref.Address); exists {
-			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: constant.Ref, Revision: constant.Stamp})
+			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: constant.Ref, Revision: constant.Stamp, Purpose: catalog.OperandDependency})
 		}
 	}
 	for _, constant := range b.Prepared.RegtypeConstants {
@@ -52,7 +52,7 @@ func FreezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 				return nil, err
 			}
 			for _, ref := range references {
-				definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: view.Get(ref.Address).Revision()})
+				definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: view.Get(ref.Address).Revision(), Purpose: catalog.OperandDependency})
 			}
 		}
 		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.ID)}
@@ -60,7 +60,7 @@ func FreezeQueryPresentation(view catalog.Read, session ids.SessionToken, syntax
 			address.ClassID = ids.OperatorClassID
 		}
 		if d, exists := view.Find(address); exists {
-			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: view.Owner().Domain.Ref(view.Epoch(), address), Revision: d.Revision()})
+			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: view.Owner().Domain.Ref(view.Epoch(), address), Revision: d.Revision(), Purpose: catalog.OperandDependency})
 		}
 	}
 	definition.sources = make([]ViewLeaf, len(b.QuerySources))

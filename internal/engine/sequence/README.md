@@ -99,11 +99,11 @@ caller's exact live TEMP provenance.
 
 | Rule | Enforced by |
 |---|---|
-| Private description analysis cell | `StatementDescription.Sequences` (engine `statement_description.go`), non-nil only when the statement has literals; built by `NewAnalysis` in the describe path (`engine.go`) and republished at Execute (`execute.go`); held by `analyze.Expected.Sequences` |
-| Distinct relation plan stamp | `catalog.Relation.SequencePlanStamp`: set by `NewRelation`, bumped per `AlterEffects`, identity options, rename, ownership, ALTER SCHEMA, role grants and TRUNCATE RESTART IDENTITY; read by `DefinitionStamp` through the engine's `PreparedDefinitionStamp`, adding the session memory's `SourceStamp` |
+| Private description analysis cell | `core.Description.Sequences` (`core/prepared_description.go`), non-nil only when the statement has literals; built by `NewAnalysis` in the describe path (`engine.go`) and republished at Execute (`execute.go`); held by `analyze.Expected.Sequences` |
+| Distinct relation plan stamp | `catalog.Relation.SequencePlanStamp`: set by `NewRelation`, bumped per `AlterEffects`, identity options, rename, ownership, ALTER SCHEMA, role grants and TRUNCATE RESTART IDENTITY; read by `DefinitionStamp` through `core.DefinitionStamp`, adding the session memory's `SourceStamp` |
 | Physical-session effective namespace cache | `SessionMemory.CachedPath`/`StorePathLocked`, keyed by `PathKey` and filled by the engine's shared `sequenceEnvironmentLocked` |
-| Whole-group reanalysis at Execute start | `execute.go`: `Analysis.Valid` (through `sequenceAnalysisValidLocked`) clears `candidate.sequences`, and the republish rebuilds the analysis from every `callerSequences` literal |
-| Immutable temporal, signature and result contracts | `checkStatementSignature` before the republish in `execute.go` (engine, `analyze.CheckSignature`) |
+| Whole-group reanalysis at Execute start | `execute.go`: `Analysis.Valid` (through `sequenceAnalysisValidLocked`) clears `candidate.Sequences`, and the republish rebuilds the analysis from every `callerSequences` literal |
+| Immutable temporal, signature and result contracts | `core.CheckStatementSignature` before `Description.AcceptAnalysis` (`analyze.CheckSignature`) |
 | RX on demand after once-only argument evaluation | `functions.SequenceCall.Eval` evaluates each argument once; the engine's `statementHost.Sequence` takes `RowExclusive` at call time |
 | Grant-time opening keeps the in-flight OID; no retarget or replay | `SequenceCall.Eval` reads the OID from the datum and never resolves a name; `statementHost.Sequence` reopens the same address after the grant (XX000 `could not open relation`) before `CallLocked` |
 | Filtered, zero-row and strict NULL calls do not open | `SequenceCall.Eval` returns NULL before calling the runtime; nodes evaluate on demand |
@@ -122,9 +122,10 @@ The orchestration of sequence DDL and COMMENT, with `ownedSequenceLocked`, is
 the journal and stage install, scope fields and notices). The engine keeps
 `statementHost.Sequence`
 (`sequence_runtime.go`) and `clearPersistentSequenceMemoryLocked`;
-`StatementScope.AcquireSequence` (the scope's object lock) and
-`checkSequenceAny` (`sequence_acquire.go`), and `index.RelationDropOwner`; `sequenceEnvironmentLocked`,
-`journalOf` and `PreparedDefinitionStamp`, shared with ordinary prepared SQL;
+`StatementScope.AcquireSequence` (the scope's object lock),
+`checkSequenceAny` (`sequence_acquire.go`) and `index.RelationDropOwner`;
+`sequenceEnvironmentLocked`, `journalOf`; effective prepared stamps shared
+with ordinary prepared SQL are owned by `core.DefinitionStamp`;
 the ALTER identity staging and the identity DROP flow (table DDL; CREATE
 identity and serial staging is `table.StageCreateIdentities` and
 `table.StageCreateSerials`); `CatalogStage.SequenceState`; and regclass

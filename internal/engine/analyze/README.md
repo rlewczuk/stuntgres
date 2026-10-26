@@ -34,7 +34,7 @@ library, and never the root engine or `session`. The engine, the root driver
 
 ## What it owns
 
-- **`Binder`** (`expression.go`, `*_bind.go`, `binder_groups.go`): per-statement
+- **`Binder`** (`expression.go`, `expression_bind.go`, `*_bind.go`, `binder_groups.go`): per-statement
   binder state in field groups. `NewBinder` builds one over a `Host`; `Describe`
   (`describe_bind.go`) binds a statement. `functions` reaches it through
   `functions.Binder`.
@@ -113,8 +113,9 @@ library, and never the root engine or `session`. The engine, the root driver
 - **Capture groups** (`binding_groups.go`, `captures.go`): `ViewCapture`
   (keyed by `ViewLiteralPath`), `PreparedCaptures` (temporal, type, sequence and
   regtype captures a prepared statement re-resolves), `RuleBinding`,
-  `DefaultOrigin`. `domain_casts.go` swaps a held description's domain cast
-  group without mutating a shared map.
+  `DefaultOrigin`. Exact anonymous constructor shapes are reused only after fresh
+  member binding proves identical usages. `domain_casts.go` swaps refreshable type
+  groups without mutating a shared map.
   Contextual INSERT query outputs capture only previously unknown literals after
   assignment establishes their final Usage, at the original raw target ordinal
   and actual producer frame. Already typed outputs are not recaptured. Frozen
@@ -133,7 +134,9 @@ library, and never the root engine or `session`. The engine, the root driver
   the host.
 - **`Expected`** (`expected.go`, `signature.go`): what a held description gives
   re-analysis; `CheckSignature` is the 0A000 cached-plan check and
-  `Expected.CheckLifetime` applies it to a replaced catalog.
+  `Expected.CheckLifetime` applies it to a replaced catalog. The actual retained
+  `core.Description` supplies these inputs; core, not the binder or root adapter,
+  owns the prepared analysis manifest, validity and lifecycle publication.
 - **Name lookup** (`lookup.go`, `search_path.go`, `type_name_resolution.go`):
   `LookupPath`, `EffectivePath`, `CreationNamespace`, ... over one by-value
   `PathInput[E]`; `ResolveTypeName` takes a `TypeNameOperation` because the
@@ -207,6 +210,11 @@ library, and never the root engine or `session`. The engine, the root driver
   and owning revision through the coherent definition reader. Fresh, retained
   and expanded live fields validate the same type/relation/member ownership;
   retired retained fields keep their existing typed-NULL behavior.
+  Catalog-identifier operand/name captures retain operand-purpose dependencies
+  for scalar and compound operator/routine inputs, including reused captures.
+  A real executable use upgrades the same identity regardless of collection
+  order; merging binder manifests preserves that purpose. Ordinary analysis
+  still checks the complete manifest, separately from retained-fold invalidation.
 - **Frozen syntax keys.** Every capture writer and reader keys an occurrence by
   the node's own `Pos` (a postfix cast's `::`), never `SourcePosition`.
 - **Column visibility.** Every row consumer installs its namespace explicitly.

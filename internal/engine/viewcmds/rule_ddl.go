@@ -94,7 +94,8 @@ func ExecuteRule(e *core.Engine, scope *core.StatementScope, stmt parser.Stateme
 			if err != nil {
 				return err
 			}
-			if core.PreparedDefinitionStamp(current, scope.Op.Session) != core.PreparedDefinitionStamp(source.Relation, scope.Op.Session) {
+			environment := core.PreparedEnvironment{Sequences: &core.PayloadOf(scope.Op.Session).Sequences}
+			if core.DefinitionStamp(current, environment) != core.DefinitionStamp(source.Relation, environment) {
 				return ids.ErrCatalogReplaced
 			}
 		}

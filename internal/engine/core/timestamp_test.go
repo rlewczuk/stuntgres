@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"fmt"
 	"reflect"
@@ -10,7 +11,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -35,7 +35,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, _ := v.Timestamp()
-	wantDesc := core.StatementDescription{Temporals: b.Prepared.Temporals}
+	wantDesc := core.Description{Temporals: b.Prepared.Temporals}
 	before := append([]analyze.TemporalConstant(nil), wantDesc.Temporals...)
 	old := v.Type()
 	if err = engine.Reset(ctx, e); err != nil {
@@ -215,7 +215,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := core.StatementDescription{Temporals: b.Prepared.Temporals}
+		description := core.Description{Temporals: b.Prepared.Temporals}
 		b = enginetest.ExpressionBinder(t, ctx, e, later, &description)
 		node, err = b.Bind(raw, policy)
 		if err != nil {

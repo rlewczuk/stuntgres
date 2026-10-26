@@ -129,16 +129,26 @@ func TestThreePartColumnFrames(t *testing.T) {
 func TestThreePartColumnOrigins(t *testing.T) {
 	b := threePartUnitBinder(t)
 	var first plan.ColumnExpr
+	occurrences := make(map[uint32]bool)
 	for i, parts := range [][]string{{"v"}, {"items", "v"}, {"qa", "items", "v"}} {
 		node, err := b.Bind(threePartUnitColumn(parts...), analyze.ExpressionPolicy{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		column := node.(plan.ColumnExpr)
+		if column.Occurrence == 0 || occurrences[column.Occurrence] {
+			t.Fatal("separate column bindings lost distinct fold provenance", column.Info)
+		}
+		occurrences[column.Occurrence] = true
 		if i == 0 {
 			first = column
-		} else if !reflect.DeepEqual(first, column) {
-			t.Fatal("qualification changed descriptor/origin/frame", first, column)
+		} else {
+			// Qualification preserves the entire column contract; only the
+			// expansion ordinal differs between these separate bindings.
+			column.Occurrence = first.Occurrence
+			if !reflect.DeepEqual(first, column) {
+				t.Fatal("qualification changed descriptor/origin/frame", first, column)
+			}
 		}
 	}
 	if first.Usage.Typmod != 12 || first.Origin.Address.SubID != 7 || !reflect.DeepEqual(b.Target.Uses, []int{0}) {

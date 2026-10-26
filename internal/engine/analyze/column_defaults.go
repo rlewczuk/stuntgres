@@ -29,11 +29,11 @@ func ColumnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 	attribute := d.Attributes[slot]
 	usage := d.Columns[slot].Usage
 	if definition, ok := d.ColumnMeta.Defaults[attribute]; ok {
-		return definition.Expression, DefaultOrigin{Definition: definition, Consumer: d, Quote: exec.QuoteOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
+		return definition.Expression, DefaultOrigin{Definition: definition, Consumer: d, Fold: exec.FoldOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
 	}
 	if definition := typedef.TypeDefault(view, usage.Type); definition != nil {
 		owner := view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
-		return DefaultDestination(definition.Expression, usage), DefaultOrigin{Definition: *definition, Quote: exec.QuoteOrigin{Owner: owner}}
+		return DefaultDestination(definition.Expression, usage), DefaultOrigin{Definition: *definition, Fold: exec.FoldOrigin{Owner: owner, Revision: view.Get(owner.Address).Revision()}}
 	}
 	if usage.Type.HasDomainConstraints() {
 		return DomainNullInputExpression(usage), DefaultOrigin{}

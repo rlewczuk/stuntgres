@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"fmt"
@@ -12,7 +13,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
@@ -21,7 +21,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.StatementDescription) {
+func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.Description) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -35,7 +35,7 @@ func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Sessio
 	}
 	return ast, d
 }
-func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.StatementDescription) (core.Result, error) {
+func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.Description) (core.Result, error) {
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		return core.Result{}, err
@@ -53,7 +53,7 @@ func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Stat
 func TestSequencePreparedAuthority(t *testing.T) {
 	t.Run("ACLInvalidation", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE SEQUENCE b.s START 10", "SET search_path TO a,b"} {
 			sessionSQL(t, s, q)
 		}
@@ -78,7 +78,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 	})
 	t.Run("StablePayloadAndEnvironment", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE SEQUENCE b.s START 10", "SET search_path TO a,b"} {
 			sessionSQL(t, s, q)
 		}
@@ -144,7 +144,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 	})
 	t.Run("QueuedRename", func(t *testing.T) {
 		e := engine.New()
-		a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		sessionSQL(t, a, "CREATE SEQUENCE s START 10")
 		sequenceScalar(t, a, "SELECT nextval('s')", 10)
 		ast, d := sequencePreparedDescription(t, e, b, "SELECT nextval('s')")
@@ -178,7 +178,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 	})
 	t.Run("QueuedRollback", func(t *testing.T) {
 		e := engine.New()
-		a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		sessionSQL(t, a, "CREATE SEQUENCE s START 14")
 		ast, d := sequencePreparedDescription(t, e, b, "SELECT nextval('s')")
 		tx := transactionBegin(t, a)
@@ -204,7 +204,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 	})
 	t.Run("QueuedDrop", func(t *testing.T) {
 		e := engine.New()
-		a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+		a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 		sessionSQL(t, a, "CREATE SEQUENCE s START 14")
 		ast, d := sequencePreparedDescription(t, e, b, "SELECT nextval('s')")
 		tx := transactionBegin(t, a)
@@ -236,7 +236,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 
 func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE USER reader", "CREATE USER reader2", "CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE SCHEMA reader", "CREATE SCHEMA reader2", "CREATE SEQUENCE a.s START 100", "CREATE SEQUENCE b.s START 10", "CREATE SEQUENCE reader.s START 30", "CREATE SEQUENCE reader2.s START 300"} {
 		sessionSQL(t, s, q)
 	}
@@ -263,7 +263,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 	sessionSQL(t, s, "SET search_path TO a,b")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	qualified, qd := sequencePreparedDescription(t, e, s, "SELECT nextval('b.s')")
-	result := func(ast parser.Statement, d *core.StatementDescription, want int64) {
+	result := func(ast parser.Statement, d *core.Description, want int64) {
 		t.Helper()
 		r, err := sequencePreparedExecute(e, s, ast, d)
 		if err != nil {
@@ -319,7 +319,7 @@ func TestSequencePreparedEffectiveAuthority(t *testing.T) {
 
 func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, s, "CREATE TEMP SEQUENCE s")
 	ast, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.Sequences.Constants[0].Ref
@@ -354,7 +354,7 @@ func TestSequencePreparedTemporaryPersistenceRejected(t *testing.T) {
 
 func TestSequencePreparedRevokedMemory(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, s, "CREATE USER reader")
 	sessionSQL(t, s, "CREATE SEQUENCE s CACHE 10")
 	ref := roleTableRef(t, e, "s")
@@ -372,7 +372,7 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 	sequenceScalar(t, s, "SELECT nextval('s')", 1)
 	queries := []string{"SELECT nextval('s')", "SELECT currval('s')", "SELECT lastval()", "SELECT setval('s',40)"}
 	asts := make([]parser.Statement, len(queries))
-	descriptions := make([]core.StatementDescription, len(queries))
+	descriptions := make([]core.Description, len(queries))
 	for i, q := range queries {
 		asts[i], descriptions[i] = sequencePreparedDescription(t, e, s, q)
 	}
@@ -405,7 +405,7 @@ func TestSequencePreparedRevokedMemory(t *testing.T) {
 
 func TestSequencePreparedReplacementProvenance(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	sessionSQL(t, a, "CREATE SEQUENCE persistent")
 	sessionSQL(t, a, "CREATE TEMP SEQUENCE temporary CACHE 10")
 	temporary, td := sequencePreparedDescription(t, e, a, "SELECT nextval('pg_temp.temporary')")
@@ -416,7 +416,7 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 	for _, tc := range []struct {
 		s           *session.Session
 		ast         parser.Statement
-		description *core.StatementDescription
+		description *core.Description
 	}{{b, temporary, &td}, {a, persistent, &pd}} {
 		r, err := sequencePreparedExecute(e, tc.s, tc.ast, tc.description)
 		if r.Rows != nil {
@@ -440,7 +440,7 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 
 func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, s, "CREATE SEQUENCE s")
 	_, d := sequencePreparedDescription(t, e, s, "SELECT nextval('s')")
 	ref := d.Sequences.Constants[0].Ref
@@ -467,7 +467,7 @@ func TestSequencePreparedACLPublicationFailure(t *testing.T) {
 func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 	t.Run("ACL", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		sessionSQL(t, s, "CREATE SCHEMA a")
 		ref := schemaRef(t, e, "a")
 		// Namespace ACLs do not need a new descriptor definition token.
@@ -500,7 +500,7 @@ func TestSequencePreparedNamespaceExhaustion(t *testing.T) {
 	})
 	t.Run("DropClosure", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		for _, query := range []string{"CREATE SCHEMA a", "CREATE TABLE a.t(v INT)", "INSERT INTO a.t VALUES(7)", "CREATE SEQUENCE a.s START 10"} {
 			sessionSQL(t, s, query)
 		}
@@ -537,7 +537,7 @@ func TestSequencePreparedUndemandedLock(t *testing.T) {
 	for _, query := range []string{"SELECT nextval('s') FROM anchor", "SELECT nextval('s') FROM anchor WHERE v=2", "SELECT nextval(NULL)", "SELECT setval('s',NULL)", "SELECT setval('s',42,NULL)", "SELECT setval('s',nextval('t'),NULL)", `SELECT setval('s',nextval('t'),"flag") FROM runtime_null`} {
 		t.Run(query, func(t *testing.T) {
 			e := engine.New()
-			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE TABLE anchor(v INT)", `CREATE TABLE runtime_null("flag" BOOL)`, "INSERT INTO runtime_null VALUES(NULL)", "CREATE SEQUENCE s START 10", "CREATE SEQUENCE t START 20"} {
 				sessionSQL(t, a, q)
 			}
@@ -598,7 +598,7 @@ func TestSequencePreparedUndemandedLock(t *testing.T) {
 
 func TestSequencePreparedQueuedArguments(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	sessionSQL(t, a, "CREATE SEQUENCE s START 10")
 	sessionSQL(t, a, "CREATE SEQUENCE t START 20")
 	ast, d := sequencePreparedDescription(t, e, b, "SELECT setval('s',nextval('t'))")

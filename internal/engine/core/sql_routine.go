@@ -24,7 +24,7 @@ import (
 type sqlRoutineAnalysis struct {
 	definition     *proc.Definition
 	name           string // Current qualifier; declaration/source payload stays immutable.
-	descriptions   []StatementDescription
+	descriptions   []Description
 	statements     []parser.Statement   // Immutable invocation syntax shares retained occurrence keys.
 	inputCollation sqltype.CollationRef // Quoted aggregate-support analysis context, not caller explicitness.
 	plProcedure    *catalog.Procedure   // Session-private validator/first-use signature owner.
@@ -120,7 +120,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		}
 	}
 	if retained.definition != d.SQL || retained.name != d.Name() || retained.inputCollation != inputCollation || len(retained.descriptions) != len(statements) {
-		retained = sqlRoutineAnalysis{definition: d.SQL, name: d.Name(), statements: statements, descriptions: make([]StatementDescription, len(statements)), inputCollation: inputCollation}
+		retained = sqlRoutineAnalysis{definition: d.SQL, name: d.Name(), statements: statements, descriptions: make([]Description, len(statements)), inputCollation: inputCollation}
 	}
 	value = sqltype.Null(resultUsage.Type)
 	for i, statement := range statements {
@@ -139,7 +139,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	return value, nil
 }
 
-func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *StatementDescription, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (value sqltype.Value, err error) {
+func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program *stored.RoutineProgram, frame *proc.Frame, statement parser.Statement, index int, terminal bool, read catalog.Read, retained *Description, resultUsage sqltype.Usage, inputCollation sqltype.CollationRef, assignmentPlanning bool) (value sqltype.Value, err error) {
 	noticeStart := len(s.Op.Notices)
 	defer func() {
 		if noticeStart != len(s.Op.Notices) {
@@ -184,12 +184,9 @@ func (s *StatementScope) executeSQLRoutineCommand(d *catalog.Procedure, program 
 			return value, err
 		}
 	} else {
-		if retained.analysis != nil {
+		if retained.Analysis != nil {
 			description := *retained
 			s.Expected = &description
-		}
-		if err = s.selectPreparedAnalysis(statement); err != nil {
-			return value, err
 		}
 		if err = s.AcquireRelation(statement, true); err != nil {
 			return value, err

@@ -71,6 +71,18 @@ func TestViewDependencyPurpose(t *testing.T) {
 			}
 		}
 	}
+	operand := support
+	operand.Purpose = catalog.OperandDependency
+	for _, dependencies := range [][]catalog.ExpressionDependency{{support, operand}, {operand, support}} {
+		before := append([]catalog.ExpressionDependency(nil), dependencies...)
+		definition := NewView(ViewParts{Dependencies: dependencies})
+		if !definition.DependsOn(operand.Ref.Address) {
+			t.Fatal("written operand edge lost beside support-only capture")
+		}
+		if !reflect.DeepEqual(definition.Dependencies(), before) {
+			t.Fatal("operand projection changed execution capture manifest")
+		}
+	}
 }
 
 // nonZero returns a value of typ that differs from its zero value.

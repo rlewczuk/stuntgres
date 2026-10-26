@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"database/sql/driver"
 	"reflect"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -87,7 +87,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 				enginetest.SessionSQL(t, peer, q)
 			}
 			ast := enginetest.Statement(t, "UPDATE t x SET v=coalesce(r.z,x.v) FROM s LEFT JOIN r USING(k) WHERE x.id=s.k RETURNING old.v,new.v,s.k,r.k,r.z")
-			var expected *core.StatementDescription
+			var expected *core.Description
 			if prepared {
 				op := enginetest.TransactionOperation(t, writer)
 				description, err := e.Describe(op, ast)

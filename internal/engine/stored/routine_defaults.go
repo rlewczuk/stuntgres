@@ -33,7 +33,8 @@ func routineDefaultsWithChecks(ctx context.Context, view catalog.Read, reader ca
 			continue
 		}
 		var refs []ids.ObjectRef
-		if _, err := (ScalarRenderer{Definition: reader, RoutineDefault: true, Dependencies: &refs, CapturedChecks: checks}).SQL(ctx, view, node); err != nil {
+		purposes := make(map[ids.ObjectRef]catalog.DependencyPurpose)
+		if _, err := (ScalarRenderer{Definition: reader, RoutineDefault: true, Dependencies: &refs, DependencyPurposes: purposes, CapturedChecks: checks}).SQL(ctx, view, node); err != nil {
 			return nil, err
 		}
 		for _, ref := range refs {
@@ -57,7 +58,7 @@ func routineDefaultsWithChecks(ctx context.Context, view catalog.Read, reader ca
 				}
 			}
 			if !retained {
-				p.dependencies = append(p.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision()})
+				p.dependencies = append(p.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: d.Revision(), Purpose: purposes[ref]})
 			}
 		}
 	}
@@ -104,7 +105,7 @@ func (p *RoutineDefaults) Validate(view catalog.Read) error {
 		if dependency.Ref.Domain() != view.Owner().Domain || dependency.Ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		if dependency.Purpose != catalog.DefinitionDependency || dependency.Revision == 0 {
+		if dependency.Purpose != catalog.DefinitionDependency && dependency.Purpose != catalog.OperandDependency || dependency.Revision == 0 {
 			return fmt.Errorf("invalid routine default capture purpose")
 		}
 	}
@@ -125,7 +126,7 @@ func (p *RoutineDefaults) Rebind(view catalog.Read, mapping map[ids.ObjectAddres
 		if dependency.Ref.Domain() != p.domain || dependency.Ref.Epoch != p.epoch {
 			return nil, ids.ErrCatalogReplaced
 		}
-		if dependency.Purpose != catalog.DefinitionDependency || dependency.Revision == 0 {
+		if dependency.Purpose != catalog.DefinitionDependency && dependency.Purpose != catalog.OperandDependency || dependency.Revision == 0 {
 			return nil, fmt.Errorf("invalid routine default capture purpose")
 		}
 	}

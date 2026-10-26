@@ -83,7 +83,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		if err := disposeSQLCursors(s.Op.Context(), PayloadOf(sess).Cursors.clear()); err != nil {
 			return Result{}, err
 		}
-		clear(PayloadOf(sess).preparedSQL.entries)
+		PayloadOf(sess).PreparedSQL.ClearDefinitions()
 		// The persistent ticket was validated before publication and cannot end
 		// while this operation lease is live. Manager callbacks run unlocked.
 		e.Locks.DiscardAdvisoryHolds(sess.Advisory.Ticket)
@@ -228,7 +228,7 @@ func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, ad
 func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address ids.ObjectAddress, command string) error {
 	session := s.Op.Session
 	for _, cursor := range PayloadOf(session).Cursors.Entries {
-		if cursor.tx != s.TxRef || cursor.root == nil || cursor.Place == exec.CursorFailed {
+		if cursor.tx != s.TxRef || cursor.Root == nil || cursor.Place == exec.CursorFailed {
 			continue
 		}
 		for _, leaf := range cursor.leaves {

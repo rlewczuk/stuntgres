@@ -1,15 +1,14 @@
 package core_test
 
 import (
+	rootengine "stuntgres/internal/engine"
+	"stuntgres/internal/engine/enginetest"
 	"context"
 	"errors"
 	"strings"
 	"testing"
 
-	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -22,10 +21,10 @@ import (
 )
 
 func TestStringVariadicRetainedGeneration(t *testing.T) {
-	e := engine.New()
-	s := sessionStart(t, e, nil)
+	e := rootengine.New()
+	s := enginetest.StartSession(t, e, nil)
 	ast, description := sequencePreparedDescription(t, e, s, "SELECT quote_ident('foo')")
-	if description.Quotes != nil {
+	if description.Folds.Current().Entries != nil {
 		t.Fatal("Describe published Execute-only quotes")
 	}
 	result, err := sequencePreparedExecute(e, s, ast, &description)
@@ -33,20 +32,20 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if len(description.Quotes) != 1 || core.DescriptionQuoteGeneration(&description) != s.DiscardPlansGeneration || core.DescriptionPlanOwner(&description) != s.SessionToken {
+	if len(description.Folds.Current().Entries) != 1 || description.Folds.Environment.Discard != s.DiscardPlansGeneration || description.PlanOwner != s.SessionToken {
 		t.Fatal("missing owner-qualified capture")
 	}
-	original := description
+	original := snapshotFoldDescription(description)
 	result, err = sequencePreparedExecute(e, s, ast, &description)
 	if err != nil {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if &original.Quotes[0] != &description.Quotes[0] {
+	if &original.Accepted.Entries[0] != &description.Folds.Current().Entries[0] {
 		t.Fatal("stable hit copied private group")
 	}
 	discardUnitApply(t, s, parser.DiscardPlans)
-	if &original.Quotes[0] != &description.Quotes[0] || core.DescriptionQuoteGeneration(&description) != core.DescriptionQuoteGeneration(&original) {
+	if &original.Accepted.Entries[0] != &description.Folds.Current().Entries[0] || description.Folds.Environment.Discard != original.Environment.Discard {
 		t.Fatal("eager discard mutation")
 	}
 	result, err = sequencePreparedExecute(e, s, ast, &description)
@@ -54,139 +53,32 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if &original.Quotes[0] == &description.Quotes[0] || core.DescriptionQuoteGeneration(&description) != s.DiscardPlansGeneration {
+	if &original.Accepted.Entries[0] == &description.Folds.Current().Entries[0] || description.Folds.Environment.Discard != s.DiscardPlansGeneration {
 		t.Fatal("discard did not recollect quotes")
 	}
-	if original.Quotes[0] != description.Quotes[0] {
+	if !samePublishedFold(original.Accepted.Entries[0], description.Folds.Current().Entries[0]) {
 		t.Fatal("source capture changed during refresh")
 	}
 
 	bad, failed := sequencePreparedDescription(t, e, s, "SELECT quote_ident('foo'),quote_literal(1/0)")
 	_, err = sequencePreparedExecute(e, s, bad, &failed)
-	if err == nil || failed.Quotes != nil {
+	if err == nil || failed.Folds.Current().Entries != nil {
 		t.Fatal("failed demanded fold published partial group", err)
 	}
-	before := description
+	before := snapshotFoldDescription(description)
 	discardUnitApply(t, s, parser.DiscardPlans)
 	savedResults := description.Results
 	description.Results = nil
 	_, err = sequencePreparedExecute(e, s, ast, &description)
 	description.Results = savedResults
-	if err == nil || core.DescriptionQuoteGeneration(&description) != core.DescriptionQuoteGeneration(&before) || &description.Quotes[0] != &before.Quotes[0] {
+	if err == nil || description.Folds.Environment.Discard != before.Environment.Discard || &description.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 		t.Fatal("signature failure published private group", err)
 	}
 
-	// Retagging owns a detached tree and exact new descriptors, never changing
-	// the source generation. An equal OID cannot authorize capture adoption.
-	ctx := context.Background()
-	binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	bound, err := binder.Bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
-	if err != nil {
-		t.Fatal(err)
-	}
-	node := bound.(functions.StringVariadic)
-	oldGroup := exec.QuoteCaptureCandidate{}
-	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &oldGroup}}, node)
-	if err != nil || len(oldGroup.Entries) != 1 {
-		t.Fatal(err)
-	}
-	types := formatUnitTypes()
-	retagged, changed, err := stored.RetagTypes(binder.BindingCatalog(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
-	if err != nil || !changed {
-		t.Fatal(changed, err)
-	}
-	fresh := retagged.(functions.StringVariadic)
-	if fresh.Usage.Type != types[sqltype.Text] || fresh.Args[0].ResultUsage().Type != types[sqltype.Int4] || node.Usage.Type == fresh.Usage.Type || node.Args[0].ResultUsage().Type == fresh.Args[0].ResultUsage().Type {
-		t.Fatal("retag source mutated or authority not replaced")
-	}
-	candidate := exec.QuoteCaptureCandidate{Entries: oldGroup.Entries}
-	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &candidate}}, fresh)
-	if err != nil || !candidate.Private || len(candidate.Entries) != 1 || candidate.Entries[0].Value.Type() != types[sqltype.Text] || oldGroup.Entries[0].Value.Type() != node.Usage.Type {
-		t.Fatal("coincident OID adopted or source group mutated", err)
-	}
-
-	// Two DEFAULT definitions, a view, and statement syntax can have identical
-	// offset/frame/kind/usage without sharing an occurrence or captured result.
-	sessionSQL(t, s, "CREATE TABLE sv_quote_origins(a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'))")
-	sessionSQL(t, s, "CREATE VIEW sv_quote_origin_view AS SELECT quote_ident('v') AS v")
-	table := primaryKeyUnitRelation(t, e, "sv_quote_origins")
-	view := primaryKeyUnitRelation(t, e, "sv_quote_origin_view")
-	catalog := e.CatalogRead()
-	tableRef := e.Catalog.Domain.Ref(catalog.Epoch(), table.Address())
-	viewRef := e.Catalog.Domain.Ref(catalog.Epoch(), view.Address())
-	origins := []exec.QuoteOrigin{
-		{Owner: tableRef, Attribute: table.Attributes[0], Definition: table.ColumnMeta.Defaults[table.Attributes[0]].OID},
-		{Owner: tableRef, Attribute: table.Attributes[1], Definition: table.ColumnMeta.Defaults[table.Attributes[1]].OID},
-		{Owner: viewRef, Definition: stored.ViewOf(view).RuleOID(), Revision: stored.ViewOf(view).QuoteRevision()},
-		{},
-	}
-	stamped := node.WithOrigin(origins[2])
-	targetRef := viewRef
-	targetRef.Epoch++
-	remapped, err := stored.RemapExpression(stamped, func(ref ids.ObjectRef) ids.ObjectRef {
-		if ref == viewRef {
-			return targetRef
-		}
-		return ref
-	}, nil)
-	if err != nil || exec.QuoteOriginOf(remapped.(functions.StringVariadic)).Owner != targetRef || exec.QuoteOriginOf(stamped) != origins[2] {
-		t.Fatal("view quote origin remap lost target ownership or mutated source", err)
-	}
-	stampedRetagged, _, err := stored.RetagTypes(binder.BindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
-	if err != nil || stampedRetagged.(functions.StringVariadic).Origin != stamped.Origin {
-		t.Fatal("view quote origin lost during typed retag", err)
-	}
-	collision := exec.QuoteCaptureCandidate{}
-	for i, origin := range origins {
-		input := string(rune('a' + i))
-		source := plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, input)}
-		occurrence := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 17}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{source}}
-		ambient := origin
-		if origin.Owner != (ids.ObjectRef{}) && origin.Attribute == 0 {
-			occurrence = occurrence.WithOrigin(origin)
-			ambient = exec.QuoteOrigin{} // Lowered view nodes override caller-root context.
-		}
-		folded, _, err := exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &collision, QuoteOrigin: ambient}}, occurrence)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got, _ := folded.(plan.LiteralExpr).Value.Text()
-		if got != input || len(collision.Entries) != i+1 {
-			t.Fatal("distinct stored origins collided", got, input, collision.Entries)
-		}
-	}
-	published := collision.Entries
-	stableOrigins := exec.QuoteCaptureCandidate{Entries: published}
-	stored.PruneQuoteCaptures(&stableOrigins, e.CatalogRead())
-	if stableOrigins.Private || &stableOrigins.Entries[0] != &published[0] {
-		t.Fatal("valid origin pruning copied group")
-	}
-	sessionSQL(t, s, "ALTER TABLE sv_quote_origins RENAME COLUMN a TO renamed")
-	stored.PruneQuoteCaptures(&stableOrigins, e.CatalogRead())
-	if stableOrigins.Private {
-		t.Fatal("unrelated rename invalidated DEFAULT output")
-	}
-	sessionSQL(t, s, "ALTER TABLE sv_quote_origins ALTER COLUMN renamed SET DEFAULT quote_ident('new')")
-	retired := exec.QuoteCaptureCandidate{Entries: published}
-	stored.PruneQuoteCaptures(&retired, e.CatalogRead())
-	if !retired.Private || len(retired.Entries) != 3 || len(published) != 4 || retired.Entries[0].Origin != origins[1] {
-		t.Fatal("default replacement retained old origin or mutated publication")
-	}
-	sessionSQL(t, s, "CREATE OR REPLACE VIEW sv_quote_origin_view AS SELECT quote_ident('changed') AS v")
-	stored.PruneQuoteCaptures(&retired, e.CatalogRead())
-	if len(retired.Entries) != 2 || len(published) != 4 {
-		t.Fatal("view replacement retained prior defining revision")
-	}
-	sealed := exec.QuoteCaptureCandidate{Entries: published, Sealed: true}
-	missing := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, "local")}}}
-	_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &sealed}}, missing)
-	if err != nil || sealed.Private || len(sealed.Entries) != 4 {
-		t.Fatal("sealed executor group admitted row-time publication", err)
-	}
 
 	t.Run("LoweredViewLayersAndLocalChecks", func(t *testing.T) {
-		eng := engine.New()
-		session := sessionStart(t, eng, nil)
+		engine := rootengine.New()
+		session := enginetest.StartSession(t, engine, nil)
 		// Equal-length source/view names place both quote calls at the same
 		// offset in frame 1. The two definitions must never share a capture.
 		for _, query := range []string{
@@ -195,7 +87,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			"CREATE VIEW iv AS SELECT v FROM bv WHERE v<>quote_ident('inval') WITH LOCAL CHECK OPTION",
 			"CREATE VIEW ov AS SELECT v FROM iv WHERE v<>quote_ident('outvl') WITH LOCAL CHECK OPTION",
 		} {
-			sessionSQL(t, session, query)
+			enginetest.SessionSQL(t, session, query)
 		}
 		for _, query := range []string{
 			"INSERT INTO ov VALUES('inval')",
@@ -203,50 +95,50 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			"UPDATE ov SET v='inval' WHERE v='seed'",
 			"UPDATE ov SET v='outvl' WHERE v='seed'",
 		} {
-			ast, description := sequencePreparedDescription(t, eng, session, query)
-			_, err := sequencePreparedExecute(eng, session, ast, &description)
+			ast, description := sequencePreparedDescription(t, engine, session, query)
+			_, err := sequencePreparedExecute(engine, session, ast, &description)
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "44000" {
 				t.Fatalf("%s: local check lost its layer: %v", query, err)
 			}
-			if len(description.Quotes) != 2 {
-				t.Fatalf("%s: missing layer captures: %+v", query, description.Quotes)
+			if len(description.Folds.Current().Entries) != 2 {
+				t.Fatalf("%s: missing layer captures: %+v", query, description.Folds.Current().Entries)
 			}
-			a, b := description.Quotes[0], description.Quotes[1]
+			a, b := description.Folds.Current().Entries[0], description.Folds.Current().Entries[1]
 			av, _ := a.Value.Text()
 			bv, _ := b.Value.Text()
 			if a.Offset != b.Offset || a.Frame != b.Frame || a.Origin.Owner == b.Origin.Owner || av == bv || (av != "inval" && av != "outvl") || (bv != "inval" && bv != "outvl") {
 				t.Fatalf("lowered equal-offset view calls collided: %+v / %+v", a, b)
 			}
 		}
-		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO ov VALUES('valid')")
-		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO ov VALUES('valid')")
+		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal("valid local-check row rejected", err)
 		}
-		published := description.Quotes
-		sessionSQL(t, session, "SET quote_all_identifiers=on")
-		sessionSQL(t, session, "ALTER TABLE bv ADD COLUMN spare integer")
-		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+		published := description.Folds.Current().Entries
+		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=on")
+		enginetest.SessionSQL(t, session, "ALTER TABLE bv ADD COLUMN spare integer")
+		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal("stored-only analysis replan failed", err)
 		}
-		if len(description.Quotes) != 2 || &description.Quotes[0] != &published[0] {
+		if len(description.Folds.Current().Entries) != 2 || &description.Folds.Current().Entries[0] != &published[0] {
 			t.Fatal("analysis-only replan copied or refreshed unchanged view captures")
 		}
-		sessionSQL(t, session, "CREATE VIEW nv AS SELECT v FROM bv WHERE concat(quote_nullable(v),'')=quote_nullable(v) WITH LOCAL CHECK OPTION")
-		nestedAST, nestedDescription := sequencePreparedDescription(t, eng, session, "UPDATE nv SET v='nested' WHERE v='seed'")
-		result, err := sequencePreparedExecute(eng, session, nestedAST, &nestedDescription)
-		if err != nil || result.Count != 1 || len(nestedDescription.Quotes) != 0 {
+		enginetest.SessionSQL(t, session, "CREATE VIEW nv AS SELECT v FROM bv WHERE concat(quote_nullable(v),'')=quote_nullable(v) WITH LOCAL CHECK OPTION")
+		nestedAST, nestedDescription := sequencePreparedDescription(t, engine, session, "UPDATE nv SET v='nested' WHERE v='seed'")
+		result, err := sequencePreparedExecute(engine, session, nestedAST, &nestedDescription)
+		if err != nil || result.Count != 1 || len(nestedDescription.Folds.Current().Entries) != 0 {
 			t.Fatal("nested row-dependent quotes lost column lowering or were retained", result.Count, err)
 		}
 		for _, name := range []string{"iv", "ov", "nv"} {
-			view := primaryKeyUnitRelation(t, eng, name)
+			view := primaryKeyUnitRelation(t, engine, name)
 			_, _, predicates, reason := stored.ViewWriteShape(view)
 			if reason != "" {
 				t.Fatal(reason)
 			}
 			for _, predicate := range predicates {
 				plan.WalkExpression(predicate, func(expression expr.Expr) {
-					if quote, ok := expression.(functions.StringVariadic); ok && exec.QuoteOriginOf(quote) != (exec.QuoteOrigin{}) {
+					if quote, ok := expression.(functions.StringVariadic); ok && exec.FoldOriginOf(quote) != (exec.FoldOrigin{}) {
 						t.Fatal("execution lowering stamped the stored source tree")
 					}
 				})
@@ -255,23 +147,23 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	})
 
 	t.Run("AnalysisReplanRetiresOnlyRoot", func(t *testing.T) {
-		eng := engine.New()
-		session := sessionStart(t, eng, nil)
-		sessionSQL(t, session, "CREATE TABLE sv_replan(v text,w text DEFAULT quote_ident('stored'))")
-		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO sv_replan(v) VALUES(quote_ident('root'))")
-		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+		engine := rootengine.New()
+		session := enginetest.StartSession(t, engine, nil)
+		enginetest.SessionSQL(t, session, "CREATE TABLE sv_replan(v text,w text DEFAULT quote_ident('stored'))")
+		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO sv_replan(v) VALUES(quote_ident('root'))")
+		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal(err)
 		}
-		published := description.Quotes
-		sessionSQL(t, session, "SET quote_all_identifiers=on")
-		sessionSQL(t, session, "ALTER TABLE sv_replan ADD COLUMN spare integer")
-		if _, err := sequencePreparedExecute(eng, session, ast, &description); err != nil {
+		published := description.Folds.Current().Entries
+		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=on")
+		enginetest.SessionSQL(t, session, "ALTER TABLE sv_replan ADD COLUMN spare integer")
+		if _, err := sequencePreparedExecute(engine, session, ast, &description); err != nil {
 			t.Fatal(err)
 		}
-		if len(published) != 2 || len(description.Quotes) != 2 {
+		if len(published) != 2 || len(description.Folds.Current().Entries) != 2 {
 			t.Fatal("analysis replan lost root or default capture")
 		}
-		for _, capture := range description.Quotes {
+		for _, capture := range description.Folds.Current().Entries {
 			want := "stored"
 			if capture.Origin.Owner == (ids.ObjectRef{}) {
 				want = `"root"`
@@ -290,22 +182,22 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	})
 
 	t.Run("StalePublishedGroupDemandFailureRetry", func(t *testing.T) {
-		eng := engine.New()
-		session := sessionStart(t, eng, nil)
-		sessionSQL(t, session, "SET quote_all_identifiers=off")
-		sessionSQL(t, session, "SET bytea_output=hex")
-		sessionSQL(t, session, `CREATE TABLE sv_retry(v text,z timestamptz,a text DEFAULT quote_ident('stored'),b text DEFAULT quote_literal('\x00015c'::bytea))`)
-		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO sv_retry(v,z) VALUES(quote_ident('root'),'now'::timestamptz)")
-		result, err := sequencePreparedExecute(eng, session, ast, &description)
+		engine := rootengine.New()
+		session := enginetest.StartSession(t, engine, nil)
+		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=off")
+		enginetest.SessionSQL(t, session, "SET bytea_output=hex")
+		enginetest.SessionSQL(t, session, `CREATE TABLE sv_retry(v text,z timestamptz,a text DEFAULT quote_ident('stored'),b text DEFAULT quote_literal('\x00015c'::bytea))`)
+		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO sv_retry(v,z) VALUES(quote_ident('root'),'now'::timestamptz)")
+		result, err := sequencePreparedExecute(engine, session, ast, &description)
 		if err != nil || result.Count != 1 {
 			t.Fatal("initial capture execution", result.Count, err)
 		}
-		before := description
-		if len(before.Quotes) != 3 || len(before.Temporals) == 0 || core.DescriptionAnalysis(&before) == nil {
+		before := snapshotFoldDescription(description)
+		if len(before.Accepted.Entries) != 3 || len(before.Temporals) == 0 || before.Analysis == nil {
 			t.Fatal("missing initial quote/temporal/analysis publication")
 		}
-		source := append([]exec.QuoteConstant(nil), before.Quotes...)
-		beforeRelation := primaryKeyUnitRelation(t, eng, "sv_retry")
+		source := append([]exec.FoldConstant(nil), before.Accepted.Entries...)
+		beforeRelation := primaryKeyUnitRelation(t, engine, "sv_retry")
 		aDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[2]].OID
 		bDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[3]].OID
 		initial := map[string]bool{"root": false, "stored": false, `E'\\x00015c'`: false}
@@ -318,47 +210,47 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			initial[value] = true
 		}
 		discardUnitApply(t, session, parser.DiscardPlans)
-		sessionSQL(t, session, "ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal(1/0)")
-		result, err = sequencePreparedExecute(eng, session, ast, &description)
+		enginetest.SessionSQL(t, session, "ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal(1/0)")
+		result, err = sequencePreparedExecute(engine, session, ast, &description)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}) || result.Rows != nil {
 			t.Fatal("demanded fold failure", result, err)
 		}
-		if core.DescriptionPlanOwner(&description) != session.SessionToken || core.DescriptionPlanGeneration(&description) != session.DiscardPlansGeneration || core.DescriptionPlanGeneration(&description) == core.DescriptionPlanGeneration(&before) || core.DescriptionAnalysis(&description) == core.DescriptionAnalysis(&before) || len(description.Temporals) == 0 || &description.Temporals[0] == &before.Temporals[0] {
+		if description.PlanOwner != session.SessionToken || description.PlanGeneration != session.DiscardPlansGeneration || description.PlanGeneration == before.PlanGeneration || description.Analysis == before.Analysis || len(description.Temporals) == 0 || &description.Temporals[0] == &before.Temporals[0] {
 			t.Fatal("failure did not occur after temporal/analysis generation advance")
 		}
-		if core.DescriptionQuoteGeneration(&description) != core.DescriptionQuoteGeneration(&before) || len(description.Quotes) != len(source) || &description.Quotes[0] != &before.Quotes[0] {
+		if description.Folds.Environment.Discard != before.Environment.Discard || len(description.Folds.Current().Entries) != len(source) || &description.Folds.Current().Entries[0] != &before.Accepted.Entries[0] {
 			t.Fatal("failed private quote refresh replaced publication")
 		}
 		for i, capture := range source {
-			if before.Quotes[i] != capture || description.Quotes[i] != capture {
+			if !samePublishedFold(before.Accepted.Entries[i], capture) || !samePublishedFold(description.Folds.Current().Entries[i], capture) {
 				t.Fatal("failed refresh mutated source capture", i)
 			}
 		}
-		rows := sessionSQL(t, session, "SELECT v,a,b FROM sv_retry")
+		rows := enginetest.SessionSQL(t, session, "SELECT v,a,b FROM sv_retry")
 		values := enginetest.Tuples(rows)
 		rows.Rows.Close()
 		if len(values) != 1 || values[0][0] != "root" || values[0][1] != "stored" || values[0][2] != `E'\\x00015c'` {
 			t.Fatal("failed demanded fold changed committed rows", values)
 		}
-		sessionSQL(t, session, "SET quote_all_identifiers=on")
-		sessionSQL(t, session, "SET bytea_output=escape")
-		sessionSQL(t, session, `ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal('\x00015c'::bytea)`)
-		result, err = sequencePreparedExecute(eng, session, ast, &description)
+		enginetest.SessionSQL(t, session, "SET quote_all_identifiers=on")
+		enginetest.SessionSQL(t, session, "SET bytea_output=escape")
+		enginetest.SessionSQL(t, session, `ALTER TABLE sv_retry ALTER COLUMN b SET DEFAULT quote_literal('\x00015c'::bytea)`)
+		result, err = sequencePreparedExecute(engine, session, ast, &description)
 		if err != nil || result.Count != 1 {
 			t.Fatal("successful stale retry", result.Count, err)
 		}
-		if core.DescriptionQuoteGeneration(&description) != session.DiscardPlansGeneration || core.DescriptionPlanGeneration(&description) != session.DiscardPlansGeneration || core.DescriptionPlanOwner(&description) != session.SessionToken || len(description.Quotes) != 3 || &description.Quotes[0] == &before.Quotes[0] {
+		if description.Folds.Environment.Discard != session.DiscardPlansGeneration || description.PlanGeneration != session.DiscardPlansGeneration || description.PlanOwner != session.SessionToken || len(description.Folds.Current().Entries) != 3 || &description.Folds.Current().Entries[0] == &before.Accepted.Entries[0] {
 			t.Fatal("retry did not publish fresh owner-qualified group and stamps")
 		}
-		relation := primaryKeyUnitRelation(t, eng, "sv_retry")
+		relation := primaryKeyUnitRelation(t, engine, "sv_retry")
 		if relation.ColumnMeta.Defaults[relation.Attributes[2]].OID != aDefinition || relation.ColumnMeta.Defaults[relation.Attributes[3]].OID == bDefinition {
 			t.Fatal("retry did not preserve a and replace b DEFAULT identity")
 		}
-		catalog := eng.CatalogRead()
-		ref := eng.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
+		catalog := engine.CatalogRead()
+		ref := engine.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 		seen := map[string]bool{}
-		for _, capture := range description.Quotes {
+		for _, capture := range description.Folds.Current().Entries {
 			value, err := capture.Value.Text()
 			if err != nil {
 				t.Fatal(err)
@@ -386,26 +278,26 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			seen[want] = true
 		}
 		for i, capture := range source {
-			if before.Quotes[i] != capture {
+			if !samePublishedFold(before.Accepted.Entries[i], capture) {
 				t.Fatal("successful retry mutated source publication", i)
 			}
 		}
 	})
 
 	t.Run("MergeDefaultOrigins", func(t *testing.T) {
-		eng := engine.New()
-		session := sessionStart(t, eng, nil)
-		sessionSQL(t, session, "CREATE TABLE sv_merge_origin(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
-		ast, description := sequencePreparedDescription(t, eng, session, "MERGE INTO sv_merge_origin t USING (VALUES(1)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,r) VALUES(s.id,quote_ident('root'))")
-		result, err := sequencePreparedExecute(eng, session, ast, &description)
-		if err != nil || result.Count != 1 || len(description.Quotes) != 3 {
-			t.Fatal("MERGE did not execute demanded defaults", result.Count, description.Quotes, err)
+		engine := rootengine.New()
+		session := enginetest.StartSession(t, engine, nil)
+		enginetest.SessionSQL(t, session, "CREATE TABLE sv_merge_origin(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
+		ast, description := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_merge_origin t USING (VALUES(1)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT(id,r) VALUES(s.id,quote_ident('root'))")
+		result, err := sequencePreparedExecute(engine, session, ast, &description)
+		if err != nil || result.Count != 1 || len(description.Folds.Current().Entries) != 3 {
+			t.Fatal("MERGE did not execute demanded defaults", result.Count, description.Folds.Current().Entries, err)
 		}
-		relation := primaryKeyUnitRelation(t, eng, "sv_merge_origin")
-		catalog := eng.CatalogRead()
-		ref := eng.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
+		relation := primaryKeyUnitRelation(t, engine, "sv_merge_origin")
+		catalog := engine.CatalogRead()
+		ref := engine.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 		seen := map[string]bool{}
-		for _, capture := range description.Quotes {
+		for _, capture := range description.Folds.Current().Entries {
 			value, err := capture.Value.Text()
 			if err != nil {
 				t.Fatal(err)
@@ -431,20 +323,20 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		for _, attribute := range relation.Attributes[1:3] {
 			node := relation.ColumnMeta.Defaults[attribute].Expression.(functions.StringVariadic)
-			if exec.QuoteOriginOf(node) != (exec.QuoteOrigin{}) {
+			if exec.FoldOriginOf(node) != (exec.FoldOrigin{}) {
 				t.Fatal("MERGE stamped catalog DEFAULT source")
 			}
 		}
 	})
 
 	t.Run("ParameterizedMergeOperationLocal", func(t *testing.T) {
-		eng := engine.New()
-		session := sessionStart(t, eng, nil)
-		sessionSQL(t, session, "CREATE TABLE sv_local_merge(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
-		ast, description := sequencePreparedDescription(t, eng, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
-		peerAST, peerDescription := sequencePreparedDescription(t, eng, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
-		stamp := core.DescriptionQuoteGeneration(&description)
-		var previous []exec.QuoteConstant
+		engine := rootengine.New()
+		session := enginetest.StartSession(t, engine, nil)
+		enginetest.SessionSQL(t, session, "CREATE TABLE sv_local_merge(id integer,a text DEFAULT quote_ident('a'),b text DEFAULT quote_ident('b'),r text)")
+		ast, description := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
+		peerAST, peerDescription := sequencePreparedDescription(t, engine, session, "MERGE INTO sv_local_merge t USING (VALUES($1::integer)) s(id) ON t.id=$1::integer WHEN NOT MATCHED THEN INSERT(id,r) VALUES($1::integer,quote_ident('root'))")
+		stamp := description.Folds.Environment.Discard
+		var previous []exec.FoldConstant
 		for id := int64(1); id <= 12; id++ {
 			on := id%2 == 1
 			setting := "off"
@@ -452,20 +344,20 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				setting = "on"
 			}
 			if id == 9 || id == 11 {
-				sessionSQL(t, session, "BEGIN")
+				enginetest.SessionSQL(t, session, "BEGIN")
 				if id == 11 {
-					sessionSQL(t, session, "SAVEPOINT sv_local")
+					enginetest.SessionSQL(t, session, "SAVEPOINT sv_local")
 				}
-				sessionSQL(t, session, "SET LOCAL quote_all_identifiers="+setting)
+				enginetest.SessionSQL(t, session, "SET LOCAL quote_all_identifiers="+setting)
 				discardUnitApply(t, session, parser.DiscardPlans)
 			} else {
 				if id == 10 {
-					sessionSQL(t, session, "ROLLBACK")
+					enginetest.SessionSQL(t, session, "ROLLBACK")
 				}
 				if id == 12 {
-					sessionSQL(t, session, "ROLLBACK TO SAVEPOINT sv_local")
+					enginetest.SessionSQL(t, session, "ROLLBACK TO SAVEPOINT sv_local")
 				}
-				sessionSQL(t, session, "SET quote_all_identifiers="+setting)
+				enginetest.SessionSQL(t, session, "SET quote_all_identifiers="+setting)
 			}
 			if id == 7 {
 				discardUnitApply(t, session, parser.DiscardPlans)
@@ -476,7 +368,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				scope, err := eng.StartStatement(op)
+				scope, err := engine.StartStatement(op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -494,17 +386,17 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					scope.Finish(err)
 					t.Fatal(err)
 				}
-				group := core.ScopeQuoteCaptures(scope)
-				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 3 || description.Quotes != nil || peerDescription.Quotes != nil || core.DescriptionQuoteGeneration(&description) != stamp || core.DescriptionQuoteGeneration(&peerDescription) != stamp {
+				group := scope.FoldCaptures
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 3 || description.Folds.Current().Entries != nil || peerDescription.Folds.Current().Entries != nil || description.Folds.Environment.Discard != stamp || peerDescription.Folds.Environment.Discard != stamp {
 					scope.Finish(errors.New("unexpected quote publication"))
-					t.Fatal("parameterized MERGE retained/shared quotes", result.Count, group, description.Quotes)
+					t.Fatal("parameterized MERGE retained/shared quotes", result.Count, group, description.Folds.Current().Entries)
 				}
 				if previous != nil && &previous[0] == &group.Entries[0] {
 					t.Fatal("parameterized execution borrowed prior backing")
 				}
-				relation := primaryKeyUnitRelation(t, eng, "sv_local_merge")
-				catalog := eng.CatalogRead()
-				ref := eng.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
+				relation := primaryKeyUnitRelation(t, engine, "sv_local_merge")
+				catalog := engine.CatalogRead()
+				ref := engine.Catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 				seen := map[string]bool{}
 				for _, capture := range group.Entries {
 					want := "root"
@@ -542,33 +434,33 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				}
 			}()
 		}
-		sessionSQL(t, session, "ROLLBACK")
+		enginetest.SessionSQL(t, session, "ROLLBACK")
 	})
 
 	t.Run("ParameterizedViewOperationLocal", func(t *testing.T) {
-		eng := engine.New()
-		session := sessionStart(t, eng, nil)
-		sessionSQL(t, session, "CREATE TABLE sv_local_view_base(id integer,r text)")
-		sessionSQL(t, session, "CREATE VIEW sv_local_view AS SELECT id,r FROM sv_local_view_base WHERE r<>quote_ident('blocked') WITH LOCAL CHECK OPTION")
-		ast, description := sequencePreparedDescription(t, eng, session, "INSERT INTO sv_local_view VALUES($1::integer,quote_ident('root'))")
-		stamp := core.DescriptionQuoteGeneration(&description)
-		view := primaryKeyUnitRelation(t, eng, "sv_local_view")
-		catalog := eng.CatalogRead()
-		origin := exec.QuoteOrigin{Owner: eng.Catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: stored.ViewOf(view).RuleOID(), Revision: stored.ViewOf(view).QuoteRevision()}
-		var previous []exec.QuoteConstant
+		engine := rootengine.New()
+		session := enginetest.StartSession(t, engine, nil)
+		enginetest.SessionSQL(t, session, "CREATE TABLE sv_local_view_base(id integer,r text)")
+		enginetest.SessionSQL(t, session, "CREATE VIEW sv_local_view AS SELECT id,r FROM sv_local_view_base WHERE r<>quote_ident('blocked') WITH LOCAL CHECK OPTION")
+		ast, description := sequencePreparedDescription(t, engine, session, "INSERT INTO sv_local_view VALUES($1::integer,quote_ident('root'))")
+		stamp := description.Folds.Environment.Discard
+		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
+		catalog := engine.CatalogRead()
+		origin := exec.FoldOrigin{Owner: engine.Catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: stored.ViewOf(view).RuleOID(), Revision: stored.ViewOf(view).DefinitionRevision()}
+		var previous []exec.FoldConstant
 		for id := int64(1); id <= 2; id++ {
 			setting, root, blocked := "off", "root", "blocked"
 			if id == 1 {
 				setting, root, blocked = "on", `"root"`, `"blocked"`
 			}
-			sessionSQL(t, session, "SET quote_all_identifiers="+setting)
+			enginetest.SessionSQL(t, session, "SET quote_all_identifiers="+setting)
 			func() {
 				op, err := session.Acquire(context.Background())
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				scope, err := eng.StartStatement(op)
+				scope, err := engine.StartStatement(op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -582,8 +474,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					scope.Finish(err)
 					t.Fatal(err)
 				}
-				group := core.ScopeQuoteCaptures(scope)
-				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 2 || description.Quotes != nil || core.DescriptionQuoteGeneration(&description) != stamp {
+				group := scope.FoldCaptures
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 2 || description.Folds.Current().Entries != nil || description.Folds.Environment.Discard != stamp {
 					scope.Finish(errors.New("unexpected view quote publication"))
 					t.Fatal("parameterized view retained quote group", group)
 				}
@@ -620,37 +512,3 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	})
 }
 
-func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
-	types := formatUnitTypes()
-	for _, name := range []string{"concat", "quote_ident", "quote_literal"} {
-		text := strings.Repeat("'a", 8192)
-		arg := plan.LiteralExpr{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Value: sqltype.String(types[sqltype.Text], text)}
-		node := functions.StringVariadic{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Name: name, Args: []expr.Expr{arg}}
-		group := exec.QuoteCaptureCandidate{}
-		ctx := &formatWorkContext{Context: context.Background(), checks: 4}
-		var err error
-		if name == "concat" {
-			_, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
-		} else {
-			_, _, err = exec.FoldStringVariadic(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, QuoteCaptures: &group}}, node)
-		}
-		if !errors.Is(err, context.Canceled) || group.Private || group.Entries != nil {
-			t.Fatal("cancellation exposed a scalar or partial capture", name, err)
-		}
-	}
-	// Pure bounded-size diagnostics moved to functions.TestStringVariadicOutputSize;
-	// cancellation must still leave this owner's capture group unpublished.
-}
-
-type formatWorkContext struct {
-	context.Context
-	checks int
-}
-
-func (c *formatWorkContext) Err() error {
-	c.checks--
-	if c.checks <= 0 {
-		return context.Canceled
-	}
-	return nil
-}

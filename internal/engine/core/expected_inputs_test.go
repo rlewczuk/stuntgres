@@ -1,6 +1,7 @@
-package core
+package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"reflect"
 	"testing"
 
@@ -15,22 +16,22 @@ import (
 // A held description reaches the binder as an analyze value. A missing
 // description is not held; a present one copies every input the binder reads.
 func TestExpectedOfCopiesHeldInputs(t *testing.T) {
-	if got := expectedOf(nil); !reflect.DeepEqual(got, analyze.Expected{}) {
-		t.Fatalf("expectedOf(nil) = %+v", got)
+	if got := core.ExpectedOf(nil); !reflect.DeepEqual(got, analyze.Expected{}) {
+		t.Fatalf("core.ExpectedOf(nil) = %+v", got)
 	}
 	owner := &catalog.Owner{}
-	d := &StatementDescription{
+	d := &core.Description{
 		Parameters:       analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{{}}},
 		Results:          []catalog.Column{{Name: "a"}},
-		catalogOwner:     owner,
-		catalogEpoch:     ids.CatalogEpoch(3),
+		CatalogOwner:     owner,
+		CatalogEpoch:     ids.CatalogEpoch(3),
 		Temporals:        []analyze.TemporalConstant{{Offset: 4}},
-		types:            map[analyze.PreparedTypeKey]analyze.TypeOccurrence{{}: {}},
+		Types:            map[analyze.PreparedTypeKey]analyze.TypeOccurrence{{}: {}},
 		Sequences:        &sequence.Analysis{Constants: []sequence.Constant{{Offset: 5}}},
-		regtypes:         &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 6}}},
-		planOwner:        ids.SessionToken{},
-		planGeneration:   7,
-		refreshTemporals: true,
+		Regtypes:         &regobj.Analysis{Constants: []analyze.RegtypeConstant{{Offset: 6}}},
+		PlanOwner:        ids.SessionToken{},
+		PlanGeneration:   7,
+		RefreshTemporals: true,
 	}
 	want := analyze.Expected{
 		Held:             true,
@@ -40,17 +41,17 @@ func TestExpectedOfCopiesHeldInputs(t *testing.T) {
 		CatalogEpoch:     3,
 		Temporals:        d.Temporals,
 		RefreshTemporals: true,
-		PlanOwner:        d.planOwner,
+		PlanOwner:        d.PlanOwner,
 		PlanGeneration:   7,
-		Types:            d.types,
+		Types:            d.Types,
 		Sequences:        d.Sequences,
-		Regtypes:         d.regtypes.Constants,
+		Regtypes:         d.Regtypes.Constants,
 	}
-	if got := expectedOf(d); !reflect.DeepEqual(got, want) {
+	if got := core.ExpectedOf(d); !reflect.DeepEqual(got, want) {
 		t.Fatalf("expectedOf = %+v, want %+v", got, want)
 	}
-	d.regtypes = nil
-	if got := expectedOf(d); got.Regtypes != nil || !got.Held {
+	d.Regtypes = nil
+	if got := core.ExpectedOf(d); got.Regtypes != nil || !got.Held {
 		t.Fatalf("expectedOf without regtypes = %+v", got)
 	}
 }

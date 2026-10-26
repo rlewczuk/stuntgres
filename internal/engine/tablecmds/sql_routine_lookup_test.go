@@ -158,7 +158,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 }
 
 // Scalar unit binders use real catalog/session authorization like public SQL.
-func newTestExpressionBinder(t *testing.T, ctx context.Context, e *core.Engine, input sqltype.InputEnvironment, expected *core.StatementDescription) *analyze.Binder {
+func newTestExpressionBinder(t *testing.T, ctx context.Context, e *core.Engine, input sqltype.InputEnvironment, expected *core.Description) *analyze.Binder {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)

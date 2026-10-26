@@ -38,6 +38,7 @@ type ScalarRenderer struct {
 	Owner                  *catalog.Relation
 	DomainValue            *sqltype.Usage
 	Dependencies           *[]ids.ObjectRef
+	DependencyPurposes     map[ids.ObjectRef]catalog.DependencyPurpose
 	CommentSnapshot        *bool
 	VisibilitySnapshot     *bool
 	CatalogAliasReferences *bool
@@ -261,7 +262,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 			if !ok || !relationOK || !ReferenceEpochValid(view, r.retainedConsumer(), ref) || ref.Address.SubID != 0 || u.Type.ID() != sqltype.Regclass || n.Value.IsNull() {
 				return "", fmt.Errorf("stuntgres: invalid stored regclass reference")
 			}
-			r.record(ref)
+			r.recordPurpose(ref, catalog.OperandDependency)
 		} else if n.Value.Type().ID() == sqltype.Regclass && !n.Value.IsNull() {
 			// Actual scalar input datums retain relation dependencies; numeric
 			// coercion trees are not materialized into these constants.
@@ -275,7 +276,7 @@ func (r ScalarRenderer) SQL(ctx context.Context, view catalog.Read, node expr.Ex
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 			if _, exists := catalog.DescriptorAt(view, r.Definition, address); exists {
-				r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+				r.recordPurpose(view.Owner().Domain.Ref(view.Epoch(), address), catalog.OperandDependency)
 			}
 		}
 		if err := r.RecordCatalogAliasDependencies(view, n.Value); err != nil {
@@ -751,6 +752,15 @@ func (r ScalarRenderer) functionSQL(ctx context.Context, view catalog.Read, name
 }
 
 func (r ScalarRenderer) record(ref ids.ObjectRef) {
+	r.recordPurpose(ref, catalog.DefinitionDependency)
+}
+
+func (r ScalarRenderer) recordPurpose(ref ids.ObjectRef, purpose catalog.DependencyPurpose) {
+	if r.DependencyPurposes != nil {
+		if old, exists := r.DependencyPurposes[ref]; !exists || old == catalog.OperandDependency {
+			r.DependencyPurposes[ref] = purpose
+		}
+	}
 	if r.Dependencies == nil {
 		return
 	}
@@ -764,14 +774,14 @@ func (r ScalarRenderer) record(ref ids.ObjectRef) {
 
 func (r ScalarRenderer) RecordRoutineReferences(view catalog.Read, value sqltype.Value) error {
 	return regobj.WalkRoutineReferencesAt(view, r.Definition, value, func(address ids.ObjectAddress) error {
-		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		r.recordPurpose(view.Owner().Domain.Ref(view.Epoch(), address), catalog.OperandDependency)
 		return nil
 	})
 }
 
 func (r ScalarRenderer) RecordCatalogAliasDependencies(view catalog.Read, value sqltype.Value) error {
 	record := func(address ids.ObjectAddress) error {
-		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		r.recordPurpose(view.Owner().Domain.Ref(view.Epoch(), address), catalog.OperandDependency)
 		return nil
 	}
 	if err := catalog.WalkAliasDependenciesAt(view, r.Definition, value, record); err != nil {
@@ -785,7 +795,7 @@ func (r ScalarRenderer) RecordCatalogAliasDependencies(view catalog.Read, value 
 
 func (r ScalarRenderer) RecordCatalogAliasReferences(view catalog.Read, value sqltype.Value) error {
 	record := func(address ids.ObjectAddress) error {
-		r.record(view.Owner().Domain.Ref(view.Epoch(), address))
+		r.recordPurpose(view.Owner().Domain.Ref(view.Epoch(), address), catalog.OperandDependency)
 		return nil
 	}
 	if err := catalog.WalkAliasReferencesAt(view, r.Definition, value, record); err != nil {

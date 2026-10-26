@@ -1,12 +1,12 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -36,10 +36,10 @@ func TestGeometryConversionCTypeNameCapture(t *testing.T) {
 		t.Fatal("successful typename selection not captured")
 	}
 	view := e.CatalogRead()
-	expected := core.NewDescription(core.DescriptionFields{
+	expected := &core.Description{
 		Parameters:   analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{first.Type(sqltype.Text).Usage()}},
-		CatalogOwner: view.Owner(), CatalogEpoch: view.Epoch(), Types: first.Prepared.Types, Analysis: core.NewPreparedAnalysis(core.PreparedAnalysisFields{}),
-	})
+		CatalogOwner: view.Owner(), CatalogEpoch: view.Epoch(), Types: first.Prepared.Types, Analysis: &core.Analysis{},
+	}
 	next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	node, handled, err := next.BindSQLCallable(raw)
 	if err != nil || !handled || node.ResultUsage() != captured.Base {
@@ -67,12 +67,12 @@ func TestGeometryConversionCTypeNameCapture(t *testing.T) {
 		t.Fatal("foreign owner reused retained target", handled, err)
 	}
 	bad := *expected
-	core.SetDescriptionTypes(&bad, map[analyze.PreparedTypeKey]analyze.TypeOccurrence{key: {Kind: analyze.TypeNameCast, Base: first.Type(sqltype.Circle).Usage()}})
+	bad.Types = map[analyze.PreparedTypeKey]analyze.TypeOccurrence{key: {Kind: analyze.TypeNameCast, Base: first.Type(sqltype.Circle).Usage()}}
 	invalid := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &bad)
 	if _, handled, err := invalid.BindSQLCallable(raw); err == nil || !handled {
 		t.Fatal("mismatched target authority admitted")
 	}
-	core.DescriptionRetireAnalysisTypeCasts(expected)
+	expected.RetireAnalysisTypeCasts()
 	retired := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	if node, handled, err := retired.BindSQLCallable(raw); err != nil || !handled || node.ResultUsage() != retired.Type(sqltype.Polygon).Usage() {
 		t.Fatal("retired occurrence failed fresh selection", handled, err)

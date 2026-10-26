@@ -8,8 +8,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/view"
 	"stuntgres/internal/parser"
@@ -17,37 +15,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// Statement admission serializes this physical-session owner. Definitions never
-// retain adapter handles, snapshots or execution-private parameter frames.
-type sqlPreparedRegistry struct {
-	token   ids.SessionToken
-	entries map[string]*sqlPreparedStatement
-	portals map[string]*protocolPortal
-}
-type sqlPreparedStatement struct {
-	body          parser.Statement
-	source        string
-	description   StatementDescription
-	parameterOIDs []uint32 // Empty protocol statements preserve unvalidated hints.
-}
-
-func (r *sqlPreparedRegistry) EndSession(token ids.SessionToken, _ session.EndReason) error {
-	if token != r.token {
-		return fmt.Errorf("stuntgres: foreign SQL prepared attachment")
-	}
-	clear(r.entries)
-	var failure error
-	for name, portal := range r.portals {
-		delete(r.portals, name)
-		if err := portal.close(context.Background()); failure == nil {
-			failure = err
-		}
-	}
-	if failure != nil {
-		return failure
-	}
-	return nil
-}
 func missingSQLPrepared(name string) error {
 	if name == "" {
 		return SQLError("26000", "unnamed prepared statement does not exist")
@@ -76,9 +43,6 @@ func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (R
 	}
 	e.Mu.Unlock()
 	s.initialParameters = types
-	if err := s.selectPreparedAnalysis(raw.Body); err != nil {
-		return Result{}, err
-	}
 	if err := s.AcquireRelation(raw.Body, false); err != nil {
 		return Result{}, err
 	}
@@ -86,15 +50,15 @@ func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (R
 	if err != nil {
 		return Result{}, err
 	}
-	r := PayloadOf(s.Op.Session).preparedSQL
-	if r.entries[raw.Name.Text] != nil {
+	r := PayloadOf(s.Op.Session).PreparedSQL
+	if r.Lookup(raw.Name.Text) != nil {
 		return Result{}, SQLError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", raw.Name.Text))
 	}
-	entry := &sqlPreparedStatement{body: raw.Body, source: raw.Source, description: description}
+	entry := &PreparedDefinition{Body: raw.Body, Source: raw.Source, Description: description}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
-	r.entries[raw.Name.Text] = entry
+	r.Install(raw.Name.Text, entry)
 	// Like cursor mutations, SQL names are session effects, not rollback state.
 	s.Completed, s.sessionCompleted = true, true
 	return Result{}, nil
@@ -104,18 +68,14 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	r := PayloadOf(s.Op.Session).preparedSQL
-	if !raw.All && r.entries[raw.Name.Text] == nil {
+	r := PayloadOf(s.Op.Session).PreparedSQL
+	if !raw.All && r.Lookup(raw.Name.Text) == nil {
 		return Result{}, missingSQLPrepared(raw.Name.Text)
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
 	}
-	if raw.All {
-		clear(r.entries)
-	} else {
-		delete(r.entries, raw.Name.Text)
-	}
+ if raw.All { r.ClearDefinitions() } else { r.Remove(raw.Name.Text) }
 	s.Completed, s.sessionCompleted = true, true
 	return Result{}, nil
 }

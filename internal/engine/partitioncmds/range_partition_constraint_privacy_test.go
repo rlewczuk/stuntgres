@@ -87,7 +87,7 @@ func TestRangePartitionConstraintPrivacy(t *testing.T) {
 						}
 					}
 					ast := enginetest.Statement(t, query)
-					var description *core.StatementDescription
+					var description *core.Description
 					if prepared {
 						desc, err := e.Describe(op, ast)
 						if err != nil {
@@ -290,7 +290,7 @@ func TestRangePartitionPhysicalConstraintPrivacy(t *testing.T) {
 							query = "INSERT INTO " + c.target + "(" + columns + ") SELECT " + values
 						}
 						ast := enginetest.Statement(t, query)
-						var description *core.StatementDescription
+						var description *core.Description
 						count := 0
 						if prepared {
 							desc, err := e.Describe(op, ast)

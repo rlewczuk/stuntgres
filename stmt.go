@@ -1,29 +1,32 @@
 package stuntgres
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"database/sql/driver"
 	"errors"
 	"fmt"
 	"runtime"
-	"stuntgres/internal/engine/core"
-	"stuntgres/internal/parser"
 	"sync/atomic"
 )
 
-// Retains raw syntax, fixed signatures and private analysis identities/captures,
-// not an execution plan. Catalog/path/DISCARD invalidation reanalyzes original SQL.
+// Retains raw syntax, fixed signatures, analysis identities and owned immutable folds,
+// never an executable graph. Binding and authority are current on every use.
 // FETCH and EXECUTE wrappers expose their live named resource's actual schema.
 type stmt struct {
 	conn        *conn
-	ast         parser.Statement
-	source      string
-	description core.StatementDescription
+	definition core.PreparedDefinition
 	closed      atomic.Bool
 }
 
-func (s *stmt) Close() error  { defer runtime.KeepAlive(s.conn); s.closed.Store(true); return nil }
-func (s *stmt) NumInput() int { defer runtime.KeepAlive(s.conn); return s.description.Parameters.Count }
+func (s *stmt) Close() error {
+	defer runtime.KeepAlive(s.conn)
+	if !s.closed.Swap(true) {
+		s.conn.engine.RetirePreparedDescription(&s.definition.Description)
+	}
+	return nil
+}
+func (s *stmt) NumInput() int { defer runtime.KeepAlive(s.conn); return s.definition.Description.Parameters.Count }
 func (s *stmt) check(ctx context.Context) error {
 	defer runtime.KeepAlive(s.conn)
 	if err := s.conn.check(ctx); err != nil {
@@ -35,8 +38,8 @@ func (s *stmt) check(ctx context.Context) error {
 	return nil
 }
 func (s *stmt) checkArguments(args []driver.NamedValue) error {
-	if len(args) != s.description.Parameters.Count {
-		return fmt.Errorf("stuntgres: got %d arguments, want %d", len(args), s.description.Parameters.Count)
+	if len(args) != s.definition.Description.Parameters.Count {
+		return fmt.Errorf("stuntgres: got %d arguments, want %d", len(args), s.definition.Description.Parameters.Count)
 	}
 	return nil
 }
@@ -48,7 +51,7 @@ func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 	if err := s.checkArguments(args); err != nil {
 		return nil, err
 	}
-	r, err := s.conn.execute(ctx, s.ast, args, &s.description)
+	r, err := s.conn.execute(ctx, s.definition.Body, args, &s.definition.Description)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +70,7 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 	if err := s.checkArguments(args); err != nil {
 		return nil, err
 	}
-	r, err := s.conn.execute(ctx, s.ast, args, &s.description)
+	r, err := s.conn.execute(ctx, s.definition.Body, args, &s.definition.Description)
 	if err != nil {
 		return nil, err
 	}

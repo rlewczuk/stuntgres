@@ -249,28 +249,54 @@ func SourceAdmitted(e expr.Expr) bool { return expr.AdmitsSource(e) }
 
 // Entries are immutable once published by Execute under Engine.mu. A candidate
 // borrows the old group and copies only when a successful fold changes it.
-type QuoteOrigin struct {
+type FoldOrigin struct {
+	Expansion  expr.FoldSourceOccurrence
+	Site       uint32
 	Owner      ids.ObjectRef
 	Attribute  int32
 	Definition ids.OID
 	Revision   ids.DefinitionRevision
 }
 
-type QuoteConstant struct {
+type FoldInput struct {
+	Usage       sqltype.Usage
+	Value       sqltype.Value
+	UnknownNull bool
+	// Selected-operator providers contribute usage and recursively visited
+	// inputs, not a literal datum. The zero FoldInput is an omitted child.
+	provider bool
+}
+
+type FoldConstant struct {
 	Offset     int
-	Origin     QuoteOrigin
+	Occurrence uint32
+	Source     expr.FoldSourceOccurrence
+	Origin     FoldOrigin
 	Frame      uint32
-	Name       string
-	Anyelement bool
-	Source     sqltype.Usage
+	Provider   string
+	Callable   expr.RoutineReference
+	Operator   ids.ObjectRef
+	Coercion   sqltype.CoercionPlan
+	Inputs     []FoldInput
 	Result     sqltype.Usage
 	Value      sqltype.Value
 }
 
-type QuoteCaptureCandidate struct {
-	Entries []QuoteConstant
-	Private bool
-	Sealed  bool
+type FoldDependency struct {
+	Ref        ids.ObjectRef
+	Descriptor catalog.Descriptor
+	Stamp      ids.DefinitionRevision
+}
+
+type FoldCaptureCandidate struct {
+	Dependencies        []FoldDependency
+	DependenciesPrivate bool
+	// Publication is an opaque engine-owned, operation-local validation token.
+	Publication any
+	Entries     []FoldConstant
+	Private     bool
+	Sealed      bool
+	Fixed       bool // Accepted portal planning may borrow, never recompute a different generation.
 }
 
 func (c *Context) EvalUpdateOutput(e plan.UpdateOutputExpr) (sqltype.Value, error) {

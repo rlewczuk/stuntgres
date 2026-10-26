@@ -29,7 +29,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	desc := core.StatementDescription{Temporals: b.Prepared.Temporals}
+	desc := core.Description{Temporals: b.Prepared.Temporals}
 	before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 	if err := engine.Reset(ctx, e); err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contextDesc := core.StatementDescription{Temporals: b.Prepared.Temporals}
+	contextDesc := core.Description{Temporals: b.Prepared.Temporals}
 	b = enginetest.ExpressionBinder(t, ctx, e, later, &contextDesc)
 	node, err = b.Bind(contextual, policy)
 	if err != nil {

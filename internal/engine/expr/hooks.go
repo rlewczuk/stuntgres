@@ -59,9 +59,6 @@ const (
 	// FoldOverlapsRoute runs the engine's OVERLAPS inline route before the
 	// constant fold.
 	FoldOverlapsRoute
-	// FoldQuoteCapture replaces the constant fold with the engine's quote-capture
-	// fold.
-	FoldQuoteCapture
 )
 
 // Folding selects a node's Fold; nodes without it use FoldConstant.

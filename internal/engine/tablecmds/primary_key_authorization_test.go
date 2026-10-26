@@ -25,7 +25,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				}
 				duplicate := primaryKeyUnitInsert(1)
 				typeBuild := &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}, TypeName: parser.TypeName{Name: "bigint"}, Using: parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 0}}}}}
-				var heldDuplicate, heldType core.StatementDescription
+				var heldDuplicate, heldType core.Description
 				if prepared {
 					var err error
 					heldDuplicate, err = e.Describe(owner, duplicate)
@@ -68,7 +68,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 					t.Fatal("actual current key disclosure authority", allowed, err)
 				}
 				before, store, root := e.Catalog.State, e.Storage.Relations[parent.Address()], e.Storage.IndexRoots[idx.Address()]
-				execute := func(ast parser.Statement, held *core.StatementDescription) (core.Result, error) {
+				execute := func(ast parser.Statement, held *core.Description) (core.Result, error) {
 					if !prepared {
 						return e.Execute(owner, ast, 0, nil)
 					}

@@ -34,11 +34,17 @@ are composition functions over a `*core.Engine`; `Reset` and `Restore`
 publish through core's catalog replacement (`ReplaceCatalog`,
 `ReplaceCatalogInOperation`).
 
-
 Event-trigger definitions are dispatched to `schemacmds` through the ordinary
 schema path. Core owns callback frames, journal lifetime and atomic publication;
 family executors report consumed drops and semantic rewrite boundaries through
 that runtime rather than publishing an alternate event catalog.
+
+Prepared analysis, retained immutable typed folds, definition and portal ownership,
+and their admission/publication fences belong to
+[`core`](core/README.md#prepared-statements), not this composition layer.
+Their owner tests preserve actual generation, immutable backing and rejected
+publication independently of public SQL outcomes; see
+[`docs/TESTING.md`](../../docs/TESTING.md#placement-policy).
 
 ## Hosts
 

@@ -11,6 +11,6 @@ func ScopeDeparseInputs(x *StatementScope) table.DeparseInputs {
 }
 
 // ExpectedOf calls expectedOf.
-func ExpectedOf(d *StatementDescription) analyze.Expected {
+func ExpectedOf(d *Description) analyze.Expected {
 	return expectedOf(d)
 }

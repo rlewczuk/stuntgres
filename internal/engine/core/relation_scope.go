@@ -25,6 +25,11 @@ import (
 
 // Resolve original authority before waiting; never resolve a replacement by name.
 func (s *StatementScope) AcquireRelation(stmt parser.Statement, execute bool) (err error) {
+	// Every root, including nested PL and SQL-demand roots, captures its name
+	// environment before admission can wait. Lexical activations own this state.
+	if err := s.selectPreparedAnalysis(stmt); err != nil {
+		return err
+	}
 	if foreign, ok := stmt.(*parser.ForeignDDL); ok {
 		if foreign.Kind == "table" && foreign.Action == "alter" {
 			stmt = fdw.AlterAdmission(foreign)
@@ -229,10 +234,10 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		} else if s.prepared.reuse != nil {
 			switch stmt.(type) {
 			case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-				if s.prepared.reuse.targets != nil {
-					ref = s.prepared.reuse.targets[stmt]
+				if s.prepared.reuse.Targets != nil {
+					ref = s.prepared.reuse.Targets[stmt]
 				} else {
-					ref = s.prepared.reuse.target
+					ref = s.prepared.reuse.Target
 				}
 			}
 		}
@@ -306,7 +311,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	var definitionStamp ids.DefinitionRevision
 	var materializedAlterAuthority *catalog.Relation
 	if err == nil && ref.Domain() != nil {
-		definitionStamp = PreparedDefinitionStamp(auth.Catalog.Get(ref.Address), s.Op.Session)
+		definitionStamp = DefinitionStamp(auth.Catalog.Get(ref.Address), PreparedEnvironment{Sequences: &PayloadOf(s.Op.Session).Sequences})
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
 			materializedAlterAuthority = auth.Catalog.MustRelation(ref.Address)
 		}
@@ -476,7 +481,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		return ids.ErrCatalogReplaced
 	}
-	if PreparedDefinitionStamp(descriptor, s.Op.Session) != definitionStamp {
+	if DefinitionStamp(descriptor, PreparedEnvironment{Sequences: &PayloadOf(s.Op.Session).Sequences}) != definitionStamp {
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {

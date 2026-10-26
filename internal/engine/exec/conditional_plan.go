@@ -469,7 +469,7 @@ func simplifyConditionalNode(c *Context, expression expr.Expr, decisiveDefaults 
 	}
 	p := expression.Properties()
 	if _, literal := expression.(plan.LiteralExpr); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && ConditionalConstantInputs(expression) {
-		value, err := EvaluatePlanningExpression(c, expression)
+		value, err := FoldPlanningExpression(c, expression)
 		if err != nil {
 			return nil, false, err
 		}
@@ -499,6 +499,20 @@ func ConditionalConstantInputs(node expr.Expr) bool {
 	}
 	literal := func(child expr.Expr) bool { _, ok := child.(plan.LiteralExpr); return ok }
 	switch e := node.(type) {
+	case plan.ArrayExpr:
+		for _, item := range e.Elements {
+			if !literal(item) {
+				return false
+			}
+		}
+		return true
+	case plan.RowExpr:
+		for _, item := range e.Fields {
+			if !literal(item) {
+				return false
+			}
+		}
+		return true
 	case plan.CollationExpr:
 		return literal(e.Child)
 	case plan.CoercionExpr:

@@ -350,7 +350,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		p := e.Properties()
 		if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := EvaluatePlanningExpression(c, e)
+			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		return e, elements != nil, nil
@@ -385,7 +385,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		p := e.Properties()
 		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := EvaluatePlanningExpression(c, e)
+			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		if changed {
@@ -406,7 +406,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		}
 		p := e.Properties()
 		if p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion {
-			value, err := EvaluatePlanningExpression(c, e)
+			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		return e, lc || rc, nil
@@ -444,7 +444,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			return nil, false, err
 		}
 		if decisiveDefaults && ConditionalConstantInputs(next) {
-			value, err := EvaluatePlanningExpression(c, next)
+			value, err := FoldPlanningExpression(c, next)
 			return preflightValue(c, next.Info, value, err)
 		}
 		if changed {
@@ -464,7 +464,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			_, rightConstant := right.(plan.LiteralExpr)
 			if leftConstant && rightConstant {
 				e.Left, e.Right = left, right
-				value, err := EvaluatePlanningExpression(c, e)
+				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -495,7 +495,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			if folded, changed, err := FoldStrictParameterNull(c, e); err != nil || changed {
 				return folded, changed, err
 			}
-			value, err := EvaluatePlanningExpression(c, e)
+			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		if decisiveDefaults || e.Usage.Type.ID() == sqltype.Bit {
@@ -503,7 +503,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			_, r := right.(plan.LiteralExpr)
 			p := e.Properties()
 			if l && (right == nil || r) && p == (expr.Properties{}) {
-				v, err := EvaluatePlanningExpression(c, e)
+				v, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, v, err)
 			}
 		}
@@ -540,7 +540,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			if folded, changed, err := FoldStrictParameterNull(c, e); err != nil || changed {
 				return folded, changed, err
 			}
-			value, err := EvaluatePlanningExpression(c, e)
+			value, err := FoldPlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
 		if decisiveDefaults || c.PlanStaticOperators {
@@ -548,7 +548,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			// cast may now be a literal without making its parameter static.
 			p := expression.Properties()
 			if p.Volatility == expr.Immutable && !p.RowDependent && !p.ParameterDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion && ConditionalConstantInputs(e) {
-				value, err := EvaluatePlanningExpression(c, e)
+				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -564,7 +564,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		if decisiveDefaults {
 			if _, constant := child.(plan.LiteralExpr); constant {
 				e.Child = child
-				value, err := EvaluatePlanningExpression(c, e)
+				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -580,7 +580,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 		if decisiveDefaults {
 			if _, constant := child.(plan.LiteralExpr); constant {
 				e.Child = child
-				value, err := EvaluatePlanningExpression(c, e)
+				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -602,7 +602,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			_, rightConstant := right.(plan.LiteralExpr)
 			if leftConstant && rightConstant {
 				e.Left, e.Right = left, right
-				value, err := EvaluatePlanningExpression(c, e)
+				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}
@@ -639,7 +639,7 @@ func preflightCoercionNode(c *Context, expression expr.Expr, decisiveDefaults bo
 			_, rightConstant := right.(plan.LiteralExpr)
 			if e.Op == parser.LogicalNot || rightConstant {
 				e.Left, e.Right = left, right
-				value, err := EvaluatePlanningExpression(c, e)
+				value, err := FoldPlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
 			}
 		}

@@ -19,6 +19,30 @@ package's `README.md` under `## Testing`.
   untagged dual-mode tests when working in their area.
 - Internal unit tests of package functions stay beside their package. They
   supplement, never replace, reference coverage.
+- For retained prepared artifacts, assert real definition ownership, generation,
+  immutable backing and rejected publication separately from public SQL outcomes;
+  repeated pure-function equality cannot distinguish reuse from recomputation.
+  Semantic dependency fixtures must advance effective `Revision()` stamps,
+  not raw zero-default revision fields, and distinguish unchanged-codec
+  presentation changes from executable codec replacement. Demanded unary
+  ownership witnesses can use `COALESCE(-(7::integer),0)`: the cast keeps
+  negation as an operator without crossing selected-call arithmetic limits.
+  Structural comparisons across separate bindings must distinguish fold expansion
+  ordinals from the semantic contract: assert valid distinct provenance, then
+  compare all remaining fields, including original provider authority and logical
+  properties. Reconstruction or completion of one binding must preserve its exact
+  provenance and inputs. Captured identifier signatures retain every operand
+  occurrence in source order; binder manifests project these stamps to operand
+  purpose without discarding their exact identity or revision.
+  Composed prepared tests use the real `core.Description`, definition registry,
+  accepted binding and `core.FoldPublication` operations. Save immutable
+  `exec.AcceptedFolds` values when comparing old backing and generations; copying
+  a description does not snapshot its mutable definition owner. Pure typed
+  ownership, datum identity and cancellation cases live in `exec/enginetests`;
+  stored retagging and pruning cases live in `stored/enginetests`. Keep actual
+  graph/resource, occurrence, private-context and rejected-publication assertions
+  in the composed owner tests, alongside shared reference scenarios for SQL
+  outcomes. Do not add inspection exports or a second observation registry.
 - Internal tests that need a composed engine are external tests
   (`package <owner>_test`) beside the package that owns the code under test,
   built with the [`enginetest`](../internal/engine/enginetest/README.md)

@@ -81,7 +81,7 @@ func TestResourceTemporaryInitializedValidation(t *testing.T) {
 						}
 					}
 					ast:=enginetest.Statement(t,query)
-					var description core.StatementDescription
+					var description core.Description
 					if prepared { ast,description=sequencePreparedDescription(t,e,s,query) }
 					store:=s.Settings
 					store.Mu.Lock()

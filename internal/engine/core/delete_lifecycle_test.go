@@ -1,13 +1,13 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"testing"
 	"time"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -128,7 +128,7 @@ func TestDeleteCoreRelationLifecycle(t *testing.T) {
 			b := enginetest.StartSession(t, e, nil)
 			enginetest.SessionSQL(t, a, "CREATE TABLE t(v INT)")
 			ast := enginetest.Statement(t, "DELETE FROM t")
-			var expected core.StatementDescription
+			var expected core.Description
 			if kind == "cached" {
 				op := enginetest.TransactionOperation(t, b)
 				var err error

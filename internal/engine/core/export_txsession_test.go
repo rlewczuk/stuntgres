@@ -346,8 +346,6 @@ func PayloadNotificationsRef(x *sessionPayload) *session.NotificationListener {
 	return &x.notifications
 }
 
-// PayloadPreparedSQL returns x.preparedSQL.
-func PayloadPreparedSQL(x *sessionPayload) *sqlPreparedRegistry { return x.preparedSQL }
 
 // PayloadSQLRoutines returns x.sqlRoutines.
 func PayloadSQLRoutines(x *sessionPayload) map[ids.ObjectAddress]sqlRoutineAnalysis {
@@ -420,7 +418,7 @@ type ScopeFields struct {
 	Op                    *session.Operation
 	NotificationActions   []session.NotificationAction
 	NotificationEvents    []session.Notification
-	Expected              *StatementDescription
+	Expected              *Description
 	StatementStart        time.Time
 	TransactionStart      time.Time
 	ActiveSQLRoutineDepth int
@@ -437,8 +435,6 @@ func NewScope(f ScopeFields) *StatementScope {
 // ScopeLargeObjectRead returns x.largeObjectRead.
 func ScopeLargeObjectRead(x *StatementScope) catalog.Read { return x.largeObjectRead }
 
-// ScopeQuoteCaptures returns x.quoteCaptures.
-func ScopeQuoteCaptures(x *StatementScope) *exec.QuoteCaptureCandidate { return x.quoteCaptures }
 
 // ScopeRLSActive returns x.rlsActive.
 func ScopeRLSActive(x *StatementScope) []ids.ObjectAddress { return x.rlsActive }

@@ -174,7 +174,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			e.Mu.Unlock()
 			t.Fatal(err)
 		}
-		desc := core.StatementDescription{Temporals: bound.Prepared.Temporals}
+		desc := core.Description{Temporals: bound.Prepared.Temporals}
 		before := append([]analyze.TemporalConstant(nil), desc.Temporals...)
 		for range 2 {
 			rebound, err := core.Describe(op.Ctx, e.AnalysisHost(op), ast, auth, ref, later, &desc, nil)

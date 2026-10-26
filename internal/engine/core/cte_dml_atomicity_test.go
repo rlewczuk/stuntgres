@@ -184,8 +184,8 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 				return c.Row[0], nil
 			})
 			cteMutationOf(bound.CTEs[1]).Returning.Expressions = []expr.Expr{probe}
-			quotes := exec.QuoteCaptureCandidate{}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output, QuoteCaptures: &quotes}}
+			folds := exec.FoldCaptureCandidate{}
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: core.HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output, FoldCaptures: &folds}}
 			e.Mu.Lock()
 			result, err := core.EngineExecuteCTECommandsLocked(e, scope, ast, bound, auth, nil, evaluation, nil, nil)
 			want := primary

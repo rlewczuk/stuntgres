@@ -1,13 +1,13 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"testing"
 	"time"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +31,7 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	if err != nil || out != "[2000-02-29,2000-03-01)" || len(b.Prepared.Temporals) != 1 || !sqltype.SameDatum(v, b.Prepared.Temporals[0].Value) {
 		t.Fatal("initial compound capture", out, b.Prepared.Temporals, err)
 	}
-	description := &core.StatementDescription{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...)}
+	description := &core.Description{Temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...)}
 	retained := newTestExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.InputConstant("invalid input must not be reparsed", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) {
@@ -48,7 +48,7 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	if !analyze.RefreshableTemporal(b.Prepared.Temporals[0]) {
 		t.Fatal("builtin daterange not refreshable")
 	}
-	core.SetDescriptionRefreshTemporals(description, true)
+	description.RefreshTemporals = true
 	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.InputConstant("[today,tomorrow)", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.Prepared.Temporals) != 1 {

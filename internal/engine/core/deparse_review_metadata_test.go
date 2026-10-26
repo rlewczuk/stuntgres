@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"fmt"
 	"strings"
@@ -8,7 +9,6 @@ import (
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -62,7 +62,7 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if len(b.Prepared.Temporals) != 1 || b.Prepared.Temporals[0].Typmod != -1 || !b.Prepared.Temporals[0].Typed || b.Prepared.Temporals[0].TypedTypmod != 3 {
 				t.Fatal(b.Prepared.Temporals)
 			}
-			description := core.StatementDescription{Temporals: b.Prepared.Temporals}
+			description := core.Description{Temporals: b.Prepared.Temporals}
 			raw.Text = "must not be reparsed"
 			again := enginetest.ExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &description)
 			rebound, err := again.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})

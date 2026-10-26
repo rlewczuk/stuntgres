@@ -143,7 +143,7 @@ func bindInsertConflict(b *Binding, shared *Binder, auth Authority, raw *parser.
 	c.Reads = binder.Query.Sources[0].Uses
 	shared.Params.AnyParameters = append(shared.Params.AnyParameters, binder.Params.AnyParameters...)
 	for _, dep := range binder.Dependencies {
-		shared.dependency(dep.Ref, dep.Revision)
+		shared.captureDependency(dep.Ref, dep.Revision, dep.Purpose)
 	}
 	return nil
 }

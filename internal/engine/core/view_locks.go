@@ -146,7 +146,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		e.Mu.Lock()
 		current, exists := e.PrivateCatalogLocked(s.PendingCatalog()).Find(ref.Address)
 		valid := ref.Domain() == e.Catalog.Domain && ref.Epoch == e.Catalog.State.Epoch() && exists
-		if valid && d != nil && PreparedDefinitionStamp(current, s.Op.Session) != PreparedDefinitionStamp(d, s.Op.Session) {
+		if valid && d != nil && DefinitionStamp(current, PreparedEnvironment{Sequences: &PayloadOf(s.Op.Session).Sequences}) != DefinitionStamp(d, PreparedEnvironment{Sequences: &PayloadOf(s.Op.Session).Sequences}) {
 			s.prepared.changedDuringAdmission = true
 		}
 		e.Mu.Unlock()

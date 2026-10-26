@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"maps"
@@ -10,7 +11,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -438,7 +438,7 @@ func TestPGParameterACLAuthorization(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	execute := func(q *parser.Select, description *core.StatementDescription, denied bool, count int) {
+	execute := func(q *parser.Select, description *core.Description, denied bool, count int) {
 		t.Helper()
 		scope, err := e.StartStatement(op)
 		if err != nil {

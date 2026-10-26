@@ -1,13 +1,13 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/session"
@@ -68,35 +68,35 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 
 func TestPreparedSQLSessionOwner(t *testing.T) {
 	e := engine.New()
-	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	r := core.PayloadPreparedSQL(core.PayloadOf(a))
-	if r == nil || a.Resources[session.PreparedSQL] == nil || a.Resources[session.PreparedSQL].Owner != r || core.PreparedRegistryToken(r) != a.SessionToken {
+	a, b := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
+	r := core.PayloadOf(a).PreparedSQL
+	if r == nil || a.Resources[session.PreparedSQL] == nil || a.Resources[session.PreparedSQL].Owner != r || r.EndSession(a.SessionToken, session.InitFailure) != nil {
 		t.Fatal("missing attached session owner")
 	}
-	entry := core.NewPreparedStatement(core.PreparedStatementFields{Body: &parser.Select{}})
-	core.PreparedRegistryEntries(r)["p"] = entry
-	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || core.PreparedRegistryEntries(r)["p"] != entry {
+	entry := &core.PreparedDefinition{Body: &parser.Select{}}
+	r.Install("p", entry)
+	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || r.Lookup("p") != entry {
 		t.Fatal("foreign end mutated registry", err)
 	}
-	if err := r.EndSession(a.SessionToken, session.InitFailure); err != nil || len(core.PreparedRegistryEntries(r)) != 0 {
+	if err := r.EndSession(a.SessionToken, session.InitFailure); err != nil || !preparedRegistryEmpty(r) {
 		t.Fatal("end did not clear definitions", err)
 	}
 	if a.Resources[session.PreparedSQL].Owner != r {
 		t.Fatal("clearing detached owner")
 	}
-	core.PreparedRegistryEntries(r)["p"] = entry
+	r.Install("p", entry)
 	a.RequestEnd(session.CleanClose)
-	if err := a.WaitEnd(context.Background()); err != nil || len(core.PreparedRegistryEntries(r)) != 0 {
+	if err := a.WaitEnd(context.Background()); err != nil || !preparedRegistryEmpty(r) {
 		t.Fatal("physical cleanup retained definition", err)
 	}
-	if core.PayloadPreparedSQL(core.PayloadOf(b)) == r {
+	if core.PayloadOf(b).PreparedSQL == r {
 		t.Fatal("peer session shared owner")
 	}
 }
 
 func TestPreparedSQLCanceledPublication(t *testing.T) {
 	e := engine.New()
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	op, err := session.Acquire(ctx)
 	if err != nil {
@@ -111,11 +111,11 @@ func TestPreparedSQLCanceledPublication(t *testing.T) {
 	if err := scope.Gate(raw); err != nil {
 		t.Fatal(err)
 	}
-	entry := core.NewPreparedStatement(core.PreparedStatementFields{Body: &parser.Select{}})
-	core.PreparedRegistryEntries(core.PayloadPreparedSQL(core.PayloadOf(session)))["p"] = entry
+	entry := &core.PreparedDefinition{Body: &parser.Select{}}
+	core.PayloadOf(session).PreparedSQL.Install("p", entry)
 	cancel()
 	_, err = core.ScopeExecuteDeallocateSQL(scope, raw, 0)
-	if !errors.Is(err, context.Canceled) || core.PreparedRegistryEntries(core.PayloadPreparedSQL(core.PayloadOf(session)))["p"] != entry || scope.Completed {
+	if !errors.Is(err, context.Canceled) || core.PayloadOf(session).PreparedSQL.Lookup("p") != entry || scope.Completed {
 		t.Fatal("canceled publication mutated owner", err)
 	}
 	if finish := scope.Finish(err); !errors.Is(finish, context.Canceled) {

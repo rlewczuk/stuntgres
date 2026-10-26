@@ -104,7 +104,7 @@ func (s *StatementScope) CallProtocolFunction(input session.ProtocolInput) (sess
 		e.Mu.Unlock()
 		return session.ProtocolField{}, err
 	}
-	binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, &StatementDescription{Parameters: formal})
+	binder := NewExpressionBinder(s.Op.Context(), e, s.Input, s.Op, &Description{Parameters: formal})
 	binder.Query.Auth = &auth
 	args := make([]parser.Expr, len(usages))
 	for i := range args {

@@ -69,7 +69,7 @@ func (b *Binder) selectSQLCallable(raw parser.FunctionExpr, cast *parser.CastExp
 	cubeFamily := functions.CubeFunctionName(name) || functions.EarthFunctionName(name)
 	providerOverride := b.hasProviderProcedureOverride(name)
 	typeName := cast != nil || b.typeNameCallable(raw.Name)
- if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
+	if !typeName && !cubeFamily && !providerOverride && !b.hasDynamicProcedureName(name) && !extension.CubeComparisonName(name) && !extension.CitextComparisonName(name) && !extension.CitextPatternName(name) && !extension.CitextRegexpName(name) && !extension.CitextStringName(name) && !b.BindingCatalog().HasCasts() {
 		return selection, false, nil
 	}
 	auth, err := b.BindingAuthorization()
@@ -593,21 +593,26 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 		if err != nil {
 			return nil, err
 		}
-  if extension.CitextStringName(symbol) {
-   node,err:=b.bindSelectedCitextString(raw,selected,symbol)
-   if err==nil&&(b.Params.NoParameters||b.Consumer.frozenDefinition) {
-    frozen:=raw;frozen.StoredProviderRoutine,frozen.StoredProviderSymbol=true,symbol
-    if b.Stored.Syntax==nil {b.Stored.Syntax=make(map[StoredExpressionSyntaxKey]parser.Expr)}
-    b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)]=frozen
-   }
-   return node,err
-  }
+		if extension.CitextStringName(symbol) {
+			node, err := b.bindSelectedCitextString(raw, selected, symbol)
+			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
+				frozen := raw
+				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
+				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
+			}
+			return node, err
+		}
 		if extension.CitextRegexpName(symbol) {
 			node, err := b.bindSelectedCitextRegexp(raw, selected, symbol)
 			if err == nil && (b.Params.NoParameters || b.Consumer.frozenDefinition) {
 				frozen := raw
 				frozen.StoredProviderRoutine, frozen.StoredProviderSymbol = true, symbol
-				if b.Stored.Syntax == nil { b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr) }
+				if b.Stored.Syntax == nil {
+					b.Stored.Syntax = make(map[StoredExpressionSyntaxKey]parser.Expr)
+				}
 				b.Stored.Syntax[b.storedExpressionSyntaxKey(raw)] = frozen
 			}
 			return node, err
@@ -725,7 +730,7 @@ func (b *Binder) finishSQLCallable(raw parser.FunctionExpr, selected sqlCallable
 			assembly[slot] = plan.RoutineInput{Start: len(args), Count: 1}
 			args = append(args, node)
 			for _, dependency := range d.SQLDefaults.Dependencies() {
-				b.dependency(dependency.Ref, dependency.Revision)
+				b.captureDependency(dependency.Ref, dependency.Revision, dependency.Purpose)
 			}
 			info.Property = expr.MergeProperties(info.Property, node.Properties())
 		}

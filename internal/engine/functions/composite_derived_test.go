@@ -140,7 +140,7 @@ func TestPlanningHooks(t *testing.T) {
 		{VersionInformation{}, expr.FoldNever, expr.StrictNone, false},
 		{JSONCreate{}, expr.FoldNever, expr.StrictNone, true},
 		{DatetimeOverlaps{}, expr.FoldOverlapsRoute, expr.StrictNone, true},
-		{StringVariadic{}, expr.FoldQuoteCapture, expr.StrictNone, true},
+		{StringVariadic{}, expr.FoldConstant, expr.StrictNone, true},
 		{StringVariadic{Stable: true}, expr.FoldNever, expr.StrictNone, true},
 		{Timezone{}, expr.FoldConstant, expr.StrictBefore, true},
 		{Binary{}, expr.FoldConstant, expr.StrictAfter, true},
@@ -195,7 +195,7 @@ func TestRetagReportsDerivedInputChanges(t *testing.T) {
 	}
 }
 
-// The quote-capture origin is opaque: rebuilds keep it and only the engine
+// The retained-fold origin is opaque: rebuilds keep it and only the engine
 // replaces it.
 func TestStringVariadicAnnotationRoundTrip(t *testing.T) {
 	type origin struct{ owner int }

@@ -248,12 +248,12 @@ func (e StringVariadic) PlanningFold() expr.Fold {
 	if e.IntrinsicStable() {
 		return expr.FoldNever
 	}
-	return expr.FoldQuoteCapture
+	return expr.FoldConstant
 }
 
 func (e StringVariadic) ValidateStoredProvider() error { return nil }
 
-// StringVariadic carries its quote-capture origin as an expr.Annotated value.
+// StringVariadic carries its retained-fold origin as an expr.Annotated value.
 func (e StringVariadic) Annotation() any { return e.Origin }
 func (e StringVariadic) WithAnnotation(origin any) expr.Expr {
 	e.Origin = origin

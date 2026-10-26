@@ -65,8 +65,13 @@ func (r RoutineInput) resolveRoutine(ctx context.Context, text string, signature
 	var exact *catalog.ProcedureSignature
 	if signatureQualified {
 		var encoded strings.Builder
+		// Signature types are identifier operands, not executable type uses.
+		// Keep their capture in this literal's operand sink, including when
+		// routine input is nested inside an array or composite input provider.
+		types := r.types
+		types.resolved = r.operands
 		name, err = parser.ParseRegprocedureName(text, func(argument string) error {
-			id, err := r.types.resolveTypeName(ctx, argument)
+			id, err := types.resolveTypeName(ctx, argument)
 			if err != nil {
 				return err
 			}

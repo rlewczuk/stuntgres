@@ -11,7 +11,7 @@ import (
 )
 
 type ProtocolStatement struct {
-	Description    StatementDescription
+	Description    Description
 	ParameterOIDs  []uint32
 	Context        session.ProtocolContext
 	Empty, HasRows bool
@@ -27,10 +27,8 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if err := s.Active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	r := PayloadOf(s.Op.Session).preparedSQL
-	if name == "" {
-		delete(r.entries, "")
-	}
+	r := PayloadOf(s.Op.Session).PreparedSQL
+ if name == "" { r.Remove("") }
 	s.Op.Session.Settings.Mu.Lock()
 	standard := s.Op.Session.Settings.Value("standard_conforming_strings") == "on"
 	s.Op.Session.Settings.Mu.Unlock()
@@ -56,8 +54,8 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 			return ProtocolStatement{}, err
 		}
 		s.worked = true
-		description := StatementDescription{Parameters: analyze.ParameterInfo{Count: len(hints)}}
-		if err = s.publishProtocolStatement(name, &sqlPreparedStatement{source: source, description: description, parameterOIDs: slices.Clone(hints)}); err != nil {
+		description := Description{Parameters: analyze.ParameterInfo{Count: len(hints)}}
+		if err = s.publishProtocolStatement(name, &PreparedDefinition{Source: source, Description: description, ParameterOIDs: slices.Clone(hints)}); err != nil {
 			return ProtocolStatement{}, err
 		}
 		s.Completed, s.sessionCompleted = true, true
@@ -94,7 +92,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 		return ProtocolStatement{}, err
 	}
 	s.initialParameters = types
-	var description StatementDescription
+	var description Description
 	if body != nil {
 		description, err = s.describeProtocolBody(body)
 	} else {
@@ -103,83 +101,84 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if err != nil {
 		return ProtocolStatement{}, err
 	}
-	if err = s.publishProtocolStatement(name, &sqlPreparedStatement{body: body, source: source, description: description}); err != nil {
+	if err = s.publishProtocolStatement(name, &PreparedDefinition{Body: body, Source: source, Description: description}); err != nil {
 		return ProtocolStatement{}, err
 	}
 	s.Completed, s.sessionCompleted = true, true
 	return ProtocolStatement{Description: description, ParameterOIDs: session.ProtocolParameterOIDs(description.Parameters.Count, description.Parameters.Types), Context: session.ProtocolContext{Source: source}, Empty: body == nil, HasRows: session.ProtocolHasRows(body, description.Results)}, nil
 }
 
-func (s *StatementScope) publishProtocolStatement(name string, entry *sqlPreparedStatement) error {
+func (s *StatementScope) publishProtocolStatement(name string, entry *PreparedDefinition) error {
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
-	r := PayloadOf(s.Op.Session).preparedSQL
-	if name != "" && r.entries[name] != nil {
+	r := PayloadOf(s.Op.Session).PreparedSQL
+	if name != "" && r.Lookup(name) != nil {
 		return SQLError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", name))
 	}
-	r.entries[name] = entry
+	r.Install(name, entry)
 	return nil
 }
 func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStatement, error) {
 	if err := s.Active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	entry := PayloadOf(s.Op.Session).preparedSQL.entries[name]
+	entry := PayloadOf(s.Op.Session).PreparedSQL.Lookup(name)
 	if entry == nil {
 		return ProtocolStatement{}, missingSQLPrepared(name)
 	}
-	description := entry.description
+	description := entry.Description
 	if s.Op.Session.TransactionState() == session.TxAborted {
-		if session.ProtocolHasRows(entry.body, description.Results) {
+		if session.ProtocolHasRows(entry.Body, description.Results) {
 			return ProtocolStatement{}, session.AbortedError()
 		}
-		oids := entry.parameterOIDs
-		if entry.body != nil {
+		oids := entry.ParameterOIDs
+		if entry.Body != nil {
 			oids = session.ProtocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
 		}
-		return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: session.ProtocolContext{Source: entry.source}, Empty: entry.body == nil}, nil
+		return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: session.ProtocolContext{Source: entry.Source}, Empty: entry.Body == nil}, nil
 	}
-	if entry.body != nil {
-		s.Expected = &entry.description
-		s.initialParameters = entry.description.Parameters.Types
+	if entry.Body != nil {
+		s.Expected = &entry.Description
+		s.initialParameters = entry.Description.Parameters.Types
 		var err error
-		description, err = s.describeProtocolBody(entry.body)
+		description, err = s.describeProtocolBody(entry.Body)
 		if err != nil {
 			return ProtocolStatement{}, err
 		}
-		if err = checkStatementSignature(entry.description, description); err != nil {
+		if err = CheckStatementSignature(entry.Description, description); err != nil {
 			return ProtocolStatement{}, err
 		}
-		entry.description = description
+		description.Folds = entry.Description.Folds
+		entry.Description = description
 	}
-	oids := entry.parameterOIDs
-	if entry.body != nil {
+	oids := entry.ParameterOIDs
+	if entry.Body != nil {
 		oids = session.ProtocolParameterOIDs(description.Parameters.Count, description.Parameters.Types)
 	}
-	return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: session.ProtocolContext{Source: entry.source}, Empty: entry.body == nil, HasRows: session.ProtocolHasRows(entry.body, description.Results)}, nil
+	return ProtocolStatement{Description: description, ParameterOIDs: oids, Context: session.ProtocolContext{Source: entry.Source}, Empty: entry.Body == nil, HasRows: session.ProtocolHasRows(entry.Body, description.Results)}, nil
 }
 
 // COPY and EXECUTE retain their own unused wire formals as untransformed
 // utilities. COPY preflight still belongs to real execution; EXECUTE metadata
 // describes its referenced result, not a shared argument namespace.
-func (s *StatementScope) describeProtocolBody(body parser.Statement) (StatementDescription, error) {
+func (s *StatementScope) describeProtocolBody(body parser.Statement) (Description, error) {
 	_, copyBody := body.(*parser.Copy)
 	_, executeBody := body.(*parser.ExecuteSQL)
 	if !copyBody && !executeBody {
 		return s.Describe(body)
 	}
-	description := StatementDescription{catalogOwner: &s.Engine().Catalog.Owner, catalogEpoch: s.TxRef.Epoch()}
+	description := Description{CatalogOwner: &s.Engine().Catalog.Owner, CatalogEpoch: s.TxRef.Epoch()}
 	if executeBody {
 		var err error
 		description, err = s.Describe(body)
 		if err != nil {
-			return StatementDescription{}, err
+			return Description{}, err
 		}
 	}
 	for i, usage := range s.initialParameters {
 		if usage.Type == nil {
-			return StatementDescription{}, SQLError("42P18", fmt.Sprintf("could not determine data type of parameter $%d", i+1))
+			return Description{}, SQLError("42P18", fmt.Sprintf("could not determine data type of parameter $%d", i+1))
 		}
 	}
 	description.Parameters = analyze.ParameterInfo{Count: len(s.initialParameters), Types: slices.Clone(s.initialParameters)}
@@ -189,28 +188,28 @@ func (s *StatementScope) CloseProtocolStatement(name string) error {
 	if err := s.Active(); err != nil {
 		return err
 	}
-	delete(PayloadOf(s.Op.Session).preparedSQL.entries, name)
+ PayloadOf(s.Op.Session).PreparedSQL.Remove(name)
 	return nil
 }
 func (s *StatementScope) InvalidateUnnamedProtocolStatement() error {
 	return s.CloseProtocolStatement("")
 }
 func (s *StatementScope) ProtocolStatementContext(name string) session.ProtocolContext {
-	if e := PayloadOf(s.Op.Session).preparedSQL.entries[name]; e != nil {
-		return session.ProtocolContext{Source: e.source}
+	if e := PayloadOf(s.Op.Session).PreparedSQL.Lookup(name); e != nil {
+		return session.ProtocolContext{Source: e.Source}
 	}
 	return session.ProtocolContext{}
 }
 func (s *StatementScope) ProtocolPortalContext(name string) session.ProtocolContext {
-	if p := PayloadOf(s.Op.Session).preparedSQL.portals[name]; p != nil {
+	if p := protocolPortalOf(PayloadOf(s.Op.Session).PreparedSQL.Binding(name)); p != nil {
 		return p.context
 	}
 	return session.ProtocolContext{}
 }
 
 func protocolPortalExists(session *session.Session, name string) bool {
-	p := PayloadOf(session).preparedSQL.portals[name]
-	return p != nil && !p.retired
+	p := protocolPortalOf(PayloadOf(session).PreparedSQL.Binding(name))
+	return p != nil && !p.Retired
 }
 
 func missingProtocolPortal(name string) error {

@@ -143,7 +143,7 @@ func (b *Binder) regObjectConstant(text string, u sqltype.Usage, pos parser.Posi
 				return sqltype.Value{}, err
 			}
 			for _, operand := range constant.Operands {
-				b.dependency(operand.Ref, operand.Revision)
+				b.captureDependency(operand.Ref, operand.Revision, catalog.OperandDependency)
 			}
 			b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, constant)
 			return value, nil
@@ -178,7 +178,7 @@ func (b *Binder) regObjectConstant(text string, u sqltype.Usage, pos parser.Posi
 		return sqltype.Value{}, err
 	}
 	for _, operand := range constant.Operands {
-		b.dependency(operand.Ref, operand.Revision)
+		b.captureDependency(operand.Ref, operand.Revision, catalog.OperandDependency)
 	}
 	b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, constant)
 	return value, nil

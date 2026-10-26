@@ -27,7 +27,7 @@ import (
 func foreignActionLockFixture(t *testing.T, definition string) (*core.Engine, *session.Session, *session.Session, *session.Session, ids.ObjectRef, ids.RowID) {
 	t.Helper()
 	e := engine.New()
-	a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
+	a, b, c := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE c(pid INT " + definition + ",note TEXT)", "INSERT INTO p VALUES(1)", "INSERT INTO c VALUES(1,'old')"} {
 		sessionSQL(t, c, q)
 	}
@@ -198,15 +198,15 @@ func TestForeignActionsDiagnostics(t *testing.T) {
 
 func TestForeignActionsPrepared(t *testing.T) {
 	e := engine.New()
-	s := sessionStart(t, e, nil)
+	s := enginetest.StartSession(t, e, nil)
 	for _, q := range []string{"CREATE TABLE p(id INT PRIMARY KEY)", "CREATE TABLE d(id INT,pid INT DEFAULT 1 REFERENCES p ON DELETE SET DEFAULT)", "INSERT INTO p VALUES(1),(2),(6),(7),(10)", "INSERT INTO d VALUES(11,10),(12,10)"} {
 		sessionSQL(t, s, q)
 	}
 	probe := &defaultOrdinal{}
 	defaultProbe(t, e, probe)
 	ast, description := sequencePreparedDescription(t, e, s, "DELETE FROM p WHERE id=10")
-	if probe.ordinal != 0 || core.DescriptionAnalysis(&description) == nil {
-		t.Fatal("Prepare demanded an action/default", probe.ordinal, core.DescriptionAnalysis(&description))
+	if probe.ordinal != 0 || description.Analysis == nil {
+		t.Fatal("Prepare demanded an action/default", probe.ordinal, description.Analysis)
 	}
 	ref := enginetest.CatalogRef(t, e, e.CatalogRead(), "d")
 	originals := append([]storage.RowVersion(nil), e.Storage.Relations[ref.Address].Versions...)

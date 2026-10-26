@@ -30,10 +30,19 @@ type RoutineProvider uint64
 // Info is the metadata every bound expression carries. Nodes embed it to
 // implement the metadata half of Expr. Callers supply generation-owned usages
 // and provenance.
+type FoldSourceOccurrence struct {
+	Frame           uint32
+	Position, Input parser.Position
+}
+
 type Info struct {
-	Usage       sqltype.Usage
-	Pos         parser.Position
-	Property    Properties
+	Usage    sqltype.Usage
+	Pos      parser.Position
+	Property Properties
+	// Occurrence identifies an analysis expansion within its immutable source.
+	// It is assigned by the binder, never by execution traversal.
+	Occurrence  uint32
+	Source      FoldSourceOccurrence
 	UnknownNull bool
 	// Only genuine scalar REGCLASS constants carry captured relation authority.
 	RegclassRef                   ids.ObjectRef
@@ -52,6 +61,8 @@ func (i Info) CollationIndeterminate() bool                       { return i.Col
 func (i Info) ExplicitCollation() parser.Position                 { return i.CollationExplicit }
 func (i Info) CallRoutineReference() RoutineReference             { return i.RoutineReference }
 func (i Info) CallRoutineRecipeReference() RoutineRecipeReference { return i.RoutineRecipeReference }
+func (i Info) FoldOccurrence() uint32                             { return i.Occurrence }
+func (i Info) FoldSource() FoldSourceOccurrence                   { return i.Source }
 func (i Info) ImplicitCollationConflict() (sqltype.CollationRef, sqltype.CollationRef, parser.Position) {
 	return i.CollationLeft, i.CollationRight, i.CollationConflictPos
 }
@@ -62,6 +73,12 @@ func (i Info) ImplicitCollationConflict() (sqltype.CollationRef, sqltype.Collati
 func InfoOf(node Expr) Info {
 	left, right, position := node.ImplicitCollationConflict()
 	info := Info{Usage: node.ResultUsage(), Pos: node.SourcePosition(), Property: node.Properties(), CollationConflict: node.CollationIndeterminate(), CollationExplicit: node.ExplicitCollation(), CollationLeft: left, CollationRight: right, CollationConflictPos: position}
+	if source, ok := node.(interface{ FoldOccurrence() uint32 }); ok {
+		info.Occurrence = source.FoldOccurrence()
+	}
+	if source, ok := node.(interface{ FoldSource() FoldSourceOccurrence }); ok {
+		info.Source = source.FoldSource()
+	}
 	if call, ok := node.(interface {
 		CallRoutineReference() RoutineReference
 	}); ok {

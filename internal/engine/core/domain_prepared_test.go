@@ -1,12 +1,12 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"testing"
 
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
@@ -28,7 +28,7 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	if first.Prepared.Types[key].Base.Type != old.SQLType {
 		t.Fatal("cast source identity not captured")
 	}
-	expected := core.NewDescription(core.DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{old.SQLType.Usage()}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: core.NewPreparedAnalysis(core.PreparedAnalysisFields{})})
+	expected := &core.Description{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{old.SQLType.Usage()}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: &core.Analysis{}}
 	enginetest.RoleExecute(t, e, op, "ALTER DOMAIN public.d RENAME TO renamed")
 	current := e.CatalogRead().MustType(old.Address())
 	next := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
@@ -49,8 +49,8 @@ func TestDomainIdentityPreparedCapture(t *testing.T) {
 	if err != nil || annotation.Name != "d" {
 		t.Fatal("foreign catalog reused old ID", annotation, err)
 	}
-	core.DescriptionRetireAnalysisTypeCasts(expected)
-	if !core.PreparedAnalysisNeedsReanalysis(core.DescriptionAnalysis(expected)) {
+	expected.RetireAnalysisTypeCasts()
+	if !expected.Analysis.NeedsReanalysis {
 		t.Fatal("failed reanalysis could revive captures when path restored")
 	}
 	next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
@@ -105,7 +105,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 			arraySeen, elementSeen := false, false
-			for _, dep := range core.PreparedAnalysisDependencies(analysis) {
+			for _, dep := range analysis.Dependencies {
 				arraySeen = arraySeen || sqltype.ID(dep.Ref.Address.ObjectID) == oldArray
 				elementSeen = elementSeen || dep.Ref.Address == old.Address()
 			}
@@ -123,9 +123,9 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				return core.EnginePreparedAnalysisValidLocked(e, auth, analysis, core.PreparedAnalysisPath(analysis))
+				return core.EnginePreparedAnalysisValidLocked(e, auth, analysis, analysis.Path)
 			}
-			expected := core.NewDescription(core.DescriptionFields{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: analysis})
+			expected := &core.Description{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{captured.Base}}, CatalogOwner: e.CatalogRead().Owner(), CatalogEpoch: e.CatalogRead().Epoch(), Types: first.Prepared.Types, Analysis: analysis}
 			enginetest.RoleExecute(t, e, op, `ALTER DOMAIN public.d RENAME TO "renamed array domain"`)
 			enginetest.RoleExecute(t, e, op, `ALTER DOMAIN public."renamed array domain" SET SCHEMA identity_dst`)
 			current := e.CatalogRead().MustType(old.Address())
@@ -152,7 +152,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if !valid() {
 				t.Fatal("array identity edits unnecessarily retired held analysis")
 			}
-			usingIndexUnitExecute(t, e, sessionStart(t, e, nil), enginetest.Statement(t, `ALTER DOMAIN identity_dst."renamed array domain" ADD CONSTRAINT positive CHECK(VALUE>0)`))
+			usingIndexUnitExecute(t, e, enginetest.StartSession(t, e, nil), enginetest.Statement(t, `ALTER DOMAIN identity_dst."renamed array domain" ADD CONSTRAINT positive CHECK(VALUE>0)`))
 			if valid() {
 				t.Fatal("stable array identity concealed changed element semantics")
 			}
@@ -161,7 +161,7 @@ func TestDomainIdentityArrayCapture(t *testing.T) {
 			if err != nil || annotation.Name != raw.TypeName.Name {
 				t.Fatal("foreign owner reused array occurrence", annotation, err)
 			}
-			core.DescriptionRetireAnalysisTypeCasts(expected)
+			expected.RetireAnalysisTypeCasts()
 			next = newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 			if _, err := next.Cast(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("retired array occurrence rescued old spelling")

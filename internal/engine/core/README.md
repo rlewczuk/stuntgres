@@ -344,9 +344,13 @@ list cached by its prepared handle. VACUUM is
 
 ## Prepared statements
 
-- Ordinary prepared SQL keeps one private analysis-identity cell
-  (`preparedAnalysis` in `prepared_rebind.go`, owned by `Engine.Mu` and
-  physical-session admission), not an executable plan, data or permission cache.
+- `Description` is the actual fixed parameter/result and capture carrier used by
+  Go handles, SQL definitions, protocol and the binder. Its `Analysis` owns the
+  admitted target/source occurrences and complete ordinary dependency manifest.
+  `CollectAnalysis` collects closure and purpose; `Valid` checks ordinary
+  dependencies, while `FoldsValid` separately checks executable fold lifetime
+  without dropping operand dependencies from analysis. `Engine.Mu` and physical
+  session admission serialize mutation; there is no additional cache authority.
 - While the cell is valid, admission preserves per-occurrence target, nested,
   view and unused-CTE identities. Only dependency, effective-path, namespace or
   DISCARD invalidation reanalyzes the original source; creating a shadow in an
@@ -406,6 +410,39 @@ list cached by its prepared handle. VACUUM is
   during a wait, every route returns native `ErrCatalogReplaced`, with no warmup
   exemption, retarget or replay. Keep the direct, new-prepare and held conflict
   tests unchanged.
+- Immutable typed folds belong to `exec.FoldDefinition`, qualified by
+  `PreparedFolds` with the accepted analysis and coherent environment. Their
+  occurrence, stored/default/view origin, callable/coercion/provider, ordered
+  input Usage and physical datum identity distinguish otherwise equal source
+  spellings. Values own immutable payloads; unchanged hits reuse accepted
+  backing rather than re-inputting or copying compounds.
+- Fold lifetime is distinct from ordinary catalog reanalysis. An incidental
+  operand-presentation revision may preserve a compatible fold; actual
+  executable dependencies, native/type/provider replacement, effective
+  environment changes and DISCARD retire the relevant lifetime. Ordinary
+  authority, binding and admission checks still run before reuse. Stable,
+  volatile, row-, frame-, stage- and domain-dependent demand is not retained;
+  nonzero formal counts use operation-local groups, including constant siblings.
+- `BeginFoldPublication` creates the actual operation-local `FoldPublication`
+  consumed by planning. Final `Accept` validates the exact description, accepted
+  postadmission environment, native epoch, dependencies, represented role/RLS
+  stamps and cancellation before accepting the exact lower-owner attempt.
+  Successful analysis, complete fold planning and statement effects are separate
+  publication boundaries: failure publishes no prefix, but later import or
+  execution failure does not undo already accepted analysis or planning.
+- `PreparedRegistry` owns actual physical-session definitions and bindings.
+  Lookup/Install/Remove act on the definitions consumed by execution; replacement
+  retires publication rights, not already accepted independent resources.
+  `PreparedBinding` retains accepted description/occurrences, transaction/birth
+  identity and immutable `exec.AcceptedFolds`. Its `PreparedResource.Root` is the
+  real graph consumed by the cursor, with the existing unlocked terminal close
+  capability, never an observation copy or a graph in a shared definition.
+- Parse/Describe do not fold; Bind plans supported SELECT/DML bodies without
+  effects. Old accepted portals keep their fixed group/resource independently
+  of definition close/name replacement and cannot publish into a replacement.
+  Missing accepted groups for Bind-planned commands reject rather than silently
+  recompute. Utility portals instead import inputs at Bind and use ordinary
+  admission/planning at Execute.
 
 ## Read-only utility execution
 
@@ -801,6 +838,13 @@ Core tests are package-level units of these contracts; public SQL behavior is
 tested only in `reference/` ([docs/TESTING.md](../../../docs/TESTING.md)). SHOW ALL
 description rules are in the [`settings` README](../settings/README.md#testing).
 Add `RACE=1` for lifecycle, cancellation and contention selections.
+Composed prepared tests save actual immutable `exec.AcceptedFolds` payloads to
+assert definition ownership, generations, exact backing, resource graphs and
+rejected publication independently of shared public SQL outcomes. No production
+inspection export or observer registry is introduced for those assertions.
+Pure typed/datum/cancellation cases live with exec; stored retagging/pruning
+cases live with stored. Select `^TestPrepared(Rebind|Fold)` and
+`^TestStringVariadic(RetainedGeneration|BoundedCancellationAndSizes)$`.
 PL cursor compiler/provider/ownership units: `RUN='^TestPLpgSQLCursor'`.
 Internal producer lifetime/cancellation units use `RUN='^TestPLpgSQLQueryLoop(Lifetime|Cancellation)$'`.
 Static capture demand/cancellation/cleanup units use `RUN='^TestPLpgSQLSelectIntoRuntime$'`.

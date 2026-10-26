@@ -24,7 +24,7 @@ func rowLockViewExecute(t *testing.T, e *core.Engine, s *session.Session, q stri
 	}
 	defer op.Done()
 	ast := enginetest.Statement(t, q)
-	var description core.StatementDescription
+	var description core.Description
 	if prepared {
 		description, err = e.Describe(op, ast)
 		if err != nil {

@@ -182,9 +182,9 @@ func TestAlterTypeIdentitySequenceGrantFreshness(t *testing.T) {
 			originalTable := e.Catalog.State.MustRelation(tableRef.Address)
 			originalIdentity := originalTable.ColumnMeta.Identities[originalTable.Attributes[0]]
 			ast := enginetest.Statement(t, "ALTER TABLE i ALTER id TYPE BIGINT")
-			var expected *core.StatementDescription
+			var expected *core.Description
 			if prepared {
-				var description core.StatementDescription
+				var description core.Description
 				ast, description = sequencePreparedDescription(t, e, b, "ALTER TABLE i ALTER id TYPE BIGINT")
 				expected = &description
 			}

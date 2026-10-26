@@ -37,7 +37,9 @@ type PreparedCTEProgram struct {
 // The existing executors own their command semantics; one Finish owns the stage.
 // Engine.mu is held on entry and released on every return.
 func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
-	if len(b.CTEs) == 0 {
+	bind := scope.protocolOrZero().bind
+	planningBind := bind != nil && !session.ProtocolPlainSelect(statement)
+	if len(b.CTEs) == 0 && !planningBind {
 		return e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, nil)
 	}
 	var prepared PreparedCTEProgram
@@ -45,6 +47,18 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 		return Result{}, err
 	}
 	e.Mu.Lock()
+	if err := e.publishFoldAttemptLocked(scope, prepared.auth, evaluation.FoldCaptures); err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
+	}
+	if planningBind {
+		if err := bind.AcceptFolds(evaluation.FoldCaptures); err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+		e.Mu.Unlock()
+		return Result{}, nil
+	}
 	return e.ExecutePreparedCTECommandsLocked(scope, statement, &prepared, parameters, creationStage, creationDescriptor)
 }
 
@@ -128,7 +142,6 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 		}
 		scope.activateMutation(index)
 		command := cteCommandExecution{definition: definition, statement: syntax, ruleOwner: rewrite != nil, mutation: index, execution: preparedCommandExecution{primaryTag: primaryTag}}
-		evaluation.QuoteCaptures.Sealed = false
 		if _, err := e.executeBoundCommandLocked(scope, syntax, commandBinding, commandAuth, parameters, evaluation, nil, nil, &command.execution); err != nil {
 			return Result{}, err
 		}
@@ -139,7 +152,6 @@ func (e *Engine) PrepareCTECommandsLocked(scope *StatementScope, statement parse
 	scope.activateMutation(main)
 	scope.ruleAction = originalRuleAction
 	preparedMain := preparedCommandExecution{primaryTag: primaryTag}
-	evaluation.QuoteCaptures.Sealed = false
 	if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &preparedMain); err != nil {
 		return Result{}, err
 	}

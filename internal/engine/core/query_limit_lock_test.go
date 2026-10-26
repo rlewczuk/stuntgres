@@ -1,12 +1,12 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"reflect"
 	"testing"
 	"time"
 
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/session"
@@ -21,7 +21,7 @@ func queryLimitAsync(t *testing.T, e *core.Engine, s *session.Session, q string,
 		op, _, err := s.AcquireCommand(ctx)
 		var result core.Result
 		if err == nil {
-			var description core.StatementDescription
+			var description core.Description
 			if prepared {
 				description, err = e.Describe(op, ast)
 			}

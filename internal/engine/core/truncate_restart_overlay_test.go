@@ -1,11 +1,11 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"testing"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -17,7 +17,7 @@ import (
 
 func TestTruncateRestartSavepoints(t *testing.T) {
 	e, s, p, _, ps, _ := truncateRestartUnitFixture(t)
-	peer := sessionStart(t, e, nil)
+	peer := enginetest.StartSession(t, e, nil)
 	original, descriptor := e.Storage.Sequences[ps.Address], e.Catalog.State.Get(ps.Address)
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "INSERT INTO p VALUES(9)")
@@ -93,7 +93,7 @@ func TestTruncateRestartCache(t *testing.T) {
 	})
 	t.Run("PeerGeneration", func(t *testing.T) {
 		e, s, _, _, ps, _ := truncateRestartUnitFixture(t)
-		peer := sessionStart(t, e, nil)
+		peer := enginetest.StartSession(t, e, nil)
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq CACHE 4")
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 3)
 		original := e.Storage.Sequences[ps.Address]
@@ -118,7 +118,7 @@ func TestTruncateRestartCache(t *testing.T) {
 	for _, end := range []string{"Rollback", "Savepoint", "DiscardSequences"} {
 		t.Run("LocalAnalysis/"+end, func(t *testing.T) {
 			e := engine.New()
-			s, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
+			s, peer := enginetest.StartSession(t, e, nil), enginetest.StartSession(t, e, nil)
 			for _, q := range []string{"CREATE SCHEMA a", "CREATE SCHEMA b", "CREATE TABLE b.t(id INT)", "CREATE SEQUENCE b.s START 10 OWNED BY b.t.id", "CREATE SEQUENCE b.other START 20", "SET search_path TO a,b"} {
 				sessionSQL(t, s, q)
 			}
@@ -150,7 +150,7 @@ func TestTruncateRestartCache(t *testing.T) {
 				t.Fatal("local source event minted an observation, touched peer, mutated descriptor, or was undone")
 			}
 			e.Mu.Lock()
-			localStamp, peerStamp := core.PreparedDefinitionStamp(original, s), core.PreparedDefinitionStamp(original, peer)
+			localStamp, peerStamp := core.DefinitionStamp(original, core.PreparedEnvironment{Sequences: &core.PayloadOf(s).Sequences}), core.DefinitionStamp(original, core.PreparedEnvironment{Sequences: &core.PayloadOf(peer).Sequences})
 			e.Mu.Unlock()
 			if localStamp != memory.SourceStamp() || peerStamp != original.SequencePlanStamp {
 				t.Fatal("source stamp authority not caller-local")
@@ -158,7 +158,7 @@ func TestTruncateRestartCache(t *testing.T) {
 			for _, test := range []struct {
 				s             *session.Session
 				ast           parser.Statement
-				description   *core.StatementDescription
+				description   *core.Description
 				first, second int64
 			}{
 				{peer, peerAST, &other, 10, 20},
@@ -185,7 +185,7 @@ func TestTruncateRestartCache(t *testing.T) {
 func TestTruncateRestartClosure(t *testing.T) {
 	t.Run("PartitionRootAndLeaf", func(t *testing.T) {
 		e := engine.New()
-		s := sessionStart(t, e, nil)
+		s := enginetest.StartSession(t, e, nil)
 		for _, q := range []string{"CREATE TABLE r(id INT) PARTITION BY RANGE(id)", "CREATE TABLE low PARTITION OF r FOR VALUES FROM(0) TO(10)", "CREATE TABLE high PARTITION OF r FOR VALUES FROM(10) TO(20)", "CREATE SEQUENCE r_s START 30 OWNED BY r.id", "CREATE SEQUENCE low_s START 40 OWNED BY low.id", "CREATE SEQUENCE high_s START 50 OWNED BY high.id", "INSERT INTO r VALUES(1),(11)"} {
 			sessionSQL(t, s, q)
 		}
@@ -219,7 +219,7 @@ func TestTruncateRestartClosure(t *testing.T) {
 	})
 	t.Run("ForeignTemporaryBranch", func(t *testing.T) {
 		e, s, _, _ := truncateUnitFixture(t)
-		peer := sessionStart(t, e, nil)
+		peer := enginetest.StartSession(t, e, nil)
 		sessionSQL(t, s, "CREATE TEMP TABLE own_child() INHERITS(p)")
 		sessionSQL(t, s, "CREATE TEMP SEQUENCE own_s OWNED BY own_child.id")
 		sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")

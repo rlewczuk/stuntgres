@@ -28,7 +28,7 @@ func TestIntervalImmutableConstantCapture(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := core.StatementDescription{Temporals: b.Prepared.Temporals}
+		description := core.Description{Temporals: b.Prepared.Temporals}
 		b = enginetest.ExpressionBinder(t, ctx, e, sqltype.InputEnvironment{IntervalStyle: sqltype.IntervalSQLStandard}, &description)
 		rebound, err := b.Bind(raw, policy)
 		if err != nil {

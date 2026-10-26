@@ -75,7 +75,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	if s.Expected != nil {
-		if err := checkStatementSignature(*s.Expected, StatementDescription{}); err != nil {
+		if err := CheckStatementSignature(*s.Expected, Description{}); err != nil {
 			return Result{}, err
 		}
 	}

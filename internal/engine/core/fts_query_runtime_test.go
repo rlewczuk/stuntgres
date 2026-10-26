@@ -1,6 +1,7 @@
-package core
+package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"reflect"
@@ -47,7 +48,7 @@ func TestFTSQueryFunctionsDiagnosticPhases(t *testing.T) {
 		{&parser.Insert{Returning: &parser.Returning{}}, true, "INSERT"},
 		{&parser.Select{With: []parser.CommonTableExpression{{Query: &parser.Insert{}}}}, true, "SELECT"},
 	} {
-		if rewriteTupleStatement(tc.statement) != tc.tuple || rewriteReadOnlyViolation(tc.statement) != tc.violation {
+		if core.RewriteTupleStatement(tc.statement) != tc.tuple || core.RewriteReadOnlyViolation(tc.statement) != tc.violation {
 			t.Fatal("cursor/read-only admission", tc)
 		}
 	}
@@ -123,7 +124,8 @@ func TestFTSQueryFunctionsProducerDemand(t *testing.T) {
 func TestFTSQueryFunctionsScratchRestoration(t *testing.T) {
 	address := ids.ObjectAddress{ObjectID: 90001}
 	original := []storage.RowVersion{{Row: 1, Version: 1}}
-	s := &StatementScope{Expected: &StatementDescription{}, sqlRoutine: sqlRoutineDemand{scalar: true}, OwnWrites: map[ids.ObjectAddress][]storage.RowVersion{address: original}}
+	s := core.NewScope(core.ScopeFields{Expected: &core.Description{}, SQLRoutine: core.NewRoutineDemand(core.RoutineDemandFields{Scalar: true})})
+	s.OwnWrites = map[ids.ObjectAddress][]storage.RowVersion{address: original}
 	s.Stage.Rows = map[ids.ObjectAddress][]storage.RowVersion{address: {{Row: 2, Version: 2}}}
 	dependencies := []catalog.ExpressionDependency{{Revision: 7}}
 	s.RoutineDependencies = dependencies
@@ -135,37 +137,19 @@ func TestFTSQueryFunctionsScratchRestoration(t *testing.T) {
 	}
 	innerDependencies := []catalog.ExpressionDependency{{Revision: 9}}
 	s.RoutineDependencies = innerDependencies
-	s.sqlRoutine.scalar, s.sqlRoutine.rewrite = false, true
+	core.SetRoutineDemandScalar(core.ScopeSQLRoutineRef(s), false)
+	core.SetRoutineDemandRewrite(core.ScopeSQLRoutineRef(s), true)
 	if len(s.OwnWrites[address]) != 2 || len(prior) != 1 {
 		t.Fatal("private staged visibility")
 	}
 	nested := s.ActivateSQLRoutine(nil, catalog.Read{})
-	s.sqlRoutine.rewrite = false
-	if err := nested(nil); err != nil || !s.sqlRoutine.rewrite || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &innerDependencies[0] {
+	core.SetRoutineDemandRewrite(core.ScopeSQLRoutineRef(s), false)
+	if err := nested(nil); err != nil || !core.RoutineDemandRewrite(core.ScopeSQLRoutineRef(s)) || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &innerDependencies[0] {
 		t.Fatal("stackwise restore", err)
 	}
 	failure := errors.New("primary")
-	if restore(failure) != failure || s.Expected != expected || !s.sqlRoutine.scalar || s.sqlRoutine.rewrite || len(s.OwnWrites[address]) != 1 || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &dependencies[0] {
+	if restore(failure) != failure || s.Expected != expected || !core.RoutineDemandScalar(core.ScopeSQLRoutineRef(s)) || core.RoutineDemandRewrite(core.ScopeSQLRoutineRef(s)) || len(s.OwnWrites[address]) != 1 || len(s.RoutineDependencies) != 1 || &s.RoutineDependencies[0] != &dependencies[0] {
 		t.Fatal("error scratch restoration")
 	}
 }
 
-func queryProbe(usage sqltype.Usage, eval func(*exec.Context) (sqltype.Value, error)) expr.Expr {
-	return queryProbeExpression{Info: expr.Info{Usage: usage, Pos: parser.Position{Offset: -1}}, eval: eval}
-}
-
-type queryProbeExpression struct {
-	expr.Info
-	eval func(*exec.Context) (sqltype.Value, error)
-}
-
-func (e queryProbeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	return e.eval(evalContext(ctx))
-}
-
-// evalContext recovers the engine evaluation context in test probes. A nil or
-// foreign context yields nil.
-func evalContext(ctx expr.Context) *exec.Context {
-	c, _ := ctx.(*exec.Context)
-	return c
-}

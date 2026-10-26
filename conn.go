@@ -123,7 +123,7 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 	if err != nil {
 		return nil, err
 	}
-	return &stmt{conn: c, ast: ast, source: query, description: description}, nil
+	return &stmt{conn:c,definition:core.PreparedDefinition{Body:ast,Source:query,Description:description}}, nil
 }
 
 // Direct and prepared execution share one message/statement admission path.
@@ -147,7 +147,7 @@ func (r *commandOutput) close() error {
 	r.sets = nil
 	return first
 }
-func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *core.StatementDescription) (r commandOutput, description core.StatementDescription, parsed parser.Statement, err error) {
+func (c *conn) request(ctx context.Context, query string, ast parser.Statement, args []driver.NamedValue, parse, describe bool, expected *core.Description) (r commandOutput, description core.Description, parsed parser.Statement, err error) {
 	defer runtime.KeepAlive(c)
 	if err = c.check(ctx); err != nil {
 		return
@@ -252,7 +252,7 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 	r.RowSets = nil
 	return
 }
-func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *core.StatementDescription) (core.Result, error) {
+func (c *conn) execute(ctx context.Context, ast parser.Statement, args []driver.NamedValue, expected *core.Description) (core.Result, error) {
 	r, _, _, err := c.request(ctx, "", ast, args, false, false, expected)
 	for _, rows := range r.sets {
 		if closeErr := rows.Close(); err == nil {

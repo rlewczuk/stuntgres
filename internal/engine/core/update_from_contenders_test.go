@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"database/sql/driver"
 	"reflect"
@@ -8,7 +9,6 @@ import (
 	"time"
 
 	"stuntgres/internal/engine"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/lock"
 )
@@ -24,7 +24,7 @@ func TestUpdateFromQueuedContenderRecheck(t *testing.T) {
 				enginetest.SessionSQL(t, peer, q)
 			}
 			ast := enginetest.Statement(t, "UPDATE t x SET v=x.v+s.n FROM s WHERE x.id=1 AND x.v>=s.lo AND x.v<=s.hi RETURNING old.v,s.n,new.v,s.lo,s.hi")
-			var expected *core.StatementDescription
+			var expected *core.Description
 			if prepared {
 				op := enginetest.TransactionOperation(t, writer)
 				description, err := e.Describe(op, ast)

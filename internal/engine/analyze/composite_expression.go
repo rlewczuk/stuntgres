@@ -83,15 +83,33 @@ func (b *Binder) BindRow(raw parser.RowExpr, target sqltype.Usage, mode sqltype.
 			}
 		}
 	} else {
-		members := make([]sqltype.CompositeMember, len(fields))
-		for i, field := range fields {
-			members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: "f" + strconv.Itoa(i+1), Usage: field.ResultUsage()}
+		target = sqltype.Usage{}
+		key := PreparedTypeKey{Offset: raw.Pos.Offset, Kind: RecordConstructor, Projection: int(b.FrameID())}
+		retained := b.Expected.Types[key].Base
+		if retained.Type != nil && retained.Type.IsComposite() && retained.Type.CompositeLen() == len(fields) {
+			same := true
+			for i, field := range fields {
+				if retained.Type.CompositeMember(i).Usage != field.ResultUsage() {
+					same = false
+					break
+				}
+			}
+			if same {
+				target = retained
+			}
 		}
-		shape, err := sqltype.RecordShape(members)
-		if err != nil {
-			return nil, err
+		if target.Type == nil {
+			members := make([]sqltype.CompositeMember, len(fields))
+			for i, field := range fields {
+				members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: "f" + strconv.Itoa(i+1), Usage: field.ResultUsage()}
+			}
+			shape, err := sqltype.RecordShape(members)
+			if err != nil {
+				return nil, err
+			}
+			target = shape.Usage()
 		}
-		target = shape.Usage()
+		b.Prepared.CaptureComposite(key, target, nil)
 	}
 	props := expr.Properties{}
 	for _, field := range fields {

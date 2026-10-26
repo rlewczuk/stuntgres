@@ -1,13 +1,15 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/core"
 	"context"
 	"testing"
 
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
+	"stuntgres/internal/engine/enginetest"
 )
 
 func TestProtocolPortalProducer(t *testing.T) {
@@ -22,7 +24,10 @@ func TestProtocolPortalProducer(t *testing.T) {
 		t.Fatal(err)
 	}
 	cursor := core.NewCursor(core.CursorFields{Root: root, Source: source, State: state, Stage: &stage})
-	p := core.NewPortal(core.PortalFields{Producer: cursor})
+	p := core.NewProtocolPortal(core.PreparedDefinition{}, ids.TxRef{})
+	(*core.PortalProducerRef(p)) = cursor
+	p.Resource = &cursor.PreparedResource
+	p.Resource.Closer = p
 	row := make([]sqltype.Value, 1)
 	if calls != 0 {
 		t.Fatal("producer initialization demanded target", calls)
@@ -38,18 +43,22 @@ func TestProtocolPortalProducer(t *testing.T) {
 	}
 	// Savepoint retirement uses the canonical birth frontier without rewinding
 	// older demand or disposing a different transaction's exported owner.
-	session := sessionStart(t, e, nil)
+	session := enginetest.StartSession(t, e, nil)
 	owner := session.Transactions
-	*core.PortalTxRef(p), *core.PortalBornRef(p) = owner.Ref, 1
+	p.Transaction, p.Birth = owner.Ref, 1
 	newRows, foreignRows := exec.NewFinalRows(nil, 0), exec.NewFinalRows(nil, 0)
-	newPortal := core.NewPortal(core.PortalFields{Tx: owner.Ref, Born: 2, Rows: newRows})
-	foreign := core.NewPortal(core.PortalFields{Tx: owner.Ref, Born: 3, Rows: foreignRows})
-	core.SetPortalTx(foreign, withTxID(core.PortalTx(foreign), core.PortalTx(foreign).ID()+1))
-	core.SetPreparedRegistryPortals(core.PayloadPreparedSQL(core.PayloadOf(session)), map[string]*core.ProtocolPortal{"old": p, "new": newPortal, "foreign": foreign})
+	newPortal := core.NewProtocolPortal(core.PreparedDefinition{}, owner.Ref)
+	newPortal.Birth, (*core.PortalRowsRef(newPortal)) = 2, newRows
+	foreign := core.NewProtocolPortal(core.PreparedDefinition{}, owner.Ref)
+	foreign.Birth, (*core.PortalRowsRef(foreign)) = 3, foreignRows
+	foreign.Transaction = withTxID(foreign.Transaction, foreign.Transaction.ID()+1)
+	core.PayloadOf(session).PreparedSQL.Bind("old", &p.PreparedBinding)
+	core.PayloadOf(session).PreparedSQL.Bind("new", &newPortal.PreparedBinding)
+	core.PayloadOf(session).PreparedSQL.Bind("foreign", &foreign.PreparedBinding)
 	owner.Mu.Lock()
 	core.RetireProtocolPortalsAfter(owner, 1)
 	owner.Mu.Unlock()
-	if core.PortalRetired(p) || !core.PortalRetired(newPortal) || core.PortalRetired(foreign) || cursor.OrdinalPosition != 4 {
+	if p.Retired || !newPortal.Retired || foreign.Retired || cursor.OrdinalPosition != 4 {
 		t.Fatal("savepoint frontier changed older position or foreign ownership")
 	}
 	if err := core.DrainCursorCleanup(owner, context.Background(), nil); err != nil {
@@ -61,7 +70,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	if err = core.PortalClose(p, context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !stage.Closed || core.CursorRoot(cursor) != nil || cursor.Source != nil || core.CursorStage(cursor) != nil || core.PortalProducer(p) != nil {
+	if !stage.Closed || cursor.Root != nil || cursor.Source != nil || core.CursorStage(cursor) != nil || (*core.PortalProducerRef(p)) != nil {
 		t.Fatal("terminal close retained producer")
 	}
 	if err = core.PortalClose(p, context.Background()); err != nil || calls != 4 {

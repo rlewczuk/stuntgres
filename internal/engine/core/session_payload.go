@@ -15,7 +15,7 @@ import (
 // Each field keeps the lock discipline it had as a Session field.
 type sessionPayload struct {
 	Cursors       *cursorRegistry
-	preparedSQL   *sqlPreparedRegistry
+	PreparedSQL   *PreparedRegistry
 	sqlRoutines   map[ids.ObjectAddress]sqlRoutineAnalysis
 	Sequences     sequence.SessionMemory
 	notifications session.NotificationListener

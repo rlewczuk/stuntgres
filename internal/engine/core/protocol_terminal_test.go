@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"bufio"
 	"context"
 	"errors"
@@ -11,7 +12,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/copyfmt"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/dml"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
@@ -23,7 +23,7 @@ import (
 
 func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	e := engine.New()
-	sess := sessionStart(t, e, nil)
+	sess := enginetest.StartSession(t, e, nil)
 	sessionSQL(t, sess, "BEGIN")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -51,8 +51,9 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	rows := exec.NewFinalRows(columns, 1)
 	rows.Values = []sqltype.Value{value}
 	disposals := 0
-	p := core.NewPortal(core.PortalFields{Tx: scope.TxRef, Born: 1, Entry: *core.NewPreparedStatement(core.PreparedStatementFields{Body: &parser.Select{}}), Columns: columns, Started: true, Context: session.ProtocolContext{Source: "retained source"}})
-	core.SetPortalRows(p, protocolDisposalProbe{RowResult: rows, close: func() error {
+	p := core.NewProtocolPortal(core.PreparedDefinition{Body: &parser.Select{}}, scope.TxRef)
+	p.Birth, (*core.PortalColumnsRef(p)), (*core.PortalStartedRef(p)), (*core.PortalContextRef(p)) = 1, columns, true, session.ProtocolContext{Source: "retained source"}
+	(*core.PortalRowsRef(p)) = protocolDisposalProbe{RowResult: rows, close: func() error {
 		disposals++
 		if op.Context().Err() == nil {
 			t.Error("disposal did not exercise canceled operation")
@@ -73,8 +74,8 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 			e.ReplacementMu.Unlock()
 		}
 		return rows.Close()
-	}})
-	core.SetPreparedRegistryPortals(core.PayloadPreparedSQL(core.PayloadOf(sess)), map[string]*core.ProtocolPortal{"p": p})
+	}}
+	core.PayloadOf(sess).PreparedSQL.Bind("p", &p.PreparedBinding)
 	e.ReplacementMu.RLock()
 	scope.ReplacementRead = true
 	_, err = scope.ExecuteProtocolPortal("p", 0, func(fields []session.ProtocolField) error {
@@ -87,7 +88,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if !errors.Is(err, primary) || disposals != 1 || !rows.Closed {
 		t.Fatal("failed executor lost primary or retained resources", err, disposals)
 	}
-	if core.PortalRetired(p) || core.PreparedRegistryPortals(core.PayloadPreparedSQL(core.PayloadOf(sess)))["p"] != p || core.PortalContext(p).Source != "retained source" || len(core.PortalColumns(p)) != 1 || core.PortalRows(p) != nil || core.PortalProducer(p) != nil || core.PortalRow(p) != nil || core.PortalScratch(p) != nil {
+	if p.Retired || core.PayloadOf(sess).PreparedSQL.Binding("p") != &p.PreparedBinding || (*core.PortalContextRef(p)).Source != "retained source" || len((*core.PortalColumnsRef(p))) != 1 || (*core.PortalRowsRef(p)) != nil || (*core.PortalProducerRef(p)) != nil || core.PortalRow(p) != nil || core.PortalScratch(p) != nil {
 		t.Fatal("failed resource release removed identity or retained executor buffers")
 	}
 	// Restoring a frontier that includes this owner keeps its identity, without
@@ -95,13 +96,13 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	scope.Owner.Mu.Lock()
 	core.RetireProtocolPortalsAfter(scope.Owner, 1)
 	scope.Owner.Mu.Unlock()
-	if err := core.DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || core.PreparedRegistryPortals(core.PayloadPreparedSQL(core.PayloadOf(sess)))["p"] != p || disposals != 1 {
+	if err := core.DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || core.PayloadOf(sess).PreparedSQL.Binding("p") != &p.PreparedBinding || disposals != 1 {
 		t.Fatal("older failed identity did not survive frontier", err, disposals)
 	}
 	scope.Owner.Mu.Lock()
 	core.RetireProtocolPortalsAfter(scope.Owner, 0)
 	scope.Owner.Mu.Unlock()
-	if err := core.DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || core.PreparedRegistryPortals(core.PayloadPreparedSQL(core.PayloadOf(sess)))["p"] != nil || disposals != 1 {
+	if err := core.DrainCursorCleanup(scope.Owner, op.Context(), scope); err != nil || core.PayloadOf(sess).PreparedSQL.Binding("p") != nil || disposals != 1 {
 		t.Fatal("retirement leaked identity or repeated executor disposal", err, disposals)
 	}
 }
@@ -110,7 +111,7 @@ func TestProtocolCopyCancellationContext(t *testing.T) {
 	for _, wire := range []bool{false, true} {
 		t.Run(map[bool]string{false: "embedded", true: "wire"}[wire], func(t *testing.T) {
 			e := engine.New()
-			session := sessionStart(t, e, nil)
+			session := enginetest.StartSession(t, e, nil)
 			ctx, cancel := context.WithCancelCause(context.Background())
 			defer cancel(nil)
 			op, _, err := session.AcquireCommand(ctx)
@@ -156,7 +157,7 @@ func TestProtocolEndRequestedWake(t *testing.T) {
 	for _, late := range []bool{false, true} {
 		t.Run(map[bool]string{false: "observed_before_request", true: "observed_after_request"}[late], func(t *testing.T) {
 			e := engine.New()
-			sess := sessionStart(t, e, nil)
+			sess := enginetest.StartSession(t, e, nil)
 			op, err := sess.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)

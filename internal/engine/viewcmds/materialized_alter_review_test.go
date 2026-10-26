@@ -314,7 +314,7 @@ func TestMaterializedAlterQueuedDefinition(t *testing.T) {
 	definition := stored.ViewOf(producer).With(func(p *stored.ViewParts) {
 		p.Rule = stored.ViewOf(d).RuleOID()
 		p.Consumer = stored.ViewOf(d).Consumer()
-		p.QuoteRevision = next.Revision()
+		p.DefinitionRevision = next.Revision()
 	})
 	next.View = definition
 	stage := e.BeginCatalogStage(e.CatalogRead())

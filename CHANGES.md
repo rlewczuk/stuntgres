@@ -274,6 +274,24 @@ ACLs, with destination-local object and role identities. Temporary routines
 and their ACL repairs are excluded together from logical dumps. Empty ACL
 repairs retain the representation required by PostgreSQL privilege checks.
 
+Parameterless prepared definitions retain owned immutable typed folds across
+Go, SQL and repeated protocol Bind uses while keeping binding and authority
+current. Relevant executable dependencies, effective environment, DISCARD and
+native replacement retire folds; Describe preserves definition ownership and
+already-bound portals keep independent planning values. Supported DML and
+modifying-CTE SELECT now plan demanded constants at Bind without effects; Execute
+retains those values and selected relation occurrences after statement
+close/replacement, path changes or DISCARD while checking current authority,
+native provenance and data. Lazy private-catalog journal creation in the same
+transaction no longer preempts current rights diagnostics or replaces an
+accepted portal; exact dependency and planning-context fences remain in force.
+Unchanged immutable NaN operands now reuse their accepted prepared folds,
+including nonplain protocol portals. Fold identity preserves physical NaN
+payloads, FLOAT4 words and signed zero rather than applying floating equality.
+Prepared analysis, definition/binding lifecycle and final fold publication now
+share one core owner; accepted bindings retain their actual private resources
+without a parallel root registry or inspection-only cache.
+
 Installed amcheck 1.5 provides verify_heapam with ordinary named/default
 arguments, record-set metadata, live EXECUTE authority and native logical
 row/version consistency findings. Logical findings preserve exact row/version

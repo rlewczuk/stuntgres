@@ -65,7 +65,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	stale := description
-	*core.DescriptionCatalogEpochRef(&stale)++
+	*(&stale.CatalogEpoch)++
 	e.Mu.Lock()
 	b = core.NewExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &stale)
 	b.Query.Auth = &auth
@@ -114,7 +114,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 		t.Fatal("private parameter refresh lost codec, immutable contract or published root")
 	}
 	stale := description
-	*core.DescriptionCatalogEpochRef(&stale)++
+	*(&stale.CatalogEpoch)++
 	e.Mu.Lock()
 	b = core.NewExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &stale)
 	b.Query.Auth = &auth

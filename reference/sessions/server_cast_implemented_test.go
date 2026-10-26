@@ -104,11 +104,7 @@ func TestReferenceServerCastImplementedServiceCertificatesSmoke(t *testing.T) {
 				{serverCastServiceUUID, "nonsense", "22007", `invalid input syntax for type timestamp with time zone: "nonsense"`, "2EZ"},
 			} {
 				frames = serverCycle(t, w, serverBind("", "service_multi", nil, [][]byte{[]byte(serverCastServiceUUID), []byte("2004-01-01+00"), []byte(tc.id), []byte(tc.date)}), serverExecute("", 0))
-				tags := tc.tags
-				if !b.PG {
-					tags = "2EZ"
-				} // Native evaluates typed TEXT casts at Execute, not PostgreSQL Bind planning.
-				serverWantTags(t, frames, tags)
+				serverWantTags(t, frames, tc.tags)
 				serverCastServiceError(t, frames, fixture.Diagnostic{Code: tc.code, Message: tc.message})
 				serverWantReady(t, frames, 'I')
 				serverCastServiceBag(t, w)

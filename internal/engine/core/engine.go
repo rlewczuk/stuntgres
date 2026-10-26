@@ -223,85 +223,85 @@ func SQLError(code, message string) error {
 		Code: code, Message: message,
 	}
 }
-func (e *Engine) Describe(op *session.Operation, stmt parser.Statement) (info StatementDescription, err error) {
+func (e *Engine) Describe(op *session.Operation, stmt parser.Statement) (info Description, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	defer func() { err = scope.Finish(err) }()
 	return scope.Describe(stmt)
 }
-func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement) (StatementDescription, error) {
+func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement) (Description, error) {
 	op := scope.Op
 	scope.Input.LockedDomainInput = scope
 	if err := e.validateOperation(op); err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	switch s := stmt.(type) {
 	case *parser.Do, *parser.CreateFunction, *parser.CreateLanguage, *parser.CreateAggregate, *parser.DropRoutine, *parser.AlterRoutine, *parser.CreateCast, *parser.DropCast:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.ForeignDDL:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateDatabaseStmt, *parser.CreateTablespace, *parser.Load, *parser.Vacuum:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.Truncate:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.RefreshMaterializedView:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.PrepareSQL, *parser.DeallocateSQL, *parser.Discard:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.ExecuteSQL:
-		if entry := PayloadOf(op.Session).preparedSQL.entries[s.Name.Text]; entry != nil {
-			if !scope.RowSecurity && session.PreparableBody(entry.body) {
+		if entry := PayloadOf(op.Session).PreparedSQL.Lookup(s.Name.Text); entry != nil {
+			if !scope.RowSecurity && session.PreparableBody(entry.Body) {
 				// Reuse the named statement's analyzed identities without changing
 				// its session definition or executing its argument expressions.
 				expected, parameters := scope.Expected, scope.initialParameters
-				description := entry.description
+				description := entry.Description
 				scope.Expected = &description
 				scope.initialParameters = description.Parameters.Types
-				_, err := scope.Describe(entry.body)
+				_, err := scope.Describe(entry.Body)
 				scope.Expected, scope.initialParameters = expected, parameters
 				if err != nil {
-					return StatementDescription{}, err
+					return Description{}, err
 				}
 			}
-			return StatementDescription{Results: entry.description.Results}, nil
+			return Description{Results: entry.Description.Results}, nil
 		}
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.FetchCursor:
 		if s.Move {
-			return StatementDescription{}, nil
+			return Description{}, nil
 		}
 		if cursor := PayloadOf(op.Session).Cursors.Entries[s.Name.Text]; cursor != nil {
-			return StatementDescription{Results: cursor.schema}, nil
+			return Description{Results: cursor.schema}, nil
 		}
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CloseCursor:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.AlterOwner, *parser.ReassignOwned, *parser.DropOwned:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateTrigger, *parser.AlterTrigger, *parser.DropTrigger, *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateRange, *parser.CreateEnum, *parser.AlterEnum, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateOperatorFamily, *parser.AlterOperatorFamily, *parser.DropOperatorFamily, *parser.CreateOperatorClass, *parser.AlterOperatorClass, *parser.DropOperatorClass:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateAccessMethod, *parser.DropAccessMethod:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateExtension, *parser.DropExtension, *parser.AlterExtensionUpdate:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.RoleMembership, *parser.ObjectGrant, *parser.AlterDefaultPrivileges:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.AlterTableAllInTablespace, *parser.Comment, *parser.AlterTableSetSchema, *parser.AlterTableRenameColumn, *parser.AlterTableRenameTable, *parser.AlterTableDefault, *parser.AlterTable, *parser.LockTable, *parser.CreateSchema, *parser.AlterSchema, *parser.DropSchema, *parser.CreateTable, *parser.DropTable, *parser.CreateRole, *parser.AlterRole, *parser.DropRole, *parser.SessionAuthorization, *parser.Set, *parser.Reset:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.RoleSelection:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.CreateSequence, *parser.AlterSequence, *parser.DropSequence:
-		return StatementDescription{}, nil
+		return Description{}, nil
 	case *parser.Show:
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
@@ -309,27 +309,27 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if !s.All {
 			auth, err := e.AuthorizationLocked(op)
 			if err != nil {
-				return StatementDescription{}, err
+				return Description{}, err
 			}
 			readRestricted, err = auth.canReadRestrictedSettings()
 			if err != nil {
-				return StatementDescription{}, err
+				return Description{}, err
 			}
 		}
 		op.Session.Settings.Mu.Lock()
 		defer op.Session.Settings.Mu.Unlock()
 		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 		if s.All {
-			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
+			return Description{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
 		d, err := op.Session.Settings.LookupDefinition(e.Settings, s.Name.Text, false)
 		if err != nil {
-			return StatementDescription{}, err
+			return Description{}, err
 		}
 		if err := session.SettingReadAccess(d, s.Name.Text, readRestricted); err != nil {
-			return StatementDescription{}, err
+			return Description{}, err
 		}
-		return StatementDescription{Results: settingColumns(typ, settings.DisplayName(d.Name))}, nil
+		return Description{Results: settingColumns(typ, settings.DisplayName(d.Name))}, nil
 	case *parser.SettingCall:
 		e.Mu.Lock()
 		defer e.Mu.Unlock()
@@ -337,51 +337,51 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		typ, _ := e.Catalog.Current().LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
-		return StatementDescription{Parameters: binding.parameters, Results: columns}, err
+		return Description{Parameters: binding.parameters, Results: columns}, err
 	}
 	e.Mu.Lock()
 	defer e.Mu.Unlock()
 	if err := scope.RefreshRelationGrantsLocked(e); err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	auth, err := scope.statementAuthorizationLocked(stmt)
 	if err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	b, err := e.describeScoped(scope, stmt, auth, nil)
 	if err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	// Literal lifetimes belong to the caller's raw SQL, including its CTEs.
 	// Stored rule/view recipes carry their own captures and invalidation events.
 	callerSequences, callerRegtypes := b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
 	if b.ViewWrite != nil {
 		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
-			return StatementDescription{}, err
+			return Description{}, err
 		}
 	}
 	if err := e.attachCTEViewTargetsLocked(scope, &b, false); err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	if err := scope.ValidateQuerySources(b.QuerySources); err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	if err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, auth, stmt, &b); err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
 		program := view.RuleProgram{Count: -1, Returning: -1}
 		if _, err := (view.RuleRewriter{Owner: &e.Catalog.Owner}).ExpandLocked(auth, stmt, b, nil, &program); err != nil {
-			return StatementDescription{}, err
+			return Description{}, err
 		}
 		for i := range program.Commands {
 			command := &program.Commands[i]
 			if err := view.NormalizeRuleCTEsLocked(&e.Catalog.Owner, command.Auth, command.Syntax, &command.Binding); err != nil {
-				return StatementDescription{}, err
+				return Description{}, err
 			}
 		}
 		if err := view.CheckRowSecurityRuleProgram(scope.RowSecurity, auth.View, b, program); err != nil {
-			return StatementDescription{}, err
+			return Description{}, err
 		}
 		b.Dependencies = append(b.Dependencies, program.Events...)
 		for _, command := range program.Commands {
@@ -391,7 +391,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			b.Dependencies = append(b.Dependencies, command.Binding.Dependencies...)
 		}
 	} else if err := view.CheckRowSecurityBinding(scope.RowSecurity, auth.View, b); err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	var results []catalog.Column
 	if b.Query != nil && !b.CommandQuery {
@@ -402,7 +402,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	}
 	analysis, err := e.sequenceAnalysisLocked(auth, callerSequences)
 	if err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
 	var cell *sequence.Analysis
 	if len(analysis.Constants) != 0 {
@@ -410,30 +410,33 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	}
 	regtypes, err := e.regtypeAnalysisLocked(auth, callerRegtypes)
 	if err != nil {
-		return StatementDescription{}, err
+		return Description{}, err
 	}
-	var prepared *preparedAnalysis
+	var prepared *Analysis
 	if session.PreparableBody(stmt) {
 		prepared, err = e.preparedAnalysisLocked(scope, auth, b)
 		if err != nil {
-			return StatementDescription{}, err
+			return Description{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), Temporals: b.Prepared.Temporals, types: b.Prepared.Types, Sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.SessionToken, planGeneration: op.Session.DiscardPlansGeneration}, nil
+	if scope.Expected != nil {
+		analyze.ReuseRecordConstructors(b.Prepared.Types, scope.Expected.Types)
+	}
+	return Description{Parameters: b.Parameters, Results: results, CatalogOwner: auth.Catalog.Owner(), CatalogEpoch: auth.Catalog.Epoch(), Temporals: b.Prepared.Temporals, Types: b.Prepared.Types, Sequences: cell, Regtypes: regtypes, Analysis: prepared, Folds: NewPreparedFolds(), PlanOwner: op.Session.SessionToken, PlanGeneration: op.Session.DiscardPlansGeneration}, nil
 }
 
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
-func Describe(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, initial ...[]sqltype.Usage) (analyze.Binding, error) {
+func Describe(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *Description, admission *analyze.LockAdmission, initial ...[]sqltype.Usage) (analyze.Binding, error) {
 	return DescribeWithRule(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, initial...)
 }
 
-func DescribeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, rule *analyze.RuleNamespace, initial ...[]sqltype.Usage) (analyze.Binding, error) {
+func DescribeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *Description, admission *analyze.LockAdmission, rule *analyze.RuleNamespace, initial ...[]sqltype.Usage) (analyze.Binding, error) {
 	return analyze.Describe(ctx, host, stmt, AuthorityOf(auth), requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
 }
 
-func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (analyze.Binding, error) {
+func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *Description) (analyze.Binding, error) {
 	if scope.sqlRoutine.binding != nil {
 		return *scope.sqlRoutine.binding, nil
 	}

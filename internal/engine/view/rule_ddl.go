@@ -148,7 +148,7 @@ func (p *RulePlan) Finish(h Host, auth ddl.Authority) (RelationChange, error) {
 		return RelationChange{}, err
 	}
 	if p.next.View != p.old.View {
-		p.next.View = stored.ViewOf(&p.next).With(func(v *stored.ViewParts) { v.QuoteRevision = p.next.Revision() })
+		p.next.View = stored.ViewOf(&p.next).With(func(v *stored.ViewParts) { v.DefinitionRevision = p.next.Revision() })
 	}
 	change := RelationChange{Ref: p.ref, Next: &p.next, Sources: p.sources}
 	if _, drop := p.stmt.(*parser.DropRule); drop {

@@ -164,7 +164,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				sessionSQL(t, setup, "INSERT INTO late.t VALUES(1,'late',9)")
 				sessionSQL(t, waiter, "SET search_path TO early, late")
 				ast := enginetest.Statement(t, query)
-				var expected *core.StatementDescription
+				var expected *core.Description
 				if prepared {
 					op := transactionOperation(t, waiter)
 					description, err := e.Describe(op, ast)

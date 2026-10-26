@@ -211,7 +211,7 @@ reviewed decision:
   catalog inputs a comparison or type production needs.
 - `Literal` / `ConstantValue` / `LiteralNull` / `Frame` / `Context`: the
   engine's literal node (its identity drives folding and stored SQL), the query
-  frame quote-capture folding keys on, and bind-time cancellation.
+  frame retained-fold occurrence keys on, and bind-time cancellation.
 - `AdmitSetReturning` / `TargetSet` / `RegexpSetPlacement`: set-returning
   placement and bookkeeping; the regexp form is a leak to unify.
 - `CapturePolymorphicBody` / `JSONReturningType` / `ValidateSQLJSONDefault` /

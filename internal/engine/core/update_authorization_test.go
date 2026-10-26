@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"database/sql/driver"
 	"reflect"
@@ -9,7 +10,6 @@ import (
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -122,7 +122,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						}
 					}
 					ast := enginetest.Statement(t, query)
-					var expected *core.StatementDescription
+					var expected *core.Description
 					if prepared {
 						description, err := e.Describe(op, ast)
 						if err != nil || len(description.Parameters.Types) != 1 || description.Parameters.Types[0].Type.ID() != sqltype.Int4 {

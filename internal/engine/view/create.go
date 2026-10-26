@@ -165,7 +165,7 @@ func StageCreate(h StageHost, auth ddl.Authority, s *parser.CreateView, old *cat
 	definition = definition.With(func(p *stored.ViewParts) {
 		p.CheckOption = options.CheckOption
 		p.Options = TransformViewOptions(nil, s.Options, false)
-		p.QuoteRevision = revision
+		p.DefinitionRevision = revision
 	})
 	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: catalogAccess.State.CurrentUser, RelationKind: catalog.ViewRelation, View: stored.ViewPayload(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
 	if old != nil {

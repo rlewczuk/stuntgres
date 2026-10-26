@@ -283,20 +283,17 @@ type planningEvaluationError struct {
 func (e *planningEvaluationError) Unwrap() error                      { return e.error }
 func (e *planningEvaluationError) PreflightParameterEvaluation() bool { return e.parameters }
 
-// A preflight computation boundary, not a row expression wrapper.
-// Child folds have already discarded non-invocations and cleared their carrier;
-// still-live callable children must be admitted before an enclosing Eval can
-// invoke them. No permission lookup is added to row evaluation.
-func EvaluatePlanningExpression(c *Context, node expr.Expr) (sqltype.Value, error) {
+func admitPlanningExpression(c *Context, node expr.Expr) error {
 	var failure error
 	plan.WalkExpression(node, func(call expr.Expr) {
 		if failure == nil {
 			failure = AdmitRoutineCall(c, call, true, true)
 		}
 	})
-	if failure != nil {
-		return sqltype.Value{}, failure
-	}
+	return failure
+}
+
+func evaluateAdmittedPlanningExpression(c *Context, node expr.Expr) (sqltype.Value, error) {
 	value, err := node.Eval(c)
 	if err != nil && c != nil && c.PLPreflightOrigin {
 		err = &planningEvaluationError{error: err, parameters: node.Properties().ParameterDependent}

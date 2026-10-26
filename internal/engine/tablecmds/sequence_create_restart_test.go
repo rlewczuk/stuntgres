@@ -26,9 +26,9 @@ import (
 func sequenceCreateRestartCommand(t *testing.T, e *core.Engine, s *session.Session, query string, prepared bool) ([]sqlstate.Error, error) {
 	t.Helper()
 	ast := enginetest.Statement(t, query)
-	var expected *core.StatementDescription
+	var expected *core.Description
 	if prepared {
-		var description core.StatementDescription
+		var description core.Description
 		ast, description = sequencePreparedDescription(t, e, s, query)
 		expected = &description
 	}
@@ -372,9 +372,9 @@ func TestSequenceCreateRestartConstructorFailure(t *testing.T) {
 				var err error
 				if failure == "Cancellation" {
 					ast := enginetest.Statement(t, query)
-					var expected *core.StatementDescription
+					var expected *core.Description
 					if prepared {
-						var description core.StatementDescription
+						var description core.Description
 						ast, description = sequencePreparedDescription(t, e, s, query)
 						expected = &description
 					}
@@ -427,7 +427,7 @@ func TestSequenceCreateRestartConstructorFailure(t *testing.T) {
 	}
 }
 
-func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.StatementDescription) (core.Result, error) {
+func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.Description) (core.Result, error) {
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		return core.Result{}, err

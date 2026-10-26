@@ -123,7 +123,7 @@ func pgSequencesCTEHolder(t *testing.T, e *core.Engine, s *session.Session, used
 	}
 }
 
-func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.StatementDescription) {
+func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Session, query string) (parser.Statement, core.Description) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -138,7 +138,7 @@ func sequencePreparedDescription(t *testing.T, e *core.Engine, s *session.Sessio
 	return ast, d
 }
 
-func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.StatementDescription) (core.Result, error) {
+func sequencePreparedExecute(e *core.Engine, s *session.Session, ast parser.Statement, d *core.Description) (core.Result, error) {
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		return core.Result{}, err

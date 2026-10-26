@@ -113,14 +113,20 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return result, err
 	}
 	expected := scope.Expected
-	var candidate StatementDescription
-	quoteCapturesChanged := false
+	var candidate Description
+	foldPlanning, err := e.prepareFoldAttemptLocked(scope, stmt, auth, scope.Expected)
+	if err != nil {
+		e.Mu.Unlock()
+		return Result{}, err
+	}
 	valid := true
 	var rebindTypes map[analyze.PreparedTypeKey]analyze.TypeOccurrence
 	var rebindTemporals []analyze.TemporalConstant
 	installedScalarAuthorityRebind := false
-	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.Session.SessionToken && expected.planGeneration != op.Session.DiscardPlansGeneration
-	if expected != nil && expected.analysis != nil {
+	portal := scope.protocolOrZero().execute
+	acceptedPortal := portal != nil && expected == &portal.Entry.Description && portal.Folds != nil
+	replan := !acceptedPortal && (scope.prepared.invalid || expected != nil && expected.PlanOwner == op.Session.SessionToken && expected.PlanGeneration != op.Session.DiscardPlansGeneration)
+	if expected != nil && expected.Analysis != nil {
 		path, er := e.sequenceEnvironmentLocked(auth)
 		if er != nil {
 			e.Mu.Unlock()
@@ -128,7 +134,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 		// Evolution during a wait can invalidate captures, but admission has
 		// already fixed this attempt's identities. Never resolve them again.
-		current := e.preparedAnalysisValidLocked(auth, expected.analysis, path)
+		current := acceptedPortal || expected.Analysis.Valid(auth.Catalog, e.preparedEnvironmentAtPathLocked(auth, path, scope.RowSecurity))
 		if !current && !scope.prepared.invalid {
 			scope.prepared.changedDuringAdmission = true
 		}
@@ -141,7 +147,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if expected != nil {
 		if replan {
-			rebindTypes = expected.retireAnalysisTypeCastsForRebind(installedScalarAuthorityRebind)
+			rebindTypes = expected.RetireAnalysisTypeCastsForRebind(installedScalarAuthorityRebind)
 		}
 		valid, err = e.sequenceAnalysisValidLocked(auth, expected.Sequences)
 		if err != nil {
@@ -153,19 +159,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			candidate.Temporals = rebindTemporals
 		}
 		if replan {
-			candidate.types = rebindTypes
+			candidate.Types = rebindTypes
 		}
-		if expected.Parameters.Count != 0 {
-			// Parameterized executions never borrow a retained quote group.
-			candidate.Quotes = nil
-		} else if expected.quoteGeneration != op.Session.DiscardPlansGeneration {
-			candidate.Quotes = nil
-			quoteCapturesChanged = true
-		}
+		candidate.FoldPlanning = foldPlanning
 		if !valid {
 			candidate.Sequences = nil
 		}
-		regtypeValid, er := e.regtypeAnalysisValidLocked(auth, expected.regtypes)
+		regtypeValid, er := e.regtypeAnalysisValidLocked(auth, expected.Regtypes)
 		if er != nil {
 			e.Mu.Unlock()
 			return Result{}, er
@@ -173,29 +173,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if !regtypeValid {
 			// Invalidation survives failed analysis. Restoring the old path
 			// must not make its retired literal captures reusable again.
-			expected.regtypes.Invalidate()
-			candidate.regtypes = nil
+			expected.Regtypes.Invalidate()
+			candidate.Regtypes = nil
 		}
 		if replan {
-			candidate.refreshTemporals = true
-			candidate.Sequences, candidate.regtypes = nil, nil
-			// Analysis changes retire statement-root captures, not unchanged
-			// stored definitions. DISCARD already cleared the complete group.
-			for i, saved := range candidate.Quotes {
-				if saved.Origin.Owner != (ids.ObjectRef{}) {
-					continue
-				}
-				quotes := make([]exec.QuoteConstant, 0, len(candidate.Quotes)-1)
-				quotes = append(quotes, candidate.Quotes[:i]...)
-				for _, remaining := range candidate.Quotes[i+1:] {
-					if remaining.Origin.Owner != (ids.ObjectRef{}) {
-						quotes = append(quotes, remaining)
-					}
-				}
-				candidate.Quotes = quotes
-				quoteCapturesChanged = true
-				break
-			}
+			candidate.RefreshTemporals = true
+			candidate.Sequences, candidate.Regtypes = nil, nil
 			valid = false
 		}
 		expected = &candidate
@@ -305,7 +288,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			// output may change through a valid assignment conversion on reanalysis.
 			results = scope.Expected.Results
 		}
-		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch()}); err != nil {
+		if err := CheckStatementSignature(*scope.Expected, Description{Parameters: b.Parameters, Results: results, CatalogOwner: auth.Catalog.Owner(), CatalogEpoch: auth.Catalog.Epoch()}); err != nil {
 			e.Mu.Unlock()
 			return Result{}, err
 		}
@@ -313,7 +296,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.Mu.Unlock()
 			return Result{}, err
 		}
-		if !valid || scope.Expected.regtypes != nil && candidate.regtypes == nil {
+		if !valid || scope.Expected.Regtypes != nil && candidate.Regtypes == nil {
 			analysis, er := e.sequenceAnalysisLocked(auth, callerSequences)
 			if er != nil {
 				e.Mu.Unlock()
@@ -324,7 +307,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				e.Mu.Unlock()
 				return Result{}, er
 			}
-			var prepared *preparedAnalysis
+			var prepared *Analysis
 			if replan && session.PreparableBody(stmt) {
 				prepared, er = e.preparedAnalysisLocked(scope, auth, b)
 				if er != nil {
@@ -332,28 +315,32 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 					return Result{}, er
 				}
 			}
-			if er := ctx.Err(); er != nil {
+			var refreshed *Description
+			if replan {
+				next := Description{Temporals: b.Prepared.Temporals, Types: b.Prepared.Types, Analysis: scope.Expected.Analysis, PlanGeneration: op.Session.DiscardPlansGeneration}
+				if session.PreparableBody(stmt) {
+					next.Analysis = prepared
+				}
+				refreshed = &next
+			}
+			if er := scope.Expected.AcceptAnalysis(ctx, analysis, regtypes, refreshed); er != nil {
 				e.Mu.Unlock()
 				return Result{}, er
 			}
-			if scope.Expected.Sequences != nil {
-				*scope.Expected.Sequences = analysis
-			} else if len(analysis.Constants) != 0 {
-				scope.Expected.Sequences = &analysis
-			}
-			if scope.Expected.regtypes != nil && regtypes != nil {
-				*scope.Expected.regtypes = *regtypes
-			} else {
-				scope.Expected.regtypes = regtypes
-			}
-			if replan {
-				scope.Expected.Temporals = b.Prepared.Temporals
-				scope.Expected.types = analyze.PublishDomainCasts(scope.Expected.types, b.Prepared.Types)
-				if session.PreparableBody(stmt) {
-					scope.Expected.analysis = prepared
-				}
-				scope.Expected.planGeneration = op.Session.DiscardPlansGeneration
-			}
+		}
+	}
+	if foldPlanning != nil {
+		// All admission/analysis fences have now accepted this exact root.
+		// Keep its next-use analysis environment separate from the environment
+		// that must remain unchanged during unlocked fold planning.
+		foldPlanning.Environment.Path, err = e.sequenceEnvironmentLocked(auth)
+		if err != nil {
+			e.Mu.Unlock()
+			return Result{}, err
+		}
+		foldPlanning.Environment.Namespace = auth.Catalog.State().NamespaceGeneration()
+		if foldPlanning.Portal {
+			foldPlanning.Environment.Private = auth.Session.Transactions.Catalog
 		}
 	}
 	if count != b.Parameters.Count {
@@ -415,10 +402,6 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if b.Query != nil && !b.CommandQuery {
 			p.columns = b.Query.Root.Schema()
 		}
-		if !session.ProtocolPlainSelect(stmt) {
-			e.Mu.Unlock()
-			return Result{}, nil
-		}
 	}
 	if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
 		if boundary := partition.WriteExtensionBoundary(stmt, view.PhysicalBinding(b).Relation); boundary != nil {
@@ -434,14 +417,14 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		}
 	}
 	if relation := view.BindingRuleRelation(b); relation != nil && len(stored.RulesOf(relation)) != 0 {
-		return e.executeRuleProgramLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)
+		return e.executeRuleProgramLocked(scope, stmt, b, auth, canonical, candidate)
 	}
-	return e.executeBoundLocked(scope, stmt, b, auth, canonical, candidate, quoteCapturesChanged)
+	return e.executeBoundLocked(scope, stmt, b, auth, canonical, candidate)
 }
 
 // The caller owns Engine.mu. Every return releases it. Rule programs reuse this
 // executor without importing parameters again or opening another statement.
-func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
+func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, candidate Description) (Result, error) {
 	op := scope.Op
 	ctx := op.Context()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: HostOf(scope), Catalog: auth.Catalog, Input: scope.Input, Output: scope.Output}}
@@ -526,12 +509,10 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	}
 	// Native has no cost-based custom/generic planner. Parameterized consumers
 	// fold into a fresh operation-local group, including stored origins.
-	quoteCaptures := exec.QuoteCaptureCandidate{}
-	if b.Parameters.Count == 0 {
-		quoteCaptures = exec.QuoteCaptureCandidate{Entries: candidate.Quotes, Private: quoteCapturesChanged}
-		stored.PruneQuoteCaptures(&quoteCaptures, auth.Catalog)
+	evaluation.FoldCaptures = &exec.FoldCaptureCandidate{}
+	if candidate.FoldPlanning != nil {
+		evaluation.FoldCaptures = candidate.FoldPlanning.Group
 	}
-	evaluation.QuoteCaptures = &quoteCaptures
 	// Planning-owned physical conversions and CHECK recipe initialization
 	// precede executor ACLs, without Engine.mu or a data view. Checked
 	// domain truth remains runtime consumer demand, not a folded value.

@@ -35,7 +35,7 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 				query = "INSERT INTO t VALUES($1)"
 			}
 			ast := enginetest.Statement(t, query)
-			var expected *core.StatementDescription
+			var expected *core.Description
 			if kind == "held-select" || kind == "held-insert" {
 				op := enginetest.TransactionOperation(t, waiter)
 				info, err := e.Describe(op, ast)

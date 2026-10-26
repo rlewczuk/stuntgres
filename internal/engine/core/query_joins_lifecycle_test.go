@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"stuntgres/internal/engine/core"
 	"context"
 	"errors"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/core"
 	"stuntgres/internal/engine/enginetest"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -379,7 +379,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 					q = "INSERT INTO dst SELECT a.k FROM a JOIN b USING(k)"
 				}
 				ast := enginetest.Statement(t, q)
-				var expected *core.StatementDescription
+				var expected *core.Description
 				if prepared {
 					op := enginetest.TransactionOperation(t, reader)
 					description, err := e.Describe(op, ast)
