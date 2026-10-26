@@ -43,7 +43,7 @@ func mergeUpdateServerCancellation(t *testing.T, targetOnly bool) {
 					t.Fatal(err)
 				}
 				defer stmt.Close()
-				fixture.LockExec(t, p.Ctx, worker, "SET LOCAL "+tc.setting+"='50ms'", 0)
+				fixture.LockExec(t, p.Ctx, worker, "SET LOCAL "+tc.setting+"='"+map[string]string{"lock_timeout": "10ms", "statement_timeout": "50ms"}[tc.setting]+"'", 0)
 				var result interface{ RowsAffected() (int64, error) }
 				if prepared {
 					result, err = stmt.ExecContext(p.Ctx)

@@ -352,13 +352,16 @@ func (e *Engine) normalizeCatalogStage(ctx context.Context, s *CatalogStage) err
 		e.Mu.Unlock()
 		return err
 	}
+	// Only a replaced generation can leave consumers on its old descriptor.
+	// Added types (a new relation's row and array types) are built complete,
+	// so a stage that only adds types skips the whole-catalog reownership.
 	for address, descriptor := range s.Descriptors() {
 		typ, ok := descriptor.(*catalog.Type)
 		if !ok {
 			continue
 		}
 		old, _ := s.Base.Type(address)
-		if old == nil || old.SQLType != typ.SQLType {
+		if old != nil && old.SQLType != typ.SQLType {
 			if err := e.ReownStagedTypeGenerationsLocked(s); err != nil {
 				e.Mu.Unlock()
 				return err

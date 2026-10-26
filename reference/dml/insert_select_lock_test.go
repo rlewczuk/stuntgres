@@ -24,7 +24,7 @@ func TestReferenceInsertSelectSourceLock(t *testing.T) {
 		func() {
 			defer waiter.Close()
 			run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, waiter, backend.record, s) }
-			run(fixture.Exec("SET lock_timeout='40ms'", 0))
+			run(fixture.Exec("SET lock_timeout='10ms'", 0))
 			defer waiter.ExecContext(p.Ctx, "SET lock_timeout='0'")
 			cached, err := waiter.PrepareContext(p.Ctx, "INSERT INTO t SELECT i FROM s")
 			if err != nil {

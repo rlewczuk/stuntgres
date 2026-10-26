@@ -90,7 +90,7 @@ func TestReferenceTruncateSnapshots(t *testing.T) {
 				}
 				fixture.LockAffected(t, o.Result, 0)
 			} else {
-				truncateExec(t, f, f.B, "SET lock_timeout='30ms'", 0)
+				truncateExec(t, f, f.B, "SET lock_timeout='10ms'", 0)
 				truncateError(t, f, f.B, "TRUNCATE p", truncateWant("55P03", "canceling statement due to lock timeout"))
 				truncateRows(t, f, tx, "p", 1, 2)
 				tx.Rollback()
@@ -100,7 +100,7 @@ func TestReferenceTruncateSnapshots(t *testing.T) {
 			// An empty query still touches its relation and retains AS.
 			tx = truncateBegin(t, p, f.A, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 			truncateRows(t, f, tx, "p")
-			truncateExec(t, f, f.B, "SET lock_timeout='30ms'", 0)
+			truncateExec(t, f, f.B, "SET lock_timeout='10ms'", 0)
 			truncateError(t, f, f.B, "TRUNCATE p", truncateWant("55P03", "canceling statement due to lock timeout"))
 			tx.Rollback()
 		})

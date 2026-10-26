@@ -170,7 +170,7 @@ func TestReferenceMergeUpdateCancellation(t *testing.T) {
 		fixture.LockExec(t, p.Ctx, holder, "BEGIN", 0)
 		fixture.LockExec(t, p.Ctx, holder, "UPDATE t SET v=20", 1)
 		fixture.LockExec(t, p.Ctx, worker, "BEGIN", 0)
-		fixture.LockExec(t, p.Ctx, worker, "SET LOCAL lock_timeout='50ms'", 0)
+		fixture.LockExec(t, p.Ctx, worker, "SET LOCAL lock_timeout='10ms'", 0)
 		out := fixture.RowExecute(p.Ctx, worker, q, prepared)
 		if out.Result != nil {
 			t.Fatal("timeout exposed result")

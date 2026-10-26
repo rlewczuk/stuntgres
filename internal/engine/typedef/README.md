@@ -208,9 +208,10 @@ binding passes the core `DDLHost`.
   state, and the getters are nil-safe. Journal slots are copy-on-write: `Clone`
   makes a savepoint or statement copy, and a writer replaces a shared slot before
   changing it.
-- **Pure seeds.** `BuiltinConversionProcedures`, `BuiltinDomainCheckSeeds` and
-  `BuiltinDomainDefaultSeeds` return fresh values; the engine installs them in
-  `newEngine`'s order, which fixes their OIDs.
+- **Pure seeds.** `BuiltinConversionProcedures` and `BuiltinDomainDefaultSeeds`
+  return fresh values. `BuiltinDomainCheckSeeds` parses its declarations once
+  per process and returns the same read-only constraints to every engine. The
+  engine installs the seeds in `newEngine`'s order, which fixes their OIDs.
 - **Domain identities.** ALTER keeps logical domain and array IDs; pure identity
   edits keep the executable analysis stamp while ordinary replacement
   invalidates it. Own NOT NULL definitions reserve real additional identities.

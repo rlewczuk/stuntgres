@@ -113,8 +113,11 @@ private frames, not catalog authority.
   `InstallLocked` publishes, and `DatabaseOIDLocked` reserves a database OID
   past every store's frontier and roots. The stores come as an iterator, so a
   publication without a database change allocates nothing.
-- **Builtin seed** (`seed.go`, `seed_share.go`). The install steps write a
-  state still in its bulk load, before the store is shared:
+- **Builtin seed** (`seed.go`, `seed_share.go`). `Store.BeginSeedLocked` starts
+  the bulk load and `FinishSeedLocked` ends it. In between, OID allocation
+  skips the definition-OID walk: compiled builtins use OIDs below the first
+  allocated one, and seed definitions take theirs from the same cursor. The
+  install steps write a state still in its bulk load, before the store is shared:
   `InstallBuiltinNamespaces`, `InstallBuiltinTypes`, `InstallBuiltinCollations`,
   `InstallBuiltinProcedures` (then the native access methods),
   `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated

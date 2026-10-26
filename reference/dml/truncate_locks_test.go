@@ -14,7 +14,7 @@ func TestReferenceTruncateLocks(t *testing.T) {
 				truncateSeed(t, f)
 				tx := truncateBegin(t, p, f.A, nil)
 				truncateExec(t, f, tx, "LOCK TABLE q IN "+mode+" MODE", 0)
-				truncateExec(t, f, f.B, "SET lock_timeout='30ms'", 0)
+				truncateExec(t, f, f.B, "SET lock_timeout='10ms'", 0)
 				// A full structured server timeout is a real conflict witness on native,
 				// not a sleep-only assertion about an unobserved native queue.
 				truncateError(t, f, f.B, "TRUNCATE p,q", truncateWant("55P03", "canceling statement due to lock timeout"))
@@ -135,7 +135,7 @@ func TestReferenceTruncateAdmission(t *testing.T) {
 			truncateSeed(t, f)
 			tx := truncateBegin(t, p, f.A, nil)
 			truncateExec(t, f, tx, "LOCK p IN ACCESS SHARE MODE", 0)
-			truncateExec(t, f, f.B, "SET lock_timeout='30ms'", 0)
+			truncateExec(t, f, f.B, "SET lock_timeout='10ms'", 0)
 			truncateError(t, f, f.B, "TRUNCATE p,missing", truncateWant("55P03", "canceling statement due to lock timeout"))
 			truncateError(t, f, f.B, "TRUNCATE missing,p", truncateWant("42P01", `relation "missing" does not exist`))
 			tx.Rollback()

@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"stuntgres/reference/fixture"
@@ -38,9 +39,6 @@ func TestReferenceInsertConflictUpdateCancellation(t *testing.T) {
 								}
 							}
 						}()
-						if mode != "caller" {
-							run(fixture.Exec("SET "+mode+"='1s'", 0))
-						}
 						run(fixture.Exec("BEGIN", 0))
 						run(fixture.Exec("INSERT INTO t VALUES(8,80)", 1))
 						run(fixture.Exec("SAVEPOINT recover", 0))
@@ -54,6 +52,12 @@ func TestReferenceInsertConflictUpdateCancellation(t *testing.T) {
 							defer stmt.Close()
 							x = fixture.HeldStatement{Executor: c, Statement: stmt, SQL: q}
 						}
+						// Setup and Prepare finish at timeout 0. A lock timer counts only
+						// the lock wait; a statement timer also counts parse and plan time.
+						if mode != "caller" {
+							timer := map[string]string{"lock_timeout": "10ms", "statement_timeout": "100ms"}[mode]
+							run(fixture.Exec("SET "+mode+"='"+timer+"'", 0))
+						}
 						ctx, cancel := context.WithCancel(p.Ctx)
 						defer cancel()
 						if mode == "caller" && !b.PG {
@@ -66,7 +70,11 @@ func TestReferenceInsertConflictUpdateCancellation(t *testing.T) {
 							ap, cp = fixture.RowPIDs(t, p.Ctx, a, c)
 						}
 						done := fixture.RowAsync(t, ctx, x, q, false, false)
-						conflictUpdateWait(t, p, b, cp, ap)
+						// A timer's exact outcome proves the wait; never race an observer
+						// against the short timer.
+						if mode == "caller" {
+							conflictUpdateWait(t, p, b, cp, ap)
+						}
 						if mode == "caller" && b.PG {
 							var canceled bool
 							if e := fixture.Admin.QueryRowContext(p.Ctx, "SELECT pg_cancel_backend($1)", cp).Scan(&canceled); e != nil || !canceled {
@@ -103,8 +111,28 @@ func TestReferenceInsertConflictUpdateCancellation(t *testing.T) {
 							}
 							fixture.AssertDiagnostic(t, r.Err, &d)
 						}
+						if mode == "statement_timeout" {
+							// Once a statement timer is armed even ROLLBACK TO can time out,
+							// so dispose of the owner: its whole transaction rolls back and an
+							// independent session upserts without leaked locks. The other
+							// modes keep same-owner savepoint recovery.
+							if e := c.Raw(func(any) error { return driver.ErrBadConn }); !errors.Is(e, driver.ErrBadConn) {
+								t.Fatal("disposing timer-armed owner", e)
+							}
+							fixture.LockExec(t, p.Ctx, a, "ROLLBACK", 0)
+							released = true
+							rows := [][]any{{int64(1), int64(10)}}
+							if wait == "row" {
+								rows = append(rows, []any{int64(3), int64(30)})
+							}
+							fixture.RunStep(t, p.Ctx, a, b.Recorder, conflictUpdateRows(rows...))
+							fixture.RunStep(t, p.Ctx, a, b.Recorder, fixture.Exec(q, 3))
+							fixture.RunStep(t, p.Ctx, a, b.Recorder, conflictUpdateRows([]any{int64(1), int64(20)}, []any{int64(2), int64(2)}, []any{int64(3), int64(3)}))
+							return
+						}
 						// Root's pinned PostgreSQL observations distinguish actual row
-						// locking from selected-index arbitration contexts above.
+						// locking from selected-index arbitration contexts above. The
+						// failed-block probe takes no lock, so an armed lock timer cannot fire.
 						s := fixture.ErrorDiagnostic("SELECT k FROM t", fixture.ControlsReferenceDiagnostic("25P02", "current transaction is aborted, commands ignored until end of transaction block"))
 						run(s)
 						run(fixture.Exec("ROLLBACK TO SAVEPOINT recover", 0))

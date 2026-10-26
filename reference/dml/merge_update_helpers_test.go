@@ -26,7 +26,7 @@ func mergeUpdateNativeTimeout(t *testing.T, ctx context.Context, worker *sql.Con
 	if repeatable {
 		fixture.LockExec(t, ctx, worker, "SAVEPOINT merge_wait", 0)
 	}
-	fixture.LockExec(t, ctx, worker, "SET lock_timeout='50ms'", 0)
+	fixture.LockExec(t, ctx, worker, "SET lock_timeout='10ms'", 0)
 	out := mergeUpdateOperation(ctx, worker, held, q)
 	if out.Result != nil {
 		t.Fatal("lock timeout returned result")

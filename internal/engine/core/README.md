@@ -680,6 +680,9 @@ Producers, the OID registry and descriptor specs live in
   catalog-owned scalar, with unchanged extension and companion identity.
   Ltxtquery uses this transient import authority for stored values and expressions;
   ordinary same-OID `Retag`, including typed NULL, remains unauthorized.
+  `ValidateCatalogStage` runs this whole-catalog pass only when a staged type
+  replaces an existing descriptor with a new SQL type; a stage that only adds
+  types (a new relation's row and array types) skips it.
 - `CatalogStage` embeds `catalog.Candidate`, which owns the catalog-only
   publication fences, the apply step, the history markers and the creation
   ACLs. Publication's value sub-steps belong to their packages: row shapes,

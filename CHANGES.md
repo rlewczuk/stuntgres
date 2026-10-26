@@ -1,3 +1,11 @@
+Statements that only add types, such as CREATE TABLE, CREATE VIEW and CREATE
+TYPE, no longer rewrite every type, rule and trigger in the catalog to reown
+type generations; only replacing an existing type's definition does.
+
+Opening a fresh database uses about a fifth less CPU and a tenth less memory:
+the builtin domain checks are parsed once per process, and seeding the builtin
+catalog no longer walks every descriptor for each OID it allocates.
+
 All 28 PostgreSQL 18 vacuum settings now expose typed values and complete
 catalog metadata through the shared registry. Ordinary logins can change the
 13 user-context controls, including the released-source USERSET eager-freeze
