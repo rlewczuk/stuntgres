@@ -13,10 +13,11 @@ func TextSearchSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, 
 	if id == 0 {
 		return "-"
 	}
-	if alias != sqltype.Regdictionary {
-		return strconv.FormatUint(uint64(id), 10)
+	class := ids.TSDictionaryClassID
+	if alias == sqltype.Regconfig {
+		class = ids.TSConfigurationClassID
 	}
-	d, ok := view.TSDictionary(ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)})
+	d, ok := view.Find(ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)})
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10)
 	}
@@ -26,7 +27,7 @@ func TextSearchSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, 
 			if namespace, ok := view.Namespace(ns); ok && namespace.Temporary != (ids.SessionToken{}) {
 				continue
 			}
-			address := view.NameAddress(ids.NameKey{ClassID: ids.TSDictionaryClassID, Namespace: ns, Name: d.Name()})
+			address := view.NameAddress(ids.NameKey{ClassID: class, Namespace: ns, Name: d.Name()})
 			if address != (ids.ObjectAddress{}) {
 				visible = address == d.Address()
 				break

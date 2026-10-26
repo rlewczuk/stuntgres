@@ -10,7 +10,7 @@ import (
 )
 
 func DefinitionObjectClass(class ids.OID) bool {
-	return class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID
+	return class == ids.EventTriggerClassID || class == ids.CollationClassID || class == ids.ConversionClassID || class == ids.CastClassID || class == ids.ProcedureClassID || class == ids.TSDictionaryClassID || class == ids.TSConfigurationClassID
 }
 
 func CompareDefinitionAddress(a, b ids.ObjectAddress) int {
@@ -36,6 +36,12 @@ func (s *StatementScope) acquireDefinitionObjectDependencies(stage *CatalogStage
 			addresses = append(addresses, catalog.CastDependencies(d)...)
 		case *catalog.Conversion:
 			addresses = append(addresses, d.Handler)
+		case *catalog.TSConfiguration:
+			for _, dependency := range d.Dependencies() {
+				if dependency.ClassID == ids.TSDictionaryClassID {
+					addresses = append(addresses, dependency)
+				}
+			}
 		case *catalog.TSDictionary:
 			addresses = append(addresses, d.Template)
 		case *catalog.Relation:

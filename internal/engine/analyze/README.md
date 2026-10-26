@@ -172,6 +172,11 @@ library, and never the root engine or `session`. The engine, the root driver
   `Expected.CheckLifetime` applies it to a replaced catalog. The actual retained
   `core.Description` supplies these inputs; core, not the binder or root adapter,
   owns the prepared analysis manifest, validity and lifecycle publication.
+  Reused REGCONFIG constants preserve exact occurrence, type, value and original
+  operand provenance. Their current operand manifest reads the captured OID's
+  actual configuration and mapped dictionaries. Missing original configurations
+  add no fictitious dependency; their captured typed value reaches runtime.
+  Other identifier aliases retain their existing operand transport.
 - **Name lookup** (`lookup.go`, `search_path.go`, `type_name_resolution.go`):
   `LookupPath`, `EffectivePath`, `CreationNamespace`, ... over one by-value
   `PathInput[E]`; `ResolveTypeName` takes a `TypeNameOperation` because the

@@ -167,6 +167,8 @@ func ExecuteSchema(e *core.Engine, scope *core.StatementScope, op *session.Opera
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropDictionary:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
+	case *parser.DropConfiguration:
+		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropType:
 		domainMode, cascade = s.Mode, s.Mode == parser.DropCascade
 	case *parser.DropDomain:
@@ -362,6 +364,18 @@ func stageSchemaLocked(e *core.Engine, op *session.Operation, stmt parser.Statem
 	host := core.DDLHost{E: e, Op: op, CatalogStage: stage}
 	typeHost, routineHost, schemaHost := tablecmds.TypeHost{tablecmds.TableHost{host}}, RoutineHost{host}, SchemaHost{host}
 	switch s := stmt.(type) {
+	case *parser.CreateConfiguration:
+		if err = ddl.StageCreateConfiguration(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.AlterConfiguration:
+		if err = ddl.StageAlterConfiguration(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
+	case *parser.DropConfiguration:
+		if err = ddl.StageDropConfiguration(schemaHost, auth, s); err != nil {
+			return nil, err
+		}
 	case *parser.CreateEventTrigger, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 		if err = routine.StageEventTrigger(host, auth, stmt); err != nil {
 			return nil, err

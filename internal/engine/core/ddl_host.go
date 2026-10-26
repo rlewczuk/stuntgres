@@ -39,9 +39,10 @@ type DDLHost struct {
 }
 
 var (
-	_ ddl.Host            = DDLHost{}
-	_ ddl.Allocator       = DDLHost{}
-	_ table.TypedResolver = DDLHost{}
+	_ ddl.Host              = DDLHost{}
+	_ ddl.ConfigurationHost = DDLHost{}
+	_ ddl.Allocator         = DDLHost{}
+	_ table.TypedResolver   = DDLHost{}
 )
 
 // DDLAuthority marks AuthorizationView as a ddl.Authority.
@@ -86,7 +87,7 @@ func (h DDLHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class
 		kind = analyze.TypeLookup
 	case ids.ConversionClassID:
 		kind = analyze.ConversionLookup
-	case ids.OperatorClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.TSTemplateClassID, ids.TSDictionaryClassID:
+	case ids.OperatorClassID, ids.OperatorFamilyClassID, ids.OperatorClassCatalogID, ids.TSTemplateClassID, ids.TSDictionaryClassID, ids.TSConfigurationClassID, 3601:
 		kind = analyze.OperatorLookup
 	case ids.ProcedureClassID:
 		kind = analyze.FunctionLookup
@@ -102,6 +103,23 @@ func (h DDLHost) SearchNamespaces(a ddl.Authority, name parser.ObjectName, class
 		namespaces[i] = path.At(i)
 	}
 	return namespaces, nil
+}
+
+// SearchConfigurationNamespaces applies configuration utility source policy
+// without changing generic dictionary, parser or expression lookup.
+func (h DDLHost) SearchConfigurationNamespaces(a ddl.Authority, name parser.ObjectName, class ids.OID) ([]ids.ObjectAddress, error) {
+	auth := DDLAuthorityOf(a)
+	// Trusted Restore destination construction grants no authority over an
+	// existing source operand, including dictionaries and parsers.
+	auth.restoreDefinitionLookup = false
+	var semanticParts [2]parser.Identifier
+	if len(name.Parts) == len(semanticParts) {
+		copy(semanticParts[:], name.Parts)
+		// Utility resolution has no expression location. Never edit the AST.
+		semanticParts[0].Pos = parser.Position{}
+		name.Parts = semanticParts[:]
+	}
+	return h.SearchNamespaces(auth, name, class)
 }
 
 func (h DDLHost) LookupFunction(a ddl.Authority, name parser.ObjectName, signature catalog.ProcedureSignature) (*catalog.Procedure, error) {

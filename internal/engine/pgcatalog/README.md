@@ -44,6 +44,12 @@ type Producer func(Input) ([][]sqltype.Value, error)
   numeric nodes remain unquoted and strings use canonical SQL escaping. Builtin
   dictionary/template identities are pinned; standalone dependencies follow their
   actual namespace/template rather than extension-name conventions.
+  `pg_ts_config` projects real configuration owner/parser/namespace identities;
+  `pg_ts_config_map` derives ordered one-based dictionary rows from those same
+  immutable descriptors. It has no separately mutable map-row store. Both
+  catalog sources retain their real row types and read-only SQL admission.
+  Configuration dependencies follow current mappings even for a seeded
+  configuration; only genuinely pinned referenced identities are omitted.
 - A producer returns rows and nothing else. It never builds a query source,
   keeps a statement scope or takes a lock; the engine wraps the rows.
 - A successful capture with no rows returns a non-nil empty slice (an actual

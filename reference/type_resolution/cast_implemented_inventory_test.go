@@ -131,6 +131,7 @@ var castImplementedTypes = func() []castImplementedType {
 	}{
 		{`"char"`, 1002},
 		{"bool", 1000}, {"bytea", 1001}, {"name", 1003}, {"int2", 1005}, {"int4", 1007}, {"int8", 1016}, {"text", 1009}, {"oid", 1028}, {"json", 199}, {"jsonb", 3807}, {"jsonpath", 4073}, {"bpchar", 1014}, {"varchar", 1015}, {"float4", 1021}, {"float8", 1022}, {"date", 1182}, {"time", 1183}, {"timetz", 1270}, {"timestamp", 1115}, {"timestamptz", 1185}, {"interval", 1187}, {"numeric", 1231}, {"uuid", 2951}, {"regclass", 2210}, {"regtype", 2211}, {"regproc", 1008}, {"regprocedure", 2207}, {"regrole", 4097}, {"regcollation", 4192}, {"regnamespace", 4090}, {"aclitem", 1034}, {"xid", 1011},
+		{"regconfig", 3735}, {"regdictionary", 3770},
 	} {
 		var e castImplementedType
 		for _, v := range types {

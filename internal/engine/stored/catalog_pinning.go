@@ -12,6 +12,10 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 	if address.ClassID == ids.NamespaceClassID {
 		return address.ObjectID == ids.PGCatalogNamespaceOID || address.ObjectID == ids.PGToastNamespaceOID
 	}
+	if address.ClassID == 3601 {
+		_, builtin := catalog.BuiltinTextParser(uint32(address.ObjectID))
+		return builtin && address.SubID == 0
+	}
 	whole := address
 	whole.SubID = 0
 	d, ok := catalog.DescriptorAt(view, reader, whole)
@@ -26,6 +30,8 @@ func DependPinned(view catalog.Read, reader catalog.DefinitionReader, address id
 	case *catalog.Collation:
 		return d.Seeded()
 	case *catalog.Conversion:
+		return d.Seeded()
+	case *catalog.TSConfiguration:
 		return d.Seeded()
 	case *catalog.TSDictionary:
 		return d.Seeded()

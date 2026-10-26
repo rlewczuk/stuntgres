@@ -185,15 +185,23 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.Mu.Unlock()
 			return Result{}, er
 		}
-		if !regtypeValid {
-			// Invalidation survives failed analysis. Restoring the old path
-			// must not make its retired literal captures reusable again.
-			expected.Regtypes.Invalidate()
-			candidate.Regtypes = nil
+		if !regtypeValid || replan {
+			projection, er := e.regtypeReanalysisLocked(auth, expected)
+			if er != nil {
+				e.Mu.Unlock()
+				return Result{}, er
+			}
+			// Genuine alias invalidation remains sticky, but an unrelated
+			// replan must not mutate a valid group's publication state.
+			if !regtypeValid && expected.Regtypes != nil {
+				expected.Regtypes.Invalidate()
+			}
+			candidate.Regtypes = projection
+			valid = false
 		}
 		if replan {
 			candidate.RefreshTemporals = true
-			candidate.Sequences, candidate.Regtypes = nil, nil
+			candidate.Sequences = nil
 			valid = false
 		}
 		expected = &candidate

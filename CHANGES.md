@@ -27,6 +27,19 @@ retains constraint identities, propagates inheritable CHECK/NOT NULL validity,
 and persists promoted state through native Dump/Restore.
 Foreign-key historical failures follow ADD-pass then explicit validation order.
 
+Prepared text-search configuration literals keep their original identity through
+configuration rename, schema move, mapping edits and same-spelling replacement.
+Runtime-text conversions still use current mappings; a dropped original reports
+its actual missing OID. Genuine namespace or resolution-environment changes
+reanalyze the source normally, preserving current schema and routine authority.
+Configuration DDL source lookups report current-caller schema access denials
+without expression positions, consistently for direct/prepared calls and native
+Restore replay. Modified stock configurations expose their actual custom
+dictionary dependencies and retain pinned-object drop protection. Text-search
+alias arrays and their domain/composite/range values preserve actual configuration
+references across native replacement and retained temporary identity collisions.
+Failed Restore still leaves the destination unchanged.
+
 Polymorphic SQL and PL procedure calls retain concrete invocation output types
 through result metadata, private PL formals and native replay. Procedure options
 are parsed as complete clauses: malformed suffixes fail during parsing, while
@@ -95,6 +108,11 @@ preserves procedure declarations, output types and data.
 implicit output aliases inside SQL-standard routine bodies.
 `pg_proc.pronargdefaults` exposes canonical declaration default counts, including
 restored SQL/PL routines and captured builtin/installed declarations.
+
+Text-search configurations support COPY/PARSER creation, ordered mapping changes,
+ownership, dependency-aware removal and native logical round trips. Explicit
+`to_tsvector(regconfig,text)` consumes the actual parser and dictionary mappings;
+prepared constants retain immutable vectors while parameter calls see current maps.
 
 `information_schema.user_defined_types` exposes standalone composite identities
 through 29 nullable domain-typed columns, with effective type-USAGE and inherited

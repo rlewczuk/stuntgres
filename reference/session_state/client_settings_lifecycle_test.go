@@ -18,6 +18,7 @@ func TestReferenceClientSettingsLifecycle(t *testing.T) {
 		}
 		t.Run(tc.name, func(t *testing.T) {
 			physicalCases(t, nil, func(s *physicalCase) {
+				s.clientConfiguration(tc)
 				t := s.t
 				pool := s.p.Memory
 				if s.pg {

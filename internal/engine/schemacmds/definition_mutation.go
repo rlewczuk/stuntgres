@@ -35,11 +35,11 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	}
 	alter := false
 	switch stmt.(type) {
-	case *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterEventTrigger:
+	case *parser.AlterCollation, *parser.AlterConversion, *parser.AlterDictionary, *parser.AlterConfiguration, *parser.AlterEventTrigger:
 		alter = true
 	}
 	switch stmt.(type) {
-	case *parser.AlterDictionary, *parser.DropDictionary, *parser.AlterCollation, *parser.DropCollation,
+	case *parser.AlterConfiguration, *parser.DropConfiguration, *parser.AlterDictionary, *parser.DropDictionary, *parser.AlterCollation, *parser.DropCollation,
 		*parser.AlterConversion, *parser.DropConversion, *parser.DropCast, *parser.DropRoutine,
 		*parser.CreateFunction, *parser.AlterEventTrigger, *parser.DropEventTrigger:
 	default:
@@ -76,7 +76,11 @@ func admitDefinitionMutation(s *core.StatementScope, stage *core.CatalogStage, s
 	addresses = slices.Compact(addresses)
 	for _, address := range addresses {
 		ref := s.Engine().Catalog.Domain.Ref(stage.Base.Epoch(), address)
-		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+		mode := lock.AccessExclusive
+		if _, configuration := stmt.(*parser.AlterConfiguration); configuration && address.ClassID == ids.TSDictionaryClassID {
+			mode = lock.AccessShare
+		}
+		if err := s.AcquireCatalogResource(lock.Resource{ObjectRef: ref}, mode); err != nil {
 			return stage, err
 		}
 	}

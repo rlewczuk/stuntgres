@@ -121,6 +121,12 @@ func predecessor(view catalog.Read, address, consumer ids.ObjectAddress) (ids.OI
 		}
 		return ext.Address().ObjectID, nil
 	}
+	if config, ok := object.(*catalog.TSConfiguration); ok {
+		if config.Seeded() && config.Revision() == 1 {
+			return 0, nil
+		}
+		return config.Address().ObjectID, nil
+	}
 	if dictionary, ok := object.(*catalog.TSDictionary); ok {
 		if dictionary.Seeded() {
 			return 0, nil

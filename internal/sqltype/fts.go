@@ -8,6 +8,14 @@ import (
 
 func IsFTS(id ID) bool { return id == TSVector || id == TSQuery }
 
+// TSVectorValue wraps an immutable decoded vector with the result's SQL type.
+func TSVectorValue(d *Descriptor, vector *fts.Vector) (Value, error) {
+	if d == nil || d.ID() != TSVector || !vector.Valid() {
+		return Value{}, fmt.Errorf("invalid tsvector result authority")
+	}
+	return Value{typ: d, ftsVector: vector}, nil
+}
+
 // FTSInputNotices belongs to an operation, never to a stored datum or codec.
 type FTSInputNotices interface {
 	EmptyQuery(context.Context, string)

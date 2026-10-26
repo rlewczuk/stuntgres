@@ -78,7 +78,7 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		text.WriteByte(')')
 		return text.String()
 	}
-	if d, ok := read.Find(base); ok && (base.ClassID == ids.TSDictionaryClassID || base.ClassID == ids.TSTemplateClassID) {
+	if d, ok := read.Find(base); ok && (base.ClassID == ids.TSDictionaryClassID || base.ClassID == ids.TSTemplateClassID || base.ClassID == ids.TSConfigurationClassID) {
 		name := catalog.DependencyIdentifier(d.Name())
 		visible := path == nil
 		for _, ns := range path {
@@ -96,6 +96,9 @@ func DependencyObject(read catalog.Read, target ids.ObjectAddress, path []ids.Ob
 		kind := "text search dictionary "
 		if base.ClassID == ids.TSTemplateClassID {
 			kind = "text search template "
+		}
+		if base.ClassID == ids.TSConfigurationClassID {
+			kind = "text search configuration "
 		}
 		return kind + name
 	}

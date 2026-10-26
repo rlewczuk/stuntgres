@@ -206,6 +206,7 @@ var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDe
 	{catalog.RoutineIdentity{3715, ids.PGCatalogNamespaceOID, "ts_parse", "26,25"}, catalog.FunctionRoutine, 2249, true, expr.Immutable, 's', true, 0, 0, functions.FTSParserRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{23, 25}, "parser_oid", "txt", "tokid", "token")},
 	{catalog.RoutineIdentity{3716, ids.PGCatalogNamespaceOID, "ts_parse", "25,25"}, catalog.FunctionRoutine, 2249, true, expr.Stable, 's', true, 0, 0, functions.FTSParserRoutineProvider, catalog.NewRoutineOutputs([]ids.OID{23, 25}, "parser_name", "txt", "tokid", "token")},
 	{catalog.RoutineIdentity{3723, ids.PGCatalogNamespaceOID, "ts_lexize", "3769,25"}, catalog.FunctionRoutine, 1009, true, expr.Immutable, 's', false, 0, 0, functions.FTSQueryRoutineProvider, nil},
+	{catalog.RoutineIdentity{3745, ids.PGCatalogNamespaceOID, "to_tsvector", "3734,25"}, catalog.FunctionRoutine, 3614, true, expr.Immutable, 's', false, 0, 0, functions.FTSQueryRoutineProvider, nil},
 	{catalog.RoutineIdentity{3725, ids.PGCatalogNamespaceOID, "dsimple_init", "2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
 	{catalog.RoutineIdentity{3726, ids.PGCatalogNamespaceOID, "dsimple_lexize", "2281,2281,2281,2281"}, catalog.FunctionRoutine, 2281, true, expr.Immutable, 's', false, 0, 0, 0, nil},
 	// REL_18_6 POINT predicates; no default equality or ordering authority.

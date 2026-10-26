@@ -44,6 +44,7 @@ const (
 	ExtensionClassID             OID = 3079
 	TSTemplateClassID            OID = 3764
 	TSDictionaryClassID          OID = 3600
+	TSConfigurationClassID       OID = 3602
 	DatabaseClassID              OID = 1262
 	ForeignWrapperClassID        OID = 2328
 	ForeignServerClassID         OID = 1417
@@ -95,4 +96,5 @@ const (
 	EventTriggerObject
 	CastObject
 	LanguageObject
+	TSConfigurationObject
 )

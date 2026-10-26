@@ -48,10 +48,32 @@ func (r TextSearchInput) name(ctx context.Context, text string) ([]parser.Identi
 	return parts, spelling, nil
 }
 func (r TextSearchInput) ResolveRegconfig(ctx context.Context, text string) (uint32, error) {
-	if _, _, err := r.name(ctx, text); err != nil {
+	parts, spelling, err := r.name(ctx, text)
+	if err != nil {
 		return 0, err
 	}
-	return 0, sqlError("0A000", "text search configuration name lookup is not supported")
+	selection, err := r.namespaces(parts, false)
+	if err != nil {
+		return 0, err
+	}
+	a := r.capture.Authority
+	for i := range selection.Count() {
+		address := a.View.Catalog.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: selection.At(i), Name: parts[len(parts)-1].Text})
+		if d, ok := a.View.Catalog.TSConfiguration(address); ok {
+			if r.resolved != nil {
+				*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: a.View.Ref(d.Address()), Revision: d.Revision()})
+				for _, dependency := range d.Dependencies() {
+					if dependency.ClassID == ids.TSDictionaryClassID {
+						if dictionary, ok := a.View.Catalog.TSDictionary(dependency); ok {
+							*r.resolved = append(*r.resolved, catalog.ExpressionDependency{Ref: a.View.Ref(dependency), Revision: dictionary.Revision()})
+						}
+					}
+				}
+			}
+			return uint32(d.Address().ObjectID), nil
+		}
+	}
+	return 0, sqlstate.SoftInputError(sqlError("42704", "text search configuration \""+spelling+"\" does not exist"))
 }
 func (r TextSearchInput) ResolveRegdictionary(ctx context.Context, text string) (uint32, error) {
 	parts, spelling, err := r.name(ctx, text)

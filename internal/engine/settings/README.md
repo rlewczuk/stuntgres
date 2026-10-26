@@ -292,10 +292,15 @@ The following are **setting-only simulations**, not operational switches:
 `restrict_nonsystem_relation_kind`, `session_preload_libraries`,
 `session_replication_role`, `temp_tablespaces`, `xmlbinary` and `xmloption`.
 Table AM/tablespace names use actual catalog identities and temporary
-tablespaces check CREATE privileges. Text-search configuration names use a
-finite released builtin-name resolver without creating pg_ts_config rows.
+tablespaces check CREATE privileges. Text-search configuration names resolve
+actual configuration descriptors under current namespace authority; no language
+names succeed without their genuine providers. The setting does not select the
+configuration of the explicit two-argument conversion.
+Missing configurations, including names qualified by a nonexistent schema, use
+the setting's invalid-value diagnostic (22023); namespace permission failures
+retain their authority diagnostic instead of being hidden as invalid values.
 No compressors, GIN truncation/pending lists, physical placement, automatic
-role membership, relation restrictions, FTS/XML execution or event-trigger
+role membership, relation restrictions, XML execution or event-trigger
 mechanisms are implied. In particular, native FK checks still run with
 replication role replica, and invalid routines cannot publish with
 check_function_bodies off. `SET XML OPTION DOCUMENT/CONTENT` (including

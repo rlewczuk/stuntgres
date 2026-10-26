@@ -59,8 +59,16 @@ func TestReferencePGTSConfigLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		check()
+		if !old.Next() {
+			t.Fatal("retained configuration cursor lost seed row", old.Err())
+		}
+		var oid, namespace, owner, parser int64
+		var name string
+		if err := old.Scan(&oid, &name, &namespace, &owner, &parser); err != nil || oid != 3748 || name != "simple" || namespace != 11 || owner != 10 || parser != 3722 {
+			t.Fatal("retained configuration seed row", oid, name, namespace, owner, parser, err)
+		}
 		if old.Next() || old.Err() != nil {
-			t.Fatal("retained empty configuration cursor", old.Err())
+			t.Fatal("retained configuration cursor trailing rows", old.Err())
 		}
 		if err := old.Close(); err != nil {
 			t.Fatal(err)

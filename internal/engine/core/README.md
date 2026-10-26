@@ -67,6 +67,28 @@ completion count is zero regardless of body effects. Quoted SQL-body CALL with
 outputs fails before producers; no-output calls use the ordinary command runner.
 Unquoted SQL bodies reject CALL during definition validation.
 
+Text-search conversion captures a real configuration and its distinct immutable
+dictionary runtimes from one private catalog generation under `Engine.Mu`, then
+releases it before tokenization/lexization. Mapping changes publish through
+ordinary schema stages and definition locks. Generic folds retain immutable
+constant vectors; runtime arguments consume current mappings without local caches.
+The prepared identifier owner keeps original REGCONFIG occurrence provenance
+separate from current operand observations. Operand-only reanalysis carries an
+attempt-private eligible input projection through the existing binder transport;
+current dependencies are collected by original OID, never by its old spelling.
+Namespace generation or resolution-environment changes instead request ordinary
+source input. Session, private-journal and DISCARD fences retire projections.
+Signature, native replacement, authority and context fences precede
+complete analysis publication. This identifier lifetime does not retain runtime
+conversion results or weaken independent fold ownership.
+`DDLHost.SearchConfigurationNamespaces` resolves every existing configuration
+DDL source (targets, COPY, PARSER, mapping lists and both replacement operands)
+with current caller authority, including during trusted Restore destination
+construction. It delegates to shared namespace resolution with a by-value
+authority and a private qualifier copy without expression location; caller
+authority and source AST remain unchanged. Generic dictionary, parser and
+operator lookup retain their expression positions and trusted definition policy.
+
 Code shared by families with no arrow between them sits here: relation
 ownership (`ExecuteRelationOwnership`, `OwnershipStage`, `PublishOwnership`)
 and operation role installation (`InstallOperationRolesLocked`). Family code

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
@@ -217,6 +218,10 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					}
 				case *catalog.Conversion:
 					if candidate.Get(target) == nil && (owner.Handler == target || owner.Namespace() == target) {
+						return catalog.Conflict{}
+					}
+				case *catalog.TSConfiguration:
+					if candidate.Get(target) == nil && slices.Contains(owner.Dependencies(), target) {
 						return catalog.Conflict{}
 					}
 				case *catalog.TSDictionary:

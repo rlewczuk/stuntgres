@@ -79,6 +79,8 @@ func DependencyDescription(v access.View, path []ids.ObjectAddress, dep access.R
 		kind = "extension "
 	case *catalog.Procedure:
 		kind = "function "
+	case *catalog.TSConfiguration:
+		kind = "text search configuration "
 	case *catalog.TSDictionary:
 		kind = "text search dictionary "
 	}
@@ -90,7 +92,7 @@ func DependencyDescription(v access.View, path []ids.ObjectAddress, dep access.R
 			name = catalog.DependencyIdentifier(mapped.Name) + " on server " + catalog.DependencyIdentifier(read.Get(foreign.Server).Name())
 		}
 	}
-	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject {
+	if d.Kind() == ids.ProcedureObject || d.Kind() == ids.TSDictionaryObject || d.Kind() == ids.TSConfigurationObject {
 		name = strings.TrimPrefix(stored.DependencyObject(read, d.Address(), path), kind)
 	}
 	if relation, ok := d.(*catalog.Relation); ok {

@@ -84,6 +84,10 @@ call live here.
   and admitted typed-table ownership; it never discovers a second closure.
   `CheckRemovalLocked` admits whole-object removal under `Engine.Mu`;
   `ClosureTargetClass` and `RetiredProviderClass` classify retirement providers.
+  Text-search configurations are whole-object retirement providers, including
+  dictionary-dependent CASCADE and DROP OWNED; their genuine seeded simple
+  configuration remains system-required. Captured REGCONFIG default operands
+  are admitted as real configuration providers, not relation providers.
   `CascadeColumnDrops` consumes already captured columns, domain CHECKs and
   providers without re-entering a dependency controller. Each surviving relation
   cooks all selected stable attributes before remapping surviving CHECK/generation

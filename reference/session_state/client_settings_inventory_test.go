@@ -26,7 +26,7 @@ var clientSettings = []clientSetting{
 	{"DateStyle", "string", "ISO, MDY", "ISO, MDY", "SQL, DMY", "SQL, DMY", "Sets the display format for date and time values."},
 	{"default_table_access_method", "string", "heap", "heap", "heap", "heap", "Sets the default table access method for new tables."},
 	{"default_tablespace", "string", "", "", "pg_default", "pg_default", "Sets the default tablespace to create tables and indexes in."},
-	{"default_text_search_config", "string", "pg_catalog.simple", "pg_catalog.simple", "english", "pg_catalog.english", "Sets default text search configuration."},
+	{"default_text_search_config", "string", "pg_catalog.simple", "pg_catalog.simple", "public.client_setting_config", "public.client_setting_config", "Sets default text search configuration."},
 	{"default_toast_compression", "enum", "pglz", "pglz", "lz4", "lz4", "Sets the default compression method for compressible values."},
 	{"default_transaction_deferrable", "bool", "off", "off", "on", "on", "Sets the default deferrable status of new transactions."},
 	{"default_transaction_isolation", "enum", "read committed", "read committed", "repeatable read", "repeatable read", "Sets the transaction isolation level of each new transaction."},
@@ -113,10 +113,17 @@ func (s *physicalCase) clientReads(tc clientSetting, value string, prepared bool
 	}
 }
 
+func (s *physicalCase) clientConfiguration(tc clientSetting) {
+	if tc.name == "default_text_search_config" {
+		s.run(fixture.Exec("CREATE TEXT SEARCH CONFIGURATION public.client_setting_config (COPY=pg_catalog.simple)", 0))
+	}
+}
+
 func TestReferenceClientSettingsInventory(t *testing.T) {
 	for _, tc := range clientSettings {
 		t.Run(tc.name, func(t *testing.T) {
 			physicalCases(t, nil, func(s *physicalCase) {
+				s.clientConfiguration(tc)
 				initial := clientInitial(tc, s.pg)
 				for _, prepared := range []bool{false, true} {
 					s.clientReads(tc, initial, prepared)

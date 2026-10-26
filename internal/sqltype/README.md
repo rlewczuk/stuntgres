@@ -51,6 +51,10 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
 - Domains delegate physical codecs to their base, keep their logical identity
   and check fresh input; `Descriptor.RebindDomain` rebuilds a same-ID
   generation with current naming and base authority.
+- REGCONFIG and REGDICTIONARY arrays use the ordinary checked array codecs and
+  retain the scalar generation, including through domain elements and composite
+  members. Catalog identity import is recursive and class-qualified; admitting
+  these containers does not relax composite generation coherence.
 - `Value.Retag` remints descriptor ownership without changing the datum. It
   requires the same type ID, domain/base identity and constraints, and rejects
   foreign hstore/lquery/ltree/ltxtquery/citext/ISN generations and enum members even for equal OIDs; only

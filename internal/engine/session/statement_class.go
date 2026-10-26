@@ -132,6 +132,12 @@ func ModifyingTag(stmt parser.Statement) string {
 		return "DROP DOMAIN"
 	case *parser.AlterDomain:
 		return "ALTER DOMAIN"
+	case *parser.CreateConfiguration:
+		return "CREATE TEXT SEARCH CONFIGURATION"
+	case *parser.AlterConfiguration:
+		return "ALTER TEXT SEARCH CONFIGURATION"
+	case *parser.DropConfiguration:
+		return "DROP TEXT SEARCH CONFIGURATION"
 	case *parser.CreateDictionary:
 		return "CREATE TEXT SEARCH DICTIONARY"
 	case *parser.AlterDictionary:
@@ -255,7 +261,7 @@ func ExplicitUtility(stmt parser.Statement) bool {
 		return true
 	case *parser.CreateIndex, *parser.DropIndex, *parser.AlterIndex, *parser.Reindex, *parser.CreateView, *parser.AlterView, *parser.DropView:
 		return true
-	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary:
+	case *parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary, *parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration:
 		return true
 	case *parser.CreateComposite, *parser.AlterComposite, *parser.AlterType, *parser.DropType, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.CreateDomain, *parser.DropDomain, *parser.AlterDomain, *parser.CreateQueryTable, *parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		return true
@@ -305,6 +311,7 @@ func TransactionalSchemaUtility(stmt parser.Statement) bool {
 		*parser.AlterType, *parser.DropDomain, *parser.DropType,
 		*parser.CreateCollation, *parser.AlterCollation, *parser.DropCollation,
 		*parser.CreateDictionary, *parser.AlterDictionary, *parser.DropDictionary,
+		*parser.CreateConfiguration, *parser.AlterConfiguration, *parser.DropConfiguration,
 		*parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion,
 		*parser.CreateCast, *parser.DropCast:
 		return true

@@ -42,16 +42,20 @@ func WalkTextSearchReferencesAt(view catalog.Read, reader catalog.DefinitionRead
 		}
 		return nil
 	}
-	if value.Type().BaseType().ID() != sqltype.Regdictionary {
+	if value.Type().BaseType().ID() != sqltype.Regdictionary && value.Type().BaseType().ID() != sqltype.Regconfig {
 		return nil
 	}
 	id, err := value.RegTSOID()
 	if err != nil {
 		return err
 	}
-	address := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}
+	class := ids.TSDictionaryClassID
+	if value.Type().BaseType().ID() == sqltype.Regconfig {
+		class = ids.TSConfigurationClassID
+	}
+	address := ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}
 	descriptor, _ := catalog.DescriptorAt(view, reader, address)
-	if _, ok := descriptor.(*catalog.TSDictionary); ok {
+	if descriptor != nil && descriptor.Address().ClassID == class {
 		return record(address)
 	}
 	return nil
@@ -75,7 +79,7 @@ func RemapTextSearchDatum(value sqltype.Value, destination func(ids.ObjectAddres
 			return RemapTextSearchDatum(member, destination)
 		})
 	}
-	if value.Type().BaseType().ID() != sqltype.Regdictionary {
+	if value.Type().BaseType().ID() != sqltype.Regdictionary && value.Type().BaseType().ID() != sqltype.Regconfig {
 		return value, nil
 	}
 	id, err := value.RegTSOID()
@@ -85,7 +89,11 @@ func RemapTextSearchDatum(value sqltype.Value, destination func(ids.ObjectAddres
 	if id == 0 {
 		return value, nil
 	}
-	address := ids.ObjectAddress{ClassID: ids.TSDictionaryClassID, ObjectID: ids.OID(id)}
+	class := ids.TSDictionaryClassID
+	if value.Type().BaseType().ID() == sqltype.Regconfig {
+		class = ids.TSConfigurationClassID
+	}
+	address := ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}
 	target := destination(address)
 	if target == address {
 		return value, nil

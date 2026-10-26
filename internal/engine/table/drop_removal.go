@@ -62,8 +62,11 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 		if err := base.Owner().Provider(ref.Address.ClassID).Validate(base, d); err != nil {
 			return err
 		}
-	case *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary:
+	case *catalog.EventTrigger, *catalog.Cast, *catalog.Extension, *catalog.Procedure, *catalog.TSTemplate, *catalog.TSDictionary, *catalog.TSConfiguration:
 		if procedure, ok := d.(*catalog.Procedure); ok && procedure.Seeded() {
+			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
+		}
+		if configuration, ok := d.(*catalog.TSConfiguration); ok && configuration.Seeded() {
 			return sqlError("2BP01", "cannot drop "+stored.DependencyObject(base, d.Address(), path)+" because it is required by the database system")
 		}
 		if dictionary, ok := d.(*catalog.TSDictionary); ok && dictionary.Seeded() {
@@ -95,7 +98,7 @@ func CheckRemovalLocked(base catalog.Read, path []ids.ObjectAddress, ref ids.Obj
 // closure reaches becomes a drop target itself.
 func ClosureTargetClass(class ids.OID) bool {
 	switch class {
-	case ids.EventTriggerClassID, ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID:
+	case ids.EventTriggerClassID, ids.AccessMethodClassID, ids.CastClassID, ids.OperatorClassCatalogID, ids.OperatorClassID, ids.OperatorFamilyClassID, ids.AccessMethodOperatorClassID, ids.AccessMethodProcedureClassID, ids.TypeClassID, ids.ExtensionClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID, ids.TSConfigurationClassID:
 		return true
 	}
 	return ids.IsForeignCatalogClass(class)

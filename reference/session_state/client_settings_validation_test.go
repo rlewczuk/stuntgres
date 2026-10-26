@@ -42,6 +42,7 @@ func TestReferenceClientSettingsValidation(t *testing.T) {
 	for _, tc := range clientSettings {
 		t.Run(tc.name, func(t *testing.T) {
 			physicalCases(t, nil, func(s *physicalCase) {
+				s.clientConfiguration(tc)
 				if clientContext(tc.name) == "postmaster" {
 					s.run(physicalError("SET "+tc.name+"='broken'", physicalRestart(tc.name), false, false))
 					return
@@ -141,6 +142,10 @@ func TestReferenceClientSettingsValidation(t *testing.T) {
 	t.Run("released-fts-inventory", func(t *testing.T) {
 		physicalCases(t, nil, func(s *physicalCase) {
 			for _, name := range []string{"simple", "arabic", "armenian", "basque", "catalan", "danish", "dutch", "english", "estonian", "finnish", "french", "german", "greek", "hindi", "hungarian", "indonesian", "irish", "italian", "lithuanian", "nepali", "norwegian", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "tamil", "turkish", "yiddish"} {
+				if !s.pg && name != "simple" {
+					s.run(physicalError("SET default_text_search_config="+physicalLiteral(name), clientInvalid("default_text_search_config", name, "", ""), false, false))
+					continue
+				}
 				for _, input := range []string{strings.ToUpper(name), `pg_catalog."` + name + `"`} {
 					s.run(clientText("SELECT set_config('default_text_search_config',"+physicalLiteral(input)+",false)", "set_config", "pg_catalog."+name))
 				}

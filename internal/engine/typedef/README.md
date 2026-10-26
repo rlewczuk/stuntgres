@@ -84,6 +84,8 @@ contract), `dump`, `expr`, `ids`, `pgcatalog` (collation versions), `session`
 - **Domains** (`domain_*.go`): builtin `information_schema` seeds, ALTER DOMAIN
   discovery, own NOT NULL records, generation reownership, captured input
   providers and default snapshot records (qualified usage, never source OIDs).
+  Concrete text-search alias domains receive executable associated arrays over
+  the same domain generation, using the ordinary array admission checks.
   The Dump/Restore replay codec pairs each record with its INSERT;
   `RestoreDomainReplayNode` walks the replayed `SELECT` shapes over a
   `DomainReplayEnv` whose `Scalar` callback binds and evaluates the leaf, and

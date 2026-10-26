@@ -7,8 +7,8 @@ copy-on-write overlay `Candidate`. "Catalog" here means the data, not DDL.
 ## Imports
 
 Layer L3 of [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `ids`, `expr`, `authorization`, `largeobject`, `proc`,
-`internal/util`, `sqltype`, `parser`, `sqlstate` and the standard library, never
+It imports only `ids`, `expr`, `authorization`, `largeobject`, `proc`, the
+stateless `fts` leaf, `internal/util`, `sqltype`, `parser`, `sqlstate` and the standard library, never
 the engine or its sibling `functions`. `proc` owns immutable SQL definitions and
 private frames, not catalog authority.
 
@@ -142,6 +142,7 @@ private frames, not catalog authority.
   `InstallBuiltinNamespaces`, `InstallBuiltinTypes`, `InstallBuiltinCollations`,
   `InstallBuiltinProcedures` (then the native access methods),
   `InstallBuiltinDictionaries` (simple dictionary/template and typed runtime),
+  `InstallBuiltinTSConfigurations` (simple's genuine nineteen token mappings),
   `Store.InstallBuiltinLanguagesLocked` (plpgsql and its handlers at allocated
   OIDs, with creation-owned C display sources and canonical strictness),
   `InstallBuiltinTablespaces`, `InstallBuiltinConversions`,
@@ -163,6 +164,13 @@ private frames, not catalog authority.
   Authorized installed-dictionary rename/schema changes preserve the original
   reciprocal extension member identity; mutable placement does not redefine the
   extension target namespace or the dictionary's template/provider authority.
+  `TSConfiguration` owns parser identity and token-ID-sorted immutable mapping
+  slices; each mapping owns its ordered dictionary identities, including repeats.
+  COPY clones both slice levels, retains no source edge and shares only genuine
+  dictionary identities. The configuration provider validates current namespace,
+  principal domain, parser and dictionary authority; dependencies derive from the
+  descriptor, so removing the final use releases a dictionary edge. Runtime
+  filtering classification belongs to the immutable dictionary runtime, not names.
 - **Candidate** (`candidate.go`). The pure copy-on-write overlay of a catalog
   change over an immutable base `Read`; `CatalogStage` embeds it. `Create` and
   `Replace` run name-conflict and sticky relation-history checks;

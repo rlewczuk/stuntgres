@@ -147,6 +147,11 @@ imports `view`.
   stage that the root's `DropProvider` implements. `DropClosure` is the
   dependency closure (edges are `table.DomainDependency`); `DependentViews`,
   `KeepRules`, `KeepPolicies` and the `Drop*Dependents` helpers find dependents.
+  Discovery admits each reached object's genuine bootstrap pin before ordinary
+  RESTRICT reporting or CASCADE effects, using the current staged definition
+  input and the shared pin authority. A pinned dependent cannot be retired even
+  when its current dependency points to an unpinned user provider; rejection
+  names the pinned object without ordinary dependency DETAIL or HINT.
   Ordinary routine edges come from the shared catalog definition visitor, not
   the complete runtime capture manifest. Exact positive relation-attribute roots,
   procedure-only roots and domains use descending discovery/reverse postorder:

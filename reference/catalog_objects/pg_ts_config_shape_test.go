@@ -22,10 +22,7 @@ func pgTSConfigScenario(t *testing.T, body func(*testing.T, *fixture.Pair, fixtu
 }
 
 func pgTSConfigSimple(b fixture.Backend) [][]any {
-	if b.PG {
-		return [][]any{{int64(3748), "simple", int64(11), int64(10), int64(3722)}}
-	}
-	return [][]any{}
+	return [][]any{{int64(3748), "simple", int64(11), int64(10), int64(3722)}}
 }
 
 func pgTSConfigSavedMetadata(t *testing.T, types []*sql.ColumnType, pg bool) {
@@ -85,10 +82,7 @@ func pgTSConfigBoth(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.
 func pgTSConfigInventory(t *testing.T, p *fixture.Pair, b fixture.Backend, e fixture.Executor) {
 	t.Helper()
 	for _, relation := range []string{"pg_catalog.pg_ts_config", "pg_ts_config"} {
-		q := "SELECT * FROM " + relation
-		if b.PG {
-			q += " WHERE cfgname='simple'"
-		}
+		q := "SELECT * FROM " + relation + " WHERE cfgname='simple'"
 		s := pgTSConfigStep(b, q, pgTSConfigSimple(b))
 		s.Bag = true
 		pgTSConfigBoth(t, p, b, e, s)
@@ -181,8 +175,6 @@ func TestReferencePGTSConfigCatalogLinks(t *testing.T) {
 		})
 		links.Bag = true
 		both(links)
-		if b.PG {
-			both(fixture.Select("SELECT c.oid,n.nspname,r.oid AS owner,p.oid AS parser,p.prsname FROM pg_ts_config c JOIN pg_namespace n ON n.oid=c.cfgnamespace JOIN pg_roles r ON r.oid=c.cfgowner JOIN pg_ts_parser p ON p.oid=c.cfgparser WHERE c.cfgname='simple'", []string{"oid", "nspname", "owner", "parser", "prsname"}, []string{"OID", "NAME", "OID", "OID", "NAME"}, [][]any{{int64(3748), "pg_catalog", int64(10), int64(3722), "default"}}))
-		}
+		both(fixture.Select("SELECT c.oid,n.nspname,r.oid AS owner,p.oid AS parser,p.prsname FROM pg_ts_config c JOIN pg_namespace n ON n.oid=c.cfgnamespace JOIN pg_roles r ON r.oid=c.cfgowner JOIN pg_ts_parser p ON p.oid=c.cfgparser WHERE c.cfgname='simple'", []string{"oid", "nspname", "owner", "parser", "prsname"}, []string{"OID", "NAME", "OID", "OID", "NAME"}, [][]any{{int64(3748), "pg_catalog", int64(10), int64(3722), "default"}}))
 	})
 }

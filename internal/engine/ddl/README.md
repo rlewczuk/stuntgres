@@ -62,6 +62,20 @@ It imports only `access`, `authorization`, `catalog`, `ids`, `parser`,
   its domain/epoch. `StageDropSchema` consumes that manifest under one coherent
   current-authority/catalog lock window, validating all bindings before notices
   or removals; it never re-resolves a replacement from the original names.
+- **Text-search configurations** (`ts_configuration.go`): ordinary private stages
+  resolve namespace CREATE and owner authority, COPY/PARSER, every ordered mapping
+  action, rename/schema/owner transfers and DROP targets. Token aliases resolve
+  against the actual default parser inventory. Mapping candidates own both slice
+  levels; all operands validate before one replacement, without resource I/O.
+  `ConfigurationHost.SearchConfigurationNamespaces` resolves every existing source
+  operand: ALTER/DROP targets, COPY/PARSER, mapping dictionary lists and old/new
+  replacement dictionaries. Current caller namespace USAGE precedes ownership
+  and source lookup, including staged native replay; trusted destination
+  construction grants no source authority. Utility diagnostics have no expression
+  position, without mutating caller authority or AST positions or changing generic
+  dictionary/parser/operator lookup. Destination creation keeps its own policy.
+  Schema dependency classification includes configuration descriptors, so
+  RESTRICT reports their actual dependency and CASCADE retires their closure.
 - **Tablespaces**: `CreateTablespace(ctx, view, s)` validates CREATE
   TABLESPACE over the `access.View` and, once valid, fails with 0A000
   (`TablespacePhysicalUnsupported`); it never stages. `TablespaceRef(view,

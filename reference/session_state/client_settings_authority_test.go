@@ -16,8 +16,12 @@ func TestReferenceClientSettingsAuthority(t *testing.T) {
 	for _, tc := range clientSettings {
 		t.Run(tc.name, func(t *testing.T) {
 			physicalCases(t, []string{"client_setting_login", "client_setting_grantee"}, func(s *physicalCase) {
+				s.clientConfiguration(tc)
 				s.run(fixture.Exec("CREATE ROLE client_setting_login LOGIN PASSWORD 'role-core-fixture'", 0))
 				s.run(fixture.Exec("CREATE ROLE client_setting_grantee", 0))
+				if tc.name == "default_text_search_config" {
+					s.run(fixture.Exec("GRANT USAGE ON SCHEMA public TO client_setting_login", 0))
+				}
 				ordinary := s.login("client_setting_login")
 				for _, prepared := range []bool{false, true} {
 					if clientRestricted(tc.name) {

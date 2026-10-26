@@ -27,6 +27,7 @@ func icProviderInventory(c *icCase) {
 		"pg_sequence": fixture.PGSequenceColumns, "pg_sequences": fixture.PGSequencesColumns,
 		"pg_shdescription": fixture.PGShDescriptionColumns, "pg_transform": fixture.PGTransformColumns,
 		"pg_ts_config": fixture.PGTSConfigColumns, "pg_user": fixture.PGUserColumns,
+		"pg_ts_config_map":                       strings.Fields("mapcfg maptokentype mapseqno mapdict"),
 		"pg_shadow":                              strings.Fields("usename usesysid usecreatedb usesuper userepl usebypassrls passwd valuntil useconfig"),
 		"pg_inherits":                            fixture.PGInheritsColumns,
 		"pg_event_trigger":                       strings.Fields("oid evtname evtevent evtowner evtfoid evtenabled evttags"),

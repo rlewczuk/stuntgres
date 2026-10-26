@@ -252,6 +252,7 @@ var irBuiltinFacts3 = []irBuiltinFact{
 	{3691, "tsq_mcontains", "tsq_mcontains", "INTERNAL", "INVOKER"},
 	{3692, "tsq_mcontained", "tsq_mcontained", "INTERNAL", "INVOKER"},
 	{3723, "ts_lexize", "ts_lexize", "INTERNAL", "INVOKER"},
+	{3745, "to_tsvector", "to_tsvector_byid", "INTERNAL", "INVOKER"},
 	{3725, "dsimple_init", "dsimple_init", "INTERNAL", "INVOKER"},
 	{3726, "dsimple_lexize", "dsimple_lexize", "INTERNAL", "INVOKER"},
 	{3696, "starts_with", "text_starts_with", "INTERNAL", "INVOKER"},

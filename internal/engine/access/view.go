@@ -107,6 +107,8 @@ func DescriptorACL(d catalog.Descriptor) (authorization.PrincipalRef, authorizat
 		return d.Owner, d.ACL, nil
 	case *catalog.LargeObject:
 		return d.Owner, d.ACL, nil
+	case *catalog.TSConfiguration:
+		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.TSDictionary:
 		return d.Owner, authorization.ACLValue{}, nil
 	case *catalog.Namespace:
@@ -158,7 +160,7 @@ func ClassPrivileges(d catalog.Descriptor) authorization.Privileges {
 	if d.Kind() == ids.CollationObject || d.Kind() == ids.ConversionObject {
 		return 0
 	}
-	if d.Kind() == ids.ExtensionObject || d.Kind() == ids.TSDictionaryObject || d.Kind() == ids.TSTemplateObject {
+	if d.Kind() == ids.ExtensionObject || d.Kind() == ids.TSDictionaryObject || d.Kind() == ids.TSTemplateObject || d.Kind() == ids.TSConfigurationObject {
 		return 0
 	}
 	if d.Kind() == ids.TypeObject {

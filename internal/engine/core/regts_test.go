@@ -121,8 +121,11 @@ func TestRegTSProviderResolution(t *testing.T) {
 		_, err := input.ResolveRegdictionary(context.Background(), tc.input)
 		extensionUnitError(t, err, tc.code)
 	}
-	_, err = input.ResolveRegconfig(context.Background(), "simple")
-	extensionUnitError(t, err, "0A000")
+	if id, err := input.ResolveRegconfig(context.Background(), "simple"); err != nil || id != 3748 {
+		t.Fatal("genuine builtin configuration", id, err)
+	}
+	_, err = input.ResolveRegconfig(context.Background(), "reg_ts_missing.simple")
+	extensionUnitError(t, err, "42704")
 	_, err = input.ResolveRegconfig(context.Background(), "a..b")
 	extensionUnitError(t, err, "42602")
 	rows := &exec.FinalRows{}

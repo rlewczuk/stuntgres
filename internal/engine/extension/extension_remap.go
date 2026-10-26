@@ -257,6 +257,18 @@ func RemapDescriptor(d catalog.Descriptor, mapping map[ids.ObjectAddress]ids.Obj
 		n.Init = address(n.Init)
 		n.Lexize = address(n.Lexize)
 		return &n
+	case *catalog.TSConfiguration:
+		n := *d
+		n.ObjectAddress = address(n.Address())
+		n.ObjectNamespace = address(n.Namespace())
+		n.Parser = address(n.Parser)
+		n.Mappings = catalog.CloneTSMappings(d.Mappings)
+		for i := range n.Mappings {
+			for j, a := range n.Mappings[i].Dictionaries {
+				n.Mappings[i].Dictionaries[j] = address(a)
+			}
+		}
+		return &n
 	case *catalog.TSDictionary:
 		n := *d
 		n.ObjectAddress = address(n.Address())

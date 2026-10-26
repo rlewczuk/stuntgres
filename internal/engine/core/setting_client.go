@@ -1,10 +1,12 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ddl"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -83,39 +85,32 @@ func checkClientSetting(op *session.Operation, d settings.Definition, v *setting
 			}
 			parts = parts[1:]
 		}
-		present := false
+		selection, err := LookupNamespacesSnapshot(auth, parser.ObjectName{Parts: parts}, analyze.FunctionLookup)
+		if err != nil {
+			var state *sqlstate.Error
+			if errors.As(err, &state) && state.Code == "3F000" {
+				return invalid("")
+			}
+			return err
+		}
+		var path []ids.ObjectAddress
 		if len(parts) == 2 {
-			if parts[0].Text == "pg_catalog" {
-				selection, err := LookupNamespacesSnapshot(auth, parser.ObjectName{Parts: parts}, analyze.FunctionLookup)
-				if err != nil {
-					return err
-				}
-				present = selection.Qualified.ObjectID == ids.PGCatalogNamespaceOID
-			}
+			path = []ids.ObjectAddress{selection.Qualified}
 		} else {
-			path, err := LookupPath(auth, analyze.FunctionLookup)
-			if err != nil {
-				return err
-			}
-			for _, ns := range path {
-				present = present || ns.ObjectID == ids.PGCatalogNamespaceOID
+			path = selection.Path
+		}
+		var address ids.ObjectAddress
+		for _, ns := range path {
+			address = auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.TSConfigurationClassID, Namespace: ns, Name: parts[len(parts)-1].Text})
+			if address != (ids.ObjectAddress{}) {
+				break
 			}
 		}
-		last := parts[len(parts)-1].Text
-		if !present || !simulatedTextSearchConfig(last) {
+		d, ok := auth.Catalog.TSConfiguration(address)
+		if !ok {
 			return invalid("")
 		}
-		v.Text = "pg_catalog." + last
+		v.Text = catalog.Identifier(auth.Catalog.MustNamespace(d.Namespace()).Name()) + "." + catalog.Identifier(d.Name())
 	}
 	return nil
-}
-
-// Released builtin names only: this finite setting-only resolver does not
-// publish pg_ts_config rows or promise a text-search execution engine.
-func simulatedTextSearchConfig(name string) bool {
-	switch name {
-	case "simple", "arabic", "armenian", "basque", "catalan", "danish", "dutch", "english", "estonian", "finnish", "french", "german", "greek", "hindi", "hungarian", "indonesian", "irish", "italian", "lithuanian", "nepali", "norwegian", "portuguese", "romanian", "russian", "serbian", "spanish", "swedish", "tamil", "turkish", "yiddish":
-		return true
-	}
-	return false
 }

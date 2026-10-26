@@ -112,6 +112,7 @@ var builtinRoutineDisplay = map[ids.OID]catalog.RoutineDisplay{
 	3010: {Language: catalog.InternalRoutineLanguage, Source: "has_server_privilege_name"},
 	3011: {Language: catalog.InternalRoutineLanguage, Source: "has_server_privilege_id"},
 	3723: {Language: catalog.InternalRoutineLanguage, Source: "ts_lexize"},
+	3745: {Language: catalog.InternalRoutineLanguage, Source: "to_tsvector_byid"},
 	3725: {Language: catalog.InternalRoutineLanguage, Source: "dsimple_init"},
 	3726: {Language: catalog.InternalRoutineLanguage, Source: "dsimple_lexize"},
 	768:  {Language: catalog.InternalRoutineLanguage, Source: "int4larger"},

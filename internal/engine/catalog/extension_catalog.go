@@ -127,6 +127,7 @@ type DictionaryOption struct {
 // DictionaryRuntime is immutable, catalog-independent execution authority.
 type DictionaryRuntime interface {
 	Lexize(context.Context, string, *sqltype.Descriptor) (sqltype.Value, error)
+	Filtering() bool
 }
 
 type TSDictionary struct {

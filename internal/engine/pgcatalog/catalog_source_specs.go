@@ -379,6 +379,12 @@ var Specs = [...]Spec{
 		{"cfgowner", sqltype.Oid, false, 0, 0, -1},
 		{"cfgparser", sqltype.Oid, false, 0, 0, -1},
 	}, false, CatalogHasIndexes(TSConfigOID), false, false, "stuntgres: missing catalog source type"},
+	{TSConfigMapOID, ids.PGCatalogNamespaceOID, "pg_ts_config_map", []ColumnSpec{
+		{"mapcfg", sqltype.Oid, false, 0, 0, -1},
+		{"maptokentype", sqltype.Int4, false, 0, 0, -1},
+		{"mapseqno", sqltype.Int4, false, 0, 0, -1},
+		{"mapdict", sqltype.Oid, false, 0, 0, -1},
+	}, false, CatalogHasIndexes(TSConfigMapOID), false, false, "stuntgres: missing catalog source type"},
 	{AggregateOID, ids.PGCatalogNamespaceOID, "pg_aggregate", []ColumnSpec{
 		{"aggfnoid", sqltype.Regproc, false, 0, 0, -1},
 		{"aggkind", sqltype.Char, false, 0, 0, -1},

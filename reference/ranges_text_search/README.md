@@ -130,5 +130,13 @@ COPY test in reference/dml.
 - Text search operators: `RUN='^TestReferenceFTSOps'`
 - Text search query utilities: `RUN='^TestReferenceFTSQueryFunctions'`
 - Text search document parser: `RUN='^TestReferenceFTSParser'`
+- Text search configurations: `RUN='^TestReferenceFTSConfiguration'`; configuration
+  helpers own pinned-session lifecycle, ordered mapping rows and typed conversion
+  assertions. Diagnostics keep complete records and literal, bound-input and
+  runtime-cast phases distinct; unique-key details use independently queried
+  catalog identities. Held conversion separates runtime mapping changes from
+  warmed immutable all-constant results. Native control phases exercise actual
+  emitted SQL, same/fresh Driver replacement, retained readers, current owner/
+  dictionary edges, seed reset/replay and exact retained temporary-class collisions.
 - UUID (excluding `uuid-ossp`): `RUN='^TestReferenceUUID([A-NP-Z]|Or)'`
 - <a id="uuid-extraction-selected-proof"></a>UUID extraction: `RUN='^TestReferenceUUIDExtract'`

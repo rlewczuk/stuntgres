@@ -154,6 +154,9 @@ func lexemeArray(ctx context.Context, result *sqltype.Descriptor, token string, 
 	return sqltype.OwnedArrayValue(result, []sqltype.ArrayDimension{{Lower: 1, Length: 1}}, []sqltype.Value{sqltype.String(result.Element(), token)})
 }
 
+func (*SimpleDictionary) Filtering() bool { return false }
+func (*UnaccentMatcher) Filtering() bool  { return true }
+
 func (d *SimpleDictionary) Lexize(ctx context.Context, input string, result *sqltype.Descriptor) (sqltype.Value, error) {
 	token, err := unicode16.ConvertCase(ctx, input, unicode16.Lower, unicode16.ASCII)
 	if err != nil {

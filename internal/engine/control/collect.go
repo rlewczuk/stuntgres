@@ -107,6 +107,7 @@ var dumpCollectors = [...]dumpCollector{
 	{"operator", isDumpOperator, collectOperatorDump},
 	{"cast", isDumpCast, collectCastDump},
 	{"procedure", isDumpProcedure, collectProcedureDump},
+	{"configuration", func(d catalog.Descriptor) bool { _, ok := d.(*catalog.TSConfiguration); return ok }, collectConfigurationDump},
 	{"text search", isDumpTextSearch, collectTextSearchDump},
 	{"extension", isDumpExtension, collectExtensionDump},
 	{"type", isDumpType, collectTypeDump},

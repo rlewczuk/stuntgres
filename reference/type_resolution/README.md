@@ -80,6 +80,10 @@ parameter and text input/output routes participate in `Inventory` and
 `MatrixIdentifiers`; `FunctionsIdentifiers` retains only actual released
 callable signatures. Vector companions `_int2vector` (1006) and `_oidvector`
 (1013) remain metadata-only; their presence does not grant companion codecs.
+REGCONFIG[] (3735) and REGDICTIONARY[] (3770) are executable companion roles
+in the array cast inventory, including typed storage, parameters and recursive
+element coercions. Their expected element spellings distinguish zero OID `-`
+from SQL NULL.
 The `MatrixIdentifiers/oidvector_codec` public control also checks literal
 nonempty/empty/SQL-NULL casts before Normalize: native strings, pinned lib/pq
 bytes, and actual OIDVECTOR result metadata on direct and fresh routes.

@@ -112,6 +112,12 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		// Pin admission belongs to discovery, before either RESTRICT reporting
+		// or CASCADE effects. Use the current definition input: a bootstrap
+		// object can acquire a genuine dependency on a user provider.
+		if stored.DependPinned(base, r.DefinitionInput(), target) {
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "2BP01", Message: "cannot drop " + stored.DependencyObject(base, target, path) + " because it is required by the database system"}
+		}
 		if relation, ok := r.RetirementDescriptor(target).(*catalog.Relation); ok && relation.RowType != 0 {
 			if err := visit(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)}, root); err != nil {
 				return err
@@ -253,6 +259,10 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 				})
 				if d.Extension == target {
 					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Automatic: true})
+				}
+			case *catalog.TSConfiguration:
+				if slices.Contains(d.Dependencies(), target) {
+					direct = append(direct, table.DomainDependency{Address: a, Target: target, Root: root, OID: a.ObjectID, Label: stored.DependencyObject(base, a, path)})
 				}
 			case *catalog.TSDictionary:
 				if d.Template == target || d.Namespace() == target {
@@ -530,6 +540,11 @@ func DropClosure(r DropReader, targets []ids.ObjectAddress) ([]table.DomainDepen
 			slot := len(result)
 			resultSlots[edge.Address] = len(result)
 			result = append(result, edge)
+			if edge.Address.ClassID == ids.TSConfigurationClassID {
+				if err := visit(edge.Address, root); err != nil {
+					return err
+				}
+			}
 			if edge.Address.ClassID == 2620 || edge.Address.ClassID == ids.OperatorClassCatalogID || edge.Address.ClassID == ids.OperatorFamilyClassID || edge.Address.ClassID == ids.TypeClassID || edge.Address.ClassID == ids.RelationClassID || edge.Address.ClassID == ids.ExtensionClassID || edge.Address.ClassID == ids.ProcedureClassID || edge.Address.ClassID == ids.TSTemplateClassID || edge.Address.ClassID == ids.TSDictionaryClassID || edge.Address.ClassID == ids.ForeignWrapperClassID || edge.Address.ClassID == ids.ForeignServerClassID || edge.Address.ClassID == ids.ForeignMappingClassID {
 				if err := visit(edge.Address, root); err != nil {
 					return err

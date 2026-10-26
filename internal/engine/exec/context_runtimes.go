@@ -751,3 +751,13 @@ func (c *Context) LexizeDictionary(dictionary sqltype.Value, text string, result
 	}
 	return host.LexizeDictionary(dictionary, text, result)
 }
+
+var _ functions.FTSConversionRuntime = (*Context)(nil)
+
+func (c *Context) ConvertTSVector(configuration sqltype.Value, text string, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.LiveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: to_tsvector lacks statement authority")
+	}
+	return host.ConvertTSVector(configuration, text, result)
+}

@@ -74,6 +74,12 @@ function references once into the destination authority.
   actual owner without assuming schema CREATE grants or a named administrator.
   Restore executes the emitted SQL, recompiles real resources and remaps
   dictionary/template links and stored regdictionary references.
+- **Configurations** (`ts_configuration.go`) serialize actual PARSER and ordered
+  ADD MAPPING statements, never COPY provenance. Namespace, mapped dictionary
+  and stored alias/default/view dependencies use the ordinary event graph.
+  Owner transfers use privileged creation; seed edits replay current mappings
+  after canonical seed initialization. Temporary retention and replacement
+  remap configuration descriptors and REGCONFIG datums through existing owners.
 - **Provider differences** (`provider_replay.go`): immutable released builtin
   identity and checked versioned extension slots, never mutable labels, select
   real ALTER FUNCTION or ALTER TEXT SEARCH DICTIONARY replay. Required

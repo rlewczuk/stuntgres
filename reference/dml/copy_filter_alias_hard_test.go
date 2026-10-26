@@ -101,15 +101,9 @@ func TestReferenceCopyFilterAliasHardErrors(t *testing.T) {
 			c.exec(t, "CREATE TABLE copy_alias_config(id int,v regconfig)")
 			c.exec(t, "INSERT INTO copy_alias_config VALUES(99,'0')")
 			r, err := c.from("COPY copy_alias_config FROM STDIN WITH(ON_ERROR ignore,LOG_VERBOSITY verbose)", strings.NewReader("1\t0\n2\tcopy_alias_missing_config\n"))
-			if c.pg {
-				copyTextSuccess(t, r, err, 1)
-				c.output(t, "COPY (SELECT id,v FROM copy_alias_config ORDER BY id) TO STDOUT", "1\t-\n99\t-\n", 2)
-				copyFilterNotices(t, *notices, copyFilterRowNotice("copy_alias_config", "v", `"copy_alias_missing_config"`, 2), copyFilterSummary(1))
-			} else {
-				copyTextDiagnostic(t, r, err, copyFilterAliasDiagnostic("copy_alias_config", "copy_alias_missing_config", 2, "0A000", "text search configuration name lookup is not supported"))
-				c.output(t, "COPY (SELECT id,v FROM copy_alias_config ORDER BY id) TO STDOUT", "99\t-\n", 1)
-				copyFilterNotices(t, *notices)
-			}
+			copyTextSuccess(t, r, err, 1)
+			c.output(t, "COPY (SELECT id,v FROM copy_alias_config ORDER BY id) TO STDOUT", "1\t-\n99\t-\n", 2)
+			copyFilterNotices(t, *notices, copyFilterRowNotice("copy_alias_config", "v", `"copy_alias_missing_config"`, 2), copyFilterSummary(1))
 		})
 	})
 }

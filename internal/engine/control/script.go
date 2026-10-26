@@ -408,6 +408,13 @@ func (s *dumpScript) renderDeclarations(ctx context.Context, viewOrder []ids.OID
 		}
 		s.declarations[dictionary.Address().ObjectID] = declaration
 	}
+	for _, config := range s.Configurations {
+		declaration, err := configurationDumpStatement(s.CatalogView, s.DomainRoles, config)
+		if err != nil {
+			return err
+		}
+		s.declarations[config.Address().ObjectID] = declaration
+	}
 	for _, d := range s.OwnedRoutines {
 		declaration, err := routine.RoutineDumpStatement(Presenter{}, s.CatalogView, s.DomainRoles, d)
 		if err != nil {

@@ -24,11 +24,12 @@ func TestRegTSScalarCodecs(t *testing.T) {
 		if !d.Concrete() || !StoredScalarCastType(alias) || d.PostgreSQLTypeLength() != 4 || !d.ContainsRegTS() || !d.ContainsCatalogIdentifier() || !d.OutputSessionDependent() {
 			t.Fatal("scalar identity capability", alias)
 		}
-		if types[d.AssociatedArray()].Concrete() || types[d.AssociatedArray()].Usage().Valid() {
-			t.Fatal("alias array activated", alias)
+		array := types[d.AssociatedArray()]
+		if !array.Concrete() || !array.Usage().Valid() || array.Element() != d {
+			t.Fatal("alias array generation", alias)
 		}
-		if _, err := Array(90000, "reg_ts_array", d); err == nil {
-			t.Fatal("alias array codec admitted")
+		if custom, err := Array(90000, "reg_ts_array", d); err != nil || custom.Element() != d || !custom.Usage().Valid() {
+			t.Fatal("alias array codec admission", alias, err)
 		}
 		if _, err := Null(d).RegTSOID(); err == nil {
 			t.Fatal("NULL interpreted as zero")
@@ -221,8 +222,13 @@ func TestRegTSCastsDomains(t *testing.T) {
 		if err != nil || id != 4294967295 {
 			t.Fatal(id, err)
 		}
-		if _, err := Array(95000, "domain_array", domain); err == nil {
-			t.Fatal("alias-domain array activated")
+		array, err := Array(95000, "domain_array", domain)
+		if err != nil || array.Element() != domain || !array.Usage().Valid() {
+			t.Fatal("alias-domain array authority", err)
+		}
+		values, err := ArrayValue(array, []ArrayDimension{{Lower: 1, Length: 2}}, []Value{wrapped, Null(domain)})
+		if err != nil || values.ArrayElement(0).Type() != domain || !SameDatum(values.ArrayElement(0), wrapped) || !values.ArrayElement(1).IsNull() || values.ArrayElement(1).Type() != domain {
+			t.Fatal("alias-domain array member ownership", err)
 		}
 	}
 }

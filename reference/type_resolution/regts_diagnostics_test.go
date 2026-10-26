@@ -59,21 +59,14 @@ func TestReferenceRegTSDiagnostics(t *testing.T) {
 			}
 			for _, input := range []string{"reg_ts_missing", "reg_ts_missing.unaccent", " 123 ", "+123", "-1", "0x10"} {
 				code, primary := "42704", "text search "+kind+" \""+strings.TrimSpace(input)+"\" does not exist"
-				if !b.PG && alias == "regconfig" {
-					code, primary = "0A000", "text search configuration name lookup is not supported"
-				}
 				regtsDiagnosticRoutes(t, p, b, c, alias, input, code, primary)
 			}
 			fixture.RunStep(t, p.Ctx, c, b.Recorder, regtsError("SELECT (-1)::bigint::"+alias, "22003", "OID out of range", "", ""))
 		}
 		regtsSelect(t, p, b, c, "SELECT 'simple'::regdictionary AS d", []string{"d"}, []string{"REGDICTIONARY"}, [][]any{{"simple"}})
-		if b.PG {
-			regtsSelect(t, p, b, c, "SELECT 'simple'::regconfig AS c", []string{"c"}, []string{"REGCONFIG"}, [][]any{{"simple"}})
-			// Genuine builtin configuration provider, without configuration DDL.
-			regtsSelect(t, p, b, c, "SELECT oid::regconfig AS c,oid='simple'::regconfig::oid AS same FROM pg_catalog.pg_ts_config WHERE cfgnamespace='pg_catalog'::regnamespace AND cfgname='simple'", []string{"c", "same"}, []string{"REGCONFIG", "BOOL"}, [][]any{{"simple", true}})
-		} else {
-			regtsDiagnosticRoutes(t, p, b, c, "regconfig", "simple", "0A000", "text search configuration name lookup is not supported")
-		}
+		regtsSelect(t, p, b, c, "SELECT 'simple'::regconfig AS c", []string{"c"}, []string{"REGCONFIG"}, [][]any{{"simple"}})
+		// Genuine builtin configuration provider, without configuration DDL.
+		regtsSelect(t, p, b, c, "SELECT oid::regconfig AS c,oid='simple'::regconfig::oid AS same FROM pg_catalog.pg_ts_config WHERE cfgnamespace='pg_catalog'::regnamespace AND cfgname='simple'", []string{"c", "same"}, []string{"REGCONFIG", "BOOL"}, [][]any{{"simple", true}})
 		fixture.RunStep(t, p.Ctx, c, b.Recorder, regtsError("SELECT 'é' AS prefix, 'a..b'::regdictionary", "42602", "invalid name syntax", "23", ""))
 		regtsExec(t, p, b, c, "CREATE TABLE reg_ts_atomic(id integer,d regdictionary)", 0)
 		q := "INSERT INTO reg_ts_atomic VALUES(1,'-'),(2,'reg_ts_missing')"

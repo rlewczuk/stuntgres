@@ -32,12 +32,24 @@ import it.
 - **Prepared reg\* literal analysis** (`regtype_analysis.go`): `Analysis`,
   the cell a prepared statement holds for its reg\* constants (`Constants`,
   the role, database and lookup paths they were resolved under), with
-  `NewAnalysis`, `Valid` and `Invalidate`. Both run over an `Observation`
+  `NewAnalysis`, `Valid`, `ForReanalysis`, `Invalidate` and
+  `RetireConfigurations`. They run over an `Observation`
   (the engine's catalog domain, the session's database name, the
   statement's `access.View` and its environment) and `LookupPaths`, the type
   and collation path callbacks, read only when the constants need them. The
   callbacks are a separate parameter so they do not escape with the
   environment.
+  REGCONFIG occurrences retain their original immutable typed OID and operand
+  provenance separately from current configuration/dictionary observations.
+  Reanalysis projects only eligible configurations into a private input slice;
+  other aliases retain their ordinary retirement policy. Eligibility requires
+  the same domain, epoch, role, database, effective path and existing namespace
+  generation, with current source-qualified namespace authority. Configuration
+  rename, move, mapping edits or deletion do not retarget the original OID;
+  no permission check is added on its current destination namespace. Real
+  namespace publication retires source captures even if the effective path is
+  unchanged. An absent original has no current dependencies and remains an
+  actual typed value for the runtime's missing-object diagnostic.
 - **reg\* input helpers** (`regclass_input.go`, `regrole_input.go`,
   `regoperator_groups.go`, `regproc_lookup.go`): `ClassNumeric`,
   `ClassQualifiedName`, `RoleInput`, `AccessRoleID` (the role argument of the
@@ -64,6 +76,10 @@ import it.
   for parser names, with explicit namespace USAGE checked before lookup.
   Parser names remain TEXT inputs; no regparser type or parser-owner ACL is
   introduced. The stock parser identity belongs to the catalog bootstrap data.
+  REGCONFIG and REGDICTIONARY resolve actual descriptor identities, capture
+  operand revisions and retain visibility-sensitive output spellings. Their
+  persistence walkers recurse through arrays, domains, composites and ranges;
+  native replacement remaps actual configuration identities rather than names.
 - **Dump spellings, stored-value walkers and remap** (`regclass_dump.go`,
   `reg*_persistence.go`): `DumpOperatorOutput`, `DumpTextSearchOutput`,
   `DumpAliasOutput`; `OperatorLiteral`, `RoutineLiteral`;
@@ -203,6 +219,7 @@ groups of every reg\* family passing. Add `REFERENCE=1` for the oracle.
 ```sh
 make check RUN='^Test(CapturedInputs|RoutineInputParameter|TypeInputNotices|AddressLookup|VisibilityInquiryCollation|GeometryConversionCBox|GeometryRelationLiteral)'
 make check RUN='^TestGeometryMeasurePathLiteralTransport$'
+make check RUN='^TestAnalysis(ConfigProjection|ConfigEnvironmentRetirement|PathsOnDemand)$'
 make check RUN='^TestReferenceReg(class|type|role|Proc|Operator|TS|Collation|Namespace|Object)'
 make check RUN='^TestReference(ObjectAddress|ACLItem)'
 ```

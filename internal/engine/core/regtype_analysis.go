@@ -37,3 +37,23 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regobj
 	o, paths := e.RegtypeObservationLocked(auth)
 	return cell.Valid(o, paths)
 }
+
+// regtypeReanalysisLocked preserves only eligible original configuration inputs
+// in an attempt-private projection. Caller holds Engine.Mu.
+func (e *Engine) regtypeReanalysisLocked(auth AuthorizationView, expected *Description) (*regobj.Analysis, error) {
+	cell := expected.Regtypes
+	if cell == nil {
+		return nil, nil
+	}
+	analysis := expected.Analysis
+	if analysis == nil || expected.CatalogOwner != auth.Catalog.Owner() ||
+		expected.CatalogEpoch != auth.Catalog.Epoch() || expected.PlanOwner != auth.Session.SessionToken ||
+		expected.PlanGeneration != auth.Session.DiscardPlansGeneration ||
+		analysis.Domain != e.Catalog.Domain || analysis.Epoch != auth.Catalog.Epoch() ||
+		analysis.Session != auth.Session.SessionToken || analysis.Private != auth.PendingCatalog() {
+		cell.RetireConfigurations()
+		return nil, nil
+	}
+	o, paths := e.RegtypeObservationLocked(auth)
+	return cell.ForReanalysis(o, paths)
+}

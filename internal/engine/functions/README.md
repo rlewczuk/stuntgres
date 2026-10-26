@@ -81,6 +81,11 @@ privately through the FTS leaf before a source cursor can publish a token.
 Cursor advancement constructs typed records against its current result
 descriptor, so rewritten plans retain no stale composites or invocation state.
 
+Explicit `to_tsvector(regconfig,text)` is a strict immutable typed conversion.
+Its node owns only checked children and routine authority; execution borrows one
+statement-coherent configuration/dictionary capture. Normal preflight folding
+owns retained vectors, with no conversion-local cache or revision bypass.
+
 `VerifyHeapam` holds six canonical typed inputs, including omitted defaults.
 Named-input binding and applicability share slot assignment and ordinary
 coercion; supplied inputs evaluate once in canonical formal order. The

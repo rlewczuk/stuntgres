@@ -2,6 +2,7 @@ package analyze
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -15,8 +16,27 @@ func (b *Binder) RegTSConstant(text string, usage sqltype.Usage, pos parser.Posi
 			if err != nil {
 				return sqltype.Value{}, err
 			}
-			for _, dependency := range c.Operands {
-				b.captureDependency(dependency.Ref, dependency.Revision, catalog.OperandDependency)
+			if usage.Type.ID() == sqltype.Regconfig {
+				oid, err := value.RegTSOID()
+				if err != nil {
+					return sqltype.Value{}, err
+				}
+				read := b.BindingCatalog()
+				address := ids.ObjectAddress{ClassID: ids.TSConfigurationClassID, ObjectID: ids.OID(oid)}
+				if config, ok := read.TSConfiguration(address); ok {
+					b.captureDependency(read.Domain().Ref(read.Epoch(), address), config.Revision(), catalog.OperandDependency)
+					for _, mapping := range config.Mappings {
+						for _, address := range mapping.Dictionaries {
+							if dictionary, ok := read.TSDictionary(address); ok {
+								b.captureDependency(read.Domain().Ref(read.Epoch(), address), dictionary.Revision(), catalog.OperandDependency)
+							}
+						}
+					}
+				}
+			} else {
+				for _, dependency := range c.Operands {
+					b.captureDependency(dependency.Ref, dependency.Revision, catalog.OperandDependency)
+				}
 			}
 			b.Prepared.RegtypeConstants = append(b.Prepared.RegtypeConstants, c)
 			return value, nil

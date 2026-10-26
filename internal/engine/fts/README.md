@@ -39,6 +39,10 @@ bounded by the host/path state graph, not input depth. Cancellation checks occur
 within long tokens and across backtracking/replay, with no partial result on
 error. Document tokens have no vector/query lexeme-size limit. Category SQL
 descriptors and parser-name resolution belong to callers, not this leaf.
+`DocumentTypes` owns the same token-ID ordered alias/description inventory used
+by parser metadata and configuration validation. `VectorBuilder` transfers
+invocation-owned lexeme/position entries directly into canonical immutable
+vectors; it never renders and reparses vector input to construct a result.
 
 
 ## Limits
@@ -116,7 +120,9 @@ Package units cover canonicalization, grammar, limits, algebra and document
 tokenization, including literal released regression rows and boundary/fallback
 cases. FTS typed values, operators and dump live in `sqltype`, `functions` and
 `dump` units. Cancellation units use deterministic interior boundaries in sorting,
-duplicate reduction, long document tokens, lookahead and replay, never elapsed time. Public SQL
+duplicate reduction, long document tokens, lookahead and replay, never elapsed time.
+Builder kernel units live in `enginetests/` and use deterministic context
+boundaries while observing immutable results through the public leaf API. Public SQL
 scenarios live in [reference/ranges_text_search](../../../reference/ranges_text_search/README.md#testing).
 
 ```sh

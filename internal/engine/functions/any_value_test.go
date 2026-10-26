@@ -83,6 +83,8 @@ func TestAnyValueProviderDatums(t *testing.T) {
 					element, err = sqltype.RegtypeValue(d.Element(), 42)
 				} else if sqltype.IsRoutineAlias(d.Element().ID()) {
 					element, err = sqltype.RegprocValue(d.Element(), 1242)
+				} else if sqltype.IsRegTS(d.Element().ID()) {
+					element, err = sqltype.RegTSValue(d.Element(), 42)
 				} else if d.Element().ID() == sqltype.ACLItem {
 					element, err = sqltype.ACLItemValue(d.Element(), aclAuthority, 20, 30, sqltype.ACLPrivilegeMask, sqltype.ACLPrivilegeMask)
 				} else {

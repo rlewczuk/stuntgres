@@ -169,6 +169,7 @@ func aliasRangeEndpoint(next *catalog.State, value sqltype.Value) (catalog.Alias
 		class = ids.TSDictionaryClassID
 		id, err = value.RegTSOID()
 	case sqltype.Regconfig:
+		class = ids.TSConfigurationClassID
 		id, err = value.RegTSOID()
 	case sqltype.Regrole:
 		id, err = value.RoleOID()

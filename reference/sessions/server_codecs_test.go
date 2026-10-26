@@ -97,7 +97,7 @@ func TestReferenceServerExtendedCodecs(t *testing.T) {
 					array = serverPut32(array, uint32(len(raw)))
 					array = append(array, raw...)
 					frames := serverCycle(t, w, serverParse("", "SELECT $1", arrayOID), serverBind("", "", []int{1}, [][]byte{array}, 1), serverExecute("", 0))
-					lookupOnly := c.oid == 790 || c.oid == 2203 || c.oid == 2204 || c.oid == 3734 || c.oid == 3769
+					lookupOnly := c.oid == 790 || c.oid == 2203 || c.oid == 2204
 					if !b.PG && lookupOnly {
 						serverWantTags(t, frames, "EZ")
 						serverNotificationError(t, frames, "0A000", "type "+c.typ+"[] is not supported", "")

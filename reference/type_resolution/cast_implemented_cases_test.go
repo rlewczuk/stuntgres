@@ -62,6 +62,13 @@ func castRuntimeCases(function bool) []castRuntimeCase {
 			add(pair[0], pair[1], castInventoryType(pair[0]).family)
 		}
 	}
+	for _, alias := range []string{"regconfig[]", "regdictionary[]"} {
+		add("text", alias, "Arrays")
+		add(alias, "text", "Arrays")
+		add(alias, alias, "Arrays")
+		add("int4[]", alias, "Arrays")
+		add(alias, "int8[]", "Arrays")
+	}
 	for _, pair := range [][2]string{{"int8", "bool"}, {"refcursor", "int4"}, {"regclass", "regtype"}, {"date", "int4"}, {"uuid", "int4"}, {"json", "int4"}, {"line", "point"}, {"int4range", "int8range"}, {"bool[]", "int8[]"}, {"cast_positive", "uuid"}, {"cube", "int4"}, {"cast_enum_a", "cast_enum_b"}} {
 		add(pair[0], pair[1], castInventoryType(pair[0]).family)
 	}
