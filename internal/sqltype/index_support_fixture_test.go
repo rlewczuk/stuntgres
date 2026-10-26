@@ -100,6 +100,7 @@ var indexSupportUnitRows = [...]struct {
 	{10052, 1, IndexSupport{Family: 5032, Member: 10180, Routine: 6421, Left: 5069, Right: 5069, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
 	{10052, 2, IndexSupport{Family: 5032, Member: 10181, Routine: 6422, Left: 5069, Right: 5069, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
 	{10053, 1, IndexSupport{Family: 5067, Member: 10130, Routine: 5096, Left: 5069, Right: 5069, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
+	{10067, 1, IndexSupport{Family: 3253, Member: 10118, Routine: 3251, Left: 3220, Right: 3220, Revision: 1, FamilyRevision: 1, RoutineRevision: 1}},
 }
 
 func selectedTestIndexClass(class IndexClass) IndexClass {
@@ -241,6 +242,8 @@ var indexOperatorUnitRows = [...]struct {
 	{2968, 2950, 2950, 10245, 1},
 	{2968, 2950, 2950, 10247, 3},
 	{2969, 2950, 2950, 10295, 1},
+	{3253, 3220, 3220, 10250, 1},
+	{3253, 3220, 3220, 10252, 3},
 	{3522, 3500, 3500, 10353, 1},
 	{3522, 3500, 3500, 10355, 3},
 	{3523, 3500, 3500, 10358, 1},

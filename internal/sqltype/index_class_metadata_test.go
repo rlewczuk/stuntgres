@@ -21,6 +21,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 		{"oid_ops", 26, 1981, 1989, 10031, 1990}, {"xid8_ops", 5069, 10053, 5067, 10052, 5032},
 		{"tid_ops", 27, 10050, 2789, 10055, 2227},
 		{"macaddr_ops", 829, 10024, 1984, 0, 0},
+		{"pg_lsn_ops", 3220, 10067, 3253, 0, 0},
 		{"xid_ops", 28, 0, 0, 10051, 2225}, {"cid_ops", 29, 0, 0, 10054, 2226},
 		{"float4_ops", 700, 10012, 1970, 10013, 1971}, {"float8_ops", 701, 3123, 1970, 10014, 1971},
 		{"date_ops", 1082, 3122, 434, 10011, 435}, {"time_ops", 1083, 10038, 1996, 10039, 1997},
@@ -136,7 +137,7 @@ func indexClassExpected() map[uint32]IndexClassMetadata {
 
 func TestIndexClassMetadataInventory(t *testing.T) {
 	want := indexClassExpected()
-	if IndexClassMetadataCount() != 144 || len(want) != 144 {
+	if IndexClassMetadataCount() != 145 || len(want) != 145 {
 		t.Fatal("count", IndexClassMetadataCount(), len(want))
 	}
 	got := map[uint32]IndexClassMetadata{}
@@ -166,7 +167,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("metadata got %#v want %#v", got, want)
 	}
-	for _, i := range []int{-1, 144, 145} {
+	for _, i := range []int{-1, IndexClassMetadataCount(), IndexClassMetadataCount() + 1} {
 		if m, ok := IndexClassMetadataAt(i); ok || m != (IndexClassMetadata{}) {
 			t.Fatal("bounds", i, m, ok)
 		}
@@ -176,7 +177,7 @@ func TestIndexClassMetadataInventory(t *testing.T) {
 	if again, _ := IndexClassMetadataAt(0); again.Name == m.Name {
 		t.Fatal("metadata is mutable")
 	}
-	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "bit_ops", "varbit_ops", "pg_lsn_ops", "network_ops"} {
+	for _, name := range []string{"array_ops", "record_ops", "record_image_ops", "bit_ops", "varbit_ops", "network_ops"} {
 		for _, m := range got {
 			if m.Name == name {
 				t.Fatal("diagnostic-only class advertised", m)

@@ -33,6 +33,7 @@ const (
 	Cid              ID = 29
 	OidVector        ID = 30
 	Xid8             ID = 5069
+	PgLSN            ID = 3220
 	PgSnapshot       ID = 5038
 	JSON             ID = 114
 	PgNodeTree       ID = 194
@@ -206,7 +207,7 @@ func (d *Descriptor) PostgreSQLTypeLength() int16 {
 	case Tid, Macaddr:
 		return 6
 	case Int8, Float8, Money, Time, Timestamp, Timestamptz, Xid8,
-		Macaddr8, 3220: // pg_lsn
+		Macaddr8, PgLSN:
 		return 8
 	case 32, 2281: // pg_ddl_command, internal: SIZEOF_POINTER
 		return int16(strconv.IntSize / 8)
@@ -301,6 +302,7 @@ func Builtins() []*Descriptor {
 		{id: Xid, name: "xid", sql: "XID", database: "XID", associatedArray: 1011},
 		{id: Cid, name: "cid", sql: "CID", database: "CID"},
 		{id: Xid8, name: "xid8", sql: "XID8", database: "XID8"},
+		{id: PgLSN, name: "pg_lsn", sql: "PG_LSN", database: "PG_LSN", associatedArray: 3221},
 		{id: PgSnapshot, name: "pg_snapshot", sql: "PG_SNAPSHOT", database: "PG_SNAPSHOT"},
 		{id: JSON, name: "json", sql: "JSON", database: "JSON", associatedArray: 199},
 		{id: JSONB, name: "jsonb", sql: "JSONB", database: "JSONB", associatedArray: 3807},
@@ -943,6 +945,8 @@ func (d *Descriptor) InputWithEnvironment(ctx context.Context, text string, typm
 		return Value{}, failure("0A000", "input of type void is not supported")
 	case PgSnapshot:
 		return d.snapshotInput(text)
+	case PgLSN:
+		return d.pgLSNInput(text)
 	case Oid, Xid, Cid, Xid8:
 		return d.oidInput(text)
 	case Char:
@@ -1291,6 +1295,8 @@ func (d *Descriptor) OutputWithEnvironment(ctx context.Context, v Value, env Out
 			return "", err
 		}
 		return s.String(), nil
+	case PgLSN:
+		return pgLSNOutput(uint64(v.integer)), nil
 	case Xid8:
 		return strconv.FormatUint(uint64(v.integer), 10), nil
 	case Bytea:
@@ -1418,6 +1424,9 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 	if v.null {
 		if d.BaseType().id == PgSnapshot {
 			return "NULL::pg_snapshot", nil
+		}
+		if d.BaseType().id == PgLSN {
+			return "NULL::pg_lsn", nil
 		}
 		if IsNetwork(d.BaseType().id) || d.BaseType().id == Tid || d.BaseType().id == Macaddr || d.BaseType().id == Macaddr8 {
 			return "CAST(NULL AS " + d.BaseType().SQLName() + ")", nil
@@ -1693,6 +1702,8 @@ func (d *Descriptor) SQLLiteral(ctx context.Context, v Value) (string, error) {
 			return "", err
 		}
 		return "'" + strings.ReplaceAll(text, "'", "''") + "'", nil
+	case PgLSN:
+		return "'" + pgLSNOutput(uint64(v.integer)) + "'::pg_lsn", nil
 	case PgSnapshot:
 		s, err := v.Snapshot()
 		if err != nil {
@@ -2024,7 +2035,7 @@ func StoredScalarCastType(id ID) bool {
 	switch id {
 	case Refcursor, TSVector, TSQuery, Box, Point, Lseg, Circle, Line, Path, Polygon:
 		return true
-	case PgSnapshot:
+	case PgSnapshot, PgLSN:
 		return true
 	case Bool, Int2, Int2Vector, OidVector, Int4, Int8, Oid, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, Regclass, Text, Name, BPChar, VarChar, Bytea, UUID,
 		Numeric, Money, Float4, Float8, Date, Time, Timetz, Timestamp, Timestamptz, Interval, JSON, JSONB, JSONPath, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Inet, Cidr, ACLItem:
@@ -2363,7 +2374,7 @@ func BindOrdering(u Usage) (Comparison, error) {
 		switch u.Type.BaseType().id {
 		case Bool, BPChar, Bytea, Char, Date, Float4, Float8, Int2, Int4, Int8, Money,
 			Interval, Name, Numeric, Oid, Regclass, Regtype, Regproc, Regprocedure, Regrole, Regoper, Regoperator, Regcollation, Regnamespace, Regconfig, Regdictionary, Text, VarChar, Time,
-			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8, Tid, Macaddr, PgNodeTree:
+			Timestamp, Timestamptz, Timetz, UUID, JSONB, Inet, Cidr, Xid8, PgLSN, Tid, Macaddr, PgNodeTree:
 		default:
 			message := "could not identify an ordering operator for type " + u.Type.DiagnosticName()
 			return Comparison{}, &sqlstate.Error{
@@ -2674,7 +2685,7 @@ func (p Comparison) Compare(ctx context.Context, a, b Value, input InputEnvironm
 		if a.oid > right {
 			return 1, nil
 		}
-	case Xid8:
+	case Xid8, PgLSN:
 		if uint64(a.integer) < uint64(b.integer) {
 			return -1, nil
 		}

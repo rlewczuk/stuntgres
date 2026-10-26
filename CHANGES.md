@@ -1,3 +1,10 @@
+`pg_lsn` columns, literals and parameters preserve the full unsigned 64-bit WAL
+position range with canonical slash-hex results and metadata. Comparisons and
+ordering use unsigned magnitude; differences and numeric byte offsets are exact,
+including completed-result rounding and PostgreSQL range/special-value diagnostics.
+Native Dump/Reset/Restore retains values and stored expressions without accumulating
+redundant casts around typed `pg_lsn` view literals.
+
 `CREATE EXTENSION ltree` also installs `ltxtquery` with its `ltxtq_in` and
 `ltxtq_out` text codecs. Declared columns, literal and bound assignments, NULLs
 and result metadata preserve canonical Boolean label queries through native

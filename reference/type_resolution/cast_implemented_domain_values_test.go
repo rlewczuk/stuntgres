@@ -122,7 +122,7 @@ func castConstrainedInputFailure(target castImplementedType, input string) *fixt
 		return &fixture.Diagnostic{Code: "22P02", Message: fmt.Sprintf("invalid input value for enum %s: %q", target.name, input)}
 	}
 	switch target.name {
-	case "int2", "int4", "int8", "float4", "float8", "numeric", "money", "oid", "tid", "xid", "xid8", "cid", "uuid", "pg_snapshot", "point", "lseg", "path", "box", "polygon", "line", "circle", "inet", "cidr", "macaddr", "macaddr8":
+	case "int2", "int4", "int8", "float4", "float8", "numeric", "money", "oid", "tid", "xid", "xid8", "cid", "uuid", "pg_lsn", "pg_snapshot", "point", "lseg", "path", "box", "polygon", "line", "circle", "inet", "cidr", "macaddr", "macaddr8":
 		return invalid(target.diagnostic)
 	case "date", "time", "timetz", "timestamp", "timestamptz", "interval":
 		name := target.diagnostic

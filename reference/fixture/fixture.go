@@ -481,7 +481,7 @@ func AssertRawValue(t *testing.T, postgres bool, sqlType string, value any) {
 	case "TEXT", "CHAR", "BPCHAR", "VARCHAR":
 		// pq textDecode returns BPCHAR as string despite its any ScanType.
 		want = reflect.TypeFor[string]()
-	case "INT2VECTOR", "OIDVECTOR", "MACADDR8", "MACADDR", "TID", "INET", "CIDR", "INT4RANGE", "BIT", "VARBIT", "NUMERIC", "MONEY", "UUID", "NAME", "INTERVAL", "REFCURSOR", "REGCLASS", "REGPROC", "REGROLE", "REGOPER", "REGOPERATOR", "REGCOLLATION", "REGNAMESPACE", "VOID", "_NAME", "PG_NODE_TREE", "JSON", "JSONB", "JSONPATH", "ACLITEM", "RECORD", "TSVECTOR", "TSQUERY":
+	case "INT2VECTOR", "OIDVECTOR", "MACADDR8", "MACADDR", "TID", "PG_LSN", "INET", "CIDR", "INT4RANGE", "BIT", "VARBIT", "NUMERIC", "MONEY", "UUID", "NAME", "INTERVAL", "REFCURSOR", "REGCLASS", "REGPROC", "REGROLE", "REGOPER", "REGOPERATOR", "REGCOLLATION", "REGNAMESPACE", "VOID", "_NAME", "PG_NODE_TREE", "JSON", "JSONB", "JSONPATH", "ACLITEM", "RECORD", "TSVECTOR", "TSQUERY":
 		want = reflect.TypeFor[string]()
 		if postgres {
 			want = reflect.TypeFor[[]byte]()

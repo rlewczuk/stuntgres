@@ -14,7 +14,7 @@ var equalitySignatures = [...]EqualitySignature{
 	{Lseg, Lseg},
 	{Path, Path},
 	{Point, Point},
-	{Xid, Xid}, {Xid, Int4}, {Cid, Cid}, {Xid8, Xid8},
+	{Xid, Xid}, {Xid, Int4}, {Cid, Cid}, {Xid8, Xid8}, {PgLSN, PgLSN},
 	{Int2, Int2}, {Int2, Int4}, {Int2, Int8}, {Int4, Int2}, {Int4, Int4}, {Int4, Int8}, {Int8, Int2}, {Int8, Int4}, {Int8, Int8},
 	{Float4, Float4}, {Float4, Float8}, {Float8, Float4}, {Float8, Float8}, {Numeric, Numeric}, {Bool, Bool},
 	{Money, Money},
@@ -50,7 +50,7 @@ func equalityCategory(id ID) byte {
 		return 'D'
 	case Interval:
 		return 'T'
-	case UUID, Bytea, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8:
+	case UUID, Bytea, Tid, Macaddr, Macaddr8, Xid, Cid, Xid8, PgLSN:
 		return 'U'
 	}
 	return 0

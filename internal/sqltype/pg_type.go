@@ -162,6 +162,8 @@ func (d *Descriptor) PGTypeMetadata() (PGTypeMetadata, bool) {
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 52, Output: 53, Receive: 2442, Send: 2443}
 	case 5069: // xid8
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 5070, Output: 5081, Receive: 5082, Send: 5083}
+	case PgLSN:
+		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 3229, Output: 3230, Receive: 3238, Send: 3239}
 	case 114: // json
 		f = PGTypeMetadata{Kind: "b", Category: "U", Input: 321, Output: 322, Receive: 323, Send: 324}
 	case 194: // pg_node_tree

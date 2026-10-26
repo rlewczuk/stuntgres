@@ -28,6 +28,13 @@ READMEs. Most engine packages and `cmd/stuntgres` import this package.
   construction. `SameDatum`/`Value.SamePayload` compare stored bits,
   independently of SQL equality. NULL belongs to the caller's framing, not to
   empty text, empty bytes or the zero `Value`.
+- `PgLSN` retains unsigned 64-bit positions inline. Its descriptor owns strict
+  slash-hex text, canonical uppercase output, typed SQL literals and eight-byte
+  big-endian codecs. Comparisons and B-tree ordering use unsigned magnitude.
+  Differences are exact NUMERIC; numeric offsets round the completed exact
+  result once before unsigned range validation. The numeric-left addition
+  signature retains its SQL-wrapper diagnostic context. Companion identity
+  does not grant executable arrays or hash providers.
 - `Composite` freezes catalog members and rejects VOID storage attributes.
   `RecordShape` freezes an anonymous expression/query-result occurrence and
   retains VOID members, including their exact typed NULLs for empty results.
@@ -496,3 +503,4 @@ match engine tests of the same mechanism):
 - Composite descriptors, expression shapes and payload ownership: `RUN='^TestComposite'`
 - Trailing array slices and payload ownership: `RUN='^TestArrayForeachSlice$'`
 - Catalog vector codecs, shapes, generation ownership and ordering: `RUN='^TestCatalogVector'`
+- Unsigned LSN codecs, comparison and exact arithmetic: `RUN='^TestPGLSN'`

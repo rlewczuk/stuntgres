@@ -20,7 +20,7 @@ func familyCatalogFixture() Read {
 func TestOperatorFamilyCatalog(t *testing.T) {
 	view := familyCatalogFixture()
 	t.Run("dependency classification", func(t *testing.T) { operatorFamilyDependencyCases(t, view) })
-	if view.DescriptorCount() != 1+6+115+633+374+144 {
+	if view.DescriptorCount() != 1+6+116+638+376+145 {
 		t.Fatal("incomplete released family inventory", view.DescriptorCount())
 	}
 	ns := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 11}
@@ -28,6 +28,34 @@ func TestOperatorFamilyCatalog(t *testing.T) {
 	hash := view.NameAddress(FamilyNameKey(ns, 405, "integer_ops"))
 	if btree.ObjectID != 1976 || hash.ObjectID != 1977 || btree == hash {
 		t.Fatal("family method identity", btree, hash)
+	}
+	lsnFamily := view.NameAddress(FamilyNameKey(ns, 403, "pg_lsn_ops"))
+	lsnClass := ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: 10067}
+	if lsnFamily != (ids.ObjectAddress{ClassID: ids.OperatorFamilyClassID, ObjectID: 3253}) {
+		t.Fatal("released LSN family", lsnFamily)
+	}
+	for number, operator := range []ids.OID{3224, 3226, 3222, 3227, 3225} {
+		member, ok := view.FamilyOperator(3253, 3220, 3220, int16(number+1), 's')
+		wantAddress := ids.ObjectAddress{ClassID: ids.AccessMethodOperatorClassID, ObjectID: ids.OID(10250 + number)}
+		if !ok || member.Address() != wantAddress || member.Operator != operator || member.Method != 403 || member.SortFamily != 0 || member.InternalOwner != lsnClass {
+			t.Fatal("released LSN strategy", number, member)
+		}
+	}
+	for _, fact := range []struct {
+		number       int16
+		oid, routine ids.OID
+	}{{1, 10118, 3251}, {4, 10119, 5051}} {
+		member, ok := view.FamilySupport(3253, 3220, 3220, fact.number)
+		if !ok || member.Address() != (ids.ObjectAddress{ClassID: ids.AccessMethodProcedureClassID, ObjectID: fact.oid}) || member.Function != fact.routine || member.Left != 3220 || member.Right != 3220 {
+			t.Fatal("released LSN support", fact, member)
+		}
+		owner := ids.ObjectAddress{}
+		if fact.number == 1 {
+			owner = lsnClass
+		}
+		if member.InternalOwner != owner {
+			t.Fatal("LSN support owner", fact, member)
+		}
 	}
 	support, ok := view.FamilySupport(1976, 23, 23, 1)
 	if !ok || support.Function != 351 || support.Left != 23 || support.Right != 23 || support.InternalOwner != (ids.ObjectAddress{ClassID: ids.OperatorClassCatalogID, ObjectID: 1978}) {

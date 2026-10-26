@@ -53,10 +53,12 @@ func (d *Descriptor) ContainsRegclass() bool {
 
 // ArrayElementAdmitted is the scalar admission surface shared by generic array
 // codecs and storage. Internal char does not widen scalar annotations.
-func ArrayElementAdmitted(id ID) bool { return id == Char || StoredScalarCastType(id) || id == Regclass }
+func ArrayElementAdmitted(id ID) bool {
+	return id != PgLSN && (id == Char || StoredScalarCastType(id) || id == Regclass)
+}
 
 func Array(id ID, name string, element *Descriptor) (*Descriptor, error) {
-	if element != nil && element.BaseType().ID() == PgSnapshot {
+	if element != nil && (element.BaseType().ID() == PgSnapshot || element.BaseType().ID() == PgLSN) {
 		return nil, fmt.Errorf("invalid array descriptor")
 	}
 	if id == 0 || id == Unknown || name == "" || !element.Concrete() || element.BaseType().ID() == Macaddr || element.BaseType().ID() == Macaddr8 || IsOperatorAlias(element.BaseType().ID()) || IsRegTS(element.BaseType().ID()) || IsNetwork(element.BaseType().ID()) || IsTransactionIdentifier(element.BaseType().ID()) && element.ID() != Xid || !element.IsDomain() && !element.IsEnum() && !element.IsComposite() && !element.IsRange() && !element.IsMultirange() && !ArrayElementAdmitted(element.ID()) {
@@ -96,13 +98,15 @@ func ownedArray(d *Descriptor, dimensions []ArrayDimension, elements []Value) (V
 		return Value{}, fmt.Errorf("invalid array payload descriptor or rank")
 	}
 	if d.IsCatalogVector() {
-		if len(dimensions)!=1 || dimensions[0].Lower!=0 || dimensions[0].Length!=int32(len(elements)) {
-			return Value{},fmt.Errorf("invalid catalog vector dimensions")
+		if len(dimensions) != 1 || dimensions[0].Lower != 0 || dimensions[0].Length != int32(len(elements)) {
+			return Value{}, fmt.Errorf("invalid catalog vector dimensions")
 		}
-		for _,element:=range elements {
-			if element.typ!=d.element || element.null {return Value{},fmt.Errorf("invalid catalog vector element")}
+		for _, element := range elements {
+			if element.typ != d.element || element.null {
+				return Value{}, fmt.Errorf("invalid catalog vector element")
+			}
 		}
-		return Value{typ:d,array:&arrayPayload{dimensions:dimensions,elements:elements}},nil
+		return Value{typ: d, array: &arrayPayload{dimensions: dimensions, elements: elements}}, nil
 	}
 	product := int64(1)
 	for _, dim := range dimensions {
@@ -164,8 +168,8 @@ func (v Value) MapArray(d *Descriptor, transform func(Value, *Descriptor) (Value
 	if v.array == nil {
 		return Value{}, fmt.Errorf("missing array payload")
 	}
-	if d.BaseType().IsCatalogVector() && (v.ArrayRank()!=1 || v.ArrayDimension(0).Lower!=0 || v.ArrayDimension(0).Length!=int32(v.ArrayLen())) {
-		return Value{},fmt.Errorf("invalid catalog vector mapping dimensions")
+	if d.BaseType().IsCatalogVector() && (v.ArrayRank() != 1 || v.ArrayDimension(0).Lower != 0 || v.ArrayDimension(0).Length != int32(v.ArrayLen())) {
+		return Value{}, fmt.Errorf("invalid catalog vector mapping dimensions")
 	}
 	var elements []Value
 	for i, old := range v.array.elements {

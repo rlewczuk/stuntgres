@@ -102,8 +102,8 @@ func comparisonBetween(t *testing.T, family string) {
 					eligible = append(eligible, lower)
 				}
 			}
-			if classified != 7569 {
-				t.Fatalf("classified %d triples, want 7569", classified)
+			if classified != 7744 {
+				t.Fatalf("classified %d triples, want 7744", classified)
 			}
 			if len(eligible) == 0 && comparisonOrderingPair(left, left) {
 				t.Fatal("orderable left has no admitted triples")
@@ -257,7 +257,7 @@ func TestReferenceComparisonDistinct(t *testing.T) {
 					}
 				}
 				projection.flush(t, p, b)
-				if visited != 87 {
+				if visited != 88 {
 					t.Fatalf("visited %d distinct pairs", visited)
 				}
 			})

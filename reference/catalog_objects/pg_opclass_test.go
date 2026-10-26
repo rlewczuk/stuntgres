@@ -13,9 +13,10 @@ import (
 var pgOpclassColumns = []string{"oid", "opcmethod", "opcname", "opcnamespace", "opcowner", "opcfamily", "opcintype", "opcdefault", "opckeytype"}
 var pgOpclassTypes = []string{"OID", "OID", "NAME", "OID", "OID", "OID", "OID", "BOOL", "OID"}
 
-// Independent released identities, including the pinned PostgreSQL 18.6 GiST
-// inventory. No expected value comes from native lookup.
-func pgOpclassFacts() [][]any {
+// Independent released facts, including the pinned PostgreSQL 18.6 GiST
+// inventory. Only pg_lsn's allocated class identity is supplied by its backend;
+// its semantic metadata remains independently specified.
+func pgOpclassFacts(pgLSNOID int64) [][]any {
 	var rows [][]any
 	for _, f := range []struct {
 		name                                 string
@@ -35,6 +36,7 @@ func pgOpclassFacts() [][]any {
 		{"xid8_ops", 5069, 10053, 5067, 10052, 5032},
 		{"tid_ops", 27, 10050, 2789, 10055, 2227},
 		{"macaddr_ops", 829, 10024, 1984, 0, 0}, // Pinned18.6 class observation; released family identity.
+		{"pg_lsn_ops", 3220, pgLSNOID, 3253, 0, 0},
 		{"xid_ops", 28, 0, 0, 10051, 2225},
 		{"cid_ops", 29, 0, 0, 10054, 2226},
 		{"float4_ops", 700, 10012, 1970, 10013, 1971},
@@ -142,9 +144,28 @@ func pgOpclassMetadata(t *testing.T, r *sql.Rows, pg bool) {
 	}
 }
 
+func pgOpclassPGLSNOID(t *testing.T, p *fixture.Pair, b fixture.Backend) int64 {
+	t.Helper()
+	q := "SELECT c.oid FROM pg_catalog.pg_opclass c JOIN pg_catalog.pg_namespace n ON n.oid=c.opcnamespace JOIN pg_catalog.pg_am a ON a.oid=c.opcmethod WHERE n.nspname='pg_catalog' AND a.amname='btree' AND c.opcname='pg_lsn_ops'"
+	var oid int64
+	if err := b.DB.QueryRowContext(p.Ctx, q).Scan(&oid); err != nil || oid <= 0 || oid > 4294967295 {
+		t.Fatal("pg_lsn_ops identity", oid, err)
+	}
+	// Require exactly one matching class and exclusive ownership of its OID.
+	for _, s := range []fixture.Step{
+		fixture.Select(q, []string{"oid"}, []string{"OID"}, [][]any{{oid}}),
+		fixture.Select("SELECT oid FROM pg_catalog.pg_opclass WHERE oid=$1::oid", []string{"oid"}, []string{"OID"}, [][]any{{oid}}, oid),
+	} {
+		fixture.PgDescriptionRows(t, p, b, s)
+		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
+	}
+	return oid
+}
+
 func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
-	facts := pgOpclassFacts()
+	pgLSNOID := pgOpclassPGLSNOID(t, p, b)
+	facts := pgOpclassFacts(pgLSNOID)
 	q := "SELECT * FROM pg_catalog.pg_opclass"
 	if b.PG {
 		var predicates []string
@@ -156,6 +177,25 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	q += " ORDER BY oid"
 	for _, prepared := range []bool{false, true} {
 		pgOpclassRows(t, p, b, b.DB, q, facts, prepared)
+	}
+	// Follow this backend's class identity to its family and complete members;
+	// member OIDs are allocated identities too, not cross-backend expectations.
+	for _, s := range []fixture.Step{
+		fixture.Select("SELECT f.oid,f.opfmethod,f.opfname,f.opfnamespace,f.opfowner FROM pg_catalog.pg_opfamily f JOIN pg_catalog.pg_opclass c ON c.opcfamily=f.oid WHERE c.oid=$1::oid", []string{"oid", "opfmethod", "opfname", "opfnamespace", "opfowner"}, []string{"OID", "OID", "NAME", "OID", "OID"}, [][]any{{int64(3253), int64(403), "pg_lsn_ops", int64(11), int64(10)}}, pgLSNOID),
+		fixture.Select("SELECT m.amopstrategy,m.amoplefttype,m.amoprighttype,m.amoppurpose,m.amopopr,m.amopmethod,m.amopsortfamily FROM pg_catalog.pg_amop m JOIN pg_catalog.pg_opclass c ON c.opcfamily=m.amopfamily WHERE c.oid=$1::oid ORDER BY m.amopstrategy", []string{"amopstrategy", "amoplefttype", "amoprighttype", "amoppurpose", "amopopr", "amopmethod", "amopsortfamily"}, []string{"INT2", "OID", "OID", "CHAR", "OID", "OID", "OID"}, [][]any{
+			{int64(1), int64(3220), int64(3220), "s", int64(3224), int64(403), int64(0)},
+			{int64(2), int64(3220), int64(3220), "s", int64(3226), int64(403), int64(0)},
+			{int64(3), int64(3220), int64(3220), "s", int64(3222), int64(403), int64(0)},
+			{int64(4), int64(3220), int64(3220), "s", int64(3227), int64(403), int64(0)},
+			{int64(5), int64(3220), int64(3220), "s", int64(3225), int64(403), int64(0)},
+		}, pgLSNOID),
+		fixture.Select("SELECT m.amprocnum,m.amproclefttype,m.amprocrighttype,m.amproc::oid AS amproc FROM pg_catalog.pg_amproc m JOIN pg_catalog.pg_opclass c ON c.opcfamily=m.amprocfamily WHERE c.oid=$1::oid ORDER BY m.amprocnum", []string{"amprocnum", "amproclefttype", "amprocrighttype", "amproc"}, []string{"INT2", "OID", "OID", "OID"}, [][]any{
+			{int64(1), int64(3220), int64(3220), int64(3251)},
+			{int64(4), int64(3220), int64(3220), int64(5051)},
+		}, pgLSNOID),
+	} {
+		fixture.PgDescriptionRows(t, p, b, s)
+		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 	}
 	seenID, seenKey, defaults := map[any]bool{}, map[string]bool{}, map[string]bool{}
 	for _, r := range facts {
@@ -172,7 +212,7 @@ func pgOpclassInventory(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 			defaults[key] = true
 		}
 	}
-	if len(facts) != 144 {
+	if len(facts) != 145 {
 		t.Fatal("inventory", len(facts))
 	}
 	for _, name := range []string{"array_ops", "record_ops", "range_ops", "multirange_ops", "bit_ops", "varbit_ops", "tsquery_ops", "tsvector_ops"} {

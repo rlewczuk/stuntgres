@@ -26,6 +26,7 @@ func TestAnyValueProviderDatums(t *testing.T) {
 		sqltype.Xid:        {"0", "4294967295"},
 		sqltype.Cid:        {"0", "4294967295"},
 		sqltype.Xid8:       {"0", "9223372036854775808", "18446744073709551615"},
+		sqltype.PgLSN:      {"0/0", "0/1", "80000000/0", "FFFFFFFF/FFFFFFFF"},
 		sqltype.PgSnapshot: {"10:10:", "12:20:13,15,18", "1:18446744073709551615:3"},
 		sqltype.Refcursor:  {"", "portal name", "é🙂"},
 		sqltype.Tid:        {"(0,0)", "(1,2)", "(4294967295,65535)", "(-1,0)"},

@@ -92,6 +92,7 @@ func TestOperatorFamilySupportDeclarations(t *testing.T) {
 		{2794, 11, "bttidcmp", "27,27", 23, true, expr.Immutable},
 		{2960, 11, "uuid_cmp", "2950,2950", 23, true, expr.Immutable},
 		{2963, 11, "uuid_hash", "2950", 23, true, expr.Immutable},
+		{3251, 11, "pg_lsn_cmp", "3220,3220", 23, true, expr.Immutable},
 		{3409, 11, "time_hash_extended", "1083,20", 20, true, expr.Immutable},
 		{3410, 11, "timetz_hash_extended", "1266,20", 20, true, expr.Immutable},
 		{3411, 11, "timestamp_hash_extended", "1114,20", 20, true, expr.Immutable},

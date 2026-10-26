@@ -62,6 +62,7 @@ var castImplementedTypes = func() []castImplementedType {
 		castScalar("xid", "xid", "Identifiers", 28, "U", "1", "1"),
 		castScalar("cid", "cid", "Identifiers", 29, "U", "1", "1"),
 		castScalar("xid8", "xid8", "Identifiers", 5069, "U", "1", "1"),
+		castScalar("pg_lsn", "pg_lsn", "Identifiers", 3220, "U", "0/1", "0/1"),
 		castScalar("pg_snapshot", "pg_snapshot", "Identifiers", 5038, "U", "10:20:10,15", "10:20:10,15"),
 		castScalar("uuid", "uuid", "BinaryNetwork", 2950, "U", "00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000001"),
 		castScalar("date", "date", "Temporal", 1082, "D", "2000-01-01", "2000-01-01"),

@@ -25,30 +25,42 @@ Selectors and test-writing rules are in the [README](README.md#testing).
   assignment or explicit I/O fallback. Each vector records the selected formals;
   a source type that differs from its formal requires the released implicit
   conversion. Formals are source-derived; public metadata need not expose them.
+- `pg_lsn` uses the six exact same-type signatures in
+  [REL_18_6 pg_operator.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_operator.dat)
+  (`=, <>, <, <=, >, >=`: 3222, 3223, 3224, 3226, 3225, 3227).
+  [REL_18_6 pg_cast.dat](https://raw.githubusercontent.com/postgres/postgres/REL_18_6/src/include/catalog/pg_cast.dat)
+  declares no casts to or from `pg_lsn`; implicit operator resolution cannot use
+  explicit text I/O conversions. Every heterogeneous `pg_lsn` pair is therefore
+  an explicit no-match cell. Its ordered samples `0/1` and `80000000/0` cross the
+  signed 64-bit boundary under the released unsigned comparison.
 
 ## Inventory
 
 | Quantity | Count |
 | --- | ---: |
-| Concrete identities (56 non-array, 31 builtin arrays) | 87 |
-| Ordered pairs | 7,569 |
-| Pair/spelling cells | 52,983 |
-| Lookup-admitted / analysis-denied cells | 2,524 / 50,459 |
+| Concrete identities (57 non-array, 31 builtin arrays) | 88 |
+| Ordered pairs | 7,744 |
+| Pair/spelling cells | 54,208 |
+| Lookup-admitted / analysis-denied cells | 2,531 / 51,677 |
 | Denied cells of partially admitted pairs (XID/integer, XID, CID, ACLITEM), executed in full | 24 |
-| Empty pairs (no released operator in any slot) | 7,205 |
-| Equality-admitted pairs | 364 |
-| Wire contract: non-null-decodable sources | 86 |
+| Empty pairs (no released operator in any slot) | 7,379 |
+| Equality-admitted pairs | 365 |
+| Independently scoped wire contract: non-null-decodable sources | 86 |
 | Wire contract: cells (admitted / denied) | 51,772 (2,447 / 49,325) |
-| Classified BETWEEN triples (87³) | 658,503 |
-| Ordering-admitted triples | 4,103 |
-| Executed triples (668 ordinary, 3 leaf-demand) | 671 |
-| Executed triple/form/assignment outcomes (6 forms × 27 assignments) | 108,216 + 486 |
-| Released operator rows in the supported inventory | 552 |
+| Classified BETWEEN triples (88³) | 681,472 |
+| Ordering-admitted triples | 4,104 |
+| Executed triples (669 ordinary, 3 leaf-demand) | 672 |
+| Executed triple/form/assignment outcomes (6 forms × 27 assignments) | 108,378 + 486 |
+| Released operator rows in the supported catalog inventory | 752 |
 
 The three leaf-demand triples (JSON[], JSONPATH[], ACLITEM[]) contribute 198
 strict-NULL successes and 288 execution-demand errors. Executed BETWEEN triples
 pair each ordering-eligible identity with itself and with the next eligible
 identity, so every identity is both a lower and an upper bound.
+
+The wire corpus in `reference/sessions/server_comparison_inventory_test.go` owns
+its separate source/admission inventory; its counts above do not project every
+identity in this package's concrete corpus.
 
 ## Construction routes
 
@@ -66,7 +78,7 @@ constructors. Identities without a declarable column use real sources:
 User enums, domains and domain chains, composites, arrays of domains and
 occurrence shapes (CYCLE `RECORD[]`, `information_schema.time_stamp`) are
 parameterized rules, not finite identities; their OIDs are backend-owned, never
-hardcoded. The 87-identity corpus is fixed by the facts file; comparison
+hardcoded. The 88-identity corpus is fixed by the facts file; comparison
 witnesses for types outside it live in
 [reference/geometry_network](../geometry_network/README.md#testing) (geometry,
 MACADDR), [reference/ranges_text_search](../ranges_text_search/README.md#testing)

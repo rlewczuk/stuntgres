@@ -56,6 +56,7 @@ func TestReferencePGOpclassJSONBIdentity(t *testing.T) {
 
 func pgOpclassIndexSemantics(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
+	facts := pgOpclassFacts(pgOpclassPGLSNOID(t, p, b))
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 	run(fixture.Exec("CREATE DOMAIN opclass_domain AS INT", 0))
 	run(fixture.Exec("CREATE TYPE opclass_enum AS ENUM('a','b')", 0))
@@ -103,7 +104,7 @@ func pgOpclassIndexSemantics(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		fixture.PgDescriptionRows(t, p, b, fixture.Select("SELECT relam FROM pg_class WHERE relname='"+name+"'", []string{"relam"}, []string{"OID"}, [][]any{{method}}))
 		run(fixture.Select("SELECT pg_get_indexdef(oid) FROM pg_class WHERE relname='"+name+"'", []string{"pg_get_indexdef"}, []string{"TEXT"}, [][]any{{"CREATE INDEX " + name + " ON public.opclass_keys USING " + tc.method + " (" + tc.render + ")"}}))
 		var want [][]any
-		for _, r := range pgOpclassFacts() {
+		for _, r := range facts {
 			if r[0] == tc.oid {
 				want = append(want, r)
 			}

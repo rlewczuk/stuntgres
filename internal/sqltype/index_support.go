@@ -74,6 +74,7 @@ var nativeIndexRoutines = [...]NativeIndexRoutine{
 	{2794, "bttidcmp", 27, 27, IndexCompareRoutine, false, "27,27"},
 	{2960, "uuid_cmp", 2950, 2950, IndexCompareRoutine, false, "2950,2950"},
 	{2963, "uuid_hash", 2950, 0, IndexHashRoutine, false, "2950"},
+	{3251, "pg_lsn_cmp", 3220, 3220, IndexCompareRoutine, false, "3220,3220"},
 	{3409, "time_hash_extended", 1083, 20, IndexExtendedHashRoutine, false, "1083,20"},
 	{3410, "timetz_hash_extended", 1266, 20, IndexExtendedHashRoutine, false, "1266,20"},
 	{3411, "timestamp_hash_extended", 1114, 20, IndexExtendedHashRoutine, false, "1114,20"},

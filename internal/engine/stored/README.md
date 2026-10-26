@@ -422,6 +422,9 @@ host methods.
   Outer casts and conversions to different usages remain. Captured sequence
   constants use the same path-aware regclass presentation as other literals,
   rather than the fully qualified replay spelling.
+  Replay serialization likewise elides the exact captured leaf annotation for
+  typed `pg_lsn` constants, including NULL, without removing written outer casts,
+  domain checks or conversions to another usage.
 - **View source display.** Public deparsing uses current relation names, explicit
   aliases and natural output labels for every FROM frame, including joins.
   Frozen USING keys retain column aliases on their actual live operand slots;

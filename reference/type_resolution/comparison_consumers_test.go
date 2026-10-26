@@ -35,8 +35,8 @@ func TestReferenceComparisonConsumers(t *testing.T) {
 					rights = append(rights, right)
 				}
 			}
-			if visited != 609 {
-				t.Fatalf("visited %d consumer cells, want 609", visited)
+			if visited != 616 {
+				t.Fatalf("visited %d consumer cells, want 616", visited)
 			}
 			// At most two right identities share a 30-second scenario: PostgreSQL
 			// re-runs the catalog-valued node-tree source inside every correlated

@@ -11,6 +11,17 @@ import (
 // matched by original name and declared input types; their stored source is empty.
 // This table never creates routines or grants execution admission.
 var builtinRoutineDisplay = map[ids.OID]catalog.RoutineDisplay{
+	3231: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_lt"},
+	3232: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_le"},
+	3233: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_eq"},
+	3234: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_ge"},
+	3235: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_gt"},
+	3236: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_ne"},
+	3237: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_mi"},
+	3251: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_cmp"},
+	5022: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_pli"},
+	5023: {Language: catalog.SQLRoutineLanguage, Source: ""},
+	5024: {Language: catalog.InternalRoutineLanguage, Source: "pg_lsn_mii"},
 	3971: {Language: catalog.InternalRoutineLanguage, Source: "ordered_set_transition_multi"},
 	3987: {Language: catalog.InternalRoutineLanguage, Source: "hypothetical_rank_final"},
 	3989: {Language: catalog.InternalRoutineLanguage, Source: "hypothetical_percent_rank_final"},

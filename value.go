@@ -102,7 +102,7 @@ func importParameter(ctx context.Context, raw driver.Value, target sqltype.Usage
 		if target.Type.ID() == sqltype.Box || target.Type.ID() == sqltype.Point || target.Type.ID() == sqltype.Lseg || target.Type.ID() == sqltype.Circle || target.Type.ID() == sqltype.Line || target.Type.ID() == sqltype.Path || target.Type.ID() == sqltype.Polygon || target.Type.ID() == sqltype.Tid || target.Type.ID() == sqltype.Macaddr || target.Type.ID() == sqltype.Macaddr8 {
 			return sqltype.Null(target.Type), nil
 		}
-		if target.Type.BaseType().ID() == sqltype.PgSnapshot {
+		if target.Type.BaseType().ID() == sqltype.PgSnapshot || target.Type.BaseType().ID() == sqltype.PgLSN {
 			return sqltype.Null(target.Type), nil
 		}
 		if target.Type.IsHstore() || target.Type.IsEan13() || target.Type.IsIsbn() || target.Type.IsIsbn13() || target.Type.IsIsmn() || target.Type.IsIsmn13() || target.Type.IsIssn() || target.Type.IsIssn13() || target.Type.IsUpc() || target.Type.IsCitext() || target.Type.IsCube() || target.Type.IsQueryInt() || (target.Type.IsLquery() || target.Type.IsLtree() || target.Type.IsLtxtquery()) || sqltype.IsTransactionIdentifier(target.Type.ID()) || sqltype.IsOperatorAlias(target.Type.ID()) || sqltype.IsRegObjectAlias(target.Type.ID()) || sqltype.IsRegTS(target.Type.ID()) {
@@ -238,7 +238,7 @@ func exportValue(ctx context.Context, v sqltype.Value, output sqltype.OutputEnvi
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.ACLItem:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
-	case sqltype.Circle, sqltype.Polygon, sqltype.Tid, sqltype.Macaddr, sqltype.Macaddr8, sqltype.Inet, sqltype.Cidr:
+	case sqltype.Circle, sqltype.Polygon, sqltype.Tid, sqltype.Macaddr, sqltype.Macaddr8, sqltype.Inet, sqltype.Cidr, sqltype.PgLSN:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
 	case sqltype.Regtype, sqltype.Regproc, sqltype.Regprocedure, sqltype.Regrole, sqltype.Regoper, sqltype.Regoperator, sqltype.Regcollation, sqltype.Regnamespace, sqltype.Regconfig, sqltype.Regdictionary:
 		return v.Type().OutputWithEnvironment(ctx, v, output)
@@ -300,7 +300,7 @@ func scanType(d *sqltype.Descriptor) reflect.Type {
 		return reflect.TypeFor[string]()
 	case sqltype.ACLItem:
 		return reflect.TypeFor[string]()
-	case sqltype.Circle, sqltype.Polygon, sqltype.Tid, sqltype.Macaddr, sqltype.Macaddr8, sqltype.Inet, sqltype.Cidr:
+	case sqltype.Circle, sqltype.Polygon, sqltype.Tid, sqltype.Macaddr, sqltype.Macaddr8, sqltype.Inet, sqltype.Cidr, sqltype.PgLSN:
 		return reflect.TypeFor[string]()
 	case sqltype.Bytea, sqltype.Xid, sqltype.Cid, sqltype.Xid8, sqltype.PgSnapshot:
 		return reflect.TypeFor[[]byte]()

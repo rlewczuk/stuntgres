@@ -64,7 +64,7 @@ func (d *Descriptor) AttributeFacts() PostgreSQLAttributeFacts {
 	case Int4, Oid, Xid, Cid, Date, Float4, Regproc, Regclass, Regtype, Regrole, Regoper, Regoperator, Void,
 		269, 325, 2202, 2276, 2279, 2280, 2283, 2776, 3115, 3310, 3500, 3734, 3769, 3838, 4089, 4191, 5077, 5079:
 		f.ByValue = true
-	case Int8, Float8, Money, Time, Timestamp, Timestamptz, Xid8, 32, 2281, 3220:
+	case Int8, Float8, Money, Time, Timestamp, Timestamptz, Xid8, PgLSN, 32, 2281:
 		f.ByValue, f.Alignment = true, "d"
 	case Interval, Timetz, ACLItem, 600, 601, 603, 628, 718:
 		f.Alignment = "d"

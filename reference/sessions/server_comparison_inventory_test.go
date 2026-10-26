@@ -14,9 +14,10 @@ import (
 // input to these expectations. The sibling type_resolution ledger retains
 // every selected operator/routine/formal and release-resolution provenance.
 //
-// The 86 nonnull wire sources are the 87 finite executable types minus
-// PG_NODE_TREE (catalog expression only, no nonnull input). Deferred RECORD and
-// canonical ANYARRAY NULL are separate shape/catalog routes, not nonnull input.
+// These 86 nonnull wire sources form an independently scoped corpus, not an
+// exhaustive projection of type_resolution's concrete inventory. PG_NODE_TREE
+// has only catalog expressions; deferred RECORD and canonical ANYARRAY NULL
+// have separate shape/catalog routes rather than nonnull inputs.
 // Scalar TID has text only; ACLITEM and ACLITEM[] lack binary receivers; VOID
 // has its zero-byte binary receiver only. No absent codec is manufactured.
 type serverComparisonSource struct {

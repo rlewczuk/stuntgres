@@ -100,6 +100,9 @@ func (p Arithmetic) Binary(ctx context.Context, a, b Value, input InputEnvironme
 	if a.null || b.null {
 		return Null(p.result), nil
 	}
+	if p.left.id == PgLSN || p.right.id == PgLSN {
+		return p.pgLSNBinary(ctx, a, b)
+	}
 	if p.left.id == Inet || p.right.id == Inet {
 		return p.networkBinary(a, b)
 	}

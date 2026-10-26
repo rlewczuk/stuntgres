@@ -13,7 +13,7 @@ var comparisonSpellings = []string{"=", "<>", "!=", "<", "<=", ">", ">="}
 var comparisonOperatorSlots = []int{0, 1, 1, 2, 3, 4, 5}
 
 func comparisonSignature(left, right int) comparisonReleasedSignature {
-	if len(comparisonConcrete) != 87 || len(comparisonReleasedCells) != 87 || len(comparisonReleasedCells[left]) != 87 {
+	if len(comparisonConcrete) != 88 || len(comparisonReleasedCells) != 88 || len(comparisonReleasedCells[left]) != 88 {
 		panic("incomplete concrete comparison ledger")
 	}
 	index := strings.IndexByte(comparisonLedgerAlphabet, comparisonReleasedCells[left][right])
@@ -240,8 +240,8 @@ func comparisonMatrix(t *testing.T, family string) {
 				}
 				values.flush(t, p, b)
 				empties.flush(t, p, b)
-				if visited != 609 {
-					t.Fatalf("visited %d cells, want 609", visited)
+				if visited != 616 {
+					t.Fatalf("visited %d cells, want 616", visited)
 				}
 			})
 		})

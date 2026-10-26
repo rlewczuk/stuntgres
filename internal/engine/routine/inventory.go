@@ -14,6 +14,17 @@ import (
 // Source: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/include/catalog/pg_proc.dat
 // Defaults: https://raw.githubusercontent.com/postgres/postgres/REL_18_0/src/backend/catalog/system_functions.sql
 var BuiltinRoutineDeclarations = completeCastRoutines([]catalog.BuiltinRoutineDeclaration{
+	{catalog.RoutineIdentity{3231, ids.PGCatalogNamespaceOID, "pg_lsn_lt", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{3232, ids.PGCatalogNamespaceOID, "pg_lsn_le", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{3233, ids.PGCatalogNamespaceOID, "pg_lsn_eq", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{3234, ids.PGCatalogNamespaceOID, "pg_lsn_ge", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{3235, ids.PGCatalogNamespaceOID, "pg_lsn_gt", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{3236, ids.PGCatalogNamespaceOID, "pg_lsn_ne", "3220,3220"}, catalog.FunctionRoutine, 16, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{3237, ids.PGCatalogNamespaceOID, "pg_lsn_mi", "3220,3220"}, catalog.FunctionRoutine, 1700, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{3251, ids.PGCatalogNamespaceOID, "pg_lsn_cmp", "3220,3220"}, catalog.FunctionRoutine, 23, true, expr.Immutable, 's', false, 0, 0, functions.IndexSupportRoutineProvider},
+	{catalog.RoutineIdentity{5022, ids.PGCatalogNamespaceOID, "pg_lsn_pli", "3220,1700"}, catalog.FunctionRoutine, 3220, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{5023, ids.PGCatalogNamespaceOID, "numeric_pl_pg_lsn", "1700,3220"}, catalog.FunctionRoutine, 3220, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
+	{catalog.RoutineIdentity{5024, ids.PGCatalogNamespaceOID, "pg_lsn_mii", "3220,1700"}, catalog.FunctionRoutine, 3220, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	// Selected REL_18_6 Table 9.36 operators; names do not grant call admission.
 	{catalog.RoutineIdentity{1441, ids.PGCatalogNamespaceOID, "point_add", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},
 	{catalog.RoutineIdentity{1442, ids.PGCatalogNamespaceOID, "point_sub", "600,600"}, catalog.FunctionRoutine, 600, true, expr.Immutable, 's', false, 0, 0, functions.OperatorRoutineProvider},

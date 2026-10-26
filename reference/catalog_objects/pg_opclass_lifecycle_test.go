@@ -73,9 +73,9 @@ func TestReferencePGOpclassHeldExecution(t *testing.T) {
 	})
 }
 
-func pgOpclassViewRows() [][]any {
+func pgOpclassViewRows(facts [][]any) [][]any {
 	var want [][]any
-	for _, r := range pgOpclassFacts() {
+	for _, r := range facts {
 		if r[1] == int64(403) {
 			want = append(want, []any{r[0], r[2]})
 		}
@@ -85,6 +85,7 @@ func pgOpclassViewRows() [][]any {
 
 func pgOpclassLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	t.Helper()
+	facts := pgOpclassFacts(pgOpclassPGLSNOID(t, p, b))
 	run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, b.DB, b.Recorder, s) }
 	run(fixture.Exec("CREATE TABLE opclass_life(n INT,s TEXT)", 0))
 	run(fixture.Exec("INSERT INTO opclass_life VALUES(7,'kept'),(8,'also')", 2))
@@ -102,12 +103,12 @@ func pgOpclassLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 		q := "SELECT oid,opcname FROM opclass_life_view"
 		if b.PG {
 			var ids []string
-			for _, r := range pgOpclassViewRows() {
+			for _, r := range pgOpclassViewRows(facts) {
 				ids = append(ids, fmt.Sprint(r[0]))
 			}
 			q += " WHERE oid IN (" + strings.Join(ids, ",") + ")"
 		}
-		s := fixture.Select(q+" ORDER BY oid", []string{"oid", "opcname"}, []string{"OID", "NAME"}, pgOpclassViewRows())
+		s := fixture.Select(q+" ORDER BY oid", []string{"oid", "opcname"}, []string{"OID", "NAME"}, pgOpclassViewRows(facts))
 		fixture.PgDescriptionRows(t, p, b, s)
 		fixture.PgDescriptionRows(t, p, b, fixture.Prepared(s))
 		run(fixture.Select("SELECT n,s FROM opclass_life ORDER BY n", []string{"n", "s"}, []string{"INT4", "TEXT"}, [][]any{{int64(7), "kept"}, {int64(8), "also"}}))
@@ -143,7 +144,7 @@ func pgOpclassLifecycle(t *testing.T, p *fixture.Pair, b fixture.Backend) {
 	// database/sql closes Rows automatically at EOF; inspect the retained
 	// cursor's metadata after replacement, while it is still open.
 	pgOpclassMetadata(t, old, false)
-	pgOpclassConsume(t, old, pgOpclassFacts())
+	pgOpclassConsume(t, old, facts)
 	var again bytes.Buffer
 	if err := stuntgres.Dump(p.Ctx, p.Native, &again); err != nil {
 		t.Fatal(err)

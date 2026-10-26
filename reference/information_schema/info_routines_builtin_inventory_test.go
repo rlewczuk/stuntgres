@@ -58,9 +58,20 @@ func TestReferenceInfoRoutinesBuiltinInventory(t *testing.T) {
 		irBuiltinFact{2161, "text_pattern_le", "text_pattern_le", "INTERNAL", "INVOKER"},
 		irBuiltinFact{2163, "text_pattern_ge", "text_pattern_ge", "INTERNAL", "INVOKER"},
 		irBuiltinFact{2164, "text_pattern_gt", "text_pattern_gt", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3231, "pg_lsn_lt", "pg_lsn_lt", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3232, "pg_lsn_le", "pg_lsn_le", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3233, "pg_lsn_eq", "pg_lsn_eq", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3234, "pg_lsn_ge", "pg_lsn_ge", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3235, "pg_lsn_gt", "pg_lsn_gt", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3236, "pg_lsn_ne", "pg_lsn_ne", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3237, "pg_lsn_mi", "pg_lsn_mi", "INTERNAL", "INVOKER"},
+		irBuiltinFact{3251, "pg_lsn_cmp", "pg_lsn_cmp", "INTERNAL", "INVOKER"},
+		irBuiltinFact{5022, "pg_lsn_pli", "pg_lsn_pli", "INTERNAL", "INVOKER"},
+		irBuiltinFact{5023, "numeric_pl_pg_lsn", "", "SQL", "INVOKER"},
+		irBuiltinFact{5024, "pg_lsn_mii", "pg_lsn_mii", "INTERNAL", "INVOKER"},
 	)
-	if len(facts) != 1696 {
-		t.Fatalf("released represented inventory: got %d, want 1696", len(facts))
+	if len(facts) != 1707 {
+		t.Fatalf("released represented inventory: got %d, want 1707", len(facts))
 	}
 	seen := make(map[uint32]bool, len(facts))
 	for _, fact := range facts {
