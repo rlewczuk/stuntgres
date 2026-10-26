@@ -17,6 +17,11 @@ Follow [docs/TESTING.md](../../docs/TESTING.md) and the shared catalog rules in
 package. The column inventory (`info_columns_provider_helpers_test.go`) reads the
 other families' column vectors from `reference/fixture/catalog_columns.go`.
 
+Every query of these views builds the whole view before filtering, so an
+inventory of builtin or installed objects (view definitions per display mode,
+parameter names, extension members) is one batched query per consumer in one
+scenario, never one scenario or query per object.
+
 Run a family with `make check RUN='...'`; add `REFERENCE=1` for the oracle.
 
 - Information schema: `RUN='^TestReferenceInfo'` (shared with `reference/catalog_privileges`)

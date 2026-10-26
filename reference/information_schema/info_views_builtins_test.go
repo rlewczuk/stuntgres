@@ -2,6 +2,7 @@ package reference_test
 
 import (
 	"database/sql"
+	"strings"
 	"testing"
 
 	"stuntgres/reference/fixture"
@@ -60,46 +61,54 @@ func TestReferenceInfoViewsBuiltins(t *testing.T) {
 		{"quote_shadow", "public,pg_catalog", ivBuiltinQuoteShadowDefinitions, true},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
-			for _, candidate := range ivBuiltinNames {
-				t.Run(candidate.name, func(t *testing.T) {
-					ivScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, database string) {
-						run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
-						if mode.name == "shadow" || mode.name == "quote_shadow" {
-							for _, q := range []string{
-								"CREATE TABLE public.pg_authid(n integer)",
-								"CREATE TABLE public.pg_class(n integer)",
-								"CREATE TABLE public.pg_namespace(n integer)",
-								"CREATE TABLE public.pg_attribute(n integer)",
-								"CREATE FUNCTION public.pg_get_userbyid(oid) RETURNS name BEGIN ATOMIC SELECT 'shadow'::name; END",
-							} {
-								run(fixture.Exec(q, 0))
-							}
-						}
-						run(fixture.Exec("SET search_path="+mode.path, 0))
-						if mode.quote {
-							run(fixture.Exec("SET quote_all_identifiers=on", 0))
-						}
-						update, insert := "NO", "NO"
-						if candidate.name == "pg_group" {
-							update, insert = "YES", "YES"
-						}
-						key := candidate.schema + "." + candidate.name
-						definition, ok := mode.definitions[key]
-						if !ok {
-							t.Fatalf("missing independent %s definition for %s", mode.name, key)
-						}
-						s := ivStep(b.PG, ivSelect, [][]any{ivRow(database, candidate.schema, candidate.name, definition, "NONE", update, insert)}, candidate.schema, candidate.name)
-						run(s)
-						run(fixture.Prepared(s))
-						ivHeld(t, p, b, c, ivSelect)(s)
-						summarySQL := "SELECT definition FROM pg_catalog.pg_views WHERE schemaname=$1 AND viewname=$2"
-						summary := fixture.Select(summarySQL, []string{"definition"}, []string{"TEXT"}, [][]any{{definition}}, candidate.schema, candidate.name)
-						run(summary)
-						run(fixture.Prepared(summary))
-						ivHeld(t, p, b, c, summarySQL)(summary)
-					})
-				})
-			}
+			ivScenario(t, func(t *testing.T, p *fixture.Pair, b fixture.Backend, c *sql.Conn, database string) {
+				run := func(s fixture.Step) { fixture.RunStep(t, p.Ctx, c, b.Recorder, s) }
+				if mode.name == "shadow" || mode.name == "quote_shadow" {
+					for _, q := range []string{
+						"CREATE TABLE public.pg_authid(n integer)",
+						"CREATE TABLE public.pg_class(n integer)",
+						"CREATE TABLE public.pg_namespace(n integer)",
+						"CREATE TABLE public.pg_attribute(n integer)",
+						"CREATE FUNCTION public.pg_get_userbyid(oid) RETURNS name BEGIN ATOMIC SELECT 'shadow'::name; END",
+					} {
+						run(fixture.Exec(q, 0))
+					}
+				}
+				run(fixture.Exec("SET search_path="+mode.path, 0))
+				if mode.quote {
+					run(fixture.Exec("SET quote_all_identifiers=on", 0))
+				}
+				// One read per consumer selects exactly the candidates; parameterized
+				// single-view lookups are held_display_settings' and nonowner_disclosure's.
+				var keys []string
+				var rows, summaries [][]any
+				for _, candidate := range ivBuiltinNames {
+					update, insert := "NO", "NO"
+					if candidate.name == "pg_group" {
+						update, insert = "YES", "YES"
+					}
+					key := candidate.schema + "." + candidate.name
+					definition, ok := mode.definitions[key]
+					if !ok {
+						t.Fatalf("missing independent %s definition for %s", mode.name, key)
+					}
+					keys = append(keys, "'"+key+"'")
+					rows = append(rows, ivRow(database, candidate.schema, candidate.name, definition, "NONE", update, insert))
+					summaries = append(summaries, []any{candidate.schema, candidate.name, definition})
+				}
+				selected := " IN (" + strings.Join(keys, ",") + ")"
+				viewsSQL := "SELECT * FROM information_schema.views WHERE table_schema||'.'||table_name" + selected
+				s := ivStep(b.PG, viewsSQL, rows)
+				run(s)
+				run(fixture.Prepared(s))
+				ivHeld(t, p, b, c, viewsSQL)(s)
+				summarySQL := "SELECT schemaname,viewname,definition FROM pg_catalog.pg_views WHERE schemaname||'.'||viewname" + selected
+				summary := fixture.Select(summarySQL, []string{"schemaname", "viewname", "definition"}, []string{"NAME", "NAME", "TEXT"}, summaries)
+				summary.Bag = true
+				run(summary)
+				run(fixture.Prepared(summary))
+				ivHeld(t, p, b, c, summarySQL)(summary)
+			})
 		})
 	}
 	t.Run("held_display_settings", func(t *testing.T) {
