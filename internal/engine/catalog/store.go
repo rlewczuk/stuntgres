@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/util"
 )
 
 // Store owns one engine's catalog state: the provenance domain, the
@@ -27,6 +28,41 @@ type Store struct {
 	nextOID        ids.OID
 	nextRevision   ids.DefinitionRevision
 	nextEnumMember int64
+	definitionOIDs definitionOIDSet
+}
+
+// definitionOIDSet holds the definition OIDs of one descriptor map. Every
+// descriptor write replaces a State's map value, so an equal map value has the
+// same descriptors. The set is never written after it is built, so Store copies
+// may share it.
+type definitionOIDSet struct {
+	valid       bool
+	descriptors util.PersistentMap[ids.ObjectAddress, Descriptor]
+	used        map[ids.OID]bool
+}
+
+// definitionOIDUsedLocked reports whether a descriptor of the published state
+// owns id as a definition OID. It builds one set per descriptor map instead of
+// scanning every descriptor per candidate OID. A bulk load writes in place
+// behind an unchanged map, so it scans.
+func (s *Store) definitionOIDUsedLocked(id ids.OID) bool {
+	state := s.State
+	if state.bulk != nil {
+		for _, descriptor := range state.Descriptors() {
+			if DefinitionOIDUsed(descriptor, id) {
+				return true
+			}
+		}
+		return false
+	}
+	if !s.definitionOIDs.valid || s.definitionOIDs.descriptors != state.descriptors {
+		used := make(map[ids.OID]bool)
+		for _, descriptor := range state.Descriptors() {
+			ReserveDefinitionOIDs(used, descriptor)
+		}
+		s.definitionOIDs = definitionOIDSet{valid: true, descriptors: state.descriptors, used: used}
+	}
+	return s.definitionOIDs.used[id]
 }
 
 // NewStore returns a store with no published state, a fresh provenance
@@ -128,14 +164,7 @@ func (s *Store) AllocateOIDFromLocked(cursor *ids.OID, floor ids.OID) (ids.OID, 
 		if _, ok := s.State.Find(ids.ObjectAddress{ClassID: ids.DatabaseClassID, ObjectID: n}); ok {
 			continue
 		}
-		usedRule := false
-		for _, descriptor := range s.State.Descriptors() {
-			if DefinitionOIDUsed(descriptor, n) {
-				usedRule = true
-				break
-			}
-		}
-		if usedRule {
+		if s.definitionOIDUsedLocked(n) {
 			continue
 		}
 		usedDefault := false
